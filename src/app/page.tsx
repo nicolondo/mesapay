@@ -118,13 +118,14 @@ function Hero({
             En vivo en Medellín
           </div>
           <h1 className="mt-5 font-display text-[44px] leading-[1.02] md:text-[72px] md:leading-[1.02] tracking-[-0.025em] fade-up" style={{ animationDelay: "0.05s" }}>
-            La fila para pagar,{" "}
+            La cuenta por favor,{" "}
             <em className="italic shimmer-text">en su mesa</em>.
           </h1>
           <p className="mt-5 max-w-xl text-lg md:text-xl text-ink-3 fade-up" style={{ animationDelay: "0.15s" }}>
-            MESAPAY convierte cada mesa en una caja. Tus clientes escanean el QR,
-            ordenan y pagan sin esperar a nadie — y tú ves todo en vivo desde la
-            cocina hasta el cierre de turno.
+            Tus comensales piden y pagan desde su celular escaneando el QR de la
+            mesa. Tú dejas de esperar a que alguien pida la cuenta, rotas mesas
+            más rápido y ves cada orden, cada pago y cada propina en vivo hasta
+            el cierre de turno.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3 fade-up" style={{ animationDelay: "0.25s" }}>
             <Link
@@ -671,8 +672,8 @@ function Pricing() {
                 <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70">
                   {t.name}
                 </div>
-                <div className="mt-4 flex items-baseline gap-1.5">
-                  <span className="font-display text-5xl tracking-[-0.02em] tabular">
+                <div className="mt-4 flex items-baseline gap-1.5 flex-wrap">
+                  <span className="font-display text-5xl tracking-[-0.02em] tabular whitespace-nowrap">
                     {t.price}
                   </span>
                   <span className="font-mono text-xs opacity-70">{t.per}</span>

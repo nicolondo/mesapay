@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
+import { welcomeIfFirstTime } from "@/lib/mailer";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -103,6 +104,12 @@ export async function POST(
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: order.id,
   });
+
+  if (result.fullyPaid && order.customerId) {
+    welcomeIfFirstTime(order.customerId).catch((err) =>
+      console.error("[welcomeIfFirstTime]", err),
+    );
+  }
 
   return NextResponse.json({
     paymentId: result.payment.id,

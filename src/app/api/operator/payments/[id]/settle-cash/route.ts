@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
+import { welcomeIfFirstTime } from "@/lib/mailer";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -113,6 +114,12 @@ export async function POST(
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: payment.orderId,
   });
+
+  if (result.fullyPaid && payment.order.customerId) {
+    welcomeIfFirstTime(payment.order.customerId).catch((err) =>
+      console.error("[welcomeIfFirstTime]", err),
+    );
+  }
 
   return NextResponse.json({
     ok: true,

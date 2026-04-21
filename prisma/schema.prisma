@@ -72,14 +72,17 @@ enum Role {
 }
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  name         String?
-  passwordHash String
-  role         Role        @default(customer)
-  restaurantId String?
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt    DateTime    @default(now())
+  id             String      @id @default(cuid())
+  email          String      @unique
+  name           String?
+  phone          String?
+  passwordHash   String
+  role           Role        @default(customer)
+  restaurantId   String?
+  restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  marketingOptIn Boolean     @default(false)
+  welcomedAt     DateTime?
+  createdAt      DateTime    @default(now())
 
   orders Order[] @relation("OrderCustomer")
 

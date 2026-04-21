@@ -87,11 +87,19 @@ function SignIn() {
           {busy ? "Ingresando…" : "Ingresar"}
         </button>
 
-        <div className="mt-5 text-sm text-muted text-center">
-          ¿No tienes cuenta?{" "}
-          <Link href="/signup/restaurant" className="text-terracotta underline">
-            Registra tu restaurante
-          </Link>
+        <div className="mt-5 text-sm text-muted text-center space-y-1">
+          <div>
+            ¿Eres cliente?{" "}
+            <Link href="/signup" className="text-terracotta underline">
+              Crea tu cuenta
+            </Link>
+          </div>
+          <div>
+            ¿Eres restaurante?{" "}
+            <Link href="/signup/restaurant" className="text-terracotta underline">
+              Registra tu restaurante
+            </Link>
+          </div>
         </div>
 
         <div className="mt-7 pt-5 border-t border-hairline text-[11px] text-muted-2 leading-relaxed">

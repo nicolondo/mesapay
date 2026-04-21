@@ -154,6 +154,13 @@ function Hero({
               <Check /> Compatible con tu cocina actual
             </span>
           </div>
+          <div className="mt-5 text-xs text-muted fade-up" style={{ animationDelay: "0.45s" }}>
+            ¿Cliente?{" "}
+            <Link href="/signup" className="text-terracotta underline">
+              Crea tu cuenta
+            </Link>{" "}
+            para guardar tu historial y pagar más rápido.
+          </div>
         </div>
 
         <div className="md:col-span-5 flex justify-center fade-up" style={{ animationDelay: "0.2s" }}>
@@ -858,6 +865,11 @@ function SiteFooter() {
             <li>
               <Link href="/signup/restaurant" className="hover:text-ink">
                 Registrar restaurante
+              </Link>
+            </li>
+            <li>
+              <Link href="/signup" className="hover:text-ink">
+                Crear cuenta de cliente
               </Link>
             </li>
             <li>

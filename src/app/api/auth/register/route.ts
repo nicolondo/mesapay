@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { sendWelcomeEmail } from "@/lib/mailer";
 
 const schema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).max(80).optional(),
+  name: z.string().trim().min(1).max(80).optional(),
+  phone: z
+    .string()
+    .trim()
+    .min(6)
+    .max(24)
+    .regex(/^[+\d][\d\s().-]*$/, "teléfono inválido")
+    .optional(),
   password: z.string().min(6).max(120),
+  marketingOptIn: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -25,9 +34,20 @@ export async function POST(req: Request) {
     data: {
       email,
       name: parsed.data.name,
+      phone: parsed.data.phone,
       passwordHash,
       role: "customer",
+      marketingOptIn: parsed.data.marketingOptIn ?? false,
     },
   });
+
+  const sent = await sendWelcomeEmail({ email: user.email, name: user.name });
+  if (sent) {
+    await db.user.update({
+      where: { id: user.id },
+      data: { welcomedAt: new Date() },
+    });
+  }
+
   return NextResponse.json({ ok: true, id: user.id });
 }

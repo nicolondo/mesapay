@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { computeEtaMinutes } from "@/lib/pickupEta";
+import {
+  isWithinEtaCap,
+  pickupStatus,
+} from "@/lib/pickupAvailability";
 
 const schema = z.object({
   items: z
@@ -29,5 +33,13 @@ export async function POST(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const etaMinutes = await computeEtaMinutes(tenant.id, parsed.data.items);
-  return NextResponse.json({ etaMinutes });
+  const status = pickupStatus(tenant.pickupHours);
+  const withinCap = isWithinEtaCap(etaMinutes, tenant.pickupMaxEtaMinutes);
+  return NextResponse.json({
+    etaMinutes,
+    open: status.open,
+    nextOpenAt: status.nextOpenAt ? status.nextOpenAt.toISOString() : null,
+    saturated: !withinCap,
+    maxEtaMinutes: tenant.pickupMaxEtaMinutes,
+  });
 }

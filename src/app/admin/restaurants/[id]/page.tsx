@@ -12,6 +12,7 @@ import {
   type MembershipStatus,
 } from "@/lib/membership";
 import {
+  PickupSchedulePanel,
   PickupToggle,
   PlanEditor,
   RecordPaymentForm,
@@ -262,6 +263,17 @@ export default async function RestaurantDetail({
           El QR de recogida se imprime desde Mesas. El tiempo de espera se
           calcula en vivo según lo que esté en cocina.
         </div>
+        {rest.pickupEnabled && (
+          <div className="mt-5 pt-4 border-t border-op-border">
+            <PickupSchedulePanel
+              restaurantId={id}
+              pickupHours={
+                rest.pickupHours as Record<string, unknown> | null
+              }
+              pickupMaxEtaMinutes={rest.pickupMaxEtaMinutes}
+            />
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">

@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import {
+  formatNextOpening,
+  pickupStatus,
+} from "@/lib/pickupAvailability";
 import { PickupClient } from "./PickupClient";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +60,25 @@ export default async function PickupPage({
     return notFound();
   }
 
+  const status = pickupStatus(tenant.pickupHours);
+  if (!status.open) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-6 py-20 bg-bone">
+        <div className="text-center max-w-sm">
+          <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta mb-3">
+            {tenant.name}
+          </div>
+          <h1 className="font-display text-3xl mb-3">Ahora estamos cerrados</h1>
+          <p className="text-muted">
+            {status.nextOpenAt
+              ? `Abrimos de nuevo ${formatNextOpening(status.nextOpenAt)}.`
+              : "No hay próxima apertura programada. Vuelve más tarde."}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const session = await auth();
   const customer = session?.user?.id
     ? await db.user.findUnique({
@@ -70,6 +93,7 @@ export default async function PickupPage({
         slug: tenant.slug,
         name: tenant.name,
         tagline: tenant.tagline,
+        maxEtaMinutes: tenant.pickupMaxEtaMinutes,
       }}
       tableId={pickupTable.id}
       defaults={{

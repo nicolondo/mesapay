@@ -22,7 +22,12 @@ export function PickupClient({
   categories,
   items,
 }: {
-  tenant: { slug: string; name: string; tagline: string | null };
+  tenant: {
+    slug: string;
+    name: string;
+    tagline: string | null;
+    maxEtaMinutes: number | null;
+  };
   tableId: string;
   defaults: { name: string; phone: string };
   categories: Category[];
@@ -33,10 +38,12 @@ export function PickupClient({
   const [name, setName] = useState(defaults.name);
   const [phone, setPhone] = useState(defaults.phone);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [eta, setEta] = useState<{ minutes: number; loading: boolean }>({
-    minutes: 0,
-    loading: false,
-  });
+  const [eta, setEta] = useState<{
+    minutes: number;
+    loading: boolean;
+    saturated: boolean;
+    closed: boolean;
+  }>({ minutes: 0, loading: false, saturated: false, closed: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -88,7 +95,12 @@ export function PickupClient({
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelled || !j) return;
-        setEta({ minutes: j.etaMinutes, loading: false });
+        setEta({
+          minutes: j.etaMinutes,
+          loading: false,
+          saturated: !!j.saturated,
+          closed: !j.open,
+        });
       })
       .catch(() => {
         if (!cancelled) setEta((e) => ({ ...e, loading: false }));
@@ -128,7 +140,17 @@ export function PickupClient({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos procesar tu pedido.");
+      if (j.error === "saturated") {
+        setErr(
+          `Cocina saturada (ETA ${j.etaMinutes ?? "?"} min, tope ${
+            j.maxEtaMinutes ?? "?"
+          } min). Intenta de nuevo en unos minutos.`,
+        );
+      } else if (j.error === "closed") {
+        setErr("Cerramos por ahora. Vuelve en el próximo horario de atención.");
+      } else {
+        setErr(j.error ?? "No pudimos procesar tu pedido.");
+      }
       return;
     }
     const j = await res.json();
@@ -251,7 +273,14 @@ export function PickupClient({
             </div>
 
             <div className="p-5 space-y-4">
-              <div className="rounded-xl border border-hairline bg-paper p-3">
+              <div
+                className={
+                  "rounded-xl border p-3 " +
+                  (eta.saturated || eta.closed
+                    ? "border-danger/40 bg-danger/5"
+                    : "border-hairline bg-paper")
+                }
+              >
                 <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
                   Tiempo estimado de espera
                 </div>
@@ -259,7 +288,15 @@ export function PickupClient({
                   {eta.loading ? "…" : `${eta.minutes} min`}
                 </div>
                 <div className="text-[11px] text-muted mt-1">
-                  Basado en las órdenes que están en cocina ahora.
+                  {eta.closed
+                    ? "Cerramos por ahora. Vuelve en el próximo horario."
+                    : eta.saturated
+                      ? `Cocina saturada${
+                          tenant.maxEtaMinutes
+                            ? ` (tope ${tenant.maxEtaMinutes} min)`
+                            : ""
+                        }. No podemos recibir más pedidos en este momento.`
+                      : "Basado en las órdenes que están en cocina ahora."}
                 </div>
               </div>
 
@@ -324,14 +361,14 @@ export function PickupClient({
               <div className="space-y-2">
                 <button
                   onClick={() => placeAndPay("demo_card")}
-                  disabled={busy}
+                  disabled={busy || eta.saturated || eta.closed}
                   className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
                 >
                   {busy ? "Procesando…" : `Pagar con tarjeta · ${fmtCOP(subtotal)}`}
                 </button>
                 <button
                   onClick={() => placeAndPay("demo_nequi")}
-                  disabled={busy}
+                  disabled={busy || eta.saturated || eta.closed}
                   className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
                 >
                   Pagar con Nequi

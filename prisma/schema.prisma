@@ -22,6 +22,8 @@ model Restaurant {
 
   serviceMode       ServiceMode @default(table)
   pickupEnabled     Boolean     @default(false)
+  pickupHours       Json?
+  pickupMaxEtaMinutes Int?      @default(45)
 
   users               User[]
   tables              Table[]

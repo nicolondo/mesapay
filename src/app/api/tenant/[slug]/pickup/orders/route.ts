@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
+import {
+  isWithinEtaCap,
+  pickupStatus,
+} from "@/lib/pickupAvailability";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 
 const itemSchema = z.object({
@@ -70,9 +74,33 @@ export async function POST(
     0,
   );
 
+  // Gate on hours and capacity before we touch the DB. The client also
+  // surfaces these but we cannot trust it — someone can POST straight to
+  // this route outside of business hours.
+  const status = pickupStatus(tenant.pickupHours);
+  if (!status.open) {
+    return NextResponse.json(
+      {
+        error: "closed",
+        nextOpenAt: status.nextOpenAt ? status.nextOpenAt.toISOString() : null,
+      },
+      { status: 409 },
+    );
+  }
+
   // Lock in the ETA at payment approval so the customer sees a stable
   // "ready in ~X min" after they tap pay, even if more orders queue behind.
   const etaMinutes = await computeEtaMinutes(tenant.id, parsed.data.items);
+  if (!isWithinEtaCap(etaMinutes, tenant.pickupMaxEtaMinutes)) {
+    return NextResponse.json(
+      {
+        error: "saturated",
+        etaMinutes,
+        maxEtaMinutes: tenant.pickupMaxEtaMinutes,
+      },
+      { status: 409 },
+    );
+  }
   const now = new Date();
   const readyEta = new Date(now.getTime() + etaMinutes * 60_000);
 

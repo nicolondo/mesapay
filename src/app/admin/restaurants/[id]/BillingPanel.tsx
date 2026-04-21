@@ -373,4 +373,295 @@ export function PickupToggle({
   );
 }
 
+type DayCode = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+type Window = { from: string; to: string };
+type PickupHoursInput = Record<DayCode, Window[]>;
+
+const DAY_ORDER: { key: DayCode; label: string }[] = [
+  { key: "mon", label: "Lunes" },
+  { key: "tue", label: "Martes" },
+  { key: "wed", label: "Miércoles" },
+  { key: "thu", label: "Jueves" },
+  { key: "fri", label: "Viernes" },
+  { key: "sat", label: "Sábado" },
+  { key: "sun", label: "Domingo" },
+];
+
+const EMPTY_HOURS: PickupHoursInput = {
+  mon: [],
+  tue: [],
+  wed: [],
+  thu: [],
+  fri: [],
+  sat: [],
+  sun: [],
+};
+
+const DEFAULT_HOURS: PickupHoursInput = {
+  mon: [{ from: "11:00", to: "22:00" }],
+  tue: [{ from: "11:00", to: "22:00" }],
+  wed: [{ from: "11:00", to: "22:00" }],
+  thu: [{ from: "11:00", to: "22:00" }],
+  fri: [{ from: "11:00", to: "22:00" }],
+  sat: [{ from: "11:00", to: "22:00" }],
+  sun: [{ from: "11:00", to: "22:00" }],
+};
+
+function normalizeHours(
+  raw: Record<string, unknown> | null | undefined,
+): PickupHoursInput | null {
+  if (!raw) return null;
+  const out: PickupHoursInput = { ...EMPTY_HOURS };
+  let any = false;
+  for (const day of DAY_ORDER) {
+    const arr = (raw as Record<string, unknown>)[day.key];
+    if (!Array.isArray(arr)) continue;
+    const windows: Window[] = [];
+    for (const w of arr) {
+      if (!w || typeof w !== "object") continue;
+      const { from, to } = w as Record<string, unknown>;
+      if (typeof from !== "string" || typeof to !== "string") continue;
+      windows.push({ from, to });
+    }
+    if (windows.length) {
+      out[day.key] = windows;
+      any = true;
+    }
+  }
+  return any ? out : null;
+}
+
+export function PickupSchedulePanel({
+  restaurantId,
+  pickupHours,
+  pickupMaxEtaMinutes,
+}: {
+  restaurantId: string;
+  pickupHours: Record<string, unknown> | null;
+  pickupMaxEtaMinutes: number | null;
+}) {
+  const router = useRouter();
+  const normalized = normalizeHours(pickupHours);
+  const [mode, setMode] = useState<"always" | "custom">(
+    normalized ? "custom" : "always",
+  );
+  const [draft, setDraft] = useState<PickupHoursInput>(
+    normalized ?? DEFAULT_HOURS,
+  );
+  const [capOn, setCapOn] = useState<boolean>(
+    pickupMaxEtaMinutes != null && pickupMaxEtaMinutes > 0,
+  );
+  const [capInput, setCapInput] = useState<string>(
+    String(pickupMaxEtaMinutes ?? 45),
+  );
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [, startTx] = useTransition();
+
+  function setWindow(day: DayCode, idx: number, patch: Partial<Window>) {
+    setDraft((d) => ({
+      ...d,
+      [day]: d[day].map((w, i) => (i === idx ? { ...w, ...patch } : w)),
+    }));
+  }
+
+  function addWindow(day: DayCode) {
+    setDraft((d) => ({
+      ...d,
+      [day]: [...d[day], { from: "11:00", to: "22:00" }],
+    }));
+  }
+
+  function removeWindow(day: DayCode, idx: number) {
+    setDraft((d) => ({
+      ...d,
+      [day]: d[day].filter((_, i) => i !== idx),
+    }));
+  }
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    setOk(null);
+    // Hours save
+    const hoursPayload: PickupHoursInput | null =
+      mode === "always" ? null : draft;
+    if (hoursPayload) {
+      for (const day of DAY_ORDER) {
+        for (const w of hoursPayload[day.key]) {
+          if (w.from >= w.to) {
+            setBusy(false);
+            setErr(`${day.label}: la hora de cierre debe ser mayor a la de apertura.`);
+            return;
+          }
+        }
+      }
+    }
+    const hoursRes = await fetch(`/api/admin/membership/${restaurantId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "set_pickup_hours",
+        hours: hoursPayload,
+      }),
+    });
+    if (!hoursRes.ok) {
+      setBusy(false);
+      setErr("No se pudieron guardar los horarios.");
+      return;
+    }
+
+    // Cap save
+    const cap = capOn ? Number(capInput) : null;
+    if (cap != null && (!Number.isFinite(cap) || cap < 5 || cap > 240)) {
+      setBusy(false);
+      setErr("Tope de espera debe estar entre 5 y 240 minutos.");
+      return;
+    }
+    const capRes = await fetch(`/api/admin/membership/${restaurantId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "set_pickup_max_eta",
+        maxEtaMinutes: cap,
+      }),
+    });
+    setBusy(false);
+    if (!capRes.ok) {
+      setErr("Se guardaron los horarios pero falló el tope.");
+      return;
+    }
+    setOk("Guardado");
+    startTx(() => router.refresh());
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+          Horario de atención
+        </div>
+        <div className="flex gap-2 mb-3">
+          {(
+            [
+              { v: "always", label: "Abierto siempre" },
+              { v: "custom", label: "Horarios por día" },
+            ] as const
+          ).map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => setMode(o.v)}
+              className={
+                "h-8 px-3 rounded-full text-xs border " +
+                (mode === o.v
+                  ? "bg-ink text-bone border-ink"
+                  : "bg-op-bg border-op-border")
+              }
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {mode === "custom" && (
+          <ul className="space-y-2">
+            {DAY_ORDER.map((day) => (
+              <li
+                key={day.key}
+                className="flex items-start gap-3 py-2 border-t border-op-border first:border-t-0"
+              >
+                <div className="w-24 shrink-0 text-sm pt-1">{day.label}</div>
+                <div className="flex-1 space-y-1.5">
+                  {draft[day.key].length === 0 ? (
+                    <div className="text-xs text-op-muted">Cerrado</div>
+                  ) : (
+                    draft[day.key].map((w, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={w.from}
+                          onChange={(e) =>
+                            setWindow(day.key, idx, { from: e.target.value })
+                          }
+                          className="h-8 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
+                        />
+                        <span className="text-op-muted text-xs">–</span>
+                        <input
+                          type="time"
+                          value={w.to}
+                          onChange={(e) =>
+                            setWindow(day.key, idx, { to: e.target.value })
+                          }
+                          className="h-8 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeWindow(day.key, idx)}
+                          className="h-7 w-7 rounded-full border border-op-border text-op-muted hover:text-danger hover:border-danger/40 text-xs"
+                          aria-label="Quitar ventana"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => addWindow(day.key)}
+                    className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+                  >
+                    + Agregar ventana
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="pt-3 border-t border-op-border">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+          Tope de espera
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={capOn}
+              onChange={(e) => setCapOn(e.target.checked)}
+            />
+            <span>Rechazar órdenes si el ETA supera</span>
+          </label>
+          <input
+            type="number"
+            value={capInput}
+            onChange={(e) => setCapInput(e.target.value)}
+            min={5}
+            max={240}
+            step={5}
+            disabled={!capOn}
+            className="h-9 w-24 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular disabled:opacity-50"
+          />
+          <span className="text-op-muted text-xs">min</span>
+        </div>
+        <div className="text-[11px] text-op-muted mt-1">
+          Cuando la cocina está saturada evita recibir pedidos que no podrás
+          cumplir a tiempo.
+        </div>
+      </div>
+
+      {err && <div className="text-danger text-xs">{err}</div>}
+      {ok && <div className="text-ok text-xs">{ok}</div>}
+      <button
+        onClick={save}
+        disabled={busy}
+        className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+      >
+        {busy ? "Guardando…" : "Guardar horario"}
+      </button>
+    </div>
+  );
+}
+
 export { fmtCOP };

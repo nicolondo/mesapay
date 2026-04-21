@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { extendOneMonth } from "@/lib/membership";
@@ -32,12 +33,45 @@ const pickupEnabledSchema = z.object({
   pickupEnabled: z.boolean(),
 });
 
+const hhmmRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+const dayWindowsSchema = z
+  .array(
+    z
+      .object({ from: z.string().regex(hhmmRe), to: z.string().regex(hhmmRe) })
+      .refine((w) => w.from < w.to, "from must be before to"),
+  )
+  .max(4);
+
+const pickupHoursSchema = z.object({
+  action: z.literal("set_pickup_hours"),
+  // null clears the schedule (= always open, pre-schedule behaviour).
+  hours: z
+    .object({
+      sun: dayWindowsSchema.optional(),
+      mon: dayWindowsSchema.optional(),
+      tue: dayWindowsSchema.optional(),
+      wed: dayWindowsSchema.optional(),
+      thu: dayWindowsSchema.optional(),
+      fri: dayWindowsSchema.optional(),
+      sat: dayWindowsSchema.optional(),
+    })
+    .nullable(),
+});
+
+const pickupMaxEtaSchema = z.object({
+  action: z.literal("set_pickup_max_eta"),
+  // null = no cap.
+  maxEtaMinutes: z.number().int().min(5).max(240).nullable(),
+});
+
 const bodySchema = z.discriminatedUnion("action", [
   planSchema,
   suspendSchema,
   paymentSchema,
   serviceModeSchema,
   pickupEnabledSchema,
+  pickupHoursSchema,
+  pickupMaxEtaSchema,
 ]);
 
 const PICKUP_TABLE_NUMBER = -1;
@@ -105,6 +139,26 @@ export async function POST(
           });
         }
       }
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "set_pickup_hours") {
+    await db.restaurant.update({
+      where: { id },
+      data: {
+        pickupHours: parsed.data.hours
+          ? (parsed.data.hours as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+      },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "set_pickup_max_eta") {
+    await db.restaurant.update({
+      where: { id },
+      data: { pickupMaxEtaMinutes: parsed.data.maxEtaMinutes },
     });
     return NextResponse.json({ ok: true });
   }

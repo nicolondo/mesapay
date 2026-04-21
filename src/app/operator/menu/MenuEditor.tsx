@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
 
 type Cat = { id: string; label: string; slug: string };
+type ModifierDef = {
+  id: string;
+  label: string;
+  type: "radio" | "checkbox";
+  opts: string[];
+  default?: string;
+};
 type Item = {
   id: string;
   categoryId: string;
@@ -14,6 +21,7 @@ type Item = {
   available: boolean;
   photoUrl: string | null;
   tags: string[];
+  modifiers: ModifierDef[];
 };
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
@@ -465,6 +473,7 @@ function ItemSheet({
   const [available, setAvailable] = useState(item.available);
   const [photoUrl, setPhotoUrl] = useState(item.photoUrl ?? "");
   const [tags, setTags] = useState<string[]>(item.tags);
+  const [modifiers, setModifiers] = useState<ModifierDef[]>(item.modifiers);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -473,6 +482,12 @@ function ItemSheet({
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr("Revisa el nombre y el precio.");
       return;
+    }
+    for (const m of modifiers) {
+      if (!m.label.trim() || m.opts.length === 0) {
+        setErr(`El modificador "${m.label || "(sin nombre)"}" necesita etiqueta y al menos una opción.`);
+        return;
+      }
     }
     setBusy(true);
     setErr(null);
@@ -487,6 +502,7 @@ function ItemSheet({
         available,
         photoUrl: photoUrl.trim() || null,
         tags,
+        modifiers: modifiers.length > 0 ? modifiers : null,
       }),
     });
     setBusy(false);
@@ -640,6 +656,8 @@ function ItemSheet({
             </div>
           </div>
 
+          <ModifiersEditor modifiers={modifiers} onChange={setModifiers} />
+
           <label className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -678,6 +696,232 @@ function ItemSheet({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function slugifyMod(s: string) {
+  return (
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "mod"
+  );
+}
+
+function ModifiersEditor({
+  modifiers,
+  onChange,
+}: {
+  modifiers: ModifierDef[];
+  onChange: (m: ModifierDef[]) => void;
+}) {
+  function add() {
+    const base = "opcion";
+    let id = base;
+    let n = 2;
+    while (modifiers.some((m) => m.id === id)) id = `${base}-${n++}`;
+    onChange([
+      ...modifiers,
+      { id, label: "", type: "radio", opts: [], default: undefined },
+    ]);
+  }
+
+  function update(ix: number, patch: Partial<ModifierDef>) {
+    onChange(modifiers.map((m, i) => (i === ix ? { ...m, ...patch } : m)));
+  }
+
+  function remove(ix: number) {
+    onChange(modifiers.filter((_, i) => i !== ix));
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+          Modificadores
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          className="text-xs text-terracotta hover:underline"
+        >
+          + Añadir
+        </button>
+      </div>
+      {modifiers.length === 0 && (
+        <div className="text-xs text-op-muted">
+          Sin modificadores. Por ejemplo: nivel de picante, tamaño, guarnición.
+        </div>
+      )}
+      <div className="space-y-3">
+        {modifiers.map((m, i) => (
+          <div
+            key={i}
+            className="border border-op-border rounded-lg p-3 bg-op-bg/50 space-y-2"
+          >
+            <div className="flex gap-2 items-end">
+              <label className="flex-1 flex flex-col">
+                <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                  Etiqueta
+                </span>
+                <input
+                  value={m.label}
+                  onChange={(e) => {
+                    const label = e.target.value;
+                    update(i, {
+                      label,
+                      id: m.id || slugifyMod(label),
+                    });
+                  }}
+                  onBlur={(e) => {
+                    if (!m.id && e.target.value) {
+                      update(i, { id: slugifyMod(e.target.value) });
+                    }
+                  }}
+                  maxLength={60}
+                  placeholder="Nivel de picante, Tamaño…"
+                  className="h-9 px-2 rounded border border-op-border bg-op-surface text-sm"
+                />
+              </label>
+              <label className="flex flex-col">
+                <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                  Tipo
+                </span>
+                <select
+                  value={m.type}
+                  onChange={(e) =>
+                    update(i, { type: e.target.value as "radio" | "checkbox" })
+                  }
+                  className="h-9 px-2 rounded border border-op-border bg-op-surface text-sm"
+                >
+                  <option value="radio">Uno solo</option>
+                  <option value="checkbox">Varias</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="h-9 px-2 text-xs text-op-muted hover:text-danger"
+              >
+                ×
+              </button>
+            </div>
+
+            <OptionsEditor
+              opts={m.opts}
+              defaultOpt={m.default}
+              canDefault={m.type === "radio"}
+              onChange={(opts, def) =>
+                update(i, {
+                  opts,
+                  default:
+                    m.type === "radio"
+                      ? def && opts.includes(def)
+                        ? def
+                        : undefined
+                      : undefined,
+                })
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OptionsEditor({
+  opts,
+  defaultOpt,
+  canDefault,
+  onChange,
+}: {
+  opts: string[];
+  defaultOpt: string | undefined;
+  canDefault: boolean;
+  onChange: (opts: string[], defaultOpt: string | undefined) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function addDraft() {
+    const v = draft.trim();
+    if (!v || opts.includes(v)) {
+      setDraft("");
+      return;
+    }
+    onChange([...opts, v], defaultOpt);
+    setDraft("");
+  }
+
+  function removeAt(ix: number) {
+    const next = opts.filter((_, i) => i !== ix);
+    const nextDefault = defaultOpt && next.includes(defaultOpt) ? defaultOpt : undefined;
+    onChange(next, nextDefault);
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {opts.map((o, i) => {
+          const isDefault = canDefault && o === defaultOpt;
+          return (
+            <span
+              key={o}
+              className={
+                "inline-flex items-center gap-1 h-7 pl-3 pr-1 rounded-full border text-xs " +
+                (isDefault
+                  ? "bg-ink text-bone border-ink"
+                  : "bg-op-surface border-op-border")
+              }
+            >
+              <span>{o}</span>
+              {canDefault && !isDefault && (
+                <button
+                  type="button"
+                  onClick={() => onChange(opts, o)}
+                  className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1"
+                  title="Marcar como opción por defecto"
+                >
+                  default
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => removeAt(i)}
+                className="w-5 h-5 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center"
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addDraft();
+            }
+          }}
+          maxLength={60}
+          placeholder="Añadir opción y Enter"
+          className="flex-1 h-8 px-2 rounded border border-op-border bg-op-surface text-xs"
+        />
+        <button
+          type="button"
+          onClick={addDraft}
+          className="h-8 px-3 rounded-full bg-op-border/40 text-xs"
+        >
+          Añadir
+        </button>
       </div>
     </div>
   );

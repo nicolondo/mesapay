@@ -36,7 +36,16 @@ export default async function MenuAdminPage() {
         available: i.available,
         photoUrl: i.photoUrl ?? null,
         tags: i.tags,
+        modifiers: (i.modifiers as unknown as ModifierDef[] | null) ?? [],
       }))}
     />
   );
 }
+
+type ModifierDef = {
+  id: string;
+  label: string;
+  type: "radio" | "checkbox";
+  opts: string[];
+  default?: string;
+};

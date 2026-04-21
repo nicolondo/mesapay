@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
+
+const modifierSchema = z.object({
+  id: z.string().trim().min(1).max(40),
+  label: z.string().trim().min(1).max(60),
+  type: z.enum(["radio", "checkbox"]),
+  opts: z.array(z.string().trim().min(1).max(60)).min(1).max(12),
+  default: z.string().trim().max(60).optional(),
+});
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
@@ -13,6 +22,7 @@ const patchSchema = z.object({
   available: z.boolean().optional(),
   photoUrl: z.string().trim().url().nullable().optional(),
   tags: z.array(z.enum(TAGS)).max(5).optional(),
+  modifiers: z.array(modifierSchema).max(8).nullable().optional(),
 });
 
 async function guard(id: string) {
@@ -57,7 +67,22 @@ export async function PATCH(
     }
   }
 
-  await db.menuItem.update({ where: { id }, data: parsed.data });
+  const data: Prisma.MenuItemUncheckedUpdateInput = {};
+  if (parsed.data.name !== undefined) data.name = parsed.data.name;
+  if (parsed.data.priceCents !== undefined) data.priceCents = parsed.data.priceCents;
+  if (parsed.data.description !== undefined) data.description = parsed.data.description;
+  if (parsed.data.categoryId !== undefined) data.categoryId = parsed.data.categoryId;
+  if (parsed.data.available !== undefined) data.available = parsed.data.available;
+  if (parsed.data.photoUrl !== undefined) data.photoUrl = parsed.data.photoUrl;
+  if (parsed.data.tags !== undefined) data.tags = parsed.data.tags;
+  if (parsed.data.modifiers !== undefined) {
+    data.modifiers =
+      parsed.data.modifiers === null
+        ? Prisma.DbNull
+        : (parsed.data.modifiers as unknown as Prisma.InputJsonValue);
+  }
+
+  await db.menuItem.update({ where: { id }, data });
   return NextResponse.json({ ok: true });
 }
 

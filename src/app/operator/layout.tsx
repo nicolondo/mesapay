@@ -33,6 +33,7 @@ export default async function OperatorLayout({
               <NavLink href="/operator">Resumen</NavLink>
               <NavLink href="/operator/kitchen">Cocina</NavLink>
               <NavLink href="/operator/payments">Cobros</NavLink>
+              <NavLink href="/operator/orders">Órdenes</NavLink>
               <NavLink href="/operator/menu">Menú</NavLink>
               <NavLink href="/operator/tables">Mesas</NavLink>
             </nav>

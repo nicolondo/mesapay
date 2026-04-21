@@ -22,6 +22,7 @@ type Item = {
   photoUrl: string | null;
   tags: string[];
   modifiers: ModifierDef[];
+  prepMinutes: number;
 };
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
@@ -357,14 +358,20 @@ function NewItemForm({
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
+  const [prepMinutes, setPrepMinutes] = useState("10");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const cents = Math.round(Number(price) * 100);
+    const mins = Math.round(Number(prepMinutes));
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr("Revisa el nombre y el precio.");
+      return;
+    }
+    if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
+      setErr("Tiempo de preparación entre 1 y 120 minutos.");
       return;
     }
     setErr(null);
@@ -377,6 +384,7 @@ function NewItemForm({
         name: name.trim(),
         priceCents: cents,
         description: description.trim() || undefined,
+        prepMinutes: mins,
       }),
     });
     setBusy(false);
@@ -418,6 +426,20 @@ function NewItemForm({
             min={0}
             step={100}
             placeholder="25000"
+            className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+          />
+        </label>
+        <label className="flex flex-col w-24">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+            Prep (min)
+          </span>
+          <input
+            type="number"
+            value={prepMinutes}
+            onChange={(e) => setPrepMinutes(e.target.value)}
+            min={1}
+            max={120}
+            step={1}
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
@@ -474,6 +496,7 @@ function ItemSheet({
   const [photoUrl, setPhotoUrl] = useState(item.photoUrl ?? "");
   const [tags, setTags] = useState<string[]>(item.tags);
   const [modifiers, setModifiers] = useState<ModifierDef[]>(item.modifiers);
+  const [prepMinutes, setPrepMinutes] = useState(String(item.prepMinutes));
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -496,8 +519,13 @@ function ItemSheet({
 
   async function save() {
     const cents = Math.round(Number(priceCents) * 100);
+    const mins = Math.round(Number(prepMinutes));
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr("Revisa el nombre y el precio.");
+      return;
+    }
+    if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
+      setErr("Tiempo de preparación entre 1 y 120 minutos.");
       return;
     }
     for (const m of modifiers) {
@@ -520,6 +548,7 @@ function ItemSheet({
         photoUrl: photoUrl.trim() || null,
         tags,
         modifiers: modifiers.length > 0 ? modifiers : null,
+        prepMinutes: mins,
       }),
     });
     setBusy(false);
@@ -591,7 +620,7 @@ function ItemSheet({
                 className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               />
             </label>
-            <label className="w-36 flex flex-col">
+            <label className="w-32 flex flex-col">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
                 Precio (COP)
               </span>
@@ -601,6 +630,20 @@ function ItemSheet({
                 onChange={(e) => setPriceCents(e.target.value)}
                 min={0}
                 step={100}
+                className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              />
+            </label>
+            <label className="w-24 flex flex-col">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                Prep (min)
+              </span>
+              <input
+                type="number"
+                value={prepMinutes}
+                onChange={(e) => setPrepMinutes(e.target.value)}
+                min={1}
+                max={120}
+                step={1}
                 className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               />
             </label>

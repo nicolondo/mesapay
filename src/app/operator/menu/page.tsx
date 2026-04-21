@@ -37,6 +37,7 @@ export default async function MenuAdminPage() {
         photoUrl: i.photoUrl ?? null,
         tags: i.tags,
         modifiers: (i.modifiers as unknown as ModifierDef[] | null) ?? [],
+        prepMinutes: i.prepMinutes,
       }))}
     />
   );

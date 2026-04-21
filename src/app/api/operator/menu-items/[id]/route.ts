@@ -23,6 +23,7 @@ const patchSchema = z.object({
   photoUrl: z.string().trim().url().nullable().optional(),
   tags: z.array(z.enum(TAGS)).max(5).optional(),
   modifiers: z.array(modifierSchema).max(8).nullable().optional(),
+  prepMinutes: z.number().int().min(1).max(120).optional(),
 });
 
 async function guard(id: string) {
@@ -81,6 +82,7 @@ export async function PATCH(
         ? Prisma.DbNull
         : (parsed.data.modifiers as unknown as Prisma.InputJsonValue);
   }
+  if (parsed.data.prepMinutes !== undefined) data.prepMinutes = parsed.data.prepMinutes;
 
   await db.menuItem.update({ where: { id }, data });
   return NextResponse.json({ ok: true });

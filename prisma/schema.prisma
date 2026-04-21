@@ -81,14 +81,15 @@ model MenuItem {
   categoryId   String
   category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-  name        String
-  description String?
-  priceCents  Int
-  tags        String[]
-  photoUrl    String?
-  modifiers   Json?
-  available   Boolean  @default(true)
-  sortOrder   Int      @default(0)
+  name         String
+  description  String?
+  priceCents   Int
+  tags         String[]
+  photoUrl     String?
+  modifiers    Json?
+  available    Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  prepMinutes  Int      @default(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -143,13 +144,14 @@ model Order {
 }
 
 model Round {
-  id        String      @id @default(cuid())
-  orderId   String
-  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seq       Int
-  status    OrderStatus @default(placed)
-  placedAt  DateTime    @default(now())
-  readyAt   DateTime?
+  id               String      @id @default(cuid())
+  orderId          String
+  order            Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seq              Int
+  status           OrderStatus @default(placed)
+  placedAt         DateTime    @default(now())
+  kitchenStartedAt DateTime?
+  readyAt          DateTime?
 
   items OrderItem[]
 

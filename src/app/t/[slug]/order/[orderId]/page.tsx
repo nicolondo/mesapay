@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { OrderLive } from "./OrderLive";
+import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
+import { EtaBadge, OrderEta } from "./EtaBadge";
 
 export default async function OrderView({
   params,
@@ -23,6 +25,25 @@ export default async function OrderView({
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
 
+  // Build the restaurant-wide cooking queue so the ETA walks the actual FIFO
+  // line, not just this order's rounds.
+  const queueRounds = await db.round.findMany({
+    where: {
+      order: { restaurantId: tenant.id },
+      status: { in: ["placed", "in_kitchen", "ready"] },
+    },
+    include: { items: { include: { menuItem: { select: { prepMinutes: true } } } } },
+  });
+  const etaInputs: EtaRoundInput[] = queueRounds.map((r) => ({
+    id: r.id,
+    status: r.status,
+    placedAt: r.placedAt,
+    kitchenStartedAt: r.kitchenStartedAt,
+    readyAt: r.readyAt,
+    itemPrepMinutes: r.items.map((i) => i.menuItem.prepMinutes),
+  }));
+  const etas = computeRoundEtas(etaInputs);
+
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
@@ -34,6 +55,20 @@ export default async function OrderView({
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
 
+      {(() => {
+        const pendingEtas = order.rounds
+          .filter((r) => r.status === "placed" || r.status === "in_kitchen")
+          .map((r) => etas.get(r.id)?.etaAt)
+          .filter((d): d is Date => !!d);
+        if (pendingEtas.length === 0) return null;
+        const latest = new Date(Math.max(...pendingEtas.map((d) => d.getTime())));
+        return (
+          <div className="mt-5">
+            <OrderEta etaAtISO={latest.toISOString()} />
+          </div>
+        );
+      })()}
+
       <div className="mt-8">
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-2">
           Rondas
@@ -42,20 +77,27 @@ export default async function OrderView({
           {order.rounds.map((r) => {
             const lines = order.items.filter((i) => i.roundId === r.id);
             const tint = statusBadge(r.status);
+            const eta = etas.get(r.id);
+            const isPending = r.status === "placed" || r.status === "in_kitchen";
             return (
               <li key={r.id} className="border border-hairline rounded-xl p-4 bg-paper">
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs tracking-wider uppercase text-muted">
                     Ronda {r.seq}
                   </div>
-                  <span
-                    className={
-                      "px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium " +
-                      tint
-                    }
-                  >
-                    {statusLabel(r.status)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {isPending && eta && (
+                      <EtaBadge etaAtISO={eta.etaAt.toISOString()} />
+                    )}
+                    <span
+                      className={
+                        "px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium " +
+                        tint
+                      }
+                    >
+                      {statusLabel(r.status)}
+                    </span>
+                  </div>
                 </div>
                 <ul className="mt-2 divide-y divide-hairline">
                   {lines.map((li) => (

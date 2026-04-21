@@ -35,12 +35,23 @@ export async function PATCH(
   }
 
   await db.$transaction(async (tx) => {
+    const now = new Date();
+    const data: {
+      status: "placed" | "in_kitchen" | "ready";
+      readyAt: Date | null;
+      kitchenStartedAt?: Date;
+    } = {
+      status: parsed.data.status,
+      readyAt: parsed.data.status === "ready" ? now : null,
+    };
+    // First time moving into the kitchen: stamp the start so ETAs can subtract
+    // elapsed cook time. Re-entering from "ready" keeps the original stamp.
+    if (parsed.data.status === "in_kitchen" && !round.kitchenStartedAt) {
+      data.kitchenStartedAt = now;
+    }
     await tx.round.update({
       where: { id: round.id },
-      data: {
-        status: parsed.data.status,
-        readyAt: parsed.data.status === "ready" ? new Date() : null,
-      },
+      data,
     });
     // Bubble aggregate status to order: if any round is in_kitchen, order = in_kitchen.
     // If all rounds are ready, order = ready.

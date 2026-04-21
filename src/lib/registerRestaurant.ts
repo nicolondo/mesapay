@@ -1,12 +1,13 @@
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
+import { CategoryKind } from "@prisma/client";
 import { db } from "./db";
 
 const CATEGORY_SEED = [
-  { slug: "entradas", label: "Entradas", sortOrder: 0 },
-  { slug: "platos", label: "Platos fuertes", sortOrder: 1 },
-  { slug: "bebidas", label: "Bebidas", sortOrder: 2 },
-  { slug: "postres", label: "Postres", sortOrder: 3 },
+  { slug: "entradas", label: "Entradas", sortOrder: 0, kind: CategoryKind.starter },
+  { slug: "platos", label: "Platos fuertes", sortOrder: 1, kind: CategoryKind.main },
+  { slug: "bebidas", label: "Bebidas", sortOrder: 2, kind: CategoryKind.drink },
+  { slug: "postres", label: "Postres", sortOrder: 3, kind: CategoryKind.dessert },
 ] as const;
 
 type SeedItem = {
@@ -225,6 +226,7 @@ export async function registerRestaurant(
           slug: def.slug,
           label: def.label,
           sortOrder: def.sortOrder,
+          kind: def.kind,
         },
       });
       categoriesByKey.set(def.slug, cat.id);

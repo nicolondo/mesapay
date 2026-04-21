@@ -26,6 +26,7 @@ export default async function MenuAdminPage() {
         id: c.id,
         label: c.label,
         slug: c.slug,
+        kind: c.kind,
       }))}
       items={items.map((i) => ({
         id: i.id,

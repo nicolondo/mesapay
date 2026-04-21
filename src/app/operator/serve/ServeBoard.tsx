@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
+
 type Item = {
   id: string;
   qty: number;
@@ -11,6 +13,7 @@ type Item = {
   notes: string | null;
   guestName: string | null;
   kitchenStatus: "placed" | "in_kitchen" | "ready";
+  categoryKind: CategoryKind;
   servedAt: string | null;
 };
 
@@ -67,10 +70,11 @@ export function ServeBoard({
     startTx(() => router.refresh());
   }
 
-  async function serveRound(round: Round) {
-    const pending = round.items.filter(
+  async function serveItems(items: Item[]) {
+    const pending = items.filter(
       (i) => !i.servedAt && !pendingServed.has(i.id),
     );
+    if (!pending.length) return;
     setPendingServed((p) => {
       const next = new Set(p);
       for (const i of pending) next.add(i.id);
@@ -148,7 +152,7 @@ export function ServeBoard({
                   round={r}
                   pendingServed={pendingServed}
                   onServeItem={serveItem}
-                  onServeRound={() => serveRound(r)}
+                  onServeItems={serveItems}
                 />
               ))}
             </ul>
@@ -163,108 +167,168 @@ function RoundCard({
   round: r,
   pendingServed,
   onServeItem,
-  onServeRound,
+  onServeItems,
 }: {
   round: Round;
   pendingServed: Set<string>;
   onServeItem: (id: string) => void;
-  onServeRound: () => void;
+  onServeItems: (items: Item[]) => void;
 }) {
   const mode = r.order.servingMode;
-  const readyUnserved = r.items.filter(
-    (i) =>
-      i.kitchenStatus === "ready" && !i.servedAt && !pendingServed.has(i.id),
-  );
-  const allReady = r.items.every((i) => i.kitchenStatus === "ready");
-  const stillCookingCount = r.items.filter(
+
+  // "Fuertes juntos": mains wait for every main to be ready; everything
+  // else still goes out as soon as it's done. Rounds with no mains fall
+  // back to plain as-ready.
+  const mainItems = r.items.filter((i) => i.categoryKind === "main");
+  const fuertesJuntos = mode === "together" && mainItems.length > 0;
+  const mainsAllReady =
+    !fuertesJuntos || mainItems.every((i) => i.kitchenStatus === "ready");
+  const mainsCooking = mainItems.filter(
     (i) => i.kitchenStatus !== "ready",
   ).length;
 
-  // Together mode: hold the whole round until every item is done.
-  if (mode === "together" && !allReady) {
-    return (
-      <li className="rounded-xl border border-dashed border-op-border bg-op-bg p-3">
-        <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {r.order.shortCode} · R{r.seq}
-          </div>
-          <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-            Servir junto
-          </span>
-        </div>
-        <div className="mt-2 text-xs text-op-muted">
-          Esperando cocina · {stillCookingCount}{" "}
-          {stillCookingCount === 1 ? "plato" : "platos"} en curso
-        </div>
-      </li>
-    );
-  }
+  // Ready-unserved items that we render as individual "entregar" cards:
+  //  - always: non-mains in fuertesJuntos mode
+  //  - always: everything in asReady mode (mains included)
+  const loose = r.items.filter((i) => {
+    if (i.kitchenStatus !== "ready") return false;
+    if (i.servedAt || pendingServed.has(i.id)) return false;
+    if (fuertesJuntos && i.categoryKind === "main") return false;
+    return true;
+  });
 
-  if (mode === "together") {
-    // Everything ready — one bulk deliverable for the whole round.
-    return (
-      <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
-        <div className="flex items-center justify-between">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {r.order.shortCode} · R{r.seq} · Servir junto
-          </div>
-          {r.readyAt && <PassTimer readyAt={r.readyAt} />}
-        </div>
-        <ul className="mt-2 space-y-1 text-sm">
-          {r.items.map((i) => (
-            <li key={i.id} className="flex items-start gap-2">
-              <div className="flex-1">
-                <span className="font-mono">{i.qty}×</span> {i.name}
-                {i.modifiers.length > 0 && (
-                  <span className="text-op-muted"> · {i.modifiers.join(" · ")}</span>
-                )}
-                {i.notes && (
-                  <div className="text-xs italic text-terracotta mt-0.5">
-                    “{i.notes}”
-                  </div>
-                )}
-              </div>
-              {i.guestName && (
-                <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-                  {i.guestName}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-        <button
-          onClick={onServeRound}
-          className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
-        >
-          Entregado a Mesa {r.order.tableNumber}
-        </button>
-      </li>
-    );
-  }
+  // Mains ready but still waiting on other mains → show a waiting card
+  const mainsUnserved = mainItems.filter(
+    (i) => !i.servedAt && !pendingServed.has(i.id),
+  );
+  const mainsReadyUnserved = mainsUnserved.filter(
+    (i) => i.kitchenStatus === "ready",
+  );
 
-  // asReady mode — one card per ready-unserved item.
   return (
     <>
-      {readyUnserved.map((i) => (
-        <li
+      {loose.map((i) => (
+        <SingleServeCard
           key={i.id}
-          className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3"
-        >
-          <div className="flex items-center justify-between">
-            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
-              {r.order.shortCode} · R{r.seq}
-            </div>
-            {r.readyAt && <PassTimer readyAt={r.readyAt} />}
+          item={i}
+          round={r}
+          onServe={() => onServeItem(i.id)}
+        />
+      ))}
+
+      {fuertesJuntos && !mainsAllReady && mainsReadyUnserved.length > 0 && (
+        <MainsWaitingCard round={r} cookingCount={mainsCooking} />
+      )}
+
+      {fuertesJuntos && mainsAllReady && mainsUnserved.length > 0 && (
+        <MainsBulkCard
+          round={r}
+          items={mainsUnserved}
+          onServe={() => onServeItems(mainsUnserved)}
+        />
+      )}
+    </>
+  );
+}
+
+function SingleServeCard({
+  item: i,
+  round: r,
+  onServe,
+}: {
+  item: Item;
+  round: Round;
+  onServe: () => void;
+}) {
+  return (
+    <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
+          {r.order.shortCode} · R{r.seq}
+        </div>
+        {r.readyAt && <PassTimer readyAt={r.readyAt} />}
+      </div>
+      <div className="mt-2 flex items-start gap-2">
+        <div className="flex-1">
+          <div className="text-sm">
+            <span className="font-mono">{i.qty}×</span> {i.name}
           </div>
-          <div className="mt-2 flex items-start gap-2">
+          {i.modifiers.length > 0 && (
+            <div className="text-xs text-op-muted mt-0.5">
+              {i.modifiers.join(" · ")}
+            </div>
+          )}
+          {i.notes && (
+            <div className="text-xs italic text-terracotta mt-0.5">
+              “{i.notes}”
+            </div>
+          )}
+        </div>
+        {i.guestName && (
+          <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+            {i.guestName}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onServe}
+        className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
+      >
+        Entregado
+      </button>
+    </li>
+  );
+}
+
+function MainsWaitingCard({
+  round: r,
+  cookingCount,
+}: {
+  round: Round;
+  cookingCount: number;
+}) {
+  return (
+    <li className="rounded-xl border border-dashed border-op-border bg-op-bg p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+          {r.order.shortCode} · R{r.seq} · Fuertes
+        </div>
+        <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+          Fuertes juntos
+        </span>
+      </div>
+      <div className="mt-2 text-xs text-op-muted">
+        Esperando cocina · {cookingCount}{" "}
+        {cookingCount === 1 ? "fuerte" : "fuertes"} en curso
+      </div>
+    </li>
+  );
+}
+
+function MainsBulkCard({
+  round: r,
+  items,
+  onServe,
+}: {
+  round: Round;
+  items: Item[];
+  onServe: () => void;
+}) {
+  return (
+    <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+          {r.order.shortCode} · R{r.seq} · Fuertes juntos
+        </div>
+        {r.readyAt && <PassTimer readyAt={r.readyAt} />}
+      </div>
+      <ul className="mt-2 space-y-1 text-sm">
+        {items.map((i) => (
+          <li key={i.id} className="flex items-start gap-2">
             <div className="flex-1">
-              <div className="text-sm">
-                <span className="font-mono">{i.qty}×</span> {i.name}
-              </div>
+              <span className="font-mono">{i.qty}×</span> {i.name}
               {i.modifiers.length > 0 && (
-                <div className="text-xs text-op-muted mt-0.5">
-                  {i.modifiers.join(" · ")}
-                </div>
+                <span className="text-op-muted"> · {i.modifiers.join(" · ")}</span>
               )}
               {i.notes && (
                 <div className="text-xs italic text-terracotta mt-0.5">
@@ -277,16 +341,16 @@ function RoundCard({
                 {i.guestName}
               </span>
             )}
-          </div>
-          <button
-            onClick={() => onServeItem(i.id)}
-            className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
-          >
-            Entregado
-          </button>
-        </li>
-      ))}
-    </>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={onServe}
+        className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
+      >
+        Entregado a Mesa {r.order.tableNumber}
+      </button>
+    </li>
   );
 }
 

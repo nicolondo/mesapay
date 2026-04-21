@@ -4,7 +4,23 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
 
-type Cat = { id: string; label: string; slug: string };
+type CategoryKind =
+  | "starter"
+  | "main"
+  | "side"
+  | "drink"
+  | "dessert"
+  | "other";
+type Cat = { id: string; label: string; slug: string; kind: CategoryKind };
+
+const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
+  { value: "starter", label: "Entradas" },
+  { value: "main", label: "Fuertes" },
+  { value: "side", label: "Acompañamientos" },
+  { value: "drink", label: "Bebidas" },
+  { value: "dessert", label: "Postres" },
+  { value: "other", label: "Otro" },
+];
 type ModifierDef = {
   id: string;
   label: string;
@@ -190,6 +206,7 @@ function NewCategoryForm({
   onClose: () => void;
 }) {
   const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<CategoryKind>("other");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -201,7 +218,7 @@ function NewCategoryForm({
     const res = await fetch("/api/operator/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label: label.trim() }),
+      body: JSON.stringify({ label: label.trim(), kind }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -216,22 +233,44 @@ function NewCategoryForm({
   return (
     <form
       onSubmit={submit}
-      className="bg-op-surface border border-op-border rounded-xl p-4 flex items-end gap-3"
+      className="bg-op-surface border border-op-border rounded-xl p-4 space-y-3"
     >
-      <label className="flex-1 flex flex-col">
-        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Nombre de la categoría
-        </span>
-        <input
-          autoFocus
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          maxLength={40}
-          placeholder="Para empezar, Principales, Postres…"
-          className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-        />
-      </label>
-      <div className="flex gap-2">
+      <div className="flex items-end gap-3">
+        <label className="flex-1 flex flex-col">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+            Nombre de la categoría
+          </span>
+          <input
+            autoFocus
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            maxLength={40}
+            placeholder="Para empezar, Principales, Postres…"
+            className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+          />
+        </label>
+        <label className="w-48 flex flex-col">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+            Tipo
+          </span>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as CategoryKind)}
+            className="h-10 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+          >
+            {KIND_OPTIONS.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="text-[11px] text-op-muted">
+        Marcar como <span className="font-medium">Fuertes</span> activa el modo
+        “Fuertes juntos” cuando el comensal lo elige al pedir.
+      </div>
+      <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
@@ -283,6 +322,20 @@ function CategoryHeader({
     onSave();
   }
 
+  async function changeKind(kind: CategoryKind) {
+    if (kind === cat.kind) return;
+    const res = await fetch(`/api/operator/categories/${cat.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind }),
+    });
+    if (!res.ok) {
+      alert("No se pudo cambiar el tipo.");
+      return;
+    }
+    onSave();
+  }
+
   async function del() {
     const ok = window.confirm(`¿Eliminar la categoría "${cat.label}"?`);
     if (!ok) return;
@@ -328,8 +381,20 @@ function CategoryHeader({
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 flex-wrap">
       <div className="font-display text-2xl">{cat.label}</div>
+      <select
+        value={cat.kind}
+        onChange={(e) => changeKind(e.target.value as CategoryKind)}
+        title="Tipo de categoría — los fuertes controlan el modo ‘Fuertes juntos’"
+        className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+      >
+        {KIND_OPTIONS.map((k) => (
+          <option key={k.value} value={k.value}>
+            {k.label}
+          </option>
+        ))}
+      </select>
       <button
         onClick={() => setEditing(true)}
         className="text-[11px] text-op-muted hover:text-ink"

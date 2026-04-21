@@ -55,6 +55,7 @@ export async function POST(
   const menuIds = Array.from(new Set(parsed.data.items.map((i) => i.menuItemId)));
   const menuItems = await db.menuItem.findMany({
     where: { id: { in: menuIds }, restaurantId: tenant.id },
+    include: { category: { select: { kind: true } } },
   });
   const menuById = new Map(menuItems.map((m) => [m.id, m]));
   if (menuById.size !== menuIds.length) {
@@ -100,6 +101,7 @@ export async function POST(
           qty: it.qty,
           nameSnapshot: mi.name,
           priceCentsSnapshot: mi.priceCents,
+          categoryKind: mi.category.kind,
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
           guestName: parsed.data.guestName,

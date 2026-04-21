@@ -680,9 +680,9 @@ function CartBar({
                           : "border-hairline bg-ivory")
                       }
                     >
-                      <div className="text-sm font-medium">Todo junto</div>
+                      <div className="text-sm font-medium">Fuertes juntos</div>
                       <div className="text-[11px] text-muted mt-0.5">
-                        Esperamos a que esté todo para servir.
+                        Entradas y bebidas salen apenas estén listas; los fuertes salen todos juntos.
                       </div>
                     </button>
                   </div>

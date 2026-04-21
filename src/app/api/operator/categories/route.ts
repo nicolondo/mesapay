@@ -5,6 +5,9 @@ import { auth } from "@/auth";
 
 const createSchema = z.object({
   label: z.string().trim().min(1).max(40),
+  kind: z
+    .enum(["starter", "main", "side", "drink", "dessert", "other"])
+    .optional(),
 });
 
 function slugify(s: string) {
@@ -58,6 +61,7 @@ export async function POST(req: Request) {
       label: parsed.data.label,
       slug,
       sortOrder: (last?.sortOrder ?? 0) + 10,
+      kind: parsed.data.kind ?? "other",
     },
   });
 

@@ -6,6 +6,9 @@ import { auth } from "@/auth";
 const patchSchema = z.object({
   label: z.string().trim().min(1).max(40).optional(),
   sortOrder: z.number().int().optional(),
+  kind: z
+    .enum(["starter", "main", "side", "drink", "dessert", "other"])
+    .optional(),
 });
 
 async function guard(id: string) {

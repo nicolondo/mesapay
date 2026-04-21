@@ -51,6 +51,7 @@ export default async function ServePage() {
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,
+          categoryKind: i.categoryKind,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
         })),
       }))}

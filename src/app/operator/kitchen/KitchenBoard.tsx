@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
+type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
 type Item = {
   id: string;
@@ -13,6 +14,7 @@ type Item = {
   notes: string | null;
   guestName: string | null;
   kitchenStatus: KitchenStatus;
+  categoryKind: CategoryKind;
   servedAt: string | null;
 };
 
@@ -176,14 +178,30 @@ export function KitchenBoard({
                 const isPlacedCol = col.key === "placed";
                 const isKitchenCol = col.key === "in_kitchen";
                 const mode = r.order.servingMode;
-                const allReady = r.items.every(
-                  (i) => effectiveItemStatus(i) === "ready",
+                // "Fuertes juntos": mains wait for every main to be ready.
+                // Non-mains (starters, drinks, sides, desserts) go out
+                // as ready. Rounds without any main item fall back to
+                // plain as-ready behaviour.
+                const mainItems = r.items.filter(
+                  (i) => i.categoryKind === "main",
                 );
-                // Together mode holds serving until every item of the round
-                // is ready, so we only allow serve controls in that case.
-                const canServeMode = mode === "asReady" || allReady;
+                const fuertesJuntos =
+                  mode === "together" && mainItems.length > 0;
+                const mainsAllReady =
+                  !fuertesJuntos ||
+                  mainItems.every(
+                    (i) => effectiveItemStatus(i) === "ready",
+                  );
                 const colUnserved = colItems.filter(
                   (i) => !i.servedAt && !pendingServed.has(i.id),
+                );
+                const colServeable = colUnserved.filter(
+                  (i) =>
+                    !(
+                      fuertesJuntos &&
+                      i.categoryKind === "main" &&
+                      !mainsAllReady
+                    ),
                 );
                 const itemIds = colItems.map((i) => i.id);
                 const isPartial = colItems.length < r.items.length;
@@ -197,9 +215,9 @@ export function KitchenBoard({
                         {r.order.shortCode} · Mesa {r.order.tableNumber} · R{r.seq}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {mode === "together" && (
+                        {fuertesJuntos && (
                           <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-                            Servir junto
+                            Fuertes juntos
                           </span>
                         )}
                         {isReadyCol && r.readyAt ? (
@@ -221,7 +239,12 @@ export function KitchenBoard({
                         const status = effectiveItemStatus(i);
                         const served =
                           !!i.servedAt || pendingServed.has(i.id);
-                        const canServe = status === "ready" && canServeMode;
+                        const heldByMains =
+                          fuertesJuntos &&
+                          i.categoryKind === "main" &&
+                          !mainsAllReady;
+                        const canServe =
+                          status === "ready" && !heldByMains;
                         const advancePending = pendingKitchen.has(i.id);
                         return (
                           <li key={i.id} className="text-sm">
@@ -263,12 +286,12 @@ export function KitchenBoard({
                             Marcar {colItems.length} listos
                           </button>
                         )}
-                        {isReadyCol && canServeMode && colUnserved.length > 1 && (
+                        {isReadyCol && colServeable.length > 1 && (
                           <button
-                            onClick={() => serveItems(colUnserved)}
+                            onClick={() => serveItems(colServeable)}
                             className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
                           >
-                            Servir {colUnserved.length}
+                            Servir {colServeable.length}
                           </button>
                         )}
                       </div>

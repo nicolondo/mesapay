@@ -15,14 +15,47 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users       User[]
-  tables      Table[]
-  categories  Category[]
-  menuItems   MenuItem[]
-  orders      Order[]
-  dishRatings DishRating[]
+  plan              Plan      @default(trial)
+  monthlyPriceCents Int       @default(0)
+  periodEndsAt      DateTime?
+  suspended         Boolean   @default(false)
+
+  users               User[]
+  tables              Table[]
+  categories          Category[]
+  menuItems           MenuItem[]
+  orders              Order[]
+  dishRatings         DishRating[]
+  membershipPayments  MembershipPayment[]
 
   @@index([slug])
+}
+
+enum Plan {
+  trial
+  basic
+  pro
+}
+
+enum MembershipMethod {
+  manual_cash
+  manual_transfer
+  wompi
+}
+
+model MembershipPayment {
+  id            String           @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  amountCents   Int
+  method        MembershipMethod
+  note          String?
+  periodStart   DateTime
+  periodEnd     DateTime
+  recordedByEmail String
+  createdAt     DateTime         @default(now())
+
+  @@index([restaurantId, createdAt])
 }
 
 enum Role {

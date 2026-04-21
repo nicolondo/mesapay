@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import {
+  STATUS_LABEL,
+  deriveMembershipStatus,
+  type MembershipStatus,
+} from "@/lib/membership";
 
 function bogotaDate(d: Date): string {
   return fmtBogotaDateTime(d).date;
@@ -107,6 +112,7 @@ export default async function RestaurantsAdmin({
                 <Th>Órdenes</Th>
                 <Th>Pagadas</Th>
                 <Th>Última</Th>
+                <Th>Plan</Th>
                 <Th>Estado</Th>
               </tr>
             </thead>
@@ -121,6 +127,11 @@ export default async function RestaurantsAdmin({
                   paid,
                   lastOrderAt: last,
                   operators: ops,
+                });
+                const membership = deriveMembershipStatus({
+                  plan: r.plan,
+                  periodEndsAt: r.periodEndsAt,
+                  suspended: r.suspended,
                 });
                 return (
                   <tr
@@ -159,6 +170,9 @@ export default async function RestaurantsAdmin({
                       ) : (
                         <span className="text-op-muted">—</span>
                       )}
+                    </Td>
+                    <Td>
+                      <MembershipPill status={membership} plan={r.plan} />
                     </Td>
                     <Td>
                       <StatePill state={state} />
@@ -241,6 +255,41 @@ function StatePill({ state }: { state: State }) {
     >
       {label}
     </span>
+  );
+}
+
+const PLAN_LABEL: Record<string, string> = {
+  trial: "Prueba",
+  basic: "Básico",
+  pro: "Pro",
+};
+
+function MembershipPill({
+  status,
+  plan,
+}: {
+  status: MembershipStatus;
+  plan: "trial" | "basic" | "pro";
+}) {
+  const map: Record<MembershipStatus, string> = {
+    al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
+    trial: "bg-op-bg text-op-muted border-op-border",
+    por_vencer: "bg-[#C98A2E]/15 text-[#7F5A1F] border-[#C98A2E]/50",
+    vencido: "bg-danger/10 text-danger border-danger/25",
+    suspendido: "bg-ink/80 text-bone border-ink",
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-mono text-[11px]">{PLAN_LABEL[plan]}</span>
+      <span
+        className={
+          "font-mono text-[9px] tracking-wider uppercase px-2 py-0.5 rounded border inline-block w-fit " +
+          map[status]
+        }
+      >
+        {STATUS_LABEL[status]}
+      </span>
+    </div>
   );
 }
 

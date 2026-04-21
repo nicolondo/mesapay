@@ -4,6 +4,7 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
+import { deriveMembershipStatus } from "@/lib/membership";
 
 export default async function OperatorLayout({
   children,
@@ -29,6 +30,44 @@ export default async function OperatorLayout({
     ? await db.restaurant.findUnique({ where: { id: restaurantId } })
     : null;
 
+  const membership = tenant
+    ? deriveMembershipStatus({
+        plan: tenant.plan,
+        periodEndsAt: tenant.periodEndsAt,
+        suspended: tenant.suspended,
+      })
+    : null;
+
+  // Real operators hit the lock page when suspended.
+  // Platform admins impersonating keep access so they can unblock the account.
+  if (
+    tenant?.suspended &&
+    session.user.role === "operator" &&
+    !impersonating
+  ) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-op-bg p-6 text-op-text">
+        <div className="max-w-md text-center space-y-4">
+          <div className="font-display text-3xl">Cuenta suspendida</div>
+          <p className="text-sm text-op-muted">
+            El acceso a <strong>{tenant.name}</strong> está pausado. Ponte en
+            contacto con MESAPAY para reactivarla.
+          </p>
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/" });
+            }}
+          >
+            <button className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium">
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   async function stopImpersonating() {
     "use server";
     const jar = await cookies();
@@ -51,6 +90,21 @@ export default async function OperatorLayout({
               Dejar de impersonar
             </button>
           </form>
+        </div>
+      )}
+      {membership === "vencido" && (
+        <div className="bg-danger/15 border-b border-danger/30 text-danger px-6 py-2 text-sm">
+          <strong>Mensualidad vencida.</strong> Regulariza el pago para evitar
+          la suspensión del acceso.
+        </div>
+      )}
+      {membership === "por_vencer" && (
+        <div className="bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-6 py-2 text-sm">
+          Tu mensualidad vence pronto
+          {tenant?.periodEndsAt
+            ? ` (${new Date(tenant.periodEndsAt).toLocaleDateString("es-CO")})`
+            : ""}
+          .
         </div>
       )}
       <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">

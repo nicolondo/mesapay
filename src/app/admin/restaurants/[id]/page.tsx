@@ -4,9 +4,32 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import { fmtCOP } from "@/lib/format";
 import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
+import {
+  STATUS_LABEL,
+  deriveMembershipStatus,
+  type MembershipStatus,
+} from "@/lib/membership";
+import {
+  PlanEditor,
+  RecordPaymentForm,
+  SuspendButton,
+} from "./BillingPanel";
 
 export const dynamic = "force-dynamic";
+
+const METHOD_LABEL: Record<string, string> = {
+  manual_cash: "Efectivo",
+  manual_transfer: "Transferencia",
+  wompi: "Wompi",
+};
+
+const PLAN_LABEL: Record<string, string> = {
+  trial: "Prueba",
+  basic: "Básico",
+  pro: "Pro",
+};
 
 export default async function RestaurantDetail({
   params,
@@ -14,37 +37,49 @@ export default async function RestaurantDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [rest, operators, counts, lastOrder, firstOrder] = await Promise.all([
-    db.restaurant.findUnique({ where: { id } }),
-    db.user.findMany({
-      where: { restaurantId: id, role: "operator" },
-      select: { id: true, email: true, name: true, createdAt: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.restaurant.findUnique({
-      where: { id },
-      select: {
-        _count: {
-          select: { tables: true, menuItems: true, orders: true, categories: true },
+  const [rest, operators, counts, lastOrder, firstOrder, payments] =
+    await Promise.all([
+      db.restaurant.findUnique({ where: { id } }),
+      db.user.findMany({
+        where: { restaurantId: id, role: "operator" },
+        select: { id: true, email: true, name: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.restaurant.findUnique({
+        where: { id },
+        select: {
+          _count: {
+            select: { tables: true, menuItems: true, orders: true, categories: true },
+          },
         },
-      },
-    }),
-    db.order.findFirst({
-      where: { restaurantId: id },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true, status: true, totalCents: true },
-    }),
-    db.order.findFirst({
-      where: { restaurantId: id },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true },
-    }),
-  ]);
+      }),
+      db.order.findFirst({
+        where: { restaurantId: id },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, status: true, totalCents: true },
+      }),
+      db.order.findFirst({
+        where: { restaurantId: id },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+      db.membershipPayment.findMany({
+        where: { restaurantId: id },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+      }),
+    ]);
 
   if (!rest) notFound();
 
   const paidCount = await db.order.count({
     where: { restaurantId: id, status: "paid" },
+  });
+
+  const status = deriveMembershipStatus({
+    plan: rest.plan,
+    periodEndsAt: rest.periodEndsAt,
+    suspended: rest.suspended,
   });
 
   async function impersonate() {
@@ -96,6 +131,99 @@ export default async function RestaurantDetail({
         <Stat label="Platos" value={counts?._count.menuItems ?? 0} />
         <Stat label="Mesas" value={counts?._count.tables ?? 0} />
         <Stat label="Órdenes" value={counts?._count.orders ?? 0} />
+      </div>
+
+      <div className="rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+            Facturación
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill status={status} />
+            <SuspendButton restaurantId={id} suspended={rest.suspended} />
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Row label="Plan">{PLAN_LABEL[rest.plan]}</Row>
+            <Row label="Mensualidad">
+              {rest.monthlyPriceCents > 0
+                ? fmtCOP(rest.monthlyPriceCents)
+                : "Sin costo"}
+            </Row>
+            <Row label="Periodo hasta">
+              {rest.periodEndsAt
+                ? fmtBogotaDateTime(rest.periodEndsAt).date
+                : "—"}
+            </Row>
+            {rest.periodEndsAt && (
+              <Row label="Días restantes">
+                <DaysLeft date={rest.periodEndsAt} />
+              </Row>
+            )}
+          </div>
+          <div>
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+              Plan
+            </div>
+            <PlanEditor
+              restaurantId={id}
+              plan={rest.plan}
+              monthlyPriceCents={rest.monthlyPriceCents}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-op-border">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+            Registrar pago
+          </div>
+          <RecordPaymentForm
+            restaurantId={id}
+            suggestedAmountCents={rest.monthlyPriceCents}
+          />
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-op-border">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+            Historial ({payments.length})
+          </div>
+          {payments.length === 0 ? (
+            <div className="text-sm text-op-muted">Sin pagos registrados.</div>
+          ) : (
+            <ul className="divide-y divide-op-border">
+              {payments.map((p) => (
+                <li
+                  key={p.id}
+                  className="py-2 flex items-start justify-between text-sm gap-4"
+                >
+                  <div>
+                    <div className="font-mono tabular">
+                      {fmtCOP(p.amountCents)}{" "}
+                      <span className="text-op-muted">
+                        · {METHOD_LABEL[p.method] ?? p.method}
+                      </span>
+                    </div>
+                    <div className="font-mono text-[11px] text-op-muted">
+                      {fmtBogotaDateTime(p.periodStart).date} →{" "}
+                      {fmtBogotaDateTime(p.periodEnd).date} · registrado por{" "}
+                      {p.recordedByEmail}
+                    </div>
+                    {p.note && (
+                      <div className="text-[11px] text-op-muted mt-0.5">
+                        {p.note}
+                      </div>
+                    )}
+                  </div>
+                  <div className="font-mono text-[10px] text-op-muted shrink-0">
+                    {fmtBogotaDateTime(p.createdAt).date}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
@@ -173,5 +301,38 @@ function Row({
       <div className="text-op-muted">{label}</div>
       <div>{children}</div>
     </div>
+  );
+}
+
+function DaysLeft({ date }: { date: Date }) {
+  const days = Math.floor((date.getTime() - Date.now()) / 86400000);
+  if (days < 0)
+    return (
+      <span className="text-danger font-mono tabular">
+        vencido hace {Math.abs(days)}d
+      </span>
+    );
+  if (days === 0)
+    return <span className="text-[#7F5A1F] font-mono tabular">vence hoy</span>;
+  return <span className="font-mono tabular">{days} días</span>;
+}
+
+function StatusPill({ status }: { status: MembershipStatus }) {
+  const map: Record<MembershipStatus, string> = {
+    al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
+    trial: "bg-op-bg text-op-muted border-op-border",
+    por_vencer: "bg-[#C98A2E]/15 text-[#7F5A1F] border-[#C98A2E]/50",
+    vencido: "bg-danger/10 text-danger border-danger/25",
+    suspendido: "bg-ink/80 text-bone border-ink",
+  };
+  return (
+    <span
+      className={
+        "font-mono text-[10px] tracking-wider uppercase px-2 py-1 rounded border " +
+        map[status]
+      }
+    >
+      {STATUS_LABEL[status]}
+    </span>
   );
 }

@@ -125,3 +125,12 @@ body {
 
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; color: inherit; }
+
+/* Prevent iOS from zooming on focus. iOS zooms when an input's font-size
+   resolves to < 16px, so we force 16px on all text-entry controls with
+   !important to beat Tailwind's text-* utilities. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="range"]):not([type="color"]):not([type="file"]),
+textarea,
+select {
+  font-size: 16px !important;
+}

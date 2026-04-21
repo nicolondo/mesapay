@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
 type Tenant = { slug: string; name: string; tagline: string | null };
@@ -32,6 +33,15 @@ type CartLine = {
   selections: Record<string, string>;
   notes?: string;
 };
+type ActiveOrder = {
+  id: string;
+  shortCode: string;
+  subtotalCents: number;
+  status: string;
+  itemCount: number;
+  roundCount: number;
+  items: { id: string; name: string; qty: number; priceCents: number }[];
+};
 
 const TAG_STYLES: Record<string, string> = {
   firma: "bg-[#B8893B]/12 text-[#8F6828]",
@@ -54,17 +64,20 @@ export function MenuClient({
   tableNumber,
   categories,
   items,
+  activeOrder,
 }: {
   tenant: Tenant;
   tableId: string;
   tableNumber: number;
   categories: Category[];
   items: MenuItem[];
+  activeOrder: ActiveOrder | null;
 }) {
   const router = useRouter();
   const [activeCat, setActiveCat] = useState<string>(categories[0]?.slug ?? "");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openItem, setOpenItem] = useState<MenuItem | null>(null);
+  const [showActiveSheet, setShowActiveSheet] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const itemsByCat = useMemo(() => {
@@ -122,6 +135,7 @@ export function MenuClient({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         tableId,
+        orderId: activeOrder?.id,
         items: cart.map((l) => ({
           menuItemId: l.menuItemId,
           qty: l.qty,
@@ -144,8 +158,8 @@ export function MenuClient({
       {/* Header */}
       <header className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline">
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-3">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
               <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
                 Mesa {tableNumber} · {tenant.name}
               </div>
@@ -153,7 +167,35 @@ export function MenuClient({
                 La carta
               </h1>
             </div>
+            {activeOrder && (
+              <Link
+                href={`/t/${tenant.slug}/order/${activeOrder.id}`}
+                className="shrink-0 h-10 px-3 rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
+              >
+                Ver pedido · {activeOrder.shortCode}
+              </Link>
+            )}
           </div>
+          {activeOrder && (
+            <div className="mt-3 rounded-xl border border-hairline bg-paper px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
+                  Pedido abierto en esta mesa
+                </div>
+                <div className="text-sm mt-0.5 truncate">
+                  {activeOrder.itemCount} {activeOrder.itemCount === 1 ? "item" : "items"}
+                  {" · "}
+                  {fmtCOP(activeOrder.subtotalCents)}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowActiveSheet(true)}
+                className="shrink-0 text-sm font-medium text-terracotta underline underline-offset-4"
+              >
+                Ver detalle
+              </button>
+            </div>
+          )}
           {/* Category chips */}
           <div className="mt-4 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5">
             {categories.map((c) => (
@@ -254,34 +296,238 @@ export function MenuClient({
 
       {/* Cart bar */}
       {cart.length > 0 && !openItem && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xl">
-          <div className="bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] px-5 py-4 flex items-center gap-4 slide-up">
-            <div className="flex-1">
-              <div className="font-mono text-[10px] tracking-[0.16em] uppercase opacity-60">
-                Tu pedido
-              </div>
-              <div className="font-display text-xl">
-                {totalQty} {totalQty === 1 ? "item" : "items"} · {fmtCOP(subtotal)}
-              </div>
+        <CartBar
+          lines={cart}
+          subtotal={subtotal}
+          totalQty={totalQty}
+          onQty={setQty}
+          onRemove={removeLine}
+          submitting={submitting}
+          onSend={sendToKitchen}
+          appendingTo={activeOrder?.shortCode ?? null}
+        />
+      )}
+
+      {/* Active-order detail sheet */}
+      {activeOrder && showActiveSheet && (
+        <ActiveOrderSheet
+          order={activeOrder}
+          tenantSlug={tenant.slug}
+          onClose={() => setShowActiveSheet(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CartBar({
+  lines,
+  subtotal,
+  totalQty,
+  onQty,
+  onRemove,
+  submitting,
+  onSend,
+  appendingTo,
+}: {
+  lines: CartLine[];
+  subtotal: number;
+  totalQty: number;
+  onQty: (key: string, qty: number) => void;
+  onRemove: (key: string) => void;
+  submitting: boolean;
+  onSend: () => void;
+  appendingTo: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xl">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="w-full bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] px-5 py-4 flex items-center gap-4 slide-up text-left"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase opacity-60">
+              {appendingTo ? `Añadir al pedido · ${appendingTo}` : "Tu pedido"}
             </div>
-            <button
-              onClick={() => {
-                const el = document.getElementById("cart-drawer");
-                el?.scrollIntoView();
-              }}
-            >
-              <CartDrawer
-                lines={cart}
-                onQty={setQty}
-                onRemove={removeLine}
-                subtotal={subtotal}
-                submitting={submitting}
-                onSend={sendToKitchen}
-              />
-            </button>
+            <div className="font-display text-xl truncate">
+              {totalQty} {totalQty === 1 ? "item" : "items"} · {fmtCOP(subtotal)}
+            </div>
+          </div>
+          <span className="shrink-0 font-medium underline underline-offset-4">
+            Ver pedido
+          </span>
+        </button>
+      </div>
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-display text-3xl tracking-[-0.015em]">
+                    Tu pedido
+                  </h3>
+                  {appendingTo && (
+                    <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mt-1">
+                      Se añadirá al pedido {appendingTo}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="w-9 h-9 rounded-full border border-hairline"
+                >
+                  ×
+                </button>
+              </div>
+              <ul className="mt-5 divide-y divide-hairline border-t border-hairline">
+                {lines.map((l) => (
+                  <li key={l.key} className="py-3 flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium">{l.name}</div>
+                      {Object.entries(l.selections).length > 0 && (
+                        <div className="text-xs text-muted mt-0.5">
+                          {Object.values(l.selections).join(" · ")}
+                        </div>
+                      )}
+                      {l.notes && (
+                        <div className="text-xs text-muted-2 italic mt-0.5">
+                          “{l.notes}”
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onQty(l.key, l.qty - 1)}
+                        className="w-7 h-7 rounded-full bg-ivory border border-hairline"
+                      >
+                        −
+                      </button>
+                      <span className="font-mono w-4 text-center">{l.qty}</span>
+                      <button
+                        onClick={() => onQty(l.key, l.qty + 1)}
+                        className="w-7 h-7 rounded-full bg-ivory border border-hairline"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="font-mono text-sm w-20 text-right tabular">
+                      {fmtCOP(l.priceCents * l.qty)}
+                    </div>
+                    <button
+                      onClick={() => onRemove(l.key)}
+                      className="text-muted-2 text-xs ml-1"
+                    >
+                      Eliminar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between">
+                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                  {appendingTo ? "Esta ronda" : "Subtotal"}
+                </div>
+                <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
+              </div>
+              <button
+                onClick={onSend}
+                disabled={submitting}
+                className="mt-5 w-full h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
+              >
+                {submitting
+                  ? "Enviando…"
+                  : appendingTo
+                    ? "Añadir a cocina"
+                    : "Enviar a cocina"}
+              </button>
+              <p className="text-xs text-muted-2 text-center mt-3">
+                Podrás añadir más platos durante la comida.
+              </p>
+            </div>
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+function ActiveOrderSheet({
+  order,
+  tenantSlug,
+  onClose,
+}: {
+  order: ActiveOrder;
+  tenantSlug: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                Pedido de la mesa
+              </div>
+              <h3 className="font-display text-3xl tracking-[-0.015em]">
+                {order.shortCode}
+              </h3>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full border border-hairline"
+            >
+              ×
+            </button>
+          </div>
+          <ul className="mt-5 divide-y divide-hairline border-t border-hairline">
+            {order.items.map((i) => (
+              <li key={i.id} className="py-3 flex justify-between gap-3">
+                <div className="flex-1">
+                  <div className="text-sm">
+                    {i.qty}× {i.name}
+                  </div>
+                </div>
+                <div className="font-mono text-sm tabular">
+                  {fmtCOP(i.priceCents * i.qty)}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between">
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Subtotal
+            </div>
+            <div className="font-display text-2xl">
+              {fmtCOP(order.subtotalCents)}
+            </div>
+          </div>
+          <Link
+            href={`/t/${tenantSlug}/order/${order.id}`}
+            className="mt-5 w-full h-12 rounded-full bg-ink text-bone font-medium inline-flex items-center justify-center"
+          >
+            Ir al detalle del pedido
+          </Link>
+          <p className="text-xs text-muted-2 text-center mt-3">
+            Desde allí puedes ver el estado en vivo y pagar.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -411,117 +657,3 @@ function ItemSheet({
   );
 }
 
-function CartDrawer({
-  lines,
-  onQty,
-  onRemove,
-  subtotal,
-  submitting,
-  onSend,
-}: {
-  lines: CartLine[];
-  onQty: (key: string, qty: number) => void;
-  onRemove: (key: string) => void;
-  subtotal: number;
-  submitting: boolean;
-  onSend: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen(true);
-        }}
-        className="font-medium underline underline-offset-4"
-      >
-        Ver pedido
-      </span>
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6">
-              <div className="flex items-start justify-between">
-                <h3 className="font-display text-3xl tracking-[-0.015em]">
-                  Tu pedido
-                </h3>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="w-9 h-9 rounded-full border border-hairline"
-                >
-                  ×
-                </button>
-              </div>
-              <ul className="mt-5 divide-y divide-hairline border-t border-hairline">
-                {lines.map((l) => (
-                  <li key={l.key} className="py-3 flex items-start gap-3">
-                    <div className="flex-1">
-                      <div className="font-medium">{l.name}</div>
-                      {Object.entries(l.selections).length > 0 && (
-                        <div className="text-xs text-muted mt-0.5">
-                          {Object.values(l.selections).join(" · ")}
-                        </div>
-                      )}
-                      {l.notes && (
-                        <div className="text-xs text-muted-2 italic mt-0.5">
-                          “{l.notes}”
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => onQty(l.key, l.qty - 1)}
-                        className="w-7 h-7 rounded-full bg-ivory border border-hairline"
-                      >
-                        −
-                      </button>
-                      <span className="font-mono w-4 text-center">{l.qty}</span>
-                      <button
-                        onClick={() => onQty(l.key, l.qty + 1)}
-                        className="w-7 h-7 rounded-full bg-ivory border border-hairline"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <div className="font-mono text-sm w-20 text-right tabular">
-                      {fmtCOP(l.priceCents * l.qty)}
-                    </div>
-                    <button
-                      onClick={() => onRemove(l.key)}
-                      className="text-muted-2 text-xs ml-1"
-                    >
-                      Eliminar
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between">
-                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                  Subtotal
-                </div>
-                <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
-              </div>
-              <button
-                onClick={onSend}
-                disabled={submitting}
-                className="mt-5 w-full h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
-              >
-                {submitting ? "Enviando…" : "Enviar a cocina"}
-              </button>
-              <p className="text-xs text-muted-2 text-center mt-3">
-                Podrás añadir más platos durante la comida.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}

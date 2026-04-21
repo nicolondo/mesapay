@@ -7,7 +7,7 @@ export default async function MenuPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ table?: string }>;
+  searchParams: Promise<{ table?: string; order?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -31,6 +31,23 @@ export default async function MenuPage({
     return notFound();
   }
 
+  // Find active (non-paid) order for this table. If ?order= is given, prefer it.
+  // Otherwise pick the most recent open order on this table — so anyone scanning
+  // the QR sees the current shared bill.
+  const activeOrder = await db.order.findFirst({
+    where: {
+      tableId: table.id,
+      restaurantId: tenant.id,
+      status: { notIn: ["paid", "cancelled"] },
+      ...(sp.order ? { id: sp.order } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      rounds: { orderBy: { seq: "asc" } },
+      items: { orderBy: { id: "asc" } },
+    },
+  });
+
   return (
     <MenuClient
       tenant={{ slug: tenant.slug, name: tenant.name, tagline: tenant.tagline }}
@@ -51,6 +68,24 @@ export default async function MenuPage({
         photoUrl: m.photoUrl ?? null,
         modifiers: m.modifiers as unknown as ModifierDef[] | null,
       }))}
+      activeOrder={
+        activeOrder
+          ? {
+              id: activeOrder.id,
+              shortCode: activeOrder.shortCode,
+              subtotalCents: activeOrder.subtotalCents,
+              status: activeOrder.status,
+              itemCount: activeOrder.items.reduce((s, i) => s + i.qty, 0),
+              roundCount: activeOrder.rounds.length,
+              items: activeOrder.items.map((i) => ({
+                id: i.id,
+                name: i.nameSnapshot,
+                qty: i.qty,
+                priceCents: i.priceCentsSnapshot,
+              })),
+            }
+          : null
+      }
     />
   );
 }

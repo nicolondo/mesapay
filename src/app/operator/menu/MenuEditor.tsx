@@ -139,7 +139,10 @@ export function MenuEditor({
                 {rows.map((it) => (
                   <li
                     key={it.id}
-                    className="p-4 flex items-start gap-3 hover:bg-op-bg/50"
+                    className={
+                      "p-4 flex items-start gap-3 hover:bg-op-bg/50 " +
+                      (it.available ? "" : "opacity-60")
+                    }
                   >
                     <div
                       className="w-14 h-14 shrink-0 rounded-lg bg-op-bg bg-cover bg-center"
@@ -151,14 +154,7 @@ export function MenuEditor({
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="font-medium truncate">
-                          {it.name}
-                          {!it.available && (
-                            <span className="ml-2 text-[10px] font-mono uppercase tracking-wider text-op-muted">
-                              · agotado
-                            </span>
-                          )}
-                        </div>
+                        <div className="font-medium truncate">{it.name}</div>
                         <div className="font-mono text-sm tabular shrink-0">
                           {fmtCOP(it.priceCents)}
                         </div>
@@ -169,12 +165,15 @@ export function MenuEditor({
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => setEditingItem(it)}
-                      className="shrink-0 text-xs text-terracotta hover:underline"
-                    >
-                      Editar
-                    </button>
+                    <div className="shrink-0 flex items-center gap-3">
+                      <AvailabilityToggle item={it} onChanged={refresh} />
+                      <button
+                        onClick={() => setEditingItem(it)}
+                        className="text-xs text-terracotta hover:underline"
+                      >
+                        Editar
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -195,6 +194,55 @@ export function MenuEditor({
         />
       )}
     </div>
+  );
+}
+
+function AvailabilityToggle({
+  item,
+  onChanged,
+}: {
+  item: Item;
+  onChanged: () => void;
+}) {
+  const [available, setAvailable] = useState(item.available);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle() {
+    const next = !available;
+    setAvailable(next);
+    setBusy(true);
+    const res = await fetch(`/api/operator/menu-items/${item.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ available: next }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setAvailable(!next);
+      alert("No se pudo cambiar la disponibilidad.");
+      return;
+    }
+    onChanged();
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      title={
+        available
+          ? "Disponible — click para marcar agotado"
+          : "Agotado — click para reponer"
+      }
+      className={
+        "h-7 px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
+        (available
+          ? "bg-ok/10 text-[#1E5339] border-ok/30 hover:bg-ok/20"
+          : "bg-danger/10 text-danger border-danger/30 hover:bg-danger/20")
+      }
+    >
+      {available ? "Disponible" : "Agotado"}
+    </button>
   );
 }
 

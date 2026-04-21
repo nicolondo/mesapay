@@ -64,6 +64,11 @@ export default async function OrderView({
                         <div className="text-sm">
                           {li.qty}× {li.nameSnapshot}
                         </div>
+                        {li.guestName && (
+                          <div className="text-[11px] text-terracotta mt-0.5">
+                            de {li.guestName}
+                          </div>
+                        )}
                         {li.modifierSelections && typeof li.modifierSelections === "object" && (
                           <div className="text-xs text-muted mt-0.5">
                             {Object.values(li.modifierSelections as Record<string, string>).join(" · ")}
@@ -81,6 +86,67 @@ export default async function OrderView({
           })}
         </ul>
       </div>
+
+      {(() => {
+        const groups = new Map<
+          string,
+          { name: string; items: typeof order.items; subtotal: number }
+        >();
+        for (const i of order.items) {
+          const key = i.guestName?.trim() || "__anon__";
+          const label = i.guestName?.trim() || "Sin nombre";
+          const entry =
+            groups.get(key) ??
+            { name: label, items: [] as typeof order.items, subtotal: 0 };
+          entry.items.push(i);
+          entry.subtotal += i.priceCentsSnapshot * i.qty;
+          groups.set(key, entry);
+        }
+        const multi = groups.size > 1;
+        if (!multi) return null;
+        return (
+          <div className="mt-8">
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-2">
+              Por persona
+            </div>
+            <ul className="space-y-2">
+              {Array.from(groups.values()).map((g) => (
+                <li
+                  key={g.name}
+                  className="border border-hairline rounded-xl p-4 bg-paper"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-full bg-terracotta text-paper font-display text-sm inline-flex items-center justify-center">
+                        {g.name.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="font-display text-lg">{g.name}</div>
+                    </div>
+                    <div className="font-mono text-sm tabular">
+                      {fmtCOP(g.subtotal)}
+                    </div>
+                  </div>
+                  <ul className="mt-2 divide-y divide-hairline">
+                    {g.items.map((li) => (
+                      <li
+                        key={li.id}
+                        className="py-1.5 flex justify-between gap-3 text-sm"
+                      >
+                        <div>
+                          {li.qty}× {li.nameSnapshot}
+                        </div>
+                        <div className="font-mono tabular text-ink-3">
+                          {fmtCOP(li.priceCentsSnapshot * li.qty)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
         <div>

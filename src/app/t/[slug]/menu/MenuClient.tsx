@@ -82,19 +82,53 @@ export function MenuClient({
   const [showActiveSheet, setShowActiveSheet] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [layout, setLayout] = useState<MenuLayout>("list");
+  const [guestName, setGuestName] = useState<string>("");
+  const [showNameSheet, setShowNameSheet] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  const nameKey = `mesapay.guestName.${tableId}`;
 
   useEffect(() => {
-    const saved = localStorage.getItem("mesapay.menuLayout");
-    if (saved === "list" || saved === "grid" || saved === "editorial") {
-      setLayout(saved);
+    const savedLayout = localStorage.getItem("mesapay.menuLayout");
+    if (
+      savedLayout === "list" ||
+      savedLayout === "grid" ||
+      savedLayout === "editorial"
+    ) {
+      setLayout(savedLayout);
     }
-  }, []);
+    const savedName = localStorage.getItem(nameKey);
+    if (savedName) setGuestName(savedName);
+    else setShowNameSheet(true);
+    setHydrated(true);
+  }, [nameKey]);
+
   function changeLayout(next: MenuLayout) {
     setLayout(next);
     try {
       localStorage.setItem("mesapay.menuLayout", next);
     } catch {}
   }
+
+  function saveGuestName(raw: string) {
+    const name = raw.trim().slice(0, 40);
+    if (!name) return;
+    setGuestName(name);
+    try {
+      localStorage.setItem(nameKey, name);
+    } catch {}
+    setShowNameSheet(false);
+  }
+
+  // Live-refresh the "pedido abierto en esta mesa" banner when another
+  // diner at the same table sends or updates a round.
+  useEffect(() => {
+    const es = new EventSource(`/api/tenant/${tenant.slug}/events`);
+    es.addEventListener("message", () => {
+      router.refresh();
+    });
+    return () => es.close();
+  }, [tenant.slug, router]);
 
   const itemsByCat = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
@@ -161,6 +195,10 @@ export function MenuClient({
 
   async function sendToKitchen() {
     if (!cart.length) return;
+    if (!guestName) {
+      setShowNameSheet(true);
+      return;
+    }
     setSubmitting(true);
     const res = await fetch(`/api/tenant/${tenant.slug}/orders`, {
       method: "POST",
@@ -168,6 +206,7 @@ export function MenuClient({
       body: JSON.stringify({
         tableId,
         orderId: activeOrder?.id,
+        guestName,
         items: cart.map((l) => ({
           menuItemId: l.menuItemId,
           qty: l.qty,
@@ -211,6 +250,25 @@ export function MenuClient({
               )}
             </div>
           </div>
+          {hydrated && (
+            <button
+              onClick={() => setShowNameSheet(true)}
+              className="mt-3 inline-flex items-center gap-2 h-8 px-3 rounded-full border border-hairline bg-paper text-[12px]"
+            >
+              <span className="w-6 h-6 rounded-full bg-terracotta text-paper font-display text-[11px] inline-flex items-center justify-center">
+                {guestName ? guestName.charAt(0).toUpperCase() : "?"}
+              </span>
+              <span className="text-ink-3">
+                {guestName ? (
+                  <>
+                    Yo soy · <span className="text-ink font-medium">{guestName}</span>
+                  </>
+                ) : (
+                  <span className="text-terracotta">Dinos tu nombre</span>
+                )}
+              </span>
+            </button>
+          )}
           {activeOrder && (
             <div className="mt-3 rounded-xl border border-hairline bg-paper px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -344,6 +402,18 @@ export function MenuClient({
           order={activeOrder}
           tenantSlug={tenant.slug}
           onClose={() => setShowActiveSheet(false)}
+        />
+      )}
+
+      {/* Guest-name bottom sheet */}
+      {showNameSheet && (
+        <GuestNameSheet
+          initial={guestName}
+          canCancel={!!guestName}
+          onSave={saveGuestName}
+          onClose={() => {
+            if (guestName) setShowNameSheet(false);
+          }}
         />
       )}
     </div>
@@ -675,6 +745,21 @@ function ItemRowList({
   return (
     <li className="py-4">
       <div className="flex gap-4 items-start">
+        <div className="relative shrink-0">
+          <button
+            onClick={onOpen}
+            className="w-20 h-20 rounded-xl bg-cream bg-cover bg-center block"
+            style={
+              item.photoUrl
+                ? { backgroundImage: `url(${item.photoUrl})` }
+                : undefined
+            }
+            aria-label="Ver detalle"
+          />
+          <div className="absolute -bottom-2 -right-2">
+            <QuickAddButton onAdd={onQuickAdd} size="sm" />
+          </div>
+        </div>
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
           <div className="flex items-start justify-between gap-3">
             <div className="font-display text-lg leading-tight">{item.name}</div>
@@ -693,23 +778,6 @@ function ItemRowList({
             </div>
           )}
         </button>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          {item.photoUrl ? (
-            <button
-              onClick={onOpen}
-              className="w-20 h-20 rounded-xl bg-cream bg-cover bg-center"
-              style={{ backgroundImage: `url(${item.photoUrl})` }}
-              aria-label="Ver detalle"
-            />
-          ) : (
-            <button
-              onClick={onOpen}
-              className="w-20 h-20 rounded-xl bg-cream"
-              aria-label="Ver detalle"
-            />
-          )}
-          <QuickAddButton onAdd={onQuickAdd} size="sm" />
-        </div>
       </div>
     </li>
   );
@@ -739,16 +807,18 @@ function ItemCardGrid({
             De la casa
           </div>
         )}
-        <div className="absolute bottom-2 right-2">
-          <QuickAddButton onAdd={onQuickAdd} />
-        </div>
       </button>
-      <button onClick={onOpen} className="text-left mt-2">
-        <div className="font-display text-base leading-tight">{item.name}</div>
-        <div className="font-mono text-xs text-muted tabular mt-0.5">
-          {fmtCOP(item.priceCents)}
-        </div>
-      </button>
+      <div className="mt-2 flex items-start gap-2">
+        <button onClick={onOpen} className="text-left flex-1 min-w-0">
+          <div className="font-display text-base leading-tight truncate">
+            {item.name}
+          </div>
+          <div className="font-mono text-xs text-muted tabular mt-0.5">
+            {fmtCOP(item.priceCents)}
+          </div>
+        </button>
+        <QuickAddButton onAdd={onQuickAdd} size="sm" />
+      </div>
     </div>
   );
 }
@@ -777,32 +847,31 @@ function ItemCardEditorial({
     <div className="flex flex-col">
       <button
         onClick={onOpen}
-        className="relative w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
+        className="w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
         style={
           item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
         }
         aria-label={item.name}
-      >
-        <div className="absolute bottom-3 right-3">
-          <QuickAddButton onAdd={onQuickAdd} />
-        </div>
-      </button>
-      <button onClick={onOpen} className="text-left mt-3">
-        <div className="flex items-baseline justify-between gap-3 mb-1">
-          <ItemTags tags={item.tags.slice(0, 2)} />
-          <div className="font-mono text-sm tabular shrink-0">
-            {fmtCOP(item.priceCents)}
+      />
+      <div className="mt-3 flex items-start gap-3">
+        <button onClick={onOpen} className="text-left flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <ItemTags tags={item.tags.slice(0, 2)} />
+            <div className="font-mono text-sm tabular shrink-0">
+              {fmtCOP(item.priceCents)}
+            </div>
           </div>
-        </div>
-        <div className="font-display text-2xl leading-tight tracking-[-0.015em]">
-          {item.name}
-        </div>
-        {item.description && (
-          <div className="text-sm text-muted mt-1.5 leading-relaxed">
-            {item.description}
+          <div className="font-display text-2xl leading-tight tracking-[-0.015em]">
+            {item.name}
           </div>
-        )}
-      </button>
+          {item.description && (
+            <div className="text-sm text-muted mt-1.5 leading-relaxed">
+              {item.description}
+            </div>
+          )}
+        </button>
+        <QuickAddButton onAdd={onQuickAdd} />
+      </div>
     </div>
   );
 }
@@ -927,6 +996,83 @@ function ItemSheet({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function GuestNameSheet({
+  initial,
+  canCancel,
+  onSave,
+  onClose,
+}: {
+  initial: string;
+  canCancel: boolean;
+  onSave: (name: string) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const trimmed = value.trim();
+  const canSave = trimmed.length > 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
+      onClick={canCancel ? onClose : undefined}
+    >
+      <div
+        className="bg-paper text-ink w-full max-w-md rounded-t-3xl md:rounded-3xl slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSave) onSave(trimmed);
+          }}
+          className="p-6"
+        >
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+            En esta mesa
+          </div>
+          <h3 className="font-display text-3xl tracking-[-0.015em] mt-1">
+            ¿Cómo te llamamos?
+          </h3>
+          <p className="text-sm text-ink-3 mt-2 leading-relaxed">
+            Así tus amigos pueden ver qué pediste tú y qué pidieron ellos en la
+            cuenta compartida.
+          </p>
+          <input
+            autoFocus
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            maxLength={40}
+            placeholder="Tu nombre o apodo"
+            className="mt-5 w-full h-12 px-4 rounded-xl border border-hairline bg-ivory text-base focus:outline-none focus:border-terracotta"
+          />
+          <div className="mt-5 flex gap-3">
+            {canCancel && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-11 px-5 rounded-full border border-hairline font-medium text-ink-3"
+              >
+                Cancelar
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!canSave}
+              className="flex-1 h-11 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
+            >
+              Guardar
+            </button>
+          </div>
+          <p className="text-xs text-muted-2 mt-3">
+            Solo se muestra a quienes comparten tu mesa. No creamos una cuenta.
+          </p>
+        </form>
       </div>
     </div>
   );

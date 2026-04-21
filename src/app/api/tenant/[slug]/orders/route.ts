@@ -16,6 +16,9 @@ const createSchema = z.object({
   items: z.array(itemSchema).min(1),
   // If omitted, create a new order. Otherwise add a new round to an existing order.
   orderId: z.string().optional(),
+  // Display name of the guest sending the round. Shown in the shared bill
+  // so every diner at the table can see who ordered what.
+  guestName: z.string().trim().min(1).max(40).optional(),
 });
 
 function shortCode() {
@@ -95,6 +98,7 @@ export async function POST(
           priceCentsSnapshot: mi.priceCents,
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
+          guestName: parsed.data.guestName,
         },
       });
     }

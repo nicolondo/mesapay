@@ -13,7 +13,11 @@ export default async function PayPage({
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: { table: true, payments: true },
+    include: {
+      table: true,
+      payments: true,
+      items: { orderBy: { id: "asc" } },
+    },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
 
@@ -31,6 +35,13 @@ export default async function PayPage({
       subtotalCents={order.subtotalCents}
       paidCents={paidCents}
       alreadyPaid={order.status === "paid"}
+      items={order.items.map((i) => ({
+        id: i.id,
+        name: i.nameSnapshot,
+        qty: i.qty,
+        priceCents: i.priceCentsSnapshot,
+        guestName: i.guestName,
+      }))}
     />
   );
 }

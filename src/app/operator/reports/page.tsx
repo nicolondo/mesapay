@@ -72,6 +72,64 @@ export default async function ReportsPage({
   const tipsTotal = paidOrders.reduce((s, o) => s + o.tipCents, 0);
   const subtotalTotal = paidOrders.reduce((s, o) => s + o.subtotalCents, 0);
 
+  // Top-selling dishes from today's paid orders (qty + revenue).
+  const paidItems = await db.orderItem.findMany({
+    where: {
+      order: {
+        restaurantId,
+        status: "paid",
+        paidAt: { gte: start, lt: end },
+      },
+    },
+    select: {
+      menuItemId: true,
+      nameSnapshot: true,
+      qty: true,
+      priceCentsSnapshot: true,
+    },
+  });
+  const dishAgg = new Map<
+    string,
+    { name: string; qty: number; revenue: number }
+  >();
+  for (const i of paidItems) {
+    const e = dishAgg.get(i.menuItemId) ?? {
+      name: i.nameSnapshot,
+      qty: 0,
+      revenue: 0,
+    };
+    e.qty += i.qty;
+    e.revenue += i.qty * i.priceCentsSnapshot;
+    dishAgg.set(i.menuItemId, e);
+  }
+  const topDishes = Array.from(dishAgg.values())
+    .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
+    .slice(0, 10);
+  const dishesTotalQty = paidItems.reduce((s, i) => s + i.qty, 0);
+
+  // Orders cancelled today (opened today and ended up cancelled).
+  const cancelledCount = await db.order.count({
+    where: {
+      restaurantId,
+      status: "cancelled",
+      createdAt: { gte: start, lt: end },
+    },
+  });
+
+  // Ratings posted during this day.
+  const ratings = await db.dishRating.findMany({
+    where: {
+      restaurantId,
+      createdAt: { gte: start, lt: end },
+    },
+    select: { stars: true },
+  });
+  const ratingsCount = ratings.length;
+  const ratingsAvg =
+    ratingsCount > 0
+      ? ratings.reduce((s, r) => s + r.stars, 0) / ratingsCount
+      : 0;
+
   const downloadHref = `/api/operator/reports/close-of-day?date=${dateIso}`;
 
   return (
@@ -135,14 +193,36 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <Stat label="Cobrado" value={fmtCOP(paymentsTotal)} hint={`${payments.length} cobro${payments.length === 1 ? "" : "s"}`} />
         <Stat label="Órdenes pagadas" value={String(paidOrders.length)} hint={fmtCOP(subtotalTotal)} />
         <Stat label="Propinas" value={fmtCOP(tipsTotal)} hint={paidOrders.length ? `Prom. ${fmtCOP(Math.round(tipsTotal / paidOrders.length))}` : "—"} />
         <Stat label="Ticket promedio" value={paidOrders.length ? fmtCOP(Math.round(subtotalTotal / paidOrders.length)) : "—"} hint="Subtotal / orden" />
       </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <Stat
+          label="Platos vendidos"
+          value={String(dishesTotalQty)}
+          hint={`${dishAgg.size} ${dishAgg.size === 1 ? "plato distinto" : "platos distintos"}`}
+        />
+        <Stat
+          label="Canceladas"
+          value={String(cancelledCount)}
+          hint={cancelledCount === 0 ? "Ninguna" : "Órdenes del día"}
+        />
+        <Stat
+          label="Reseñas"
+          value={String(ratingsCount)}
+          hint={ratingsCount > 0 ? `${ratingsAvg.toFixed(1)} ★ prom.` : "—"}
+        />
+        <Stat
+          label="Fecha"
+          value={dateIso}
+          hint={isToday ? "Hoy" : "Histórico"}
+        />
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="bg-op-surface border border-op-border rounded-2xl p-5">
           <div className="flex items-baseline justify-between mb-3">
             <div className="font-display text-xl">Por método</div>
@@ -183,6 +263,40 @@ export default async function ReportsPage({
           )}
         </div>
 
+        <div className="bg-op-surface border border-op-border rounded-2xl p-5">
+          <div className="font-display text-xl mb-3">Top platos</div>
+          {topDishes.length === 0 && (
+            <div className="text-sm text-op-muted py-6 text-center">
+              Sin platos vendidos en este día.
+            </div>
+          )}
+          {topDishes.length > 0 && (
+            <ul className="divide-y divide-op-border">
+              {topDishes.map((d, idx) => (
+                <li
+                  key={d.name + idx}
+                  className="py-2.5 flex items-center gap-3"
+                >
+                  <span className="font-mono text-[10px] tabular w-5 text-op-muted text-right">
+                    {(idx + 1).toString().padStart(2, "0")}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{d.name}</div>
+                    <div className="text-[11px] text-op-muted">
+                      {d.qty} {d.qty === 1 ? "unidad" : "unidades"}
+                    </div>
+                  </div>
+                  <div className="font-mono tabular text-sm shrink-0">
+                    {fmtCOP(d.revenue)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
         <div className="bg-op-surface border border-op-border rounded-2xl p-5">
           <div className="font-display text-xl mb-3">Cobros</div>
           <div className="overflow-auto max-h-[420px]">

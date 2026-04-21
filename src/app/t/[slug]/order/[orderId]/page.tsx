@@ -6,6 +6,7 @@ import { OrderLive } from "./OrderLive";
 import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
 import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
+import { CancelItemButton } from "./CancelItemButton";
 
 export default async function OrderView({
   params,
@@ -126,6 +127,15 @@ export default async function OrderView({
                           {fmtCOP(li.priceCentsSnapshot * li.qty)}
                         </div>
                       </div>
+                      {li.kitchenStatus === "placed" && !li.servedAt && (
+                        <div className="mt-1.5">
+                          <CancelItemButton
+                            orderItemId={li.id}
+                            tenantSlug={slug}
+                            itemName={li.nameSnapshot}
+                          />
+                        </div>
+                      )}
                       {li.servedAt && (
                         <div className="mt-2">
                           <RatingInline

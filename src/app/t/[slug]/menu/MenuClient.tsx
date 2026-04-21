@@ -584,10 +584,10 @@ function CartBar({
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+            className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-hidden slide-up flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
+            <div className="px-6 pt-6 pb-4 flex-1 overflow-auto">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-display text-3xl tracking-[-0.015em]">
@@ -649,12 +649,6 @@ function CartBar({
                   </li>
                 ))}
               </ul>
-              <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between">
-                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                  {appendingTo ? "Esta ronda" : "Subtotal"}
-                </div>
-                <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
-              </div>
               {!appendingTo && (
                 <div className="mt-5">
                   <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
@@ -694,10 +688,18 @@ function CartBar({
                   </div>
                 </div>
               )}
+            </div>
+            <div className="shrink-0 border-t border-hairline bg-paper px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                  {appendingTo ? "Esta ronda" : "Subtotal"}
+                </div>
+                <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
+              </div>
               <button
                 onClick={onSend}
                 disabled={submitting}
-                className="mt-5 w-full h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
+                className="mt-3 w-full h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
               >
                 {submitting
                   ? "Enviando…"
@@ -705,7 +707,7 @@ function CartBar({
                     ? "Añadir a cocina"
                     : "Enviar a cocina"}
               </button>
-              <p className="text-xs text-muted-2 text-center mt-3">
+              <p className="text-xs text-muted-2 text-center mt-2">
                 Podrás añadir más platos durante la comida.
               </p>
             </div>

@@ -89,8 +89,8 @@ function SignIn() {
 
         <div className="mt-5 text-sm text-muted text-center">
           ¿No tienes cuenta?{" "}
-          <Link href="/signup" className="text-terracotta underline">
-            Crea una
+          <Link href="/signup/restaurant" className="text-terracotta underline">
+            Registra tu restaurante
           </Link>
         </div>
 

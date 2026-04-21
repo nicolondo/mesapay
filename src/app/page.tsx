@@ -81,10 +81,10 @@ export default async function Home() {
               Ingresar
             </Link>
             <Link
-              href="/signup"
-              className="h-11 px-5 rounded-xl border border-hairline inline-flex items-center justify-center font-medium text-ink text-sm"
+              href="/signup/restaurant"
+              className="h-11 px-5 rounded-xl bg-ink text-bone inline-flex items-center justify-center font-medium text-sm"
             >
-              Crear cuenta
+              Registrar mi restaurante
             </Link>
           </div>
           <p className="mt-3 text-xs text-muted-2">

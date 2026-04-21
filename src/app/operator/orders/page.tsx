@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import type { Prisma } from "@prisma/client";
+import { LiveRefresh } from "../LiveRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,11 @@ export default async function OrdersPage({
   const session = await auth();
   const restaurantId = session!.user!.restaurantId;
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { slug: true },
+  });
 
   const sp = await searchParams;
   const status: StatusFilter =
@@ -93,6 +99,7 @@ export default async function OrdersPage({
 
   return (
     <div className="p-6 max-w-6xl mx-auto w-full">
+      {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="font-display text-3xl">Órdenes</div>

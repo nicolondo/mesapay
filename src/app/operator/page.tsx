@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
+import { LiveRefresh } from "./LiveRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,11 @@ export default async function OperatorHome() {
       </div>
     );
   }
+
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { slug: true },
+  });
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -91,6 +97,7 @@ export default async function OperatorHome() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto w-full">
+      {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi label="Ventas hoy" value={fmtCOP(salesTodayCents)} />
         <Kpi label="Órdenes pagadas" value={String(todayPaidCount)} />

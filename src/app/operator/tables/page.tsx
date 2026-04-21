@@ -4,6 +4,7 @@ import { fmtCOP } from "@/lib/format";
 import { TableActions } from "./TableActions";
 import { NewTableForm } from "./NewTableForm";
 import { DeleteTableButton, EditLabelButton } from "./TableAdminActions";
+import { LiveRefresh } from "../LiveRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function TablesPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
+      {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-4">
         <div className="font-display text-3xl">Mesas</div>
         <a

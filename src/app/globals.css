@@ -117,5 +117,11 @@ body {
 }
 .check-pop { animation: checkPop 0.5s cubic-bezier(.2,.8,.2,1) both; }
 
+@keyframes slideDown {
+  from { transform: translate(-50%, -18px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+.slide-down { animation: slideDown 0.32s cubic-bezier(.2,.8,.2,1) both; }
+
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; color: inherit; }

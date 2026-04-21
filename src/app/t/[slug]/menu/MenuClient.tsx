@@ -273,75 +273,56 @@ export function MenuClient({
               )}
             </div>
           </div>
-          {hydrated && (
-            <button
-              onClick={() => setShowNameSheet(true)}
-              className="mt-3 inline-flex items-center gap-2 h-8 px-3 rounded-full border border-hairline bg-paper text-[12px]"
-            >
-              <span className="w-6 h-6 rounded-full bg-terracotta text-paper font-display text-[11px] inline-flex items-center justify-center">
-                {guestName ? guestName.charAt(0).toUpperCase() : "?"}
-              </span>
-              <span className="text-ink-3">
-                {guestName ? (
-                  <>
-                    Yo soy · <span className="text-ink font-medium">{guestName}</span>
-                  </>
-                ) : (
-                  <span className="text-terracotta">Dinos tu nombre</span>
-                )}
-              </span>
-            </button>
-          )}
-          {activeOrder && (
-            <div className="mt-3 rounded-xl border border-hairline bg-paper px-4 py-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
-                  Pedido abierto en esta mesa
-                </div>
-                <div className="text-sm mt-0.5 truncate">
-                  {activeOrder.itemCount} {activeOrder.itemCount === 1 ? "item" : "items"}
-                  {" · "}
-                  {fmtCOP(activeOrder.subtotalCents)}
-                </div>
-              </div>
+          <div className="mt-3 flex items-center gap-2">
+            {hydrated && (
               <button
-                onClick={() => setShowActiveSheet(true)}
-                className="shrink-0 text-sm font-medium text-terracotta underline underline-offset-4"
+                onClick={() => setShowNameSheet(true)}
+                className="shrink-0 inline-flex items-center gap-2 h-10 pl-1 pr-3 rounded-full border border-hairline bg-paper text-[12px]"
               >
-                Ver detalle
-              </button>
-            </div>
-          )}
-          {/* Search */}
-          <div className="mt-3 relative">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar en el menú"
-              className="w-full h-10 pl-10 pr-10 rounded-full border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
-            />
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-            </svg>
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Borrar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-ink/5 text-ink-3 flex items-center justify-center text-base leading-none hover:bg-ink/10"
-              >
-                ×
+                <span className="w-8 h-8 rounded-full bg-terracotta text-paper font-display text-[13px] inline-flex items-center justify-center">
+                  {guestName ? guestName.charAt(0).toUpperCase() : "?"}
+                </span>
+                <span className="text-ink-3 truncate max-w-[120px]">
+                  {guestName ? (
+                    <>
+                      Yo soy · <span className="text-ink font-medium">{guestName}</span>
+                    </>
+                  ) : (
+                    <span className="text-terracotta">Dinos tu nombre</span>
+                  )}
+                </span>
               </button>
             )}
+            <div className="relative flex-1 min-w-0">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar en el menú"
+                className="w-full h-10 pl-9 pr-9 rounded-full border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
+              />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+              </svg>
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Borrar búsqueda"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-ink/5 text-ink-3 flex items-center justify-center text-base leading-none hover:bg-ink/10"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Category chips */}
@@ -440,18 +421,42 @@ export function MenuClient({
         />
       )}
 
-      {/* Cart bar */}
-      {cart.length > 0 && !openItem && (
-        <CartBar
-          lines={cart}
-          subtotal={subtotal}
-          totalQty={totalQty}
-          onQty={setQty}
-          onRemove={removeLine}
-          submitting={submitting}
-          onSend={sendToKitchen}
-          appendingTo={activeOrder?.shortCode ?? null}
-        />
+      {/* Sticky bottom dock: active order + cart */}
+      {!openItem && (cart.length > 0 || activeOrder) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch">
+          {activeOrder && (
+            <button
+              type="button"
+              onClick={() => setShowActiveSheet(true)}
+              className={
+                (cart.length > 0 ? "flex-1 min-w-0 basis-0" : "w-full") +
+                " bg-paper border border-hairline text-ink rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.18)] px-4 py-3 slide-up text-left flex flex-col justify-center"
+              }
+            >
+              <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate">
+                Pedido · {activeOrder.shortCode}
+              </div>
+              <div className="text-sm font-medium truncate mt-0.5">
+                {activeOrder.itemCount} {activeOrder.itemCount === 1 ? "item" : "items"}
+                {" · "}
+                {fmtCOP(activeOrder.subtotalCents)}
+              </div>
+            </button>
+          )}
+          {cart.length > 0 && (
+            <CartBar
+              lines={cart}
+              subtotal={subtotal}
+              totalQty={totalQty}
+              onQty={setQty}
+              onRemove={removeLine}
+              submitting={submitting}
+              onSend={sendToKitchen}
+              appendingTo={activeOrder?.shortCode ?? null}
+              split={!!activeOrder}
+            />
+          )}
+        </div>
       )}
 
       {/* Active-order detail sheet */}
@@ -487,6 +492,7 @@ function CartBar({
   submitting,
   onSend,
   appendingTo,
+  split,
 }: {
   lines: CartLine[];
   subtotal: number;
@@ -496,29 +502,33 @@ function CartBar({
   submitting: boolean;
   onSend: () => void;
   appendingTo: string | null;
+  split: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xl">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="w-full bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] px-5 py-4 flex items-center gap-4 slide-up text-left"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-[10px] tracking-[0.16em] uppercase opacity-60">
-              {appendingTo ? `Añadir al pedido · ${appendingTo}` : "Tu pedido"}
-            </div>
-            <div className="font-display text-xl truncate">
-              {totalQty} {totalQty === 1 ? "item" : "items"} · {fmtCOP(subtotal)}
-            </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={
+          (split ? "flex-1 min-w-0 basis-0 px-4 py-3" : "w-full px-5 py-4") +
+          " bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 slide-up text-left"
+        }
+      >
+        <div className="flex-1 min-w-0">
+          <div className="font-mono text-[9px] tracking-[0.16em] uppercase opacity-60 truncate">
+            {appendingTo ? `Añadir · ${appendingTo}` : "Tu pedido"}
           </div>
+          <div className={(split ? "text-sm font-medium" : "font-display text-xl") + " truncate mt-0.5"}>
+            {totalQty} {totalQty === 1 ? "item" : "items"} · {fmtCOP(subtotal)}
+          </div>
+        </div>
+        {!split && (
           <span className="shrink-0 font-medium underline underline-offset-4">
             Ver pedido
           </span>
-        </button>
-      </div>
+        )}
+      </button>
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"

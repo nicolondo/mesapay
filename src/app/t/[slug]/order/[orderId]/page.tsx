@@ -7,6 +7,7 @@ import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
 import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
+import { CallWaiterButton } from "./CallWaiterButton";
 
 export default async function OrderView({
   params,
@@ -59,6 +60,19 @@ export default async function OrderView({
       </h1>
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
+
+      {order.status !== "paid" && order.status !== "cancelled" && (
+        <div className="mt-5">
+          <CallWaiterButton
+            tenantSlug={slug}
+            orderId={order.id}
+            initialNeedsWaiter={order.needsWaiter}
+            initialCalledAtISO={
+              order.waiterCalledAt ? order.waiterCalledAt.toISOString() : null
+            }
+          />
+        </div>
+      )}
 
       {(() => {
         const pendingEtas = order.rounds

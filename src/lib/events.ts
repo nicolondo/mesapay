@@ -8,7 +8,9 @@ export type OrderEvent =
   | { type: "order.updated"; orderId: string }
   | { type: "order.ready"; orderId: string }
   | { type: "order.paid"; orderId: string }
-  | { type: "order.cash_requested"; orderId: string; paymentId: string };
+  | { type: "order.cash_requested"; orderId: string; paymentId: string }
+  | { type: "order.waiter_called"; orderId: string }
+  | { type: "order.waiter_ack"; orderId: string };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

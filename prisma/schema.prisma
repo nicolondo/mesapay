@@ -187,6 +187,9 @@ model Order {
 
   servingMode ServingMode @default(asReady)
 
+  needsWaiter     Boolean   @default(false)
+  waiterCalledAt  DateTime?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   placedAt  DateTime?
@@ -200,6 +203,7 @@ model Order {
 
   @@index([restaurantId, status])
   @@index([tableId])
+  @@index([restaurantId, needsWaiter])
 }
 
 model Round {

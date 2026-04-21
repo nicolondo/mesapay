@@ -14,13 +14,13 @@ export function OrderLive({
 }) {
   const router = useRouter();
   const [status] = useState(initialStatus);
-  const [toast, setToast] = useState<{ title: string; hint: string; tone: "ready" | "paid" } | null>(null);
+  const [toast, setToast] = useState<{ title: string; hint: string; tone: "ready" | "paid" | "waiter" } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function flash(
     title: string,
     hint: string,
-    tone: "ready" | "paid",
+    tone: "ready" | "paid" | "waiter",
   ) {
     setToast({ title, hint, tone });
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -40,6 +40,8 @@ export function OrderLive({
           flash("¡Algo está listo!", "Pronto llega a tu mesa.", "ready");
         } else if (data.type === "order.paid") {
           flash("Pago recibido", "¡Gracias por comer con nosotros!", "paid");
+        } else if (data.type === "order.waiter_ack") {
+          flash("Mesero en camino", "Acabamos de recibir tu llamada.", "waiter");
         }
         router.refresh();
       } catch {
@@ -74,10 +76,16 @@ export function OrderLive({
                 "w-10 h-10 rounded-full inline-flex items-center justify-center shrink-0 " +
                 (toast.tone === "ready"
                   ? "bg-[#C98A2E]/30"
-                  : "bg-[#2E6B4C]/35")
+                  : toast.tone === "waiter"
+                    ? "bg-terracotta/35"
+                    : "bg-[#2E6B4C]/35")
               }
             >
-              {toast.tone === "ready" ? <BellIcon /> : <CheckIcon />}
+              {toast.tone === "ready" || toast.tone === "waiter" ? (
+                <BellIcon />
+              ) : (
+                <CheckIcon />
+              )}
             </span>
             <div className="flex-1 min-w-0">
               <div className="font-medium truncate">{toast.title}</div>

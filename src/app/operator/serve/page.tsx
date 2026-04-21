@@ -14,7 +14,7 @@ export default async function ServePage() {
   // That's what the waiter can actually pick up. For "together" mode
   // we still include the round so we can show a waiting state with how
   // many dishes the kitchen still has to finish.
-  const [rounds, cashPending] = await Promise.all([
+  const [rounds, cashPending, waiterCalls] = await Promise.all([
     db.round.findMany({
       where: {
         order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
@@ -36,6 +36,15 @@ export default async function ServePage() {
         order: { include: { table: true } },
       },
       orderBy: { createdAt: "asc" },
+    }),
+    db.order.findMany({
+      where: {
+        restaurantId,
+        needsWaiter: true,
+        status: { notIn: ["paid", "cancelled"] },
+      },
+      include: { table: true },
+      orderBy: { waiterCalledAt: "asc" },
     }),
   ]);
 
@@ -76,6 +85,12 @@ export default async function ServePage() {
           shortCode: p.order.shortCode,
           tableNumber: p.order.table.number,
         },
+      }))}
+      waiterCalls={waiterCalls.map((o) => ({
+        id: o.id,
+        shortCode: o.shortCode,
+        tableNumber: o.table.number,
+        calledAt: (o.waiterCalledAt ?? o.updatedAt).toISOString(),
       }))}
     />
   );

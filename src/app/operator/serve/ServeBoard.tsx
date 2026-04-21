@@ -42,19 +42,29 @@ type CashPending = {
   };
 };
 
+type WaiterCall = {
+  id: string;
+  shortCode: string;
+  tableNumber: number;
+  calledAt: string;
+};
+
 export function ServeBoard({
   tenantSlug,
   rounds,
   cashPending,
+  waiterCalls,
 }: {
   tenantSlug: string;
   rounds: Round[];
   cashPending: CashPending[];
+  waiterCalls: WaiterCall[];
 }) {
   const router = useRouter();
   const [, startTx] = useTransition();
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
   const [settlingId, setSettlingId] = useState<string | null>(null);
+  const [ackingId, setAckingId] = useState<string | null>(null);
 
   useEffect(() => {
     const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
@@ -69,6 +79,11 @@ export function ServeBoard({
         if (data.type === "order.cash_requested") {
           try {
             navigator.vibrate?.([80, 40, 80, 40, 80]);
+          } catch {}
+        }
+        if (data.type === "order.waiter_called") {
+          try {
+            navigator.vibrate?.([160, 60, 160]);
           } catch {}
         }
       } catch {}
@@ -134,7 +149,18 @@ export function ServeBoard({
 
   const settling = cashPending.find((c) => c.id === settlingId) ?? null;
 
-  if (tables.length === 0 && cashPending.length === 0) {
+  async function ackWaiter(orderId: string) {
+    setAckingId(orderId);
+    await fetch(`/api/operator/orders/${orderId}/ack-waiter`, { method: "POST" });
+    setAckingId(null);
+    startTx(() => router.refresh());
+  }
+
+  if (
+    tables.length === 0 &&
+    cashPending.length === 0 &&
+    waiterCalls.length === 0
+  ) {
     return (
       <div className="p-10 text-center">
         <div className="font-display text-3xl mb-1">Todo entregado</div>
@@ -150,6 +176,13 @@ export function ServeBoard({
       <div className="flex items-baseline justify-between mb-4">
         <div className="font-display text-3xl">Salón</div>
         <div className="font-mono text-xs text-op-muted">
+          {waiterCalls.length > 0 && (
+            <>
+              {waiterCalls.length}{" "}
+              {waiterCalls.length === 1 ? "llamada" : "llamadas"}
+              {" · "}
+            </>
+          )}
           {cashPending.length > 0 && (
             <>
               {cashPending.length}{" "}
@@ -161,6 +194,24 @@ export function ServeBoard({
           {tables.length} {tables.length === 1 ? "mesa" : "mesas"}
         </div>
       </div>
+
+      {waiterCalls.length > 0 && (
+        <section className="mb-6">
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
+            Llamadas pendientes
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {waiterCalls.map((w) => (
+              <WaiterCallCard
+                key={w.id}
+                call={w}
+                busy={ackingId === w.id}
+                onAck={() => ackWaiter(w.id)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {cashPending.length > 0 && (
         <section className="mb-6">
@@ -219,6 +270,61 @@ export function ServeBoard({
         />
       )}
     </div>
+  );
+}
+
+function WaiterCallCard({
+  call,
+  busy,
+  onAck,
+}: {
+  call: WaiterCall;
+  busy: boolean;
+  onAck: () => void;
+}) {
+  return (
+    <li className="rounded-2xl border-2 border-terracotta/50 bg-terracotta/10 p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="font-display text-2xl">Mesa {call.tableNumber}</div>
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+            {call.shortCode}
+          </div>
+        </div>
+        <CashAge createdAt={call.calledAt} />
+      </div>
+      <div className="flex items-center gap-2 text-sm text-ink">
+        <span className="w-7 h-7 rounded-full bg-terracotta/25 text-terracotta inline-flex items-center justify-center shrink-0">
+          <BellIcon />
+        </span>
+        <span>Solicitan un mesero</span>
+      </div>
+      <button
+        onClick={onAck}
+        disabled={busy}
+        className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform disabled:opacity-60"
+      >
+        {busy ? "Atendiendo…" : "Voy en camino"}
+      </button>
+    </li>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
   );
 }
 

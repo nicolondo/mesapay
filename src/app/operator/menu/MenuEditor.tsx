@@ -475,7 +475,24 @@ function ItemSheet({
   const [tags, setTags] = useState<string[]>(item.tags);
   const [modifiers, setModifiers] = useState<ModifierDef[]>(item.modifiers);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  async function onPhotoPick(file: File) {
+    setUploading(true);
+    setErr(null);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/operator/uploads", { method: "POST", body: form });
+    setUploading(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "No pudimos subir la foto.");
+      return;
+    }
+    const { url } = await res.json();
+    setPhotoUrl(url);
+  }
 
   async function save() {
     const cents = Math.round(Number(priceCents) * 100);
@@ -602,17 +619,47 @@ function ItemSheet({
             />
           </label>
 
-          <label className="flex flex-col">
+          <div className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-              URL de la foto (opcional)
+              Foto
             </span>
-            <input
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="https://…"
-              className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-            />
-          </label>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-20 h-20 rounded-lg bg-op-bg border border-op-border bg-cover bg-center shrink-0"
+                style={
+                  photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined
+                }
+              />
+              <div className="flex flex-col gap-1.5">
+                <label className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-op-border bg-op-bg text-sm font-medium cursor-pointer hover:bg-ink/5">
+                  {uploading ? "Subiendo…" : photoUrl ? "Cambiar foto" : "Subir foto"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onPhotoPick(f);
+                      e.target.value = "";
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                {photoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoUrl("")}
+                    className="text-xs text-danger hover:underline text-left"
+                  >
+                    Quitar foto
+                  </button>
+                )}
+                <div className="text-[11px] text-op-muted">
+                  JPG, PNG o WebP · máx 5MB
+                </div>
+              </div>
+            </div>
+          </div>
 
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">

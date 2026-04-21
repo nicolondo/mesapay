@@ -22,6 +22,121 @@ function normalizeSlug(s: string) {
     .slice(0, 40);
 }
 
+const CATEGORY_SEED = [
+  { slug: "entradas", label: "Entradas", sortOrder: 0 },
+  { slug: "platos", label: "Platos fuertes", sortOrder: 1 },
+  { slug: "bebidas", label: "Bebidas", sortOrder: 2 },
+  { slug: "postres", label: "Postres", sortOrder: 3 },
+] as const;
+
+type SeedItem = {
+  category: (typeof CATEGORY_SEED)[number]["slug"];
+  name: string;
+  description: string;
+  priceCents: number;
+  tags: string[];
+  sortOrder: number;
+};
+
+const MENU_SEED: SeedItem[] = [
+  {
+    category: "entradas",
+    name: "Ceviche de corvina",
+    description: "Corvina curada en limón, ají dulce, leche de tigre, crocante de maíz chulpi.",
+    priceCents: 3800000,
+    tags: ["firma"],
+    sortOrder: 0,
+  },
+  {
+    category: "entradas",
+    name: "Empanadas de carne",
+    description: "Tres empanadas doradas con ají picado de la casa.",
+    priceCents: 1800000,
+    tags: ["popular"],
+    sortOrder: 1,
+  },
+  {
+    category: "entradas",
+    name: "Patacones con hogao",
+    description: "Plátano verde frito, hogao casero y guacamole.",
+    priceCents: 1600000,
+    tags: ["veg"],
+    sortOrder: 2,
+  },
+  {
+    category: "platos",
+    name: "Bandeja paisa",
+    description: "Frijoles, arroz, carne molida, chicharrón, chorizo, huevo, plátano, aguacate y arepa.",
+    priceCents: 4800000,
+    tags: ["firma"],
+    sortOrder: 0,
+  },
+  {
+    category: "platos",
+    name: "Sancocho de gallina",
+    description: "Caldo tradicional con gallina criolla, papa, yuca, plátano y mazorca.",
+    priceCents: 3600000,
+    tags: ["popular"],
+    sortOrder: 1,
+  },
+  {
+    category: "platos",
+    name: "Trucha al ajillo",
+    description: "Trucha fresca al sartén con ajo dorado, mantequilla de limón y patacones.",
+    priceCents: 4200000,
+    tags: [],
+    sortOrder: 2,
+  },
+  {
+    category: "platos",
+    name: "Ensalada de la huerta",
+    description: "Mix de hojas, tomate, aguacate, quinoa y vinagreta de maracuyá.",
+    priceCents: 2800000,
+    tags: ["veg", "nuevo"],
+    sortOrder: 3,
+  },
+  {
+    category: "bebidas",
+    name: "Limonada de coco",
+    description: "Limón, coco rallado y leche condensada, bien fría.",
+    priceCents: 1200000,
+    tags: ["popular"],
+    sortOrder: 0,
+  },
+  {
+    category: "bebidas",
+    name: "Jugo natural de mora",
+    description: "Mora en agua o leche.",
+    priceCents: 900000,
+    tags: [],
+    sortOrder: 1,
+  },
+  {
+    category: "bebidas",
+    name: "Agua con gas",
+    description: "Botella 500ml.",
+    priceCents: 500000,
+    tags: [],
+    sortOrder: 2,
+  },
+  {
+    category: "postres",
+    name: "Tres leches",
+    description: "Bizcocho empapado en tres leches, crema chantilly y canela.",
+    priceCents: 1500000,
+    tags: ["firma"],
+    sortOrder: 0,
+  },
+  {
+    category: "postres",
+    name: "Arequipe con brevas",
+    description: "Brevas en almíbar con arequipe y queso campesino.",
+    priceCents: 1400000,
+    tags: [],
+    sortOrder: 1,
+  },
+];
+
 const RESERVED = new Set([
   "www",
   "api",
@@ -88,14 +203,34 @@ export async function POST(req: Request) {
       },
     });
 
-    await tx.category.createMany({
-      data: [
-        { restaurantId: restaurant.id, slug: "entradas", label: "Entradas", sortOrder: 0 },
-        { restaurantId: restaurant.id, slug: "platos", label: "Platos fuertes", sortOrder: 1 },
-        { restaurantId: restaurant.id, slug: "bebidas", label: "Bebidas", sortOrder: 2 },
-        { restaurantId: restaurant.id, slug: "postres", label: "Postres", sortOrder: 3 },
-      ],
-    });
+    const categoriesByKey = new Map<string, string>();
+    for (const def of CATEGORY_SEED) {
+      const cat = await tx.category.create({
+        data: {
+          restaurantId: restaurant.id,
+          slug: def.slug,
+          label: def.label,
+          sortOrder: def.sortOrder,
+        },
+      });
+      categoriesByKey.set(def.slug, cat.id);
+    }
+
+    for (const it of MENU_SEED) {
+      const categoryId = categoriesByKey.get(it.category);
+      if (!categoryId) continue;
+      await tx.menuItem.create({
+        data: {
+          restaurantId: restaurant.id,
+          categoryId,
+          name: it.name,
+          description: it.description,
+          priceCents: it.priceCents,
+          tags: it.tags,
+          sortOrder: it.sortOrder,
+        },
+      });
+    }
 
     await tx.table.create({
       data: {

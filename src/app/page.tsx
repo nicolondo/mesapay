@@ -231,7 +231,7 @@ function HowItWorks() {
     {
       kicker: "03 · Pagar",
       title: "Pagan solos, dividen la cuenta o llaman al mesero",
-      copy: "Tarjeta, Nequi, PSE, USDT o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
+      copy: "Tarjeta, Apple Pay, Google Pay, Nequi, PSE, USDT o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
       badge: "Cuenta dividida sin drama",
     },
   ];
@@ -584,6 +584,20 @@ function Pricing() {
       highlight: false,
     },
     {
+      name: "Mostrador",
+      price: "$ 150.000",
+      per: "/ mes · COP",
+      copy: "Punto de venta sin mesas: food trucks, cafés de ventana, mostradores.",
+      features: [
+        "Un único QR de mostrador",
+        "Pedidos independientes",
+        "Cocina + cierre de turno",
+        "Operadores ilimitados",
+      ],
+      cta: { label: "Empezar en mostrador", href: "/signup/restaurant" },
+      highlight: false,
+    },
+    {
       name: "Básico",
       price: "$ 200.000",
       per: "/ mes · COP",
@@ -605,7 +619,7 @@ function Pricing() {
       features: [
         "Mesas ilimitadas",
         "Multi-turno",
-        "Integración Wompi (pronto)",
+        "Integración de Pagos",
         "Soporte prioritario",
       ],
       cta: { label: "Hablar con ventas", href: "/signup/restaurant" },
@@ -631,7 +645,7 @@ function Pricing() {
           </div>
         </Reveal>
 
-        <div className="mt-12 grid md:grid-cols-3 gap-4">
+        <div className="mt-12 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {tiers.map((t, i) => (
             <Reveal key={t.name} delayMs={i * 80}>
               <div
@@ -811,8 +825,7 @@ function SiteFooter() {
             <span className="font-display text-xl">MESAPAY</span>
           </div>
           <p className="mt-3 text-ink-3 max-w-sm">
-            Hecho en Colombia para restaurantes colombianos. Ordenar y pagar
-            desde la mesa, sin apps ni filas.
+            Hecho en Colombia. Ordenar y pagar desde la mesa, sin apps ni filas.
           </p>
         </div>
         <div>

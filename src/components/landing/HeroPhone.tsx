@@ -246,11 +246,13 @@ function PayScene() {
         </div>
       </div>
 
-      <div className="mt-3 space-y-1">
+      <div className="mt-3 grid grid-cols-2 gap-1">
         <PayMethod label="Tarjeta" hint="Débito o crédito" />
         <PayMethod label="Nequi" hint="Transferencia" active />
-        <PayMethod label="PSE" hint="Bancolombia · Davivienda…" />
-        <PayMethod label="USDT" hint="Cripto · red TRC-20" />
+        <PayMethod label="Apple Pay" hint="Face ID" />
+        <PayMethod label="Google Pay" hint="1 toque" />
+        <PayMethod label="PSE" hint="Bancolombia · Dav…" />
+        <PayMethod label="USDT" hint="Cripto · TRC-20" />
         <PayMethod label="Efectivo" hint="Llamar al mesero" />
       </div>
 

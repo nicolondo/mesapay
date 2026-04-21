@@ -1,12 +1,11 @@
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaymentsPage() {
-  const session = await auth();
-  const restaurantId = session!.user!.restaurantId;
+  const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const payments = await db.payment.findMany({

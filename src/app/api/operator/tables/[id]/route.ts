@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const patchSchema = z.object({
   label: z.string().trim().max(40).nullable().optional(),
@@ -17,10 +18,8 @@ async function guard(id: string) {
   }
   const table = await db.table.findUnique({ where: { id } });
   if (!table) return { error: "not found" as const };
-  if (
-    session.user.role === "operator" &&
-    table.restaurantId !== session.user.restaurantId
-  ) {
+  const activeId = await getActiveRestaurantId();
+  if (table.restaurantId !== activeId) {
     return { error: "forbidden" as const };
   }
   return { table };

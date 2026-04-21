@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
+import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 
 export default async function OperatorLayout({
   children,
@@ -14,12 +16,43 @@ export default async function OperatorLayout({
     redirect("/");
   }
 
-  const tenant = session.user.restaurantId
-    ? await db.restaurant.findUnique({ where: { id: session.user.restaurantId } })
+  const ctx = await getActiveContext();
+  const restaurantId = ctx?.restaurantId ?? null;
+  const impersonating = ctx?.impersonating ?? false;
+
+  // Platform admin without impersonation set → nudge them to pick a restaurant.
+  if (session.user.role === "platform_admin" && !restaurantId) {
+    redirect("/admin/restaurants");
+  }
+
+  const tenant = restaurantId
+    ? await db.restaurant.findUnique({ where: { id: restaurantId } })
     : null;
+
+  async function stopImpersonating() {
+    "use server";
+    const jar = await cookies();
+    jar.delete(IMPERSONATE_COOKIE);
+    redirect("/admin/restaurants");
+  }
 
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
+      {impersonating && (
+        <div className="bg-terracotta text-bone px-6 py-2 flex items-center justify-between text-sm">
+          <div>
+            <span className="font-mono text-[10px] tracking-wider uppercase opacity-80 mr-2">
+              Impersonando
+            </span>
+            Viendo como operador de <strong>{tenant?.name ?? "…"}</strong>
+          </div>
+          <form action={stopImpersonating}>
+            <button className="font-mono text-[10px] tracking-wider uppercase underline">
+              Dejar de impersonar
+            </button>
+          </form>
+        </div>
+      )}
       <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">
         <div className="flex items-center justify-between px-6 py-3">
           <div className="flex items-center gap-4">

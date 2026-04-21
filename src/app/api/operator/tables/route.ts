@@ -3,6 +3,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const createSchema = z.object({
   number: z.number().int().min(1).max(999),
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const restaurantId = session.user.restaurantId;
+  const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no restaurant" }, { status: 400 });
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const createSchema = z.object({
   categoryId: z.string().min(1),
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const restaurantId = session.user.restaurantId;
+  const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no restaurant" }, { status: 400 });
   }

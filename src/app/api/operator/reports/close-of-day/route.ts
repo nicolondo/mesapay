@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { bogotaDayRange, bogotaTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const METHOD_LABEL: Record<string, string> = {
   demo_card: "Tarjeta (demo)",
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const restaurantId = session.user.restaurantId;
+  const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no tenant" }, { status: 400 });
   }

@@ -1,13 +1,12 @@
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { Stars } from "@/app/t/[slug]/order/[orderId]/RatingInline";
 
 export const dynamic = "force-dynamic";
 
 export default async function OperatorRatingsPage() {
-  const session = await auth();
-  const restaurantId = session!.user!.restaurantId;
+  const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const [ratings, items] = await Promise.all([

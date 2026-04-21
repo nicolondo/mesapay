@@ -128,10 +128,17 @@ export default async function RestaurantsAdmin({
                     className="border-t border-op-border hover:bg-op-bg"
                   >
                     <Td>
-                      <div className="font-medium">{r.name}</div>
-                      <div className="font-mono text-[11px] text-op-muted">
-                        {r.slug}
-                      </div>
+                      <Link
+                        href={`/admin/restaurants/${r.id}`}
+                        className="block"
+                      >
+                        <div className="font-medium hover:underline">
+                          {r.name}
+                        </div>
+                        <div className="font-mono text-[11px] text-op-muted">
+                          {r.slug}
+                        </div>
+                      </Link>
                     </Td>
                     <Td>
                       <div>{bogotaDate(r.createdAt)}</div>

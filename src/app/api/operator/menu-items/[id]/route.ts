@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
 
@@ -36,10 +37,8 @@ async function guard(id: string) {
   }
   const item = await db.menuItem.findUnique({ where: { id } });
   if (!item) return { error: "not found" as const };
-  if (
-    session.user.role === "operator" &&
-    item.restaurantId !== session.user.restaurantId
-  ) {
+  const activeId = await getActiveRestaurantId();
+  if (item.restaurantId !== activeId) {
     return { error: "forbidden" as const };
   }
   return { item, session };

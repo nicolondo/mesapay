@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
@@ -29,10 +30,8 @@ export async function PATCH(
 
   const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (
-    session.user.role === "operator" &&
-    order.restaurantId !== session.user.restaurantId
-  ) {
+  const activeId = await getActiveRestaurantId();
+  if (order.restaurantId !== activeId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (order.status === "paid") {

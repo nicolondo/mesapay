@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const tenants = await db.restaurant.findMany({ orderBy: { name: "asc" } }).catch(() => []);
 

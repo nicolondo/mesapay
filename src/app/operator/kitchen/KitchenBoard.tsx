@@ -70,45 +70,37 @@ export function KitchenBoard({
     return () => es.close();
   }, [tenantSlug, router]);
 
-  async function advanceItem(itemId: string, to: KitchenStatus) {
+  async function advanceItems(itemIds: string[], to: KitchenStatus) {
+    if (itemIds.length === 0) return;
     setPendingKitchen((prev) => {
       const next = new Map(prev);
-      next.set(itemId, to);
+      for (const id of itemIds) next.set(id, to);
       return next;
     });
     // Safety net: if SSE never arrives we still clear the optimistic
-    // state so the button doesn't stay disabled forever.
+    // state so the buttons don't stay disabled forever.
     setTimeout(() => {
       setPendingKitchen((prev) => {
-        if (prev.get(itemId) !== to) return prev;
+        let changed = false;
         const next = new Map(prev);
-        next.delete(itemId);
-        return next;
+        for (const id of itemIds) {
+          if (next.get(id) === to) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
       });
     }, 2000);
-    await fetch(`/api/operator/order-items/${itemId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kitchenStatus: to }),
-    });
-    startTx(() => router.refresh());
-  }
-
-  async function advanceRound(roundId: string, to: KitchenStatus) {
-    // Bulk path: also optimistically mark every item in the round.
-    const round = rounds.find((r) => r.id === roundId);
-    if (round) {
-      setPendingKitchen((prev) => {
-        const next = new Map(prev);
-        for (const it of round.items) next.set(it.id, to);
-        return next;
-      });
-    }
-    await fetch(`/api/operator/rounds/${roundId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: to }),
-    });
+    await Promise.all(
+      itemIds.map((id) =>
+        fetch(`/api/operator/order-items/${id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kitchenStatus: to }),
+        }),
+      ),
+    );
     startTx(() => router.refresh());
   }
 
@@ -127,8 +119,8 @@ export function KitchenBoard({
     startTx(() => router.refresh());
   }
 
-  async function serveAll(round: Round) {
-    const pending = round.items.filter(
+  async function serveItems(items: Item[]) {
+    const pending = items.filter(
       (i) => !i.servedAt && !pendingServed.has(i.id),
     );
     if (!pending.length) return;
@@ -153,18 +145,20 @@ export function KitchenBoard({
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
 
-  function roundColumn(r: Round): KitchenStatus {
-    // Weakest-link: round shows in the column of its least-advanced item.
-    const statuses = r.items.map(effectiveItemStatus);
-    if (statuses.some((s) => s === "placed")) return "placed";
-    if (statuses.some((s) => s === "in_kitchen")) return "in_kitchen";
-    return "ready";
-  }
-
   return (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
       {COLUMNS.map((col) => {
-        const rows = rounds.filter((r) => roundColumn(r) === col.key);
+        // Each round appears in every column where it has at least one item
+        // in that column's state — so advancing a single item moves just
+        // that item across columns instead of holding back the whole round.
+        const rows = rounds
+          .map((r) => ({
+            round: r,
+            colItems: r.items.filter(
+              (i) => effectiveItemStatus(i) === col.key,
+            ),
+          }))
+          .filter((x) => x.colItems.length > 0);
         return (
           <div
             key={col.key}
@@ -177,24 +171,25 @@ export function KitchenBoard({
               </div>
             </div>
             <ul className="p-3 space-y-3 overflow-auto">
-              {rows.map((r) => {
+              {rows.map(({ round: r, colItems }) => {
                 const isReadyCol = col.key === "ready";
+                const isPlacedCol = col.key === "placed";
+                const isKitchenCol = col.key === "in_kitchen";
                 const mode = r.order.servingMode;
-                const itemsPending = r.items.filter(
-                  (i) => !i.servedAt && !pendingServed.has(i.id),
-                ).length;
-                const itemsReady = r.items.filter(
+                const allReady = r.items.every(
                   (i) => effectiveItemStatus(i) === "ready",
                 );
-                const itemsPlaced = r.items.filter(
-                  (i) => effectiveItemStatus(i) === "placed",
+                // Together mode holds serving until every item of the round
+                // is ready, so we only allow serve controls in that case.
+                const canServeMode = mode === "asReady" || allReady;
+                const colUnserved = colItems.filter(
+                  (i) => !i.servedAt && !pendingServed.has(i.id),
                 );
-                const itemsCooking = r.items.filter(
-                  (i) => effectiveItemStatus(i) === "in_kitchen",
-                );
+                const itemIds = colItems.map((i) => i.id);
+                const isPartial = colItems.length < r.items.length;
                 return (
                   <li
-                    key={r.id}
+                    key={r.id + "-" + col.key}
                     className={"rounded-xl border-2 bg-op-bg p-3 " + col.tint}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -215,13 +210,18 @@ export function KitchenBoard({
                       </div>
                     </div>
 
+                    {isPartial && (
+                      <div className="mt-1 font-mono text-[9px] tracking-wider uppercase text-op-muted">
+                        {colItems.length} de {r.items.length}
+                      </div>
+                    )}
+
                     <ul className="mt-2 space-y-2">
-                      {r.items.map((i) => {
+                      {colItems.map((i) => {
                         const status = effectiveItemStatus(i);
-                        const served = !!i.servedAt || pendingServed.has(i.id);
-                        const canServe =
-                          status === "ready" &&
-                          (mode === "asReady" || itemsReady.length === r.items.length);
+                        const served =
+                          !!i.servedAt || pendingServed.has(i.id);
+                        const canServe = status === "ready" && canServeMode;
                         const advancePending = pendingKitchen.has(i.id);
                         return (
                           <li key={i.id} className="text-sm">
@@ -234,7 +234,7 @@ export function KitchenBoard({
                               onAdvance={() => {
                                 if (advancePending) return;
                                 const to = NEXT_STATUS[status];
-                                if (to) advanceItem(i.id, to);
+                                if (to) advanceItems([i.id], to);
                               }}
                               onToggleServed={() =>
                                 toggleServed(i.id, !served)
@@ -245,40 +245,44 @@ export function KitchenBoard({
                       })}
                     </ul>
 
-                    <div className="mt-3 flex gap-2 flex-wrap">
-                      {itemsPlaced.length > 0 && (
+                    {colItems.length > 1 && (
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        {isPlacedCol && (
+                          <button
+                            onClick={() => advanceItems(itemIds, "in_kitchen")}
+                            className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
+                          >
+                            Empezar {colItems.length}
+                          </button>
+                        )}
+                        {isKitchenCol && (
+                          <button
+                            onClick={() => advanceItems(itemIds, "ready")}
+                            className="flex-1 min-w-[120px] h-8 rounded-lg bg-ok text-bone text-xs font-medium"
+                          >
+                            Marcar {colItems.length} listos
+                          </button>
+                        )}
+                        {isReadyCol && canServeMode && colUnserved.length > 1 && (
+                          <button
+                            onClick={() => serveItems(colUnserved)}
+                            className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
+                          >
+                            Servir {colUnserved.length}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {isReadyCol && (
+                      <div className="mt-2 flex justify-end">
                         <button
-                          onClick={() => advanceRound(r.id, "in_kitchen")}
-                          className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
-                        >
-                          Empezar todo
-                        </button>
-                      )}
-                      {itemsCooking.length > 0 && itemsPlaced.length === 0 && (
-                        <button
-                          onClick={() => advanceRound(r.id, "ready")}
-                          className="flex-1 min-w-[120px] h-8 rounded-lg bg-ok text-bone text-xs font-medium"
-                        >
-                          Marcar todo listo
-                        </button>
-                      )}
-                      {isReadyCol && itemsPending > 0 && (
-                        <button
-                          onClick={() => serveAll(r)}
-                          className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
-                        >
-                          Servir todo
-                        </button>
-                      )}
-                      {isReadyCol && (
-                        <button
-                          onClick={() => advanceRound(r.id, "in_kitchen")}
-                          className="h-8 px-3 rounded-lg border border-op-border text-xs"
+                          onClick={() => advanceItems(itemIds, "in_kitchen")}
+                          className="h-7 px-2 rounded-md border border-op-border text-[11px] text-op-muted"
                         >
                           Volver a cocina
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}

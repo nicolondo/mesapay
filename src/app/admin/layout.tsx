@@ -1,22 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
-import { db } from "@/lib/db";
 
-export default async function OperatorLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/signin?callbackUrl=/operator");
-  if (session.user.role !== "operator" && session.user.role !== "platform_admin") {
-    redirect("/");
-  }
-
-  const tenant = session.user.restaurantId
-    ? await db.restaurant.findUnique({ where: { id: session.user.restaurantId } })
-    : null;
+  if (!session?.user) redirect("/signin?callbackUrl=/admin");
+  if (session.user.role !== "platform_admin") redirect("/");
 
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
@@ -24,32 +17,23 @@ export default async function OperatorLayout({
         <div className="flex items-center justify-between px-6 py-3">
           <div className="flex items-center gap-4">
             <div>
-              <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-op-muted">
-                Operador · {tenant?.name ?? "Sin restaurante"}
+              <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
+                Plataforma · Admin
               </div>
               <div className="font-display text-xl tracking-[-0.015em]">MESAPAY</div>
             </div>
             <nav className="flex gap-1 ml-6">
-              <NavLink href="/operator">Resumen</NavLink>
-              <NavLink href="/operator/kitchen">Cocina</NavLink>
-              <NavLink href="/operator/serve">Salón</NavLink>
-              <NavLink href="/operator/payments">Cobros</NavLink>
-              <NavLink href="/operator/orders">Órdenes</NavLink>
-              <NavLink href="/operator/menu">Menú</NavLink>
-              <NavLink href="/operator/tables">Mesas</NavLink>
-              <NavLink href="/operator/ratings">Reseñas</NavLink>
-              <NavLink href="/operator/reports">Cierre</NavLink>
+              <NavLink href="/admin">Resumen</NavLink>
+              <NavLink href="/admin/restaurants">Restaurantes</NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            {session.user.role === "platform_admin" && (
-              <Link
-                href="/admin"
-                className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
-              >
-                Admin →
-              </Link>
-            )}
+            <Link
+              href="/operator"
+              className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
+            >
+              ← Operador
+            </Link>
             <span className="text-op-muted">{session.user.email}</span>
             <form
               action={async () => {

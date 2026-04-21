@@ -43,12 +43,6 @@ const NEXT_STATUS: Record<KitchenStatus, KitchenStatus | null> = {
   ready: null,
 };
 
-const STATUS_LABEL: Record<KitchenStatus, string> = {
-  placed: "Pendiente",
-  in_kitchen: "Cocinando",
-  ready: "Listo",
-};
-
 export function KitchenBoard({
   tenantSlug,
   rounds,
@@ -82,6 +76,16 @@ export function KitchenBoard({
       next.set(itemId, to);
       return next;
     });
+    // Safety net: if SSE never arrives we still clear the optimistic
+    // state so the button doesn't stay disabled forever.
+    setTimeout(() => {
+      setPendingKitchen((prev) => {
+        if (prev.get(itemId) !== to) return prev;
+        const next = new Map(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 2000);
     await fetch(`/api/operator/order-items/${itemId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -211,13 +215,14 @@ export function KitchenBoard({
                       </div>
                     </div>
 
-                    <ul className="mt-2 space-y-1.5">
+                    <ul className="mt-2 space-y-2">
                       {r.items.map((i) => {
                         const status = effectiveItemStatus(i);
                         const served = !!i.servedAt || pendingServed.has(i.id);
                         const canServe =
                           status === "ready" &&
                           (mode === "asReady" || itemsReady.length === r.items.length);
+                        const advancePending = pendingKitchen.has(i.id);
                         return (
                           <li key={i.id} className="text-sm">
                             <ItemRow
@@ -225,7 +230,9 @@ export function KitchenBoard({
                               status={status}
                               served={served}
                               canServe={canServe}
+                              advancePending={advancePending}
                               onAdvance={() => {
+                                if (advancePending) return;
                                 const to = NEXT_STATUS[status];
                                 if (to) advanceItem(i.id, to);
                               }}
@@ -293,6 +300,7 @@ function ItemRow({
   status,
   served,
   canServe,
+  advancePending,
   onAdvance,
   onToggleServed,
 }: {
@@ -300,91 +308,172 @@ function ItemRow({
   status: KitchenStatus;
   served: boolean;
   canServe: boolean;
+  advancePending: boolean;
   onAdvance: () => void;
   onToggleServed: () => void;
 }) {
-  const statusTint: Record<KitchenStatus, string> = {
-    placed: "bg-op-bg border-op-border text-op-muted",
-    in_kitchen: "bg-[#C98A2E]/12 border-[#C98A2E]/40 text-[#8F6828]",
-    ready: "bg-[#2E6B4C]/12 border-[#2E6B4C]/40 text-[#1E5339]",
-  };
-
-  const body = (
-    <div className="flex items-start justify-between gap-2">
-      <div className={"flex-1 " + (served ? "line-through text-op-muted" : "")}>
-        <span className="font-mono">{item.qty}×</span> {item.name}
-        {item.modifiers.length > 0 && (
-          <span className={served ? "text-op-muted/70" : "text-op-muted"}>
-            {" "}· {item.modifiers.join(" · ")}
-          </span>
-        )}
-      </div>
-      {item.guestName && (
-        <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-          {item.guestName}
-        </span>
-      )}
-    </div>
-  );
-
-  const notes = item.notes && (
-    <div
-      className={
-        "text-xs italic mt-0.5 " +
-        (served ? "text-op-muted/80" : "text-terracotta")
-      }
-    >
-      “{item.notes}”
-    </div>
-  );
-
   return (
     <div className="flex items-start gap-2 py-0.5">
-      {canServe ? (
-        <button
-          type="button"
-          onClick={onToggleServed}
-          aria-pressed={served}
-          className="mt-0.5 shrink-0 inline-flex items-center justify-center active:scale-95 transition-transform"
-          title={served ? "Marcar como no servido" : "Marcar como servido"}
-        >
-          <span
+      <AdvanceControl
+        status={status}
+        pending={advancePending}
+        onAdvance={onAdvance}
+      />
+      <div className="flex-1 min-w-0 pt-0.5">
+        <div className="flex items-start justify-between gap-2">
+          <div
             className={
-              "w-4 h-4 rounded border inline-flex items-center justify-center text-[10px] leading-none " +
-              (served
-                ? "bg-ok border-ok text-bone"
-                : "bg-op-surface border-op-border text-transparent")
+              "flex-1 text-sm " + (served ? "line-through text-op-muted" : "")
             }
-            aria-hidden
           >
-            ✓
-          </span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onAdvance}
-          disabled={status === "ready"}
-          className={
-            "mt-0.5 shrink-0 inline-flex items-center h-5 px-1.5 rounded border text-[9px] uppercase tracking-wider font-medium active:scale-95 transition-transform disabled:opacity-100 disabled:cursor-default " +
-            statusTint[status]
-          }
-          title={
-            status === "placed"
-              ? "Empezar a cocinar"
-              : status === "in_kitchen"
-                ? "Marcar listo"
-                : "Esperando"
-          }
-        >
-          {STATUS_LABEL[status]}
-        </button>
-      )}
-      <div className="flex-1 min-w-0">
-        {body}
-        {notes}
+            <span className="font-mono">{item.qty}×</span> {item.name}
+            {item.modifiers.length > 0 && (
+              <span className={served ? "text-op-muted/70" : "text-op-muted"}>
+                {" "}· {item.modifiers.join(" · ")}
+              </span>
+            )}
+          </div>
+          {item.guestName && (
+            <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+              {item.guestName}
+            </span>
+          )}
+        </div>
+        {item.notes && (
+          <div
+            className={
+              "text-xs italic mt-0.5 " +
+              (served ? "text-op-muted/80" : "text-terracotta")
+            }
+          >
+            “{item.notes}”
+          </div>
+        )}
       </div>
+      {canServe && (
+        <ServeControl served={served} onToggle={onToggleServed} />
+      )}
     </div>
+  );
+}
+
+function AdvanceControl({
+  status,
+  pending,
+  onAdvance,
+}: {
+  status: KitchenStatus;
+  pending: boolean;
+  onAdvance: () => void;
+}) {
+  // Action-oriented label so the cook reads what tapping will DO,
+  // not the current state of the item.
+  if (status === "placed") {
+    return (
+      <button
+        type="button"
+        onClick={onAdvance}
+        disabled={pending}
+        className="shrink-0 w-[88px] h-9 rounded-lg bg-ink text-bone text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1 active:scale-95 transition-transform disabled:opacity-50"
+        title="Empezar a cocinar"
+      >
+        <PlayIcon /> Empezar
+      </button>
+    );
+  }
+  if (status === "in_kitchen") {
+    return (
+      <button
+        type="button"
+        onClick={onAdvance}
+        disabled={pending}
+        className="shrink-0 w-[88px] h-9 rounded-lg bg-[#C98A2E]/15 border border-[#C98A2E]/55 text-[#7F5A1F] text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1 active:scale-95 transition-transform hover:bg-[#C98A2E]/25 disabled:opacity-50"
+        title="Marcar listo"
+      >
+        <CheckIcon /> Listo
+      </button>
+    );
+  }
+  // ready — no further advance; show a static pill so layout stays aligned.
+  return (
+    <span
+      aria-label="Listo"
+      className="shrink-0 w-[88px] h-9 rounded-lg bg-[#2E6B4C]/12 border border-[#2E6B4C]/40 text-[#1E5339] text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1"
+    >
+      <CheckIcon /> Listo
+    </span>
+  );
+}
+
+function ServeControl({
+  served,
+  onToggle,
+}: {
+  served: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={served}
+      className={
+        "shrink-0 w-[88px] h-9 rounded-lg text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1 active:scale-95 transition-transform border " +
+        (served
+          ? "bg-ok border-ok text-bone"
+          : "bg-op-surface border-op-border text-op-text hover:border-ok hover:bg-ok/5")
+      }
+      title={served ? "Quitar servido" : "Marcar servido"}
+    >
+      {served ? <CheckIcon /> : <CircleIcon />}
+      {served ? "Servido" : "Servir"}
+    </button>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
+function CircleIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="8" />
+    </svg>
   );
 }
 

@@ -49,3 +49,6 @@ next-env.d.ts
 .env.production
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# Claude Code
+/.claude/

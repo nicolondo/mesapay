@@ -123,6 +123,119 @@ body {
 }
 .slide-down { animation: slideDown 0.32s cubic-bezier(.2,.8,.2,1) both; }
 
+/* ===== Landing page animations ===== */
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.float-y { animation: floatY 6s ease-in-out infinite; }
+
+@keyframes pulseRing {
+  0% { transform: scale(0.85); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.pulse-ring { animation: pulseRing 2.4s ease-out infinite; }
+.pulse-ring-slow { animation: pulseRing 3.6s ease-out infinite; animation-delay: 1.2s; }
+
+@keyframes scanBeam {
+  0% { transform: translateY(-100%); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+.scan-beam { animation: scanBeam 2.8s cubic-bezier(.4,0,.4,1) infinite; }
+
+@keyframes fadeUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.fade-up { animation: fadeUp 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(.2,.8,.2,1), transform 0.7s cubic-bezier(.2,.8,.2,1);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes shimmerSweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--ink) 0%,
+    var(--ink) 40%,
+    var(--terracotta) 50%,
+    var(--ink) 60%,
+    var(--ink) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerSweep 6s linear infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 40s linear infinite; }
+
+@keyframes ticker {
+  0%, 24% { opacity: 1; transform: translateY(0); }
+  28%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes cardRotate {
+  0%, 22% { opacity: 1; transform: translateY(0) scale(1); }
+  26%, 98% { opacity: 0; transform: translateY(-12px) scale(0.98); pointer-events: none; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.dot-blink { animation: dotBlink 1.4s ease-in-out infinite; }
+
+@keyframes countPop {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.grain {
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(201,83,46,0.08), transparent 60%),
+    radial-gradient(900px 500px at 110% 20%, rgba(184,137,59,0.08), transparent 60%),
+    radial-gradient(800px 500px at 50% 120%, rgba(92,107,59,0.07), transparent 60%);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(26,22,19,0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(26,22,19,0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-y,
+  .pulse-ring,
+  .pulse-ring-slow,
+  .scan-beam,
+  .shimmer-text,
+  .marquee-track,
+  .dot-blink {
+    animation: none !important;
+  }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; color: inherit; }
 

@@ -8,8 +8,8 @@ type Plan = "trial" | "basic" | "pro";
 
 const PLAN_OPTIONS: { value: Plan; label: string; suggestedPriceCents: number }[] = [
   { value: "trial", label: "Prueba", suggestedPriceCents: 0 },
-  { value: "basic", label: "Básico", suggestedPriceCents: 8_000_000 },
-  { value: "pro", label: "Pro", suggestedPriceCents: 15_000_000 },
+  { value: "basic", label: "Básico", suggestedPriceCents: 20_000_000 },
+  { value: "pro", label: "Pro", suggestedPriceCents: 40_000_000 },
 ];
 
 export function PlanEditor({

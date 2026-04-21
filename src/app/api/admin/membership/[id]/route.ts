@@ -7,7 +7,7 @@ import { extendOneMonth } from "@/lib/membership";
 const planSchema = z.object({
   action: z.literal("set_plan"),
   plan: z.enum(["trial", "basic", "pro"]),
-  monthlyPriceCents: z.number().int().min(0).max(10_000_000),
+  monthlyPriceCents: z.number().int().min(0).max(100_000_000),
 });
 
 const suspendSchema = z.object({

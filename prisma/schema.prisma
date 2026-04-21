@@ -21,6 +21,7 @@ model Restaurant {
   suspended         Boolean   @default(false)
 
   serviceMode       ServiceMode @default(table)
+  pickupEnabled     Boolean     @default(false)
 
   users               User[]
   tables              Table[]
@@ -176,6 +177,11 @@ enum ServingMode {
   together
 }
 
+enum OrderType {
+  dineIn
+  pickup
+}
+
 model Order {
   id           String     @id @default(cuid())
   restaurantId String
@@ -196,6 +202,12 @@ model Order {
   totalCents    Int @default(0)
 
   servingMode ServingMode @default(asReady)
+
+  orderType    OrderType @default(dineIn)
+  etaMinutes   Int?
+  readyEta     DateTime?
+  pickupName   String?
+  pickupPhone  String?
 
   needsWaiter     Boolean   @default(false)
   waiterCalledAt  DateTime?

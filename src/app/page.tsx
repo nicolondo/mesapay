@@ -326,6 +326,11 @@ function Features() {
       icon: <IconCounter />,
     },
     {
+      title: "Pedido anticipado con prepago",
+      copy: "Activa el QR de recogida y tus clientes ordenan desde afuera. Pagan con tarjeta o Nequi antes de que la cocina empiece y ven en vivo cuánto falta para recoger.",
+      icon: <IconPickup />,
+    },
+    {
       title: "Reseñas por plato, no por ★",
       copy: "Cada plato puede recibir una reseña independiente. Sabes qué está gustando y qué hay que afinar en la cocina.",
       icon: <IconStar />,
@@ -993,6 +998,15 @@ function IconCounter() {
       <path d="M3 19h18" />
       <rect x="7" y="4" width="10" height="7" rx="1.5" />
       <path d="M10 11V7M14 11V7" />
+    </IconBase>
+  );
+}
+function IconPickup() {
+  return (
+    <IconBase>
+      <path d="M6 9h12l-1 10H7L6 9Z" />
+      <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+      <path d="M10 14l1.5 1.5L15 12" />
     </IconBase>
   );
 }

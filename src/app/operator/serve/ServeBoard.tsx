@@ -27,6 +27,10 @@ type Round = {
     shortCode: string;
     tableNumber: number;
     servingMode: "asReady" | "together";
+    orderType: "dineIn" | "pickup";
+    pickupName: string | null;
+    etaMinutes: number | null;
+    readyEta: string | null;
   };
   items: Item[];
 };
@@ -132,13 +136,18 @@ export function ServeBoard({
   // In "table" mode we bundle every open round for a table into one card so
   // the waiter sees "all of mesa 3" at a glance. In "counter" mode every
   // physical order is independent (no shared bill, no waiter walking to a
-  // seat), so we group by order instead.
+  // seat), so we group by order instead. Pickup orders always group per-order
+  // — the fake table (-1) would otherwise lump every pickup together.
   const groupKey = (r: Round) =>
-    serviceMode === "counter" ? r.order.id : String(r.order.tableNumber);
+    r.order.orderType === "pickup" || serviceMode === "counter"
+      ? r.order.id
+      : String(r.order.tableNumber);
   const groupLabel = (r: Round) =>
-    serviceMode === "counter"
-      ? `Orden ${r.order.shortCode}`
-      : `Mesa ${r.order.tableNumber}`;
+    r.order.orderType === "pickup"
+      ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
+      : serviceMode === "counter"
+        ? `Orden ${r.order.shortCode}`
+        : `Mesa ${r.order.tableNumber}`;
 
   const byGroup = new Map<string, { label: string; sort: number; rounds: Round[] }>();
   for (const r of rounds) {
@@ -150,7 +159,7 @@ export function ServeBoard({
       byGroup.set(key, {
         label: groupLabel(r),
         sort:
-          serviceMode === "counter"
+          r.order.orderType === "pickup" || serviceMode === "counter"
             ? new Date(r.readyAt ?? 0).getTime()
             : r.order.tableNumber,
         rounds: [r],
@@ -674,11 +683,14 @@ function SingleServeCard({
   round: Round;
   onServe: () => void;
 }) {
+  const isPickup = r.order.orderType === "pickup";
   return (
     <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
-          {r.order.shortCode} · R{r.seq}
+          {isPickup
+            ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
+            : `${r.order.shortCode} · R${r.seq}`}
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
@@ -698,7 +710,7 @@ function SingleServeCard({
             </div>
           )}
         </div>
-        {i.guestName && (
+        {i.guestName && !isPickup && (
           <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
             {i.guestName}
           </span>
@@ -708,7 +720,9 @@ function SingleServeCard({
         onClick={onServe}
         className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
       >
-        Entregado
+        {isPickup
+          ? `Entregado a ${r.order.pickupName ?? r.order.shortCode}`
+          : "Entregado"}
       </button>
     </li>
   );

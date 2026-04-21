@@ -320,4 +320,57 @@ export function ServiceModePicker({
   );
 }
 
+export function PickupToggle({
+  restaurantId,
+  pickupEnabled,
+}: {
+  restaurantId: string;
+  pickupEnabled: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [, startTx] = useTransition();
+
+  async function toggle() {
+    const next = !pickupEnabled;
+    if (
+      next &&
+      !window.confirm(
+        "Activar pedido anticipado mostrará un QR de recogida y los clientes podrán prepagar para recoger en el mostrador. ¿Continuar?",
+      )
+    )
+      return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/membership/${restaurantId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "set_pickup_enabled",
+        pickupEnabled: next,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      alert("No se pudo cambiar.");
+      return;
+    }
+    startTx(() => router.refresh());
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      className={
+        "h-8 px-3 rounded-full text-xs border disabled:opacity-60 " +
+        (pickupEnabled
+          ? "bg-ink text-bone border-ink"
+          : "bg-op-bg border-op-border")
+      }
+    >
+      {pickupEnabled ? "Activado" : "Desactivado"}
+    </button>
+  );
+}
+
 export { fmtCOP };

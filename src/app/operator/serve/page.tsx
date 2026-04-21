@@ -61,6 +61,10 @@ export default async function ServePage() {
           shortCode: r.order.shortCode,
           tableNumber: r.order.table.number,
           servingMode: r.order.servingMode,
+          orderType: r.order.orderType as "dineIn" | "pickup",
+          pickupName: r.order.pickupName,
+          etaMinutes: r.order.etaMinutes,
+          readyEta: r.order.readyEta ? r.order.readyEta.toISOString() : null,
         },
         items: r.items.map((i) => ({
           id: i.id,

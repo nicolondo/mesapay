@@ -4,15 +4,25 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 export const dynamic = "force-dynamic";
 
-export default async function PrintTablesPage() {
+export default async function PrintTablesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pickup?: string }>;
+}) {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
 
+  const { pickup } = await searchParams;
+  const pickupOnly = pickup === "1";
+
   const tables = await db.table.findMany({
-    where: { restaurantId },
+    where: {
+      restaurantId,
+      number: pickupOnly ? -1 : { gte: 0 },
+    },
     orderBy: { number: "asc" },
   });
 
@@ -20,7 +30,10 @@ export default async function PrintTablesPage() {
 
   const qrs = await Promise.all(
     tables.map(async (t) => {
-      const url = `${base}/t/${tenant.slug}/menu?table=${t.qrToken}`;
+      const url =
+        t.number === -1
+          ? `${base}/p/${tenant.slug}?t=${t.qrToken}`
+          : `${base}/t/${tenant.slug}/menu?table=${t.qrToken}`;
       const svg = await QRCode.toString(url, {
         type: "svg",
         margin: 1,
@@ -61,9 +74,11 @@ export default async function PrintTablesPage() {
               {tenant.name}
             </div>
             <div className="font-display text-4xl tracking-[-0.015em] mt-2">
-              {tenant.serviceMode === "counter"
-                ? "Mostrador"
-                : `Mesa ${q.number}`}
+              {q.number === -1
+                ? "Recogida"
+                : tenant.serviceMode === "counter"
+                  ? "Mostrador"
+                  : `Mesa ${q.number}`}
             </div>
             {q.label && (
               <div className="text-sm text-muted mt-1">{q.label}</div>

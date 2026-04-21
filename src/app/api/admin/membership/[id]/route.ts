@@ -27,12 +27,20 @@ const serviceModeSchema = z.object({
   serviceMode: z.enum(["table", "counter"]),
 });
 
+const pickupEnabledSchema = z.object({
+  action: z.literal("set_pickup_enabled"),
+  pickupEnabled: z.boolean(),
+});
+
 const bodySchema = z.discriminatedUnion("action", [
   planSchema,
   suspendSchema,
   paymentSchema,
   serviceModeSchema,
+  pickupEnabledSchema,
 ]);
+
+const PICKUP_TABLE_NUMBER = -1;
 
 export async function POST(
   req: Request,
@@ -68,6 +76,35 @@ export async function POST(
     await db.restaurant.update({
       where: { id },
       data: { suspended: parsed.data.suspended },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "set_pickup_enabled") {
+    const next = parsed.data.pickupEnabled;
+    await db.$transaction(async (tx) => {
+      await tx.restaurant.update({
+        where: { id },
+        data: { pickupEnabled: next },
+      });
+      // Enabling pickup needs a dedicated Table row (number: -1) so the QR
+      // link + kitchen grouping have somewhere to attach, mirroring the
+      // counter-mode lazy-create trick.
+      if (next) {
+        const pickup = await tx.table.findFirst({
+          where: { restaurantId: id, number: PICKUP_TABLE_NUMBER },
+        });
+        if (!pickup) {
+          await tx.table.create({
+            data: {
+              restaurantId: id,
+              number: PICKUP_TABLE_NUMBER,
+              label: "Pickup",
+              qrToken: crypto.randomUUID(),
+            },
+          });
+        }
+      }
     });
     return NextResponse.json({ ok: true });
   }

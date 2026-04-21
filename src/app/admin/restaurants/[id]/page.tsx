@@ -12,6 +12,7 @@ import {
   type MembershipStatus,
 } from "@/lib/membership";
 import {
+  PickupToggle,
   PlanEditor,
   RecordPaymentForm,
   ServiceModePicker,
@@ -239,6 +240,27 @@ export default async function RestaurantDetail({
           {rest.serviceMode === "counter"
             ? "Cliente ordena desde un QR único, sin mesas. Útil para food trucks y mostradores."
             : "Cada mesa tiene su propio QR. El cliente escanea desde su puesto."}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <div>
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              Pedido anticipado
+            </div>
+            <div className="text-sm mt-1">
+              Cliente escanea un QR, prepaga y recoge en el mostrador.
+            </div>
+          </div>
+          <PickupToggle
+            restaurantId={id}
+            pickupEnabled={rest.pickupEnabled}
+          />
+        </div>
+        <div className="text-[11px] text-op-muted mt-2">
+          El QR de recogida se imprime desde Mesas. El tiempo de espera se
+          calcula en vivo según lo que esté en cocina.
         </div>
       </div>
 

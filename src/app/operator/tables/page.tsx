@@ -13,7 +13,7 @@ export default async function TablesPage() {
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
-  const tables = await db.table.findMany({
+  const allTables = await db.table.findMany({
     where: { restaurantId },
     orderBy: { number: "asc" },
     include: {
@@ -26,6 +26,8 @@ export default async function TablesPage() {
       _count: { select: { orders: true } },
     },
   });
+  const pickupTable = allTables.find((t) => t.number === -1) ?? null;
+  const tables = allTables.filter((t) => t.number !== -1);
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
@@ -56,6 +58,43 @@ export default async function TablesPage() {
           <NewTableForm suggestedNumber={nextNumber} />
         </div>
       )}
+
+      {tenant?.pickupEnabled && pickupTable && (
+        <div className="mb-5 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta">
+                Pedido anticipado
+              </div>
+              <div className="font-display text-2xl mt-1">QR de recogida</div>
+              <div className="text-xs text-op-muted mt-1">
+                Cliente escanea, prepaga y recoge en mostrador.
+              </div>
+            </div>
+            <a
+              href={`/operator/tables/print?pickup=1`}
+              target="_blank"
+              className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
+            >
+              Imprimir
+            </a>
+          </div>
+          <details className="mt-3">
+            <summary className="text-xs text-op-muted cursor-pointer">
+              Enlace QR
+            </summary>
+            <a
+              href={`${base}/p/${tenant.slug}?t=${pickupTable.qrToken}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block text-xs text-terracotta font-mono break-all hover:underline"
+            >
+              {`${base}/p/${tenant.slug}?t=${pickupTable.qrToken}`}
+            </a>
+          </details>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((t) => {
           const url = `${base}/t/${tenant!.slug}/menu?table=${t.qrToken}`;

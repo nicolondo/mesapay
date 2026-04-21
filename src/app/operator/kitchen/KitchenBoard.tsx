@@ -29,6 +29,10 @@ type Round = {
     shortCode: string;
     tableNumber: number;
     servingMode: "asReady" | "together";
+    orderType: "dineIn" | "pickup";
+    pickupName: string | null;
+    etaMinutes: number | null;
+    readyEta: string | null;
   };
   items: Item[];
 };
@@ -214,15 +218,25 @@ export function KitchenBoard({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-mono text-[11px] tracking-wider text-op-muted uppercase truncate">
-                        {serviceMode === "counter"
-                          ? `Orden ${r.order.shortCode} · R${r.seq}`
-                          : `${r.order.shortCode} · Mesa ${r.order.tableNumber} · R${r.seq}`}
+                        {r.order.orderType === "pickup"
+                          ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
+                          : serviceMode === "counter"
+                            ? `Orden ${r.order.shortCode} · R${r.seq}`
+                            : `${r.order.shortCode} · Mesa ${r.order.tableNumber} · R${r.seq}`}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {r.order.orderType === "pickup" && (
+                          <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+                            Recoger
+                          </span>
+                        )}
                         {fuertesJuntos && (
                           <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
                             Fuertes juntos
                           </span>
+                        )}
+                        {r.order.orderType === "pickup" && r.order.readyEta && !isReadyCol && (
+                          <EtaBadge readyEta={r.order.readyEta} />
                         )}
                         {isReadyCol && r.readyAt ? (
                           <PassTimer readyAt={r.readyAt} />
@@ -520,6 +534,33 @@ function AgeTimer({ placedAt }: { placedAt: string }) {
   return (
     <span className={"font-mono text-xs tabular " + tint}>
       {mins < 1 ? "<1m" : `${mins}m`}
+    </span>
+  );
+}
+
+function EtaBadge({ readyEta }: { readyEta: string }) {
+  // Shows the customer-promised ETA so the cook can pace against it.
+  // Red once we're past it — that's the signal to push the order.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+  const mins = Math.round((new Date(readyEta).getTime() - now) / 60000);
+  const late = mins < 0;
+  const tint = late
+    ? "text-danger border-danger/40 bg-danger/10"
+    : mins <= 3
+      ? "text-[#C98A2E] border-[#C98A2E]/40 bg-[#C98A2E]/10"
+      : "text-op-muted border-op-border bg-op-bg";
+  return (
+    <span
+      className={
+        "font-mono text-[9px] tracking-wider uppercase px-1.5 py-0.5 rounded border tabular " +
+        tint
+      }
+    >
+      {late ? `+${Math.abs(mins)}m` : `ETA ${mins}m`}
     </span>
   );
 }

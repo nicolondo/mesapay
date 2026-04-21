@@ -246,9 +246,11 @@ function PayScene() {
         </div>
       </div>
 
-      <div className="mt-4 space-y-1.5">
+      <div className="mt-3 space-y-1">
         <PayMethod label="Tarjeta" hint="Débito o crédito" />
         <PayMethod label="Nequi" hint="Transferencia" active />
+        <PayMethod label="PSE" hint="Bancolombia · Davivienda…" />
+        <PayMethod label="USDT" hint="Cripto · red TRC-20" />
         <PayMethod label="Efectivo" hint="Llamar al mesero" />
       </div>
 
@@ -291,19 +293,19 @@ function PayMethod({
   return (
     <div
       className={
-        "rounded-lg border px-3 py-2 flex items-center justify-between " +
+        "rounded-lg border px-2.5 py-1.5 flex items-center justify-between " +
         (active
           ? "bg-ink text-bone border-ink"
           : "bg-paper text-ink border-hairline")
       }
     >
-      <div>
-        <div className="text-xs font-medium">{label}</div>
-        <div className="text-[10px] opacity-70">{hint}</div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-medium leading-tight">{label}</div>
+        <div className="text-[9px] opacity-70 truncate leading-tight">{hint}</div>
       </div>
       <div
         className={
-          "w-4 h-4 rounded-full border " +
+          "w-3.5 h-3.5 rounded-full border shrink-0 " +
           (active ? "border-bone bg-bone/25" : "border-hairline")
         }
       />

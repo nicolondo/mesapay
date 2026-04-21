@@ -115,7 +115,7 @@ function Hero({
         <div className="md:col-span-7">
           <div className="inline-flex items-center gap-2 h-7 px-3 rounded-full border border-hairline bg-paper/70 backdrop-blur text-[11px] font-mono tracking-wider uppercase text-ink-3 fade-up">
             <span className="w-1.5 h-1.5 rounded-full bg-ok dot-blink" />
-            En vivo en Bogotá
+            En vivo en Medellín
           </div>
           <h1 className="mt-5 font-display text-[44px] leading-[1.02] md:text-[72px] md:leading-[1.02] tracking-[-0.025em] fade-up" style={{ animationDelay: "0.05s" }}>
             La fila para pagar,{" "}
@@ -231,7 +231,7 @@ function HowItWorks() {
     {
       kicker: "03 · Pagar",
       title: "Pagan solos, dividen la cuenta o llaman al mesero",
-      copy: "Tarjeta, Nequi o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
+      copy: "Tarjeta, Nequi, PSE, USDT o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
       badge: "Cuenta dividida sin drama",
     },
   ];
@@ -442,7 +442,7 @@ function Benefits() {
                     <span className="text-lg ml-1 text-muted">/ mes</span>
                   </span>
                 }
-                sub="sin comisión por transacción"
+                sub="mensualidad fija, sin sorpresas"
                 wide
               />
             </Reveal>
@@ -617,11 +617,11 @@ function Pricing() {
               Planes
             </div>
             <h2 className="mt-3 font-display text-4xl md:text-5xl leading-[1.05] tracking-[-0.015em]">
-              Un solo precio, sin comisión por transacción.
+              Un precio plano, sin enredos.
             </h2>
             <p className="mt-4 text-ink-3 text-lg">
-              Pagas una mensualidad fija. Lo que tus clientes paguen por el QR es
-              100% tuyo.
+              Pagas una mensualidad fija mientras tus clientes ordenan y pagan
+              desde su mesa.
             </p>
           </div>
         </Reveal>
@@ -852,7 +852,7 @@ function SiteFooter() {
       </div>
       <div className="border-t border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-8 py-5 flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] tracking-wider uppercase text-muted">
-          <span>© {new Date().getFullYear()} MESAPAY · Bogotá</span>
+          <span>© {new Date().getFullYear()} MESAPAY · Medellín</span>
           <span>Construido para meseros, cocineros y dueños.</span>
         </div>
       </div>

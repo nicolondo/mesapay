@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
 const TIP_OPTIONS = [0, 5, 8, 10, 12] as const;
@@ -127,6 +128,13 @@ export function PayClient({
 
   return (
     <main className="flex flex-1 flex-col max-w-lg mx-auto w-full px-5 py-8">
+      <Link
+        href={`/t/${tenantSlug}/order/${orderId}`}
+        className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
+      >
+        <span aria-hidden>←</span>
+        <span>Volver al pedido</span>
+      </Link>
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
         Mesa {tableNumber} · {tenantName} · {shortCode}
       </div>

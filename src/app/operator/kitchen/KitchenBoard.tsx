@@ -9,7 +9,14 @@ type Round = {
   status: "placed" | "in_kitchen" | "ready";
   placedAt: string;
   order: { id: string; shortCode: string; tableNumber: number };
-  items: { id: string; qty: number; name: string; modifiers: string[]; notes: string | null }[];
+  items: {
+    id: string;
+    qty: number;
+    name: string;
+    modifiers: string[];
+    notes: string | null;
+    guestName: string | null;
+  }[];
 };
 
 const COLUMNS: { key: Round["status"]; label: string; tint: string }[] = [
@@ -72,18 +79,27 @@ export function KitchenBoard({
                     </div>
                     <AgeTimer placedAt={r.placedAt} />
                   </div>
-                  <ul className="mt-2 space-y-1">
+                  <ul className="mt-2 space-y-1.5">
                     {r.items.map((i) => (
                       <li key={i.id} className="text-sm">
-                        <span className="font-mono">{i.qty}×</span> {i.name}
-                        {i.modifiers.length > 0 && (
-                          <span className="text-op-muted">
-                            {" "}
-                            · {i.modifiers.join(" · ")}
-                          </span>
-                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-mono">{i.qty}×</span> {i.name}
+                            {i.modifiers.length > 0 && (
+                              <span className="text-op-muted">
+                                {" "}
+                                · {i.modifiers.join(" · ")}
+                              </span>
+                            )}
+                          </div>
+                          {i.guestName && (
+                            <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+                              {i.guestName}
+                            </span>
+                          )}
+                        </div>
                         {i.notes && (
-                          <div className="text-xs text-terracotta italic">
+                          <div className="text-xs text-terracotta italic mt-0.5">
                             “{i.notes}”
                           </div>
                         )}

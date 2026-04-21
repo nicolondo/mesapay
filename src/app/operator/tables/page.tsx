@@ -2,6 +2,8 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { TableActions } from "./TableActions";
+import { NewTableForm } from "./NewTableForm";
+import { DeleteTableButton, EditLabelButton } from "./TableAdminActions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,12 @@ export default async function TablesPage() {
         take: 1,
         include: { items: true },
       },
+      _count: { select: { orders: true } },
     },
   });
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
+  const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
@@ -41,12 +45,16 @@ export default async function TablesPage() {
       <p className="text-sm text-op-muted mb-4">
         Cada mesa tiene un enlace QR único. Imprímelo y colócalo en la mesa.
       </p>
+      <div className="mb-5">
+        <NewTableForm suggestedNumber={nextNumber} />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((t) => {
           const url = `${base}/t/${tenant!.slug}/menu?table=${t.qrToken}`;
           const order = t.orders[0];
           const active = !!order;
           const itemCount = order?.items.reduce((s, i) => s + i.qty, 0) ?? 0;
+          const canDelete = t._count.orders === 0;
           return (
             <div
               key={t.id}
@@ -61,6 +69,9 @@ export default async function TablesPage() {
                   }
                   title={active ? "Orden abierta" : "Libre"}
                 />
+              </div>
+              <div className="mt-1">
+                <EditLabelButton tableId={t.id} currentLabel={t.label} />
               </div>
 
               {active && order && (
@@ -94,6 +105,12 @@ export default async function TablesPage() {
                   {url}
                 </a>
               </details>
+
+              {canDelete && (
+                <div className="mt-3 pt-3 border-t border-op-border flex justify-end">
+                  <DeleteTableButton tableId={t.id} number={t.number} />
+                </div>
+              )}
             </div>
           );
         })}

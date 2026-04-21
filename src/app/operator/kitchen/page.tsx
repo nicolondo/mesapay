@@ -44,6 +44,7 @@ export default async function KitchenPage() {
               ? Object.values(i.modifierSelections as Record<string, string>)
               : [],
           notes: i.notes ?? null,
+          guestName: i.guestName ?? null,
         })),
       }))}
     />

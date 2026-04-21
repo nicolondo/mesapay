@@ -745,27 +745,20 @@ function ItemRowList({
   return (
     <li className="py-4">
       <div className="flex gap-4 items-start">
-        <div className="relative shrink-0">
-          <button
-            onClick={onOpen}
-            className="w-20 h-20 rounded-xl bg-cream bg-cover bg-center block"
-            style={
-              item.photoUrl
-                ? { backgroundImage: `url(${item.photoUrl})` }
-                : undefined
-            }
-            aria-label="Ver detalle"
-          />
-          <div className="absolute -bottom-2 -right-2">
-            <QuickAddButton onAdd={onQuickAdd} size="sm" />
-          </div>
-        </div>
+        <button
+          onClick={onOpen}
+          className="w-20 h-20 shrink-0 rounded-xl bg-cream bg-cover bg-center block"
+          style={
+            item.photoUrl
+              ? { backgroundImage: `url(${item.photoUrl})` }
+              : undefined
+          }
+          aria-label="Ver detalle"
+        />
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
-          <div className="flex items-start justify-between gap-3">
-            <div className="font-display text-lg leading-tight">{item.name}</div>
-            <div className="font-mono text-sm tabular shrink-0">
-              {fmtCOP(item.priceCents)}
-            </div>
+          <div className="font-display text-lg leading-tight">{item.name}</div>
+          <div className="font-mono text-sm tabular text-muted mt-0.5">
+            {fmtCOP(item.priceCents)}
           </div>
           {item.description && (
             <div className="text-sm text-muted line-clamp-2 mt-1">
@@ -778,6 +771,9 @@ function ItemRowList({
             </div>
           )}
         </button>
+        <div className="shrink-0 pt-0.5">
+          <QuickAddButton onAdd={onQuickAdd} size="sm" />
+        </div>
       </div>
     </li>
   );
@@ -1039,8 +1035,7 @@ function GuestNameSheet({
             ¿Cómo te llamamos?
           </h3>
           <p className="text-sm text-ink-3 mt-2 leading-relaxed">
-            Así tus amigos pueden ver qué pediste tú y qué pidieron ellos en la
-            cuenta compartida.
+            Así tus amigos pueden ver qué pediste tú y qué pidieron ellos.
           </p>
           <input
             autoFocus

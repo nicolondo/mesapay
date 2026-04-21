@@ -105,6 +105,15 @@ export function PayClient({
       setErr(j.error ?? "El pago falló. Intenta de nuevo.");
       return;
     }
+    const j = (await res.json().catch(() => ({}))) as {
+      paymentId?: string;
+      paid?: boolean;
+      pending?: boolean;
+    };
+    if (j.pending && j.paymentId) {
+      router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
+      return;
+    }
     router.push(`/t/${tenantSlug}/pay/${orderId}/done`);
   }
 

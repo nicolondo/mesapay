@@ -29,6 +29,44 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
+  // Cash runs a different path: the payment stays pending until a waiter
+  // settles it in Salón. The order moves to "paying" so it shows up as a
+  // pending collection, but we do NOT mark it paid here.
+  if (parsed.data.method === "demo_cash") {
+    const expected = order.subtotalCents + parsed.data.tipCents;
+    const payment = await db.$transaction(async (tx) => {
+      const p = await tx.payment.create({
+        data: {
+          orderId: order.id,
+          method: "demo_cash",
+          status: "pending",
+          amountCents: parsed.data.amountCents,
+        },
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          tipCents: parsed.data.tipCents,
+          totalCents: expected,
+          status: order.status === "paid" ? order.status : "paying",
+        },
+      });
+      return p;
+    });
+
+    publishOrderEvent(tenant.id, {
+      type: "order.cash_requested",
+      orderId: order.id,
+      paymentId: payment.id,
+    });
+
+    return NextResponse.json({
+      paymentId: payment.id,
+      paid: false,
+      pending: true,
+    });
+  }
+
   // Demo: approve immediately. demo_nequi rides on wompi_nequi until we wire
   // real Wompi — keeps reports honest about which rail the diner picked.
   const method = parsed.data.method === "demo_nequi" ? "wompi_nequi" : parsed.data.method;

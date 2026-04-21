@@ -7,7 +7,8 @@ type Listener = (e: OrderEvent) => void;
 export type OrderEvent =
   | { type: "order.updated"; orderId: string }
   | { type: "order.ready"; orderId: string }
-  | { type: "order.paid"; orderId: string };
+  | { type: "order.paid"; orderId: string }
+  | { type: "order.cash_requested"; orderId: string; paymentId: string };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

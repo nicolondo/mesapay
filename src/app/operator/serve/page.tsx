@@ -14,17 +14,30 @@ export default async function ServePage() {
   // That's what the waiter can actually pick up. For "together" mode
   // we still include the round so we can show a waiting state with how
   // many dishes the kitchen still has to finish.
-  const rounds = await db.round.findMany({
-    where: {
-      order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
-      items: { some: { kitchenStatus: "ready", servedAt: null } },
-    },
-    include: {
-      order: { include: { table: true } },
-      items: { orderBy: { id: "asc" } },
-    },
-    orderBy: { readyAt: "asc" },
-  });
+  const [rounds, cashPending] = await Promise.all([
+    db.round.findMany({
+      where: {
+        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        items: { some: { kitchenStatus: "ready", servedAt: null } },
+      },
+      include: {
+        order: { include: { table: true } },
+        items: { orderBy: { id: "asc" } },
+      },
+      orderBy: { readyAt: "asc" },
+    }),
+    db.payment.findMany({
+      where: {
+        method: "demo_cash",
+        status: "pending",
+        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+      },
+      include: {
+        order: { include: { table: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   return (
     <ServeBoard
@@ -53,6 +66,16 @@ export default async function ServePage() {
           categoryKind: i.categoryKind,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
         })),
+      }))}
+      cashPending={cashPending.map((p) => ({
+        id: p.id,
+        amountCents: p.amountCents,
+        createdAt: p.createdAt.toISOString(),
+        order: {
+          id: p.order.id,
+          shortCode: p.order.shortCode,
+          tableNumber: p.order.table.number,
+        },
       }))}
     />
   );

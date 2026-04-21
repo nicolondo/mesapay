@@ -30,6 +30,7 @@ export default async function KitchenPage() {
         seq: r.seq,
         status: r.status as "placed" | "in_kitchen" | "ready",
         placedAt: r.placedAt.toISOString(),
+        readyAt: r.readyAt ? r.readyAt.toISOString() : null,
         order: {
           id: r.order.id,
           shortCode: r.order.shortCode,
@@ -45,6 +46,7 @@ export default async function KitchenPage() {
               : [],
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
+          servedAt: i.servedAt ? i.servedAt.toISOString() : null,
         })),
       }))}
     />

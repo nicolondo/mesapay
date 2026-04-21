@@ -166,12 +166,13 @@ model OrderItem {
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
 
-  qty                Int     @default(1)
+  qty                Int       @default(1)
   nameSnapshot       String
   priceCentsSnapshot Int
   modifierSelections Json?
   notes              String?
   guestName          String?
+  servedAt           DateTime?
 
   @@index([orderId])
   @@index([roundId])

@@ -29,8 +29,9 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Demo: approve immediately. Map demo_nequi → wompi_nequi later when real Wompi wired.
-  const method = parsed.data.method === "demo_nequi" ? "demo_card" : parsed.data.method;
+  // Demo: approve immediately. demo_nequi rides on wompi_nequi until we wire
+  // real Wompi — keeps reports honest about which rail the diner picked.
+  const method = parsed.data.method === "demo_nequi" ? "wompi_nequi" : parsed.data.method;
 
   const result = await db.$transaction(async (tx) => {
     const payment = await tx.payment.create({

@@ -97,6 +97,8 @@ export function MenuClient({
   }
 
   const nameKey = `mesapay.guestName.${tableId}`;
+  const cartKey = `mesapay.cart.${tableId}`;
+  const CART_TTL_MS = 6 * 60 * 60 * 1000; // discard carts older than 6h
 
   useEffect(() => {
     const savedLayout = localStorage.getItem("mesapay.menuLayout");
@@ -110,8 +112,37 @@ export function MenuClient({
     const savedName = localStorage.getItem(nameKey);
     if (savedName) setGuestName(savedName);
     else setShowNameSheet(true);
+    try {
+      const raw = localStorage.getItem(cartKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { t?: number; cart?: CartLine[] };
+        if (
+          parsed &&
+          Array.isArray(parsed.cart) &&
+          typeof parsed.t === "number" &&
+          Date.now() - parsed.t < CART_TTL_MS
+        ) {
+          setCart(parsed.cart);
+        } else {
+          localStorage.removeItem(cartKey);
+        }
+      }
+    } catch {
+      localStorage.removeItem(cartKey);
+    }
     setHydrated(true);
-  }, [nameKey]);
+  }, [nameKey, cartKey, CART_TTL_MS]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (cart.length === 0) {
+        localStorage.removeItem(cartKey);
+      } else {
+        localStorage.setItem(cartKey, JSON.stringify({ t: Date.now(), cart }));
+      }
+    } catch {}
+  }, [cart, cartKey, hydrated]);
 
   function changeLayout(next: MenuLayout) {
     setLayout(next);
@@ -241,6 +272,10 @@ export function MenuClient({
       return;
     }
     const { orderId } = await res.json();
+    try {
+      localStorage.removeItem(cartKey);
+    } catch {}
+    setCart([]);
     router.push(`/t/${tenant.slug}/order/${orderId}`);
   }
 

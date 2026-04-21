@@ -29,7 +29,11 @@ export default async function CashPendingPage({
     <CashWait
       tenantSlug={slug}
       tenantName={order.restaurant.name}
-      tableNumber={order.table.number}
+      locationLabel={
+        order.restaurant.serviceMode === "counter"
+          ? "Mostrador"
+          : `Mesa ${order.table.number}`
+      }
       orderId={order.id}
       paymentId={payment.id}
       amountCents={payment.amountCents}

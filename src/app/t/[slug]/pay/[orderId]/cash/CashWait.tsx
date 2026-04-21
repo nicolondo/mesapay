@@ -9,7 +9,7 @@ type Status = "pending" | "approved" | "declined" | "refunded";
 export function CashWait({
   tenantSlug,
   tenantName,
-  tableNumber,
+  locationLabel,
   orderId,
   paymentId,
   amountCents,
@@ -17,7 +17,7 @@ export function CashWait({
 }: {
   tenantSlug: string;
   tenantName: string;
-  tableNumber: number;
+  locationLabel: string;
   orderId: string;
   paymentId: string;
   amountCents: number;
@@ -110,7 +110,7 @@ export function CashWait({
           </div>
         </div>
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mt-6">
-          Mesa {tableNumber} · {tenantName}
+          {locationLabel} · {tenantName}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-2">
           El mesero viene a cobrar

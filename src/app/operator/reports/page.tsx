@@ -30,6 +30,12 @@ export default async function ReportsPage({
   const nextDay = addDaysIso(dateIso, 1);
   const isToday = dateIso === todayIso;
 
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { serviceMode: true },
+  });
+  const counterMode = tenant?.serviceMode === "counter";
+
   const payments = await db.payment.findMany({
     where: {
       status: "approved",
@@ -304,7 +310,7 @@ export default async function ReportsPage({
                 <tr className="text-left">
                   <Th>Hora</Th>
                   <Th>Pedido</Th>
-                  <Th>Mesa</Th>
+                  <Th>{counterMode ? "Canal" : "Mesa"}</Th>
                   <Th>Método</Th>
                   <Th align="right">Monto</Th>
                 </tr>
@@ -316,7 +322,7 @@ export default async function ReportsPage({
                     <tr key={p.id} className="border-t border-op-border">
                       <Td className="font-mono tabular">{bt.time}</Td>
                       <Td className="font-mono">{p.order.shortCode}</Td>
-                      <Td>{p.order.table.number}</Td>
+                      <Td>{counterMode ? "Mostrador" : p.order.table.number}</Td>
                       <Td>{METHOD_LABEL[p.method] ?? p.method}</Td>
                       <Td align="right" className="font-mono tabular">
                         {fmtCOP(p.amountCents)}

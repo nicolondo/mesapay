@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export default async function TenantLanding({
   params,
@@ -13,6 +13,13 @@ export default async function TenantLanding({
     include: { tables: { orderBy: { number: "asc" } } },
   });
   if (!tenant) return notFound();
+
+  if (tenant.serviceMode === "counter") {
+    const counter = tenant.tables[0];
+    if (counter) {
+      redirect(`/t/${slug}/menu?table=${counter.qrToken}`);
+    }
+  }
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-20">

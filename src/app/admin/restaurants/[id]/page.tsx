@@ -14,6 +14,7 @@ import {
 import {
   PlanEditor,
   RecordPaymentForm,
+  ServiceModePicker,
   SuspendButton,
 } from "./BillingPanel";
 
@@ -223,6 +224,21 @@ export default async function RestaurantDetail({
               ))}
             </ul>
           )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
+          Modo de servicio
+        </div>
+        <ServiceModePicker
+          restaurantId={id}
+          serviceMode={rest.serviceMode}
+        />
+        <div className="text-[11px] text-op-muted mt-2">
+          {rest.serviceMode === "counter"
+            ? "Cliente ordena desde un QR único, sin mesas. Útil para food trucks y mostradores."
+            : "Cada mesa tiene su propio QR. El cliente escanea desde su puesto."}
         </div>
       </div>
 

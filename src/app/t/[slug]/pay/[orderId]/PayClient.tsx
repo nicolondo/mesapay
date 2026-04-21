@@ -27,7 +27,7 @@ export function PayClient({
   tenantName,
   orderId,
   shortCode,
-  tableNumber,
+  locationLabel,
   subtotalCents,
   paidCents,
   alreadyPaid,
@@ -37,7 +37,7 @@ export function PayClient({
   tenantName: string;
   orderId: string;
   shortCode: string;
-  tableNumber: number;
+  locationLabel: string;
   subtotalCents: number;
   paidCents: number;
   alreadyPaid: boolean;
@@ -145,7 +145,7 @@ export function PayClient({
         <span>Volver al pedido</span>
       </Link>
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-        Mesa {tableNumber} · {tenantName} · {shortCode}
+        {locationLabel} · {tenantName} · {shortCode}
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">Pagar</h1>
 

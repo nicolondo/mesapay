@@ -29,40 +29,49 @@ export default async function TablesPage() {
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
+  const counterMode = tenant?.serviceMode === "counter";
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-4">
-        <div className="font-display text-3xl">Mesas</div>
+        <div className="font-display text-3xl">
+          {counterMode ? "Mostrador" : "Mesas"}
+        </div>
         <a
           href="/operator/tables/print"
           target="_blank"
           className="h-10 px-5 rounded-full border border-op-border inline-flex items-center text-sm font-medium"
         >
-          Imprimir QRs
+          {counterMode ? "Imprimir QR" : "Imprimir QRs"}
         </a>
       </div>
       <p className="text-sm text-op-muted mb-4">
-        Cada mesa tiene un enlace QR único. Imprímelo y colócalo en la mesa.
+        {counterMode
+          ? "En modo mostrador hay un solo QR. El cliente lo escanea, ordena y paga."
+          : "Cada mesa tiene un enlace QR único. Imprímelo y colócalo en la mesa."}
       </p>
-      <div className="mb-5">
-        <NewTableForm suggestedNumber={nextNumber} />
-      </div>
+      {!counterMode && (
+        <div className="mb-5">
+          <NewTableForm suggestedNumber={nextNumber} />
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {tables.map((t) => {
           const url = `${base}/t/${tenant!.slug}/menu?table=${t.qrToken}`;
           const order = t.orders[0];
           const active = !!order;
           const itemCount = order?.items.reduce((s, i) => s + i.qty, 0) ?? 0;
-          const canDelete = t._count.orders === 0;
+          const canDelete = !counterMode && t._count.orders === 0;
           return (
             <div
               key={t.id}
               className="bg-op-surface border border-op-border rounded-2xl p-4"
             >
               <div className="flex items-center justify-between">
-                <div className="font-display text-2xl">Mesa {t.number}</div>
+                <div className="font-display text-2xl">
+                  {counterMode ? "Mostrador" : `Mesa ${t.number}`}
+                </div>
                 <span
                   className={
                     "w-2 h-2 rounded-full " +
@@ -71,9 +80,11 @@ export default async function TablesPage() {
                   title={active ? "Orden abierta" : "Libre"}
                 />
               </div>
-              <div className="mt-1">
-                <EditLabelButton tableId={t.id} currentLabel={t.label} />
-              </div>
+              {!counterMode && (
+                <div className="mt-1">
+                  <EditLabelButton tableId={t.id} currentLabel={t.label} />
+                </div>
+              )}
 
               {active && order && (
                 <div className="mt-3 rounded-xl bg-op-bg border border-op-border p-3">

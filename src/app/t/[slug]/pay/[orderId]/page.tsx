@@ -31,7 +31,11 @@ export default async function PayPage({
       tenantName={tenant.name}
       orderId={order.id}
       shortCode={order.shortCode}
-      tableNumber={order.table.number}
+      locationLabel={
+        tenant.serviceMode === "counter"
+          ? "Mostrador"
+          : `Mesa ${order.table.number}`
+      }
       subtotalCents={order.subtotalCents}
       paidCents={paidCents}
       alreadyPaid={order.status === "paid"}

@@ -37,8 +37,9 @@ export default async function OrdersPage({
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true },
+    select: { slug: true, serviceMode: true },
   });
+  const counterMode = tenant?.serviceMode === "counter";
 
   const sp = await searchParams;
   const status: StatusFilter =
@@ -149,7 +150,7 @@ export default async function OrdersPage({
             <tr className="text-left">
               <Th>Fecha</Th>
               <Th>Código</Th>
-              <Th>Mesa</Th>
+              <Th>{counterMode ? "Canal" : "Mesa"}</Th>
               <Th>Estado</Th>
               <Th align="right">Items</Th>
               <Th align="right">Subtotal</Th>
@@ -173,7 +174,9 @@ export default async function OrdersPage({
                     </div>
                   </Td>
                   <Td className="font-mono">{o.shortCode}</Td>
-                  <Td>Mesa {o.table.number}</Td>
+                  <Td>
+                    {counterMode ? "Mostrador" : `Mesa ${o.table.number}`}
+                  </Td>
                   <Td>
                     <StatusPill status={o.status} />
                   </Td>

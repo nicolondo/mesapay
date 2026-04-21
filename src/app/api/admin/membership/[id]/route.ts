@@ -22,10 +22,16 @@ const paymentSchema = z.object({
   note: z.string().trim().max(240).optional(),
 });
 
+const serviceModeSchema = z.object({
+  action: z.literal("set_service_mode"),
+  serviceMode: z.enum(["table", "counter"]),
+});
+
 const bodySchema = z.discriminatedUnion("action", [
   planSchema,
   suspendSchema,
   paymentSchema,
+  serviceModeSchema,
 ]);
 
 export async function POST(
@@ -62,6 +68,34 @@ export async function POST(
     await db.restaurant.update({
       where: { id },
       data: { suspended: parsed.data.suspended },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "set_service_mode") {
+    const nextMode = parsed.data.serviceMode;
+    await db.$transaction(async (tx) => {
+      await tx.restaurant.update({
+        where: { id },
+        data: { serviceMode: nextMode },
+      });
+      // Switching into counter mode needs a single QR target (number=0) so
+      // /t/[slug] has somewhere to redirect. Create one lazily if missing.
+      if (nextMode === "counter") {
+        const counter = await tx.table.findFirst({
+          where: { restaurantId: id, number: 0 },
+        });
+        if (!counter) {
+          await tx.table.create({
+            data: {
+              restaurantId: id,
+              number: 0,
+              label: "Mostrador",
+              qrToken: crypto.randomUUID(),
+            },
+          });
+        }
+      }
     });
     return NextResponse.json({ ok: true });
   }

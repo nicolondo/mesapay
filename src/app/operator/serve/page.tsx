@@ -51,6 +51,7 @@ export default async function ServePage() {
   return (
     <ServeBoard
       tenantSlug={tenant!.slug}
+      serviceMode={tenant!.serviceMode}
       rounds={rounds.map((r) => ({
         id: r.id,
         seq: r.seq,

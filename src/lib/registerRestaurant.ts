@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
-import { CategoryKind } from "@prisma/client";
+import { CategoryKind, type ServiceMode } from "@prisma/client";
 import { db } from "./db";
 
 const CATEGORY_SEED = [
@@ -151,6 +151,7 @@ export type RegisterRestaurantInput = {
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
+  serviceMode?: ServiceMode;
 };
 
 export type RegisterRestaurantResult =
@@ -200,11 +201,14 @@ export async function registerRestaurant(
 
   const passwordHash = await bcrypt.hash(input.ownerPassword, 10);
 
+  const serviceMode: ServiceMode = input.serviceMode ?? "table";
+
   const result = await db.$transaction(async (tx) => {
     const restaurant = await tx.restaurant.create({
       data: {
         slug,
         name: input.restaurantName.trim(),
+        serviceMode,
       },
     });
 
@@ -251,7 +255,8 @@ export async function registerRestaurant(
     await tx.table.create({
       data: {
         restaurantId: restaurant.id,
-        number: 1,
+        number: serviceMode === "counter" ? 0 : 1,
+        label: serviceMode === "counter" ? "Mostrador" : null,
         qrToken: randomBytes(16).toString("hex"),
       },
     });

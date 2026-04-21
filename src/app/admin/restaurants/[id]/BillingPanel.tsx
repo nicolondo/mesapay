@@ -262,4 +262,62 @@ export function SuspendButton({
   );
 }
 
+export function ServiceModePicker({
+  restaurantId,
+  serviceMode,
+}: {
+  restaurantId: string;
+  serviceMode: "table" | "counter";
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [, startTx] = useTransition();
+
+  async function set(next: "table" | "counter") {
+    if (next === serviceMode || busy) return;
+    const confirmMsg =
+      next === "counter"
+        ? "Al pasar a modo mostrador los clientes dejarán de escanear por mesa. ¿Continuar?"
+        : "Al volver a modo con mesas necesitas tener al menos una mesa creada. ¿Continuar?";
+    if (!window.confirm(confirmMsg)) return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/membership/${restaurantId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "set_service_mode", serviceMode: next }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      alert("No se pudo cambiar el modo.");
+      return;
+    }
+    startTx(() => router.refresh());
+  }
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {(
+        [
+          { value: "table", label: "Con mesas" },
+          { value: "counter", label: "Mostrador" },
+        ] as const
+      ).map((o) => (
+        <button
+          key={o.value}
+          onClick={() => set(o.value)}
+          disabled={busy}
+          className={
+            "h-8 px-3 rounded-full text-xs border disabled:opacity-60 " +
+            (serviceMode === o.value
+              ? "bg-ink text-bone border-ink"
+              : "bg-op-bg border-op-border")
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export { fmtCOP };

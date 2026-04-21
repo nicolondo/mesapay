@@ -61,7 +61,9 @@ export default async function PrintTablesPage() {
               {tenant.name}
             </div>
             <div className="font-display text-4xl tracking-[-0.015em] mt-2">
-              Mesa {q.number}
+              {tenant.serviceMode === "counter"
+                ? "Mostrador"
+                : `Mesa ${q.number}`}
             </div>
             {q.label && (
               <div className="text-sm text-muted mt-1">{q.label}</div>

@@ -20,6 +20,7 @@ export default function RestaurantSignUp() {
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantSlug, setRestaurantSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
+  const [serviceMode, setServiceMode] = useState<"table" | "counter">("table");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +43,7 @@ export default function RestaurantSignUp() {
       body: JSON.stringify({
         restaurantName,
         restaurantSlug: slug,
+        serviceMode,
         name,
         email,
         password,
@@ -114,6 +116,42 @@ export default function RestaurantSignUp() {
           </code>
           .
         </p>
+
+        <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+          Modo de servicio
+        </label>
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          <button
+            type="button"
+            onClick={() => setServiceMode("table")}
+            className={
+              "rounded-lg border px-3 py-3 text-left transition-colors " +
+              (serviceMode === "table"
+                ? "border-terracotta bg-terracotta/5 ring-1 ring-terracotta/30"
+                : "border-hairline bg-ivory hover:border-terracotta/50")
+            }
+          >
+            <div className="text-sm font-medium">Con mesas</div>
+            <div className="text-[11px] text-muted-2 mt-0.5">
+              Restaurante tradicional
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setServiceMode("counter")}
+            className={
+              "rounded-lg border px-3 py-3 text-left transition-colors " +
+              (serviceMode === "counter"
+                ? "border-terracotta bg-terracotta/5 ring-1 ring-terracotta/30"
+                : "border-hairline bg-ivory hover:border-terracotta/50")
+            }
+          >
+            <div className="text-sm font-medium">Mostrador</div>
+            <div className="text-[11px] text-muted-2 mt-0.5">
+              Food truck, carrito, para llevar
+            </div>
+          </button>
+        </div>
 
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2 mt-2">
           Tu cuenta

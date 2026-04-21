@@ -53,7 +53,9 @@ export default async function OrderView({
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-        Mesa {order.table.number} · {tenant.name}
+        {tenant.serviceMode === "counter"
+          ? `Mostrador · ${tenant.name}`
+          : `Mesa ${order.table.number} · ${tenant.name}`}
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
         Tu pedido <span className="font-mono text-base text-muted">· {order.shortCode}</span>
@@ -61,18 +63,20 @@ export default async function OrderView({
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
 
-      {order.status !== "paid" && order.status !== "cancelled" && (
-        <div className="mt-5">
-          <CallWaiterButton
-            tenantSlug={slug}
-            orderId={order.id}
-            initialNeedsWaiter={order.needsWaiter}
-            initialCalledAtISO={
-              order.waiterCalledAt ? order.waiterCalledAt.toISOString() : null
-            }
-          />
-        </div>
-      )}
+      {tenant.serviceMode !== "counter" &&
+        order.status !== "paid" &&
+        order.status !== "cancelled" && (
+          <div className="mt-5">
+            <CallWaiterButton
+              tenantSlug={slug}
+              orderId={order.id}
+              initialNeedsWaiter={order.needsWaiter}
+              initialCalledAtISO={
+                order.waiterCalledAt ? order.waiterCalledAt.toISOString() : null
+              }
+            />
+          </div>
+        )}
 
       {(() => {
         const pendingEtas = order.rounds

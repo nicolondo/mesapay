@@ -8,6 +8,7 @@ const schema = z.object({
   name: z.string().trim().min(1).max(80),
   email: z.string().trim().email(),
   password: z.string().min(6).max(120),
+  serviceMode: z.enum(["table", "counter"]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     ownerName: parsed.data.name,
     ownerEmail: parsed.data.email,
     ownerPassword: parsed.data.password,
+    serviceMode: parsed.data.serviceMode,
   });
 
   if (!result.ok) {

@@ -51,11 +51,13 @@ type WaiterCall = {
 
 export function ServeBoard({
   tenantSlug,
+  serviceMode,
   rounds,
   cashPending,
   waiterCalls,
 }: {
   tenantSlug: string;
+  serviceMode: "table" | "counter";
   rounds: Round[];
   cashPending: CashPending[];
   waiterCalls: WaiterCall[];
@@ -127,13 +129,35 @@ export function ServeBoard({
     startTx(() => router.refresh());
   }
 
-  const byTable = new Map<number, Round[]>();
+  // In "table" mode we bundle every open round for a table into one card so
+  // the waiter sees "all of mesa 3" at a glance. In "counter" mode every
+  // physical order is independent (no shared bill, no waiter walking to a
+  // seat), so we group by order instead.
+  const groupKey = (r: Round) =>
+    serviceMode === "counter" ? r.order.id : String(r.order.tableNumber);
+  const groupLabel = (r: Round) =>
+    serviceMode === "counter"
+      ? `Orden ${r.order.shortCode}`
+      : `Mesa ${r.order.tableNumber}`;
+
+  const byGroup = new Map<string, { label: string; sort: number; rounds: Round[] }>();
   for (const r of rounds) {
-    const arr = byTable.get(r.order.tableNumber) ?? [];
-    arr.push(r);
-    byTable.set(r.order.tableNumber, arr);
+    const key = groupKey(r);
+    const entry = byGroup.get(key);
+    if (entry) {
+      entry.rounds.push(r);
+    } else {
+      byGroup.set(key, {
+        label: groupLabel(r),
+        sort:
+          serviceMode === "counter"
+            ? new Date(r.readyAt ?? 0).getTime()
+            : r.order.tableNumber,
+        rounds: [r],
+      });
+    }
   }
-  const tables = Array.from(byTable.entries()).sort((a, b) => a[0] - b[0]);
+  const groups = Array.from(byGroup.values()).sort((a, b) => a.sort - b.sort);
 
   const totalReady = rounds.reduce(
     (s, r) =>
@@ -157,7 +181,7 @@ export function ServeBoard({
   }
 
   if (
-    tables.length === 0 &&
+    groups.length === 0 &&
     cashPending.length === 0 &&
     waiterCalls.length === 0
   ) {
@@ -191,7 +215,14 @@ export function ServeBoard({
             </>
           )}
           {totalReady} {totalReady === 1 ? "plato listo" : "platos listos"} ·{" "}
-          {tables.length} {tables.length === 1 ? "mesa" : "mesas"}
+          {groups.length}{" "}
+          {serviceMode === "counter"
+            ? groups.length === 1
+              ? "orden"
+              : "órdenes"
+            : groups.length === 1
+              ? "mesa"
+              : "mesas"}
         </div>
       </div>
 
@@ -205,6 +236,7 @@ export function ServeBoard({
               <WaiterCallCard
                 key={w.id}
                 call={w}
+                serviceMode={serviceMode}
                 busy={ackingId === w.id}
                 onAck={() => ackWaiter(w.id)}
               />
@@ -223,6 +255,7 @@ export function ServeBoard({
               <CashCard
                 key={c.id}
                 pending={c}
+                serviceMode={serviceMode}
                 onSettle={() => setSettlingId(c.id)}
               />
             ))}
@@ -230,24 +263,26 @@ export function ServeBoard({
         </section>
       )}
 
-      {tables.length > 0 && (
+      {groups.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {tables.map(([num, trounds]) => (
+          {groups.map((g) => (
             <div
-              key={num}
+              key={g.label}
               className="border border-op-border rounded-2xl bg-op-surface flex flex-col"
             >
               <div className="px-4 py-3 border-b border-op-border flex items-center justify-between">
-                <div className="font-display text-2xl">Mesa {num}</div>
+                <div className="font-display text-2xl">{g.label}</div>
                 <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-                  {trounds.length} {trounds.length === 1 ? "ronda" : "rondas"}
+                  {g.rounds.length}{" "}
+                  {g.rounds.length === 1 ? "ronda" : "rondas"}
                 </div>
               </div>
               <ul className="p-3 space-y-3">
-                {trounds.map((r) => (
+                {g.rounds.map((r) => (
                   <RoundCard
                     key={r.id}
                     round={r}
+                    serviceMode={serviceMode}
                     pendingServed={pendingServed}
                     onServeItem={serveItem}
                     onServeItems={serveItems}
@@ -262,6 +297,7 @@ export function ServeBoard({
       {settling && (
         <CashSettleModal
           pending={settling}
+          serviceMode={serviceMode}
           onClose={() => setSettlingId(null)}
           onDone={() => {
             setSettlingId(null);
@@ -275,10 +311,12 @@ export function ServeBoard({
 
 function WaiterCallCard({
   call,
+  serviceMode,
   busy,
   onAck,
 }: {
   call: WaiterCall;
+  serviceMode: "table" | "counter";
   busy: boolean;
   onAck: () => void;
 }) {
@@ -286,7 +324,11 @@ function WaiterCallCard({
     <li className="rounded-2xl border-2 border-terracotta/50 bg-terracotta/10 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-display text-2xl">Mesa {call.tableNumber}</div>
+          <div className="font-display text-2xl">
+            {serviceMode === "counter"
+              ? `Orden ${call.shortCode}`
+              : `Mesa ${call.tableNumber}`}
+          </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
             {call.shortCode}
           </div>
@@ -330,9 +372,11 @@ function BellIcon() {
 
 function CashCard({
   pending,
+  serviceMode,
   onSettle,
 }: {
   pending: CashPending;
+  serviceMode: "table" | "counter";
   onSettle: () => void;
 }) {
   return (
@@ -340,7 +384,9 @@ function CashCard({
       <div className="flex items-center justify-between">
         <div>
           <div className="font-display text-2xl">
-            Mesa {pending.order.tableNumber}
+            {serviceMode === "counter"
+              ? `Orden ${pending.order.shortCode}`
+              : `Mesa ${pending.order.tableNumber}`}
           </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
             {pending.order.shortCode}
@@ -384,10 +430,12 @@ function CashAge({ createdAt }: { createdAt: string }) {
 
 function CashSettleModal({
   pending,
+  serviceMode,
   onClose,
   onDone,
 }: {
   pending: CashPending;
+  serviceMode: "table" | "counter";
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -452,7 +500,9 @@ function CashSettleModal({
         <div className="flex items-baseline justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Mesa {pending.order.tableNumber} · {pending.order.shortCode}
+              {serviceMode === "counter"
+                ? `Orden ${pending.order.shortCode}`
+                : `Mesa ${pending.order.tableNumber} · ${pending.order.shortCode}`}
             </div>
             <div className="font-display text-2xl">Cobro en efectivo</div>
           </div>
@@ -546,11 +596,13 @@ function CashSettleModal({
 
 function RoundCard({
   round: r,
+  serviceMode,
   pendingServed,
   onServeItem,
   onServeItems,
 }: {
   round: Round;
+  serviceMode: "table" | "counter";
   pendingServed: Set<string>;
   onServeItem: (id: string) => void;
   onServeItems: (items: Item[]) => void;
@@ -604,6 +656,7 @@ function RoundCard({
       {fuertesJuntos && mainsAllReady && mainsUnserved.length > 0 && (
         <MainsBulkCard
           round={r}
+          serviceMode={serviceMode}
           items={mainsUnserved}
           onServe={() => onServeItems(mainsUnserved)}
         />
@@ -688,10 +741,12 @@ function MainsWaitingCard({
 
 function MainsBulkCard({
   round: r,
+  serviceMode,
   items,
   onServe,
 }: {
   round: Round;
+  serviceMode: "table" | "counter";
   items: Item[];
   onServe: () => void;
 }) {
@@ -729,7 +784,9 @@ function MainsBulkCard({
         onClick={onServe}
         className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
       >
-        Entregado a Mesa {r.order.tableNumber}
+        {serviceMode === "counter"
+          ? `Entregado a ${r.order.shortCode}`
+          : `Entregado a Mesa ${r.order.tableNumber}`}
       </button>
     </li>
   );

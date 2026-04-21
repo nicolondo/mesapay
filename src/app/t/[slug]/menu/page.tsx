@@ -48,26 +48,34 @@ export default async function MenuPage({
 
   // Find active (non-paid) order for this table. If ?order= is given, prefer it.
   // Otherwise pick the most recent open order on this table — so anyone scanning
-  // the QR sees the current shared bill.
-  const activeOrder = await db.order.findFirst({
-    where: {
-      tableId: table.id,
-      restaurantId: tenant.id,
-      status: { notIn: ["paid", "cancelled"] },
-      ...(sp.order ? { id: sp.order } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      rounds: { orderBy: { seq: "asc" } },
-      items: { orderBy: { id: "asc" } },
-    },
-  });
+  // the QR sees the current shared bill. In counter mode we skip the shared
+  // resume: each scan starts a fresh order unless ?order= is explicit.
+  const activeOrder =
+    tenant.serviceMode === "counter" && !sp.order
+      ? null
+      : await db.order.findFirst({
+          where: {
+            tableId: table.id,
+            restaurantId: tenant.id,
+            status: { notIn: ["paid", "cancelled"] },
+            ...(sp.order ? { id: sp.order } : {}),
+          },
+          orderBy: { createdAt: "desc" },
+          include: {
+            rounds: { orderBy: { seq: "asc" } },
+            items: { orderBy: { id: "asc" } },
+          },
+        });
 
   return (
     <MenuClient
       tenant={{ slug: tenant.slug, name: tenant.name, tagline: tenant.tagline }}
       tableId={table.id}
-      tableNumber={table.number}
+      locationLabel={
+        tenant.serviceMode === "counter"
+          ? "Mostrador"
+          : `Mesa ${table.number}`
+      }
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,

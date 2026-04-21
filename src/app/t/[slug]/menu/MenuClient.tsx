@@ -65,14 +65,14 @@ const TAG_LABEL: Record<string, string> = {
 export function MenuClient({
   tenant,
   tableId,
-  tableNumber,
+  locationLabel,
   categories,
   items,
   activeOrder,
 }: {
   tenant: Tenant;
   tableId: string;
-  tableNumber: number;
+  locationLabel: string;
   categories: Category[];
   items: MenuItem[];
   activeOrder: ActiveOrder | null;
@@ -298,7 +298,7 @@ export function MenuClient({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
-                Mesa {tableNumber} · {tenant.name}
+                {locationLabel} · {tenant.name}
               </div>
               <h1 className="font-display text-3xl tracking-[-0.015em]">
                 La carta

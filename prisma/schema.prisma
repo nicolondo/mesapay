@@ -20,6 +20,8 @@ model Restaurant {
   periodEndsAt      DateTime?
   suspended         Boolean   @default(false)
 
+  serviceMode       ServiceMode @default(table)
+
   users               User[]
   tables              Table[]
   categories          Category[]
@@ -35,6 +37,11 @@ enum Plan {
   trial
   basic
   pro
+}
+
+enum ServiceMode {
+  table
+  counter
 }
 
 enum MembershipMethod {

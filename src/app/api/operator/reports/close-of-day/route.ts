@@ -34,11 +34,12 @@ export async function GET(req: Request) {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true },
+    select: { slug: true, serviceMode: true },
   });
   if (!tenant) {
     return NextResponse.json({ error: "tenant not found" }, { status: 404 });
   }
+  const counterMode = tenant.serviceMode === "counter";
 
   const url = new URL(req.url);
   const raw = url.searchParams.get("date") ?? "";
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
     "fecha",
     "hora",
     "pedido",
-    "mesa",
+    counterMode ? "canal" : "mesa",
     "metodo",
     "monto_cop",
     "orden_subtotal_cop",
@@ -84,7 +85,7 @@ export async function GET(req: Request) {
       bt.date,
       bt.time,
       csvField(p.order.shortCode),
-      p.order.table.number,
+      counterMode ? csvField("Mostrador") : p.order.table.number,
       csvField(METHOD_LABEL[p.method] ?? p.method),
       p.amountCents,
       p.order.subtotalCents,

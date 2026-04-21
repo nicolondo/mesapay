@@ -26,6 +26,11 @@ export default async function OperatorOrderDetail({
     },
   });
   if (!order || order.restaurantId !== restaurantId) return notFound();
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { serviceMode: true },
+  });
+  const counterMode = tenant?.serviceMode === "counter";
 
   const groups = new Map<
     string,
@@ -60,7 +65,8 @@ export default async function OperatorOrderDetail({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted">
-            Mesa {order.table.number} · {fmtDateTime(order.createdAt)}
+            {counterMode ? "Mostrador" : `Mesa ${order.table.number}`} ·{" "}
+            {fmtDateTime(order.createdAt)}
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
             Orden{" "}

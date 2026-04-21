@@ -313,6 +313,11 @@ function Features() {
       icon: <IconCash />,
     },
     {
+      title: "Modo mostrador para food trucks",
+      copy: "¿Carrito, ventana o food truck? Activa modo mostrador y trabajas con un único QR. Cada pedido es su propia orden, sin mesas ni mapas.",
+      icon: <IconCounter />,
+    },
+    {
       title: "Reseñas por plato, no por ★",
       copy: "Cada plato puede recibir una reseña independiente. Sabes qué está gustando y qué hay que afinar en la cocina.",
       icon: <IconStar />,
@@ -951,6 +956,17 @@ function IconTeam() {
       <circle cx="17" cy="11" r="2.2" />
       <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
       <path d="M15 18c.4-2 2-3 4-3s3.5 1.2 4 3" />
+    </IconBase>
+  );
+}
+function IconCounter() {
+  return (
+    <IconBase>
+      <path d="M3 11h18" />
+      <path d="M5 11v8M19 11v8" />
+      <path d="M3 19h18" />
+      <rect x="7" y="4" width="10" height="7" rx="1.5" />
+      <path d="M10 11V7M14 11V7" />
     </IconBase>
   );
 }

@@ -8,12 +8,19 @@ export default async function PaymentsPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
-  const payments = await db.payment.findMany({
-    where: { order: { restaurantId } },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: { order: { include: { table: true } } },
-  });
+  const [tenant, payments] = await Promise.all([
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { serviceMode: true },
+    }),
+    db.payment.findMany({
+      where: { order: { restaurantId } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { order: { include: { table: true } } },
+    }),
+  ]);
+  const counterMode = tenant?.serviceMode === "counter";
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
@@ -24,7 +31,7 @@ export default async function PaymentsPage() {
             <tr className="text-left">
               <Th>Fecha</Th>
               <Th>Orden</Th>
-              <Th>Mesa</Th>
+              <Th>{counterMode ? "Canal" : "Mesa"}</Th>
               <Th>Método</Th>
               <Th>Estado</Th>
               <Th className="text-right">Monto</Th>
@@ -35,7 +42,9 @@ export default async function PaymentsPage() {
               <tr key={p.id}>
                 <Td>{p.createdAt.toLocaleString("es-CO")}</Td>
                 <Td className="font-mono">{p.order.shortCode}</Td>
-                <Td>Mesa {p.order.table.number}</Td>
+                <Td>
+                  {counterMode ? "Mostrador" : `Mesa ${p.order.table.number}`}
+                </Td>
                 <Td>{methodLabel(p.method)}</Td>
                 <Td>
                   <span className={statusTint(p.status)}>{p.status}</span>

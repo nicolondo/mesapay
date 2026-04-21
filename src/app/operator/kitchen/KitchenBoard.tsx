@@ -47,9 +47,11 @@ const NEXT_STATUS: Record<KitchenStatus, KitchenStatus | null> = {
 
 export function KitchenBoard({
   tenantSlug,
+  serviceMode,
   rounds,
 }: {
   tenantSlug: string;
+  serviceMode: "table" | "counter";
   rounds: Round[];
 }) {
   const router = useRouter();
@@ -212,7 +214,9 @@ export function KitchenBoard({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-mono text-[11px] tracking-wider text-op-muted uppercase truncate">
-                        {r.order.shortCode} · Mesa {r.order.tableNumber} · R{r.seq}
+                        {serviceMode === "counter"
+                          ? `Orden ${r.order.shortCode} · R${r.seq}`
+                          : `${r.order.shortCode} · Mesa ${r.order.tableNumber} · R${r.seq}`}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {fuertesJuntos && (

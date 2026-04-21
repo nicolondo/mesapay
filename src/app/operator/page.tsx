@@ -18,8 +18,9 @@ export default async function OperatorHome() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true },
+    select: { slug: true, serviceMode: true },
   });
+  const counterMode = tenant?.serviceMode === "counter";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -177,7 +178,9 @@ export default async function OperatorHome() {
 
       <div className="mt-8 bg-op-surface border border-op-border rounded-2xl">
         <div className="flex items-center justify-between px-5 py-3 border-b border-op-border">
-          <div className="font-display text-xl">Mesas activas</div>
+          <div className="font-display text-xl">
+            {counterMode ? "Órdenes activas" : "Mesas activas"}
+          </div>
           <Link href="/operator/kitchen" className="text-sm text-terracotta">
             Ir a cocina →
           </Link>
@@ -191,11 +194,13 @@ export default async function OperatorHome() {
                 className="flex items-center justify-between px-5 py-3"
               >
                 <div className="flex items-center gap-3">
-                  <div className="font-display text-lg w-16">
-                    Mesa {o.table.number}
+                  <div className="font-display text-lg w-24">
+                    {counterMode ? o.shortCode : `Mesa ${o.table.number}`}
                   </div>
                   <div>
-                    <div className="font-mono text-sm">{o.shortCode}</div>
+                    <div className="font-mono text-sm">
+                      {counterMode ? "Mostrador" : o.shortCode}
+                    </div>
                     <div className="text-xs text-op-muted">
                       {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
                       {statusLabel(o.status)} · {ageLabel(o.createdAt)}
@@ -210,7 +215,9 @@ export default async function OperatorHome() {
           })}
           {openOrders.length === 0 && (
             <li className="px-5 py-6 text-sm text-op-muted">
-              No hay mesas activas en este momento.
+              {counterMode
+                ? "No hay órdenes activas en este momento."
+                : "No hay mesas activas en este momento."}
             </li>
           )}
         </ul>

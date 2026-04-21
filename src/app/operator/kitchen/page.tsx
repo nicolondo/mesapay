@@ -24,6 +24,7 @@ export default async function KitchenPage() {
   return (
     <KitchenBoard
       tenantSlug={tenant!.slug}
+      serviceMode={tenant!.serviceMode}
       rounds={rounds.map((r) => ({
         id: r.id,
         seq: r.seq,

@@ -122,7 +122,7 @@ function Hero({
             <em className="italic shimmer-text">en su mesa</em>.
           </h1>
           <p className="mt-5 max-w-xl text-lg md:text-xl text-ink-3 fade-up" style={{ animationDelay: "0.15s" }}>
-            Tus comensales piden y pagan desde su celular escaneando el QR de la
+            Tus clientes piden y pagan desde su celular escaneando el QR de la
             mesa. Tú dejas de esperar a que alguien pida la cuenta, rotas mesas
             más rápido y ves cada orden, cada pago y cada propina en vivo hasta
             el cierre de turno.
@@ -233,7 +233,7 @@ function HowItWorks() {
     {
       kicker: "02 · Ordenar",
       title: "Ordenan desde su celular y la cocina lo ve al instante",
-      copy: "Cada plato viaja directo a cocina con modificadores, notas y el nombre del comensal. Sin errores de transcripción, sin mesero corriendo.",
+      copy: "Cada plato viaja directo a cocina con modificadores, notas y el nombre del cliente. Sin errores de transcripción, sin mesero corriendo.",
       badge: "Cocina en vivo",
     },
     {

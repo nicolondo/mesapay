@@ -19,6 +19,9 @@ const createSchema = z.object({
   // Display name of the guest sending the round. Shown in the shared bill
   // so every diner at the table can see who ordered what.
   guestName: z.string().trim().min(1).max(40).optional(),
+  // Serving preference. Only honoured on the first round (when the order is
+  // created); subsequent rounds inherit the existing order's mode.
+  servingMode: z.enum(["asReady", "together"]).optional(),
 });
 
 function shortCode() {
@@ -73,6 +76,7 @@ export async function POST(
           customerId: session?.user?.id,
           status: "open",
           shortCode: shortCode(),
+          servingMode: parsed.data.servingMode ?? "asReady",
         },
       });
     }

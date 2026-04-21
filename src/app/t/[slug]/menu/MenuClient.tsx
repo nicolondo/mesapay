@@ -25,6 +25,8 @@ type MenuItem = {
   tags: string[];
   photoUrl: string | null;
   modifiers: ModifierDef[] | null;
+  ratingAvg: number;
+  ratingCount: number;
 };
 type CartLine = {
   key: string; // id + JSON(selections)
@@ -86,6 +88,9 @@ export function MenuClient({
   const [showNameSheet, setShowNameSheet] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
+  const [servingMode, setServingMode] = useState<"asReady" | "together">(
+    "asReady",
+  );
   const headerRef = useRef<HTMLElement>(null);
 
   function scrollToCategory(slug: string) {
@@ -258,6 +263,9 @@ export function MenuClient({
         tableId,
         orderId: activeOrder?.id,
         guestName,
+        // Only meaningful on the first round — subsequent rounds inherit
+        // whatever the order was created with.
+        servingMode: activeOrder ? undefined : servingMode,
         items: cart.map((l) => ({
           menuItemId: l.menuItemId,
           qty: l.qty,
@@ -489,6 +497,8 @@ export function MenuClient({
               onSend={sendToKitchen}
               appendingTo={activeOrder?.shortCode ?? null}
               split={!!activeOrder}
+              servingMode={servingMode}
+              onServingModeChange={setServingMode}
             />
           )}
         </div>
@@ -528,6 +538,8 @@ function CartBar({
   onSend,
   appendingTo,
   split,
+  servingMode,
+  onServingModeChange,
 }: {
   lines: CartLine[];
   subtotal: number;
@@ -538,6 +550,8 @@ function CartBar({
   onSend: () => void;
   appendingTo: string | null;
   split: boolean;
+  servingMode: "asReady" | "together";
+  onServingModeChange: (m: "asReady" | "together") => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -641,6 +655,45 @@ function CartBar({
                 </div>
                 <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
               </div>
+              {!appendingTo && (
+                <div className="mt-5">
+                  <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+                    ¿Cómo quieres que salga?
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onServingModeChange("asReady")}
+                      className={
+                        "text-left rounded-xl border px-3 py-3 " +
+                        (servingMode === "asReady"
+                          ? "border-terracotta bg-terracotta/10"
+                          : "border-hairline bg-ivory")
+                      }
+                    >
+                      <div className="text-sm font-medium">Lo que vaya saliendo</div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        Cada plato llega apenas está listo.
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onServingModeChange("together")}
+                      className={
+                        "text-left rounded-xl border px-3 py-3 " +
+                        (servingMode === "together"
+                          ? "border-terracotta bg-terracotta/10"
+                          : "border-hairline bg-ivory")
+                      }
+                    >
+                      <div className="text-sm font-medium">Todo junto</div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        Esperamos a que esté todo para servir.
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
               <button
                 onClick={onSend}
                 disabled={submitting}
@@ -792,6 +845,45 @@ function IconEditorial() {
   );
 }
 
+function MenuStars({
+  avg,
+  count,
+}: {
+  avg: number;
+  count: number;
+}) {
+  if (!count) return null;
+  const rounded = Math.round(avg);
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted">
+      <span className="inline-flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => {
+          const filled = n <= rounded;
+          return (
+            <svg
+              key={n}
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill={filled ? "#C9532E" : "none"}
+              stroke={filled ? "#C9532E" : "#8F867C"}
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M12 2.8l2.9 6.1 6.6.7-4.9 4.6 1.3 6.6L12 17.7 6.1 20.8l1.3-6.6L2.5 9.6l6.6-.7L12 2.8z" />
+            </svg>
+          );
+        })}
+      </span>
+      <span className="font-mono tabular">
+        {avg.toFixed(1)}
+        <span className="text-muted-2"> · {count}</span>
+      </span>
+    </span>
+  );
+}
+
 function ItemTags({ tags }: { tags: string[] }) {
   if (!tags.length) return null;
   return (
@@ -863,6 +955,11 @@ function ItemRowList({
           <div className="font-mono text-sm tabular text-muted mt-0.5">
             {fmtCOP(item.priceCents)}
           </div>
+          {item.ratingCount > 0 && (
+            <div className="mt-1">
+              <MenuStars avg={item.ratingAvg} count={item.ratingCount} />
+            </div>
+          )}
           {item.description && (
             <div className="text-sm text-muted line-clamp-2 mt-1">
               {item.description}
@@ -915,6 +1012,11 @@ function ItemCardGrid({
           <div className="font-mono text-xs text-muted tabular mt-0.5">
             {fmtCOP(item.priceCents)}
           </div>
+          {item.ratingCount > 0 && (
+            <div className="mt-1">
+              <MenuStars avg={item.ratingAvg} count={item.ratingCount} />
+            </div>
+          )}
         </button>
         <QuickAddButton onAdd={onQuickAdd} size="sm" />
       </div>
@@ -963,6 +1065,11 @@ function ItemCardEditorial({
           <div className="font-display text-2xl leading-tight tracking-[-0.015em]">
             {item.name}
           </div>
+          {item.ratingCount > 0 && (
+            <div className="mt-1.5">
+              <MenuStars avg={item.ratingAvg} count={item.ratingCount} />
+            </div>
+          )}
           {item.description && (
             <div className="text-sm text-muted mt-1.5 leading-relaxed">
               {item.description}
@@ -1018,6 +1125,11 @@ function ItemSheet({
               <div className="font-mono text-base mt-2 tabular">
                 {fmtCOP(item.priceCents)}
               </div>
+              {item.ratingCount > 0 && (
+                <div className="mt-2">
+                  <MenuStars avg={item.ratingAvg} count={item.ratingCount} />
+                </div>
+              )}
             </div>
             <button
               onClick={onClose}

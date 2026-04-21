@@ -35,6 +35,7 @@ export default async function KitchenPage() {
           id: r.order.id,
           shortCode: r.order.shortCode,
           tableNumber: r.order.table.number,
+          servingMode: r.order.servingMode,
         },
         items: r.items.map((i) => ({
           id: i.id,
@@ -46,6 +47,7 @@ export default async function KitchenPage() {
               : [],
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
+          kitchenStatus: i.kitchenStatus,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
         })),
       }))}

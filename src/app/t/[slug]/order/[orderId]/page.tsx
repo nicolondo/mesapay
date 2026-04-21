@@ -5,6 +5,7 @@ import { fmtCOP } from "@/lib/format";
 import { OrderLive } from "./OrderLive";
 import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
 import { EtaBadge, OrderEta } from "./EtaBadge";
+import { RatingInline } from "./RatingInline";
 
 export default async function OrderView({
   params,
@@ -19,7 +20,10 @@ export default async function OrderView({
     where: { id: orderId },
     include: {
       table: true,
-      items: { include: { menuItem: true }, orderBy: { id: "asc" } },
+      items: {
+        include: { menuItem: true, rating: true },
+        orderBy: { id: "asc" },
+      },
       rounds: { orderBy: { seq: "asc" } },
     },
   });
@@ -101,25 +105,41 @@ export default async function OrderView({
                 </div>
                 <ul className="mt-2 divide-y divide-hairline">
                   {lines.map((li) => (
-                    <li key={li.id} className="py-2 flex justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="text-sm">
-                          {li.qty}× {li.nameSnapshot}
+                    <li key={li.id} className="py-2">
+                      <div className="flex justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="text-sm">
+                            {li.qty}× {li.nameSnapshot}
+                          </div>
+                          {li.guestName && (
+                            <div className="text-[11px] text-terracotta mt-0.5">
+                              de {li.guestName}
+                            </div>
+                          )}
+                          {li.modifierSelections && typeof li.modifierSelections === "object" && (
+                            <div className="text-xs text-muted mt-0.5">
+                              {Object.values(li.modifierSelections as Record<string, string>).join(" · ")}
+                            </div>
+                          )}
                         </div>
-                        {li.guestName && (
-                          <div className="text-[11px] text-terracotta mt-0.5">
-                            de {li.guestName}
-                          </div>
-                        )}
-                        {li.modifierSelections && typeof li.modifierSelections === "object" && (
-                          <div className="text-xs text-muted mt-0.5">
-                            {Object.values(li.modifierSelections as Record<string, string>).join(" · ")}
-                          </div>
-                        )}
+                        <div className="font-mono text-sm tabular">
+                          {fmtCOP(li.priceCentsSnapshot * li.qty)}
+                        </div>
                       </div>
-                      <div className="font-mono text-sm tabular">
-                        {fmtCOP(li.priceCentsSnapshot * li.qty)}
-                      </div>
+                      {li.servedAt && (
+                        <div className="mt-2">
+                          <RatingInline
+                            orderItemId={li.id}
+                            tenantSlug={slug}
+                            existing={
+                              li.rating
+                                ? { stars: li.rating.stars, comment: li.rating.comment }
+                                : null
+                            }
+                            defaultGuestName={li.guestName ?? null}
+                          />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

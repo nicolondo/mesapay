@@ -15,11 +15,12 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  tables     Table[]
-  categories Category[]
-  menuItems  MenuItem[]
-  orders     Order[]
+  users       User[]
+  tables      Table[]
+  categories  Category[]
+  menuItems   MenuItem[]
+  orders      Order[]
+  dishRatings DishRating[]
 
   @@index([slug])
 }
@@ -95,6 +96,7 @@ model MenuItem {
   updatedAt DateTime @updatedAt
 
   orderItems OrderItem[]
+  ratings    DishRating[]
 
   @@index([restaurantId, categoryId])
 }
@@ -108,6 +110,17 @@ enum OrderStatus {
   paying
   paid
   cancelled
+}
+
+enum KitchenState {
+  placed
+  in_kitchen
+  ready
+}
+
+enum ServingMode {
+  asReady
+  together
 }
 
 model Order {
@@ -129,6 +142,8 @@ model Order {
   taxCents      Int @default(0)
   totalCents    Int @default(0)
 
+  servingMode ServingMode @default(asReady)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   placedAt  DateTime?
@@ -138,6 +153,7 @@ model Order {
   items    OrderItem[]
   payments Payment[]
   rounds   Round[]
+  ratings  DishRating[]
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -168,16 +184,38 @@ model OrderItem {
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
 
-  qty                Int       @default(1)
+  qty                Int          @default(1)
   nameSnapshot       String
   priceCentsSnapshot Int
   modifierSelections Json?
   notes              String?
   guestName          String?
+  kitchenStatus      KitchenState @default(placed)
   servedAt           DateTime?
+
+  rating DishRating?
 
   @@index([orderId])
   @@index([roundId])
+}
+
+model DishRating {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItemId   String
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId  String     @unique
+  orderItem    OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  stars        Int
+  comment      String?
+  guestName    String?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([menuItemId])
 }
 
 enum PaymentMethod {

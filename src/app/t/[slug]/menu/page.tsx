@@ -26,6 +26,21 @@ export default async function MenuPage({
   });
   if (!tenant) return notFound();
 
+  // Aggregate ratings per menu item so each card can show a star average.
+  // Customers never see the comments here — just the numbers.
+  const ratingAgg = await db.dishRating.groupBy({
+    by: ["menuItemId"],
+    where: { restaurantId: tenant.id },
+    _avg: { stars: true },
+    _count: { stars: true },
+  });
+  const ratingByItem = new Map(
+    ratingAgg.map((r) => [
+      r.menuItemId,
+      { avg: r._avg.stars ?? 0, count: r._count.stars },
+    ]),
+  );
+
   const table = await db.table.findUnique({ where: { qrToken: tableToken } });
   if (!table || table.restaurantId !== tenant.id) {
     return notFound();
@@ -58,16 +73,21 @@ export default async function MenuPage({
         slug: c.slug,
         label: c.label,
       }))}
-      items={tenant.menuItems.map((m) => ({
-        id: m.id,
-        categoryId: m.categoryId,
-        name: m.name,
-        description: m.description ?? "",
-        priceCents: m.priceCents,
-        tags: m.tags,
-        photoUrl: m.photoUrl ?? null,
-        modifiers: m.modifiers as unknown as ModifierDef[] | null,
-      }))}
+      items={tenant.menuItems.map((m) => {
+        const r = ratingByItem.get(m.id);
+        return {
+          id: m.id,
+          categoryId: m.categoryId,
+          name: m.name,
+          description: m.description ?? "",
+          priceCents: m.priceCents,
+          tags: m.tags,
+          photoUrl: m.photoUrl ?? null,
+          modifiers: m.modifiers as unknown as ModifierDef[] | null,
+          ratingAvg: r?.avg ?? 0,
+          ratingCount: r?.count ?? 0,
+        };
+      })}
       activeOrder={
         activeOrder
           ? {

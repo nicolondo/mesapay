@@ -53,6 +53,13 @@ export async function PATCH(
       where: { id: round.id },
       data,
     });
+    // Cascade to all items in the round. The per-item state is the source of
+    // truth for the kitchen board; this keeps the bulk "Empezar todo" /
+    // "Marcar todo listo" buttons working.
+    await tx.orderItem.updateMany({
+      where: { roundId: round.id },
+      data: { kitchenStatus: parsed.data.status },
+    });
     // Bubble aggregate status to order: if any round is in_kitchen, order = in_kitchen.
     // If all rounds are ready, order = ready.
     const rounds = await tx.round.findMany({ where: { orderId: round.orderId } });

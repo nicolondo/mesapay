@@ -36,6 +36,7 @@ export default async function OperatorLayout({
               <NavLink href="/operator/orders">Órdenes</NavLink>
               <NavLink href="/operator/menu">Menú</NavLink>
               <NavLink href="/operator/tables">Mesas</NavLink>
+              <NavLink href="/operator/reports">Cierre</NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
@@ -85,6 +85,16 @@ export function MenuClient({
   const [guestName, setGuestName] = useState<string>("");
   const [showNameSheet, setShowNameSheet] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [query, setQuery] = useState("");
+  const headerRef = useRef<HTMLElement>(null);
+
+  function scrollToCategory(slug: string) {
+    const el = document.getElementById(`cat-${slug}`);
+    if (!el) return;
+    const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
+    const y = window.scrollY + el.getBoundingClientRect().top - headerH - 12;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
 
   const nameKey = `mesapay.guestName.${tableId}`;
 
@@ -131,13 +141,23 @@ export function MenuClient({
   }, [tenant.slug, router]);
 
   const itemsByCat = useMemo(() => {
+    const q = query.trim().toLowerCase();
     const map = new Map<string, MenuItem[]>();
     for (const c of categories) map.set(c.id, []);
     for (const it of items) {
+      if (q) {
+        const hay = `${it.name} ${it.description ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
       map.get(it.categoryId)?.push(it);
     }
     return map;
-  }, [items, categories]);
+  }, [items, categories, query]);
+
+  const searching = query.trim().length > 0;
+  const visibleCount = searching
+    ? Array.from(itemsByCat.values()).reduce((s, arr) => s + arr.length, 0)
+    : 0;
 
   const subtotal = cart.reduce((s, l) => s + l.priceCents * l.qty, 0);
   const totalQty = cart.reduce((s, l) => s + l.qty, 0);
@@ -227,7 +247,10 @@ export function MenuClient({
   return (
     <div className="flex flex-1 flex-col pb-36">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline"
+      >
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -289,17 +312,46 @@ export function MenuClient({
               </button>
             </div>
           )}
+          {/* Search */}
+          <div className="mt-3 relative">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar en el menú"
+              className="w-full h-10 pl-10 pr-10 rounded-full border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
+            />
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+            </svg>
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Borrar búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-ink/5 text-ink-3 flex items-center justify-center text-base leading-none hover:bg-ink/10"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
           {/* Category chips */}
-          <div className="mt-4 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5">
+          <div className="mt-3 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5">
             {categories.map((c) => (
               <button
                 key={c.id}
                 onClick={() => {
                   setActiveCat(c.slug);
-                  document.getElementById(`cat-${c.slug}`)?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  });
+                  scrollToCategory(c.slug);
                 }}
                 className={
                   "shrink-0 px-4 h-9 rounded-full text-[13px] font-medium border transition-colors " +
@@ -317,6 +369,12 @@ export function MenuClient({
 
       {/* Menu by category */}
       <div className="max-w-2xl w-full mx-auto px-5 mt-4 space-y-10">
+        {searching && visibleCount === 0 && (
+          <div className="py-16 text-center text-muted text-sm">
+            No encontramos nada para{" "}
+            <span className="text-ink font-medium">“{query}”</span>.
+          </div>
+        )}
         {categories.map((c) => {
           const rows = itemsByCat.get(c.id) ?? [];
           if (!rows.length) return null;
@@ -744,10 +802,10 @@ function ItemRowList({
 }) {
   return (
     <li className="py-4">
-      <div className="flex gap-4 items-start">
+      <div className="flex gap-4 items-center">
         <button
           onClick={onOpen}
-          className="w-20 h-20 shrink-0 rounded-xl bg-cream bg-cover bg-center block"
+          className="w-20 h-20 shrink-0 rounded-xl bg-cream bg-cover bg-center block self-start"
           style={
             item.photoUrl
               ? { backgroundImage: `url(${item.photoUrl})` }
@@ -755,7 +813,7 @@ function ItemRowList({
           }
           aria-label="Ver detalle"
         />
-        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+        <button onClick={onOpen} className="flex-1 min-w-0 text-left self-start">
           <div className="font-display text-lg leading-tight">{item.name}</div>
           <div className="font-mono text-sm tabular text-muted mt-0.5">
             {fmtCOP(item.priceCents)}
@@ -771,7 +829,7 @@ function ItemRowList({
             </div>
           )}
         </button>
-        <div className="shrink-0 pt-0.5">
+        <div className="shrink-0">
           <QuickAddButton onAdd={onQuickAdd} size="sm" />
         </div>
       </div>

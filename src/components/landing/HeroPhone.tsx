@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 const SCENES = ["scan", "menu", "pay"] as const;
 type Scene = (typeof SCENES)[number];
 
-export function HeroPhone() {
+export function HeroPhone({ qrSvg }: { qrSvg: string }) {
   const [scene, setScene] = useState<Scene>("scan");
 
   useEffect(() => {
@@ -19,17 +19,6 @@ export function HeroPhone() {
 
   return (
     <div className="relative w-[280px] md:w-[320px] mx-auto">
-      {/* Floating decorative tickets behind the phone */}
-      <div className="absolute -left-20 top-8 hidden md:block float-y" style={{ animationDelay: "0.4s" }}>
-        <OrderTicket line1="R2 · Mesa 4" line2="Pasta bolognesa" tint="olive" />
-      </div>
-      <div
-        className="absolute -right-20 top-40 hidden md:block float-y"
-        style={{ animationDelay: "1.1s", animationDuration: "7s" }}
-      >
-        <OrderTicket line1="Cobro efectivo" line2="$ 68.000 COP" tint="terracotta" />
-      </div>
-
       {/* Phone frame */}
       <div className="relative float-y">
         <div className="rounded-[44px] bg-ink p-2 shadow-[0_30px_80px_rgba(26,22,19,0.22),0_8px_24px_rgba(26,22,19,0.12)]">
@@ -47,7 +36,7 @@ export function HeroPhone() {
               </span>
             </div>
 
-            <Scenes scene={scene} />
+            <Scenes scene={scene} qrSvg={qrSvg} />
           </div>
         </div>
         {/* Subtle terracotta glow */}
@@ -70,11 +59,11 @@ export function HeroPhone() {
   );
 }
 
-function Scenes({ scene }: { scene: Scene }) {
+function Scenes({ scene, qrSvg }: { scene: Scene; qrSvg: string }) {
   return (
     <div className="absolute inset-0 pt-12">
       <SceneContainer active={scene === "scan"}>
-        <ScanScene />
+        <ScanScene qrSvg={qrSvg} />
       </SceneContainer>
       <SceneContainer active={scene === "menu"}>
         <MenuScene />
@@ -107,7 +96,7 @@ function SceneContainer({
   );
 }
 
-function ScanScene() {
+function ScanScene({ qrSvg }: { qrSvg: string }) {
   return (
     <div className="h-full flex flex-col items-center justify-center">
       <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted">
@@ -115,10 +104,13 @@ function ScanScene() {
       </div>
       <div className="font-display text-xl mt-1">La Bogotana</div>
 
-      <div className="relative mt-6 w-44 h-44 rounded-3xl border-2 border-ink/80 overflow-hidden bg-paper">
-        <QrGrid />
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="scan-beam absolute left-0 right-0 h-12 bg-gradient-to-b from-transparent via-terracotta/50 to-transparent" />
+      <div className="relative mt-6 w-48 h-48 rounded-3xl border-2 border-ink/80 overflow-hidden bg-paper p-3">
+        <div
+          className="w-full h-full [&_svg]:w-full [&_svg]:h-full"
+          dangerouslySetInnerHTML={{ __html: qrSvg }}
+        />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="scan-beam absolute left-0 right-0 h-14 bg-gradient-to-b from-transparent via-terracotta/55 to-transparent" />
         </div>
         <div className="absolute -inset-2 rounded-3xl border border-terracotta/30 pulse-ring" />
         <div className="absolute -inset-2 rounded-3xl border border-terracotta/20 pulse-ring-slow" />
@@ -130,32 +122,6 @@ function ScanScene() {
           Sin app. Sin cuenta. Sin esperas.
         </div>
       </div>
-    </div>
-  );
-}
-
-function QrGrid() {
-  // Decorative "QR" — purely visual, not a real code.
-  const cells = Array.from({ length: 144 }, (_, i) => {
-    const row = Math.floor(i / 12);
-    const col = i % 12;
-    const corner =
-      (row < 3 && col < 3) ||
-      (row < 3 && col > 8) ||
-      (row > 8 && col < 3);
-    const filled = corner
-      ? (row + col) % 2 === 0
-      : Math.sin(i * 1.7 + row * 0.9 + col * 1.3) > 0.1;
-    return filled;
-  });
-  return (
-    <div className="absolute inset-2 grid grid-cols-12 gap-[2px]">
-      {cells.map((f, i) => (
-        <div
-          key={i}
-          className={"rounded-[1px] " + (f ? "bg-ink" : "bg-transparent")}
-        />
-      ))}
     </div>
   );
 }
@@ -364,24 +330,3 @@ function Row({
   );
 }
 
-function OrderTicket({
-  line1,
-  line2,
-  tint,
-}: {
-  line1: string;
-  line2: string;
-  tint: "olive" | "terracotta";
-}) {
-  const border =
-    tint === "olive" ? "border-olive/40 bg-olive/10" : "border-terracotta/40 bg-terracotta/10";
-  const text = tint === "olive" ? "text-olive" : "text-terracotta";
-  return (
-    <div className={"rounded-xl border p-2.5 w-44 shadow-[0_8px_24px_rgba(26,22,19,0.08)] backdrop-blur-sm " + border}>
-      <div className={"font-mono text-[9px] tracking-wider uppercase " + text}>
-        {line1}
-      </div>
-      <div className="text-sm mt-0.5 text-ink">{line2}</div>
-    </div>
-  );
-}

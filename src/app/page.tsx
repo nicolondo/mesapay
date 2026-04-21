@@ -1,4 +1,5 @@
 import Link from "next/link";
+import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { HeroPhone } from "@/components/landing/HeroPhone";
 import { Reveal } from "@/components/landing/Reveal";
@@ -12,10 +13,20 @@ export default async function Landing() {
     .catch(() => []);
   const demoTenant = tenants[0];
 
+  const qrTarget = demoTenant
+    ? `https://mesapay.co/t/${demoTenant.slug}`
+    : "https://mesapay.co";
+  const qrSvg = await QRCode.toString(qrTarget, {
+    type: "svg",
+    margin: 0,
+    errorCorrectionLevel: "M",
+    color: { dark: "#1A1613", light: "#00000000" },
+  }).catch(() => "");
+
   return (
     <div className="flex flex-1 flex-col bg-bone text-ink">
       <SiteHeader demoSlug={demoTenant?.slug ?? null} />
-      <Hero demoSlug={demoTenant?.slug ?? null} />
+      <Hero demoSlug={demoTenant?.slug ?? null} qrSvg={qrSvg} />
       <Marquee />
       <HowItWorks />
       <Features />
@@ -88,7 +99,13 @@ function SiteHeader({ demoSlug }: { demoSlug: string | null }) {
 
 /* ---------------- Hero ---------------- */
 
-function Hero({ demoSlug }: { demoSlug: string | null }) {
+function Hero({
+  demoSlug,
+  qrSvg,
+}: {
+  demoSlug: string | null;
+  qrSvg: string;
+}) {
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 grain" aria-hidden />
@@ -140,7 +157,7 @@ function Hero({ demoSlug }: { demoSlug: string | null }) {
         </div>
 
         <div className="md:col-span-5 flex justify-center fade-up" style={{ animationDelay: "0.2s" }}>
-          <HeroPhone />
+          <HeroPhone qrSvg={qrSvg} />
         </div>
       </div>
     </section>

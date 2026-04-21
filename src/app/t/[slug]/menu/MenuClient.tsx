@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+
+type MenuLayout = "list" | "grid" | "editorial";
 
 type Tenant = { slug: string; name: string; tagline: string | null };
 type Category = { id: string; slug: string; label: string };
@@ -79,6 +81,20 @@ export function MenuClient({
   const [openItem, setOpenItem] = useState<MenuItem | null>(null);
   const [showActiveSheet, setShowActiveSheet] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [layout, setLayout] = useState<MenuLayout>("list");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("mesapay.menuLayout");
+    if (saved === "list" || saved === "grid" || saved === "editorial") {
+      setLayout(saved);
+    }
+  }, []);
+  function changeLayout(next: MenuLayout) {
+    setLayout(next);
+    try {
+      localStorage.setItem("mesapay.menuLayout", next);
+    } catch {}
+  }
 
   const itemsByCat = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
@@ -91,6 +107,22 @@ export function MenuClient({
 
   const subtotal = cart.reduce((s, l) => s + l.priceCents * l.qty, 0);
   const totalQty = cart.reduce((s, l) => s + l.qty, 0);
+
+  function quickAdd(item: MenuItem) {
+    // If every modifier has a default, we can add straight to the cart.
+    // Otherwise open the detail sheet so the user can pick.
+    const mods = item.modifiers ?? [];
+    const allHaveDefaults = mods.every((m) => m.default);
+    if (!allHaveDefaults) {
+      setOpenItem(item);
+      return;
+    }
+    const selections: Record<string, string> = {};
+    for (const m of mods) {
+      if (m.default) selections[m.id] = m.default;
+    }
+    addToCart(item, selections, 1);
+  }
 
   function addToCart(item: MenuItem, selections: Record<string, string>, qty = 1, notes?: string) {
     const key = item.id + "::" + JSON.stringify(selections) + "::" + (notes ?? "");
@@ -167,14 +199,17 @@ export function MenuClient({
                 La carta
               </h1>
             </div>
-            {activeOrder && (
-              <Link
-                href={`/t/${tenant.slug}/order/${activeOrder.id}`}
-                className="shrink-0 h-10 px-3 rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
-              >
-                Ver pedido · {activeOrder.shortCode}
-              </Link>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <LayoutSwitcher layout={layout} onChange={changeLayout} />
+              {activeOrder && (
+                <Link
+                  href={`/t/${tenant.slug}/order/${activeOrder.id}`}
+                  className="h-9 px-3 rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
+                >
+                  {activeOrder.shortCode}
+                </Link>
+              )}
+            </div>
           </div>
           {activeOrder && (
             <div className="mt-3 rounded-xl border border-hairline bg-paper px-4 py-3 flex items-center justify-between gap-3">
@@ -229,54 +264,49 @@ export function MenuClient({
           if (!rows.length) return null;
           return (
             <section key={c.id} id={`cat-${c.slug}`} className="scroll-mt-28">
-              <div className="font-display text-2xl mb-3">{c.label}</div>
-              <ul className="divide-y divide-hairline border-t border-hairline">
-                {rows.map((it) => (
-                  <li key={it.id}>
-                    <button
-                      onClick={() => setOpenItem(it)}
-                      className="w-full text-left py-4 flex gap-4"
-                    >
-                      {it.photoUrl ? (
-                        <div
-                          className="w-20 h-20 rounded-xl bg-cream shrink-0 bg-cover bg-center"
-                          style={{ backgroundImage: `url(${it.photoUrl})` }}
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-xl bg-cream shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="font-display text-lg leading-tight">
-                            {it.name}
-                          </div>
-                          <div className="font-mono text-sm tabular shrink-0">
-                            {fmtCOP(it.priceCents)}
-                          </div>
-                        </div>
-                        <div className="text-sm text-muted line-clamp-2 mt-1">
-                          {it.description}
-                        </div>
-                        {it.tags.length > 0 && (
-                          <div className="flex gap-1.5 mt-2">
-                            {it.tags.map((t) => (
-                              <span
-                                key={t}
-                                className={
-                                  "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
-                                  (TAG_STYLES[t] ?? "bg-paper text-muted")
-                                }
-                              >
-                                {TAG_LABEL[t] ?? t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="flex items-baseline justify-between mb-3">
+                <div className="font-display text-2xl">{c.label}</div>
+                <div className="font-mono text-[10px] tracking-[0.1em] text-muted">
+                  {String(rows.length).padStart(2, "0")}
+                </div>
+              </div>
+              {layout === "list" && (
+                <ul className="divide-y divide-hairline border-t border-hairline">
+                  {rows.map((it) => (
+                    <ItemRowList
+                      key={it.id}
+                      item={it}
+                      onOpen={() => setOpenItem(it)}
+                      onQuickAdd={() => quickAdd(it)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {layout === "grid" && (
+                <div className="grid grid-cols-2 gap-4 gap-y-6">
+                  {rows.map((it) => (
+                    <ItemCardGrid
+                      key={it.id}
+                      item={it}
+                      onOpen={() => setOpenItem(it)}
+                      onQuickAdd={() => quickAdd(it)}
+                    />
+                  ))}
+                </div>
+              )}
+              {layout === "editorial" && (
+                <div className="flex flex-col gap-6">
+                  {rows.map((it, i) => (
+                    <ItemCardEditorial
+                      key={it.id}
+                      item={it}
+                      index={i}
+                      onOpen={() => setOpenItem(it)}
+                      onQuickAdd={() => quickAdd(it)}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
           );
         })}
@@ -528,6 +558,251 @@ function ActiveOrderSheet({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LayoutSwitcher({
+  layout,
+  onChange,
+}: {
+  layout: MenuLayout;
+  onChange: (l: MenuLayout) => void;
+}) {
+  const opts: { id: MenuLayout; label: string; icon: React.ReactNode }[] = [
+    { id: "list", label: "Lista", icon: <IconList /> },
+    { id: "grid", label: "Cuadrícula", icon: <IconGrid /> },
+    { id: "editorial", label: "Editorial", icon: <IconEditorial /> },
+  ];
+  return (
+    <div className="inline-flex bg-paper border border-hairline rounded-full p-0.5">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          aria-label={o.label}
+          title={o.label}
+          className={
+            "w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors " +
+            (layout === o.id ? "bg-ink text-bone" : "text-ink-3 hover:text-ink")
+          }
+        >
+          {o.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+function IconList() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconGrid() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+function IconEditorial() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2" width="12" height="6" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2 11h12M2 14h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ItemTags({ tags }: { tags: string[] }) {
+  if (!tags.length) return null;
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {tags.map((t) => (
+        <span
+          key={t}
+          className={
+            "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
+            (TAG_STYLES[t] ?? "bg-paper text-muted")
+          }
+        >
+          {TAG_LABEL[t] ?? t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function QuickAddButton({
+  onAdd,
+  size = "md",
+}: {
+  onAdd: () => void;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "sm" ? "w-8 h-8" : "w-10 h-10";
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onAdd();
+      }}
+      aria-label="Añadir al pedido"
+      className={
+        dim +
+        " shrink-0 rounded-full bg-ink text-bone flex items-center justify-center text-lg leading-none active:scale-95 transition-transform"
+      }
+    >
+      +
+    </button>
+  );
+}
+
+function ItemRowList({
+  item,
+  onOpen,
+  onQuickAdd,
+}: {
+  item: MenuItem;
+  onOpen: () => void;
+  onQuickAdd: () => void;
+}) {
+  return (
+    <li className="py-4">
+      <div className="flex gap-4 items-start">
+        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+          <div className="flex items-start justify-between gap-3">
+            <div className="font-display text-lg leading-tight">{item.name}</div>
+            <div className="font-mono text-sm tabular shrink-0">
+              {fmtCOP(item.priceCents)}
+            </div>
+          </div>
+          {item.description && (
+            <div className="text-sm text-muted line-clamp-2 mt-1">
+              {item.description}
+            </div>
+          )}
+          {item.tags.length > 0 && (
+            <div className="mt-2">
+              <ItemTags tags={item.tags} />
+            </div>
+          )}
+        </button>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {item.photoUrl ? (
+            <button
+              onClick={onOpen}
+              className="w-20 h-20 rounded-xl bg-cream bg-cover bg-center"
+              style={{ backgroundImage: `url(${item.photoUrl})` }}
+              aria-label="Ver detalle"
+            />
+          ) : (
+            <button
+              onClick={onOpen}
+              className="w-20 h-20 rounded-xl bg-cream"
+              aria-label="Ver detalle"
+            />
+          )}
+          <QuickAddButton onAdd={onQuickAdd} size="sm" />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function ItemCardGrid({
+  item,
+  onOpen,
+  onQuickAdd,
+}: {
+  item: MenuItem;
+  onOpen: () => void;
+  onQuickAdd: () => void;
+}) {
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={onOpen}
+        className="relative w-full aspect-square rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
+        style={
+          item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
+        }
+        aria-label={item.name}
+      >
+        {item.tags.includes("firma") && (
+          <div className="absolute top-2 left-2 bg-ink/85 text-paper font-mono text-[9px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded">
+            De la casa
+          </div>
+        )}
+        <div className="absolute bottom-2 right-2">
+          <QuickAddButton onAdd={onQuickAdd} />
+        </div>
+      </button>
+      <button onClick={onOpen} className="text-left mt-2">
+        <div className="font-display text-base leading-tight">{item.name}</div>
+        <div className="font-mono text-xs text-muted tabular mt-0.5">
+          {fmtCOP(item.priceCents)}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function ItemCardEditorial({
+  item,
+  index,
+  onOpen,
+  onQuickAdd,
+}: {
+  item: MenuItem;
+  index: number;
+  onOpen: () => void;
+  onQuickAdd: () => void;
+}) {
+  // Every 3rd card is a big hero; the rest are list rows.
+  const isHero = index % 3 === 0;
+  if (!isHero) {
+    return (
+      <ul className="divide-y divide-hairline border-t border-hairline -mt-3 first:mt-0">
+        <ItemRowList item={item} onOpen={onOpen} onQuickAdd={onQuickAdd} />
+      </ul>
+    );
+  }
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={onOpen}
+        className="relative w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
+        style={
+          item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
+        }
+        aria-label={item.name}
+      >
+        <div className="absolute bottom-3 right-3">
+          <QuickAddButton onAdd={onQuickAdd} />
+        </div>
+      </button>
+      <button onClick={onOpen} className="text-left mt-3">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <ItemTags tags={item.tags.slice(0, 2)} />
+          <div className="font-mono text-sm tabular shrink-0">
+            {fmtCOP(item.priceCents)}
+          </div>
+        </div>
+        <div className="font-display text-2xl leading-tight tracking-[-0.015em]">
+          {item.name}
+        </div>
+        {item.description && (
+          <div className="text-sm text-muted mt-1.5 leading-relaxed">
+            {item.description}
+          </div>
+        )}
+      </button>
     </div>
   );
 }

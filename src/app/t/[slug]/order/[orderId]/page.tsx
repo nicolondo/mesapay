@@ -1,0 +1,138 @@
+import { db } from "@/lib/db";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { fmtCOP } from "@/lib/format";
+import { OrderLive } from "./OrderLive";
+
+export default async function OrderView({
+  params,
+}: {
+  params: Promise<{ slug: string; orderId: string }>;
+}) {
+  const { slug, orderId } = await params;
+  const tenant = await db.restaurant.findUnique({ where: { slug } });
+  if (!tenant) return notFound();
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: {
+      table: true,
+      items: { include: { menuItem: true }, orderBy: { id: "asc" } },
+      rounds: { orderBy: { seq: "asc" } },
+    },
+  });
+  if (!order || order.restaurantId !== tenant.id) return notFound();
+
+  return (
+    <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
+      <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+        Mesa {order.table.number} · {tenant.name}
+      </div>
+      <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
+        Tu pedido <span className="font-mono text-base text-muted">· {order.shortCode}</span>
+      </h1>
+
+      <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
+
+      <div className="mt-8">
+        <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-2">
+          Rondas
+        </div>
+        <ul className="space-y-2">
+          {order.rounds.map((r) => {
+            const lines = order.items.filter((i) => i.roundId === r.id);
+            const tint = statusBadge(r.status);
+            return (
+              <li key={r.id} className="border border-hairline rounded-xl p-4 bg-paper">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs tracking-wider uppercase text-muted">
+                    Ronda {r.seq}
+                  </div>
+                  <span
+                    className={
+                      "px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium " +
+                      tint
+                    }
+                  >
+                    {statusLabel(r.status)}
+                  </span>
+                </div>
+                <ul className="mt-2 divide-y divide-hairline">
+                  {lines.map((li) => (
+                    <li key={li.id} className="py-2 flex justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm">
+                          {li.qty}× {li.nameSnapshot}
+                        </div>
+                        {li.modifierSelections && typeof li.modifierSelections === "object" && (
+                          <div className="text-xs text-muted mt-0.5">
+                            {Object.values(li.modifierSelections as Record<string, string>).join(" · ")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="font-mono text-sm tabular">
+                        {fmtCOP(li.priceCentsSnapshot * li.qty)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Subtotal
+          </div>
+          <div className="font-display text-3xl">{fmtCOP(order.subtotalCents)}</div>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
+            className="h-11 px-5 rounded-full border border-hairline inline-flex items-center text-sm font-medium"
+          >
+            Añadir más
+          </Link>
+          <Link
+            href={`/t/${slug}/pay/${order.id}`}
+            className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
+          >
+            Pagar
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function statusLabel(s: string) {
+  switch (s) {
+    case "open": return "Abierto";
+    case "placed": return "Enviado";
+    case "in_kitchen": return "En cocina";
+    case "ready": return "Listo";
+    case "served": return "Servido";
+    case "paying": return "Cobrando";
+    case "paid": return "Pagado";
+    case "cancelled": return "Cancelado";
+    default: return s;
+  }
+}
+function statusBadge(s: string) {
+  switch (s) {
+    case "ready":
+    case "served":
+    case "paid":
+      return "bg-[#2E6B4C]/15 text-[#1E5339]";
+    case "in_kitchen":
+    case "placed":
+      return "bg-[#C98A2E]/15 text-[#8F6828]";
+    case "cancelled":
+      return "bg-danger/15 text-danger";
+    default:
+      return "bg-paper text-muted";
+  }
+}

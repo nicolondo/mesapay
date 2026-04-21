@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Restaurant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  tagline   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  tables     Table[]
+  categories Category[]
+  menuItems  MenuItem[]
+  orders     Order[]
+
+  @@index([slug])
+}
+
+enum Role {
+  customer
+  operator
+  platform_admin
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  passwordHash String
+  role         Role        @default(customer)
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  orders Order[] @relation("OrderCustomer")
+
+  @@index([restaurantId])
+}
+
+model Table {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  number       Int
+  label        String?
+  qrToken      String     @unique
+  createdAt    DateTime   @default(now())
+
+  orders Order[]
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId])
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  slug         String
+  label        String
+  sortOrder    Int        @default(0)
+
+  items MenuItem[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  priceCents  Int
+  tags        String[]
+  photoUrl    String?
+  modifiers   Json?
+  available   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([restaurantId, categoryId])
+}
+
+enum OrderStatus {
+  open
+  placed
+  in_kitchen
+  ready
+  served
+  paying
+  paid
+  cancelled
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId      String
+  table        Table       @relation(fields: [tableId], references: [id])
+  customerId   String?
+  customer     User?       @relation("OrderCustomer", fields: [customerId], references: [id])
+
+  status    OrderStatus @default(open)
+  shortCode String      @unique
+  diners    Int         @default(1)
+  notes     String?
+
+  subtotalCents Int @default(0)
+  tipCents      Int @default(0)
+  taxCents      Int @default(0)
+  totalCents    Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  placedAt  DateTime?
+  servedAt  DateTime?
+  paidAt    DateTime?
+
+  items    OrderItem[]
+  payments Payment[]
+  rounds   Round[]
+
+  @@index([restaurantId, status])
+  @@index([tableId])
+}
+
+model Round {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seq       Int
+  status    OrderStatus @default(placed)
+  placedAt  DateTime    @default(now())
+  readyAt   DateTime?
+
+  items OrderItem[]
+
+  @@unique([orderId, seq])
+  @@index([orderId])
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  roundId    String?
+  round      Round?   @relation(fields: [roundId], references: [id])
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  qty                Int    @default(1)
+  nameSnapshot       String
+  priceCentsSnapshot Int
+  modifierSelections Json?
+  notes              String?
+
+  @@index([orderId])
+  @@index([roundId])
+}
+
+enum PaymentMethod {
+  demo_card
+  demo_cash
+  wompi_card
+  wompi_pse
+  wompi_nequi
+}
+
+enum PaymentStatus {
+  pending
+  approved
+  declined
+  refunded
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method      PaymentMethod
+  status      PaymentStatus @default(pending)
+  amountCents Int
+  splitOfCount Int?
+  providerRef String?
+  createdAt   DateTime      @default(now())
+  settledAt   DateTime?
+
+  @@index([orderId])
+}

@@ -1,65 +1,67 @@
-import Image from "next/image";
+import Link from "next/link";
+import { db } from "@/lib/db";
 
-export default function Home() {
+export default async function Home() {
+  const tenants = await db.restaurant.findMany({ orderBy: { name: "asc" } }).catch(() => []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex flex-1 flex-col items-center justify-center px-6 py-20 bg-bone text-ink">
+      <div className="w-full max-w-xl text-center">
+        <div className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted mb-6">
+          MESAPAY · QR ordering for restaurants
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <h1 className="font-display text-5xl md:text-6xl leading-[1.05] tracking-[-0.02em]">
+          Ordena y paga <em>desde tu mesa</em>.
+        </h1>
+        <p className="mt-5 text-ink-3 text-lg max-w-md mx-auto">
+          Escanea el código QR de tu restaurante, explora la carta, y paga sin esperar la cuenta.
+        </p>
+
+        <div className="mt-10 flex flex-col gap-3 w-full max-w-xs mx-auto">
+          <Link
+            href="/signin"
+            className="w-full h-12 rounded-xl bg-ink text-bone inline-flex items-center justify-center font-medium"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Ingresar
+          </Link>
+          <Link
+            href="/signup"
+            className="w-full h-12 rounded-xl border border-hairline inline-flex items-center justify-center font-medium text-ink"
           >
-            Documentation
-          </a>
+            Crear cuenta
+          </Link>
         </div>
-      </main>
-    </div>
+
+        {tenants.length > 0 && (
+          <div className="mt-16 text-left">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
+              Restaurantes activos
+            </div>
+            <ul className="border-t border-hairline">
+              {tenants.map((t) => (
+                <li key={t.id} className="border-b border-hairline">
+                  <Link
+                    href={`/?tenant=${t.slug}`}
+                    className="flex items-center justify-between py-4 group"
+                  >
+                    <div>
+                      <div className="font-display text-2xl">{t.name}</div>
+                      {t.tagline && <div className="text-sm text-muted">{t.tagline}</div>}
+                    </div>
+                    <div className="font-mono text-xs text-muted group-hover:text-terracotta">
+                      {t.slug} →
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-muted-2">
+              En producción, cada restaurante vive en <code className="font-mono">{"<slug>"}.mesapay.co</code>.
+              Localmente usamos el parámetro <code className="font-mono">?tenant=</code>.
+            </p>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

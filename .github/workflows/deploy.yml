@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        env:
+          DATABASE_URL: "postgresql://noop:noop@localhost:5432/noop"
+          AUTH_SECRET: "build-time-placeholder"
+        run: npm run build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Push code to VPS
+        run: |
+          ssh -i ~/.ssh/deploy deploy@${{ secrets.VPS_HOST }} \
+            "mkdir -p /opt/mesapay/releases/${{ github.sha }}"
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            --exclude 'reference' \
+            -e "ssh -i ~/.ssh/deploy" \
+            ./ \
+            deploy@${{ secrets.VPS_HOST }}:/opt/mesapay/releases/${{ github.sha }}/
+
+      - name: Build and activate release
+        run: |
+          ssh -i ~/.ssh/deploy deploy@${{ secrets.VPS_HOST }} \
+            "bash /opt/mesapay/shared/activate.sh ${{ github.sha }}"

@@ -5,33 +5,38 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const tenants = await db.restaurant.findMany({ orderBy: { name: "asc" } }).catch(() => []);
+  const demoTenant = tenants[0];
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-20 bg-bone text-ink">
-      <div className="w-full max-w-xl text-center">
-        <div className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted mb-6">
-          MESAPAY · QR ordering for restaurants
-        </div>
-        <h1 className="font-display text-5xl md:text-6xl leading-[1.05] tracking-[-0.02em]">
-          Ordena y paga <em>desde tu mesa</em>.
-        </h1>
-        <p className="mt-5 text-ink-3 text-lg max-w-md mx-auto">
-          Escanea el código QR de tu restaurante, explora la carta, y paga sin esperar la cuenta.
-        </p>
+    <main className="flex flex-1 flex-col items-center px-6 py-16 bg-bone text-ink">
+      <div className="w-full max-w-xl">
+        <div className="text-center">
+          <div className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted mb-6">
+            MESAPAY · QR ordering for restaurants
+          </div>
+          <h1 className="font-display text-5xl md:text-6xl leading-[1.05] tracking-[-0.02em]">
+            Ordena y paga <em>desde tu mesa</em>.
+          </h1>
+          <p className="mt-5 text-ink-3 text-lg max-w-md mx-auto">
+            Escanea el QR de tu mesa, explora la carta y paga sin esperar la cuenta.
+            <span className="block mt-2 text-muted">
+              No necesitas crear cuenta para ordenar.
+            </span>
+          </p>
 
-        <div className="mt-10 flex flex-col gap-3 w-full max-w-xs mx-auto">
-          <Link
-            href="/signin"
-            className="w-full h-12 rounded-xl bg-ink text-bone inline-flex items-center justify-center font-medium"
-          >
-            Ingresar
-          </Link>
-          <Link
-            href="/signup"
-            className="w-full h-12 rounded-xl border border-hairline inline-flex items-center justify-center font-medium text-ink"
-          >
-            Crear cuenta
-          </Link>
+          {demoTenant && (
+            <div className="mt-10">
+              <Link
+                href={`/t/${demoTenant.slug}`}
+                className="inline-flex h-12 px-6 rounded-xl bg-ink text-bone items-center justify-center font-medium"
+              >
+                Ver demo →
+              </Link>
+              <div className="mt-3 font-mono text-[10px] tracking-[0.16em] uppercase text-muted-2">
+                Simula la experiencia del comensal
+              </div>
+            </div>
+          )}
         </div>
 
         {tenants.length > 0 && (
@@ -43,7 +48,7 @@ export default async function Home() {
               {tenants.map((t) => (
                 <li key={t.id} className="border-b border-hairline">
                   <Link
-                    href={`/?tenant=${t.slug}`}
+                    href={`/t/${t.slug}`}
                     className="flex items-center justify-between py-4 group"
                   >
                     <div>
@@ -63,6 +68,30 @@ export default async function Home() {
             </p>
           </div>
         )}
+
+        <div className="mt-16 pt-8 border-t border-hairline">
+          <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
+            ¿Tienes un restaurante, o eres operador?
+          </div>
+          <div className="flex gap-3">
+            <Link
+              href="/signin"
+              className="h-11 px-5 rounded-xl border border-hairline inline-flex items-center justify-center font-medium text-ink text-sm"
+            >
+              Ingresar
+            </Link>
+            <Link
+              href="/signup"
+              className="h-11 px-5 rounded-xl border border-hairline inline-flex items-center justify-center font-medium text-ink text-sm"
+            >
+              Crear cuenta
+            </Link>
+          </div>
+          <p className="mt-3 text-xs text-muted-2">
+            Las cuentas son para operadores (meseros, cocina, admin). Los clientes
+            ordenan directamente desde el QR, sin registro.
+          </p>
+        </div>
       </div>
     </main>
   );

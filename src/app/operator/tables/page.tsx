@@ -27,11 +27,16 @@ export default async function TablesPage() {
     },
   });
   const pickupTable = allTables.find((t) => t.number === -1) ?? null;
-  const tables = allTables.filter((t) => t.number !== -1);
+  const counterMode = tenant?.serviceMode === "counter";
+  // Counter-mode restaurants are the mostrador — one QR is enough.
+  // If stale data left multiple "Mostrador" rows behind, only surface
+  // the first; the others are effectively duplicates.
+  const tables = counterMode
+    ? allTables.filter((t) => t.number !== -1).slice(0, 1)
+    : allTables.filter((t) => t.number !== -1);
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
-  const counterMode = tenant?.serviceMode === "counter";
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
@@ -59,7 +64,7 @@ export default async function TablesPage() {
         </div>
       )}
 
-      {tenant?.pickupEnabled && pickupTable && (
+      {!counterMode && tenant?.pickupEnabled && pickupTable && (
         <div className="mb-5 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-4">
           <div className="flex items-center justify-between">
             <div>

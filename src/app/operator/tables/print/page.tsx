@@ -18,13 +18,19 @@ export default async function PrintTablesPage({
   const { pickup } = await searchParams;
   const pickupOnly = pickup === "1";
 
-  const tables = await db.table.findMany({
+  const allTables = await db.table.findMany({
     where: {
       restaurantId,
       number: pickupOnly ? -1 : { gte: 0 },
     },
     orderBy: { number: "asc" },
   });
+  // Counter-mode has a single mostrador QR; if stale data left duplicates
+  // behind, only print the first one.
+  const tables =
+    tenant.serviceMode === "counter" && !pickupOnly
+      ? allTables.slice(0, 1)
+      : allTables;
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
 

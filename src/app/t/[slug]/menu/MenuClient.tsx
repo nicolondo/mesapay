@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import {
+  COUNTRIES,
+  DEFAULT_COUNTRY_CODE,
+  findCountryByCode,
+  type Country,
+} from "@/lib/countries";
 
 type MenuLayout = "list" | "grid" | "editorial";
 
@@ -1373,8 +1379,13 @@ function PickupCheckoutSheet({
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
+  const parsed = useMemo(() => splitDefaultPhone(defaultPhone), [defaultPhone]);
   const [name, setName] = useState(defaultName);
-  const [phone, setPhone] = useState(defaultPhone);
+  const [countryCode, setCountryCode] = useState(parsed.countryCode);
+  const [phone, setPhone] = useState(parsed.local);
+  const [showCountry, setShowCountry] = useState(false);
+  const country =
+    findCountryByCode(countryCode) ?? findCountryByCode(DEFAULT_COUNTRY_CODE)!;
   const [eta, setEta] = useState<{
     minutes: number;
     loading: boolean;
@@ -1425,12 +1436,17 @@ function PickupCheckoutSheet({
       setErr("Necesitamos tu nombre para llamarte.");
       return;
     }
+    const localNumber = phone.replace(/[^\d]/g, "");
+    if (localNumber.length < 5) {
+      setErr("Escribe tu número de celular para avisarte cuando esté listo.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     const body = {
       tableId,
       pickupName: name.trim(),
-      pickupPhone: phone.trim() || undefined,
+      pickupPhone: `+${country.dial} ${localNumber}`,
       method,
       items: cart.map((l) => ({
         menuItemId: l.menuItemId,
@@ -1517,19 +1533,32 @@ function PickupCheckoutSheet({
             />
           </label>
 
-          <label className="block">
+          <div className="block">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Celular (opcional)
+              Celular
             </span>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              maxLength={24}
-              placeholder="+57 300 123 4567"
-              className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper focus:outline-none focus:border-terracotta"
-            />
-          </label>
+            <div className="mt-1 flex items-stretch gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCountry(true)}
+                className="shrink-0 h-11 px-3 rounded-lg border border-hairline bg-paper flex items-center gap-2 text-sm"
+                aria-label="Código de país"
+              >
+                <span className="text-base leading-none">{country.flag}</span>
+                <span className="font-mono tabular">+{country.dial}</span>
+                <span className="text-muted text-xs leading-none">▾</span>
+              </button>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                maxLength={20}
+                placeholder="300 123 4567"
+                className="flex-1 min-w-0 h-11 px-3 rounded-lg border border-hairline bg-paper focus:outline-none focus:border-terracotta"
+              />
+            </div>
+          </div>
 
           <div className="rounded-xl border border-hairline bg-paper p-3">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-2">
@@ -1596,6 +1625,124 @@ function PickupCheckoutSheet({
             </div>
           </div>
         </div>
+      </div>
+      {showCountry && (
+        <CountryPicker
+          selected={country.code}
+          onSelect={(c) => {
+            setCountryCode(c.code);
+            setShowCountry(false);
+          }}
+          onClose={() => setShowCountry(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Best-effort parse of a stored profile phone like "+57 300 123 4567" into
+// a country + local number. Unknown or bare numbers default to Colombia
+// and are shown as-is in the input.
+function splitDefaultPhone(raw: string): {
+  countryCode: string;
+  local: string;
+} {
+  const s = raw.trim();
+  if (!s) return { countryCode: DEFAULT_COUNTRY_CODE, local: "" };
+  if (s.startsWith("+")) {
+    const digits = s.slice(1).replace(/[^\d\s-]/g, "");
+    const compact = digits.replace(/[^\d]/g, "");
+    // Try longest dial first so "1" (US) doesn't eat "52" (MX) etc.
+    const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
+    for (const c of sorted) {
+      if (compact.startsWith(c.dial)) {
+        return {
+          countryCode: c.code,
+          local: compact.slice(c.dial.length),
+        };
+      }
+    }
+  }
+  return { countryCode: DEFAULT_COUNTRY_CODE, local: s };
+}
+
+function CountryPicker({
+  selected,
+  onSelect,
+  onClose,
+}: {
+  selected: string;
+  onSelect: (c: Country) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const list = q
+    ? COUNTRIES.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.dial.includes(q.replace(/^\+/, "")) ||
+          c.code.toLowerCase().includes(q),
+      )
+    : COUNTRIES;
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-hairline">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-display text-lg">Código de país</div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full border border-hairline text-ink-3"
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+          </div>
+          <input
+            autoFocus
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar país o código"
+            className="w-full h-10 px-3 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
+          />
+        </div>
+        <ul className="overflow-y-auto flex-1">
+          {list.length === 0 && (
+            <li className="py-8 text-center text-sm text-muted">
+              No encontramos ese país.
+            </li>
+          )}
+          {list.map((c) => {
+            const active = c.code === selected;
+            return (
+              <li key={c.code}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(c)}
+                  className={
+                    "w-full flex items-center gap-3 px-4 py-3 text-left text-sm border-b border-hairline/60 " +
+                    (active ? "bg-terracotta/10" : "hover:bg-paper")
+                  }
+                >
+                  <span className="text-lg leading-none">{c.flag}</span>
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="font-mono tabular text-muted">
+                    +{c.dial}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );

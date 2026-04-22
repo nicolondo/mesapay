@@ -20,7 +20,7 @@ const itemSchema = z.object({
 const schema = z.object({
   tableId: z.string().min(1),
   pickupName: z.string().trim().min(1).max(40),
-  pickupPhone: z.string().trim().min(6).max(24).optional(),
+  pickupPhone: z.string().trim().min(6).max(32),
   method: z.enum(["demo_card", "demo_nequi"]),
   items: z.array(itemSchema).min(1),
 });

@@ -7,7 +7,12 @@ import { fmtCOP } from "@/lib/format";
 
 type MenuLayout = "list" | "grid" | "editorial";
 
-type Tenant = { slug: string; name: string; tagline: string | null };
+type Tenant = {
+  slug: string;
+  name: string;
+  tagline: string | null;
+  serviceMode: "table" | "counter";
+};
 type Category = { id: string; slug: string; label: string };
 type ModifierDef = {
   id: string;
@@ -91,6 +96,10 @@ export function MenuClient({
   const [servingMode, setServingMode] = useState<"asReady" | "together">(
     "asReady",
   );
+  // Counter-mode tenants (food trucks, mostrador) have no mains-together
+  // semantics — items are prepared and handed over as they're ready. Hide the
+  // picker and lock the mode to "asReady".
+  const isCounter = tenant.serviceMode === "counter";
   const headerRef = useRef<HTMLElement>(null);
 
   function scrollToCategory(slug: string) {
@@ -284,7 +293,14 @@ export function MenuClient({
       localStorage.removeItem(cartKey);
     } catch {}
     setCart([]);
-    router.push(`/t/${tenant.slug}/order/${orderId}`);
+    // Counter-mode is prepay: skip the shared-bill view and send the diner
+    // straight to checkout. The kitchen only sees the order after the
+    // payment route flips the round from "open" to "placed".
+    router.push(
+      isCounter
+        ? `/t/${tenant.slug}/pay/${orderId}`
+        : `/t/${tenant.slug}/order/${orderId}`,
+    );
   }
 
   return (
@@ -499,6 +515,8 @@ export function MenuClient({
               split={!!activeOrder}
               servingMode={servingMode}
               onServingModeChange={setServingMode}
+              showServingMode={!isCounter}
+              prepay={isCounter}
             />
           )}
         </div>
@@ -540,6 +558,8 @@ function CartBar({
   split,
   servingMode,
   onServingModeChange,
+  showServingMode,
+  prepay,
 }: {
   lines: CartLine[];
   subtotal: number;
@@ -552,6 +572,8 @@ function CartBar({
   split: boolean;
   servingMode: "asReady" | "together";
   onServingModeChange: (m: "asReady" | "together") => void;
+  showServingMode: boolean;
+  prepay: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -649,7 +671,7 @@ function CartBar({
                   </li>
                 ))}
               </ul>
-              {!appendingTo && (
+              {!appendingTo && showServingMode && (
                 <div className="mt-5">
                   <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
                     ¿Cómo quieres que salga?
@@ -702,13 +724,19 @@ function CartBar({
                 className="mt-3 w-full h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
               >
                 {submitting
-                  ? "Enviando…"
-                  : appendingTo
-                    ? "Añadir a cocina"
-                    : "Enviar a cocina"}
+                  ? prepay
+                    ? "Preparando pago…"
+                    : "Enviando…"
+                  : prepay
+                    ? "Ir a pagar"
+                    : appendingTo
+                      ? "Añadir a cocina"
+                      : "Enviar a cocina"}
               </button>
               <p className="text-xs text-muted-2 text-center mt-2">
-                Podrás añadir más platos durante la comida.
+                {prepay
+                  ? "Tu pedido pasa a la cocina apenas confirmemos el pago."
+                  : "Podrás añadir más platos durante la comida."}
               </p>
             </div>
           </div>

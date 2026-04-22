@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
+import { activateOpenRounds } from "@/lib/prepaidRounds";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -97,6 +98,11 @@ export async function POST(
         paidAt: fullyPaid ? new Date() : null,
       },
     });
+    // Counter-mode prepay: release any open rounds to the kitchen now that
+    // the money is in.
+    if (fullyPaid) {
+      await activateOpenRounds(tx, order.id);
+    }
     return { payment, updated, fullyPaid };
   });
 

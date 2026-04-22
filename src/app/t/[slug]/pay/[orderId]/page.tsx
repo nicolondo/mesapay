@@ -46,6 +46,7 @@ export default async function PayPage({
         priceCents: i.priceCentsSnapshot,
         guestName: i.guestName,
       }))}
+      serviceMode={tenant.serviceMode}
     />
   );
 }

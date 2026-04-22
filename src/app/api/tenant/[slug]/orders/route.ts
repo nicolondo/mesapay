@@ -70,6 +70,13 @@ export async function POST(
       throw new Error("order mismatch");
     }
     if (!order) {
+      // Counter-mode tenants (food trucks, mostrador) have no
+      // mains-together flow — force "asReady" regardless of what the
+      // client sends, since the picker is hidden there.
+      const servingMode =
+        tenant.serviceMode === "counter"
+          ? "asReady"
+          : parsed.data.servingMode ?? "asReady";
       order = await tx.order.create({
         data: {
           restaurantId: tenant.id,
@@ -77,17 +84,22 @@ export async function POST(
           customerId: session?.user?.id,
           status: "open",
           shortCode: shortCode(),
-          servingMode: parsed.data.servingMode ?? "asReady",
+          servingMode,
         },
       });
     }
 
     const existingRounds = await tx.round.count({ where: { orderId: order.id } });
+    // Counter-mode tenants (food trucks, mostrador) are prepay — the round is
+    // created in "open" state so the kitchen board (which filters on
+    // placed/in_kitchen/ready) doesn't pick it up until the payment approval
+    // path flips it to "placed".
+    const isCounter = tenant.serviceMode === "counter";
     const round = await tx.round.create({
       data: {
         orderId: order.id,
         seq: existingRounds + 1,
-        status: "placed",
+        status: isCounter ? "open" : "placed",
       },
     });
 
@@ -120,8 +132,14 @@ export async function POST(
       data: {
         subtotalCents,
         totalCents: subtotalCents, // taxes/tips applied at payment time
-        status: order.status === "open" ? "placed" : order.status,
-        placedAt: order.placedAt ?? new Date(),
+        // Counter-mode orders stay "open" until the payment path marks them
+        // paid — they must not reach the kitchen before cash hits the till.
+        status: isCounter
+          ? order.status
+          : order.status === "open"
+            ? "placed"
+            : order.status,
+        placedAt: isCounter ? order.placedAt : (order.placedAt ?? new Date()),
       },
     });
     return { order: updated, round };

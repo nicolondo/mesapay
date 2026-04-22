@@ -69,7 +69,12 @@ export default async function MenuPage({
 
   return (
     <MenuClient
-      tenant={{ slug: tenant.slug, name: tenant.name, tagline: tenant.tagline }}
+      tenant={{
+        slug: tenant.slug,
+        name: tenant.name,
+        tagline: tenant.tagline,
+        serviceMode: tenant.serviceMode,
+      }}
       tableId={table.id}
       locationLabel={
         tenant.serviceMode === "counter"

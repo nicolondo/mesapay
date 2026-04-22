@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
+import { activateOpenRounds } from "@/lib/prepaidRounds";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -106,6 +107,12 @@ export async function POST(
         paidAt: fullyPaid ? (order.paidAt ?? now) : null,
       },
     });
+
+    // Counter-mode prepay rounds stay "open" until cash is settled — release
+    // them to the kitchen the moment the operator confirms payment.
+    if (fullyPaid) {
+      await activateOpenRounds(tx, order.id);
+    }
 
     return { payment: updatedPayment, order: finalOrder, fullyPaid };
   });

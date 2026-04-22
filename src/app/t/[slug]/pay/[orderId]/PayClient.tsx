@@ -32,6 +32,7 @@ export function PayClient({
   paidCents,
   alreadyPaid,
   items,
+  serviceMode,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -42,7 +43,12 @@ export function PayClient({
   paidCents: number;
   alreadyPaid: boolean;
   items: PayItem[];
+  serviceMode: "table" | "counter";
 }) {
+  // Counter-mode is prepay for a single diner's order — splitting the
+  // cuenta makes no sense and would let someone walk off with the food
+  // half-paid. Force "Todo" and hide the mode picker.
+  const isCounter = serviceMode === "counter";
   const router = useRouter();
   const [tipPct, setTipPct] = useState<number>(10);
   const [method, setMethod] = useState<typeof METHODS[number]["id"]>("demo_card");
@@ -149,38 +155,40 @@ export function PayClient({
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">Pagar</h1>
 
-      {/* Split mode */}
-      <div className="mt-6">
-        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-          ¿Cómo quieres pagar?
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <ModeButton
-            active={mode === "full"}
-            label="Todo"
-            hint="La cuenta completa"
-            onClick={() => setMode("full")}
-          />
-          <ModeButton
-            active={mode === "equal"}
-            label="Partes iguales"
-            hint="Divide por N"
-            onClick={() => setMode("equal")}
-          />
-          <ModeButton
-            active={mode === "mine"}
-            label="Lo mío"
-            hint="Solo lo que pedí"
-            onClick={() => hasGuests && setMode("mine")}
-            disabled={!hasGuests}
-          />
-        </div>
-        {mode === "mine" && !hasGuests && (
-          <div className="mt-2 text-xs text-muted-2">
-            Nadie dejó su nombre en los platos — usa Partes iguales.
+      {/* Split mode (hidden for counter: prepay + single-diner flow) */}
+      {!isCounter && (
+        <div className="mt-6">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+            ¿Cómo quieres pagar?
           </div>
-        )}
-      </div>
+          <div className="grid grid-cols-3 gap-2">
+            <ModeButton
+              active={mode === "full"}
+              label="Todo"
+              hint="La cuenta completa"
+              onClick={() => setMode("full")}
+            />
+            <ModeButton
+              active={mode === "equal"}
+              label="Partes iguales"
+              hint="Divide por N"
+              onClick={() => setMode("equal")}
+            />
+            <ModeButton
+              active={mode === "mine"}
+              label="Lo mío"
+              hint="Solo lo que pedí"
+              onClick={() => hasGuests && setMode("mine")}
+              disabled={!hasGuests}
+            />
+          </div>
+          {mode === "mine" && !hasGuests && (
+            <div className="mt-2 text-xs text-muted-2">
+              Nadie dejó su nombre en los platos — usa Partes iguales.
+            </div>
+          )}
+        </div>
+      )}
 
       {mode === "equal" && (
         <div className="mt-4 flex items-center justify-between bg-paper border border-hairline rounded-xl px-4 py-3">

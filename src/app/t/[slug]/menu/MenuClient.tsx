@@ -1084,7 +1084,7 @@ function ItemCardEditorial({
         }
         aria-label={item.name}
       />
-      <div className="mt-3 flex items-start gap-3">
+      <div className="mt-3 flex items-center gap-3">
         <button onClick={onOpen} className="text-left flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-3 mb-1">
             <ItemTags tags={item.tags.slice(0, 2)} />
@@ -1106,7 +1106,7 @@ function ItemCardEditorial({
             </div>
           )}
         </button>
-        <QuickAddButton onAdd={onQuickAdd} />
+        <QuickAddButton onAdd={onQuickAdd} size="sm" />
       </div>
     </div>
   );

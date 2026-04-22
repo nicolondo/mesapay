@@ -60,15 +60,27 @@ export async function PATCH(
       data: { kitchenStatus: parsed.data.status },
     });
     // Bubble aggregate status to order: if any round is in_kitchen, order = in_kitchen.
-    // If all rounds are ready, order = ready.
-    const rounds = await tx.round.findMany({ where: { orderId: round.orderId } });
-    let orderStatus: "placed" | "in_kitchen" | "ready" = "placed";
-    if (rounds.some((r) => r.status === "in_kitchen")) orderStatus = "in_kitchen";
-    if (rounds.every((r) => r.status === "ready")) orderStatus = "ready";
-    await tx.order.update({
+    // If all rounds are ready, order = ready. Don't clobber an already-paid
+    // order — counter-mode is prepay so the order hits "paid" before the
+    // kitchen starts, and we'd otherwise lose the paid flag on every flip.
+    const currentOrder = await tx.order.findUnique({
       where: { id: round.orderId },
-      data: { status: orderStatus },
+      select: { status: true },
     });
+    if (
+      currentOrder &&
+      currentOrder.status !== "paid" &&
+      currentOrder.status !== "paying"
+    ) {
+      const rounds = await tx.round.findMany({ where: { orderId: round.orderId } });
+      let orderStatus: "placed" | "in_kitchen" | "ready" = "placed";
+      if (rounds.some((r) => r.status === "in_kitchen")) orderStatus = "in_kitchen";
+      if (rounds.every((r) => r.status === "ready")) orderStatus = "ready";
+      await tx.order.update({
+        where: { id: round.orderId },
+        data: { status: orderStatus },
+      });
+    }
   });
 
   publishOrderEvent(round.order.restaurantId, {

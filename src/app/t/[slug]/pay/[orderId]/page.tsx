@@ -21,9 +21,9 @@ export default async function PayPage({
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
 
-  const paidCents = order.payments
-    .filter((p) => p.status === "approved")
-    .reduce((s, p) => s + p.amountCents, 0);
+  const approved = order.payments.filter((p) => p.status === "approved");
+  const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
+  const paidTipCents = approved.reduce((s, p) => s + p.tipCents, 0);
 
   return (
     <PayClient
@@ -38,6 +38,7 @@ export default async function PayPage({
       }
       subtotalCents={order.subtotalCents}
       paidCents={paidCents}
+      paidTipCents={paidTipCents}
       alreadyPaid={order.status === "paid"}
       items={order.items.map((i) => ({
         id: i.id,

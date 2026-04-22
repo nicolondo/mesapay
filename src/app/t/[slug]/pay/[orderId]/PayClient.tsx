@@ -30,6 +30,7 @@ export function PayClient({
   locationLabel,
   subtotalCents,
   paidCents,
+  paidTipCents,
   alreadyPaid,
   items,
   serviceMode,
@@ -41,6 +42,7 @@ export function PayClient({
   locationLabel: string;
   subtotalCents: number;
   paidCents: number;
+  paidTipCents: number;
   alreadyPaid: boolean;
   items: PayItem[];
   serviceMode: "table" | "counter";
@@ -69,27 +71,24 @@ export function PayClient({
 
   const [myGuest, setMyGuest] = useState<string>(guestTotals[0]?.name ?? "");
 
-  const tipOnSubtotalCents = Math.round((subtotalCents * tipPct) / 100);
-  const outstandingCents = subtotalCents + tipOnSubtotalCents - paidCents;
+  // Each diner tips on their own portion. The remaining food (what actually
+  // needs to get paid) is the subtotal minus whatever food portion prior
+  // payers already covered — their tips don't subtract from your share.
+  const paidFoodCents = Math.max(0, paidCents - paidTipCents);
+  const outstandingSubtotalCents = Math.max(0, subtotalCents - paidFoodCents);
 
-  let amountCents = 0;
   let amountSubtotal = 0;
-  let amountTip = 0;
   if (mode === "full") {
-    amountCents = Math.max(0, outstandingCents);
-    amountSubtotal = subtotalCents - paidCents;
-    amountTip = tipOnSubtotalCents;
+    amountSubtotal = outstandingSubtotalCents;
   } else if (mode === "equal") {
     const n = Math.max(2, splitCount);
     amountSubtotal = Math.round(subtotalCents / n);
-    amountTip = Math.round(tipOnSubtotalCents / n);
-    amountCents = amountSubtotal + amountTip;
   } else {
     const mine = guestTotals.find((g) => g.name === myGuest);
     amountSubtotal = mine?.cents ?? 0;
-    amountTip = Math.round((amountSubtotal * tipPct) / 100);
-    amountCents = amountSubtotal + amountTip;
   }
+  const amountTip = Math.round((amountSubtotal * tipPct) / 100);
+  const amountCents = amountSubtotal + amountTip;
 
   async function pay() {
     if (amountCents <= 0) return;
@@ -102,7 +101,7 @@ export function PayClient({
         orderId,
         method,
         amountCents,
-        tipCents: mode === "full" ? tipOnSubtotalCents : amountTip,
+        tipCents: amountTip,
       }),
     });
     setBusy(false);
@@ -253,10 +252,27 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
-        <Row label="Subtotal" value={fmtCOP(subtotalCents)} />
+        <Row label="Subtotal de la cuenta" value={fmtCOP(subtotalCents)} />
+        {paidFoodCents > 0 && (
+          <Row
+            label="Ya cubierto por otros"
+            value={"− " + fmtCOP(paidFoodCents)}
+            muted
+          />
+        )}
+        <Row
+          label={
+            mode === "full"
+              ? "Tu parte"
+              : mode === "equal"
+                ? `Tu parte (1 de ${splitCount})`
+                : `Lo de ${myGuest || "ti"}`
+          }
+          value={fmtCOP(amountSubtotal)}
+        />
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            Propina
+            Propina sobre tu parte
           </div>
           <div className="flex gap-2 flex-wrap">
             {TIP_OPTIONS.map((p) => (
@@ -276,28 +292,19 @@ export function PayClient({
           </div>
           <div className="mt-2 flex justify-between text-sm text-muted">
             <span>Propina {tipPct}%</span>
-            <span className="font-mono tabular">{fmtCOP(tipOnSubtotalCents)}</span>
+            <span className="font-mono tabular">{fmtCOP(amountTip)}</span>
           </div>
         </div>
-        {paidCents > 0 && (
-          <Row label="Pagado previamente" value={"− " + fmtCOP(paidCents)} muted />
-        )}
         <div className="mt-4 pt-4 border-t border-hairline">
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              {mode === "full"
-                ? "Total a pagar"
-                : mode === "equal"
-                  ? `Tu parte (1 de ${splitCount})`
-                  : `Lo de ${myGuest || "ti"}`}
+              Total a pagar
             </span>
             <span className="font-display text-3xl">{fmtCOP(amountCents)}</span>
           </div>
-          {mode !== "full" && (
-            <div className="mt-1 text-xs text-muted-2">
-              Incluye propina proporcional · {fmtCOP(amountSubtotal)} + {fmtCOP(amountTip)}
-            </div>
-          )}
+          <div className="mt-1 text-xs text-muted-2">
+            {fmtCOP(amountSubtotal)} + {fmtCOP(amountTip)} propina
+          </div>
         </div>
       </div>
 

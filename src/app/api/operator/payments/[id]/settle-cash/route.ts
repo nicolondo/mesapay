@@ -69,40 +69,40 @@ export async function POST(
 
   const result = await db.$transaction(async (tx) => {
     const now = new Date();
+    // "Keep the change" tips land on this specific payment so the per-payment
+    // tip stays coherent with the ledger.
     const updatedPayment = await tx.payment.update({
       where: { id: payment.id },
       data: {
         amountCents: netReceived,
+        tipCents: payment.tipCents + extraTipCents,
         status: "approved",
         settledAt: now,
       },
     });
 
-    // Fold the "keep the change" extra into tipCents so it flows to cierre.
-    if (extraTipCents > 0) {
-      await tx.order.update({
-        where: { id: payment.orderId },
-        data: {
-          tipCents: { increment: extraTipCents },
-          totalCents: { increment: extraTipCents },
-        },
-      });
-    }
-
     const order = await tx.order.findUnique({
       where: { id: payment.orderId },
+      select: { subtotalCents: true, paidAt: true },
     });
     if (!order) throw new Error("order vanished");
 
+    // Recompute order totals from the approved payments. Tips are the sum
+    // of per-payment tips; fully-paid is when the food portion covers the
+    // subtotal.
     const approved = await tx.payment.findMany({
-      where: { orderId: order.id, status: "approved" },
+      where: { orderId: payment.orderId, status: "approved" },
     });
     const paidSum = approved.reduce((s, p) => s + p.amountCents, 0);
-    const fullyPaid = paidSum >= order.totalCents;
+    const tipsTotal = approved.reduce((s, p) => s + p.tipCents, 0);
+    const foodPaid = paidSum - tipsTotal;
+    const fullyPaid = foodPaid >= order.subtotalCents;
 
     const finalOrder = await tx.order.update({
-      where: { id: order.id },
+      where: { id: payment.orderId },
       data: {
+        tipCents: tipsTotal,
+        totalCents: order.subtotalCents + tipsTotal,
         status: fullyPaid ? "paid" : "paying",
         paidAt: fullyPaid ? (order.paidAt ?? now) : null,
       },
@@ -111,7 +111,7 @@ export async function POST(
     // Counter-mode prepay rounds stay "open" until cash is settled — release
     // them to the kitchen the moment the operator confirms payment.
     if (fullyPaid) {
-      await activateOpenRounds(tx, order.id);
+      await activateOpenRounds(tx, payment.orderId);
     }
 
     return { payment: updatedPayment, order: finalOrder, fullyPaid };

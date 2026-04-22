@@ -312,6 +312,7 @@ model Payment {
   method       PaymentMethod
   status       PaymentStatus @default(pending)
   amountCents  Int
+  tipCents     Int           @default(0)
   splitOfCount Int?
   providerRef  String?
   createdAt    DateTime      @default(now())

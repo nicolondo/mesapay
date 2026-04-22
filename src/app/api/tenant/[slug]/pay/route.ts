@@ -33,9 +33,9 @@ export async function POST(
 
   // Cash runs a different path: the payment stays pending until a waiter
   // settles it in Salón. The order moves to "paying" so it shows up as a
-  // pending collection, but we do NOT mark it paid here.
+  // pending collection, but we do NOT mark it paid here — pending tips do
+  // not touch order.tipCents, that's an approved-only aggregate.
   if (parsed.data.method === "demo_cash") {
-    const expected = order.subtotalCents + parsed.data.tipCents;
     const payment = await db.$transaction(async (tx) => {
       const p = await tx.payment.create({
         data: {
@@ -43,13 +43,12 @@ export async function POST(
           method: "demo_cash",
           status: "pending",
           amountCents: parsed.data.amountCents,
+          tipCents: parsed.data.tipCents,
         },
       });
       await tx.order.update({
         where: { id: order.id },
         data: {
-          tipCents: parsed.data.tipCents,
-          totalCents: expected,
           status: order.status === "paid" ? order.status : "paying",
         },
       });
@@ -80,20 +79,26 @@ export async function POST(
         method,
         status: "approved",
         amountCents: parsed.data.amountCents,
+        tipCents: parsed.data.tipCents,
         settledAt: new Date(),
       },
     });
+    // Tips are per-payment: each diner picks their own on their own share.
+    // The order-level aggregate is the sum across approved payments; the
+    // order is "fully paid" when the food portion (amount − tip) covers the
+    // subtotal, regardless of how much anyone tipped.
     const allPayments = await tx.payment.findMany({
       where: { orderId: order.id, status: "approved" },
     });
     const paid = allPayments.reduce((s, p) => s + p.amountCents, 0);
-    const expected = order.subtotalCents + parsed.data.tipCents;
-    const fullyPaid = paid >= expected;
+    const tipsTotal = allPayments.reduce((s, p) => s + p.tipCents, 0);
+    const foodPaid = paid - tipsTotal;
+    const fullyPaid = foodPaid >= order.subtotalCents;
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {
-        tipCents: parsed.data.tipCents,
-        totalCents: expected,
+        tipCents: tipsTotal,
+        totalCents: order.subtotalCents + tipsTotal,
         status: fullyPaid ? "paid" : "paying",
         paidAt: fullyPaid ? new Date() : null,
       },

@@ -3,7 +3,12 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export function CounterStatusLive({
+/**
+ * Refreshes the done page whenever the shared order changes. Used by both
+ * counter-mode (to flip the "En preparación" card to "¡Listo!") and
+ * table-mode (to roll in partial payments from other diners at the table).
+ */
+export function DoneLive({
   orderId,
   tenantSlug,
 }: {
@@ -12,15 +17,17 @@ export function CounterStatusLive({
 }) {
   const router = useRouter();
 
-  // Live updates: when the kitchen advances the round, refresh so the server
-  // re-renders with the new status. Same pattern as the pickup status page.
   useEffect(() => {
     const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
     const onMsg = (ev: MessageEvent) => {
       try {
         const data = JSON.parse(ev.data);
         if (data.orderId !== orderId) return;
-        if (data.type === "order.ready" || data.type === "order.updated") {
+        if (
+          data.type === "order.ready" ||
+          data.type === "order.updated" ||
+          data.type === "order.paid"
+        ) {
           router.refresh();
           try {
             navigator.vibrate?.([140, 70, 140]);

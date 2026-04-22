@@ -2,129 +2,356 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
-import { CounterStatusLive } from "./CounterStatusLive";
+import { DoneLive } from "./DoneLive";
 
 export const dynamic = "force-dynamic";
 
+const METHOD_LABEL: Record<string, string> = {
+  demo_card: "Tarjeta",
+  demo_cash: "Efectivo",
+  demo_nequi: "Nequi",
+  wompi_card: "Tarjeta",
+  wompi_nequi: "Nequi",
+  wompi_pse: "PSE",
+};
+
+function methodLabel(m: string) {
+  return METHOD_LABEL[m] ?? m;
+}
+
+function fmtRelative(d: Date) {
+  const diff = Date.now() - d.getTime();
+  const s = Math.round(diff / 1000);
+  if (s < 45) return "hace un momento";
+  const mins = Math.round(s / 60);
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  return d.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default async function PayDone({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
+  searchParams: Promise<{ pid?: string }>;
 }) {
   const { slug, orderId } = await params;
+  const { pid } = await searchParams;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
 
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
+      table: true,
       rounds: { orderBy: { seq: "asc" } },
       items: { orderBy: { id: "asc" } },
+      payments: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
 
-  // Table-mode (and pickup that somehow lands here): keep the simple
-  // thank-you screen. Counter-mode needs the live tracker so the diner can
-  // watch their order until it's ready at the counter.
-  if (tenant.serviceMode !== "counter") {
+  // Counter-mode keeps its status tracker: big code + live cook status.
+  if (tenant.serviceMode === "counter") {
+    const round = order.rounds[0] ?? null;
+    const roundStatus = round?.status ?? "placed";
+    const isReady = roundStatus === "ready" || roundStatus === "served";
+    const isServed = roundStatus === "served";
+
     return (
-      <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
-        <div className="text-center max-w-sm">
-          <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl check-pop">
-            ✓
+      <main className="flex-1 bg-bone">
+        <div className="max-w-md mx-auto px-5 py-10">
+          <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
+
+          <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta">
+            Pedido pagado
           </div>
-          <h1 className="font-display text-4xl tracking-[-0.015em] mt-5">
-            ¡Pago recibido!
-          </h1>
-          <p className="text-muted mt-3">
-            Gracias por visitarnos. Esperamos verte pronto.
-          </p>
-          <Link
-            href={`/t/${slug}`}
-            className="mt-8 inline-flex h-11 px-5 rounded-full bg-ink text-bone font-medium items-center"
-          >
-            Volver al inicio
-          </Link>
+          <div className="font-display text-3xl tracking-[-0.015em] mt-1">
+            {tenant.name}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-hairline bg-paper p-6 text-center">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
+              Tu código
+            </div>
+            <div className="font-display text-6xl leading-none mt-2 tabular">
+              {order.shortCode}
+            </div>
+            <div className="text-sm text-muted mt-3">
+              Muéstralo al cajero cuando te avisen.
+            </div>
+          </div>
+
+          {isServed ? (
+            <div className="mt-6 rounded-2xl bg-ink text-bone p-6 text-center">
+              <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/70">
+                Entregado
+              </div>
+              <div className="font-display text-3xl mt-2">
+                Gracias por comer con nosotros
+              </div>
+            </div>
+          ) : isReady ? (
+            <div className="mt-6 rounded-2xl bg-ok text-bone p-8 text-center">
+              <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/80">
+                ¡Tu pedido está listo!
+              </div>
+              <div className="font-display text-4xl mt-2 leading-[1.05]">
+                Pasa por el mostrador
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl bg-paper border border-hairline p-6 text-center">
+              <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
+                En preparación
+              </div>
+              <div className="font-display text-3xl mt-2">Estamos cocinando</div>
+              <div className="text-sm text-muted mt-3">
+                Te avisamos aquí cuando esté listo.
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 rounded-2xl border border-hairline bg-paper p-5">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
+              Tu pedido
+            </div>
+            <ul className="divide-y divide-hairline">
+              {order.items.map((i) => (
+                <li
+                  key={i.id}
+                  className="py-2 flex items-center justify-between text-sm"
+                >
+                  <span>
+                    {i.qty}× {i.nameSnapshot}
+                  </span>
+                  <span className="font-mono tabular">
+                    {fmtCOP(i.priceCentsSnapshot * i.qty)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 pt-3 border-t border-hairline flex items-baseline justify-between">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Pagado
+              </span>
+              <span className="font-display text-2xl tabular">
+                {fmtCOP(order.totalCents)}
+              </span>
+            </div>
+          </div>
         </div>
       </main>
     );
   }
 
-  // Counter-mode status derived from the single round. Food-truck orders
-  // always have exactly one round (no round 2+ in prepay).
-  const round = order.rounds[0] ?? null;
-  const roundStatus = round?.status ?? "placed";
-  const isReady = roundStatus === "ready" || roundStatus === "served";
-  const isServed = roundStatus === "served";
+  // Table-mode shared-bill ledger: show every approved payment on this
+  // order, highlight the current diner's contribution, and render progress
+  // so diners still at the table can see how much remains.
+  const approvedPayments = order.payments.filter(
+    (p) => p.status === "approved",
+  );
+  const pendingPayments = order.payments.filter(
+    (p) => p.status === "pending",
+  );
+  const paidCents = approvedPayments.reduce((s, p) => s + p.amountCents, 0);
+  // totalCents is only set once the first tip is applied; fall back to
+  // subtotal so the progress bar has a sensible denominator before anyone
+  // has picked a tip.
+  const expectedCents = Math.max(order.totalCents, order.subtotalCents);
+  const outstandingCents = Math.max(0, expectedCents - paidCents);
+  const fullyPaid = order.status === "paid" || outstandingCents === 0;
+  const progressPct = expectedCents > 0
+    ? Math.min(100, Math.round((paidCents / expectedCents) * 100))
+    : 0;
+
+  const myPayment = pid
+    ? order.payments.find((p) => p.id === pid) ?? null
+    : null;
 
   return (
     <main className="flex-1 bg-bone">
-      <div className="max-w-md mx-auto px-5 py-10">
-        <CounterStatusLive orderId={order.id} tenantSlug={tenant.slug} />
+      <div className="max-w-xl mx-auto px-5 py-10">
+        <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
 
-        <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta">
-          Pedido pagado
+        <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+          Mesa {order.table.number} · {tenant.name} · {order.shortCode}
         </div>
-        <div className="font-display text-3xl tracking-[-0.015em] mt-1">
-          {tenant.name}
-        </div>
+        <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
+          {fullyPaid ? "Cuenta pagada" : "Pago recibido"}
+        </h1>
 
-        <div className="mt-6 rounded-2xl border border-hairline bg-paper p-6 text-center">
-          <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-            Tu código
-          </div>
-          <div className="font-display text-6xl leading-none mt-2 tabular">
-            {order.shortCode}
-          </div>
-          <div className="text-sm text-muted mt-3">
-            Muéstralo al cajero cuando te avisen.
-          </div>
-        </div>
-
-        {isServed ? (
-          <div className="mt-6 rounded-2xl bg-ink text-bone p-6 text-center">
-            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/70">
-              Entregado
+        {/* Current diner's receipt */}
+        {myPayment && (
+          <div className="mt-6 rounded-2xl border border-ok/30 bg-ok/10 p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-full bg-ok/25 text-ok inline-flex items-center justify-center font-display text-2xl check-pop shrink-0">
+              ✓
             </div>
-            <div className="font-display text-3xl mt-2">
-              Gracias por comer con nosotros
-            </div>
-          </div>
-        ) : isReady ? (
-          <div className="mt-6 rounded-2xl bg-ok text-bone p-8 text-center">
-            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/80">
-              ¡Tu pedido está listo!
-            </div>
-            <div className="font-display text-4xl mt-2 leading-[1.05]">
-              Pasa por el mostrador
-            </div>
-          </div>
-        ) : (
-          <div className="mt-6 rounded-2xl bg-paper border border-hairline p-6 text-center">
-            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-              En preparación
-            </div>
-            <div className="font-display text-3xl mt-2">Estamos cocinando</div>
-            <div className="text-sm text-muted mt-3">
-              Te avisamos aquí cuando esté listo.
+            <div className="flex-1 min-w-0">
+              <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Tu aporte
+              </div>
+              <div className="font-display text-2xl tabular">
+                {fmtCOP(myPayment.amountCents)}
+              </div>
+              <div className="text-xs text-muted mt-0.5">
+                {methodLabel(myPayment.method)} · {fmtRelative(myPayment.createdAt)}
+              </div>
             </div>
           </div>
         )}
 
-        <div className="mt-8 rounded-2xl border border-hairline bg-paper p-5">
+        {/* Bill progress */}
+        <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
+          <div className="flex items-baseline justify-between">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+              Progreso de la cuenta
+            </div>
+            <div className="font-mono text-[11px] tabular text-ink">
+              {progressPct}%
+            </div>
+          </div>
+          <div className="mt-3 h-2.5 rounded-full bg-hairline overflow-hidden">
+            <div
+              className={
+                "h-full transition-all duration-500 " +
+                (fullyPaid ? "bg-ok" : "bg-terracotta")
+              }
+              style={{ width: `${Math.max(4, progressPct)}%` }}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Pagado
+              </div>
+              <div className="font-display text-xl tabular">
+                {fmtCOP(paidCents)}
+              </div>
+            </div>
+            <div>
+              <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Total
+              </div>
+              <div className="font-display text-xl tabular">
+                {fmtCOP(expectedCents)}
+              </div>
+            </div>
+            <div>
+              <div
+                className={
+                  "font-mono text-[10px] tracking-wider uppercase " +
+                  (fullyPaid ? "text-ok" : "text-terracotta")
+                }
+              >
+                {fullyPaid ? "Saldado" : "Falta"}
+              </div>
+              <div
+                className={
+                  "font-display text-xl tabular " +
+                  (fullyPaid ? "text-ok" : "text-terracotta")
+                }
+              >
+                {fmtCOP(outstandingCents)}
+              </div>
+            </div>
+          </div>
+          {!fullyPaid && (
+            <div className="mt-4 pt-4 border-t border-hairline flex items-center justify-between gap-3">
+              <p className="text-xs text-muted">
+                Alguien más en la mesa puede seguir pagando. Esta pantalla se
+                actualiza sola.
+              </p>
+              <Link
+                href={`/t/${slug}/pay/${order.id}`}
+                className="shrink-0 h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium inline-flex items-center"
+              >
+                Pagar más
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Payments ledger */}
+        <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
-            Tu pedido
+            Pagos en esta mesa
+          </div>
+          {approvedPayments.length === 0 && pendingPayments.length === 0 ? (
+            <p className="text-sm text-muted">Aún no hay pagos registrados.</p>
+          ) : (
+            <ul className="divide-y divide-hairline">
+              {order.payments.map((p, idx) => {
+                const isMine = myPayment?.id === p.id;
+                const isPending = p.status === "pending";
+                return (
+                  <li key={p.id} className="py-3 flex items-center gap-3">
+                    <div
+                      className={
+                        "w-8 h-8 rounded-full inline-flex items-center justify-center font-mono text-xs shrink-0 " +
+                        (isMine
+                          ? "bg-ok text-bone"
+                          : isPending
+                            ? "bg-[#C98A2E]/20 text-[#8F6828]"
+                            : "bg-ink/8 text-ink")
+                      }
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {methodLabel(p.method)}
+                        {isMine && (
+                          <span className="ml-2 font-mono text-[10px] tracking-wider uppercase text-ok">
+                            Tú
+                          </span>
+                        )}
+                        {isPending && (
+                          <span className="ml-2 font-mono text-[10px] tracking-wider uppercase text-[#8F6828]">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted">
+                        {fmtRelative(p.createdAt)}
+                      </div>
+                    </div>
+                    <div className="font-mono tabular text-sm">
+                      {fmtCOP(p.amountCents)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Order summary */}
+        <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
+            Resumen del pedido
           </div>
           <ul className="divide-y divide-hairline">
             {order.items.map((i) => (
               <li
                 key={i.id}
-                className="py-2 flex items-center justify-between text-sm"
+                className="py-2 flex items-center justify-between text-sm gap-3"
               >
-                <span>
-                  {i.qty}× {i.nameSnapshot}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">
+                    {i.qty}× {i.nameSnapshot}
+                  </div>
+                  {i.guestName && (
+                    <div className="text-[11px] text-terracotta mt-0.5">
+                      de {i.guestName}
+                    </div>
+                  )}
+                </div>
                 <span className="font-mono tabular">
                   {fmtCOP(i.priceCentsSnapshot * i.qty)}
                 </span>
@@ -133,12 +360,31 @@ export default async function PayDone({
           </ul>
           <div className="mt-3 pt-3 border-t border-hairline flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Pagado
+              Subtotal
             </span>
-            <span className="font-display text-2xl tabular">
-              {fmtCOP(order.totalCents)}
+            <span className="font-display text-xl tabular">
+              {fmtCOP(order.subtotalCents)}
             </span>
           </div>
+          {order.tipCents > 0 && (
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Propina
+              </span>
+              <span className="font-mono tabular text-sm">
+                {fmtCOP(order.tipCents)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <Link
+            href={`/t/${slug}/order/${order.id}`}
+            className="font-mono text-[11px] tracking-wider uppercase text-muted hover:text-terracotta"
+          >
+            Ver pedido completo →
+          </Link>
         </div>
       </div>
     </main>

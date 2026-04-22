@@ -120,7 +120,12 @@ export function PayClient({
       router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
       return;
     }
-    router.push(`/t/${tenantSlug}/pay/${orderId}/done`);
+    // Pass the payment id so the done page can mark the current diner's
+    // contribution in the shared-bill ledger.
+    const done = j.paymentId
+      ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`
+      : `/t/${tenantSlug}/pay/${orderId}/done`;
+    router.push(done);
   }
 
   if (alreadyPaid) {

@@ -31,7 +31,9 @@ export function CashWait({
     if (status === "approved" && !redirected.current) {
       redirected.current = true;
       const t = setTimeout(() => {
-        router.push(`/t/${tenantSlug}/pay/${orderId}/done`);
+        router.push(
+          `/t/${tenantSlug}/pay/${orderId}/done?pid=${paymentId}`,
+        );
       }, 1200);
       return () => clearTimeout(t);
     }

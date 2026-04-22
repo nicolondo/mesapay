@@ -110,7 +110,7 @@ export default async function PayDone({
               <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
                 En preparación
               </div>
-              <div className="font-display text-3xl mt-2">Estamos cocinando</div>
+              <div className="font-display text-3xl mt-2">Estamos preparando</div>
               <div className="text-sm text-muted mt-3">
                 Te avisamos aquí cuando esté listo.
               </div>

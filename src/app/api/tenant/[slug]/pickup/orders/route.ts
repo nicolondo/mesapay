@@ -13,6 +13,8 @@ import { welcomeIfFirstTime } from "@/lib/mailer";
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().min(1).max(20),
+  selections: z.record(z.string(), z.string()).optional(),
+  notes: z.string().max(240).optional(),
 });
 
 const schema = z.object({
@@ -147,6 +149,8 @@ export async function POST(
           nameSnapshot: mi.name,
           priceCentsSnapshot: mi.priceCents,
           categoryKind: mi.category.kind,
+          modifierSelections: it.selections ?? undefined,
+          notes: it.notes,
           guestName: parsed.data.pickupName,
         },
       });

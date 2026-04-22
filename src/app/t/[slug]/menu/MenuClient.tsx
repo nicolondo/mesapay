@@ -74,6 +74,7 @@ export function MenuClient({
   categories,
   items,
   activeOrder,
+  pickup,
 }: {
   tenant: Tenant;
   tableId: string;
@@ -81,6 +82,11 @@ export function MenuClient({
   categories: Category[];
   items: MenuItem[];
   activeOrder: ActiveOrder | null;
+  pickup?: {
+    defaultName: string;
+    defaultPhone: string;
+    maxEtaMinutes: number | null;
+  } | null;
 }) {
   const router = useRouter();
   const [activeCat, setActiveCat] = useState<string>(categories[0]?.slug ?? "");
@@ -96,10 +102,13 @@ export function MenuClient({
   const [servingMode, setServingMode] = useState<"asReady" | "together">(
     "asReady",
   );
+  const [showPickupSheet, setShowPickupSheet] = useState(false);
+  const isPickup = !!pickup;
   // Counter-mode tenants (food trucks, mostrador) have no mains-together
   // semantics — items are prepared and handed over as they're ready. Hide the
-  // picker and lock the mode to "asReady".
-  const isCounter = tenant.serviceMode === "counter";
+  // picker and lock the mode to "asReady". Pickup orders behave the same way —
+  // each item goes out when it's ready.
+  const isCounter = tenant.serviceMode === "counter" || isPickup;
   const headerRef = useRef<HTMLElement>(null);
 
   function scrollToCategory(slug: string) {
@@ -125,7 +134,7 @@ export function MenuClient({
     }
     const savedName = localStorage.getItem(nameKey);
     if (savedName) setGuestName(savedName);
-    else setShowNameSheet(true);
+    else if (!isPickup) setShowNameSheet(true);
     try {
       const raw = localStorage.getItem(cartKey);
       if (raw) {
@@ -260,6 +269,10 @@ export function MenuClient({
 
   async function sendToKitchen() {
     if (!cart.length) return;
+    if (isPickup) {
+      setShowPickupSheet(true);
+      return;
+    }
     if (!guestName) {
       setShowNameSheet(true);
       return;
@@ -333,7 +346,7 @@ export function MenuClient({
             </div>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            {hydrated && (
+            {hydrated && !isPickup && (
               <button
                 onClick={() => setShowNameSheet(true)}
                 className="shrink-0 inline-flex items-center gap-2 h-10 pl-1 pr-3 rounded-full border border-hairline bg-paper text-[12px]"
@@ -532,13 +545,34 @@ export function MenuClient({
       )}
 
       {/* Guest-name bottom sheet */}
-      {showNameSheet && (
+      {showNameSheet && !isPickup && (
         <GuestNameSheet
           initial={guestName}
           canCancel={!!guestName}
           onSave={saveGuestName}
           onClose={() => {
             if (guestName) setShowNameSheet(false);
+          }}
+        />
+      )}
+
+      {/* Pickup checkout sheet (prepay before kitchen) */}
+      {showPickupSheet && pickup && (
+        <PickupCheckoutSheet
+          tenantSlug={tenant.slug}
+          tableId={tableId}
+          cart={cart}
+          subtotal={subtotal}
+          defaultName={pickup.defaultName}
+          defaultPhone={pickup.defaultPhone}
+          maxEtaMinutes={pickup.maxEtaMinutes}
+          onClose={() => setShowPickupSheet(false)}
+          onSuccess={(orderId) => {
+            try {
+              localStorage.removeItem(cartKey);
+            } catch {}
+            setCart([]);
+            router.push(`/p/${tenant.slug}/${orderId}/status`);
           }}
         />
       )}
@@ -1313,6 +1347,255 @@ function GuestNameSheet({
             Solo se muestra a quienes comparten tu mesa. No creamos una cuenta.
           </p>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function PickupCheckoutSheet({
+  tenantSlug,
+  tableId,
+  cart,
+  subtotal,
+  defaultName,
+  defaultPhone,
+  maxEtaMinutes,
+  onClose,
+  onSuccess,
+}: {
+  tenantSlug: string;
+  tableId: string;
+  cart: CartLine[];
+  subtotal: number;
+  defaultName: string;
+  defaultPhone: string;
+  maxEtaMinutes: number | null;
+  onClose: () => void;
+  onSuccess: (orderId: string) => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [phone, setPhone] = useState(defaultPhone);
+  const [eta, setEta] = useState<{
+    minutes: number;
+    loading: boolean;
+    saturated: boolean;
+    closed: boolean;
+  }>({ minutes: 0, loading: true, saturated: false, closed: false });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Aggregate qty by menuItemId for ETA (ETA only needs items+qty, not modifiers).
+  useEffect(() => {
+    if (cart.length === 0) return;
+    let cancelled = false;
+    setEta((e) => ({ ...e, loading: true }));
+    const agg = new Map<string, number>();
+    for (const l of cart) agg.set(l.menuItemId, (agg.get(l.menuItemId) ?? 0) + l.qty);
+    const payload = {
+      items: Array.from(agg.entries()).map(([menuItemId, qty]) => ({
+        menuItemId,
+        qty,
+      })),
+    };
+    fetch(`/api/tenant/${tenantSlug}/pickup/eta`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return;
+        setEta({
+          minutes: j.etaMinutes,
+          loading: false,
+          saturated: !!j.saturated,
+          closed: !j.open,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setEta((e) => ({ ...e, loading: false }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, tenantSlug]);
+
+  async function placeAndPay(method: "demo_card" | "demo_nequi") {
+    if (!name.trim()) {
+      setErr("Necesitamos tu nombre para llamarte.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const body = {
+      tableId,
+      pickupName: name.trim(),
+      pickupPhone: phone.trim() || undefined,
+      method,
+      items: cart.map((l) => ({
+        menuItemId: l.menuItemId,
+        qty: l.qty,
+        selections: l.selections,
+        notes: l.notes,
+      })),
+    };
+    const res = await fetch(`/api/tenant/${tenantSlug}/pickup/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      if (j.error === "saturated") {
+        setErr(
+          `Cocina saturada (ETA ${j.etaMinutes ?? "?"} min, tope ${
+            j.maxEtaMinutes ?? "?"
+          } min). Intenta de nuevo en unos minutos.`,
+        );
+      } else if (j.error === "closed") {
+        setErr("Cerramos por ahora. Vuelve en el próximo horario de atención.");
+      } else {
+        setErr(j.error ?? "No pudimos procesar tu pedido.");
+      }
+      return;
+    }
+    const j = await res.json();
+    onSuccess(j.orderId);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center">
+      <div className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl max-h-[92vh] overflow-y-auto">
+        <div className="p-5 border-b border-hairline flex items-center justify-between">
+          <div className="font-display text-xl">Recogida</div>
+          <button
+            onClick={onClose}
+            className="text-muted text-sm"
+            disabled={busy}
+          >
+            Volver
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div
+            className={
+              "rounded-xl border p-3 " +
+              (eta.saturated || eta.closed
+                ? "border-danger/40 bg-danger/5"
+                : "border-hairline bg-paper")
+            }
+          >
+            <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+              Tiempo estimado de espera
+            </div>
+            <div className="font-display text-3xl tabular mt-1">
+              {eta.loading ? "…" : `${eta.minutes} min`}
+            </div>
+            <div className="text-[11px] text-muted mt-1">
+              {eta.closed
+                ? "Cerramos por ahora. Vuelve en el próximo horario."
+                : eta.saturated
+                  ? `Cocina saturada${
+                      maxEtaMinutes ? ` (tope ${maxEtaMinutes} min)` : ""
+                    }. No podemos recibir más pedidos en este momento.`
+                  : "Basado en las órdenes que están en cocina ahora."}
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+              Tu nombre
+            </span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={40}
+              className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper focus:outline-none focus:border-terracotta"
+              placeholder="Para llamarte cuando esté lista"
+            />
+          </label>
+
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+              Celular (opcional)
+            </span>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              maxLength={24}
+              placeholder="+57 300 123 4567"
+              className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper focus:outline-none focus:border-terracotta"
+            />
+          </label>
+
+          <div className="rounded-xl border border-hairline bg-paper p-3">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-2">
+              Tu pedido
+            </div>
+            <ul className="divide-y divide-hairline">
+              {cart.map((l) => (
+                <li
+                  key={l.key}
+                  className="py-1.5 flex items-start justify-between gap-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate">
+                      {l.qty}× {l.name}
+                    </div>
+                    {Object.values(l.selections).length > 0 && (
+                      <div className="text-[11px] text-muted truncate">
+                        {Object.values(l.selections).join(" · ")}
+                      </div>
+                    )}
+                    {l.notes && (
+                      <div className="text-[11px] text-muted-2 italic truncate">
+                        “{l.notes}”
+                      </div>
+                    )}
+                  </div>
+                  <span className="font-mono tabular shrink-0">
+                    {fmtCOP(l.priceCents * l.qty)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 pt-2 border-t border-hairline flex items-baseline justify-between">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                Total
+              </span>
+              <span className="font-display text-2xl tabular">
+                {fmtCOP(subtotal)}
+              </span>
+            </div>
+          </div>
+
+          {err && <div className="text-danger text-sm">{err}</div>}
+
+          <div className="space-y-2">
+            <button
+              onClick={() => placeAndPay("demo_card")}
+              disabled={busy || eta.saturated || eta.closed}
+              className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            >
+              {busy
+                ? "Procesando…"
+                : `Pagar con tarjeta · ${fmtCOP(subtotal)}`}
+            </button>
+            <button
+              onClick={() => placeAndPay("demo_nequi")}
+              disabled={busy || eta.saturated || eta.closed}
+              className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
+            >
+              Pagar con Nequi
+            </button>
+            <div className="text-[11px] text-muted text-center mt-1">
+              Tu orden entra a cocina solo cuando el pago aprueba.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

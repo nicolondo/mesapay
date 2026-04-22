@@ -5,9 +5,17 @@ import {
   formatNextOpening,
   pickupStatus,
 } from "@/lib/pickupAvailability";
-import { PickupClient } from "./PickupClient";
+import { MenuClient } from "../../t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
+
+type ModifierDef = {
+  id: string;
+  label: string;
+  type: "radio" | "checkbox";
+  opts: string[];
+  default?: string;
+};
 
 export default async function PickupPage({
   params,
@@ -79,6 +87,21 @@ export default async function PickupPage({
     );
   }
 
+  // Same rating aggregation used on the table menu — pickup gets the full
+  // rich browsing UI, including star averages per dish.
+  const ratingAgg = await db.dishRating.groupBy({
+    by: ["menuItemId"],
+    where: { restaurantId: tenant.id },
+    _avg: { stars: true },
+    _count: { stars: true },
+  });
+  const ratingByItem = new Map(
+    ratingAgg.map((r) => [
+      r.menuItemId,
+      { avg: r._avg.stars ?? 0, count: r._count.stars },
+    ]),
+  );
+
   const session = await auth();
   const customer = session?.user?.id
     ? await db.user.findUnique({
@@ -88,32 +111,41 @@ export default async function PickupPage({
     : null;
 
   return (
-    <PickupClient
+    <MenuClient
       tenant={{
         slug: tenant.slug,
         name: tenant.name,
         tagline: tenant.tagline,
-        maxEtaMinutes: tenant.pickupMaxEtaMinutes,
+        serviceMode: tenant.serviceMode,
       }}
       tableId={pickupTable.id}
-      defaults={{
-        name: customer?.name ?? "",
-        phone: customer?.phone ?? "",
-      }}
+      locationLabel="Recogida"
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,
         label: c.label,
       }))}
-      items={tenant.menuItems.map((m) => ({
-        id: m.id,
-        categoryId: m.categoryId,
-        name: m.name,
-        description: m.description ?? "",
-        priceCents: m.priceCents,
-        photoUrl: m.photoUrl ?? null,
-        prepMinutes: m.prepMinutes,
-      }))}
+      items={tenant.menuItems.map((m) => {
+        const r = ratingByItem.get(m.id);
+        return {
+          id: m.id,
+          categoryId: m.categoryId,
+          name: m.name,
+          description: m.description ?? "",
+          priceCents: m.priceCents,
+          tags: m.tags,
+          photoUrl: m.photoUrl ?? null,
+          modifiers: m.modifiers as unknown as ModifierDef[] | null,
+          ratingAvg: r?.avg ?? 0,
+          ratingCount: r?.count ?? 0,
+        };
+      })}
+      activeOrder={null}
+      pickup={{
+        defaultName: customer?.name ?? "",
+        defaultPhone: customer?.phone ?? "",
+        maxEtaMinutes: tenant.pickupMaxEtaMinutes,
+      }}
     />
   );
 }

@@ -5,6 +5,12 @@ import { Providers } from "@/components/Providers";
 export const metadata: Metadata = {
   title: "MESAPAY",
   description: "Ordena y paga desde tu mesa",
+  applicationName: "MESAPAY",
+  appleWebApp: {
+    capable: true,
+    title: "MESAPAY",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -13,6 +19,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({

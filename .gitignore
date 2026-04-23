@@ -52,3 +52,8 @@ next-env.d.ts
 
 # Claude Code
 /.claude/
+
+# brand source assets (only the web-ready sizes under src/app and public/icons ship)
+/logo.ai
+/mesapay icon.png
+/SVG/

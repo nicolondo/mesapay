@@ -499,9 +499,13 @@ export function MenuClient({
         />
       )}
 
-      {/* Sticky bottom dock: active order + cart */}
+      {/* Sticky bottom dock: active order + cart.
+          IMPORTANT: don't use `transform` to center this — a transformed
+          ancestor becomes the containing block for any descendant
+          position:fixed, which would trap the cart modal inside this dock
+          instead of the viewport. Use auto margins to center instead. */}
       {!openItem && (cart.length > 0 || activeOrder) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch">
+        <div className="fixed bottom-4 inset-x-0 mx-auto z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch">
           {activeOrder && (
             <button
               type="button"
@@ -646,7 +650,7 @@ function CartBar({
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-hidden slide-up flex flex-col"
+            className="bg-paper text-ink w-full max-w-xl max-h-[88dvh] rounded-t-3xl md:rounded-3xl overflow-hidden slide-up flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 pt-6 pb-4 flex-1 overflow-auto">
@@ -801,7 +805,7 @@ function ActiveOrderSheet({
       onClick={onClose}
     >
       <div
-        className="bg-paper text-ink w-full max-w-xl max-h-[88vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+        className="bg-paper text-ink w-full max-w-xl max-h-[88dvh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
@@ -1177,7 +1181,7 @@ function ItemSheet({
       onClick={onClose}
     >
       <div
-        className="bg-paper w-full max-w-xl max-h-[92vh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+        className="bg-paper w-full max-w-xl max-h-[92dvh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {item.photoUrl && (
@@ -1482,7 +1486,7 @@ function PickupCheckoutSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center">
-      <div className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl max-h-[92vh] overflow-y-auto">
+      <div className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl max-h-[92dvh] overflow-y-auto">
         <div className="p-5 border-b border-hairline flex items-center justify-between">
           <div className="font-display text-xl">Recogida</div>
           <button
@@ -1691,7 +1695,7 @@ function CountryPicker({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl flex flex-col max-h-[85vh]"
+        className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl flex flex-col max-h-[85dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-hairline">

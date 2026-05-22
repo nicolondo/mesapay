@@ -8,6 +8,8 @@ type DocKind =
   | "rut"
   | "camara_comercio"
   | "bank_cert"
+  | "origen_fondos"
+  | "estados_financieros"
   | "estatutos"
   | "other";
 
@@ -46,15 +48,23 @@ const KIND_LABELS: Record<DocKind, string> = {
   rut: "RUT",
   camara_comercio: "Cámara de comercio",
   bank_cert: "Certificación bancaria",
+  origen_fondos: "Certificación origen de fondos (contador)",
+  estados_financieros: "Estados financieros",
   estatutos: "Estatutos / acta constitutiva",
   other: "Otro documento",
 };
 
+// Order matters — this is the order the tiles appear in the wizard.
+// estatutos is kept in DocKind for back-compat but excluded from the new
+// flow; if a tenant has a legacy estatutos doc it still renders via the
+// admin view.
 const REQUIRED_KINDS: DocKind[] = [
   "cedula_rep_legal",
   "rut",
   "camara_comercio",
   "bank_cert",
+  "origen_fondos",
+  "estados_financieros",
 ];
 
 export function OnboardingClient({
@@ -306,7 +316,7 @@ export function OnboardingClient({
         subtitle="Cuando subas el RUT, llenamos los datos legales automáticamente con AI."
       >
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {(["cedula_rep_legal", "rut", "camara_comercio", "estatutos"] as DocKind[]).map(
+          {(["cedula_rep_legal", "rut", "camara_comercio", "origen_fondos", "estados_financieros"] as DocKind[]).map(
             (kind) => (
               <DocumentTile
                 key={kind}
@@ -359,34 +369,49 @@ export function OnboardingClient({
         )}
         {bankInfo.source === "ai_extracted" && (
           <div className="mt-2 text-xs text-op-muted">
-            Datos llenados automáticamente
+            Datos leídos automáticamente
             {bankInfo.aiConfidence !== undefined
               ? ` · confianza ${(bankInfo.aiConfidence * 100).toFixed(0)}%`
-              : ""}{" "}
-            — verifica antes de enviar.
+              : ""}
+            . Si algo está mal, vuelve a subir una certificación más clara.
           </div>
         )}
       </Section>
 
-      {/* Step 3: bank form --------------------------------------------- */}
-      <Section title="3 · Datos bancarios" subtitle="Editable. Por aquí van a dispersar tus cobros.">
+      {/* Step 3: bank form (read-only, filled by AI from the bank cert) */}
+      <Section
+        title="3 · Datos bancarios"
+        subtitle="Se llenan automáticamente al subir la certificación bancaria."
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="Banco" value={bankInfo.bankName} onChange={(v) => setBankInfo({ ...bankInfo, bankName: v, source: "manual" })} disabled={isLocked} />
-          <Select label="Tipo de cuenta" value={bankInfo.accountType} options={[["ahorros","Ahorros"],["corriente","Corriente"]]} onChange={(v) => setBankInfo({ ...bankInfo, accountType: v as "ahorros" | "corriente", source: "manual" })} disabled={isLocked} />
-          <Field label="Número de cuenta" value={bankInfo.accountNumber} onChange={(v) => setBankInfo({ ...bankInfo, accountNumber: v, source: "manual" })} disabled={isLocked} />
-          <Field label="Titular" value={bankInfo.holderName} onChange={(v) => setBankInfo({ ...bankInfo, holderName: v, source: "manual" })} disabled={isLocked} />
-          <Select label="Tipo doc titular" value={bankInfo.holderDocType} options={[["CC","CC"],["CE","CE"],["NIT","NIT"],["PA","PA"]]} onChange={(v) => setBankInfo({ ...bankInfo, holderDocType: v as "CC" | "CE" | "NIT" | "PA", source: "manual" })} disabled={isLocked} />
-          <Field label="Número de documento" value={bankInfo.holderDocNumber} onChange={(v) => setBankInfo({ ...bankInfo, holderDocNumber: v, source: "manual" })} disabled={isLocked} />
+          <DisplayField label="Banco" value={bankInfo.bankName} />
+          <DisplayField
+            label="Tipo de cuenta"
+            value={
+              bankInfo.accountType === "ahorros"
+                ? "Ahorros"
+                : bankInfo.accountType === "corriente"
+                  ? "Corriente"
+                  : ""
+            }
+          />
+          <DisplayField label="Número de cuenta" value={bankInfo.accountNumber} mono />
+          <DisplayField label="Titular" value={bankInfo.holderName} />
+          <DisplayField label="Tipo doc titular" value={bankInfo.holderDocType} />
+          <DisplayField label="Número de documento" value={bankInfo.holderDocNumber} mono />
         </div>
       </Section>
 
-      {/* Step 4: legal + submit ---------------------------------------- */}
-      <Section title="4 · Datos legales del comercio" subtitle="Información del titular del comercio.">
+      {/* Step 4: legal data (read-only, filled by AI from the RUT) ----- */}
+      <Section
+        title="4 · Datos legales del comercio"
+        subtitle="Se llenan automáticamente al subir el RUT."
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="Razón social" value={legalName} onChange={setLegalName} disabled={isLocked} />
-          <Field label="NIT" value={taxId} onChange={setTaxId} disabled={isLocked} />
-          <Field label="Email de contacto" value={contactEmail} onChange={setContactEmail} disabled={isLocked} />
-          <Field label="Teléfono de contacto" value={contactPhone} onChange={setContactPhone} disabled={isLocked} />
+          <DisplayField label="Razón social" value={legalName} />
+          <DisplayField label="NIT" value={taxId} mono />
+          <DisplayField label="Email de contacto" value={contactEmail} />
+          <DisplayField label="Teléfono de contacto" value={contactPhone} />
         </div>
       </Section>
 
@@ -513,6 +538,13 @@ function StatusBanner({
   return null;
 }
 
+const ACCEPTED_MIMES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
 function DocumentTile({
   kind,
   docs,
@@ -527,21 +559,81 @@ function DocumentTile({
   disabled: boolean;
 }) {
   const inputId = `doc-${kind}`;
+  const [dragOver, setDragOver] = useState(false);
+
+  function handleDrop(e: React.DragEvent<HTMLLIElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    if (disabled) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!ACCEPTED_MIMES.has(file.type)) {
+      // Surface the validation softly: the upload route would also reject
+      // it, but giving feedback here saves a round trip.
+      alert("Formato no soportado. Usa PDF, JPG, PNG o WebP.");
+      return;
+    }
+    onUpload(file);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLLIElement>) {
+    if (disabled) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!dragOver) setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLLIElement>) {
+    // Only clear when we leave the tile itself, not when crossing into a
+    // child element (relatedTarget would still be inside).
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setDragOver(false);
+    }
+  }
+
   return (
-    <li className="rounded-xl border border-op-border bg-op-surface p-3">
-      <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-        {KIND_LABELS[kind]}
+    <li
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      className={
+        "rounded-xl border-2 border-dashed transition-colors p-3 " +
+        (dragOver
+          ? "border-terracotta bg-terracotta/10"
+          : "border-op-border bg-op-surface")
+      }
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+          {KIND_LABELS[kind]}
+        </div>
+        {docs.length > 0 && (
+          <span
+            className="font-mono text-[9px] tracking-wider uppercase text-ok"
+            aria-label="Cargado"
+          >
+            ✓ Cargado
+          </span>
+        )}
       </div>
       <div className="mt-2">
         {docs.length === 0 ? (
           <label
             htmlFor={inputId}
             className={
-              "inline-flex items-center gap-2 h-9 px-3 rounded-full border border-op-border text-sm cursor-pointer " +
-              (disabled ? "opacity-50 pointer-events-none" : "hover:bg-op-bg")
+              "block text-sm text-center py-3 rounded-lg cursor-pointer " +
+              (disabled
+                ? "opacity-50 pointer-events-none"
+                : "text-op-muted hover:text-op-text")
             }
           >
-            Subir archivo
+            {dragOver
+              ? "Suelta aquí"
+              : "Arrastra el archivo o haz click para subirlo"}
+            <div className="text-[10px] text-op-muted mt-0.5">
+              PDF, JPG, PNG o WebP · máx 10 MB
+            </div>
           </label>
         ) : (
           <ul className="space-y-1.5">
@@ -596,66 +688,37 @@ function DocumentTile({
   );
 }
 
-function Field({
+/**
+ * Read-only display of a field that's filled by AI extraction. The legal
+ * and bank-info sections are intentionally non-editable — the AI is the
+ * single source of truth. If something looks wrong, the operator re-uploads
+ * a clearer document instead of typing over it (which would defeat the
+ * "beneficiary matches RUT" check).
+ */
+function DisplayField({
   label,
   value,
-  onChange,
-  disabled,
+  mono,
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
+  mono?: boolean;
 }) {
+  const empty = !value.trim();
   return (
-    <label className="block">
-      <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+    <div>
+      <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
         {label}
-      </span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-surface focus:outline-none focus:border-terracotta disabled:opacity-60"
-      />
-    </label>
-  );
-}
-
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  options: [string, string][];
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-        {label}
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-surface focus:outline-none focus:border-terracotta disabled:opacity-60"
+      </div>
+      <div
+        className={
+          "mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg flex items-center text-sm " +
+          (empty ? "text-op-muted italic" : mono ? "font-mono tabular" : "")
+        }
       >
-        <option value="" disabled>
-          Selecciona…
-        </option>
-        {options.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
+        {empty ? "Se llena automáticamente" : value}
+      </div>
+    </div>
   );
 }
 

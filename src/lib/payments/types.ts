@@ -38,6 +38,8 @@ export type OnboardingDoc = {
     | "rut"
     | "camara_comercio"
     | "bank_cert"
+    | "origen_fondos"
+    | "estados_financieros"
     | "estatutos"
     | "other";
   fileUrl: string;

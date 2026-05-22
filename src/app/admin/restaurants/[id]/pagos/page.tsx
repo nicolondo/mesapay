@@ -28,6 +28,8 @@ const KIND_LABEL: Record<string, string> = {
   rut: "RUT",
   camara_comercio: "Cámara de comercio",
   bank_cert: "Certificación bancaria",
+  origen_fondos: "Origen de fondos (contador)",
+  estados_financieros: "Estados financieros",
   estatutos: "Estatutos",
   other: "Otro",
 };

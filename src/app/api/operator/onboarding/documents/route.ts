@@ -21,6 +21,8 @@ const DocumentKind = z.enum([
   "rut",
   "camara_comercio",
   "bank_cert",
+  "origen_fondos",
+  "estados_financieros",
   "estatutos",
   "other",
 ]);

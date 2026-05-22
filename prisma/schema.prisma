@@ -376,6 +376,12 @@ enum KushkiDocumentKind {
   rut
   camara_comercio
   bank_cert
+  // Origen de fondos firmado por contador, requerido por compliance.
+  origen_fondos
+  // Estados financieros recientes del comercio.
+  estados_financieros
+  // estatutos sigue en el enum por compatibilidad con uploads previos;
+  // dejó de pedirse desde la nueva versión del onboarding.
   estatutos
   other
 }

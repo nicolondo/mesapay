@@ -273,6 +273,12 @@ model Round {
   placedAt         DateTime    @default(now())
   kitchenStartedAt DateTime?
   readyAt          DateTime?
+  // Cancelled rounds are pulled out of the kitchen board immediately. We
+  // keep them in the DB for the audit trail — cancelledBy/At pair plus the
+  // free-text reason captured at the moment of cancellation.
+  cancelledAt        DateTime?
+  cancelledByEmail   String?
+  cancellationReason String?
 
   items OrderItem[]
 

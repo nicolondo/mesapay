@@ -5,9 +5,17 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 
-const schema = z.object({
-  status: z.enum(["placed", "in_kitchen", "ready"]),
-});
+const schema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.enum(["placed", "in_kitchen", "ready"]),
+  }),
+  z.object({
+    status: z.literal("cancelled"),
+    // Required, but trimmed lazily so a single-space submit fails the
+    // min(3) check instead of sneaking through.
+    reason: z.string().trim().min(3).max(240),
+  }),
+]);
 
 export async function PATCH(
   req: Request,
@@ -35,6 +43,31 @@ export async function PATCH(
 
   await db.$transaction(async (tx) => {
     const now = new Date();
+
+    if (parsed.data.status === "cancelled") {
+      // Cancellation path: stamp who/when/why on the round, drop its items
+      // from kitchen flow (they get a sentinel status so any other queries
+      // can ignore them), and don't touch the order status — the operator
+      // decides downstream whether to refund / recompute.
+      await tx.round.update({
+        where: { id: round.id },
+        data: {
+          status: "cancelled",
+          cancelledAt: now,
+          cancelledByEmail: session.user.email,
+          cancellationReason: parsed.data.reason,
+        },
+      });
+      // Items follow the round into the "cancelled" bucket so the cancelled
+      // round can never resurface on the kitchen board even if someone
+      // bumps an item directly.
+      await tx.orderItem.updateMany({
+        where: { roundId: round.id },
+        data: { kitchenStatus: "ready", servedAt: null },
+      });
+      return;
+    }
+
     const data: {
       status: "placed" | "in_kitchen" | "ready";
       readyAt: Date | null;
@@ -72,10 +105,15 @@ export async function PATCH(
       currentOrder.status !== "paid" &&
       currentOrder.status !== "paying"
     ) {
-      const rounds = await tx.round.findMany({ where: { orderId: round.orderId } });
+      // Only non-cancelled rounds contribute to the aggregate — a cancelled
+      // round shouldn't hold an order at "in_kitchen" forever.
+      const rounds = await tx.round.findMany({
+        where: { orderId: round.orderId, status: { not: "cancelled" } },
+      });
       let orderStatus: "placed" | "in_kitchen" | "ready" = "placed";
       if (rounds.some((r) => r.status === "in_kitchen")) orderStatus = "in_kitchen";
-      if (rounds.every((r) => r.status === "ready")) orderStatus = "ready";
+      if (rounds.length > 0 && rounds.every((r) => r.status === "ready"))
+        orderStatus = "ready";
       await tx.order.update({
         where: { id: round.orderId },
         data: { status: orderStatus },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
@@ -65,6 +65,11 @@ export function KitchenBoard({
   const [pendingKitchen, setPendingKitchen] = useState<
     Map<string, KitchenStatus>
   >(new Map());
+  // (roundId, colKey) -> whether the cancellation form is open for that
+  // specific card. Cards can show in multiple columns (one per status) when
+  // items have advanced unevenly, so the key includes the column to scope
+  // the open state.
+  const [cancellingKey, setCancellingKey] = useState<string | null>(null);
 
   useEffect(() => {
     const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
@@ -151,6 +156,34 @@ export function KitchenBoard({
 
   function effectiveItemStatus(i: Item): KitchenStatus {
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
+  }
+
+  async function cancelRound(roundId: string, reason: string) {
+    const res = await fetch(`/api/operator/rounds/${roundId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "cancelled", reason }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error ?? "cancel_failed");
+    }
+    setCancellingKey(null);
+    startTx(() => router.refresh());
+  }
+
+  // Compute, once per render, the leftmost column each round appears in.
+  // The cancel control should show on that card only — duplicating it on
+  // every column where the round has items would clutter the board and let
+  // the operator open two cancel forms for the same pedido.
+  const cancelColByRound = new Map<string, KitchenStatus>();
+  for (const r of rounds) {
+    for (const col of COLUMNS) {
+      if (r.items.some((i) => effectiveItemStatus(i) === col.key)) {
+        cancelColByRound.set(r.id, col.key);
+        break;
+      }
+    }
   }
 
   return (
@@ -323,6 +356,17 @@ export function KitchenBoard({
                           Volver a cocina
                         </button>
                       </div>
+                    )}
+                    {cancelColByRound.get(r.id) === col.key && (
+                      <CancelControl
+                        cardKey={r.id + "-" + col.key}
+                        open={cancellingKey === r.id + "-" + col.key}
+                        onOpen={() =>
+                          setCancellingKey(r.id + "-" + col.key)
+                        }
+                        onClose={() => setCancellingKey(null)}
+                        onConfirm={(reason) => cancelRound(r.id, reason)}
+                      />
                     )}
                   </li>
                 );
@@ -562,6 +606,125 @@ function EtaBadge({ readyEta }: { readyEta: string }) {
     >
       {late ? `+${Math.abs(mins)}m` : `ETA ${mins}m`}
     </span>
+  );
+}
+
+function CancelControl({
+  cardKey,
+  open,
+  onOpen,
+  onClose,
+  onConfirm,
+}: {
+  cardKey: string;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-focus when the form opens so the cook can start typing the
+  // motivo immediately — matches the spec ("que se ponga el cursor
+  // automaticamente en el campo para escribir el motivo").
+  useEffect(() => {
+    if (open) {
+      // setTimeout so the textarea actually exists in the DOM before we
+      // try to focus it (the parent state flip + paint).
+      const t = setTimeout(() => ref.current?.focus(), 0);
+      return () => clearTimeout(t);
+    } else {
+      setReason("");
+      setErr(null);
+    }
+  }, [open]);
+
+  if (!open) {
+    return (
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="h-7 px-2 rounded-md border border-danger/30 text-[11px] text-danger hover:bg-danger/5"
+          title="Cancelar este pedido"
+        >
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
+  const trimmed = reason.trim();
+  const canSubmit = trimmed.length >= 3 && !busy;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await onConfirm(trimmed);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      // The cardKey is here mostly for future-proofing tooling — it makes
+      // each cancellation block uniquely addressable in tests.
+      data-card-key={cardKey}
+      className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-2"
+    >
+      <label className="block">
+        <span className="font-mono text-[9px] tracking-wider uppercase text-danger">
+          Motivo de cancelación
+        </span>
+        <textarea
+          ref={ref}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          onKeyDown={(e) => {
+            // Cmd/Ctrl + Enter to submit so the operator doesn't have to
+            // reach for the mouse.
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+          rows={2}
+          maxLength={240}
+          placeholder="Ej. cliente cambió de opinión, ingrediente agotado…"
+          className="mt-1 w-full text-sm px-2 py-1.5 rounded border border-danger/40 bg-op-surface focus:outline-none focus:border-danger"
+        />
+      </label>
+      {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
+      <div className="mt-2 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          className="h-7 px-3 rounded-md text-[11px] text-op-muted hover:text-op-text disabled:opacity-50"
+        >
+          Volver
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="h-7 px-3 rounded-md text-[11px] font-medium bg-danger text-bone disabled:opacity-50"
+        >
+          {busy ? "Cancelando…" : "Confirmar cancelación"}
+        </button>
+      </div>
+    </div>
   );
 }
 

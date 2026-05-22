@@ -92,6 +92,9 @@ export function MenuClient({
     defaultName: string;
     defaultPhone: string;
     maxEtaMinutes: number | null;
+    kushkiReady: boolean;
+    kushkiPublicKey: string | null;
+    isMockMode: boolean;
   } | null;
 }) {
   const router = useRouter();
@@ -576,6 +579,9 @@ export function MenuClient({
           defaultName={pickup.defaultName}
           defaultPhone={pickup.defaultPhone}
           maxEtaMinutes={pickup.maxEtaMinutes}
+          kushkiReady={pickup.kushkiReady}
+          kushkiPublicKey={pickup.kushkiPublicKey}
+          isMockMode={pickup.isMockMode}
           onClose={() => setShowPickupSheet(false)}
           onSuccess={(orderId) => {
             try {
@@ -1362,6 +1368,12 @@ function GuestNameSheet({
   );
 }
 
+type PickupMethod =
+  | "kushki_apple_pay"
+  | "kushki_google_pay"
+  | "demo_card"
+  | "demo_nequi";
+
 function PickupCheckoutSheet({
   tenantSlug,
   tableId,
@@ -1370,6 +1382,9 @@ function PickupCheckoutSheet({
   defaultName,
   defaultPhone,
   maxEtaMinutes,
+  kushkiReady,
+  kushkiPublicKey,
+  isMockMode,
   onClose,
   onSuccess,
 }: {
@@ -1380,6 +1395,9 @@ function PickupCheckoutSheet({
   defaultName: string;
   defaultPhone: string;
   maxEtaMinutes: number | null;
+  kushkiReady: boolean;
+  kushkiPublicKey: string | null;
+  isMockMode: boolean;
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
@@ -1396,8 +1414,16 @@ function PickupCheckoutSheet({
     saturated: boolean;
     closed: boolean;
   }>({ minutes: 0, loading: true, saturated: false, closed: false });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<PickupMethod | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [hasApplePay, setHasApplePay] = useState(false);
+  const [hasGooglePay, setHasGooglePay] = useState(false);
+
+  useEffect(() => {
+    const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
+    setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
+    setHasGooglePay(true);
+  }, []);
 
   // Aggregate qty by menuItemId for ETA (ETA only needs items+qty, not modifiers).
   useEffect(() => {
@@ -1435,7 +1461,7 @@ function PickupCheckoutSheet({
     };
   }, [cart, tenantSlug]);
 
-  async function placeAndPay(method: "demo_card" | "demo_nequi") {
+  async function placeAndPay(method: PickupMethod) {
     if (!name.trim()) {
       setErr("Necesitamos tu nombre para llamarte.");
       return;
@@ -1445,9 +1471,24 @@ function PickupCheckoutSheet({
       setErr("Escribe tu número de celular para avisarte cuando esté listo.");
       return;
     }
-    setBusy(true);
+    setBusy(method);
     setErr(null);
-    const body = {
+
+    // Kushki methods need a token from the JS SDK. Until we wire it in
+    // production, mock mode accepts a placeholder; live mode would fail
+    // gracefully if the SDK isn't loaded.
+    let token: string | undefined;
+    if (method === "kushki_apple_pay" || method === "kushki_google_pay") {
+      if (kushkiPublicKey && !isMockMode) {
+        // TODO: integrate Kushki JS SDK and tokenize here.
+        setBusy(null);
+        setErr("Apple/Google Pay aún no está activado para este restaurante.");
+        return;
+      }
+      token = `mock-token-${Date.now()}`;
+    }
+
+    const body: Record<string, unknown> = {
       tableId,
       pickupName: name.trim(),
       pickupPhone: `+${country.dial} ${localNumber}`,
@@ -1459,12 +1500,14 @@ function PickupCheckoutSheet({
         notes: l.notes,
       })),
     };
+    if (token) body.token = token;
+
     const res = await fetch(`/api/tenant/${tenantSlug}/pickup/orders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    setBusy(false);
+    setBusy(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       if (j.error === "saturated") {
@@ -1475,6 +1518,8 @@ function PickupCheckoutSheet({
         );
       } else if (j.error === "closed") {
         setErr("Cerramos por ahora. Vuelve en el próximo horario de atención.");
+      } else if (j.error === "charge_declined") {
+        setErr(j.message ?? "El pago fue rechazado por el banco.");
       } else {
         setErr(j.error ?? "No pudimos procesar tu pedido.");
       }
@@ -1492,7 +1537,7 @@ function PickupCheckoutSheet({
           <button
             onClick={onClose}
             className="text-muted text-sm"
-            disabled={busy}
+            disabled={!!busy}
           >
             Volver
           </button>
@@ -1608,22 +1653,51 @@ function PickupCheckoutSheet({
           {err && <div className="text-danger text-sm">{err}</div>}
 
           <div className="space-y-2">
-            <button
-              onClick={() => placeAndPay("demo_card")}
-              disabled={busy || eta.saturated || eta.closed}
-              className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
-            >
-              {busy
-                ? "Procesando…"
-                : `Pagar con tarjeta · ${fmtCOP(subtotal)}`}
-            </button>
-            <button
-              onClick={() => placeAndPay("demo_nequi")}
-              disabled={busy || eta.saturated || eta.closed}
-              className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
-            >
-              Pagar con Nequi
-            </button>
+            {kushkiReady && hasApplePay && (
+              <button
+                onClick={() => placeAndPay("kushki_apple_pay")}
+                disabled={!!busy || eta.saturated || eta.closed}
+                className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+              >
+                {busy === "kushki_apple_pay"
+                  ? "Procesando…"
+                  : ` Pay · ${fmtCOP(subtotal)}`}
+              </button>
+            )}
+            {kushkiReady && hasGooglePay && (
+              <button
+                onClick={() => placeAndPay("kushki_google_pay")}
+                disabled={!!busy || eta.saturated || eta.closed}
+                className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
+              >
+                {busy === "kushki_google_pay"
+                  ? "Procesando…"
+                  : `G Pay · ${fmtCOP(subtotal)}`}
+              </button>
+            )}
+            {isMockMode && !kushkiReady && (
+              <>
+                <button
+                  onClick={() => placeAndPay("demo_card")}
+                  disabled={!!busy || eta.saturated || eta.closed}
+                  className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+                >
+                  {busy === "demo_card"
+                    ? "Procesando…"
+                    : `Demo tarjeta · ${fmtCOP(subtotal)}`}
+                </button>
+                <button
+                  onClick={() => placeAndPay("demo_nequi")}
+                  disabled={!!busy || eta.saturated || eta.closed}
+                  className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
+                >
+                  {busy === "demo_nequi" ? "Procesando…" : `Demo Nequi`}
+                </button>
+                <div className="text-[11px] text-muted-2 text-center pt-1">
+                  Modo demo. Activa Kushki para Apple/Google Pay.
+                </div>
+              </>
+            )}
             <div className="text-[11px] text-muted text-center mt-1">
               Tu orden entra a cocina solo cuando el pago aprueba.
             </div>

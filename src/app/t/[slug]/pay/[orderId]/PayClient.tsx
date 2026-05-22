@@ -1,16 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
 const TIP_OPTIONS = [0, 5, 8, 10, 12] as const;
-const METHODS = [
-  { id: "demo_card" as const, label: "Tarjeta", hint: "Débito o crédito" },
-  { id: "demo_nequi" as const, label: "Nequi", hint: "Transferencia" },
-  { id: "demo_cash" as const, label: "Efectivo", hint: "Pagar al mesero" },
-];
 
 type PayMode = "full" | "equal" | "mine";
 
@@ -21,6 +16,14 @@ type PayItem = {
   priceCents: number;
   guestName: string | null;
 };
+
+type MethodKind =
+  | "kushki_apple_pay"
+  | "kushki_google_pay"
+  | "kushki_card_terminal"
+  | "demo_cash"
+  | "demo_card"
+  | "demo_nequi";
 
 export function PayClient({
   tenantSlug,
@@ -34,6 +37,9 @@ export function PayClient({
   alreadyPaid,
   items,
   serviceMode,
+  kushkiReady,
+  kushkiPublicKey,
+  isMockMode,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -46,6 +52,9 @@ export function PayClient({
   alreadyPaid: boolean;
   items: PayItem[];
   serviceMode: "table" | "counter";
+  kushkiReady: boolean;
+  kushkiPublicKey: string | null;
+  isMockMode: boolean;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -53,11 +62,21 @@ export function PayClient({
   const isCounter = serviceMode === "counter";
   const router = useRouter();
   const [tipPct, setTipPct] = useState<number>(10);
-  const [method, setMethod] = useState<typeof METHODS[number]["id"]>("demo_card");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<PayMode>("full");
   const [splitCount, setSplitCount] = useState<number>(2);
+  const [hasApplePay, setHasApplePay] = useState(false);
+  const [hasGooglePay, setHasGooglePay] = useState(false);
+
+  // Wallet-availability sniffing happens client-side. ApplePaySession is
+  // only present on Safari/iOS. Google Pay JS is loaded by Kushki SDK; for
+  // mock mode we just claim it's available so the buttons show in dev.
+  useEffect(() => {
+    const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
+    setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
+    setHasGooglePay(true); // GP availability via Kushki SDK; assume true for now
+  }, []);
 
   const guestTotals = useMemo(() => {
     const m = new Map<string, number>();
@@ -71,9 +90,6 @@ export function PayClient({
 
   const [myGuest, setMyGuest] = useState<string>(guestTotals[0]?.name ?? "");
 
-  // Each diner tips on their own portion. The remaining food (what actually
-  // needs to get paid) is the subtotal minus whatever food portion prior
-  // payers already covered — their tips don't subtract from your share.
   const paidFoodCents = Math.max(0, paidCents - paidTipCents);
   const outstandingSubtotalCents = Math.max(0, subtotalCents - paidFoodCents);
 
@@ -90,41 +106,133 @@ export function PayClient({
   const amountTip = Math.round((amountSubtotal * tipPct) / 100);
   const amountCents = amountSubtotal + amountTip;
 
-  async function pay() {
+  async function payWithKushkiToken(method: "kushki_apple_pay" | "kushki_google_pay") {
     if (amountCents <= 0) return;
-    setBusy(true);
+    setBusy(method);
     setErr(null);
-    const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        orderId,
-        method,
-        amountCents,
-        tipCents: amountTip,
-      }),
-    });
-    setBusy(false);
-    if (!res.ok) {
+    try {
+      // TODO: when Kushki credentials arrive, replace this with the JS SDK
+      // tokenisation flow (Kushki.requestToken or similar). For now we ship
+      // a placeholder token; the mock provider accepts anything, and the
+      // live provider will reject — gating us until we wire the SDK.
+      const token =
+        kushkiPublicKey && !isMockMode
+          ? // Live: we'd grab a real token via the SDK. Bail with a friendly error.
+            ""
+          : `mock-token-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      if (!token) {
+        setErr("Apple/Google Pay aún no está activado para este restaurante.");
+        return;
+      }
+
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay/kushki-charge`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          method,
+          token,
+          amountCents,
+          tipCents: amountTip,
+        }),
+      });
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "El pago falló. Intenta de nuevo.");
-      return;
+      if (!res.ok) {
+        setErr(j.error ?? "El pago falló.");
+        return;
+      }
+      if (j.approved && j.paymentId) {
+        router.push(`/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`);
+      } else {
+        setErr(j.message ?? "Pago rechazado. Intenta con otra tarjeta o medio.");
+      }
+    } finally {
+      setBusy(null);
     }
-    const j = (await res.json().catch(() => ({}))) as {
-      paymentId?: string;
-      paid?: boolean;
-      pending?: boolean;
-    };
-    if (j.pending && j.paymentId) {
-      router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
-      return;
+  }
+
+  async function payWithTerminal() {
+    if (amountCents <= 0) return;
+    setBusy("kushki_card_terminal");
+    setErr(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay/terminal-request`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          amountCents: amountSubtotal,
+          tipCents: amountTip,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.paymentId) {
+        setErr(j.error ?? "No pudimos avisar al mesero.");
+        return;
+      }
+      router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`);
+    } finally {
+      setBusy(null);
     }
-    // Pass the payment id so the done page can mark the current diner's
-    // contribution in the shared-bill ledger.
-    const done = j.paymentId
-      ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`
-      : `/t/${tenantSlug}/pay/${orderId}/done`;
-    router.push(done);
+  }
+
+  async function payWithCash() {
+    if (amountCents <= 0) return;
+    setBusy("demo_cash");
+    setErr(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          method: "demo_cash",
+          amountCents,
+          tipCents: amountTip,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(j.error ?? "No pudimos avisar al mesero.");
+        return;
+      }
+      if (j.pending && j.paymentId) {
+        router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Demo paths only show when the restaurant isn't onboarded yet and we're
+  // in mock mode — keeps local dev usable without ever exposing them in prod.
+  async function payDemo(method: "demo_card" | "demo_nequi") {
+    if (amountCents <= 0) return;
+    setBusy(method);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          method,
+          amountCents,
+          tipCents: amountTip,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(j.error ?? "El pago falló.");
+        return;
+      }
+      const done = j.paymentId
+        ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`
+        : `/t/${tenantSlug}/pay/${orderId}/done`;
+      router.push(done);
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (alreadyPaid) {
@@ -144,6 +252,7 @@ export function PayClient({
   }
 
   const hasGuests = guestTotals.length > 0;
+  const showDemoFallback = isMockMode && !kushkiReady;
 
   return (
     <main className="flex flex-1 flex-col max-w-lg mx-auto w-full px-5 py-8">
@@ -159,7 +268,6 @@ export function PayClient({
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">Pagar</h1>
 
-      {/* Split mode (hidden for counter: prepay + single-diner flow) */}
       {!isCounter && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
@@ -308,44 +416,144 @@ export function PayClient({
         </div>
       </div>
 
-      <div className="mt-6">
-        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-          Método
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {METHODS.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setMethod(m.id)}
-              className={
-                "p-3 rounded-xl border text-left transition-colors " +
-                (method === m.id
-                  ? "bg-ink text-bone border-ink"
-                  : "bg-paper border-hairline text-ink")
-              }
-            >
-              <div className="font-medium">{m.label}</div>
-              <div className="text-[11px] opacity-70 mt-0.5">{m.hint}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
-      <button
-        onClick={pay}
-        disabled={busy || amountCents <= 0}
-        className="mt-6 h-12 rounded-full bg-terracotta text-paper font-medium disabled:opacity-60"
-      >
-        {busy ? "Procesando…" : `Pagar ${fmtCOP(amountCents)}`}
-      </button>
-      <p className="mt-3 text-xs text-muted-2 text-center">
-        Modo demo: no se cobra dinero real.
-      </p>
+      <div className="mt-6 space-y-2">
+        {kushkiReady && hasApplePay && (
+          <PayButton
+            kind="apple"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "kushki_apple_pay"}
+            onClick={() => payWithKushkiToken("kushki_apple_pay")}
+            amountCents={amountCents}
+          />
+        )}
+        {kushkiReady && hasGooglePay && (
+          <PayButton
+            kind="google"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "kushki_google_pay"}
+            onClick={() => payWithKushkiToken("kushki_google_pay")}
+            amountCents={amountCents}
+          />
+        )}
+        {kushkiReady && (
+          <PayButton
+            kind="terminal"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "kushki_card_terminal"}
+            onClick={payWithTerminal}
+            amountCents={amountCents}
+          />
+        )}
+        <PayButton
+          kind="cash"
+          disabled={busy !== null || amountCents <= 0}
+          busy={busy === "demo_cash"}
+          onClick={payWithCash}
+          amountCents={amountCents}
+        />
+        {showDemoFallback && (
+          <>
+            <PayButton
+              kind="demo_card"
+              disabled={busy !== null || amountCents <= 0}
+              busy={busy === "demo_card"}
+              onClick={() => payDemo("demo_card")}
+              amountCents={amountCents}
+            />
+            <PayButton
+              kind="demo_nequi"
+              disabled={busy !== null || amountCents <= 0}
+              busy={busy === "demo_nequi"}
+              onClick={() => payDemo("demo_nequi")}
+              amountCents={amountCents}
+            />
+            <p className="text-[11px] text-muted-2 text-center pt-1">
+              Modo demo (sin Kushki). En producción solo verás Apple/Google
+              Pay, datáfono y efectivo.
+            </p>
+          </>
+        )}
+      </div>
     </main>
   );
 }
+
+function PayButton({
+  kind,
+  disabled,
+  busy,
+  onClick,
+  amountCents,
+}: {
+  kind:
+    | "apple"
+    | "google"
+    | "terminal"
+    | "cash"
+    | "demo_card"
+    | "demo_nequi";
+  disabled: boolean;
+  busy: boolean;
+  onClick: () => void;
+  amountCents: number;
+}) {
+  const meta = BUTTON_META[kind];
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "w-full h-12 rounded-full font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-60 " +
+        meta.className
+      }
+    >
+      <span className="text-base leading-none" aria-hidden>
+        {meta.icon}
+      </span>
+      <span>
+        {busy ? "Procesando…" : `${meta.label} · ${fmtCOP(amountCents)}`}
+      </span>
+    </button>
+  );
+}
+
+const BUTTON_META: Record<
+  "apple" | "google" | "terminal" | "cash" | "demo_card" | "demo_nequi",
+  { label: string; icon: string; className: string }
+> = {
+  apple: {
+    label: "Apple Pay",
+    icon: "",
+    className: "bg-ink text-bone",
+  },
+  google: {
+    label: "Google Pay",
+    icon: "G",
+    className: "bg-paper text-ink border border-hairline",
+  },
+  terminal: {
+    label: "Tarjeta con datáfono",
+    icon: "💳",
+    className: "bg-terracotta text-paper",
+  },
+  cash: {
+    label: "Efectivo (llamar al mesero)",
+    icon: "💵",
+    className: "bg-paper text-ink border border-hairline",
+  },
+  demo_card: {
+    label: "Demo tarjeta",
+    icon: "🧪",
+    className: "bg-paper text-ink border border-dashed border-hairline",
+  },
+  demo_nequi: {
+    label: "Demo Nequi",
+    icon: "🧪",
+    className: "bg-paper text-ink border border-dashed border-hairline",
+  },
+};
 
 function ModeButton({
   active,

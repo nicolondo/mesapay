@@ -9,6 +9,10 @@ import {
   pickupStatus,
 } from "@/lib/pickupAvailability";
 import { welcomeIfFirstTime } from "@/lib/mailer";
+import {
+  getPaymentProvider,
+  getRestaurantPrivateKey,
+} from "@/lib/payments";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -21,7 +25,17 @@ const schema = z.object({
   tableId: z.string().min(1),
   pickupName: z.string().trim().min(1).max(40),
   pickupPhone: z.string().trim().min(6).max(32),
-  method: z.enum(["demo_card", "demo_nequi"]),
+  // Pickup is prepay: only "instant" methods make sense. Cash and terminal
+  // require a waiter and a physical presence, so we exclude them here. The
+  // demo methods stay around for local dev when KUSHKI_MODE=mock.
+  method: z.enum([
+    "demo_card",
+    "demo_nequi",
+    "kushki_apple_pay",
+    "kushki_google_pay",
+  ]),
+  // Required when method is kushki_*; ignored for demo methods.
+  token: z.string().min(1).max(2000).optional(),
   items: z.array(itemSchema).min(1),
 });
 
@@ -106,6 +120,82 @@ export async function POST(
   const now = new Date();
   const readyEta = new Date(now.getTime() + etaMinutes * 60_000);
 
+  // Kushki path: charge BEFORE creating the order so a declined card doesn't
+  // leave food in the kitchen queue. Demo path: stay with the legacy
+  // immediate-approval flow so local dev works without onboarding.
+  const isKushki =
+    parsed.data.method === "kushki_apple_pay" ||
+    parsed.data.method === "kushki_google_pay";
+
+  let providerRef: string | null = null;
+
+  if (isKushki) {
+    if (!tenant.kushkiMerchantId) {
+      return NextResponse.json(
+        { error: "tenant_not_onboarded" },
+        { status: 409 },
+      );
+    }
+    if (!parsed.data.token) {
+      return NextResponse.json(
+        { error: "missing_token" },
+        { status: 400 },
+      );
+    }
+    const privateKey = await getRestaurantPrivateKey(tenant.id);
+    if (!privateKey) {
+      return NextResponse.json(
+        { error: "credentials_missing" },
+        { status: 500 },
+      );
+    }
+    try {
+      const charge = await getPaymentProvider().chargeWithToken({
+        merchantId: privateKey,
+        amount: { amountCents: subtotalCents, currency: "COP" },
+        token: parsed.data.token,
+        metadata: {
+          orderId: "pending", // No order id yet; we annotate later via webhook reconciliation.
+          paymentId: "pending",
+          tableId: pickupTable.id,
+        },
+      });
+      if (charge.status !== "approved") {
+        return NextResponse.json(
+          { error: "charge_declined", message: charge.message },
+          { status: 402 },
+        );
+      }
+      providerRef = charge.providerRef;
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "charge_failed",
+          message: err instanceof Error ? err.message : "unknown",
+        },
+        { status: 502 },
+      );
+    }
+  }
+
+  // Translate to enum values that exist in the schema. demo_nequi is a UI
+  // label only — on the books it rides on wompi_nequi until we drop the
+  // demo path entirely.
+  let paymentMethod:
+    | "demo_card"
+    | "wompi_nequi"
+    | "kushki_apple_pay"
+    | "kushki_google_pay";
+  if (parsed.data.method === "kushki_apple_pay") {
+    paymentMethod = "kushki_apple_pay";
+  } else if (parsed.data.method === "kushki_google_pay") {
+    paymentMethod = "kushki_google_pay";
+  } else if (parsed.data.method === "demo_nequi") {
+    paymentMethod = "wompi_nequi";
+  } else {
+    paymentMethod = "demo_card";
+  }
+
   const result = await db.$transaction(async (tx) => {
     // Prepaid: the bill is closed at creation (status=paid, paidAt=now) so
     // reports count it. The kitchen still sees it through Round.status, which
@@ -156,19 +246,30 @@ export async function POST(
       });
     }
 
-    // Demo prepay: approve immediately. demo_nequi rides on wompi_nequi for
-    // reporting — same trick the table pay route uses.
-    const method =
-      parsed.data.method === "demo_nequi" ? "wompi_nequi" : "demo_card";
-    await tx.payment.create({
+    const payment = await tx.payment.create({
       data: {
         orderId: order.id,
-        method,
+        method: paymentMethod,
         status: "approved",
         amountCents: subtotalCents,
+        providerRef,
         settledAt: now,
       },
     });
+
+    if (isKushki && providerRef) {
+      await tx.kushkiTransaction.create({
+        data: {
+          restaurantId: tenant.id,
+          paymentId: payment.id,
+          kushkiTxId: providerRef,
+          kind: "charge",
+          status: "approved",
+          amountCents: subtotalCents,
+          raw: { pickup: true, orderId: order.id },
+        },
+      });
+    }
 
     return { order };
   });

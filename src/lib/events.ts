@@ -10,7 +10,14 @@ export type OrderEvent =
   | { type: "order.paid"; orderId: string }
   | { type: "order.cash_requested"; orderId: string; paymentId: string }
   | { type: "order.waiter_called"; orderId: string }
-  | { type: "order.waiter_ack"; orderId: string };
+  | { type: "order.waiter_ack"; orderId: string }
+  // Datáfono / Kushki Smart POS flow. terminal_requested fires when a
+  // diner taps "Tarjeta con datáfono" and a Payment lands in pending state.
+  // The terminal grid surfaces it; the diner sees the result via the
+  // payment_* events.
+  | { type: "order.terminal_requested"; orderId: string; paymentId: string; amountCents: number }
+  | { type: "payment.approved"; orderId: string; paymentId: string }
+  | { type: "payment.declined"; orderId: string; paymentId: string; reason?: string };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { env } from "@/lib/env";
 import {
   formatNextOpening,
   pickupStatus,
@@ -145,6 +146,11 @@ export default async function PickupPage({
         defaultName: customer?.name ?? "",
         defaultPhone: customer?.phone ?? "",
         maxEtaMinutes: tenant.pickupMaxEtaMinutes,
+        kushkiReady:
+          !!tenant.kushkiMerchantId &&
+          tenant.kushkiOnboardingStatus === "active",
+        kushkiPublicKey: tenant.kushkiPublicKey,
+        isMockMode: env.KUSHKI_MODE === "mock",
       }}
     />
   );

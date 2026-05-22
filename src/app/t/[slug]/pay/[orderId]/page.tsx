@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { env } from "@/lib/env";
 import { PayClient } from "./PayClient";
 
 export default async function PayPage({
@@ -24,6 +25,8 @@ export default async function PayPage({
   const approved = order.payments.filter((p) => p.status === "approved");
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
   const paidTipCents = approved.reduce((s, p) => s + p.tipCents, 0);
+  const kushkiReady =
+    !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
 
   return (
     <PayClient
@@ -48,6 +51,9 @@ export default async function PayPage({
         guestName: i.guestName,
       }))}
       serviceMode={tenant.serviceMode}
+      kushkiReady={kushkiReady}
+      kushkiPublicKey={tenant.kushkiPublicKey}
+      isMockMode={env.KUSHKI_MODE === "mock"}
     />
   );
 }

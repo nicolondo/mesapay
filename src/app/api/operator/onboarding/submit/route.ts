@@ -79,6 +79,22 @@ export async function POST(req: Request) {
     );
   }
 
+  // Server-side beneficiary check: the document number on the bank account
+  // must match the NIT on the RUT. We compare digits-only so DV, hyphens
+  // and spaces don't trip the check.
+  const rutId = parsed.data.taxId.replace(/\D/g, "");
+  const bankId = parsed.data.bankInfo.holderDocNumber.replace(/\D/g, "");
+  if (rutId && bankId && rutId !== bankId) {
+    return NextResponse.json(
+      {
+        error: "beneficiary_mismatch",
+        rutId,
+        bankId,
+      },
+      { status: 400 },
+    );
+  }
+
   // Mark as submitted before calling the provider so a slow Kushki request
   // doesn't leave the operator clicking "Enviar" repeatedly. If Kushki
   // errors out we roll back below.

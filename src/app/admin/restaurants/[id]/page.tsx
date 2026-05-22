@@ -233,7 +233,7 @@ export default async function RestaurantDetail({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Pagos · Kushki
+              Pagos
             </div>
             <div className="text-sm mt-1">
               {rest.kushkiOnboardingStatus === "active"
@@ -244,7 +244,7 @@ export default async function RestaurantDetail({
             </div>
           </div>
           <Link
-            href={`/admin/restaurants/${id}/kushki`}
+            href={`/admin/restaurants/${id}/pagos`}
             className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
           >
             Ver detalles →

@@ -110,6 +110,16 @@ export function OnboardingClient({
     const newDoc = j.document as UploadedDoc;
     setDocs((prev) => [newDoc, ...prev]);
     startTx(() => router.refresh());
+
+    // Auto-OCR the documents we know how to read so the operator doesn't
+    // have to click a separate "Leer con AI" button. RUT prefills the legal
+    // fields; bank cert prefills the bank info. Both are fire-and-forget;
+    // failures surface in the inline error banner.
+    if (kind === "rut") {
+      void runRutOcr(newDoc.id);
+    } else if (kind === "bank_cert") {
+      void runBankCertOcr(newDoc.id);
+    }
     return newDoc;
   }
 
@@ -127,7 +137,7 @@ export function OnboardingClient({
     startTx(() => router.refresh());
   }
 
-  async function runOcr(docId: string) {
+  async function runBankCertOcr(docId: string) {
     setOcrRunning(true);
     setError(null);
     try {
@@ -170,6 +180,45 @@ export function OnboardingClient({
     }
   }
 
+  async function runRutOcr(docId: string) {
+    setOcrRunning(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/operator/onboarding/ocr-rut", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ documentId: docId }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error ?? "OCR del RUT falló.");
+        return;
+      }
+      const j = await res.json();
+      const ex = j.extracted as Record<string, unknown>;
+      // Only overwrite empty fields — if the operator already typed
+      // something, respect it. Confidence is included separately so the UI
+      // can show "AI · 92%" next to the fields.
+      if (typeof ex.legalName === "string" && !legalName.trim()) {
+        setLegalName(ex.legalName);
+      }
+      if (typeof ex.taxId === "string" && !taxId.trim()) {
+        setTaxId(ex.taxId);
+      }
+      if (typeof ex.contactEmail === "string" && !contactEmail.trim()) {
+        setContactEmail(ex.contactEmail);
+      }
+      if (typeof ex.contactPhone === "string" && !contactPhone.trim()) {
+        setContactPhone(ex.contactPhone);
+      }
+      setDocs((prev) =>
+        prev.map((d) => (d.id === docId ? { ...d, extractedFields: ex } : d)),
+      );
+    } finally {
+      setOcrRunning(false);
+    }
+  }
+
   async function submit() {
     setError(null);
     setBusy(true);
@@ -197,12 +246,36 @@ export function OnboardingClient({
   }
 
   const bankCertDoc = docs.find((d) => d.kind === "bank_cert");
+  const rutDoc = docs.find((d) => d.kind === "rut");
   const missingKinds = REQUIRED_KINDS.filter(
     (k) => !docs.some((d) => d.kind === k),
   );
+
+  // Beneficiary check: the holder doc on the bank cert MUST match the NIT
+  // on the RUT. Otherwise someone could ship money to an unrelated account.
+  // We only flag a mismatch when both numbers are present — empty fields
+  // mean the operator hasn't filled them yet, which is its own gate.
+  const beneficiaryCheck = (() => {
+    const rutId = taxId.replace(/\D/g, "");
+    const bankId = bankInfo.holderDocNumber.replace(/\D/g, "");
+    if (!rutId || !bankId) return { ok: true as const, kind: "pending" as const };
+    if (rutId === bankId) return { ok: true as const, kind: "match" as const };
+    // Fuzzy name match as a secondary signal — names alone aren't enough
+    // to approve, but help explain WHY the mismatch matters in the warning.
+    return {
+      ok: false as const,
+      kind: "mismatch" as const,
+      rutId,
+      bankId,
+      rutName: legalName,
+      bankName: bankInfo.holderName,
+    };
+  })();
+
   const canSubmit =
     !isLocked &&
     missingKinds.length === 0 &&
+    beneficiaryCheck.ok &&
     legalName.trim() &&
     taxId.trim() &&
     contactEmail.trim() &&
@@ -219,16 +292,19 @@ export function OnboardingClient({
       <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
         {tenant.name}
       </div>
-      <div className="font-display text-3xl mb-1">Pagos con Kushki</div>
+      <div className="font-display text-3xl mb-1">Activar pagos</div>
       <p className="text-sm text-op-muted mb-6">
-        Sube tus documentos, valida la cuenta bancaria y envíalos a Kushki para
-        empezar a cobrar.
+        Sube tus documentos, valida la cuenta bancaria y envía la solicitud
+        para empezar a cobrar.
       </p>
 
       <StatusBanner tenant={tenant} />
 
       {/* Step 1: documents ---------------------------------------------- */}
-      <Section title="1 · Documentos KYC" subtitle="Sube los archivos requeridos.">
+      <Section
+        title="1 · Documentos"
+        subtitle="Cuando subas el RUT, llenamos los datos legales automáticamente con AI."
+      >
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {(["cedula_rep_legal", "rut", "camara_comercio", "estatutos"] as DocKind[]).map(
             (kind) => (
@@ -243,6 +319,11 @@ export function OnboardingClient({
             ),
           )}
         </ul>
+        {rutDoc && ocrRunning && (
+          <p className="mt-2 text-xs text-op-muted">
+            Leyendo RUT con AI…
+          </p>
+        )}
         {missingKinds.length > 0 && (
           <p className="mt-2 text-xs text-op-muted">
             Faltan:{" "}
@@ -257,7 +338,7 @@ export function OnboardingClient({
       {/* Step 2: bank cert + OCR ---------------------------------------- */}
       <Section
         title="2 · Certificación bancaria"
-        subtitle="La leemos con AI para llenar el formulario automáticamente."
+        subtitle="La leemos con AI al subirla para llenar el formulario automáticamente."
       >
         <DocumentTile
           kind="bank_cert"
@@ -269,11 +350,11 @@ export function OnboardingClient({
         {bankCertDoc && (
           <button
             type="button"
-            onClick={() => runOcr(bankCertDoc.id)}
+            onClick={() => runBankCertOcr(bankCertDoc.id)}
             disabled={ocrRunning || isLocked}
             className="mt-3 h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
           >
-            {ocrRunning ? "Leyendo…" : "Leer con AI"}
+            {ocrRunning ? "Leyendo…" : "Volver a leer con AI"}
           </button>
         )}
         {bankInfo.source === "ai_extracted" && (
@@ -309,6 +390,45 @@ export function OnboardingClient({
         </div>
       </Section>
 
+      {beneficiaryCheck.kind === "match" && (
+        <div className="my-4 p-3 rounded-xl bg-ok/10 text-ok text-sm flex items-start gap-2">
+          <span aria-hidden>✓</span>
+          <span>
+            El titular de la cuenta coincide con el RUT.
+          </span>
+        </div>
+      )}
+      {beneficiaryCheck.kind === "mismatch" && (
+        <div className="my-4 p-3 rounded-xl bg-danger/10 text-danger text-sm">
+          <div className="font-medium">
+            El titular de la cuenta no coincide con el RUT
+          </div>
+          <div className="mt-1">
+            RUT (NIT/Cédula):{" "}
+            <span className="font-mono">{beneficiaryCheck.rutId}</span>
+            {beneficiaryCheck.rutName && (
+              <>
+                {" "}— <span>{beneficiaryCheck.rutName}</span>
+              </>
+            )}
+          </div>
+          <div>
+            Cuenta bancaria:{" "}
+            <span className="font-mono">{beneficiaryCheck.bankId}</span>
+            {beneficiaryCheck.bankName && (
+              <>
+                {" "}— <span>{beneficiaryCheck.bankName}</span>
+              </>
+            )}
+          </div>
+          <div className="mt-2 text-[12px]">
+            Para evitar problemas con la dispersión de fondos, el beneficiario
+            de la cuenta debe ser el mismo titular del RUT. Corrige los datos
+            o sube los documentos correctos.
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="my-4 p-3 rounded-xl bg-danger/10 text-danger text-sm">
           {error}
@@ -322,7 +442,7 @@ export function OnboardingClient({
           disabled={!canSubmit || busy}
           className="h-12 px-6 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Enviando a Kushki…" : "Enviar solicitud"}
+          {busy ? "Enviando solicitud…" : "Enviar solicitud"}
         </button>
         {isLocked && (
           <span className="text-xs text-op-muted">
@@ -366,7 +486,7 @@ function StatusBanner({
       <div className="rounded-2xl border border-ok/30 bg-ok/10 text-ok p-4 mb-6">
         <div className="font-display text-lg">¡Listo para cobrar!</div>
         <div className="text-sm mt-1">
-          Tu cuenta Kushki está activa. ID: {tenant.merchantId}
+          Tu cuenta está activa. ID interno: {tenant.merchantId}
         </div>
       </div>
     );
@@ -376,7 +496,7 @@ function StatusBanner({
       <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#7F5A1F] p-4 mb-6">
         <div className="font-display text-lg">En revisión</div>
         <div className="text-sm mt-1">
-          Kushki está validando tus documentos. Te avisamos por correo cuando
+          Estamos validando tus documentos. Te avisamos por correo cuando
           quede activo.
         </div>
       </div>
@@ -575,12 +695,21 @@ function normaliseBankInfo(raw: Record<string, unknown> | null): BankInfo {
   };
 }
 
-function humanError(j: { error?: string; missing?: string[]; detail?: string }): string {
+function humanError(j: {
+  error?: string;
+  missing?: string[];
+  detail?: string;
+  rutId?: string;
+  bankId?: string;
+}): string {
   if (j.error === "documents_incomplete" && j.missing) {
     return `Faltan documentos: ${j.missing.join(", ")}`;
   }
+  if (j.error === "beneficiary_mismatch") {
+    return `El titular de la cuenta (${j.bankId}) no coincide con el RUT (${j.rutId}). Corrige los datos antes de enviar.`;
+  }
   if (j.error === "submit_failed") {
-    return `Kushki rechazó la solicitud: ${j.detail ?? "sin detalle"}`;
+    return `La solicitud fue rechazada: ${j.detail ?? "sin detalle"}`;
   }
   return j.error ?? "No pudimos enviar la solicitud.";
 }

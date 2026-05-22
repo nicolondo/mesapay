@@ -18,23 +18,23 @@ export default async function SettingsPage() {
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
 
-  const kushkiStatus = humanStatus(tenant.kushkiOnboardingStatus);
+  const status = humanStatus(tenant.kushkiOnboardingStatus);
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">Configuración</div>
       <p className="text-sm text-op-muted mb-6">
-        Conecta tu cuenta de Kushki, configura datáfonos y revisa la información
-        de tu restaurante.
+        Activa pagos, configura datáfonos y revisa la información de tu
+        restaurante.
       </p>
 
       <div className="space-y-3">
         <SettingCard
-          href="/operator/settings/kushki"
-          title="Pagos · Kushki"
+          href="/operator/settings/pagos"
+          title="Pagos"
           subtitle="Onboarding, datos bancarios y datáfonos"
-          badge={kushkiStatus.label}
-          tint={kushkiStatus.tint}
+          badge={status.label}
+          tint={status.tint}
         />
         <SettingCard
           href="/operator/wallet"

@@ -89,15 +89,15 @@ export function WalletClient({
       <div className="p-6 max-w-3xl mx-auto w-full">
         <div className="font-display text-3xl mb-1">Wallet</div>
         <p className="text-sm text-op-muted mb-6">
-          Para empezar a recibir dinero necesitas activar tu cuenta Kushki.
+          Para empezar a recibir dinero necesitas activar pagos en MESAPAY.
         </p>
         <div className="rounded-2xl border border-op-border bg-op-surface p-6 text-center">
-          <div className="font-display text-xl">Aún no estás onboarded</div>
+          <div className="font-display text-xl">Aún no estás activo</div>
           <p className="text-sm text-op-muted mt-1 mb-4">
-            Completa la solicitud para que Kushki active tu wallet.
+            Completa la solicitud para que tu wallet quede habilitada.
           </p>
           <Link
-            href="/operator/settings/kushki"
+            href="/operator/settings/pagos"
             className="inline-flex h-10 px-5 rounded-full bg-terracotta text-bone font-medium items-center"
           >
             Ir al onboarding
@@ -114,7 +114,7 @@ export function WalletClient({
       </div>
       <div className="font-display text-3xl mb-1">Wallet</div>
       <p className="text-sm text-op-muted mb-6">
-        Saldo disponible y movimientos de tu cuenta Kushki.
+        Saldo disponible y movimientos de tu wallet.
       </p>
 
       <div className="rounded-2xl bg-ink text-bone p-6 mb-6">

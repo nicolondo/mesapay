@@ -470,8 +470,8 @@ export function PayClient({
               amountCents={amountCents}
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">
-              Modo demo (sin Kushki). En producción solo verás Apple/Google
-              Pay, datáfono y efectivo.
+              Modo demo. En producción solo verás Apple/Google Pay, datáfono
+              y efectivo.
             </p>
           </>
         )}

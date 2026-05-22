@@ -1694,7 +1694,7 @@ function PickupCheckoutSheet({
                   {busy === "demo_nequi" ? "Procesando…" : `Demo Nequi`}
                 </button>
                 <div className="text-[11px] text-muted-2 text-center pt-1">
-                  Modo demo. Activa Kushki para Apple/Google Pay.
+                  Modo demo. Activa pagos para usar Apple/Google Pay.
                 </div>
               </>
             )}

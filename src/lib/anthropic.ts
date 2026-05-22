@@ -33,6 +33,24 @@ const BankCertSchema = z.object({
 
 export type BankCertExtraction = z.infer<typeof BankCertSchema>;
 
+const RutSchema = z.object({
+  // Razón social del comercio (persona jurídica) o nombre completo del
+  // representante (persona natural). Lo usamos como "legalName".
+  legalName: z.string().min(1).nullable(),
+  // NIT en personas jurídicas, cédula en naturales. Dígitos solamente.
+  taxId: z.string().min(1).nullable(),
+  // Si la DIAN nos da DV (dígito de verificación) lo capturamos aparte
+  // para no confundir el match con el banco más adelante.
+  taxIdDV: z.string().min(1).nullable(),
+  // Datos secundarios que aparecen en el RUT y queremos pre-llenar.
+  contactEmail: z.string().email().nullable(),
+  contactPhone: z.string().min(6).nullable(),
+  confidence: z.number().min(0).max(1),
+  notes: z.string().optional(),
+});
+
+export type RutExtraction = z.infer<typeof RutSchema>;
+
 const BANK_CERT_SYSTEM = `Eres un asistente que extrae datos de una "certificación bancaria" colombiana.
 Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
 
@@ -158,6 +176,112 @@ export async function extractBankCertificate(
       holderName: null,
       holderDocType: "unknown",
       holderDocNumber: null,
+      confidence: 0,
+      notes: `schema mismatch: ${result.error.issues[0]?.message}`,
+    };
+  }
+  return result.data;
+}
+
+const RUT_SYSTEM = `Eres un asistente que extrae datos de un RUT colombiano (Registro Único Tributario emitido por la DIAN).
+Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
+
+{
+  "legalName": string | null,           // razón social de la empresa, o nombre completo si es persona natural
+  "taxId": string | null,               // NIT o cédula, SOLO dígitos (sin DV, sin guiones, sin puntos)
+  "taxIdDV": string | null,             // dígito de verificación (1 dígito) si aparece, si no null
+  "contactEmail": string | null,        // si aparece un correo, si no null
+  "contactPhone": string | null,        // si aparece teléfono, dígitos + + opcional al inicio
+  "confidence": number,                 // 0..1 — qué tan seguro estás
+  "notes": string                       // opcional, máx 1 frase
+}
+
+Reglas:
+- Si un campo no se ve claramente, ponlo en null y baja la confianza.
+- taxId: solo dígitos, sin DV. Si en el documento aparece "900123456-7", taxId="900123456" y taxIdDV="7".
+- legalName: si es persona jurídica, la razón social; si es natural, el nombre completo del contribuyente.
+- Si el documento no parece un RUT, devuelve todos los campos en null con confidence 0.`;
+
+export async function extractRutData(source: Source): Promise<RutExtraction> {
+  const c = getClient();
+  const base64 = source.data.toString("base64");
+
+  const content: Anthropic.Messages.ContentBlockParam[] =
+    source.kind === "pdf"
+      ? [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: base64,
+            },
+          },
+          { type: "text", text: "Extrae los campos del RUT." },
+        ]
+      : [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: source.mimeType as
+                | "image/png"
+                | "image/jpeg"
+                | "image/webp"
+                | "image/gif",
+              data: base64,
+            },
+          },
+          { type: "text", text: "Extrae los campos del RUT." },
+        ];
+
+  const resp = await c.messages.create({
+    model: env.ANTHROPIC_MODEL,
+    max_tokens: 512,
+    system: [
+      {
+        type: "text",
+        text: RUT_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  const text = resp.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return {
+      legalName: null,
+      taxId: null,
+      taxIdDV: null,
+      contactEmail: null,
+      contactPhone: null,
+      confidence: 0,
+      notes: `model returned non-JSON: ${text.slice(0, 200)}`,
+    };
+  }
+
+  const result = RutSchema.safeParse(parsed);
+  if (!result.success) {
+    return {
+      legalName: null,
+      taxId: null,
+      taxIdDV: null,
+      contactEmail: null,
+      contactPhone: null,
       confidence: 0,
       notes: `schema mismatch: ${result.error.issues[0]?.message}`,
     };

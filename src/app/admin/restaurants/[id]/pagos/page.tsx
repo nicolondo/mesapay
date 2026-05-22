@@ -32,7 +32,7 @@ const KIND_LABEL: Record<string, string> = {
   other: "Otro",
 };
 
-export default async function AdminKushkiPage({
+export default async function AdminPagosPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -77,9 +77,9 @@ export default async function AdminKushkiPage({
           ← {rest.name}
         </Link>
         <span>/</span>
-        <span>Kushki</span>
+        <span>Pagos</span>
       </div>
-      <div className="font-display text-3xl mb-1">Kushki · {rest.name}</div>
+      <div className="font-display text-3xl mb-1">Pagos · {rest.name}</div>
       <p className="text-sm text-op-muted mb-6">
         Estado de onboarding, documentos KYC, transacciones y eventos.
       </p>

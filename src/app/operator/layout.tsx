@@ -128,6 +128,7 @@ export default async function OperatorLayout({
               </NavLink>
               <NavLink href="/operator/ratings">Reseñas</NavLink>
               <NavLink href="/operator/reports">Cierre</NavLink>
+              <NavLink href="/operator/settings">Configuración</NavLink>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

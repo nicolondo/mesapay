@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -84,31 +85,15 @@ export async function POST(
       },
     });
     // Tips are per-payment: each diner picks their own on their own share.
-    // The order-level aggregate is the sum across approved payments; the
-    // order is "fully paid" when the food portion (amount − tip) covers the
-    // subtotal, regardless of how much anyone tipped.
-    const allPayments = await tx.payment.findMany({
-      where: { orderId: order.id, status: "approved" },
-    });
-    const paid = allPayments.reduce((s, p) => s + p.amountCents, 0);
-    const tipsTotal = allPayments.reduce((s, p) => s + p.tipCents, 0);
-    const foodPaid = paid - tipsTotal;
-    const fullyPaid = foodPaid >= order.subtotalCents;
-    const updated = await tx.order.update({
-      where: { id: order.id },
-      data: {
-        tipCents: tipsTotal,
-        totalCents: order.subtotalCents + tipsTotal,
-        status: fullyPaid ? "paid" : "paying",
-        paidAt: fullyPaid ? new Date() : null,
-      },
-    });
+    // recomputeOrderTotalsInTx aggregates across approved payments and
+    // flips the order to "paid" iff the food portion covers the subtotal.
+    const totals = await recomputeOrderTotalsInTx(tx, order.id);
     // Counter-mode prepay: release any open rounds to the kitchen now that
     // the money is in.
-    if (fullyPaid) {
+    if (totals.fullyPaid) {
       await activateOpenRounds(tx, order.id);
     }
-    return { payment, updated, fullyPaid };
+    return { payment, fullyPaid: totals.fullyPaid };
   });
 
   publishOrderEvent(tenant.id, {

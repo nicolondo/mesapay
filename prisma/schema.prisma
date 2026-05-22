@@ -25,6 +25,21 @@ model Restaurant {
   pickupHours       Json?
   pickupMaxEtaMinutes Int?      @default(45)
 
+  // Kushki sub-merchant credentials. publicKey is safe to expose to the
+  // browser SDK; privateKeyEnc is AES-GCM ciphertext (src/lib/crypto.ts).
+  kushkiMerchantId        String?
+  kushkiPublicKey         String?
+  kushkiPrivateKeyEnc     String?
+  kushkiOnboardingStatus  KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes   String?
+  kushkiSubmittedAt       DateTime?
+  kushkiActivatedAt       DateTime?
+
+  // Bank info — populated by AI OCR of the bank certification then verified
+  // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).
+  bankInfo            Json?
+  autoDispersePolicy  Json?
+
   users               User[]
   tables              Table[]
   categories          Category[]
@@ -32,8 +47,23 @@ model Restaurant {
   orders              Order[]
   dishRatings         DishRating[]
   membershipPayments  MembershipPayment[]
+  kushkiDocuments     KushkiDocument[]
+  kushkiTransactions  KushkiTransaction[]
+  walletMovements     WalletMovement[]
+  terminalDevices     TerminalDevice[]
+  kushkiWebhookEvents KushkiWebhookEvent[]
 
   @@index([slug])
+}
+
+enum KushkiOnboardingStatus {
+  not_started
+  docs_uploaded
+  submitted
+  in_review
+  active
+  rejected
+  suspended
 }
 
 enum Plan {
@@ -72,6 +102,7 @@ enum Role {
   customer
   operator
   platform_admin
+  terminal
 }
 
 model User {
@@ -88,6 +119,9 @@ model User {
   createdAt      DateTime    @default(now())
 
   orders Order[] @relation("OrderCustomer")
+
+  uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
+  terminalDevices         TerminalDevice[]
 
   @@index([restaurantId])
 }
@@ -296,6 +330,12 @@ enum PaymentMethod {
   wompi_card
   wompi_pse
   wompi_nequi
+  // Kushki live methods. demo_* remain for local development and historical
+  // rows. kushki_card_terminal is the cloud-pushed Smart POS flow; the
+  // Apple/Google methods are wallet-tokenised charges from the JS SDK.
+  kushki_apple_pay
+  kushki_google_pay
+  kushki_card_terminal
 }
 
 enum PaymentStatus {
@@ -318,5 +358,146 @@ model Payment {
   createdAt    DateTime      @default(now())
   settledAt    DateTime?
 
+  kushkiTransactions KushkiTransaction[]
+
   @@index([orderId])
+}
+
+// === Kushki integration ====================================================
+
+enum KushkiDocumentKind {
+  cedula_rep_legal
+  rut
+  camara_comercio
+  bank_cert
+  estatutos
+  other
+}
+
+enum KushkiDocumentStatus {
+  pending
+  verified
+  rejected
+}
+
+model KushkiDocument {
+  id           String               @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?                @relation("KushkiDocumentUploader", fields: [uploadedById], references: [id])
+
+  kind             KushkiDocumentKind
+  status           KushkiDocumentStatus @default(pending)
+  fileUrl          String
+  fileName         String
+  mimeType         String
+  fileSize         Int
+  // Structured fields extracted by Claude (only set for bank_cert today).
+  extractedFields  Json?
+  reviewNotes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, kind])
+}
+
+enum KushkiTransactionKind {
+  charge
+  refund
+  dispersion
+  fee
+}
+
+enum KushkiTransactionStatus {
+  pending
+  approved
+  declined
+  reversed
+}
+
+// Local mirror of every transaction we see in Kushki. Lets us render
+// dashboards without round-tripping their API and provides a reconciliation
+// audit trail. Webhook handlers upsert here on (kushkiTxId).
+model KushkiTransaction {
+  id           String                  @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  paymentId    String?
+  payment      Payment?                @relation(fields: [paymentId], references: [id])
+
+  kushkiTxId String                  @unique
+  kind       KushkiTransactionKind
+  status     KushkiTransactionStatus
+  amountCents Int
+  currency    String                 @default("COP")
+  raw         Json
+  message     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, createdAt])
+}
+
+enum WalletMovementKind {
+  credit
+  debit
+  fee
+  dispersion
+  adjustment
+}
+
+model WalletMovement {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  kind             WalletMovementKind
+  amountCents      Int
+  balanceAfterCents Int
+  currency         String             @default("COP")
+  kushkiRef        String?
+  description      String?
+  occurredAt       DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([restaurantId, kushkiRef])
+  @@index([restaurantId, occurredAt])
+}
+
+model TerminalDevice {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  kushkiDeviceId  String     @unique
+  label           String
+  active          Boolean    @default(true)
+  lastSeenAt      DateTime?
+  assignedUserId  String?
+  assignedUser    User?      @relation(fields: [assignedUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, active])
+}
+
+// Idempotency log for Kushki webhooks. eventId is whatever unique value
+// their callback header gives us; we reject duplicates by returning 200
+// without reprocessing.
+model KushkiWebhookEvent {
+  id           String     @id @default(cuid())
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  eventId      String     @unique
+  type         String
+  payload      Json
+  processedAt  DateTime?
+  error        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([type, createdAt])
 }

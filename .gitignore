@@ -54,6 +54,6 @@ next-env.d.ts
 /.claude/
 
 # brand source assets (only the web-ready sizes under src/app and public/icons ship)
-/logo.ai
+*.ai
 /mesapay icon.png
 /SVG/

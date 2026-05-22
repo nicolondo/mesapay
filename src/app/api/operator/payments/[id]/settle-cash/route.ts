@@ -6,6 +6,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -81,40 +82,15 @@ export async function POST(
       },
     });
 
-    const order = await tx.order.findUnique({
-      where: { id: payment.orderId },
-      select: { subtotalCents: true, paidAt: true },
-    });
-    if (!order) throw new Error("order vanished");
-
-    // Recompute order totals from the approved payments. Tips are the sum
-    // of per-payment tips; fully-paid is when the food portion covers the
-    // subtotal.
-    const approved = await tx.payment.findMany({
-      where: { orderId: payment.orderId, status: "approved" },
-    });
-    const paidSum = approved.reduce((s, p) => s + p.amountCents, 0);
-    const tipsTotal = approved.reduce((s, p) => s + p.tipCents, 0);
-    const foodPaid = paidSum - tipsTotal;
-    const fullyPaid = foodPaid >= order.subtotalCents;
-
-    const finalOrder = await tx.order.update({
-      where: { id: payment.orderId },
-      data: {
-        tipCents: tipsTotal,
-        totalCents: order.subtotalCents + tipsTotal,
-        status: fullyPaid ? "paid" : "paying",
-        paidAt: fullyPaid ? (order.paidAt ?? now) : null,
-      },
-    });
+    const totals = await recomputeOrderTotalsInTx(tx, payment.orderId);
 
     // Counter-mode prepay rounds stay "open" until cash is settled — release
     // them to the kitchen the moment the operator confirms payment.
-    if (fullyPaid) {
+    if (totals.fullyPaid) {
       await activateOpenRounds(tx, payment.orderId);
     }
 
-    return { payment: updatedPayment, order: finalOrder, fullyPaid };
+    return { payment: updatedPayment, fullyPaid: totals.fullyPaid };
   });
 
   publishOrderEvent(payment.order.restaurantId, {

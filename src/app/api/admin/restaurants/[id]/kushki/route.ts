@@ -1,0 +1,85 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { encrypt } from "@/lib/crypto";
+
+const schema = z.object({
+  // Empty string -> set field to null. Lets the admin clear a value.
+  merchantId: z.string().trim().max(200).nullable(),
+  publicKey: z.string().trim().max(500).nullable(),
+  // Plaintext from the form. Encrypted before persisting. If omitted/null,
+  // the stored key is untouched (so admins can update other fields without
+  // re-entering the secret).
+  privateKey: z.string().trim().max(500).nullable().optional(),
+  onboardingStatus: z.enum([
+    "not_started",
+    "docs_uploaded",
+    "submitted",
+    "in_review",
+    "active",
+    "rejected",
+    "suspended",
+  ]),
+  notes: z.string().trim().max(2000).nullable(),
+});
+
+/**
+ * Platform-admin-only override for a restaurant's payment-provider config.
+ *
+ * Lets us patch in production credentials manually (e.g., when a merchant
+ * was onboarded through Kushki's portal directly, not through our wizard),
+ * or fix a wedged state — flip a stuck "submitted" back to "active", etc.
+ */
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "platform_admin") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const rest = await db.restaurant.findUnique({ where: { id } });
+  if (!rest) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid", issues: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+
+  const wasActive = rest.kushkiOnboardingStatus === "active";
+  const willBeActive = parsed.data.onboardingStatus === "active";
+
+  const data: Record<string, unknown> = {
+    kushkiMerchantId: parsed.data.merchantId,
+    kushkiPublicKey: parsed.data.publicKey,
+    kushkiOnboardingStatus: parsed.data.onboardingStatus,
+    kushkiOnboardingNotes: parsed.data.notes,
+  };
+  // Stamp activatedAt the first time the merchant becomes active, but don't
+  // overwrite an existing stamp if the admin toggles status around.
+  if (willBeActive && !rest.kushkiActivatedAt) {
+    data.kushkiActivatedAt = new Date();
+  }
+  // Only re-encrypt if a new private key was provided.
+  if (parsed.data.privateKey !== undefined && parsed.data.privateKey !== null) {
+    if (parsed.data.privateKey.length === 0) {
+      data.kushkiPrivateKeyEnc = null;
+    } else {
+      data.kushkiPrivateKeyEnc = encrypt(parsed.data.privateKey);
+    }
+  }
+
+  await db.restaurant.update({ where: { id }, data });
+
+  return NextResponse.json({
+    ok: true,
+    flipped: !wasActive && willBeActive,
+  });
+}

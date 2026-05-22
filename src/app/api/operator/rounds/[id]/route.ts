@@ -45,10 +45,13 @@ export async function PATCH(
     const now = new Date();
 
     if (parsed.data.status === "cancelled") {
-      // Cancellation path: stamp who/when/why on the round, drop its items
-      // from kitchen flow (they get a sentinel status so any other queries
-      // can ignore them), and don't touch the order status — the operator
-      // decides downstream whether to refund / recompute.
+      // Cancellation path: stamp who/when/why on the round and pull its
+      // items out of every downstream view. We also subtract the cancelled
+      // items' value from the order subtotal so the customer's outstanding
+      // amount drops in real time — provided the order isn't paid yet.
+      const items = await tx.orderItem.findMany({
+        where: { roundId: round.id },
+      });
       await tx.round.update({
         where: { id: round.id },
         data: {
@@ -65,6 +68,33 @@ export async function PATCH(
         where: { roundId: round.id },
         data: { kitchenStatus: "ready", servedAt: null },
       });
+
+      const orderRow = await tx.order.findUnique({
+        where: { id: round.orderId },
+        select: { status: true, subtotalCents: true, totalCents: true, tipCents: true },
+      });
+      // Only adjust subtotals on unpaid orders. Once paid, recomputing here
+      // would imply a refund we don't model yet — leave the bill alone and
+      // let staff handle the refund through the wallet flow.
+      if (
+        orderRow &&
+        orderRow.status !== "paid" &&
+        orderRow.status !== "paying"
+      ) {
+        const cancelledValue = items.reduce(
+          (s, i) => s + i.priceCentsSnapshot * i.qty,
+          0,
+        );
+        const newSubtotal = Math.max(0, orderRow.subtotalCents - cancelledValue);
+        await tx.order.update({
+          where: { id: round.orderId },
+          data: {
+            subtotalCents: newSubtotal,
+            // No payments yet on a non-paying order, so totals match subtotal.
+            totalCents: newSubtotal + orderRow.tipCents,
+          },
+        });
+      }
       return;
     }
 
@@ -121,10 +151,25 @@ export async function PATCH(
     }
   });
 
-  publishOrderEvent(round.order.restaurantId, {
-    type: parsed.data.status === "ready" ? "order.ready" : "order.updated",
-    orderId: round.orderId,
-  });
+  if (parsed.data.status === "cancelled") {
+    publishOrderEvent(round.order.restaurantId, {
+      type: "order.round_cancelled",
+      orderId: round.orderId,
+      roundId: round.id,
+      reason: parsed.data.reason,
+    });
+    // Also bump the generic update so any non-specialised subscriber (the
+    // mesas grid, the kitchen board) refreshes too.
+    publishOrderEvent(round.order.restaurantId, {
+      type: "order.updated",
+      orderId: round.orderId,
+    });
+  } else {
+    publishOrderEvent(round.order.restaurantId, {
+      type: parsed.data.status === "ready" ? "order.ready" : "order.updated",
+      orderId: round.orderId,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

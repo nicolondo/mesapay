@@ -279,6 +279,10 @@ model Round {
   cancelledAt        DateTime?
   cancelledByEmail   String?
   cancellationReason String?
+  // The waiter clicks "avisé al cliente" once they've gone to the table.
+  // Until then the cancellation surfaces in Salón as an action item.
+  cancellationAckedAt      DateTime?
+  cancellationAckedByEmail String?
 
   items OrderItem[]
 

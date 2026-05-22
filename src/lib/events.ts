@@ -17,7 +17,11 @@ export type OrderEvent =
   // payment_* events.
   | { type: "order.terminal_requested"; orderId: string; paymentId: string; amountCents: number }
   | { type: "payment.approved"; orderId: string; paymentId: string }
-  | { type: "payment.declined"; orderId: string; paymentId: string; reason?: string };
+  | { type: "payment.declined"; orderId: string; paymentId: string; reason?: string }
+  // A specific round (a batch of items, usually a single dish) was
+  // cancelled in the kitchen. Subscribers: customer order view (show
+  // "tu plato fue cancelado" banner), waiter Salón (queue an ack).
+  | { type: "order.round_cancelled"; orderId: string; roundId: string; reason: string };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

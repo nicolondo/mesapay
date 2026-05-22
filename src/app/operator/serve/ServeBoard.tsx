@@ -53,18 +53,35 @@ type WaiterCall = {
   calledAt: string;
 };
 
+type CancelledPending = {
+  id: string;
+  seq: number;
+  cancelledAt: string | null;
+  reason: string;
+  order: {
+    id: string;
+    shortCode: string;
+    tableNumber: number;
+    orderType: "dineIn" | "pickup";
+    pickupName: string | null;
+  };
+  items: { id: string; qty: number; name: string }[];
+};
+
 export function ServeBoard({
   tenantSlug,
   serviceMode,
   rounds,
   cashPending,
   waiterCalls,
+  cancelledPending,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
   rounds: Round[];
   cashPending: CashPending[];
   waiterCalls: WaiterCall[];
+  cancelledPending: CancelledPending[];
 }) {
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -90,6 +107,13 @@ export function ServeBoard({
         if (data.type === "order.waiter_called") {
           try {
             navigator.vibrate?.([160, 60, 160]);
+          } catch {}
+        }
+        if (data.type === "order.round_cancelled") {
+          // Distinct buzz pattern so the waiter feels "go tell the table"
+          // even without looking at the screen.
+          try {
+            navigator.vibrate?.([200, 80, 200, 80, 200]);
           } catch {}
         }
       } catch {}
@@ -189,10 +213,21 @@ export function ServeBoard({
     startTx(() => router.refresh());
   }
 
+  const [ackingCancelId, setAckingCancelId] = useState<string | null>(null);
+  async function ackCancellation(roundId: string) {
+    setAckingCancelId(roundId);
+    await fetch(`/api/operator/rounds/${roundId}/ack-cancellation`, {
+      method: "POST",
+    });
+    setAckingCancelId(null);
+    startTx(() => router.refresh());
+  }
+
   if (
     groups.length === 0 &&
     cashPending.length === 0 &&
-    waiterCalls.length === 0
+    waiterCalls.length === 0 &&
+    cancelledPending.length === 0
   ) {
     return (
       <div className="p-10 text-center">
@@ -234,6 +269,25 @@ export function ServeBoard({
               : "mesas"}
         </div>
       </div>
+
+      {cancelledPending.length > 0 && (
+        <section className="mb-6">
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-danger mb-2">
+            Cancelaciones de cocina · avisar al cliente
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {cancelledPending.map((c) => (
+              <CancelledCard
+                key={c.id}
+                cancelled={c}
+                serviceMode={serviceMode}
+                busy={ackingCancelId === c.id}
+                onAck={() => ackCancellation(c.id)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {waiterCalls.length > 0 && (
         <section className="mb-6">
@@ -316,6 +370,74 @@ export function ServeBoard({
       )}
     </div>
   );
+}
+
+function CancelledCard({
+  cancelled,
+  serviceMode,
+  busy,
+  onAck,
+}: {
+  cancelled: CancelledPending;
+  serviceMode: "table" | "counter";
+  busy: boolean;
+  onAck: () => void;
+}) {
+  const title =
+    cancelled.order.orderType === "pickup"
+      ? `Pickup · ${cancelled.order.pickupName ?? cancelled.order.shortCode}`
+      : serviceMode === "counter"
+        ? `Orden ${cancelled.order.shortCode}`
+        : `Mesa ${cancelled.order.tableNumber} · ${cancelled.order.shortCode}`;
+  return (
+    <li className="rounded-2xl border-2 border-danger/40 bg-danger/5 p-4 flex flex-col">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-danger truncate">
+          {title}
+        </div>
+        {cancelled.cancelledAt && (
+          <span className="font-mono text-[10px] text-op-muted shrink-0">
+            {timeAgo(cancelled.cancelledAt)}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 text-sm">
+        <ul className="space-y-0.5">
+          {cancelled.items.map((i) => (
+            <li key={i.id} className="line-through text-op-muted">
+              {i.qty}× {i.name}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {cancelled.reason && (
+        <div className="mt-2 text-xs text-ink-3">
+          Motivo:{" "}
+          <span className="italic">{cancelled.reason}</span>
+        </div>
+      )}
+      <div className="text-[11px] text-op-muted mt-2">
+        Ve a la mesa y avísale al cliente.
+      </div>
+      <button
+        type="button"
+        onClick={onAck}
+        disabled={busy}
+        className="mt-3 h-9 px-4 rounded-full bg-danger text-bone text-sm font-medium disabled:opacity-50"
+      >
+        {busy ? "Confirmando…" : "Avisé al cliente"}
+      </button>
+    </li>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "ahora";
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  return `${h}h ${mins % 60}m`;
 }
 
 function WaiterCallCard({

@@ -21,7 +21,16 @@ export default async function TablesPage() {
         where: { status: { notIn: ["paid", "cancelled"] } },
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { items: true },
+        include: {
+          // Only include items whose parent round is not cancelled. The
+          // mesas grid shows the diner's live state, so a cancelled plate
+          // should disappear from the count and the subtotal here.
+          items: {
+            where: {
+              OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+            },
+          },
+        },
       },
       _count: { select: { orders: true } },
     },

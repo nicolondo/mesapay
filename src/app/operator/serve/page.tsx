@@ -14,39 +14,53 @@ export default async function ServePage() {
   // That's what the waiter can actually pick up. For "together" mode
   // we still include the round so we can show a waiting state with how
   // many dishes the kitchen still has to finish.
-  const [rounds, cashPending, waiterCalls] = await Promise.all([
-    db.round.findMany({
-      where: {
-        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
-        items: { some: { kitchenStatus: "ready", servedAt: null } },
-      },
-      include: {
-        order: { include: { table: true } },
-        items: { orderBy: { id: "asc" } },
-      },
-      orderBy: { readyAt: "asc" },
-    }),
-    db.payment.findMany({
-      where: {
-        method: "demo_cash",
-        status: "pending",
-        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
-      },
-      include: {
-        order: { include: { table: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.order.findMany({
-      where: {
-        restaurantId,
-        needsWaiter: true,
-        status: { notIn: ["paid", "cancelled"] },
-      },
-      include: { table: true },
-      orderBy: { waiterCalledAt: "asc" },
-    }),
-  ]);
+  const [rounds, cashPending, waiterCalls, cancelledPending] =
+    await Promise.all([
+      db.round.findMany({
+        where: {
+          order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+          items: { some: { kitchenStatus: "ready", servedAt: null } },
+        },
+        include: {
+          order: { include: { table: true } },
+          items: { orderBy: { id: "asc" } },
+        },
+        orderBy: { readyAt: "asc" },
+      }),
+      db.payment.findMany({
+        where: {
+          method: "demo_cash",
+          status: "pending",
+          order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        },
+        include: {
+          order: { include: { table: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.order.findMany({
+        where: {
+          restaurantId,
+          needsWaiter: true,
+          status: { notIn: ["paid", "cancelled"] },
+        },
+        include: { table: true },
+        orderBy: { waiterCalledAt: "asc" },
+      }),
+      // Cancelled rounds where the waiter still has to go tell the customer.
+      db.round.findMany({
+        where: {
+          order: { restaurantId },
+          status: "cancelled",
+          cancellationAckedAt: null,
+        },
+        include: {
+          order: { include: { table: true } },
+          items: { orderBy: { id: "asc" } },
+        },
+        orderBy: { cancelledAt: "asc" },
+      }),
+    ]);
 
   return (
     <ServeBoard
@@ -96,6 +110,24 @@ export default async function ServePage() {
         shortCode: o.shortCode,
         tableNumber: o.table.number,
         calledAt: (o.waiterCalledAt ?? o.updatedAt).toISOString(),
+      }))}
+      cancelledPending={cancelledPending.map((r) => ({
+        id: r.id,
+        seq: r.seq,
+        cancelledAt: r.cancelledAt ? r.cancelledAt.toISOString() : null,
+        reason: r.cancellationReason ?? "",
+        order: {
+          id: r.order.id,
+          shortCode: r.order.shortCode,
+          tableNumber: r.order.table.number,
+          orderType: r.order.orderType as "dineIn" | "pickup",
+          pickupName: r.order.pickupName,
+        },
+        items: r.items.map((i) => ({
+          id: i.id,
+          qty: i.qty,
+          name: i.nameSnapshot,
+        })),
       }))}
     />
   );

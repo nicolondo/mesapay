@@ -23,13 +23,27 @@ export default async function OrderView({
     include: {
       table: true,
       items: {
-        include: { menuItem: true, rating: true },
+        include: { menuItem: true, rating: true, round: true },
         orderBy: { id: "asc" },
       },
       rounds: { orderBy: { seq: "asc" } },
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
+
+  const cancelledRounds = order.rounds.filter((r) => r.status === "cancelled");
+  // Recent cancellations get a prominent banner. We treat the most recent
+  // ones as "new" so the customer sees the apology even if they were
+  // already on the page when the kitchen pressed cancel.
+  const cancelledLines = cancelledRounds.flatMap((r) => {
+    const items = order.items.filter((i) => i.roundId === r.id);
+    return items.map((i) => ({
+      itemName: i.nameSnapshot,
+      qty: i.qty,
+      reason: r.cancellationReason ?? "",
+      cancelledAt: r.cancelledAt,
+    }));
+  });
 
   // Build the restaurant-wide cooking queue so the ETA walks the actual FIFO
   // line, not just this order's rounds.
@@ -62,6 +76,46 @@ export default async function OrderView({
       </h1>
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
+
+      {cancelledLines.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-danger/40 bg-danger/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-danger/15 text-danger flex items-center justify-center text-lg shrink-0">
+              !
+            </div>
+            <div className="flex-1">
+              <div className="font-display text-lg text-danger">
+                {cancelledLines.length === 1
+                  ? "Un plato de tu pedido fue cancelado"
+                  : `${cancelledLines.length} platos de tu pedido fueron cancelados`}
+              </div>
+              <p className="text-sm text-ink-3 mt-1">
+                El mesero pasará por tu mesa para avisarte. No se te va a
+                cobrar lo cancelado.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {cancelledLines.map((c, i) => (
+                  <li
+                    key={i}
+                    className="bg-paper border border-hairline rounded-lg px-3 py-2 text-sm"
+                  >
+                    <div className="font-medium">
+                      <span className="line-through text-muted">
+                        {c.qty}× {c.itemName}
+                      </span>
+                    </div>
+                    {c.reason && (
+                      <div className="text-[12px] text-ink-3 mt-0.5">
+                        Motivo: <span className="italic">{c.reason}</span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {tenant.serviceMode !== "counter" &&
         order.status !== "paid" &&
@@ -102,8 +156,17 @@ export default async function OrderView({
             const tint = statusBadge(r.status);
             const eta = etas.get(r.id);
             const isPending = r.status === "placed" || r.status === "in_kitchen";
+            const isCancelled = r.status === "cancelled";
             return (
-              <li key={r.id} className="border border-hairline rounded-xl p-4 bg-paper">
+              <li
+                key={r.id}
+                className={
+                  "border rounded-xl p-4 " +
+                  (isCancelled
+                    ? "border-danger/30 bg-danger/5"
+                    : "border-hairline bg-paper")
+                }
+              >
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs tracking-wider uppercase text-muted">
                     Ronda {r.seq}
@@ -122,12 +185,25 @@ export default async function OrderView({
                     </span>
                   </div>
                 </div>
+                {isCancelled && r.cancellationReason && (
+                  <div className="mt-2 text-xs text-danger">
+                    Motivo de cancelación:{" "}
+                    <span className="italic">{r.cancellationReason}</span>
+                  </div>
+                )}
                 <ul className="mt-2 divide-y divide-hairline">
                   {lines.map((li) => (
                     <li key={li.id} className="py-2">
                       <div className="flex justify-between gap-3">
                         <div className="flex-1">
-                          <div className="text-sm">
+                          <div
+                            className={
+                              "text-sm " +
+                              (isCancelled
+                                ? "line-through text-muted"
+                                : "")
+                            }
+                          >
                             {li.qty}× {li.nameSnapshot}
                           </div>
                           {li.guestName && (
@@ -182,7 +258,12 @@ export default async function OrderView({
           string,
           { name: string; items: typeof order.items; subtotal: number }
         >();
-        for (const i of order.items) {
+        // Skip cancelled-round items — they don't count toward anyone's
+        // tab anymore.
+        const liveItems = order.items.filter(
+          (i) => !i.round || i.round.status !== "cancelled",
+        );
+        for (const i of liveItems) {
           const key = i.guestName?.trim() || "__anon__";
           const label = i.guestName?.trim() || "Sin nombre";
           const entry =

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import { AdminPagosConfig } from "./AdminPagosConfig";
 
 function fmtFull(d: Date): string {
   const f = fmtBogotaDateTime(d);
@@ -117,23 +118,19 @@ export default async function AdminPagosPage({
             <strong>Notas:</strong> {rest.kushkiOnboardingNotes}
           </div>
         )}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <Field
-            label="Merchant ID"
-            value={rest.kushkiMerchantId ?? "—"}
-            mono
-          />
-          <Field
-            label="Public Key"
-            value={rest.kushkiPublicKey ?? "—"}
-            mono
-          />
-          <Field
-            label="Private Key"
-            value={rest.kushkiPrivateKeyEnc ? "(cifrado en DB)" : "—"}
-            mono
-          />
-        </div>
+      </section>
+
+      <section className="mb-6">
+        <AdminPagosConfig
+          restaurantId={id}
+          initial={{
+            merchantId: rest.kushkiMerchantId ?? "",
+            publicKey: rest.kushkiPublicKey ?? "",
+            onboardingStatus: rest.kushkiOnboardingStatus,
+            notes: rest.kushkiOnboardingNotes ?? "",
+            hasPrivateKey: !!rest.kushkiPrivateKeyEnc,
+          }}
+        />
       </section>
 
       <section className="mb-6">

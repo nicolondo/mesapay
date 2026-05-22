@@ -14,6 +14,10 @@ const schema = z.discriminatedUnion("status", [
     // Required, but trimmed lazily so a single-space submit fails the
     // min(3) check instead of sneaking through.
     reason: z.string().trim().min(3).max(240),
+    // If true, also flip MenuItem.available=false for every distinct menu
+    // item in the cancelled round. Used when the cook flags an out-of-stock
+    // dish so it disappears from the live menu immediately.
+    markUnavailable: z.boolean().default(false),
   }),
 ]);
 
@@ -93,6 +97,40 @@ export async function PATCH(
             // No payments yet on a non-paying order, so totals match subtotal.
             totalCents: newSubtotal + orderRow.tipCents,
           },
+        });
+      }
+
+      // Optional: flip the menu items in this round to unavailable so the
+      // dish stops showing in the customer menu. Triggered when the cook
+      // explicitly says "no está disponible" — see CANCEL_PRESETS.
+      if (parsed.data.markUnavailable && items.length > 0) {
+        const menuItemIds = Array.from(
+          new Set(items.map((i) => i.menuItemId)),
+        );
+        await tx.menuItem.updateMany({
+          where: {
+            id: { in: menuItemIds },
+            restaurantId: round.order.restaurantId,
+          },
+          data: { available: false },
+        });
+      }
+
+      // If every other round of this order is already cancelled, the order
+      // itself has nothing left to track — close it. Otherwise it would
+      // stick around on the mesas grid with 0 items + ghost action buttons.
+      const activeRoundCount = await tx.round.count({
+        where: { orderId: round.orderId, status: { not: "cancelled" } },
+      });
+      if (
+        activeRoundCount === 0 &&
+        orderRow &&
+        orderRow.status !== "paid" &&
+        orderRow.status !== "paying"
+      ) {
+        await tx.order.update({
+          where: { id: round.orderId },
+          data: { status: "cancelled" },
         });
       }
       return;

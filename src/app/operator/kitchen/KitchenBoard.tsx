@@ -158,11 +158,19 @@ export function KitchenBoard({
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
 
-  async function cancelRound(roundId: string, reason: string) {
+  async function cancelRound(
+    roundId: string,
+    reason: string,
+    markUnavailable: boolean,
+  ) {
     const res = await fetch(`/api/operator/rounds/${roundId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "cancelled", reason }),
+      body: JSON.stringify({
+        status: "cancelled",
+        reason,
+        markUnavailable,
+      }),
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
@@ -365,7 +373,9 @@ export function KitchenBoard({
                           setCancellingKey(r.id + "-" + col.key)
                         }
                         onClose={() => setCancellingKey(null)}
-                        onConfirm={(reason) => cancelRound(r.id, reason)}
+                        onConfirm={(reason, markUnavailable) =>
+                          cancelRound(r.id, reason, markUnavailable)
+                        }
                       />
                     )}
                   </li>
@@ -609,9 +619,11 @@ function EtaBadge({ readyEta }: { readyEta: string }) {
   );
 }
 
-// Quick-pick motives. Tapping one cancels the round immediately with that
-// exact text as the reason — no need to type. Easy to extend.
-const CANCEL_PRESETS: string[] = ["No está disponible"];
+// Quick-pick motives. Tapping one cancels the round immediately with the
+// preset text + the right "mark unavailable" intent. Easy to extend.
+const CANCEL_PRESETS: { label: string; markUnavailable: boolean }[] = [
+  { label: "No está disponible", markUnavailable: true },
+];
 
 function CancelControl({
   cardKey,
@@ -624,9 +636,10 @@ function CancelControl({
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
-  onConfirm: (reason: string) => Promise<void>;
+  onConfirm: (reason: string, markUnavailable: boolean) => Promise<void>;
 }) {
   const [reason, setReason] = useState("");
+  const [markUnavailable, setMarkUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -642,6 +655,7 @@ function CancelControl({
       return () => clearTimeout(t);
     } else {
       setReason("");
+      setMarkUnavailable(false);
       setErr(null);
     }
   }, [open]);
@@ -669,7 +683,7 @@ function CancelControl({
     setBusy(true);
     setErr(null);
     try {
-      await onConfirm(trimmed);
+      await onConfirm(trimmed, markUnavailable);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
     } finally {
@@ -677,14 +691,16 @@ function CancelControl({
     }
   }
 
-  // One-tap cancel with a canned reason. We use the preset text verbatim
-  // so the operator doesn't need to confirm twice.
-  async function submitPreset(preset: string) {
+  // One-tap cancel with a canned reason. Each preset declares whether the
+  // dish should also be flipped to unavailable on the menu — for example
+  // "No está disponible" obviously yes, but a future "Cliente cambió de
+  // opinión" preset would not.
+  async function submitPreset(preset: { label: string; markUnavailable: boolean }) {
     if (busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await onConfirm(preset);
+      await onConfirm(preset.label, preset.markUnavailable);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
     } finally {
@@ -702,14 +718,18 @@ function CancelControl({
       <div className="flex flex-wrap gap-1.5 mb-2">
         {CANCEL_PRESETS.map((p) => (
           <button
-            key={p}
+            key={p.label}
             type="button"
             onClick={() => submitPreset(p)}
             disabled={busy}
             className="h-7 px-2.5 rounded-full bg-danger/15 text-danger text-[11px] font-medium hover:bg-danger/25 disabled:opacity-50"
-            title={`Cancelar con motivo: ${p}`}
+            title={
+              p.markUnavailable
+                ? `${p.label} (también quita el plato de la carta)`
+                : p.label
+            }
           >
-            {p}
+            {p.label}
           </button>
         ))}
       </div>
@@ -737,6 +757,19 @@ function CancelControl({
           placeholder="Ej. cliente cambió de opinión, ingrediente agotado…"
           className="mt-1 w-full text-sm px-2 py-1.5 rounded border border-danger/40 bg-op-surface focus:outline-none focus:border-danger"
         />
+      </label>
+      <label className="mt-2 flex items-start gap-2 text-[12px] text-op-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={markUnavailable}
+          onChange={(e) => setMarkUnavailable(e.target.checked)}
+          disabled={busy}
+          className="mt-0.5 accent-danger"
+        />
+        <span>
+          También quitar este plato de la carta hasta que vuelva a estar
+          disponible
+        </span>
       </label>
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
       <div className="mt-2 flex justify-end gap-2">

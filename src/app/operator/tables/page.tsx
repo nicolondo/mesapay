@@ -153,7 +153,14 @@ export default async function TablesPage() {
                       {fmtCOP(order.subtotalCents)}
                     </span>
                   </div>
-                  <TableActions orderId={order.id} status={order.status} />
+                  {/* Only show the per-table actions when there's actually
+                      something to serve / cancel. When itemCount hits 0 the
+                      round-cancellation flow has already closed the order
+                      out (or is about to). Showing "Marcar servido" against
+                      zero items is misleading. */}
+                  {itemCount > 0 && (
+                    <TableActions orderId={order.id} status={order.status} />
+                  )}
                 </div>
               )}
 

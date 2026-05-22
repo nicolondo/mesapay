@@ -230,6 +230,29 @@ export default async function RestaurantDetail({
       </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              Pagos · Kushki
+            </div>
+            <div className="text-sm mt-1">
+              {rest.kushkiOnboardingStatus === "active"
+                ? "Activo. El comercio puede recibir pagos."
+                : rest.kushkiOnboardingStatus === "not_started"
+                  ? "Aún no ha iniciado el onboarding."
+                  : `Estado: ${rest.kushkiOnboardingStatus}`}
+            </div>
+          </div>
+          <Link
+            href={`/admin/restaurants/${id}/kushki`}
+            className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
+          >
+            Ver detalles →
+          </Link>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
           Modo de servicio
         </div>

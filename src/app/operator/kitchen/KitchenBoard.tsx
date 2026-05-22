@@ -609,6 +609,10 @@ function EtaBadge({ readyEta }: { readyEta: string }) {
   );
 }
 
+// Quick-pick motives. Tapping one cancels the round immediately with that
+// exact text as the reason — no need to type. Easy to extend.
+const CANCEL_PRESETS: string[] = ["No está disponible"];
+
 function CancelControl({
   cardKey,
   open,
@@ -673,6 +677,21 @@ function CancelControl({
     }
   }
 
+  // One-tap cancel with a canned reason. We use the preset text verbatim
+  // so the operator doesn't need to confirm twice.
+  async function submitPreset(preset: string) {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await onConfirm(preset);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div
       // The cardKey is here mostly for future-proofing tooling — it makes
@@ -680,9 +699,23 @@ function CancelControl({
       data-card-key={cardKey}
       className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-2"
     >
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {CANCEL_PRESETS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => submitPreset(p)}
+            disabled={busy}
+            className="h-7 px-2.5 rounded-full bg-danger/15 text-danger text-[11px] font-medium hover:bg-danger/25 disabled:opacity-50"
+            title={`Cancelar con motivo: ${p}`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
       <label className="block">
         <span className="font-mono text-[9px] tracking-wider uppercase text-danger">
-          Motivo de cancelación
+          O escribe otro motivo
         </span>
         <textarea
           ref={ref}

@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  loadProfiles,
+  saveProfile,
+  removeProfile,
+  type InvoiceProfile,
+} from "@/lib/invoiceProfiles";
 
 type DocType = "CC" | "CE" | "NIT" | "PA";
 
@@ -150,6 +156,38 @@ function InvoiceFormSheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Saved profiles from previous orders on this device (any restaurant).
+  // localStorage-only; nothing crosses to the server until the diner picks
+  // one and submits it.
+  const [profiles, setProfiles] = useState<InvoiceProfile[]>([]);
+  const [showSaved, setShowSaved] = useState(false);
+
+  // Load saved profiles on mount. Default to showing the picker if there
+  // are any and the form isn't already pre-filled from a prior request on
+  // this same order.
+  useEffect(() => {
+    const ps = loadProfiles();
+    setProfiles(ps);
+    if (ps.length > 0 && !initial) setShowSaved(true);
+  }, [initial]);
+
+  function applyProfile(p: InvoiceProfile) {
+    setCustomerName(p.customerName);
+    setDocType(p.docType);
+    setDocNumber(p.docNumber);
+    setEmail(p.email);
+    setAddress(p.address);
+    setCity(p.city);
+    setDepartment(p.department);
+    setPlaceId(p.placeId ?? null);
+    setRawComponents(p.rawComponents ?? null);
+    setShowSaved(false);
+  }
+
+  function dropProfile(id: string) {
+    removeProfile(id);
+    setProfiles(loadProfiles());
+  }
 
   const addressRef = useRef<HTMLInputElement | null>(null);
   // Track the Maps Autocomplete instance to clean up on close. Without a
@@ -280,6 +318,24 @@ function InvoiceFormSheet({
       setErr(humanError(j));
       return;
     }
+    // Remember on this device so the next restaurant gets one-tap fill.
+    // Wrapped in try so a storage failure (private mode, full quota) doesn't
+    // hide the success state from the user.
+    try {
+      saveProfile({
+        customerName: customerName.trim(),
+        docType,
+        docNumber: docNumber.trim(),
+        email: email.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        department: department.trim(),
+        placeId,
+        rawComponents,
+      });
+    } catch {
+      /* ignore */
+    }
     setDone(true);
     router.refresh();
   }
@@ -330,6 +386,79 @@ function InvoiceFormSheet({
               </button>
             </div>
             <div className="p-5 space-y-4">
+              {showSaved && profiles.length > 0 && (
+                <div className="rounded-xl border border-hairline bg-ivory p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                      Datos guardados en este dispositivo
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSaved(false)}
+                      className="text-[11px] text-muted hover:text-ink"
+                    >
+                      Escribir nuevos →
+                    </button>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {profiles.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex items-center gap-2 bg-paper border border-hairline rounded-lg p-2"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => applyProfile(p)}
+                          className="flex-1 min-w-0 text-left flex items-center gap-2"
+                        >
+                          <span className="w-8 h-8 rounded-full bg-terracotta text-bone inline-flex items-center justify-center font-display text-sm shrink-0">
+                            {p.customerName.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium truncate">
+                              {p.customerName}
+                            </span>
+                            <span className="block text-[11px] text-muted truncate">
+                              {p.docType} {p.docNumber} ·{" "}
+                              {p.address.split(",")[0]}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `¿Olvidar los datos de ${p.customerName}?`,
+                              )
+                            )
+                              dropProfile(p.id);
+                          }}
+                          className="text-[11px] text-muted hover:text-danger shrink-0 px-1"
+                          aria-label="Olvidar"
+                          title="Olvidar estos datos"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[10px] text-muted-2 mt-2">
+                    Solo en este dispositivo. Si borras los datos del
+                    navegador se pierden.
+                  </p>
+                </div>
+              )}
+              {!showSaved && profiles.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowSaved(true)}
+                  className="text-[12px] text-terracotta hover:underline"
+                >
+                  Usar datos guardados ({profiles.length}) →
+                </button>
+              )}
+
               <Field
                 label="Nombre o razón social"
                 value={customerName}

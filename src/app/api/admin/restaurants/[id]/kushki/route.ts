@@ -72,7 +72,20 @@ export async function PATCH(
     if (parsed.data.privateKey.length === 0) {
       data.kushkiPrivateKeyEnc = null;
     } else {
-      data.kushkiPrivateKeyEnc = encrypt(parsed.data.privateKey);
+      try {
+        data.kushkiPrivateKeyEnc = encrypt(parsed.data.privateKey);
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error: "encrypt_failed",
+            detail:
+              err instanceof Error
+                ? err.message.split("\n")[0]
+                : "missing MESAPAY_SECRET_KEY",
+          },
+          { status: 500 },
+        );
+      }
     }
   }
 

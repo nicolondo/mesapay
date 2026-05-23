@@ -24,6 +24,11 @@ export function getPaymentProvider(): PaymentProvider {
  * if the restaurant hasn't completed onboarding (no key on file). Caller
  * decides how to surface that — typically "the restaurant isn't ready to
  * accept payments yet".
+ *
+ * In KUSHKI_MODE=mock we return a placeholder when there's no real key on
+ * file. The mock provider doesn't validate it, so this lets admins flip a
+ * tenant to "active" without also having to set MESAPAY_SECRET_KEY just to
+ * encrypt a throwaway value. Production paths still need the real key.
  */
 export async function getRestaurantPrivateKey(
   restaurantId: string,
@@ -32,8 +37,17 @@ export async function getRestaurantPrivateKey(
     where: { id: restaurantId },
     select: { kushkiPrivateKeyEnc: true, kushkiMerchantId: true, kushkiOnboardingStatus: true },
   });
-  if (!r?.kushkiPrivateKeyEnc) return null;
-  return decrypt(r.kushkiPrivateKeyEnc);
+  if (!r?.kushkiPrivateKeyEnc) {
+    return env.KUSHKI_MODE === "mock" ? "mock_private_key" : null;
+  }
+  // Decrypt failure in mock should also degrade to placeholder — happens if
+  // the master key changed and the stored ciphertext can't be read back.
+  try {
+    return decrypt(r.kushkiPrivateKeyEnc);
+  } catch {
+    if (env.KUSHKI_MODE === "mock") return "mock_private_key";
+    throw new Error("could not decrypt stored private key");
+  }
 }
 
 /**

@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 
 export default function SignInPage() {
   return (
@@ -36,7 +36,19 @@ function SignIn() {
       setErr("Email o contraseña incorrectos.");
       return;
     }
-    router.push(callbackUrl);
+    // Decide where to land based on role. Honour an explicit ?callbackUrl=
+    // (e.g. the customer was bounced from /me to /signin and we want them
+    // back where they were); otherwise pick the dashboard that matches the
+    // user's role — terminal users should never see the marketing home.
+    let dest = callbackUrl;
+    if (callbackUrl === "/" || !callbackUrl) {
+      const session = await getSession();
+      const role = session?.user?.role;
+      if (role === "terminal") dest = "/terminal";
+      else if (role === "operator") dest = "/operator";
+      else if (role === "platform_admin") dest = "/admin";
+    }
+    router.push(dest);
     router.refresh();
   }
 

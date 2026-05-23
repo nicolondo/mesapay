@@ -61,20 +61,35 @@ export default async function TerminalPage() {
         outstandingCents: 0,
         paidCents: 0,
         pendingPaymentId: null,
+        pendingTerminalAmountCents: null,
+        pendingTerminalRequestedAt: null,
         approvedSummaries: [],
       };
     }
     const approved = order.payments.filter((p) => p.status === "approved");
-    const pending = order.payments.find((p) => p.status === "pending");
+    // Prefer a pending datáfono request over any other pending payment so
+    // the "pidió datáfono" highlight always wins. The cashier needs to see
+    // that immediately — a pending cash payment can wait.
+    const pendingTerminal = order.payments.find(
+      (p) => p.status === "pending" && p.method === "kushki_card_terminal",
+    );
+    const pending = pendingTerminal ?? order.payments.find((p) => p.status === "pending");
     const totals = computeOrderTotals(order.subtotalCents, approved);
-    const state: "paid" | "charging" | "partial" | "occupied" =
+    const state:
+      | "paid"
+      | "terminal_requested"
+      | "charging"
+      | "partial"
+      | "occupied" =
       order.status === "paid"
         ? "paid"
-        : pending
-          ? "charging"
-          : totals.foodPaidCents > 0
-            ? "partial"
-            : "occupied";
+        : pendingTerminal
+          ? "terminal_requested"
+          : pending
+            ? "charging"
+            : totals.foodPaidCents > 0
+              ? "partial"
+              : "occupied";
     return {
       tableId: t.id,
       number: t.number,
@@ -86,6 +101,14 @@ export default async function TerminalPage() {
       outstandingCents: totals.outstandingCents,
       paidCents: totals.foodPaidCents,
       pendingPaymentId: pending?.id ?? null,
+      // What the diner asked the terminal to charge — includes whatever
+      // tip they picked. The card shows it next to "pidió datáfono".
+      pendingTerminalAmountCents: pendingTerminal
+        ? pendingTerminal.amountCents + pendingTerminal.tipCents
+        : null,
+      pendingTerminalRequestedAt: pendingTerminal
+        ? pendingTerminal.createdAt.toISOString()
+        : null,
       approvedSummaries: approved.slice(-4).map((p) => ({
         id: p.id,
         method: p.method,

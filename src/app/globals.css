@@ -138,6 +138,15 @@ body {
 .pulse-ring { animation: pulseRing 2.4s ease-out infinite; }
 .pulse-ring-slow { animation: pulseRing 3.6s ease-out infinite; animation-delay: 1.2s; }
 
+/* Soft pulse for the terminal grid — only shadow + border alpha change, so
+   the card content stays readable. Tailwind's animate-pulse would dim the
+   whole tile and make the amount hard to read. */
+@keyframes pulseSoft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 83, 46, 0.5); }
+  50%      { box-shadow: 0 0 0 10px rgba(201, 83, 46, 0); }
+}
+.animate-pulse-soft { animation: pulseSoft 1.8s ease-in-out infinite; }
+
 @keyframes scanBeam {
   0% { transform: translateY(-100%); opacity: 0; }
   20% { opacity: 1; }

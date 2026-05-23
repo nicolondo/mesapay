@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
 
-export type TableState = "free" | "occupied" | "partial" | "charging" | "paid";
+export type TableState =
+  | "free"
+  | "occupied"
+  | "partial"
+  | "charging"
+  | "terminal_requested"
+  | "paid";
 
 export type TableCard = {
   tableId: string;
@@ -17,6 +23,8 @@ export type TableCard = {
   outstandingCents: number;
   paidCents: number;
   pendingPaymentId: string | null;
+  pendingTerminalAmountCents: number | null;
+  pendingTerminalRequestedAt: string | null;
   approvedSummaries: {
     id: string;
     method: string;
@@ -65,14 +73,28 @@ export function TerminalGrid({
     let free = 0,
       open = 0,
       paid = 0,
+      requested = 0,
       outstanding = 0;
     for (const t of tables) {
       if (t.state === "free") free++;
       else if (t.state === "paid") paid++;
       else open++;
+      if (t.state === "terminal_requested") requested++;
       outstanding += t.outstandingCents;
     }
-    return { free, open, paid, outstanding };
+    return { free, open, paid, requested, outstanding };
+  }, [tables]);
+
+  // Sort: tables that asked for the terminal jump to the front so the
+  // cashier can't miss them. Within a state, keep numeric order.
+  const sortedTables = useMemo(() => {
+    return [...tables].sort((a, b) => {
+      const stateRank = (s: TableState) =>
+        s === "terminal_requested" ? 0 : 1;
+      const r = stateRank(a.state) - stateRank(b.state);
+      if (r !== 0) return r;
+      return a.number - b.number;
+    });
   }, [tables]);
 
   return (
@@ -85,6 +107,13 @@ export function TerminalGrid({
           <div className="font-display text-3xl">Mesas en vivo</div>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {stats.requested > 0 && (
+            <Stat
+              label="📱 Pidió datáfono"
+              value={String(stats.requested)}
+              tint="bg-terracotta text-bone"
+            />
+          )}
           <Stat label="Libres" value={String(stats.free)} tint="bg-bone/10" />
           <Stat label="Abiertas" value={String(stats.open)} tint="bg-terracotta/20" />
           <Stat label="Pagadas" value={String(stats.paid)} tint="bg-ok/20" />
@@ -97,7 +126,7 @@ export function TerminalGrid({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-        {tables.map((t) => (
+        {sortedTables.map((t) => (
           <TableTile key={t.tableId} t={t} onOpen={() => setOpenTable(t)} />
         ))}
       </div>
@@ -134,6 +163,9 @@ const STATE_TINT: Record<TableState, string> = {
   occupied: "bg-terracotta/15 border-terracotta/40",
   partial: "bg-[#C98A2E]/20 border-[#C98A2E]/50",
   charging: "bg-bone text-ink border-bone",
+  // Stands out from the crowd — bright bone background with a thick
+  // terracotta border so the cashier sees it across the room.
+  terminal_requested: "bg-bone text-ink border-terracotta animate-pulse-soft",
   paid: "bg-ok/15 border-ok/40",
 };
 
@@ -142,26 +174,35 @@ const STATE_LABEL: Record<TableState, string> = {
   occupied: "Abierta",
   partial: "Pago parcial",
   charging: "Cobrando…",
+  terminal_requested: "Pidió datáfono",
   paid: "Pagada",
 };
 
 function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
   const disabled = t.state === "free";
+  const isRequested = t.state === "terminal_requested";
   return (
     <button
       type="button"
       onClick={onOpen}
       disabled={disabled}
       className={
-        "text-left rounded-2xl border p-4 min-h-[140px] transition-colors disabled:cursor-default disabled:opacity-60 " +
-        STATE_TINT[t.state]
+        "text-left rounded-2xl border-2 p-4 min-h-[140px] transition-colors disabled:cursor-default disabled:opacity-60 " +
+        STATE_TINT[t.state] +
+        (isRequested ? " ring-4 ring-terracotta/40 shadow-lg" : "")
       }
     >
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <div className="font-display text-2xl">Mesa {t.number}</div>
-        <div className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-          {STATE_LABEL[t.state]}
-        </div>
+        {isRequested ? (
+          <span className="font-mono text-[10px] tracking-wider uppercase bg-terracotta text-bone px-2 py-0.5 rounded-full shrink-0">
+            📱 Pidió datáfono
+          </span>
+        ) : (
+          <div className="font-mono text-[10px] tracking-wider uppercase opacity-80">
+            {STATE_LABEL[t.state]}
+          </div>
+        )}
       </div>
       {t.shortCode && (
         <div className="font-mono text-[10px] tracking-wider opacity-70 mt-1">
@@ -174,6 +215,20 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
             <div className="font-mono text-xs opacity-70">
               Total {fmtCOP(t.subtotalCents)}
             </div>
+          ) : isRequested && t.pendingTerminalAmountCents != null ? (
+            <>
+              <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
+                Cobrar
+              </div>
+              <div className="font-display text-2xl tabular">
+                {fmtCOP(t.pendingTerminalAmountCents)}
+              </div>
+              {t.pendingTerminalRequestedAt && (
+                <div className="text-[11px] opacity-70 mt-0.5">
+                  Pedido {timeAgo(t.pendingTerminalRequestedAt)}
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
@@ -193,6 +248,14 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
       )}
     </button>
   );
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "hace nada";
+  if (mins < 60) return `hace ${mins}m`;
+  return `hace ${Math.floor(mins / 60)}h`;
 }
 
 function DetailSheet({
@@ -270,9 +333,27 @@ function DetailSheet({
             </div>
           ) : (
             <>
+              {table.state === "terminal_requested" &&
+                table.pendingTerminalAmountCents != null && (
+                  <div className="rounded-xl border-2 border-terracotta bg-terracotta/10 p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📱</span>
+                      <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta font-semibold">
+                        El cliente pidió pagar con datáfono
+                      </div>
+                    </div>
+                    <div className="font-display text-3xl tabular mt-2 text-terracotta">
+                      {fmtCOP(table.pendingTerminalAmountCents)}
+                    </div>
+                    <div className="text-xs text-ink-3 mt-1">
+                      Lleva el datáfono a la mesa y pulsa "Cobrar".
+                    </div>
+                  </div>
+                )}
+
               <div className="rounded-xl border border-hairline bg-paper p-4">
                 <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  Pendiente
+                  Pendiente en la cuenta
                 </div>
                 <div className="font-display text-3xl tabular">
                   {fmtCOP(table.outstandingCents)}
@@ -317,7 +398,10 @@ function DetailSheet({
                 >
                   {busy
                     ? "Enviando al datáfono…"
-                    : `Cobrar ${fmtCOP(table.outstandingCents)}`}
+                    : `Cobrar ${fmtCOP(
+                        table.pendingTerminalAmountCents ??
+                          table.outstandingCents,
+                      )}`}
                 </button>
               ) : (
                 <div className="text-xs text-muted text-center pt-2">

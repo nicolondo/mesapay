@@ -52,6 +52,7 @@ model Restaurant {
   walletMovements     WalletMovement[]
   terminalDevices     TerminalDevice[]
   kushkiWebhookEvents KushkiWebhookEvent[]
+  invoiceRequests     InvoiceRequest[]
 
   @@index([slug])
 }
@@ -258,6 +259,7 @@ model Order {
   payments Payment[]
   rounds   Round[]
   ratings  DishRating[]
+  invoiceRequests InvoiceRequest[]
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -521,4 +523,53 @@ model KushkiWebhookEvent {
   createdAt    DateTime   @default(now())
 
   @@index([type, createdAt])
+}
+
+enum InvoiceDocType {
+  CC
+  CE
+  NIT
+  PA
+}
+
+enum InvoiceRequestStatus {
+  pending
+  generated
+  rejected
+}
+
+// Customer-submitted billing info captured after payment. The restaurant
+// still has to push it through their own invoicing software (Siigo,
+// Alegra, etc.). We just store the data and track which ones have been
+// emitted so nothing falls through the cracks.
+model InvoiceRequest {
+  id             String   @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  customerName   String
+  docType        InvoiceDocType
+  docNumber      String
+  address        String
+  city           String
+  department     String
+  email          String
+
+  // For audit + future API integrations — keep the raw Google Place when
+  // available so we can re-derive components if our parsing was off.
+  placeId        String?
+  rawComponents  Json?
+
+  status         InvoiceRequestStatus @default(pending)
+  generatedAt    DateTime?
+  generatedByEmail String?
+  notes          String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([restaurantId, status, createdAt])
+  @@index([orderId])
 }

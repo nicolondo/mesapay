@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { DoneLive } from "./DoneLive";
+import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,37 @@ export default async function PayDone({
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
+
+  // If the diner already submitted billing info we surface its status
+  // instead of the request button. Only show the most recent — they may
+  // have updated it once.
+  const existingInvoice = await db.invoiceRequest.findFirst({
+    where: { orderId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      customerName: true,
+      docType: true,
+      docNumber: true,
+      email: true,
+      address: true,
+      city: true,
+      department: true,
+    },
+  });
+  const invoiceSummary = existingInvoice
+    ? {
+        status: existingInvoice.status,
+        customerName: existingInvoice.customerName,
+        docType: existingInvoice.docType,
+        docNumber: existingInvoice.docNumber,
+        email: existingInvoice.email,
+        address: existingInvoice.address,
+        city: existingInvoice.city,
+        department: existingInvoice.department,
+      }
+    : null;
 
   // Counter-mode keeps its status tracker: big code + live cook status.
   if (tenant.serviceMode === "counter") {
@@ -144,6 +176,14 @@ export default async function PayDone({
                 {fmtCOP(order.totalCents)}
               </span>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <InvoiceRequestPanel
+              tenantSlug={slug}
+              orderId={order.id}
+              existing={invoiceSummary}
+            />
           </div>
         </div>
       </main>
@@ -377,6 +417,16 @@ export default async function PayDone({
             </div>
           )}
         </div>
+
+        {fullyPaid && (
+          <div className="mt-6">
+            <InvoiceRequestPanel
+              tenantSlug={slug}
+              orderId={order.id}
+              existing={invoiceSummary}
+            />
+          </div>
+        )}
 
         <div className="mt-8 flex justify-center">
           <Link

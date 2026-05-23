@@ -11,6 +11,8 @@ const schema = z.object({
   method: z.enum(["demo_card", "demo_cash", "demo_nequi"]),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),
+  // Only meaningful for demo_cash. Ignored otherwise.
+  cashTenderCents: z.number().int().min(0).max(100_000_000).optional(),
 });
 
 export async function POST(
@@ -45,6 +47,11 @@ export async function POST(
           status: "pending",
           amountCents: parsed.data.amountCents,
           tipCents: parsed.data.tipCents,
+          // Optional diner-declared tender so the waiter brings change ready.
+          cashTenderCents:
+            parsed.data.cashTenderCents != null
+              ? parsed.data.cashTenderCents
+              : null,
         },
       });
       await tx.order.update({

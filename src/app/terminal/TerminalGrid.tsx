@@ -18,6 +18,8 @@ export type PendingPayment = {
   method: string;
   amountCents: number;
   tipCents: number;
+  // Only set for cash payments where the diner declared upfront.
+  cashTenderCents: number | null;
   createdAt: string;
 };
 
@@ -462,6 +464,25 @@ function DetailSheet({
                           </div>
                         </div>
 
+                        {isCash &&
+                          p.cashTenderCents != null &&
+                          p.cashTenderCents >= total && (
+                            <div className="mt-2 rounded-lg border border-[#7F5A1F]/40 bg-[#C98A2E]/15 p-2 text-[12px]">
+                              <div className="font-medium text-[#7F5A1F]">
+                                Pagará con {fmtCOP(p.cashTenderCents)}
+                              </div>
+                              {p.cashTenderCents > total && (
+                                <div className="text-ink-3 mt-0.5">
+                                  Lleva{" "}
+                                  <span className="font-mono tabular font-semibold">
+                                    {fmtCOP(p.cashTenderCents - total)}
+                                  </span>{" "}
+                                  de devuelta
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                         {isTerminal && (
                           <button
                             type="button"
@@ -488,6 +509,7 @@ function DetailSheet({
                         {isCash && cashFormFor === p.id && (
                           <CashConfirmForm
                             owedCents={total}
+                            tenderCents={p.cashTenderCents}
                             busy={busyPaymentId === p.id}
                             onCancel={() => setCashFormFor(null)}
                             onConfirm={(received, change) =>
@@ -628,17 +650,25 @@ function DetailSheet({
 
 function CashConfirmForm({
   owedCents,
+  tenderCents,
   busy,
   onCancel,
   onConfirm,
 }: {
   owedCents: number;
+  tenderCents: number | null;
   busy: boolean;
   onCancel: () => void;
   onConfirm: (cashReceivedCents: number, changeGivenCents: number) => void;
 }) {
-  const [received, setReceived] = useState<number>(owedCents);
-  const [change, setChange] = useState<number>(0);
+  // Prefill from the diner's declared tender if available, falling back to
+  // the exact owed amount. Devuelta auto-suggests; operator can override.
+  const initialReceived =
+    tenderCents != null && tenderCents >= owedCents ? tenderCents : owedCents;
+  const [received, setReceived] = useState<number>(initialReceived);
+  const [change, setChange] = useState<number>(
+    Math.max(0, initialReceived - owedCents),
+  );
   // Suggested change updates automatically when "recibido" changes.
   // Operator can override the change field if they round it.
   const suggestedChange = Math.max(0, received - owedCents);

@@ -38,6 +38,9 @@ type Round = {
 type CashPending = {
   id: string;
   amountCents: number;
+  tipCents: number;
+  // What the diner said they'd pay with (null if they skipped the prompt).
+  cashTenderCents: number | null;
   createdAt: string;
   order: {
     id: string;
@@ -683,6 +686,23 @@ function CashCard({
           {fmtCOP(pending.amountCents)}
         </div>
       </div>
+      {pending.cashTenderCents != null &&
+        pending.cashTenderCents >= pending.amountCents && (
+          <div className="rounded-lg border border-[#7F5A1F]/40 bg-[#C98A2E]/15 p-2.5 text-[12px]">
+            <div className="font-medium text-[#7F5A1F]">
+              Pagará con {fmtCOP(pending.cashTenderCents)}
+            </div>
+            {pending.cashTenderCents > pending.amountCents && (
+              <div className="text-ink-3 mt-0.5">
+                Lleva{" "}
+                <span className="font-mono tabular font-semibold">
+                  {fmtCOP(pending.cashTenderCents - pending.amountCents)}
+                </span>{" "}
+                de devuelta
+              </div>
+            )}
+          </div>
+        )}
       <button
         onClick={onSettle}
         className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform"
@@ -721,10 +741,19 @@ function CashSettleModal({
   onDone: () => void;
 }) {
   const due = pending.amountCents;
+  // If the diner declared a tender amount up front, pre-fill recibido +
+  // devuelta with the expected change. Waiter can still overwrite.
+  const initialReceived =
+    pending.cashTenderCents != null && pending.cashTenderCents >= due
+      ? pending.cashTenderCents
+      : due;
+  const initialChange = Math.max(0, initialReceived - due);
   const [receivedCop, setReceivedCop] = useState<string>(
-    String(Math.round(due / 100)),
+    String(Math.round(initialReceived / 100)),
   );
-  const [changeCop, setChangeCop] = useState<string>("0");
+  const [changeCop, setChangeCop] = useState<string>(
+    String(Math.round(initialChange / 100)),
+  );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 

@@ -64,6 +64,7 @@ export function PayClient({
   const [mode, setMode] = useState<PayMode>("full");
   const [splitCount, setSplitCount] = useState<number>(2);
   const [hasApplePay, setHasApplePay] = useState(false);
+  const [cashTenderOpen, setCashTenderOpen] = useState(false);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -170,7 +171,7 @@ export function PayClient({
     }
   }
 
-  async function payWithCash() {
+  async function payWithCash(cashTenderCents: number | null) {
     if (amountCents <= 0) return;
     setBusy("demo_cash");
     setErr(null);
@@ -183,6 +184,7 @@ export function PayClient({
           method: "demo_cash",
           amountCents,
           tipCents: amountTip,
+          cashTenderCents: cashTenderCents ?? undefined,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -408,7 +410,7 @@ export function PayClient({
           kind="cash"
           disabled={busy !== null || amountCents <= 0}
           busy={busy === "demo_cash"}
-          onClick={payWithCash}
+          onClick={() => setCashTenderOpen(true)}
           amountCents={amountCents}
         />
         {showDemoFallback && (
@@ -430,7 +432,205 @@ export function PayClient({
           </>
         )}
       </div>
+
+      {cashTenderOpen && (
+        <CashTenderSheet
+          amountCents={amountCents}
+          busy={busy === "demo_cash"}
+          onClose={() => setCashTenderOpen(false)}
+          onPay={(tender) => {
+            setCashTenderOpen(false);
+            payWithCash(tender);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Optional pre-flight before the cash request. Asks the diner "¿con cuánto
+ * vas a pagar?" so the waiter brings the right change on the first trip.
+ * Always lets them skip with "le digo al mesero" so it never blocks the
+ * actual flow.
+ */
+function CashTenderSheet({
+  amountCents,
+  busy,
+  onClose,
+  onPay,
+}: {
+  amountCents: number;
+  busy: boolean;
+  onClose: () => void;
+  onPay: (tenderCents: number | null) => void;
+}) {
+  // Smart presets: next multiple of 10k that covers the bill, plus the
+  // common bills. Drop duplicates and anything that doesn't cover.
+  const dueCop = Math.ceil(amountCents / 100);
+  const nextRound = Math.ceil(dueCop / 10000) * 10000;
+  const presetsCop = Array.from(
+    new Set([nextRound, 50000, 100000, 200000].filter((v) => v >= dueCop)),
+  );
+
+  const [customCop, setCustomCop] = useState<string>("");
+  const customCents = Math.round(Number(customCop || 0) * 100);
+  const customValid = customCents >= amountCents;
+
+  function tenderChange(tenderCents: number): number {
+    return Math.max(0, tenderCents - amountCents);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+              Pagar en efectivo · {fmtCOP(amountCents)}
+            </div>
+            <h2 className="font-display text-2xl mt-1">
+              ¿Con cuánto vas a pagar?
+            </h2>
+            <p className="text-xs text-muted mt-1">
+              Opcional. Así el mesero llega con la devuelta ya contada.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <PresetBill
+            label="Cuenta exacta"
+            tenderCents={amountCents}
+            changeCents={0}
+            disabled={busy}
+            onClick={() => onPay(amountCents)}
+            primary
+          />
+          {presetsCop.map((cop) => {
+            const tenderCents = cop * 100;
+            return (
+              <PresetBill
+                key={cop}
+                label={`Con $${cop.toLocaleString("es-CO")}`}
+                tenderCents={tenderCents}
+                changeCents={tenderChange(tenderCents)}
+                disabled={busy}
+                onClick={() => onPay(tenderCents)}
+              />
+            );
+          })}
+
+          <div className="rounded-xl border border-hairline bg-paper p-3">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-1">
+              Otro monto
+            </div>
+            <div className="flex items-stretch gap-2">
+              <span className="self-center text-muted">$</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={customCop}
+                onChange={(e) => setCustomCop(e.target.value)}
+                placeholder="80000"
+                min={Math.ceil(amountCents / 100)}
+                step={1000}
+                className="flex-1 h-11 px-3 rounded-lg border border-hairline bg-ivory font-mono tabular text-base focus:outline-none focus:border-terracotta"
+              />
+              <button
+                type="button"
+                disabled={busy || !customValid}
+                onClick={() => onPay(customCents)}
+                className="h-11 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+              >
+                Usar
+              </button>
+            </div>
+            {customCop && !customValid && (
+              <div className="text-[11px] text-danger mt-1">
+                Menos que la cuenta ({fmtCOP(amountCents)}).
+              </div>
+            )}
+            {customValid && customCents > amountCents && (
+              <div className="text-[11px] text-muted mt-1">
+                Te traen {fmtCOP(customCents - amountCents)} de devuelta.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPay(null)}
+          disabled={busy}
+          className="w-full h-11 rounded-full border border-hairline text-sm text-ink-3 hover:text-ink disabled:opacity-50"
+        >
+          {busy ? "Avisando…" : "Prefiero decirle al mesero →"}
+        </button>
+
+        <p className="text-[11px] text-muted-2 text-center">
+          Si llegas a pagar con otro billete, dile al mesero cuando llegue.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PresetBill({
+  label,
+  tenderCents,
+  changeCents,
+  disabled,
+  primary,
+  onClick,
+}: {
+  label: string;
+  tenderCents: number;
+  changeCents: number;
+  disabled: boolean;
+  primary?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "w-full rounded-xl border-2 px-4 py-3 flex items-center justify-between text-left disabled:opacity-50 " +
+        (primary
+          ? "border-ink bg-ink text-bone"
+          : "border-hairline bg-paper text-ink hover:border-ink")
+      }
+    >
+      <div>
+        <div className="font-medium text-sm">{label}</div>
+        <div
+          className={
+            "text-[11px] mt-0.5 " + (primary ? "opacity-70" : "text-muted")
+          }
+        >
+          {changeCents > 0
+            ? `Te traen ${fmtCOP(changeCents)} de devuelta`
+            : "Sin devuelta"}
+        </div>
+      </div>
+      <div className="font-mono tabular text-base">{fmtCOP(tenderCents)}</div>
+    </button>
   );
 }
 

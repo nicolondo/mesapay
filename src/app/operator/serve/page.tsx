@@ -121,6 +121,8 @@ export default async function ServePage() {
       cashPending={cashPending.map((p) => ({
         id: p.id,
         amountCents: p.amountCents,
+        tipCents: p.tipCents,
+        cashTenderCents: p.cashTenderCents,
         createdAt: p.createdAt.toISOString(),
         order: {
           id: p.order.id,

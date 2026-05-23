@@ -365,6 +365,11 @@ model Payment {
   tipCents     Int           @default(0)
   splitOfCount Int?
   providerRef  String?
+  // Only set for cash payments where the diner declared upfront with how
+  // much they'd pay (e.g. "voy a pagar con $100k"). Lets the waiter bring
+  // exact change on the first trip. Operator can overwrite at settle time
+  // if the diner changes their mind.
+  cashTenderCents Int?
   createdAt    DateTime      @default(now())
   settledAt    DateTime?
 

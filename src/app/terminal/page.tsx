@@ -160,6 +160,7 @@ export default async function TerminalPage() {
         method: p.method,
         amountCents: p.amountCents,
         tipCents: p.tipCents,
+        cashTenderCents: p.cashTenderCents,
         createdAt: p.createdAt.toISOString(),
       })),
       pendingTerminalAmountCents: pendingTerminal

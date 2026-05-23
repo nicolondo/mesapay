@@ -68,6 +68,18 @@ type CancelledPending = {
   items: { id: string; qty: number; name: string }[];
 };
 
+type TerminalPending = {
+  id: string;
+  amountCents: number;
+  tipCents: number;
+  createdAt: string;
+  order: {
+    id: string;
+    shortCode: string;
+    tableNumber: number;
+  };
+};
+
 export function ServeBoard({
   tenantSlug,
   serviceMode,
@@ -75,6 +87,8 @@ export function ServeBoard({
   cashPending,
   waiterCalls,
   cancelledPending,
+  terminalPending,
+  device,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
@@ -82,6 +96,8 @@ export function ServeBoard({
   cashPending: CashPending[];
   waiterCalls: WaiterCall[];
   cancelledPending: CancelledPending[];
+  terminalPending: TerminalPending[];
+  device: { id: string; label: string } | null;
 }) {
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -114,6 +130,13 @@ export function ServeBoard({
           // even without looking at the screen.
           try {
             navigator.vibrate?.([200, 80, 200, 80, 200]);
+          } catch {}
+        }
+        if (data.type === "order.terminal_requested") {
+          // Same urgency as a cash request — the cashier/operator needs
+          // to grab the datáfono and head to the table.
+          try {
+            navigator.vibrate?.([150, 50, 150, 50, 150]);
           } catch {}
         }
       } catch {}
@@ -213,6 +236,10 @@ export function ServeBoard({
     startTx(() => router.refresh());
   }
 
+  const [chargingPaymentId, setChargingPaymentId] = useState<string | null>(
+    null,
+  );
+
   const [ackingCancelId, setAckingCancelId] = useState<string | null>(null);
   async function ackCancellation(roundId: string) {
     setAckingCancelId(roundId);
@@ -226,6 +253,7 @@ export function ServeBoard({
   if (
     groups.length === 0 &&
     cashPending.length === 0 &&
+    terminalPending.length === 0 &&
     waiterCalls.length === 0 &&
     cancelledPending.length === 0
   ) {
@@ -249,6 +277,12 @@ export function ServeBoard({
               {waiterCalls.length}{" "}
               {waiterCalls.length === 1 ? "llamada" : "llamadas"}
               {" · "}
+            </>
+          )}
+          {terminalPending.length > 0 && (
+            <>
+              {terminalPending.length}{" "}
+              {terminalPending.length === 1 ? "datáfono" : "datáfonos"} ·{" "}
             </>
           )}
           {cashPending.length > 0 && (
@@ -308,10 +342,32 @@ export function ServeBoard({
         </section>
       )}
 
-      {cashPending.length > 0 && (
+      {terminalPending.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
-            Cobros en efectivo
+            📱 Pidió datáfono
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {terminalPending.map((p) => (
+              <TerminalPendingCard
+                key={p.id}
+                pending={p}
+                serviceMode={serviceMode}
+                tenantSlug={tenantSlug}
+                device={device}
+                busy={chargingPaymentId === p.id}
+                onCharged={() => startTx(() => router.refresh())}
+                onBusyChange={setChargingPaymentId}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {cashPending.length > 0 && (
+        <section className="mb-6">
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-[#1E5339] mb-2">
+            💵 Cobros en efectivo
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {cashPending.map((c) => (
@@ -501,6 +557,100 @@ function BellIcon() {
   );
 }
 
+function TerminalPendingCard({
+  pending,
+  serviceMode,
+  tenantSlug,
+  device,
+  busy,
+  onCharged,
+  onBusyChange,
+}: {
+  pending: TerminalPending;
+  serviceMode: "table" | "counter";
+  tenantSlug: string;
+  device: { id: string; label: string } | null;
+  busy: boolean;
+  onCharged: () => void;
+  onBusyChange: (id: string | null) => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const total = pending.amountCents + pending.tipCents;
+  const title =
+    serviceMode === "counter"
+      ? `Orden ${pending.order.shortCode}`
+      : `Mesa ${pending.order.tableNumber} · ${pending.order.shortCode}`;
+
+  async function charge() {
+    if (!device) {
+      setErr(
+        "No hay un datáfono activo registrado. Pídele al admin que registre uno en /admin.",
+      );
+      return;
+    }
+    onBusyChange(pending.id);
+    setErr(null);
+    const res = await fetch(`/api/tenant/${tenantSlug}/terminal/charge`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paymentId: pending.id, deviceId: device.id }),
+    });
+    onBusyChange(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "No pudimos enviar al datáfono.");
+      return;
+    }
+    onCharged();
+  }
+
+  return (
+    <li className="rounded-2xl border-2 border-terracotta bg-terracotta/10 p-4 flex flex-col">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta truncate">
+          {title}
+        </div>
+        <span className="font-mono text-[10px] text-op-muted shrink-0">
+          {timeAgoStr(pending.createdAt)}
+        </span>
+      </div>
+      <div className="mt-2 flex items-baseline justify-between">
+        <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+          Cobrar
+        </span>
+        <span className="font-display text-3xl tabular text-terracotta">
+          {fmtCOP(total)}
+        </span>
+      </div>
+      {pending.tipCents > 0 && (
+        <div className="text-[11px] text-op-muted mt-0.5 text-right">
+          Incluye propina {fmtCOP(pending.tipCents)}
+        </div>
+      )}
+      <div className="text-[11px] text-op-muted mt-2">
+        Lleva el datáfono a la mesa y presiona "Cobrar".
+      </div>
+      {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
+      <button
+        type="button"
+        onClick={charge}
+        disabled={busy}
+        className="mt-3 h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
+      >
+        {busy ? "Enviando al datáfono…" : `Cobrar ${fmtCOP(total)}`}
+      </button>
+    </li>
+  );
+}
+
+function timeAgoStr(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "ahora";
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
 function CashCard({
   pending,
   serviceMode,
@@ -592,6 +742,28 @@ function CashSettleModal({
     setChangeCop(String(Math.round(suggested / 100)));
   }
 
+  // Quick presets so a busy waiter doesn't have to type the common bills.
+  // Each preset only makes sense when it covers the bill.
+  const COMMON_BILLS_COP = [
+    Math.ceil(due / 100 / 1000) * 1000, // smallest round that covers
+    50000,
+    100000,
+    200000,
+  ]
+    .filter((v, i, a) => v * 100 >= due && a.indexOf(v) === i)
+    .slice(0, 4);
+
+  function applyExact() {
+    setReceivedCop(String(Math.round(due / 100)));
+    setChangeCop("0");
+  }
+  function applyKeepChange() {
+    // "Que se quede con el cambio" — receivedCop stays as the operator
+    // entered it (whatever bill the customer handed over), devuelta = 0
+    // so the difference flows to propina.
+    setChangeCop("0");
+  }
+
   async function submit() {
     if (short) {
       setErr("Recibido insuficiente.");
@@ -653,6 +825,27 @@ function CashSettleModal({
           <span className="font-display text-3xl tabular">{fmtCOP(due)}</span>
         </div>
 
+        {/* Quick presets — saves the waiter from typing on the phone. */}
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={applyExact}
+            className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
+          >
+            Pagó exacto
+          </button>
+          {COMMON_BILLS_COP.map((bill) => (
+            <button
+              key={bill}
+              type="button"
+              onClick={() => setReceivedSmart(String(bill))}
+              className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
+            >
+              Recibió ${bill.toLocaleString("es-CO")}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
@@ -684,12 +877,26 @@ function CashSettleModal({
           </label>
         </div>
 
+        {/* Big "keep the change → propina" button. When the diner says
+            "quédate con el cambio", one tap zeroes devuelta and the whole
+            difference (recibido − total) flows into the tip ledger. */}
+        {receivedCents > due && changeCents > 0 && (
+          <button
+            type="button"
+            onClick={applyKeepChange}
+            className="w-full h-11 rounded-xl border-2 border-dashed border-[#7F5A1F] bg-[#C98A2E]/10 text-[#7F5A1F] font-medium text-sm hover:bg-[#C98A2E]/20"
+          >
+            💛 Que se quede con el cambio · propina{" "}
+            {fmtCOP(receivedCents - due)}
+          </button>
+        )}
+
         <div className="rounded-xl border border-dashed border-op-border p-3 text-sm flex items-center justify-between">
           <span className="text-op-muted">
             {short
               ? "Falta"
               : extra > 0
-                ? "Propina adicional"
+                ? "💛 Propina"
                 : "Cambio justo"}
           </span>
           <span
@@ -698,7 +905,7 @@ function CashSettleModal({
               (short
                 ? "text-danger"
                 : extra > 0
-                  ? "text-[#7F5A1F]"
+                  ? "text-[#7F5A1F] font-display text-lg"
                   : "text-op-muted")
             }
           >
@@ -707,7 +914,8 @@ function CashSettleModal({
         </div>
         {extra > 0 && (
           <div className="text-[11px] text-op-muted">
-            Se guardará como propina extra para el cierre de turno.
+            La propina se guarda en el pago para el cierre de turno y los
+            reportes. No tiene nada que ver con Kushki.
           </div>
         )}
 

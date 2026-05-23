@@ -14,53 +14,76 @@ export default async function ServePage() {
   // That's what the waiter can actually pick up. For "together" mode
   // we still include the round so we can show a waiting state with how
   // many dishes the kitchen still has to finish.
-  const [rounds, cashPending, waiterCalls, cancelledPending] =
-    await Promise.all([
-      db.round.findMany({
-        where: {
-          order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
-          items: { some: { kitchenStatus: "ready", servedAt: null } },
-        },
-        include: {
-          order: { include: { table: true } },
-          items: { orderBy: { id: "asc" } },
-        },
-        orderBy: { readyAt: "asc" },
-      }),
-      db.payment.findMany({
-        where: {
-          method: "demo_cash",
-          status: "pending",
-          order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
-        },
-        include: {
-          order: { include: { table: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      }),
-      db.order.findMany({
-        where: {
-          restaurantId,
-          needsWaiter: true,
-          status: { notIn: ["paid", "cancelled"] },
-        },
-        include: { table: true },
-        orderBy: { waiterCalledAt: "asc" },
-      }),
-      // Cancelled rounds where the waiter still has to go tell the customer.
-      db.round.findMany({
-        where: {
-          order: { restaurantId },
-          status: "cancelled",
-          cancellationAckedAt: null,
-        },
-        include: {
-          order: { include: { table: true } },
-          items: { orderBy: { id: "asc" } },
-        },
-        orderBy: { cancelledAt: "asc" },
-      }),
-    ]);
+  const [
+    rounds,
+    cashPending,
+    terminalPending,
+    waiterCalls,
+    cancelledPending,
+    devices,
+  ] = await Promise.all([
+    db.round.findMany({
+      where: {
+        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        items: { some: { kitchenStatus: "ready", servedAt: null } },
+      },
+      include: {
+        order: { include: { table: true } },
+        items: { orderBy: { id: "asc" } },
+      },
+      orderBy: { readyAt: "asc" },
+    }),
+    db.payment.findMany({
+      where: {
+        method: "demo_cash",
+        status: "pending",
+        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+      },
+      include: {
+        order: { include: { table: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    // Datáfono requests waiting for the operator/cashier to push the
+    // amount to the actual terminal. Same urgency as cash requests.
+    db.payment.findMany({
+      where: {
+        method: "kushki_card_terminal",
+        status: "pending",
+        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+      },
+      include: { order: { include: { table: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.order.findMany({
+      where: {
+        restaurantId,
+        needsWaiter: true,
+        status: { notIn: ["paid", "cancelled"] },
+      },
+      include: { table: true },
+      orderBy: { waiterCalledAt: "asc" },
+    }),
+    // Cancelled rounds where the waiter still has to go tell the customer.
+    db.round.findMany({
+      where: {
+        order: { restaurantId },
+        status: "cancelled",
+        cancellationAckedAt: null,
+      },
+      include: {
+        order: { include: { table: true } },
+        items: { orderBy: { id: "asc" } },
+      },
+      orderBy: { cancelledAt: "asc" },
+    }),
+    db.terminalDevice.findMany({
+      where: { restaurantId, active: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const device = devices[0] ?? null;
 
   return (
     <ServeBoard
@@ -129,6 +152,20 @@ export default async function ServePage() {
           name: i.nameSnapshot,
         })),
       }))}
+      terminalPending={terminalPending.map((p) => ({
+        id: p.id,
+        amountCents: p.amountCents,
+        tipCents: p.tipCents,
+        createdAt: p.createdAt.toISOString(),
+        order: {
+          id: p.order.id,
+          shortCode: p.order.shortCode,
+          tableNumber: p.order.table.number,
+        },
+      }))}
+      device={
+        device ? { id: device.kushkiDeviceId, label: device.label } : null
+      }
     />
   );
 }

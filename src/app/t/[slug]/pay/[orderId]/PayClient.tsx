@@ -21,9 +21,7 @@ type MethodKind =
   | "kushki_apple_pay"
   | "kushki_google_pay"
   | "kushki_card_terminal"
-  | "demo_cash"
-  | "demo_card"
-  | "demo_nequi";
+  | "demo_cash";
 
 export function PayClient({
   tenantSlug,
@@ -204,36 +202,9 @@ export function PayClient({
     }
   }
 
-  // Demo paths only show when the restaurant isn't onboarded yet and we're
-  // in mock mode — keeps local dev usable without ever exposing them in prod.
-  async function payDemo(method: "demo_card" | "demo_nequi") {
-    if (amountCents <= 0) return;
-    setBusy(method);
-    setErr(null);
-    try {
-      const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          method,
-          amountCents,
-          tipCents: amountTip,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErr(j.error ?? "El pago falló.");
-        return;
-      }
-      const done = j.paymentId
-        ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`
-        : `/t/${tenantSlug}/pay/${orderId}/done`;
-      router.push(done);
-    } finally {
-      setBusy(null);
-    }
-  }
+  // The "Demo pedir datáfono" button reuses payWithTerminal so the demo
+  // path exercises the exact same code as production. No separate demo
+  // function needed.
 
   if (alreadyPaid) {
     return (
@@ -455,23 +426,19 @@ export function PayClient({
         />
         {showDemoFallback && (
           <>
+            {/* Same flow as the real "Tarjeta con datáfono" button — useful
+                for previewing the customer's "esperando datáfono" screen
+                without having to activate pagos para el restaurante. */}
             <PayButton
-              kind="demo_card"
+              kind="demo_terminal"
               disabled={busy !== null || amountCents <= 0}
-              busy={busy === "demo_card"}
-              onClick={() => payDemo("demo_card")}
-              amountCents={amountCents}
-            />
-            <PayButton
-              kind="demo_nequi"
-              disabled={busy !== null || amountCents <= 0}
-              busy={busy === "demo_nequi"}
-              onClick={() => payDemo("demo_nequi")}
+              busy={busy === "kushki_card_terminal"}
+              onClick={payWithTerminal}
               amountCents={amountCents}
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">
               Modo demo. En producción solo verás Apple/Google Pay, datáfono
-              y efectivo.
+              y efectivo (activa pagos para el restaurante).
             </p>
           </>
         )}
@@ -492,8 +459,7 @@ function PayButton({
     | "google"
     | "terminal"
     | "cash"
-    | "demo_card"
-    | "demo_nequi";
+    | "demo_terminal";
   disabled: boolean;
   busy: boolean;
   onClick: () => void;
@@ -520,7 +486,7 @@ function PayButton({
 }
 
 const BUTTON_META: Record<
-  "apple" | "google" | "terminal" | "cash" | "demo_card" | "demo_nequi",
+  "apple" | "google" | "terminal" | "cash" | "demo_terminal",
   { label: string; icon: string; className: string }
 > = {
   apple: {
@@ -543,15 +509,10 @@ const BUTTON_META: Record<
     icon: "💵",
     className: "bg-paper text-ink border border-hairline",
   },
-  demo_card: {
-    label: "Demo tarjeta",
+  demo_terminal: {
+    label: "Demo pedir datáfono",
     icon: "🧪",
-    className: "bg-paper text-ink border border-dashed border-hairline",
-  },
-  demo_nequi: {
-    label: "Demo Nequi",
-    icon: "🧪",
-    className: "bg-paper text-ink border border-dashed border-hairline",
+    className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
   },
 };
 

@@ -33,6 +33,19 @@ export default async function TerminalPage() {
             where: { status: { in: ["approved", "pending"] } },
             orderBy: { createdAt: "asc" },
           },
+          // Items, filtered to skip cancelled-round items. The terminal
+          // shows the cashier WHAT was ordered so they can sanity-check
+          // before pressing cobrar — especially useful when guests pay
+          // separately and the cashier needs to know who ate what.
+          items: {
+            where: {
+              OR: [
+                { roundId: null },
+                { round: { status: { not: "cancelled" } } },
+              ],
+            },
+            orderBy: { id: "asc" },
+          },
         },
       },
     },
@@ -60,24 +73,35 @@ export default async function TerminalPage() {
         subtotalCents: 0,
         outstandingCents: 0,
         paidCents: 0,
-        pendingPaymentId: null,
+        pendingPayments: [],
         pendingTerminalAmountCents: null,
         pendingTerminalRequestedAt: null,
+        pendingCashAmountCents: null,
+        pendingCashRequestedAt: null,
+        items: [],
+        guestGroups: [],
         approvedSummaries: [],
       };
     }
     const approved = order.payments.filter((p) => p.status === "approved");
-    // Prefer a pending datáfono request over any other pending payment so
-    // the "pidió datáfono" highlight always wins. The cashier needs to see
-    // that immediately — a pending cash payment can wait.
-    const pendingTerminal = order.payments.find(
-      (p) => p.status === "pending" && p.method === "kushki_card_terminal",
+    const pendingPayments = order.payments.filter(
+      (p) => p.status === "pending",
     );
-    const pending = pendingTerminal ?? order.payments.find((p) => p.status === "pending");
+    const pendingTerminal = pendingPayments.find(
+      (p) => p.method === "kushki_card_terminal",
+    );
+    // Cash payments come through demo_cash today (the table flow names it
+    // that way regardless of mock vs real cash). Future: rename to "cash".
+    const pendingCash = pendingPayments.find((p) => p.method === "demo_cash");
     const totals = computeOrderTotals(order.subtotalCents, approved);
+
+    // Sort priority: terminal request > cash request > generic charging.
+    // Both terminal and cash requests promote the table to the top of the
+    // grid so the cashier sees them immediately.
     const state:
       | "paid"
       | "terminal_requested"
+      | "cash_requested"
       | "charging"
       | "partial"
       | "occupied" =
@@ -85,11 +109,42 @@ export default async function TerminalPage() {
         ? "paid"
         : pendingTerminal
           ? "terminal_requested"
-          : pending
-            ? "charging"
-            : totals.foodPaidCents > 0
-              ? "partial"
-              : "occupied";
+          : pendingCash
+            ? "cash_requested"
+            : pendingPayments.length > 0
+              ? "charging"
+              : totals.foodPaidCents > 0
+                ? "partial"
+                : "occupied";
+
+    // Per-guest aggregation so the cashier can see who ordered what when
+    // the diners are splitting the bill. Items without a guestName are
+    // bucketed under "Sin nombre" so they still show up.
+    const guestMap = new Map<
+      string,
+      { name: string; items: typeof order.items; subtotalCents: number }
+    >();
+    for (const i of order.items) {
+      const key = i.guestName?.trim() || "__anon__";
+      const label = i.guestName?.trim() || "Sin nombre";
+      const g = guestMap.get(key) ?? { name: label, items: [], subtotalCents: 0 };
+      g.items.push(i);
+      g.subtotalCents += i.priceCentsSnapshot * i.qty;
+      guestMap.set(key, g);
+    }
+    const guestGroups = Array.from(guestMap.values())
+      .sort((a, b) => b.subtotalCents - a.subtotalCents)
+      .map((g) => ({
+        name: g.name,
+        subtotalCents: g.subtotalCents,
+        items: g.items.map((i) => ({
+          id: i.id,
+          name: i.nameSnapshot,
+          qty: i.qty,
+          priceCents: i.priceCentsSnapshot,
+        })),
+      }));
+
     return {
       tableId: t.id,
       number: t.number,
@@ -100,15 +155,33 @@ export default async function TerminalPage() {
       subtotalCents: order.subtotalCents,
       outstandingCents: totals.outstandingCents,
       paidCents: totals.foodPaidCents,
-      pendingPaymentId: pending?.id ?? null,
-      // What the diner asked the terminal to charge — includes whatever
-      // tip they picked. The card shows it next to "pidió datáfono".
+      pendingPayments: pendingPayments.map((p) => ({
+        id: p.id,
+        method: p.method,
+        amountCents: p.amountCents,
+        tipCents: p.tipCents,
+        createdAt: p.createdAt.toISOString(),
+      })),
       pendingTerminalAmountCents: pendingTerminal
         ? pendingTerminal.amountCents + pendingTerminal.tipCents
         : null,
       pendingTerminalRequestedAt: pendingTerminal
         ? pendingTerminal.createdAt.toISOString()
         : null,
+      pendingCashAmountCents: pendingCash
+        ? pendingCash.amountCents + pendingCash.tipCents
+        : null,
+      pendingCashRequestedAt: pendingCash
+        ? pendingCash.createdAt.toISOString()
+        : null,
+      items: order.items.map((i) => ({
+        id: i.id,
+        name: i.nameSnapshot,
+        qty: i.qty,
+        priceCents: i.priceCentsSnapshot,
+        guestName: i.guestName,
+      })),
+      guestGroups,
       approvedSummaries: approved.slice(-4).map((p) => ({
         id: p.id,
         method: p.method,

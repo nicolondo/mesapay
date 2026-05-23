@@ -20,7 +20,11 @@ export async function POST(
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      // Terminal users settle cash directly from /terminal too — they are
+      // the cashier on the floor in many setups.
+      session.user.role !== "terminal")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

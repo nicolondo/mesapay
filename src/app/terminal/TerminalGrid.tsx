@@ -10,7 +10,30 @@ export type TableState =
   | "partial"
   | "charging"
   | "terminal_requested"
+  | "cash_requested"
   | "paid";
+
+export type PendingPayment = {
+  id: string;
+  method: string;
+  amountCents: number;
+  tipCents: number;
+  createdAt: string;
+};
+
+export type GuestGroup = {
+  name: string;
+  subtotalCents: number;
+  items: { id: string; name: string; qty: number; priceCents: number }[];
+};
+
+export type OrderItem = {
+  id: string;
+  name: string;
+  qty: number;
+  priceCents: number;
+  guestName: string | null;
+};
 
 export type TableCard = {
   tableId: string;
@@ -22,9 +45,13 @@ export type TableCard = {
   subtotalCents: number;
   outstandingCents: number;
   paidCents: number;
-  pendingPaymentId: string | null;
+  pendingPayments: PendingPayment[];
   pendingTerminalAmountCents: number | null;
   pendingTerminalRequestedAt: string | null;
+  pendingCashAmountCents: number | null;
+  pendingCashRequestedAt: string | null;
+  items: OrderItem[];
+  guestGroups: GuestGroup[];
   approvedSummaries: {
     id: string;
     method: string;
@@ -73,24 +100,26 @@ export function TerminalGrid({
     let free = 0,
       open = 0,
       paid = 0,
-      requested = 0,
+      terminalReq = 0,
+      cashReq = 0,
       outstanding = 0;
     for (const t of tables) {
       if (t.state === "free") free++;
       else if (t.state === "paid") paid++;
       else open++;
-      if (t.state === "terminal_requested") requested++;
+      if (t.state === "terminal_requested") terminalReq++;
+      if (t.state === "cash_requested") cashReq++;
       outstanding += t.outstandingCents;
     }
-    return { free, open, paid, requested, outstanding };
+    return { free, open, paid, terminalReq, cashReq, outstanding };
   }, [tables]);
 
-  // Sort: tables that asked for the terminal jump to the front so the
-  // cashier can't miss them. Within a state, keep numeric order.
+  // Sort: tables that requested action (terminal first, then cash) jump
+  // to the front. Within a state, keep numeric order.
   const sortedTables = useMemo(() => {
     return [...tables].sort((a, b) => {
       const stateRank = (s: TableState) =>
-        s === "terminal_requested" ? 0 : 1;
+        s === "terminal_requested" ? 0 : s === "cash_requested" ? 1 : 2;
       const r = stateRank(a.state) - stateRank(b.state);
       if (r !== 0) return r;
       return a.number - b.number;
@@ -107,11 +136,18 @@ export function TerminalGrid({
           <div className="font-display text-3xl">Mesas en vivo</div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {stats.requested > 0 && (
+          {stats.terminalReq > 0 && (
             <Stat
               label="📱 Pidió datáfono"
-              value={String(stats.requested)}
+              value={String(stats.terminalReq)}
               tint="bg-terracotta text-bone"
+            />
+          )}
+          {stats.cashReq > 0 && (
+            <Stat
+              label="💵 Pidió efectivo"
+              value={String(stats.cashReq)}
+              tint="bg-[#2E6B4C] text-bone"
             />
           )}
           <Stat label="Libres" value={String(stats.free)} tint="bg-bone/10" />
@@ -163,9 +199,10 @@ const STATE_TINT: Record<TableState, string> = {
   occupied: "bg-terracotta/15 border-terracotta/40",
   partial: "bg-[#C98A2E]/20 border-[#C98A2E]/50",
   charging: "bg-bone text-ink border-bone",
-  // Stands out from the crowd — bright bone background with a thick
-  // terracotta border so the cashier sees it across the room.
+  // Both "requested" states stand out from the rest — bright bone tile
+  // with a thick coloured border so the cashier sees them across the room.
   terminal_requested: "bg-bone text-ink border-terracotta animate-pulse-soft",
+  cash_requested: "bg-bone text-ink border-[#2E6B4C] animate-pulse-soft",
   paid: "bg-ok/15 border-ok/40",
 };
 
@@ -175,12 +212,30 @@ const STATE_LABEL: Record<TableState, string> = {
   partial: "Pago parcial",
   charging: "Cobrando…",
   terminal_requested: "Pidió datáfono",
+  cash_requested: "Pidió efectivo",
   paid: "Pagada",
 };
 
 function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
   const disabled = t.state === "free";
-  const isRequested = t.state === "terminal_requested";
+  const isTerminalReq = t.state === "terminal_requested";
+  const isCashReq = t.state === "cash_requested";
+  const ringClass = isTerminalReq
+    ? " ring-4 ring-terracotta/40 shadow-lg"
+    : isCashReq
+      ? " ring-4 ring-[#2E6B4C]/40 shadow-lg"
+      : "";
+  const requestedAmount =
+    isTerminalReq
+      ? t.pendingTerminalAmountCents
+      : isCashReq
+        ? t.pendingCashAmountCents
+        : null;
+  const requestedAt = isTerminalReq
+    ? t.pendingTerminalRequestedAt
+    : isCashReq
+      ? t.pendingCashRequestedAt
+      : null;
   return (
     <button
       type="button"
@@ -189,14 +244,18 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
       className={
         "text-left rounded-2xl border-2 p-4 min-h-[140px] transition-colors disabled:cursor-default disabled:opacity-60 " +
         STATE_TINT[t.state] +
-        (isRequested ? " ring-4 ring-terracotta/40 shadow-lg" : "")
+        ringClass
       }
     >
       <div className="flex items-baseline justify-between gap-2">
         <div className="font-display text-2xl">Mesa {t.number}</div>
-        {isRequested ? (
+        {isTerminalReq ? (
           <span className="font-mono text-[10px] tracking-wider uppercase bg-terracotta text-bone px-2 py-0.5 rounded-full shrink-0">
             📱 Pidió datáfono
+          </span>
+        ) : isCashReq ? (
+          <span className="font-mono text-[10px] tracking-wider uppercase bg-[#2E6B4C] text-bone px-2 py-0.5 rounded-full shrink-0">
+            💵 Pidió efectivo
           </span>
         ) : (
           <div className="font-mono text-[10px] tracking-wider uppercase opacity-80">
@@ -215,17 +274,17 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
             <div className="font-mono text-xs opacity-70">
               Total {fmtCOP(t.subtotalCents)}
             </div>
-          ) : isRequested && t.pendingTerminalAmountCents != null ? (
+          ) : requestedAmount != null ? (
             <>
               <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
                 Cobrar
               </div>
               <div className="font-display text-2xl tabular">
-                {fmtCOP(t.pendingTerminalAmountCents)}
+                {fmtCOP(requestedAmount)}
               </div>
-              {t.pendingTerminalRequestedAt && (
+              {requestedAt && (
                 <div className="text-[11px] opacity-70 mt-0.5">
-                  Pedido {timeAgo(t.pendingTerminalRequestedAt)}
+                  Pedido {timeAgo(requestedAt)}
                 </div>
               )}
             </>
@@ -271,34 +330,58 @@ function DetailSheet({
   onClose: () => void;
   onChargedQueued: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Per-payment "settling cash" inline form state. Cash payments don't have
+  // a remote terminal to push to — the cashier confirms the bills received
+  // and we settle locally via /api/operator/payments/[id]/settle-cash.
+  const [cashFormFor, setCashFormFor] = useState<string | null>(null);
 
-  async function charge() {
-    if (!table.pendingPaymentId) {
-      setErr("No hay un cobro de datáfono pendiente en esta mesa.");
-      return;
-    }
+  async function chargeTerminal(paymentId: string) {
     if (!device) {
-      setErr("No hay un datáfono activo registrado para este restaurante.");
+      setErr(
+        "No hay un datáfono activo registrado. Pídele al admin que registre uno.",
+      );
       return;
     }
-    setBusy(true);
+    setBusyPaymentId(paymentId);
     setErr(null);
     const res = await fetch(`/api/tenant/${tenantSlug}/terminal/charge`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        paymentId: table.pendingPaymentId,
-        deviceId: device.id,
-      }),
+      body: JSON.stringify({ paymentId, deviceId: device.id }),
     });
-    setBusy(false);
+    setBusyPaymentId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       setErr(j.error ?? "No pudimos enviar al datáfono.");
       return;
     }
+    onChargedQueued();
+  }
+
+  async function settleCash(
+    paymentId: string,
+    cashReceivedCents: number,
+    changeGivenCents: number,
+  ) {
+    setBusyPaymentId(paymentId);
+    setErr(null);
+    const res = await fetch(
+      `/api/operator/payments/${paymentId}/settle-cash`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cashReceivedCents, changeGivenCents }),
+      },
+    );
+    setBusyPaymentId(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "No pudimos confirmar el efectivo.");
+      return;
+    }
+    setCashFormFor(null);
     onChargedQueued();
   }
 
@@ -308,13 +391,14 @@ function DetailSheet({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-bone text-ink rounded-t-3xl md:rounded-3xl max-h-[90dvh] overflow-y-auto"
+        className="w-full md:max-w-lg bg-bone text-ink rounded-t-3xl md:rounded-3xl max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-hairline flex items-center justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
               {STATE_LABEL[table.state]}
+              {table.shortCode ? ` · ${table.shortCode}` : ""}
             </div>
             <div className="font-display text-xl">Mesa {table.number}</div>
           </div>
@@ -333,24 +417,91 @@ function DetailSheet({
             </div>
           ) : (
             <>
-              {table.state === "terminal_requested" &&
-                table.pendingTerminalAmountCents != null && (
-                  <div className="rounded-xl border-2 border-terracotta bg-terracotta/10 p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">📱</span>
-                      <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta font-semibold">
-                        El cliente pidió pagar con datáfono
-                      </div>
-                    </div>
-                    <div className="font-display text-3xl tabular mt-2 text-terracotta">
-                      {fmtCOP(table.pendingTerminalAmountCents)}
-                    </div>
-                    <div className="text-xs text-ink-3 mt-1">
-                      Lleva el datáfono a la mesa y pulsa "Cobrar".
-                    </div>
+              {/* Pending payments list — one row per outstanding request.
+                  Cash and terminal each get their own action. */}
+              {table.pendingPayments.length > 0 && (
+                <div className="space-y-2">
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                    Pagos pendientes
                   </div>
-                )}
+                  {table.pendingPayments.map((p) => {
+                    const total = p.amountCents + p.tipCents;
+                    const isTerminal = p.method === "kushki_card_terminal";
+                    const isCash = p.method === "demo_cash";
+                    return (
+                      <div
+                        key={p.id}
+                        className={
+                          "rounded-xl border-2 p-3 " +
+                          (isTerminal
+                            ? "border-terracotta bg-terracotta/10"
+                            : isCash
+                              ? "border-[#2E6B4C] bg-[#2E6B4C]/10"
+                              : "border-hairline bg-paper")
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">
+                              {isTerminal ? "📱" : isCash ? "💵" : "💳"}
+                            </span>
+                            <div>
+                              <div className="font-medium text-sm">
+                                {humanMethod(p.method)}
+                              </div>
+                              <div className="text-[11px] text-ink-3">
+                                Pedido {timeAgo(p.createdAt)}
+                                {p.tipCents > 0
+                                  ? ` · propina ${fmtCOP(p.tipCents)}`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="font-display text-2xl tabular">
+                            {fmtCOP(total)}
+                          </div>
+                        </div>
 
+                        {isTerminal && (
+                          <button
+                            type="button"
+                            onClick={() => chargeTerminal(p.id)}
+                            disabled={!!busyPaymentId}
+                            className="mt-3 w-full h-11 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
+                          >
+                            {busyPaymentId === p.id
+                              ? "Enviando al datáfono…"
+                              : `Cobrar ${fmtCOP(total)} con datáfono`}
+                          </button>
+                        )}
+
+                        {isCash && cashFormFor !== p.id && (
+                          <button
+                            type="button"
+                            onClick={() => setCashFormFor(p.id)}
+                            disabled={!!busyPaymentId}
+                            className="mt-3 w-full h-11 rounded-full bg-[#2E6B4C] text-bone font-medium disabled:opacity-60"
+                          >
+                            Confirmar efectivo recibido
+                          </button>
+                        )}
+                        {isCash && cashFormFor === p.id && (
+                          <CashConfirmForm
+                            owedCents={total}
+                            busy={busyPaymentId === p.id}
+                            onCancel={() => setCashFormFor(null)}
+                            onConfirm={(received, change) =>
+                              settleCash(p.id, received, change)
+                            }
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Always-visible bill totals */}
               <div className="rounded-xl border border-hairline bg-paper p-4">
                 <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
                   Pendiente en la cuenta
@@ -363,6 +514,74 @@ function DetailSheet({
                   {fmtCOP(table.paidCents)}
                 </div>
               </div>
+
+              {/* Order summary — what's on the table. Grouped by guest
+                  when names exist, so split-bill is visible at a glance. */}
+              {table.items.length > 0 && (
+                <div>
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-1">
+                    Pedido
+                  </div>
+                  {table.guestGroups.length > 1 ? (
+                    <div className="space-y-2">
+                      {table.guestGroups.map((g) => (
+                        <div
+                          key={g.name}
+                          className="rounded-lg border border-hairline bg-paper p-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-full bg-terracotta text-bone font-display text-xs inline-flex items-center justify-center">
+                                {g.name.charAt(0).toUpperCase()}
+                              </span>
+                              <div className="font-medium text-sm">{g.name}</div>
+                            </div>
+                            <div className="font-mono tabular text-sm">
+                              {fmtCOP(g.subtotalCents)}
+                            </div>
+                          </div>
+                          <ul className="mt-2 space-y-0.5 text-[12px] text-ink-3">
+                            {g.items.map((i) => (
+                              <li
+                                key={i.id}
+                                className="flex justify-between gap-2"
+                              >
+                                <span className="truncate">
+                                  {i.qty}× {i.name}
+                                </span>
+                                <span className="font-mono tabular shrink-0">
+                                  {fmtCOP(i.priceCents * i.qty)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <ul className="rounded-lg border border-hairline bg-paper divide-y divide-hairline">
+                      {table.items.map((i) => (
+                        <li
+                          key={i.id}
+                          className="flex justify-between gap-2 px-3 py-2 text-sm"
+                        >
+                          <span className="truncate">
+                            {i.qty}× {i.name}
+                            {i.guestName && (
+                              <span className="text-terracotta ml-1 text-[11px]">
+                                · {i.guestName}
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-mono tabular shrink-0">
+                            {fmtCOP(i.priceCents * i.qty)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {table.approvedSummaries.length > 0 && (
                 <div>
@@ -390,23 +609,10 @@ function DetailSheet({
                 </div>
               )}
 
-              {table.pendingPaymentId ? (
-                <button
-                  onClick={charge}
-                  disabled={busy}
-                  className="w-full h-12 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
-                >
-                  {busy
-                    ? "Enviando al datáfono…"
-                    : `Cobrar ${fmtCOP(
-                        table.pendingTerminalAmountCents ??
-                          table.outstandingCents,
-                      )}`}
-                </button>
-              ) : (
+              {table.pendingPayments.length === 0 && (
                 <div className="text-xs text-muted text-center pt-2">
-                  El cliente no ha pedido datáfono todavía. Cuando lo haga,
-                  aparecerá el botón de cobro.
+                  El cliente todavía no pidió pagar. Cuando lo haga, aparecerá
+                  arriba con el botón para cobrar.
                 </div>
               )}
               {err && (
@@ -415,6 +621,82 @@ function DetailSheet({
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CashConfirmForm({
+  owedCents,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  owedCents: number;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (cashReceivedCents: number, changeGivenCents: number) => void;
+}) {
+  const [received, setReceived] = useState<number>(owedCents);
+  const [change, setChange] = useState<number>(0);
+  // Suggested change updates automatically when "recibido" changes.
+  // Operator can override the change field if they round it.
+  const suggestedChange = Math.max(0, received - owedCents);
+  const effectiveChange = change > 0 ? change : suggestedChange;
+  const tipImplied = Math.max(0, received - owedCents - effectiveChange);
+  const valid = received >= owedCents && effectiveChange >= 0 && effectiveChange <= received;
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
+            Recibido
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={received}
+            onChange={(e) => setReceived(parseInt(e.target.value, 10) || 0)}
+            className="mt-1 w-full h-10 px-2 rounded-lg border border-hairline bg-paper text-sm font-mono tabular focus:outline-none focus:border-[#2E6B4C]"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
+            Devuelta
+          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={change}
+            placeholder={String(suggestedChange)}
+            onChange={(e) => setChange(parseInt(e.target.value, 10) || 0)}
+            className="mt-1 w-full h-10 px-2 rounded-lg border border-hairline bg-paper text-sm font-mono tabular focus:outline-none focus:border-[#2E6B4C]"
+          />
+        </label>
+      </div>
+      <div className="text-[11px] text-ink-3">
+        {tipImplied > 0
+          ? `Propina implícita ${fmtCOP(tipImplied)} (recibido − cuenta − devuelta)`
+          : "Sin propina."}
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="h-10 px-4 rounded-full border border-hairline text-sm text-ink-3 disabled:opacity-50"
+        >
+          Volver
+        </button>
+        <button
+          type="button"
+          onClick={() => onConfirm(received, effectiveChange)}
+          disabled={busy || !valid}
+          className="flex-1 h-10 rounded-full bg-[#2E6B4C] text-bone text-sm font-medium disabled:opacity-50"
+        >
+          {busy ? "Confirmando…" : "Confirmar"}
+        </button>
       </div>
     </div>
   );

@@ -19,7 +19,6 @@ type PayItem = {
 
 type MethodKind =
   | "kushki_apple_pay"
-  | "kushki_google_pay"
   | "kushki_card_terminal"
   | "demo_cash";
 
@@ -65,15 +64,12 @@ export function PayClient({
   const [mode, setMode] = useState<PayMode>("full");
   const [splitCount, setSplitCount] = useState<number>(2);
   const [hasApplePay, setHasApplePay] = useState(false);
-  const [hasGooglePay, setHasGooglePay] = useState(false);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
-  // only present on Safari/iOS. Google Pay JS is loaded by Kushki SDK; for
-  // mock mode we just claim it's available so the buttons show in dev.
+  // only present on Safari/iOS.
   useEffect(() => {
     const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
     setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
-    setHasGooglePay(true); // GP availability via Kushki SDK; assume true for now
   }, []);
 
   const guestTotals = useMemo(() => {
@@ -104,7 +100,7 @@ export function PayClient({
   const amountTip = Math.round((amountSubtotal * tipPct) / 100);
   const amountCents = amountSubtotal + amountTip;
 
-  async function payWithKushkiToken(method: "kushki_apple_pay" | "kushki_google_pay") {
+  async function payWithKushkiToken(method: "kushki_apple_pay") {
     if (amountCents <= 0) return;
     setBusy(method);
     setErr(null);
@@ -119,7 +115,7 @@ export function PayClient({
             ""
           : `mock-token-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       if (!token) {
-        setErr("Apple/Google Pay aún no está activado para este restaurante.");
+        setErr("Apple Pay aún no está activado para este restaurante.");
         return;
       }
 
@@ -399,15 +395,6 @@ export function PayClient({
             amountCents={amountCents}
           />
         )}
-        {kushkiReady && hasGooglePay && (
-          <PayButton
-            kind="google"
-            disabled={busy !== null || amountCents <= 0}
-            busy={busy === "kushki_google_pay"}
-            onClick={() => payWithKushkiToken("kushki_google_pay")}
-            amountCents={amountCents}
-          />
-        )}
         {kushkiReady && (
           <PayButton
             kind="terminal"
@@ -437,7 +424,7 @@ export function PayClient({
               amountCents={amountCents}
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">
-              Modo demo. En producción solo verás Apple/Google Pay, datáfono
+              Modo demo. En producción solo verás Apple Pay (Safari), datáfono
               y efectivo (activa pagos para el restaurante).
             </p>
           </>
@@ -456,7 +443,6 @@ function PayButton({
 }: {
   kind:
     | "apple"
-    | "google"
     | "terminal"
     | "cash"
     | "demo_terminal";
@@ -486,18 +472,13 @@ function PayButton({
 }
 
 const BUTTON_META: Record<
-  "apple" | "google" | "terminal" | "cash" | "demo_terminal",
+  "apple" | "terminal" | "cash" | "demo_terminal",
   { label: string; icon: string; className: string }
 > = {
   apple: {
     label: "Apple Pay",
     icon: "",
     className: "bg-ink text-bone",
-  },
-  google: {
-    label: "Google Pay",
-    icon: "G",
-    className: "bg-paper text-ink border border-hairline",
   },
   terminal: {
     label: "Tarjeta con datáfono",

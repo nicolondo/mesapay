@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { env } from "@/lib/env";
 import { PayClient } from "./PayClient";
+import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
 export default async function PayPage({
   params,
@@ -11,6 +12,10 @@ export default async function PayPage({
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
+
+  // Heal stale subtotals before showing payment options — otherwise the
+  // diner could end up paying for items that were cancelled in the kitchen.
+  await syncOrderSubtotalFromLiveItems(orderId);
 
   const order = await db.order.findUnique({
     where: { id: orderId },

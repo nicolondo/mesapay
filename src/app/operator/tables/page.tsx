@@ -5,6 +5,7 @@ import { TableActions } from "./TableActions";
 import { NewTableForm } from "./NewTableForm";
 import { DeleteTableButton, EditLabelButton } from "./TableAdminActions";
 import { LiveRefresh } from "../LiveRefresh";
+import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,18 @@ export default async function TablesPage() {
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
+
+  // Heal any drifted subtotals before rendering the grid. Mesas with active
+  // unpaid orders get a fresh recompute from live items so the displayed
+  // amount matches what the diner sees and what payment routes will accept.
+  const openOrderIds = await db.order.findMany({
+    where: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+    select: { id: true },
+  });
+  await Promise.all(
+    openOrderIds.map((o) => syncOrderSubtotalFromLiveItems(o.id)),
+  );
+
   const allTables = await db.table.findMany({
     where: { restaurantId },
     orderBy: { number: "asc" },

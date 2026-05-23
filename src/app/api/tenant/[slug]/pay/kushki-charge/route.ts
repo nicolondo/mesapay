@@ -28,7 +28,9 @@ import {
 
 const schema = z.object({
   orderId: z.string().min(1),
-  method: z.enum(["kushki_apple_pay", "kushki_google_pay"]),
+  // Google Pay support was dropped — Kushki Colombia doesn't offer it.
+  // Apple Pay remains as the only wallet method through this route.
+  method: z.enum(["kushki_apple_pay"]),
   token: z.string().min(1).max(2000),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),

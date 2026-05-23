@@ -1370,7 +1370,6 @@ function GuestNameSheet({
 
 type PickupMethod =
   | "kushki_apple_pay"
-  | "kushki_google_pay"
   | "demo_card"
   | "demo_nequi";
 
@@ -1417,12 +1416,10 @@ function PickupCheckoutSheet({
   const [busy, setBusy] = useState<PickupMethod | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [hasApplePay, setHasApplePay] = useState(false);
-  const [hasGooglePay, setHasGooglePay] = useState(false);
 
   useEffect(() => {
     const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
     setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
-    setHasGooglePay(true);
   }, []);
 
   // Aggregate qty by menuItemId for ETA (ETA only needs items+qty, not modifiers).
@@ -1478,11 +1475,11 @@ function PickupCheckoutSheet({
     // production, mock mode accepts a placeholder; live mode would fail
     // gracefully if the SDK isn't loaded.
     let token: string | undefined;
-    if (method === "kushki_apple_pay" || method === "kushki_google_pay") {
+    if (method === "kushki_apple_pay") {
       if (kushkiPublicKey && !isMockMode) {
         // TODO: integrate Kushki JS SDK and tokenize here.
         setBusy(null);
-        setErr("Apple/Google Pay aún no está activado para este restaurante.");
+        setErr("Apple Pay aún no está activado para este restaurante.");
         return;
       }
       token = `mock-token-${Date.now()}`;
@@ -1664,17 +1661,6 @@ function PickupCheckoutSheet({
                   : ` Pay · ${fmtCOP(subtotal)}`}
               </button>
             )}
-            {kushkiReady && hasGooglePay && (
-              <button
-                onClick={() => placeAndPay("kushki_google_pay")}
-                disabled={!!busy || eta.saturated || eta.closed}
-                className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
-              >
-                {busy === "kushki_google_pay"
-                  ? "Procesando…"
-                  : `G Pay · ${fmtCOP(subtotal)}`}
-              </button>
-            )}
             {isMockMode && !kushkiReady && (
               <>
                 <button
@@ -1694,7 +1680,7 @@ function PickupCheckoutSheet({
                   {busy === "demo_nequi" ? "Procesando…" : `Demo Nequi`}
                 </button>
                 <div className="text-[11px] text-muted-2 text-center pt-1">
-                  Modo demo. Activa pagos para usar Apple/Google Pay.
+                  Modo demo. Activa pagos para usar Apple Pay.
                 </div>
               </>
             )}

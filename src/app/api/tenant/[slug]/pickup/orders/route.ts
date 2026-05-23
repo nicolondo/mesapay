@@ -32,7 +32,6 @@ const schema = z.object({
     "demo_card",
     "demo_nequi",
     "kushki_apple_pay",
-    "kushki_google_pay",
   ]),
   // Required when method is kushki_*; ignored for demo methods.
   token: z.string().min(1).max(2000).optional(),
@@ -123,9 +122,7 @@ export async function POST(
   // Kushki path: charge BEFORE creating the order so a declined card doesn't
   // leave food in the kitchen queue. Demo path: stay with the legacy
   // immediate-approval flow so local dev works without onboarding.
-  const isKushki =
-    parsed.data.method === "kushki_apple_pay" ||
-    parsed.data.method === "kushki_google_pay";
+  const isKushki = parsed.data.method === "kushki_apple_pay";
 
   let providerRef: string | null = null;
 
@@ -184,12 +181,9 @@ export async function POST(
   let paymentMethod:
     | "demo_card"
     | "wompi_nequi"
-    | "kushki_apple_pay"
-    | "kushki_google_pay";
+    | "kushki_apple_pay";
   if (parsed.data.method === "kushki_apple_pay") {
     paymentMethod = "kushki_apple_pay";
-  } else if (parsed.data.method === "kushki_google_pay") {
-    paymentMethod = "kushki_google_pay";
   } else if (parsed.data.method === "demo_nequi") {
     paymentMethod = "wompi_nequi";
   } else {

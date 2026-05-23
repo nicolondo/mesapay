@@ -8,6 +8,7 @@ import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
 import { CallWaiterButton } from "./CallWaiterButton";
+import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
 export default async function OrderView({
   params,
@@ -17,6 +18,11 @@ export default async function OrderView({
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
+
+  // Defensive: re-derive subtotal from live items in case a previous
+  // cancellation didn't recompute it (older code path, race, etc.). This
+  // is idempotent and a no-op when the stored value already matches.
+  await syncOrderSubtotalFromLiveItems(orderId);
 
   const order = await db.order.findUnique({
     where: { id: orderId },

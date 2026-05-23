@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { db } from "./db";
 
 /**
  * Single source of truth for how an order's totals are computed from its
@@ -77,4 +78,67 @@ export async function recomputeOrderTotalsInTx(
     },
   });
   return totals;
+}
+
+/**
+ * Defensive sync: re-derive the order's subtotal from its currently-live
+ * (non-cancelled) items. If the stored value drifted (e.g. a round was
+ * cancelled before the recompute fix shipped, or a future bug skipped the
+ * update), this brings the row back in line on read.
+ *
+ * Returns the canonical subtotal so callers can use it without a follow-up
+ * fetch. Idempotent — if values already match, no write happens. Skips paid
+ * orders so we never re-touch a closed bill.
+ */
+export async function syncOrderSubtotalFromLiveItems(
+  orderId: string,
+): Promise<{ subtotalCents: number; totalCents: number; changed: boolean }> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      subtotalCents: true,
+      tipCents: true,
+      totalCents: true,
+    },
+  });
+  if (!order) {
+    return { subtotalCents: 0, totalCents: 0, changed: false };
+  }
+  if (order.status === "paid" || order.status === "paying") {
+    return {
+      subtotalCents: order.subtotalCents,
+      totalCents: order.totalCents,
+      changed: false,
+    };
+  }
+  // Live items = items whose round is either null (legacy) or not cancelled.
+  const items = await db.orderItem.findMany({
+    where: {
+      orderId,
+      OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+    },
+    select: { qty: true, priceCentsSnapshot: true },
+  });
+  const liveSubtotal = items.reduce(
+    (s, i) => s + i.priceCentsSnapshot * i.qty,
+    0,
+  );
+  const liveTotal = liveSubtotal + order.tipCents;
+  if (
+    liveSubtotal === order.subtotalCents &&
+    liveTotal === order.totalCents
+  ) {
+    return {
+      subtotalCents: order.subtotalCents,
+      totalCents: order.totalCents,
+      changed: false,
+    };
+  }
+  await db.order.update({
+    where: { id: orderId },
+    data: { subtotalCents: liveSubtotal, totalCents: liveTotal },
+  });
+  return { subtotalCents: liveSubtotal, totalCents: liveTotal, changed: true };
 }

@@ -19,6 +19,7 @@ import {
   ServiceModePicker,
   SuspendButton,
 } from "./BillingPanel";
+import { UsersPanel } from "./UsersPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +45,17 @@ export default async function RestaurantDetail({
     await Promise.all([
       db.restaurant.findUnique({ where: { id } }),
       db.user.findMany({
-        where: { restaurantId: id, role: "operator" },
-        select: { id: true, email: true, name: true, createdAt: true },
+        where: {
+          restaurantId: id,
+          role: { in: ["operator", "terminal"] },
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: "asc" },
       }),
       db.restaurant.findUnique({
@@ -323,30 +333,16 @@ export default async function RestaurantDetail({
         <Row label="Pagadas">{paidCount}</Row>
       </div>
 
-      <div className="rounded-2xl border border-op-border bg-op-surface p-4">
-        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
-          Operadores
-        </div>
-        {operators.length === 0 ? (
-          <div className="text-sm text-op-muted">Sin operadores asignados.</div>
-        ) : (
-          <ul className="divide-y divide-op-border">
-            {operators.map((u) => (
-              <li key={u.id} className="py-2 flex justify-between text-sm">
-                <div>
-                  <div className="font-medium">{u.name ?? u.email}</div>
-                  <div className="font-mono text-[11px] text-op-muted">
-                    {u.email}
-                  </div>
-                </div>
-                <div className="font-mono text-[11px] text-op-muted">
-                  {fmtBogotaDateTime(u.createdAt).date}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <UsersPanel
+        restaurantId={id}
+        initialUsers={operators.map((u) => ({
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role as "operator" | "terminal",
+          createdAt: u.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }

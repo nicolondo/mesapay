@@ -149,6 +149,16 @@ export default async function PayDone({
             </div>
           )}
 
+          {/* Invoice CTA — directly under the status card so it's the
+              second thing the diner sees, not buried at the bottom. */}
+          <div className="mt-6">
+            <InvoiceRequestPanel
+              tenantSlug={slug}
+              orderId={order.id}
+              existing={invoiceSummary}
+            />
+          </div>
+
           <div className="mt-8 rounded-2xl border border-hairline bg-paper p-5">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
               Tu pedido
@@ -176,14 +186,6 @@ export default async function PayDone({
                 {fmtCOP(order.totalCents)}
               </span>
             </div>
-          </div>
-
-          <div className="mt-6">
-            <InvoiceRequestPanel
-              tenantSlug={slug}
-              orderId={order.id}
-              existing={invoiceSummary}
-            />
           </div>
         </div>
       </main>
@@ -243,6 +245,19 @@ export default async function PayDone({
                 {methodLabel(myPayment.method)} · {fmtRelative(myPayment.createdAt)}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Invoice CTA — placed here (right after the diner sees their
+            payment was received) because that's the peak-attention moment.
+            Hidden until fully paid: there's no bill to invoice mid-split. */}
+        {fullyPaid && (
+          <div className="mt-6">
+            <InvoiceRequestPanel
+              tenantSlug={slug}
+              orderId={order.id}
+              existing={invoiceSummary}
+            />
           </div>
         )}
 
@@ -417,16 +432,6 @@ export default async function PayDone({
             </div>
           )}
         </div>
-
-        {fullyPaid && (
-          <div className="mt-6">
-            <InvoiceRequestPanel
-              tenantSlug={slug}
-              orderId={order.id}
-              existing={invoiceSummary}
-            />
-          </div>
-        )}
 
         <div className="mt-8 flex justify-center">
           <Link

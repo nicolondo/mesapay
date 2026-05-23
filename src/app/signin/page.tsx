@@ -113,24 +113,6 @@ function SignIn() {
             </Link>
           </div>
         </div>
-
-        <div className="mt-7 pt-5 border-t border-hairline text-[11px] text-muted-2 leading-relaxed">
-          <div className="font-mono text-[9px] tracking-[0.18em] uppercase mb-2">
-            Cuentas de prueba
-          </div>
-          <div>
-            <code className="font-mono">cliente@mesapay.co</code> · cliente
-          </div>
-          <div>
-            <code className="font-mono">mesero@casateresita.co</code> · operador
-          </div>
-          <div>
-            <code className="font-mono">admin@mesapay.co</code> · admin
-          </div>
-          <div className="mt-1">
-            Contraseña: <code className="font-mono">mesapay123</code>
-          </div>
-        </div>
       </form>
     </main>
   );

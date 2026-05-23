@@ -465,13 +465,30 @@ function CashTenderSheet({
   onClose: () => void;
   onPay: (tenderCents: number | null) => void;
 }) {
-  // Smart presets: next multiple of 10k that covers the bill, plus the
-  // common bills. Drop duplicates and anything that doesn't cover.
+  // Smart presets. Rules:
+  //  - Always offer the next multiple of 10k that strictly covers the bill
+  //    (so we never suggest the exact amount as a "with change" option).
+  //  - Offer real Colombian bills ($10k, $20k, $50k, $100k — there is no
+  //    $200k bill) that cover the bill AND whose change is no bigger than
+  //    the bill itself. Suggesting $100k for a $25k bill is fine; for
+  //    a $96k bill it's silly.
+  //  - Cap to 3 presets so the sheet stays scannable on a phone.
   const dueCop = Math.ceil(amountCents / 100);
-  const nextRound = Math.ceil(dueCop / 10000) * 10000;
-  const presetsCop = Array.from(
-    new Set([nextRound, 50000, 100000, 200000].filter((v) => v >= dueCop)),
-  );
+  const REAL_BILLS_COP = [10000, 20000, 50000, 100000];
+  const maxReasonableCop = dueCop * 2;
+  const candidates = new Set<number>();
+  const nextRoundCop = Math.ceil(dueCop / 10000) * 10000;
+  if (nextRoundCop > dueCop && nextRoundCop <= maxReasonableCop) {
+    candidates.add(nextRoundCop);
+  }
+  for (const bill of REAL_BILLS_COP) {
+    if (bill > dueCop && bill <= maxReasonableCop) {
+      candidates.add(bill);
+    }
+  }
+  const presetsCop = Array.from(candidates)
+    .sort((a, b) => a - b)
+    .slice(0, 3);
 
   const [customCop, setCustomCop] = useState<string>("");
   const customCents = Math.round(Number(customCop || 0) * 100);

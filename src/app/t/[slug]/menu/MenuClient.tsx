@@ -84,6 +84,49 @@ const TAG_LABEL: Record<string, string> = {
 };
 
 /**
+ * Render a cart line's selections as a readable list of groups for the
+ * "Tu pedido" sheet. Each group reads like "Adicion: Pollo, Carne"
+ * — we need the modifier definitions from the menu item to know the
+ * group label ("Adicion") since `selections` only carries IDs.
+ *
+ * Falls back to a flat list of values when the menu item isn't found
+ * (defensive — shouldn't happen but keeps the cart usable instead of
+ * blank if the items prop drifts from the cart).
+ */
+function formatLineSelections(
+  selections: Selections,
+  item: MenuItem | undefined,
+): string[] {
+  if (!selections || Object.keys(selections).length === 0) return [];
+  if (!item?.modifiers) {
+    // No modifier defs to look up labels — flatten what we have.
+    const out: string[] = [];
+    for (const v of Object.values(selections)) {
+      if (typeof v === "string" && v.trim()) out.push(v);
+      else if (Array.isArray(v)) {
+        const labels = v.filter((x) => typeof x === "string" && x.trim());
+        if (labels.length > 0) out.push(labels.join(", "));
+      }
+    }
+    return out;
+  }
+  const out: string[] = [];
+  // Iterate modifier defs (not selections) so the order matches the
+  // sheet's display order — diner reads "Adición: ..." in the same
+  // sequence they saw it on the plate.
+  for (const m of item.modifiers) {
+    const sel = selections[m.id];
+    if (sel == null) continue;
+    const labels =
+      typeof sel === "string" ? [sel] : Array.isArray(sel) ? sel : [];
+    const cleaned = labels.filter((x) => typeof x === "string" && x.trim());
+    if (cleaned.length === 0) continue;
+    out.push(`${m.label}: ${cleaned.join(", ")}`);
+  }
+  return out;
+}
+
+/**
  * Normalize a string for forgiving menu search. Goals:
  *  - Accents and ñ shouldn't matter: "café" finds "Cafe", "piña" finds "pina".
  *  - Punctuation shouldn't matter: "Sangría, espumosa" matches "sangria espumosa".
@@ -874,6 +917,7 @@ export function MenuClient({
           {cart.length > 0 && (
             <CartBar
               lines={cart}
+              menuItems={items}
               subtotal={subtotal}
               totalQty={totalQty}
               onQty={setQty}
@@ -918,6 +962,7 @@ export function MenuClient({
           tenantSlug={tenant.slug}
           tableId={tableId}
           cart={cart}
+          menuItems={items}
           subtotal={subtotal}
           defaultName={pickup.defaultName}
           defaultPhone={pickup.defaultPhone}
@@ -941,6 +986,7 @@ export function MenuClient({
 
 function CartBar({
   lines,
+  menuItems,
   subtotal,
   totalQty,
   onQty,
@@ -955,6 +1001,10 @@ function CartBar({
   prepay,
 }: {
   lines: CartLine[];
+  // Used to resolve modifier labels for each line — `selections` only
+  // carries IDs and option labels, not the human-friendly group name
+  // ("Adicion") that we want to render in the cart.
+  menuItems: MenuItem[];
   subtotal: number;
   totalQty: number;
   onQty: (key: string, qty: number) => void;
@@ -968,6 +1018,12 @@ function CartBar({
   showServingMode: boolean;
   prepay: boolean;
 }) {
+  // O(1) lookup by id so the render loop doesn't scan items per line.
+  const itemById = useMemo(() => {
+    const m = new Map<string, MenuItem>();
+    for (const it of menuItems) m.set(it.id, it);
+    return m;
+  }, [menuItems]);
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -1022,13 +1078,16 @@ function CartBar({
                 </button>
               </div>
               <ul className="mt-5 divide-y divide-hairline border-t border-hairline">
-                {lines.map((l) => (
+                {lines.map((l) => {
+                  const item = itemById.get(l.menuItemId);
+                  const groups = formatLineSelections(l.selections, item);
+                  return (
                   <li key={l.key} className="py-3 flex items-start gap-3">
                     <div className="flex-1">
                       <div className="font-medium">{l.name}</div>
-                      {Object.entries(l.selections).length > 0 && (
+                      {groups.length > 0 && (
                         <div className="text-xs text-muted mt-0.5">
-                          {Object.values(l.selections).join(" · ")}
+                          {groups.join(" · ")}
                         </div>
                       )}
                       {l.notes && (
@@ -1062,7 +1121,8 @@ function CartBar({
                       Eliminar
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               {!appendingTo && showServingMode && (
                 <div className="mt-5">
@@ -1850,6 +1910,7 @@ function PickupCheckoutSheet({
   tenantSlug,
   tableId,
   cart,
+  menuItems,
   subtotal,
   defaultName,
   defaultPhone,
@@ -1863,6 +1924,7 @@ function PickupCheckoutSheet({
   tenantSlug: string;
   tableId: string;
   cart: CartLine[];
+  menuItems: MenuItem[];
   subtotal: number;
   defaultName: string;
   defaultPhone: string;
@@ -1873,6 +1935,11 @@ function PickupCheckoutSheet({
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
+  const itemById = useMemo(() => {
+    const m = new Map<string, MenuItem>();
+    for (const it of menuItems) m.set(it.id, it);
+    return m;
+  }, [menuItems]);
   const parsed = useMemo(() => splitDefaultPhone(defaultPhone), [defaultPhone]);
   const [name, setName] = useState(defaultName);
   const [countryCode, setCountryCode] = useState(parsed.countryCode);
@@ -2084,7 +2151,10 @@ function PickupCheckoutSheet({
               Tu pedido
             </div>
             <ul className="divide-y divide-hairline">
-              {cart.map((l) => (
+              {cart.map((l) => {
+                const item = itemById.get(l.menuItemId);
+                const groups = formatLineSelections(l.selections, item);
+                return (
                 <li
                   key={l.key}
                   className="py-1.5 flex items-start justify-between gap-3 text-sm"
@@ -2093,9 +2163,9 @@ function PickupCheckoutSheet({
                     <div className="truncate">
                       {l.qty}× {l.name}
                     </div>
-                    {Object.values(l.selections).length > 0 && (
+                    {groups.length > 0 && (
                       <div className="text-[11px] text-muted truncate">
-                        {Object.values(l.selections).join(" · ")}
+                        {groups.join(" · ")}
                       </div>
                     )}
                     {l.notes && (
@@ -2108,7 +2178,8 @@ function PickupCheckoutSheet({
                     {fmtCOP(l.priceCents * l.qty)}
                   </span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
             <div className="mt-2 pt-2 border-t border-hairline flex items-baseline justify-between">
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted">

@@ -164,22 +164,56 @@ export function MenuImportClient({
     setStage("extracting");
     const fd = new FormData();
     fd.append("file", f);
+    const startedAt = Date.now();
+    let res: Response | null = null;
     try {
-      const res = await fetch("/api/operator/menu/import", {
+      res = await fetch("/api/operator/menu/import", {
         method: "POST",
         body: fd,
       });
-      const j = await res.json();
-      if (!res.ok) {
-        setError(j.message ?? j.error ?? "No pudimos leer el archivo.");
-        setStage("upload");
-        return;
-      }
-      applyExtraction(j);
-    } catch {
-      setError("Falla de red al procesar el archivo.");
+    } catch (err) {
+      // True network drop: fetch() rejected before getting any response
+      // (DNS failure, connection reset, offline). We DON'T fall here on
+      // nginx returning 413/502/504 — those resolve fetch() with a non-OK
+      // status, handled below.
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      setError(
+        `No se pudo conectar al servidor (${secs}s). ${err instanceof Error ? err.message : ""}`,
+      );
       setStage("upload");
+      return;
     }
+    // Parse the body once, tolerantly — nginx error pages aren't JSON,
+    // and surfacing the raw text is the only way the diagnosis is
+    // possible without browser devtools.
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    const ct = res.headers.get("content-type") ?? "";
+    let body: { message?: string; error?: string } | string;
+    try {
+      body = ct.includes("application/json")
+        ? ((await res.json()) as { message?: string; error?: string })
+        : ((await res.text()) as string).slice(0, 240);
+    } catch {
+      body = "(respuesta vacía o inválida)";
+    }
+    if (!res.ok) {
+      // Surface the actual HTTP status + body so the operator (and us)
+      // can tell apart "PDF too big" (413), "model timed out" (504),
+      // "service is restarting" (502), "bad request" (400+).
+      const reason =
+        typeof body === "string"
+          ? body || res.statusText
+          : (body.message ?? body.error ?? res.statusText);
+      setError(`Error ${res.status} tras ${elapsed}s — ${reason}`);
+      setStage("upload");
+      return;
+    }
+    if (typeof body === "string") {
+      setError(`Respuesta inesperada del servidor (${elapsed}s).`);
+      setStage("upload");
+      return;
+    }
+    applyExtraction(body as never);
   }
 
   async function onUrlSubmitted(url: string) {

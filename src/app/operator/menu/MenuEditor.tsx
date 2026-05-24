@@ -182,6 +182,13 @@ export function MenuEditor({
         <div className="mb-5">
           <NewCategoryForm
             menuId={hasMultipleMenus ? activeMenuId : undefined}
+            // The kind enum (Entradas / Fuertes / etc.) only describes
+            // food sections, and the only feature reading kind is "Fuertes
+            // juntos" — which by definition runs against the food carta.
+            // For wine / cocktail / brunch menus the kind selector is
+            // pure noise (and its labels look like food category names,
+            // which confuses operators). Hide it for non-default menus.
+            showKind={!hasMultipleMenus || activeMenuId === menus[0]?.id}
             onSave={(newCat) => {
               // New category lands in the active menu when there are
               // multiple; otherwise the server-side default (Carta) takes it.
@@ -215,6 +222,9 @@ export function MenuEditor({
                 <CategoryHeader
                   cat={c}
                   menus={menus}
+                  // Same rationale as NewCategoryForm — kind only makes
+                  // sense for the food menu (it drives "Fuertes juntos").
+                  showKind={c.menuId === menus[0]?.id}
                   onPatch={(patch) => replaceCategory({ ...c, ...patch })}
                   onDeleted={() => removeCategory(c.id)}
                 />
@@ -374,12 +384,17 @@ function AvailabilityToggle({
 
 function NewCategoryForm({
   menuId,
+  showKind,
   onSave,
   onClose,
 }: {
   // Which menu the new category should belong to. Omitted → server
   // drops it into the restaurant's default (Carta).
   menuId: string | undefined;
+  // When false the kind selector + Fuertes-juntos hint are hidden and
+  // kind silently defaults to "other". Used for non-food menus (vinos,
+  // cócteles, etc.) where the kind enum makes no sense.
+  showKind: boolean;
   onSave: (newCat: Cat) => void;
   onClose: () => void;
 }) {
@@ -450,27 +465,31 @@ function NewCategoryForm({
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
-        <label className="w-48 flex flex-col">
-          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Tipo
-          </span>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as CategoryKind)}
-            className="h-10 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
-          >
-            {KIND_OPTIONS.map((k) => (
-              <option key={k.value} value={k.value}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showKind && (
+          <label className="w-48 flex flex-col">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+              Tipo
+            </span>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as CategoryKind)}
+              className="h-10 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+            >
+              {KIND_OPTIONS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
-      <div className="text-[11px] text-op-muted">
-        Marcar como <span className="font-medium">Fuertes</span> activa el modo
-        “Fuertes juntos” cuando el comensal lo elige al pedir.
-      </div>
+      {showKind && (
+        <div className="text-[11px] text-op-muted">
+          Marcar como <span className="font-medium">Fuertes</span> activa el modo
+          “Fuertes juntos” cuando el comensal lo elige al pedir.
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -495,11 +514,15 @@ function NewCategoryForm({
 function CategoryHeader({
   cat,
   menus,
+  showKind,
   onPatch,
   onDeleted,
 }: {
   cat: Cat;
   menus: MenuRef[];
+  // Hide the kind dropdown for categories that live in a non-default
+  // menu (vinos, cócteles, etc.). See NewCategoryForm for the why.
+  showKind: boolean;
   onPatch: (patch: Partial<Cat>) => void;
   onDeleted: () => void;
 }) {
@@ -606,18 +629,20 @@ function CategoryHeader({
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="font-display text-2xl">{cat.label}</div>
-      <select
-        value={cat.kind}
-        onChange={(e) => changeKind(e.target.value as CategoryKind)}
-        title="Tipo de categoría — los fuertes controlan el modo ‘Fuertes juntos’"
-        className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
-      >
-        {KIND_OPTIONS.map((k) => (
-          <option key={k.value} value={k.value}>
-            {k.label}
-          </option>
-        ))}
-      </select>
+      {showKind && (
+        <select
+          value={cat.kind}
+          onChange={(e) => changeKind(e.target.value as CategoryKind)}
+          title="Tipo de categoría — los fuertes controlan el modo ‘Fuertes juntos’"
+          className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+        >
+          {KIND_OPTIONS.map((k) => (
+            <option key={k.value} value={k.value}>
+              {k.label}
+            </option>
+          ))}
+        </select>
+      )}
       {menus.length > 1 && (
         <select
           value={cat.menuId}

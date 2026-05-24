@@ -27,6 +27,14 @@ const itemSchema = z.object({
     }),
   ]),
   tags: z.array(z.string()).default([]),
+  // Local /uploads/menu-import/... URL produced by the URL-import flow.
+  // We don't accept arbitrary URLs here — if it doesn't start with our
+  // upload prefix we ignore it (defense in depth).
+  photoUrl: z
+    .string()
+    .startsWith("/uploads/")
+    .nullable()
+    .optional(),
 });
 
 const schema = z.object({
@@ -137,6 +145,7 @@ export async function POST(req: Request) {
           description: it.description ?? null,
           priceCents: it.priceCents,
           tags: it.tags,
+          photoUrl: it.photoUrl ?? null,
           sortOrder: ++nextItemSort,
           available: true,
         },

@@ -21,6 +21,10 @@ type ExtractedItem = {
   priceCents: number;
   categorySlug: string;
   tags: Tag[];
+  // Local /uploads/menu-import/... path (already downloaded server-side
+  // when extracting). null when the AI didn't find an image or it
+  // failed to download.
+  photoUrl: string | null;
   confidence: number;
 };
 
@@ -242,6 +246,7 @@ export function MenuImportClient({
           priceCents: it.priceCents,
           categoryRef,
           tags: it.tags,
+          photoUrl: it.photoUrl ?? null,
         };
       }),
     };
@@ -592,6 +597,7 @@ function ReviewState({
   const totalValue = items
     .filter((i) => i.selected)
     .reduce((s, i) => s + i.priceCents, 0);
+  const withPhotoCount = items.filter((i) => i.selected && i.photoUrl).length;
   // Group items by category for visual breathing room. Categories are
   // shown in the order they first appear in the items list (matches the
   // order the AI returned them, which mirrors the PDF).
@@ -739,6 +745,12 @@ function ReviewState({
             <span>Valor sumado</span>
             <span className="font-mono tabular">{fmtCOP(totalValue)}</span>
           </div>
+          {withPhotoCount > 0 && (
+            <div className="flex items-baseline justify-between text-xs text-op-muted">
+              <span>📸 Con foto</span>
+              <span className="font-mono tabular">{withPhotoCount}</span>
+            </div>
+          )}
           <button
             type="button"
             onClick={onConfirm}
@@ -791,6 +803,24 @@ function ReviewCard({
           onChange={(e) => onPatch({ selected: e.target.checked })}
           className="mt-1 accent-terracotta w-4 h-4 shrink-0"
         />
+        {item.photoUrl && (
+          <div className="relative shrink-0">
+            <img
+              src={item.photoUrl}
+              alt={item.name}
+              className="w-16 h-16 rounded-lg object-cover border border-op-border"
+            />
+            <button
+              type="button"
+              onClick={() => onPatch({ photoUrl: null })}
+              title="Quitar foto"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-bone text-[10px] inline-flex items-center justify-center shadow"
+              aria-label="Quitar foto"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-start gap-2">
             <input

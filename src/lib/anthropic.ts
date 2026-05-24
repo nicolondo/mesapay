@@ -53,6 +53,11 @@ const ExtractedMenuItem = z.object({
   priceCents: z.number().int().min(0).max(100_000_000),
   categorySlug: z.string().min(1).max(60),
   tags: z.array(MenuTag).default([]),
+  // For HTML imports: the absolute URL of the dish photo when one is
+  // visible near the item in the source page. Server-side we download
+  // these to UPLOAD_DIR and rewrite to local paths before sending to the
+  // client.
+  photoUrl: z.string().url().nullable().default(null),
   confidence: z.number().min(0).max(1).default(0.8),
 });
 
@@ -92,6 +97,7 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "priceCents": 3800000,             // en CENTAVOS de peso colombiano: $38.000 -> 3800000
       "categorySlug": "para-empezar",
       "tags": ["firma", "popular", "veg", "spicy", "nuevo"],  // 0..N de esa lista exacta
+      "photoUrl": "https://restaurante.com/imgs/ceviche.jpg" | null,
       "confidence": 0.9                   // 0..1, qué tan seguro estás de este plato
     }
   ],
@@ -105,6 +111,7 @@ Reglas estrictas:
 - kind: starter (entradas), main (fuertes), side (acompañamientos), drink (bebidas), dessert (postres), other.
 - tags: usa la lista cerrada. "firma" = especialidad de la casa; "popular" = best-seller; "veg" = vegetariano; "spicy" = picante; "nuevo" = nuevo. Solo si se ve claro en la carta. Default: [].
 - description: tal cual aparece, o null si no hay.
+- photoUrl: si en el HTML hay una etiqueta <img src="..."> de la foto del plato cerca del nombre y precio, incluye la URL ABSOLUTA (http o https). Si no hay foto o no estás seguro de cuál corresponde, null. NO inventes URLs. NO uses data: URIs. Solo aplica a HTML — en PDFs/imágenes deja null.
 - Si la carta tiene varias páginas / fotos, procesa todo.
 - Si algo no se entiende, baja la confidence y mete una nota en "notes".`;
 
@@ -119,7 +126,36 @@ export async function extractMenuFromDocument(
     // Trim down obvious noise (scripts, styles, comments) and cap length
     // so we don't blow through the context window on huge marketing
     // pages. The menu items rarely live in script tags.
-    const cleaned = source.text
+    // We DO keep <img> tags so Claude can match dish names to nearby
+    // photos and return absolute photoUrls — but we resolve relative
+    // src/data-src to absolute first (relative paths are useless to us
+    // once we leave the original URL's context).
+    const baseUrl = source.sourceUrl;
+    const resolveSrc = (raw: string): string | null => {
+      if (!raw) return null;
+      if (raw.startsWith("data:")) return null;
+      try {
+        return baseUrl ? new URL(raw, baseUrl).toString() : raw;
+      } catch {
+        return null;
+      }
+    };
+    const normalisedImgs = source.text.replace(
+      /<img\b[^>]*>/gi,
+      (tag) => {
+        // Lazy-loaded images often hide the real src in data-src or
+        // data-original. Try those if src is empty / placeholder.
+        const srcMatch =
+          /\bsrc=["']([^"']+)["']/i.exec(tag)?.[1] ??
+          /\bdata-src=["']([^"']+)["']/i.exec(tag)?.[1] ??
+          /\bdata-original=["']([^"']+)["']/i.exec(tag)?.[1];
+        const resolved = srcMatch ? resolveSrc(srcMatch) : null;
+        if (!resolved) return " ";
+        const altMatch = /\balt=["']([^"']*)["']/i.exec(tag)?.[1] ?? "";
+        return `<img src="${resolved}" alt="${altMatch}">`;
+      },
+    );
+    const cleaned = normalisedImgs
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")

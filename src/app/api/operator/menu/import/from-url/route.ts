@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
 import { checkUrlSafe } from "@/lib/ssrf";
+import { downloadMenuImages } from "@/lib/menuImportImages";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -178,6 +179,20 @@ export async function POST(req: Request) {
       sourceUrl: finalUrl,
     });
   })();
+
+  // Download any external photo URLs Claude found and rewrite to local
+  // paths. Done here so the operator sees the actual thumbnails during
+  // review and confirm is fast (no more downloads needed).
+  if (extraction.items.some((it) => it.photoUrl)) {
+    const localUrls = await downloadMenuImages(
+      extraction.items.map((it) => it.photoUrl),
+      restaurantId,
+    );
+    extraction.items = extraction.items.map((it, i) => ({
+      ...it,
+      photoUrl: localUrls[i],
+    }));
+  }
 
   const existingCategories = await db.category.findMany({
     where: { restaurantId },

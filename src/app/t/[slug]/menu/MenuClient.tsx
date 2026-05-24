@@ -512,9 +512,17 @@ export function MenuClient({
    * looking at. They might have opened it from anywhere in a long carta
    * and swiped through three more — we want them to land on the *last*
    * one viewed, not the one they originally tapped.
+   *
+   * We read the current openItem via a ref so the stale-closure inside
+   * the popstate listener (registered once at mount with [] deps) can
+   * still see the latest swiped-to dish. Without the ref a back-gesture
+   * after swiping would close the sheet but read openItem=null and
+   * skip the scroll entirely.
    */
+  const openItemRef = useRef(openItem);
+  openItemRef.current = openItem;
   function closeItemSheet() {
-    const closedId = openItem?.id ?? null;
+    const closedId = openItemRef.current?.id ?? null;
     setOpenItem(null);
     if (!closedId) return;
     // rAF gives React time to unmount the sheet first so the layout

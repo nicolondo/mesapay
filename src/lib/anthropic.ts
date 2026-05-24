@@ -198,14 +198,18 @@ export async function extractMenuFromDocument(
           ];
   }
 
-  const resp = await c.messages.create({
+  // Use streaming. The Anthropic SDK refuses non-streaming calls when
+  // the estimated completion exceeds 10 minutes — which a 25+ page
+  // carta with max_tokens=32k can easily trigger ("Streaming is
+  // required for operations that may take longer than 10 minutes").
+  // We don't surface progress to the diner; we just consume the
+  // stream to completion and treat the final message identically to
+  // the old non-streaming response.
+  const stream = c.messages.stream({
     // Big output budget. A multi-page carta (e.g. a 27-page PDF with
     // ~150 dishes, each with descriptions) easily emits 15-20k tokens
-    // of JSON. The previous 4096-token cap was silently truncating the
-    // response, which made JSON.parse throw and the import return
-    // zero items — looking to the operator like "the model didn't see
-    // any food". 32k leaves headroom for very long cartas while
-    // keeping the bill bounded.
+    // of JSON. 32k leaves headroom for very long cartas while keeping
+    // the bill bounded.
     model: env.ANTHROPIC_MODEL,
     max_tokens: 32_000,
     system: [
@@ -217,6 +221,7 @@ export async function extractMenuFromDocument(
     ],
     messages: [{ role: "user", content }],
   });
+  const resp = await stream.finalMessage();
 
   // If the model genuinely ran out of room (stop_reason="max_tokens"),
   // the JSON is mid-emit and JSON.parse will fail. We log that case so

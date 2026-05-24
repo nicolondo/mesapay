@@ -104,10 +104,43 @@ export function MenuImportClient({
     return [...fromExisting, ...fromExtracted];
   }, [initialCategories, extractedCats]);
 
+  // Source URL state: when the operator imports from a URL we hide the
+  // file preview and show the URL instead in the sidebar.
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+
+  function applyExtraction(payload: {
+    extraction: {
+      categories: ExtractedCategory[];
+      items: ExtractedItem[];
+      notes?: string;
+    };
+  }): boolean {
+    const ext = payload.extraction;
+    if (ext.items.length === 0) {
+      setError(
+        "No detectamos platos. Prueba con una imagen más clara, otra URL, o sube un PDF.",
+      );
+      setStage("upload");
+      return false;
+    }
+    setExtractedCats(ext.categories);
+    setExtractionNotes(ext.notes ?? null);
+    setItems(
+      ext.items.map((it, i) => ({
+        ...it,
+        localId: `item-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        selected: true,
+      })),
+    );
+    setStage("review");
+    return true;
+  }
+
   async function onFileChosen(f: File) {
     setError(null);
     setFile(f);
     setFilePreviewUrl(URL.createObjectURL(f));
+    setSourceUrl(null);
     setStage("extracting");
     const fd = new FormData();
     fd.append("file", f);
@@ -122,27 +155,35 @@ export function MenuImportClient({
         setStage("upload");
         return;
       }
-      const ext: { categories: ExtractedCategory[]; items: ExtractedItem[]; notes?: string } =
-        j.extraction;
-      if (ext.items.length === 0) {
-        setError(
-          "No detectamos platos. Prueba con una imagen más clara o asegúrate de que sea una carta de restaurante.",
-        );
+      applyExtraction(j);
+    } catch {
+      setError("Falla de red al procesar el archivo.");
+      setStage("upload");
+    }
+  }
+
+  async function onUrlSubmitted(url: string) {
+    setError(null);
+    setFile(null);
+    setFilePreviewUrl(null);
+    setSourceUrl(url);
+    setStage("extracting");
+    try {
+      const res = await fetch("/api/operator/menu/import/from-url", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j.message ?? j.error ?? "No pudimos leer el sitio.");
         setStage("upload");
         return;
       }
-      setExtractedCats(ext.categories);
-      setExtractionNotes(ext.notes ?? null);
-      setItems(
-        ext.items.map((it, i) => ({
-          ...it,
-          localId: `item-${i}-${Math.random().toString(36).slice(2, 6)}`,
-          selected: true,
-        })),
-      );
-      setStage("review");
+      setSourceUrl(j.sourceUrl ?? url);
+      applyExtraction(j);
     } catch {
-      setError("Falla de red al procesar el archivo.");
+      setError("Falla de red al consultar el sitio.");
       setStage("upload");
     }
   }
@@ -287,16 +328,19 @@ export function MenuImportClient({
         </div>
       )}
 
-      {stage === "upload" && <UploadDrop onFile={onFileChosen} />}
+      {stage === "upload" && (
+        <UploadDrop onFile={onFileChosen} onUrl={onUrlSubmitted} />
+      )}
 
       {stage === "extracting" && (
-        <ExtractingState fileName={file?.name ?? null} />
+        <ExtractingState fileName={file?.name ?? sourceUrl ?? null} />
       )}
 
       {stage === "review" && (
         <ReviewState
           fileName={file?.name ?? null}
           filePreviewUrl={filePreviewUrl}
+          sourceUrl={sourceUrl}
           items={items}
           extractionNotes={extractionNotes}
           categoryChoices={allCategoryChoices}
@@ -366,56 +410,122 @@ function Stepper({
 
 // ---------- Upload ----------
 
-function UploadDrop({ onFile }: { onFile: (f: File) => void }) {
+function UploadDrop({
+  onFile,
+  onUrl,
+}: {
+  onFile: (f: File) => void;
+  onUrl: (url: string) => void;
+}) {
   const [dragOver, setDragOver] = useState(false);
+  const [url, setUrl] = useState("");
+  const trimmed = url.trim();
+  const urlValid =
+    trimmed.length > 4 &&
+    (/^https?:\/\//i.test(trimmed) ||
+      /^[a-z0-9.-]+\.[a-z]{2,}/i.test(trimmed));
+
   return (
-    <label
-      htmlFor="menu-import-file"
-      onDragOver={(e) => {
-        e.preventDefault();
-        if (!dragOver) setDragOver(true);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-          setDragOver(false);
-        }
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f) onFile(f);
-      }}
-      className={
-        "block rounded-3xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors " +
-        (dragOver
-          ? "border-terracotta bg-terracotta/10"
-          : "border-op-border bg-op-surface hover:bg-op-bg")
-      }
-    >
-      <div className="text-5xl mb-4">📄</div>
-      <div className="font-display text-2xl mb-1">
-        {dragOver ? "Suelta aquí" : "Arrastra tu carta o haz click"}
-      </div>
-      <div className="text-sm text-op-muted">
-        PDF, JPG, PNG o WebP · máx 15 MB
-      </div>
-      <div className="text-[11px] text-op-muted mt-3">
-        Funciona con cartas escaneadas, fotos del menú impreso, o PDFs hechos
-        en Word/Canva. La AI lee todo y arma los platos por ti.
-      </div>
-      <input
-        id="menu-import-file"
-        type="file"
-        accept=".pdf,image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
-          e.currentTarget.value = "";
+    <div className="space-y-4">
+      <label
+        htmlFor="menu-import-file"
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!dragOver) setDragOver(true);
         }}
-      />
-    </label>
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setDragOver(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f) onFile(f);
+        }}
+        className={
+          "block rounded-3xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors " +
+          (dragOver
+            ? "border-terracotta bg-terracotta/10"
+            : "border-op-border bg-op-surface hover:bg-op-bg")
+        }
+      >
+        <div className="text-5xl mb-4">📄</div>
+        <div className="font-display text-2xl mb-1">
+          {dragOver ? "Suelta aquí" : "Arrastra tu carta o haz click"}
+        </div>
+        <div className="text-sm text-op-muted">
+          PDF, JPG, PNG o WebP · máx 15 MB
+        </div>
+        <div className="text-[11px] text-op-muted mt-3">
+          Funciona con cartas escaneadas, fotos del menú impreso, o PDFs hechos
+          en Word/Canva. La AI lee todo y arma los platos por ti.
+        </div>
+        <input
+          id="menu-import-file"
+          type="file"
+          accept=".pdf,image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onFile(f);
+            e.currentTarget.value = "";
+          }}
+        />
+      </label>
+
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-op-border" />
+        <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+          O pega un enlace
+        </span>
+        <div className="flex-1 h-px bg-op-border" />
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (urlValid) onUrl(trimmed);
+        }}
+        className="rounded-2xl border border-op-border bg-op-surface p-4"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xl">🔗</span>
+          <div>
+            <div className="font-display text-base leading-tight">
+              ¿La carta está en una página web?
+            </div>
+            <div className="text-[11px] text-op-muted mt-0.5">
+              Pega el link a la página de la carta o un PDF público.
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            inputMode="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://restaurante.com/carta"
+            className="flex-1 min-w-0 h-11 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
+            autoComplete="url"
+            spellCheck={false}
+          />
+          <button
+            type="submit"
+            disabled={!urlValid}
+            className="h-11 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          >
+            Leer
+          </button>
+        </div>
+        <div className="text-[11px] text-op-muted mt-2">
+          También funciona con links directos a PDFs (ej.{" "}
+          <span className="font-mono">restaurante.com/menu.pdf</span>).
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -450,6 +560,7 @@ function ExtractingState({ fileName }: { fileName: string | null }) {
 function ReviewState({
   fileName,
   filePreviewUrl,
+  sourceUrl,
   items,
   extractionNotes,
   categoryChoices,
@@ -461,6 +572,7 @@ function ReviewState({
 }: {
   fileName: string | null;
   filePreviewUrl: string | null;
+  sourceUrl: string | null;
   items: EditableItem[];
   extractionNotes: string | null;
   categoryChoices: {
@@ -591,6 +703,27 @@ function ReviewState({
                   className="w-full h-auto"
                 />
               )}
+            </a>
+          </div>
+        )}
+        {!filePreviewUrl && sourceUrl && (
+          <div className="rounded-2xl border border-op-border bg-op-surface p-3">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+              Fuente
+            </div>
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 bg-op-bg rounded-lg border border-op-border p-3 hover:border-terracotta"
+            >
+              <span className="text-2xl shrink-0">🔗</span>
+              <div className="min-w-0">
+                <div className="text-[11px] text-op-muted">URL</div>
+                <div className="text-xs font-mono truncate text-terracotta">
+                  {sourceUrl}
+                </div>
+              </div>
             </a>
           </div>
         )}

@@ -112,36 +112,55 @@ export async function extractMenuFromDocument(
   source: Source,
 ): Promise<MenuExtraction> {
   const c = getClient();
-  const base64 = source.data.toString("base64");
 
-  const content: Anthropic.Messages.ContentBlockParam[] =
-    source.kind === "pdf"
-      ? [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: base64,
+  let content: Anthropic.Messages.ContentBlockParam[];
+
+  if (source.kind === "html") {
+    // Trim down obvious noise (scripts, styles, comments) and cap length
+    // so we don't blow through the context window on huge marketing
+    // pages. The menu items rarely live in script tags.
+    const cleaned = source.text
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 250_000);
+    const prefix = source.sourceUrl
+      ? `Esta es la página web del restaurante (${source.sourceUrl}). Extrae la carta:\n\n`
+      : "Esta es la página web del restaurante. Extrae la carta:\n\n";
+    content = [{ type: "text", text: prefix + cleaned }];
+  } else {
+    const base64 = source.data.toString("base64");
+    content =
+      source.kind === "pdf"
+        ? [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: base64,
+              },
             },
-          },
-          { type: "text", text: "Extrae toda la carta del restaurante." },
-        ]
-      : [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: source.mimeType as
-                | "image/png"
-                | "image/jpeg"
-                | "image/webp"
-                | "image/gif",
-              data: base64,
+            { type: "text", text: "Extrae toda la carta del restaurante." },
+          ]
+        : [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: source.mimeType as
+                  | "image/png"
+                  | "image/jpeg"
+                  | "image/webp"
+                  | "image/gif",
+                data: base64,
+              },
             },
-          },
-          { type: "text", text: "Extrae toda la carta del restaurante." },
-        ];
+            { type: "text", text: "Extrae toda la carta del restaurante." },
+          ];
+  }
 
   const resp = await c.messages.create({
     // Bigger context budget — menus can have dozens of items + descriptions.
@@ -227,9 +246,16 @@ Reglas:
 - bankName: usa el nombre comercial del banco, no abreviaturas oficiales.
 - Si el documento no parece una certificación bancaria, devuelve todos los campos en null con confidence 0 y nota explicando.`;
 
-type Source =
+type DocumentSource =
   | { kind: "image"; data: Buffer; mimeType: string }
   | { kind: "pdf"; data: Buffer };
+
+type Source =
+  | DocumentSource
+  // HTML content from a fetched URL. Used by the menu importer when the
+  // restaurant has the carta on their website. Bank cert / RUT OCR don't
+  // make sense from HTML so they don't accept this variant.
+  | { kind: "html"; text: string; sourceUrl?: string };
 
 /**
  * Read a bank certification (PDF or image) and return structured fields.
@@ -237,7 +263,7 @@ type Source =
  * extracts the data so the operator can verify it in a form.
  */
 export async function extractBankCertificate(
-  source: Source,
+  source: DocumentSource,
 ): Promise<BankCertExtraction> {
   const c = getClient();
   const base64 = source.data.toString("base64");
@@ -358,7 +384,7 @@ Reglas:
 - legalName: si es persona jurídica, la razón social; si es natural, el nombre completo del contribuyente.
 - Si el documento no parece un RUT, devuelve todos los campos en null con confidence 0.`;
 
-export async function extractRutData(source: Source): Promise<RutExtraction> {
+export async function extractRutData(source: DocumentSource): Promise<RutExtraction> {
   const c = getClient();
   const base64 = source.data.toString("base64");
 

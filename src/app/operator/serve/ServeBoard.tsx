@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
 
@@ -1042,37 +1042,42 @@ function LooseItemsCard({
 }) {
   const isPickup = r.order.orderType === "pickup";
 
-  // Selection state. Default: all items checked. Items removed from
-  // the props (because they were just served via SSE) are pruned by
-  // intersecting with the current item ids on each render.
+  // Selection state. Default: all items checked.
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(items.map((i) => i.id)),
   );
   const currentIds = useMemo(() => items.map((i) => i.id), [items]);
-  // Re-sync when the list of items shrinks (something else was served
-  // server-side) or grows (another item became ready).
+  // Snapshot of what the props looked like last render — used to tell
+  // "items just got delivered" (shrink) apart from "a new item arrived"
+  // (grow). Different reactions to each.
+  const prevIdsRef = useRef<string[]>(currentIds);
   useEffect(() => {
-    setSelected((prev) => {
-      const next = new Set<string>();
-      const knownIds = new Set(currentIds);
-      // Keep checked anything the user previously toggled OFF; default
-      // newly-arrived items to checked.
-      for (const id of currentIds) {
-        if (prev.size === 0 || prev.has(id)) next.add(id);
-      }
-      // If everything was deselected before and an item arrived, leave
-      // the new ones checked (so the bulk button is usable) — that's
-      // what the loop above already does because prev.size is 0 when
-      // there were no items prior, but we also need to bail in the
-      // case where the user explicitly unchecked everything: detect by
-      // comparing previous size to the items that existed last render.
-      // For simplicity we just default-check newcomers; the user can
-      // uncheck if they really want.
-      void knownIds;
-      return next;
-    });
-    // We intentionally depend on currentIds only (not selected) — we
-    // don't want this effect to fire on every checkbox tap.
+    const prevIds = prevIdsRef.current;
+    const prevSet = new Set(prevIds);
+    const someRemoved = prevIds.some((id) => !currentIds.includes(id));
+    if (someRemoved) {
+      // A delivery just landed (the items we sent disappeared from the
+      // round). Reset to "all remaining items checked" so the dishes
+      // the waiter held back are queued up for the next trip without
+      // them having to re-tick.
+      setSelected(new Set(currentIds));
+    } else {
+      // Pure addition (new item became ready while the card is open).
+      // Keep whatever the user already toggled and default newcomers
+      // to checked so the bulk button stays usable.
+      setSelected((prev) => {
+        const next = new Set<string>();
+        for (const id of currentIds) {
+          if (prevSet.has(id)) {
+            if (prev.has(id)) next.add(id);
+          } else {
+            next.add(id);
+          }
+        }
+        return next;
+      });
+    }
+    prevIdsRef.current = currentIds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIds.join(",")]);
 

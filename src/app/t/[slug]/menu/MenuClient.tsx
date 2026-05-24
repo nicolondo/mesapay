@@ -401,6 +401,49 @@ export function MenuClient({
     ? Array.from(itemsByCat.values()).reduce((s, arr) => s + arr.length, 0)
     : 0;
 
+  // Flat ordered list of currently-visible items, used by the detail
+  // sheet for swipe navigation (left = next, right = prev). The order
+  // mirrors the rendered list — categories in their sortOrder, items
+  // within each category in their sortOrder. Filtering shrinks the
+  // pool so swipes only move between dishes the user can see.
+  const flatVisibleItems = useMemo(() => {
+    const out: MenuItem[] = [];
+    for (const c of categories) {
+      const arr = itemsByCat.get(c.id) ?? [];
+      for (const it of arr) out.push(it);
+    }
+    return out;
+  }, [categories, itemsByCat]);
+
+  const openItemIndex = openItem
+    ? flatVisibleItems.findIndex((it) => it.id === openItem.id)
+    : -1;
+  const prevItem =
+    openItemIndex > 0 ? flatVisibleItems[openItemIndex - 1] : null;
+  const nextItem =
+    openItemIndex >= 0 && openItemIndex < flatVisibleItems.length - 1
+      ? flatVisibleItems[openItemIndex + 1]
+      : null;
+
+  /**
+   * Close the sheet and scroll the page back to the dish the diner was
+   * looking at. They might have opened it from anywhere in a long carta
+   * and swiped through three more — we want them to land on the *last*
+   * one viewed, not the one they originally tapped.
+   */
+  function closeItemSheet() {
+    const closedId = openItem?.id ?? null;
+    setOpenItem(null);
+    if (!closedId) return;
+    // rAF gives React time to unmount the sheet first so the layout
+    // computation in scrollIntoView is accurate.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`menu-item-${closedId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "auto", block: "center" });
+    });
+  }
+
   const subtotal = cart.reduce((s, l) => s + l.priceCents * l.qty, 0);
   const totalQty = cart.reduce((s, l) => s + l.qty, 0);
 
@@ -702,11 +745,19 @@ export function MenuClient({
       {/* Item detail sheet */}
       {openItem && (
         <ItemSheet
+          // Keying by id remounts the sheet when the diner swipes —
+          // selections/qty/notes auto-reset to the new item's defaults
+          // instead of leaking across plates.
+          key={openItem.id}
           item={openItem}
-          onClose={() => setOpenItem(null)}
+          hasPrev={!!prevItem}
+          hasNext={!!nextItem}
+          onPrev={() => prevItem && setOpenItem(prevItem)}
+          onNext={() => nextItem && setOpenItem(nextItem)}
+          onClose={closeItemSheet}
           onAdd={(sel, qty, notes) => {
             addToCart(openItem, sel, qty, notes);
-            setOpenItem(null);
+            closeItemSheet();
           }}
         />
       )}
@@ -1226,8 +1277,13 @@ function ItemRowList({
   onOpen: () => void;
   onQuickAdd: () => void;
 }) {
+  // id used by the sheet's close handler to scroll back to this exact
+  // row, plus a scroll-margin so the sticky header doesn't cover it.
   return (
-    <li className="py-4">
+    <li
+      id={`menu-item-${item.id}`}
+      className="py-4 scroll-mt-28"
+    >
       <div className="flex gap-4 items-center">
         <button
           onClick={onOpen}
@@ -1278,7 +1334,7 @@ function ItemCardGrid({
   onQuickAdd: () => void;
 }) {
   return (
-    <div className="flex flex-col">
+    <div id={`menu-item-${item.id}`} className="flex flex-col scroll-mt-28">
       <button
         onClick={onOpen}
         className="relative w-full aspect-square rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
@@ -1334,7 +1390,7 @@ function ItemCardEditorial({
     );
   }
   return (
-    <div className="flex flex-col">
+    <div id={`menu-item-${item.id}`} className="flex flex-col scroll-mt-28">
       <button
         onClick={onOpen}
         className="w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
@@ -1373,10 +1429,18 @@ function ItemCardEditorial({
 
 function ItemSheet({
   item,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
   onClose,
   onAdd,
 }: {
   item: MenuItem;
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
   onClose: () => void;
   onAdd: (sel: Record<string, string>, qty: number, notes?: string) => void;
 }) {
@@ -1390,6 +1454,29 @@ function ItemSheet({
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
 
+  // Horizontal swipe to flip between dishes. We only commit on
+  // touchend so vertical scrolling inside the sheet isn't hijacked.
+  // The ratio check (|dx| must dominate |dy| by 1.2x) keeps diagonal
+  // scrolls from triggering false swipes; the 60px threshold weeds
+  // out tiny accidental drags.
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 60) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (dx < 0 && hasNext) onNext();
+    else if (dx > 0 && hasPrev) onPrev();
+  }
+
   return (
     <div
       className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
@@ -1398,6 +1485,8 @@ function ItemSheet({
       <div
         className="bg-paper w-full max-w-xl max-h-[92dvh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
         {item.photoUrl && (
           <div
@@ -1406,7 +1495,39 @@ function ItemSheet({
           />
         )}
         <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-1 -ml-2">
+              {/* Prev / next chevrons. On mobile the diner mainly uses
+                  swipe; the buttons are kept for desktop and as a hint
+                  that more dishes are reachable from this sheet. */}
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={!hasPrev}
+                aria-label="Plato anterior"
+                className="w-9 h-9 rounded-full text-ink-3 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cream"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!hasNext}
+                aria-label="Siguiente plato"
+                className="w-9 h-9 rounded-full text-ink-3 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cream"
+              >
+                ›
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full border border-hairline text-ink-3 flex items-center justify-center"
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex items-start justify-between gap-4 mt-2">
             <div>
               <h2 className="font-display text-3xl tracking-[-0.015em] leading-tight">
                 {item.name}
@@ -1420,13 +1541,6 @@ function ItemSheet({
                 </div>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full border border-hairline text-ink-3 flex items-center justify-center"
-              aria-label="Cerrar"
-            >
-              ×
-            </button>
           </div>
           <p className="text-ink-3 mt-3 leading-relaxed">{item.description}</p>
 

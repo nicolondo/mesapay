@@ -283,9 +283,19 @@ export function PayClient({
       {!isCounter && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            ¿Cómo quieres pagar?
+            {operatorMode ? "¿Cómo paga el cliente?" : "¿Cómo quieres pagar?"}
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          {/* The "Lo mío" split mode is the diner saying "I'll cover the
+              items I ordered". A waiter cobrando on behalf of the table
+              has no "mine" — they're collecting the whole bill or a
+              shared split. Drop the third button in op mode and switch
+              to a 2-column grid so the remaining two fill the row. */}
+          <div
+            className={
+              "grid gap-2 " +
+              (operatorMode ? "grid-cols-2" : "grid-cols-3")
+            }
+          >
             <ModeButton
               active={mode === "full"}
               label="Todo"
@@ -298,15 +308,17 @@ export function PayClient({
               hint="Divide por N"
               onClick={() => setMode("equal")}
             />
-            <ModeButton
-              active={mode === "mine"}
-              label="Lo mío"
-              hint="Solo lo que pedí"
-              onClick={() => hasGuests && setMode("mine")}
-              disabled={!hasGuests}
-            />
+            {!operatorMode && (
+              <ModeButton
+                active={mode === "mine"}
+                label="Lo mío"
+                hint="Solo lo que pedí"
+                onClick={() => hasGuests && setMode("mine")}
+                disabled={!hasGuests}
+              />
+            )}
           </div>
-          {mode === "mine" && !hasGuests && (
+          {mode === "mine" && !hasGuests && !operatorMode && (
             <div className="mt-2 text-xs text-muted-2">
               Nadie dejó su nombre en los platos — usa Partes iguales.
             </div>
@@ -382,17 +394,21 @@ export function PayClient({
         )}
         <Row
           label={
-            mode === "full"
-              ? "Tu parte"
-              : mode === "equal"
-                ? `Tu parte (1 de ${splitCount})`
-                : `Lo de ${myGuest || "ti"}`
+            operatorMode
+              ? mode === "full"
+                ? "A cobrar"
+                : `A cobrar (1 de ${splitCount})`
+              : mode === "full"
+                ? "Tu parte"
+                : mode === "equal"
+                  ? `Tu parte (1 de ${splitCount})`
+                  : `Lo de ${myGuest || "ti"}`
           }
           value={fmtCOP(amountSubtotal)}
         />
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            Propina sobre tu parte
+            {operatorMode ? "Propina" : "Propina sobre tu parte"}
           </div>
           <div className="flex gap-2 flex-wrap">
             {TIP_OPTIONS.map((p) => (
@@ -442,6 +458,7 @@ export function PayClient({
             busy={busy === "kushki_apple_pay"}
             onClick={() => payWithKushkiToken("kushki_apple_pay")}
             amountCents={amountCents}
+            operatorMode={operatorMode}
           />
         )}
         {kushkiReady && (
@@ -451,6 +468,7 @@ export function PayClient({
             busy={busy === "kushki_card_terminal"}
             onClick={payWithTerminal}
             amountCents={amountCents}
+            operatorMode={operatorMode}
           />
         )}
         <PayButton
@@ -459,6 +477,7 @@ export function PayClient({
           busy={busy === "demo_cash"}
           onClick={() => setCashTenderOpen(true)}
           amountCents={amountCents}
+          operatorMode={operatorMode}
         />
         {showDemoFallback && (
           <>
@@ -470,11 +489,13 @@ export function PayClient({
               disabled={busy !== null || amountCents <= 0}
               busy={busy === "kushki_card_terminal"}
               onClick={payWithTerminal}
+              operatorMode={operatorMode}
               amountCents={amountCents}
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">
-              Modo demo. En producción solo verás Apple Pay (Safari), datáfono
-              y efectivo (activa pagos para el restaurante).
+              {operatorMode
+                ? "Modo demo. En producción cobrarás con datáfono real (activa pagos para el restaurante)."
+                : "Modo demo. En producción solo verás Apple Pay (Safari), datáfono y efectivo (activa pagos para el restaurante)."}
             </p>
           </>
         )}
@@ -704,6 +725,7 @@ function PayButton({
   busy,
   onClick,
   amountCents,
+  operatorMode,
 }: {
   kind:
     | "apple"
@@ -714,8 +736,9 @@ function PayButton({
   busy: boolean;
   onClick: () => void;
   amountCents: number;
+  operatorMode: boolean;
 }) {
-  const meta = BUTTON_META[kind];
+  const meta = (operatorMode ? BUTTON_META_OP : BUTTON_META_DINER)[kind];
   return (
     <button
       onClick={onClick}
@@ -735,9 +758,14 @@ function PayButton({
   );
 }
 
-const BUTTON_META: Record<
+type ButtonMeta = { label: string; icon: string; className: string };
+
+// Copy written for the diner — they're asking the system to do
+// something on their behalf, so "llamar al mesero" / "pedir datáfono"
+// frame the action correctly.
+const BUTTON_META_DINER: Record<
   "apple" | "terminal" | "cash" | "demo_terminal",
-  { label: string; icon: string; className: string }
+  ButtonMeta
 > = {
   apple: {
     label: "Apple Pay",
@@ -756,6 +784,31 @@ const BUTTON_META: Record<
   },
   demo_terminal: {
     label: "Demo pedir datáfono",
+    icon: "🧪",
+    className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
+  },
+};
+
+// Copy written for the waiter who's the one collecting the bill.
+// They aren't "calling the mesero" or "asking for the datáfono" —
+// they're recording how the diner is paying right now.
+const BUTTON_META_OP: Record<
+  "apple" | "terminal" | "cash" | "demo_terminal",
+  ButtonMeta
+> = {
+  apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
+  terminal: {
+    label: "Cobrar con datáfono",
+    icon: "💳",
+    className: "bg-terracotta text-paper",
+  },
+  cash: {
+    label: "Recibir en efectivo",
+    icon: "💵",
+    className: "bg-paper text-ink border border-hairline",
+  },
+  demo_terminal: {
+    label: "Demo · Cobrar con datáfono",
     icon: "🧪",
     className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
   },

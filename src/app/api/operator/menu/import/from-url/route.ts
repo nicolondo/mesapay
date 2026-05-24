@@ -6,6 +6,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
 import { checkUrlSafe } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
+import { tryImportShopify } from "@/lib/menuImportShopify";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -61,6 +62,33 @@ export async function POST(req: Request) {
       { error: "unsafe_url", message: safe.reason },
       { status: 400 },
     );
+  }
+
+  // Fast path: many Colombian restaurants run their carta on Shopify
+  // (Il Forno, Crepes & Waffles, etc.). Their public /products.json
+  // endpoint gives us every dish with title, description, price, image
+  // — beats any AI extraction off the rendered HTML, which is often a
+  // SPA that lazy-loads only a handful of items. If we detect Shopify
+  // we short-circuit the AI path entirely.
+  try {
+    const shopify = await tryImportShopify(url, restaurantId);
+    if (shopify) {
+      const existingCategories = await db.category.findMany({
+        where: { restaurantId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, slug: true, label: true, kind: true },
+      });
+      return NextResponse.json({
+        ok: true,
+        extraction: shopify.extraction,
+        existingCategories,
+        sourceUrl: shopify.sourceUrl,
+        contentType: "application/shopify",
+      });
+    }
+  } catch {
+    // If the Shopify path explodes for any reason, fall through to the
+    // generic fetch+AI flow — better to import something than nothing.
   }
 
   let resp: Response;

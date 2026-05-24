@@ -124,6 +124,51 @@ export function flattenSelections(
 }
 
 /**
+ * Format a selection record into one human-readable string per
+ * modifier group, using the menu item's live modifier definitions
+ * for the group label.
+ *
+ *   selections = { "modifier-id-1": ["Carne", "Pollo"], "modifier-id-2": "Fuerte" }
+ *   item.modifiers = [{ id: "...-1", label: "Adición", ... }, { id: "...-2", label: "Picante", ... }]
+ *
+ *   → ["Adición: Carne, Pollo", "Picante: Fuerte"]
+ *
+ * Iterates the modifier defs (not the keys of selections) so the
+ * result preserves the order the diner saw on the dish detail sheet.
+ *
+ * Falls back to the flat label list when the modifier defs can't be
+ * resolved (e.g. the dish was deleted from the menu after the order
+ * was placed). Better to show "Carne, Pollo" with no group than to
+ * silently drop them.
+ */
+export function formatItemSelections(
+  selections: unknown,
+  menuItemModifiers: unknown,
+): string[] {
+  if (!selections || typeof selections !== "object" || Array.isArray(selections)) {
+    return [];
+  }
+  const mods = normalizeModifiers(menuItemModifiers);
+  if (mods.length === 0) {
+    return flattenSelections(selections);
+  }
+  const sel = selections as Record<string, unknown>;
+  const out: string[] = [];
+  for (const m of mods) {
+    const raw = sel[m.id];
+    if (raw == null) continue;
+    const labels = typeof raw === "string" ? [raw] : Array.isArray(raw) ? raw : [];
+    const cleaned = labels
+      .filter((x): x is string => typeof x === "string")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (cleaned.length === 0) continue;
+    out.push(`${m.label}: ${cleaned.join(", ")}`);
+  }
+  return out;
+}
+
+/**
  * Sum the price deltas of whatever options the diner selected, given
  * the live modifier definition. Unknown labels contribute zero — they
  * might come from a renamed/removed option after the order was placed.

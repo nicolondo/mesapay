@@ -1062,8 +1062,10 @@ function SingleServeCard({
             <span className="font-mono">{i.qty}×</span> {i.name}
           </div>
           {i.modifiers.length > 0 && (
-            <div className="text-xs text-op-muted mt-0.5">
-              {i.modifiers.join(" · ")}
+            <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
+              {i.modifiers.map((g, idx) => (
+                <div key={idx}>- {g}</div>
+              ))}
             </div>
           )}
           {i.notes && (
@@ -1141,7 +1143,11 @@ function MainsBulkCard({
             <div className="flex-1">
               <span className="font-mono">{i.qty}×</span> {i.name}
               {i.modifiers.length > 0 && (
-                <span className="text-op-muted"> · {i.modifiers.join(" · ")}</span>
+                <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
+                  {i.modifiers.map((g, idx) => (
+                    <div key={idx}>- {g}</div>
+                  ))}
+                </div>
               )}
               {i.notes && (
                 <div className="text-xs italic text-terracotta mt-0.5">

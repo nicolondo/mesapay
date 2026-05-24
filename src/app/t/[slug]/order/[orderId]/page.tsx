@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { formatItemSelections } from "@/lib/modifiers";
 import { OrderLive } from "./OrderLive";
 import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
 import { EtaBadge, OrderEta } from "./EtaBadge";
@@ -217,11 +218,24 @@ export default async function OrderView({
                               de {li.guestName}
                             </div>
                           )}
-                          {li.modifierSelections && typeof li.modifierSelections === "object" && (
-                            <div className="text-xs text-muted mt-0.5">
-                              {Object.values(li.modifierSelections as Record<string, string>).join(" · ")}
-                            </div>
-                          )}
+                          {(() => {
+                            // Resolve modifier group labels from the
+                            // menu item's live definition so the
+                            // diner reads "Adición: Carne, Pollo"
+                            // instead of a bare "Carne · Pollo · ..."
+                            const groups = formatItemSelections(
+                              li.modifierSelections,
+                              li.menuItem?.modifiers,
+                            );
+                            if (groups.length === 0) return null;
+                            return (
+                              <div className="text-xs text-muted mt-0.5 space-y-0.5">
+                                {groups.map((g, i) => (
+                                  <div key={i}>- {g}</div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="font-mono text-sm tabular">
                           {fmtCOP(li.priceCentsSnapshot * li.qty)}

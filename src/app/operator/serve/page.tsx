@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { flattenSelections } from "@/lib/modifiers";
+import { formatItemSelections } from "@/lib/modifiers";
 import { ServeBoard } from "./ServeBoard";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,10 @@ export default async function ServePage() {
       },
       include: {
         order: { include: { table: true } },
-        items: { orderBy: { id: "asc" } },
+        items: {
+          orderBy: { id: "asc" },
+          include: { menuItem: { select: { modifiers: true } } },
+        },
       },
       orderBy: { readyAt: "asc" },
     }),
@@ -108,7 +111,10 @@ export default async function ServePage() {
           id: i.id,
           qty: i.qty,
           name: i.nameSnapshot,
-          modifiers: flattenSelections(i.modifierSelections),
+          modifiers: formatItemSelections(
+            i.modifierSelections,
+            i.menuItem?.modifiers,
+          ),
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,

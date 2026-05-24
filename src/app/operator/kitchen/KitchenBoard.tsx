@@ -493,9 +493,19 @@ function ItemRow({
           >
             <span className="font-mono">{item.qty}×</span> {item.name}
             {item.modifiers.length > 0 && (
-              <span className={served ? "text-op-muted/70" : "text-op-muted"}>
-                {" "}· {item.modifiers.join(" · ")}
-              </span>
+              // One line per modifier group ("Adición: Carne, Pollo") —
+              // far easier to scan from a kitchen pass than a single
+              // run-on " · "-joined string.
+              <div
+                className={
+                  "mt-1 text-xs space-y-0.5 " +
+                  (served ? "text-op-muted/70" : "text-op-muted")
+                }
+              >
+                {item.modifiers.map((g, i) => (
+                  <div key={i}>- {g}</div>
+                ))}
+              </div>
             )}
           </div>
           {item.guestName && (

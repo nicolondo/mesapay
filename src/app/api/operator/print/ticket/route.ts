@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { flattenSelections } from "@/lib/modifiers";
+import { formatItemSelections } from "@/lib/modifiers";
 
 /**
  * Return the data needed to print a single ticket. The print listener
@@ -49,6 +49,7 @@ export async function GET(req: Request) {
           station,
           ...(station === "bar" && sub ? { barSubStation: sub } : {}),
         },
+        include: { menuItem: { select: { modifiers: true } } },
       },
     },
   });
@@ -77,7 +78,10 @@ export async function GET(req: Request) {
     items: round.items.map((i) => ({
       qty: i.qty,
       name: i.nameSnapshot,
-      modifiers: flattenSelections(i.modifierSelections),
+      modifiers: formatItemSelections(
+        i.modifierSelections,
+        i.menuItem?.modifiers,
+      ),
       notes: i.notes,
       guestName: i.guestName,
     })),

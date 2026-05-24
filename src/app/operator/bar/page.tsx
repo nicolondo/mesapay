@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { flattenSelections } from "@/lib/modifiers";
+import { formatItemSelections } from "@/lib/modifiers";
 import { KitchenBoard } from "../kitchen/KitchenBoard";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,10 @@ export default async function BarPage({
     },
     include: {
       order: { include: { table: true } },
-      items: { where: itemsWhere },
+      items: {
+        where: itemsWhere,
+        include: { menuItem: { select: { modifiers: true } } },
+      },
     },
     orderBy: { placedAt: "asc" },
   });
@@ -107,7 +110,10 @@ export default async function BarPage({
           id: i.id,
           qty: i.qty,
           name: i.nameSnapshot,
-          modifiers: flattenSelections(i.modifierSelections),
+          modifiers: formatItemSelections(
+            i.modifierSelections,
+            i.menuItem?.modifiers,
+          ),
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,

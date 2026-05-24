@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
+import { formatItemSelections } from "@/lib/modifiers";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { TableActions } from "../../tables/TableActions";
 
@@ -20,7 +21,10 @@ export default async function OperatorOrderDetail({
     where: { id },
     include: {
       table: true,
-      items: { orderBy: { id: "asc" } },
+      items: {
+        orderBy: { id: "asc" },
+        include: { menuItem: { select: { modifiers: true } } },
+      },
       rounds: { orderBy: { seq: "asc" } },
       payments: { orderBy: { createdAt: "asc" } },
     },
@@ -148,14 +152,20 @@ export default async function OperatorOrderDetail({
                             de {li.guestName}
                           </div>
                         )}
-                        {li.modifierSelections &&
-                          typeof li.modifierSelections === "object" && (
-                            <div className="text-xs text-op-muted mt-0.5">
-                              {Object.values(
-                                li.modifierSelections as Record<string, string>,
-                              ).join(" · ")}
+                        {(() => {
+                          const groups = formatItemSelections(
+                            li.modifierSelections,
+                            li.menuItem?.modifiers,
+                          );
+                          if (groups.length === 0) return null;
+                          return (
+                            <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
+                              {groups.map((g, i) => (
+                                <div key={i}>- {g}</div>
+                              ))}
                             </div>
-                          )}
+                          );
+                        })()}
                         {li.notes && (
                           <div className="text-xs text-op-muted mt-0.5 italic">
                             {li.notes}

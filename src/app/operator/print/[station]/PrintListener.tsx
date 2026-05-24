@@ -408,7 +408,7 @@ function buildTicketHtml(ticket: Ticket): string {
       (i) => `
     <div class="item">
       <span class="name"><span class="qty">${i.qty}×</span> ${escapeHtml(i.name)}</span>
-      ${i.modifiers.length ? `<div class="modifiers">· ${i.modifiers.map(escapeHtml).join(" · ")}</div>` : ""}
+      ${i.modifiers.length ? i.modifiers.map((g) => `<div class="modifiers">- ${escapeHtml(g)}</div>`).join("") : ""}
       ${i.notes ? `<div class="notes">"${escapeHtml(i.notes)}"</div>` : ""}
       ${i.guestName ? `<div class="guest">${escapeHtml(i.guestName)}</div>` : ""}
     </div>

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { flattenSelections } from "@/lib/modifiers";
+import { formatItemSelections } from "@/lib/modifiers";
 import { KitchenBoard } from "./KitchenBoard";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,13 @@ export default async function KitchenPage() {
     },
     include: {
       order: { include: { table: true } },
-      items: { where: { station: "kitchen" } },
+      items: {
+        where: { station: "kitchen" },
+        // Pull the menu item's modifier definitions so the kitchen
+        // ticket renders "Adición: Carne, Pollo" instead of a flat
+        // "Carne · Pollo" list with no context.
+        include: { menuItem: { select: { modifiers: true } } },
+      },
     },
     orderBy: { placedAt: "asc" },
   });
@@ -51,7 +57,10 @@ export default async function KitchenPage() {
           id: i.id,
           qty: i.qty,
           name: i.nameSnapshot,
-          modifiers: flattenSelections(i.modifierSelections),
+          modifiers: formatItemSelections(
+            i.modifierSelections,
+            i.menuItem?.modifiers,
+          ),
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,

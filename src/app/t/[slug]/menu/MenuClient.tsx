@@ -444,6 +444,42 @@ export function MenuClient({
     });
   }
 
+  // Wire the device / browser back button to the sheet so a swipe-back
+  // gesture (iOS) or hardware back (Android) closes the modal instead
+  // of leaving the carta entirely. We push a sentinel history entry
+  // when a dish opens and consume it on close; swiping between dishes
+  // doesn't touch history (one back = exit the modal, regardless of
+  // how many dishes the diner browsed inside it).
+  const sheetHistoryActiveRef = useRef(false);
+  const skipNextPopRef = useRef(false);
+  useEffect(() => {
+    if (openItem && !sheetHistoryActiveRef.current) {
+      window.history.pushState({ mesapaySheet: true }, "");
+      sheetHistoryActiveRef.current = true;
+    } else if (!openItem && sheetHistoryActiveRef.current) {
+      sheetHistoryActiveRef.current = false;
+      // If the close came from a popstate (back button) the history
+      // entry is already gone — skip the explicit back() to avoid
+      // double-popping the previous page.
+      if (skipNextPopRef.current) {
+        skipNextPopRef.current = false;
+      } else {
+        window.history.back();
+      }
+    }
+  }, [openItem]);
+  useEffect(() => {
+    function onPop() {
+      if (sheetHistoryActiveRef.current) {
+        skipNextPopRef.current = true;
+        closeItemSheet();
+      }
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const subtotal = cart.reduce((s, l) => s + l.priceCents * l.qty, 0);
   const totalQty = cart.reduce((s, l) => s + l.qty, 0);
 
@@ -1479,18 +1515,25 @@ function ItemSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
+      // Full-screen on mobile (no transparent gap above the photo) and
+      // a centred card on desktop. The mobile sheet stops behaving
+      // like a "bottom drawer" — diners expect a takeover view, not a
+      // sliver of carta visible at the top.
+      className="fixed inset-0 z-40 bg-black/40 md:flex md:items-center md:justify-center"
       onClick={onClose}
     >
       <div
-        className="bg-paper w-full max-w-xl max-h-[92dvh] rounded-t-3xl md:rounded-3xl overflow-auto slide-up"
+        className="bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto slide-up"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
         {item.photoUrl && (
           <div
-            className="h-56 w-full bg-cover bg-center bg-cream"
+            // Square photo, full width. On a 390px phone that's a
+            // 390×390 hero — much bigger and more appetising than the
+            // old 224px landscape strip.
+            className="aspect-square w-full bg-cover bg-center bg-cream"
             style={{ backgroundImage: `url(${item.photoUrl})` }}
           />
         )}

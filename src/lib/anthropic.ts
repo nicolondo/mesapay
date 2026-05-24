@@ -179,7 +179,18 @@ export async function extractMenuFromDocument(
                 data: base64,
               },
             },
-            { type: "text", text: "Extrae toda la carta del restaurante." },
+            // En PDFs no hay fotos descargables ni HTML, así que pedimos
+            // un JSON más compacto omitiendo photoUrl y confidence. Eso
+            // reduce ~30% el output y deja max_tokens libre para cartas
+            // muy largas.
+            {
+              type: "text",
+              text:
+                "Extrae toda la carta del restaurante.\n\n" +
+                'Importante: en cada item de "items" devuelve SOLO los campos ' +
+                "name, description, priceCents, categorySlug y tags. " +
+                "NO incluyas photoUrl ni confidence (los completaremos del lado servidor).",
+            },
           ]
         : [
             {
@@ -194,7 +205,14 @@ export async function extractMenuFromDocument(
                 data: base64,
               },
             },
-            { type: "text", text: "Extrae toda la carta del restaurante." },
+            {
+              type: "text",
+              text:
+                "Extrae toda la carta del restaurante.\n\n" +
+                "Importante: en cada item de \"items\" devuelve SOLO los campos " +
+                "name, description, priceCents, categorySlug y tags. " +
+                "NO incluyas photoUrl ni confidence.",
+            },
           ];
   }
 
@@ -206,12 +224,13 @@ export async function extractMenuFromDocument(
   // stream to completion and treat the final message identically to
   // the old non-streaming response.
   const stream = c.messages.stream({
-    // Big output budget. A multi-page carta (e.g. a 27-page PDF with
-    // ~150 dishes, each with descriptions) easily emits 15-20k tokens
-    // of JSON. 32k leaves headroom for very long cartas while keeping
-    // the bill bounded.
+    // Big output budget. A dense carta (e.g. 14 tall pages with 200+
+    // platos) can blow past 32k tokens of JSON. 64k is the Haiku 4.5
+    // and Sonnet 4.5 cap; combined with the "skip photoUrl/confidence"
+    // hint above it leaves plenty of headroom while keeping the bill
+    // bounded (we never use more than we emit).
     model: env.ANTHROPIC_MODEL,
-    max_tokens: 32_000,
+    max_tokens: 64_000,
     system: [
       {
         type: "text",
@@ -248,7 +267,7 @@ export async function extractMenuFromDocument(
       categories: [],
       items: [],
       notes: truncated
-        ? "La carta es muy larga y la respuesta se cortó. Sube la carta por partes o en un PDF más corto."
+        ? "La carta tiene tantos platos que la IA se quedó sin espacio. Divide el PDF en 2 partes (ej. bebidas aparte de comida) y súbelas por separado."
         : `model returned non-JSON: ${text.slice(0, 200)}`,
     };
   }

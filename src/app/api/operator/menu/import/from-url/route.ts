@@ -7,6 +7,7 @@ import { extractMenuFromDocument } from "@/lib/anthropic";
 import { checkUrlSafe } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
+import { tryImportJusto } from "@/lib/menuImportJusto";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -89,6 +90,30 @@ export async function POST(req: Request) {
   } catch {
     // If the Shopify path explodes for any reason, fall through to the
     // generic fetch+AI flow — better to import something than nothing.
+  }
+
+  // Same idea for Justo / OrionEat (getjusto.com): the storefront is a
+  // Remix app that ships the entire menu inline as window.__remixContext.
+  // We parse it directly — beats AI on a hydrated React DOM where prices
+  // and dish names aren't visible until JS runs.
+  try {
+    const justo = await tryImportJusto(url, restaurantId);
+    if (justo) {
+      const existingCategories = await db.category.findMany({
+        where: { restaurantId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, slug: true, label: true, kind: true },
+      });
+      return NextResponse.json({
+        ok: true,
+        extraction: justo.extraction,
+        existingCategories,
+        sourceUrl: justo.sourceUrl,
+        contentType: "application/justo",
+      });
+    }
+  } catch {
+    /* fall through */
   }
 
   let resp: Response;

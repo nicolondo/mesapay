@@ -1,0 +1,35 @@
+[Unit]
+# Templated systemd unit for MESAPAY's two colors. Start an instance
+# with: `sudo systemctl start mesapay@blue` (or mesapay@green). The %i
+# placeholder picks the color and the matching environment file.
+#
+# Why two services instead of one with --color=:
+#   - systemd manages each lifecycle (restart, watchdog) independently
+#   - Logs are separated per color: `journalctl -u mesapay@blue`
+#   - One color can be stopped while the other keeps serving traffic,
+#     which is the whole point of the blue/green pattern.
+Description=MESAPAY Next.js (%i)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=clowd
+WorkingDirectory=/opt/mesapay/%i
+# Shared secrets (.env.production) + a per-color override that sets the
+# unique PORT so blue and green don't fight for the same socket.
+EnvironmentFile=/opt/mesapay/shared/.env.production
+EnvironmentFile=/opt/mesapay/shared/.env.%i
+Environment=NODE_ENV=production
+# Adjust the path if your build output lives elsewhere. For a standard
+# `next start` (not standalone), use:
+#   ExecStart=/usr/bin/npm --prefix /opt/mesapay/%i start
+ExecStart=/usr/bin/npm --prefix /opt/mesapay/%i start
+Restart=on-failure
+RestartSec=3
+# Give the process up to 30s to exit cleanly when systemctl stop fires;
+# this is the "drain" window after nginx has already swapped traffic.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

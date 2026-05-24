@@ -626,7 +626,7 @@ function Pricing() {
     },
     {
       name: "Pro",
-      price: "$ 450.000",
+      price: "$ 500.000",
       per: "/ mes · COP",
       copy: "Para cadenas o restaurantes con servicio continuo de alto volumen.",
       features: [

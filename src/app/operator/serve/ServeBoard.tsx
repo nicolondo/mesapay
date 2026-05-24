@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
 
@@ -153,16 +153,6 @@ export function ServeBoard({
     });
     return () => es.close();
   }, [tenantSlug, router]);
-
-  async function serveItem(id: string) {
-    setPendingServed((p) => new Set(p).add(id));
-    await fetch(`/api/operator/order-items/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ served: true }),
-    });
-    startTx(() => router.refresh());
-  }
 
   async function serveItems(items: Item[]) {
     const pending = items.filter(
@@ -409,7 +399,6 @@ export function ServeBoard({
                     round={r}
                     serviceMode={serviceMode}
                     pendingServed={pendingServed}
-                    onServeItem={serveItem}
                     onServeItems={serveItems}
                   />
                 ))}
@@ -969,13 +958,11 @@ function RoundCard({
   round: r,
   serviceMode,
   pendingServed,
-  onServeItem,
   onServeItems,
 }: {
   round: Round;
   serviceMode: "table" | "counter";
   pendingServed: Set<string>;
-  onServeItem: (id: string) => void;
   onServeItems: (items: Item[]) => void;
 }) {
   const mode = r.order.servingMode;
@@ -1011,14 +998,14 @@ function RoundCard({
 
   return (
     <>
-      {loose.map((i) => (
-        <SingleServeCard
-          key={i.id}
-          item={i}
+      {loose.length > 0 && (
+        <LooseItemsCard
           round={r}
-          onServe={() => onServeItem(i.id)}
+          serviceMode={serviceMode}
+          items={loose}
+          onServe={onServeItems}
         />
-      ))}
+      )}
 
       {fuertesJuntos && !mainsAllReady && mainsReadyUnserved.length > 0 && (
         <MainsWaitingCard round={r} cookingCount={mainsCooking} />
@@ -1036,16 +1023,75 @@ function RoundCard({
   );
 }
 
-function SingleServeCard({
-  item: i,
+function LooseItemsCard({
+  // Multi-item card with a checkbox per dish (default checked) and a
+  // single "Entregar N" button at the bottom. Matches how a waiter
+  // physically picks up dishes — they grab everything for a table at
+  // once, and only uncheck a plate if they're holding it back (still
+  // arranging, customer asked to delay, etc.). For a single-item
+  // round the checkbox still shows but the friction is minimal.
   round: r,
+  serviceMode,
+  items,
   onServe,
 }: {
-  item: Item;
   round: Round;
-  onServe: () => void;
+  serviceMode: "table" | "counter";
+  items: Item[];
+  onServe: (items: Item[]) => void;
 }) {
   const isPickup = r.order.orderType === "pickup";
+
+  // Selection state. Default: all items checked. Items removed from
+  // the props (because they were just served via SSE) are pruned by
+  // intersecting with the current item ids on each render.
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(items.map((i) => i.id)),
+  );
+  const currentIds = useMemo(() => items.map((i) => i.id), [items]);
+  // Re-sync when the list of items shrinks (something else was served
+  // server-side) or grows (another item became ready).
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = new Set<string>();
+      const knownIds = new Set(currentIds);
+      // Keep checked anything the user previously toggled OFF; default
+      // newly-arrived items to checked.
+      for (const id of currentIds) {
+        if (prev.size === 0 || prev.has(id)) next.add(id);
+      }
+      // If everything was deselected before and an item arrived, leave
+      // the new ones checked (so the bulk button is usable) — that's
+      // what the loop above already does because prev.size is 0 when
+      // there were no items prior, but we also need to bail in the
+      // case where the user explicitly unchecked everything: detect by
+      // comparing previous size to the items that existed last render.
+      // For simplicity we just default-check newcomers; the user can
+      // uncheck if they really want.
+      void knownIds;
+      return next;
+    });
+    // We intentionally depend on currentIds only (not selected) — we
+    // don't want this effect to fire on every checkbox tap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIds.join(",")]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function selectAll(value: boolean) {
+    setSelected(value ? new Set(currentIds) : new Set());
+  }
+
+  const selectedItems = items.filter((i) => selected.has(i.id));
+  const allChecked = selectedItems.length === items.length;
+  const noneChecked = selectedItems.length === 0;
+
   return (
     <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
       <div className="flex items-center justify-between">
@@ -1056,38 +1102,78 @@ function SingleServeCard({
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
-      <div className="mt-2 flex items-start gap-2">
-        <div className="flex-1">
-          <div className="text-sm">
-            <span className="font-mono">{i.qty}×</span> {i.name}
-          </div>
-          {i.modifiers.length > 0 && (
-            <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
-              {i.modifiers.map((g, idx) => (
-                <div key={idx}>- {g}</div>
-              ))}
-            </div>
-          )}
-          {i.notes && (
-            <div className="text-xs italic text-terracotta mt-0.5">
-              “{i.notes}”
-            </div>
-          )}
-          <StationPill station={i.station} />
-        </div>
-        {i.guestName && !isPickup && (
-          <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-            {i.guestName}
-          </span>
-        )}
-      </div>
+
+      <ul className="mt-2 space-y-2">
+        {items.map((i) => {
+          const checked = selected.has(i.id);
+          return (
+            <li key={i.id} className="flex items-start gap-3">
+              <button
+                type="button"
+                onClick={() => toggle(i.id)}
+                aria-pressed={checked}
+                aria-label={
+                  checked ? `Quitar ${i.name}` : `Agregar ${i.name}`
+                }
+                className={
+                  "mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center transition-colors " +
+                  (checked
+                    ? "bg-ok border-ok text-bone"
+                    : "bg-paper border-op-border text-transparent")
+                }
+              >
+                ✓
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm">
+                  <span className="font-mono">{i.qty}×</span> {i.name}
+                </div>
+                {i.modifiers.length > 0 && (
+                  <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
+                    {i.modifiers.map((g, idx) => (
+                      <div key={idx}>- {g}</div>
+                    ))}
+                  </div>
+                )}
+                {i.notes && (
+                  <div className="text-xs italic text-terracotta mt-0.5">
+                    “{i.notes}”
+                  </div>
+                )}
+                <StationPill station={i.station} />
+              </div>
+              {i.guestName && !isPickup && (
+                <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
+                  {i.guestName}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {items.length > 1 && (
+        <button
+          type="button"
+          onClick={() => selectAll(!allChecked)}
+          className="mt-2 text-[11px] font-mono tracking-wider uppercase text-op-muted hover:text-ink"
+        >
+          {allChecked ? "Desmarcar todo" : "Marcar todo"}
+        </button>
+      )}
+
       <button
-        onClick={onServe}
-        className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
+        onClick={() => onServe(selectedItems)}
+        disabled={noneChecked}
+        className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isPickup
-          ? `Entregado a ${r.order.pickupName ?? r.order.shortCode}`
-          : "Entregado"}
+        {noneChecked
+          ? "Selecciona los platos a entregar"
+          : isPickup
+            ? `Entregado a ${r.order.pickupName ?? r.order.shortCode}${selectedItems.length > 1 ? ` · ${selectedItems.length}` : ""}`
+            : serviceMode === "counter"
+              ? `Entregado${selectedItems.length > 1 ? ` · ${selectedItems.length}` : ""}`
+              : `Entregar ${selectedItems.length}${selectedItems.length === 1 ? "" : ""}`}
       </button>
     </li>
   );

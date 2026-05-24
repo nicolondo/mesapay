@@ -6,6 +6,8 @@ import { fmtCOP } from "@/lib/format";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
+type Station = "kitchen" | "bar" | "counter";
+
 type Item = {
   id: string;
   qty: number;
@@ -15,6 +17,7 @@ type Item = {
   guestName: string | null;
   kitchenStatus: "placed" | "in_kitchen" | "ready";
   categoryKind: CategoryKind;
+  station: Station;
   servedAt: string | null;
 };
 
@@ -1068,6 +1071,7 @@ function SingleServeCard({
               “{i.notes}”
             </div>
           )}
+          <StationPill station={i.station} />
         </div>
         {i.guestName && !isPickup && (
           <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
@@ -1144,6 +1148,7 @@ function MainsBulkCard({
                   “{i.notes}”
                 </div>
               )}
+              <StationPill station={i.station} />
             </div>
             {i.guestName && (
               <span className="shrink-0 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
@@ -1162,6 +1167,28 @@ function MainsBulkCard({
           : `Entregado a Mesa ${r.order.tableNumber}`}
       </button>
     </li>
+  );
+}
+
+/**
+ * Tiny pill that tells the waiter where to grab a non-kitchen item from.
+ * For kitchen items we render nothing — that's the default and the
+ * waiter knows to head to the pass without a label.
+ */
+function StationPill({ station }: { station: Station }) {
+  if (station === "kitchen") return null;
+  if (station === "bar") {
+    return (
+      <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] tracking-wider uppercase text-[#7F5A1F] bg-[#C98A2E]/15 px-1.5 py-0.5 rounded">
+        🍷 Barra
+      </span>
+    );
+  }
+  // counter
+  return (
+    <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] tracking-wider uppercase text-[#2E6B4C] bg-[#2E6B4C]/10 px-1.5 py-0.5 rounded">
+      🧊 Refri
+    </span>
   );
 }
 

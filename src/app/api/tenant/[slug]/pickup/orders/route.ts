@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
+import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import {
   isWithinEtaCap,
   pickupStatus,
@@ -76,7 +77,7 @@ export async function POST(
   );
   const menuItems = await db.menuItem.findMany({
     where: { id: { in: menuIds }, restaurantId: tenant.id, available: true },
-    include: { category: { select: { kind: true } } },
+    include: { category: { select: { kind: true, prepStation: true } } },
   });
   const menuById = new Map(menuItems.map((m) => [m.id, m]));
   if (menuById.size !== menuIds.length) {
@@ -224,6 +225,8 @@ export async function POST(
 
     for (const it of parsed.data.items) {
       const mi = menuById.get(it.menuItemId)!;
+      const station = resolveStation(mi.prepStation, mi.category.prepStation);
+      const autoReady = isAutoReadyStation(station, tenant.hasBar);
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -233,10 +236,28 @@ export async function POST(
           nameSnapshot: mi.name,
           priceCentsSnapshot: mi.priceCents,
           categoryKind: mi.category.kind,
+          station,
+          kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
           guestName: parsed.data.pickupName,
         },
+      });
+    }
+
+    // If every item was auto-ready (drinks-only pickup), the round is
+    // already done — no kitchen/bar work needed.
+    const createdItems = await tx.orderItem.findMany({
+      where: { roundId: round.id },
+      select: { kitchenStatus: true },
+    });
+    if (
+      createdItems.length > 0 &&
+      createdItems.every((i) => i.kitchenStatus === "ready")
+    ) {
+      await tx.round.update({
+        where: { id: round.id },
+        data: { status: "ready", readyAt: now },
       });
     }
 

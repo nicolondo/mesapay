@@ -119,6 +119,7 @@ export default async function OperatorLayout({
             <nav className="flex gap-1 ml-6">
               <NavLink href="/operator">Resumen</NavLink>
               <NavLink href="/operator/kitchen">Cocina</NavLink>
+              {tenant?.hasBar && <NavLink href="/operator/bar">Bar</NavLink>}
               <NavLink href="/operator/serve">Salón</NavLink>
               <NavLink href="/operator/payments">Cobros</NavLink>
               <NavLink href="/operator/orders">Órdenes</NavLink>

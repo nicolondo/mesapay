@@ -14,11 +14,15 @@ export default async function SettingsPage() {
       name: true,
       kushkiMerchantId: true,
       kushkiOnboardingStatus: true,
+      hasBar: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
 
   const status = humanStatus(tenant.kushkiOnboardingStatus);
+  const stationsCount = await db.category.count({
+    where: { restaurantId, prepStation: { not: "kitchen" } },
+  });
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -45,6 +49,27 @@ export default async function SettingsPage() {
             tenant.kushkiMerchantId
               ? "bg-ok/15 text-ok"
               : "bg-op-bg text-op-muted"
+          }
+        />
+        <SettingCard
+          href="/operator/settings/estaciones"
+          title="Estaciones de preparación"
+          subtitle="A dónde manda los tickets: cocina, bar o refri"
+          badge={
+            tenant.hasBar
+              ? `Bar activo · ${stationsCount} ${
+                  stationsCount === 1 ? "categoría" : "categorías"
+                } ruteada${stationsCount === 1 ? "" : "s"}`
+              : stationsCount > 0
+                ? `${stationsCount} ${
+                    stationsCount === 1 ? "categoría" : "categorías"
+                  } ruteada${stationsCount === 1 ? "" : "s"}`
+                : "Todo a cocina"
+          }
+          tint={
+            tenant.hasBar || stationsCount > 0
+              ? "bg-ok/15 text-ok"
+              : "bg-paper text-op-muted"
           }
         />
       </div>

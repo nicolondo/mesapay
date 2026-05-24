@@ -107,12 +107,18 @@ export async function POST(req: Request) {
 
     for (const [slug, info] of newCategoriesBySlug) {
       if (slugToId.has(slug)) continue;
+      // Smart default: when an imported menu has a drink category, send
+      // it to the bar station out of the gate. Operators with no
+      // bartender (hasBar=false) will see them fall through to the
+      // waiter view, so this is safe even before they configure it.
+      const prepStation = info.kind === "drink" ? "bar" : "kitchen";
       const created = await tx.category.create({
         data: {
           restaurantId,
           slug,
           label: info.label,
           kind: info.kind,
+          prepStation,
           sortOrder: nextSort++,
         },
       });

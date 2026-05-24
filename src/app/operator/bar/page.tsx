@@ -1,35 +1,47 @@
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { KitchenBoard } from "./KitchenBoard";
+import { KitchenBoard } from "../kitchen/KitchenBoard";
 
 export const dynamic = "force-dynamic";
 
-export default async function KitchenPage() {
+/**
+ * Bar board. Same UX as the kitchen board, scoped to items routed to
+ * `station="bar"`. Only reachable when the restaurant has hasBar=true —
+ * a passing operator without the flag will get bounced to /operator
+ * (nav link is hidden anyway, but we belt-and-suspenders this in case
+ * somebody bookmarks the URL).
+ *
+ * A round with both bar + kitchen items shows up in both boards, each
+ * board showing only its own items. The "round ready" trigger fires
+ * when ALL items across all stations are ready (see order-items route).
+ */
+export default async function BarPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
-  // Kitchen board only shows items routed to the kitchen station. A
-  // round with a mix of bebidas + comida appears here too — the bebidas
-  // just don't render. Empty rounds (all items routed elsewhere) are
-  // filtered out below so the board doesn't show ghost tickets.
+  if (!tenant?.hasBar) {
+    redirect("/operator/kitchen");
+  }
+
   const rounds = await db.round.findMany({
     where: {
       order: { restaurantId },
       status: { in: ["placed", "in_kitchen", "ready"] },
-      items: { some: { station: "kitchen" } },
+      items: { some: { station: "bar" } },
     },
     include: {
       order: { include: { table: true } },
-      items: { where: { station: "kitchen" } },
+      items: { where: { station: "bar" } },
     },
     orderBy: { placedAt: "asc" },
   });
 
   return (
     <KitchenBoard
-      tenantSlug={tenant!.slug}
-      serviceMode={tenant!.serviceMode}
+      tenantSlug={tenant.slug}
+      serviceMode={tenant.serviceMode}
       rounds={rounds.map((r) => ({
         id: r.id,
         seq: r.seq,

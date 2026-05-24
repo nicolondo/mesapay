@@ -40,6 +40,12 @@ model Restaurant {
   bankInfo            Json?
   autoDispersePolicy  Json?
 
+  // Does this restaurant have a dedicated bartender / barista (separate
+  // person from cooks)? Controls whether items routed to station=bar get
+  // their own board at /operator/bar, or fall through as "grab from the
+  // bar" tickets in the waiter's serve view.
+  hasBar              Boolean   @default(false)
+
   users               User[]
   tables              Table[]
   categories          Category[]
@@ -151,6 +157,19 @@ enum CategoryKind {
   other
 }
 
+// Where this item is prepared. Drives which board ticket lands on, and
+// whether the item needs preparation at all.
+//   kitchen  → normal cocina flow
+//   bar      → bartender board (if hasBar=true), else falls through to
+//              the waiter view like a counter item
+//   counter  → self-serve / refri / pickup from the bar shelf — auto
+//              marked ready at send time, no prep stage
+enum PrepStation {
+  kitchen
+  bar
+  counter
+}
+
 model Category {
   id           String       @id @default(cuid())
   restaurantId String
@@ -159,6 +178,9 @@ model Category {
   label        String
   sortOrder    Int          @default(0)
   kind         CategoryKind @default(other)
+  // Default station for items in this category. Items can override
+  // individually via MenuItem.prepStation.
+  prepStation  PrepStation  @default(kitchen)
 
   items MenuItem[]
 
@@ -182,6 +204,10 @@ model MenuItem {
   available   Boolean  @default(true)
   sortOrder   Int      @default(0)
   prepMinutes Int      @default(10)
+  // Override the category's default prep station for this specific item.
+  // null = inherit from category.prepStation. Common case: "Bebidas" =
+  // bar but "Jugo natural" overrides to kitchen because it requires prep.
+  prepStation PrepStation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -309,6 +335,10 @@ model OrderItem {
   guestName          String?
   kitchenStatus      KitchenState @default(placed)
   categoryKind       CategoryKind @default(other)
+  // Snapshot of the resolved station at send time. We freeze it on the
+  // ticket so re-routing the menu later doesn't yank already-fired items
+  // between boards mid-service.
+  station            PrepStation  @default(kitchen)
   servedAt           DateTime?
 
   rating DishRating?

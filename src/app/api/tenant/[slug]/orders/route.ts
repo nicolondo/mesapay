@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
+import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -55,7 +56,7 @@ export async function POST(
   const menuIds = Array.from(new Set(parsed.data.items.map((i) => i.menuItemId)));
   const menuItems = await db.menuItem.findMany({
     where: { id: { in: menuIds }, restaurantId: tenant.id },
-    include: { category: { select: { kind: true } } },
+    include: { category: { select: { kind: true, prepStation: true } } },
   });
   const menuById = new Map(menuItems.map((m) => [m.id, m]));
   if (menuById.size !== menuIds.length) {
@@ -105,6 +106,12 @@ export async function POST(
 
     for (const it of parsed.data.items) {
       const mi = menuById.get(it.menuItemId)!;
+      const station = resolveStation(mi.prepStation, mi.category.prepStation);
+      // Counter items (and bar items when the restaurant has no dedicated
+      // bartender) skip the prep stage entirely — they're already ready
+      // the moment the round is sent. The waiter sees them in their serve
+      // list with the appropriate "Refri / Bar" pill.
+      const autoReady = isAutoReadyStation(station, tenant.hasBar);
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -114,6 +121,8 @@ export async function POST(
           nameSnapshot: mi.name,
           priceCentsSnapshot: mi.priceCents,
           categoryKind: mi.category.kind,
+          station,
+          kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
           guestName: parsed.data.guestName,
@@ -127,6 +136,22 @@ export async function POST(
       (s, i) => s + i.priceCentsSnapshot * i.qty,
       0,
     );
+
+    // If every item in this round was auto-ready (counter / bar-without-
+    // bartender), the round is already done — no station ever has to
+    // touch it. Mark it ready right now so the waiter sees it in their
+    // serve queue without anyone having to click "listo".
+    const roundItems = items.filter((i) => i.roundId === round.id);
+    if (
+      !isCounter &&
+      roundItems.length > 0 &&
+      roundItems.every((i) => i.kitchenStatus === "ready")
+    ) {
+      await tx.round.update({
+        where: { id: round.id },
+        data: { status: "ready", readyAt: new Date() },
+      });
+    }
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {

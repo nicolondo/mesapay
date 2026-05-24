@@ -157,11 +157,17 @@ export default async function TablesPage() {
 
               {active && order && (
                 <div className="mt-3 rounded-xl bg-op-bg border border-op-border p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted">
                       {order.shortCode}
                     </div>
-                    <StatusPill status={order.status} />
+                    <StatusPill
+                      status={order.status}
+                      items={order.items.map((i) => ({
+                        kitchenStatus: i.kitchenStatus,
+                        servedAt: i.servedAt,
+                      }))}
+                    />
                   </div>
                   <div className="mt-1 text-sm">
                     {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
@@ -238,12 +244,40 @@ export default async function TablesPage() {
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const { label, tint } = statusMeta(status);
+type PillItem = {
+  kitchenStatus: "placed" | "in_kitchen" | "ready";
+  servedAt: Date | null;
+};
+
+/**
+ * Compute the most accurate visible status from the actual live items
+ * rather than trusting Order.status — which can drift behind reality
+ * (e.g. a partial delivery where the order is still flagged "served"
+ * from a legacy code path, or an order that auto-advanced to ready
+ * but has un-served plates remaining).
+ *
+ * Display priority, top to bottom:
+ *   - Cancelado            → status === "cancelled"
+ *   - Cobrando             → status === "paying"
+ *   - Servido              → 100% of items have a servedAt
+ *   - X de N en mesa       → some delivered, some still pending
+ *   - Listo para servir    → all kitchen-ready, none delivered
+ *   - X de N listos        → partial kitchen progress with anything ready
+ *   - En cocina            → started cooking but nothing ready
+ *   - Enviado              → just placed
+ */
+function StatusPill({
+  status,
+  items,
+}: {
+  status: string;
+  items: PillItem[];
+}) {
+  const { label, tint } = computePill(status, items);
   return (
     <span
       className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
+        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium whitespace-nowrap " +
         tint
       }
     >
@@ -252,21 +286,46 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function statusMeta(s: string) {
-  switch (s) {
-    case "open":
-      return { label: "Abierto", tint: "bg-paper text-op-muted" };
-    case "placed":
-      return { label: "Enviado", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
-    case "in_kitchen":
-      return { label: "En cocina", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
-    case "ready":
-      return { label: "Listo", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
-    case "served":
-      return { label: "Servido", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
-    case "paying":
-      return { label: "Cobrando", tint: "bg-ink/10 text-ink" };
-    default:
-      return { label: s, tint: "bg-paper text-op-muted" };
+const TINT = {
+  warm: "bg-[#C98A2E]/20 text-[#8F6828]",
+  ok: "bg-[#2E6B4C]/15 text-[#1E5339]",
+  ink: "bg-ink/10 text-ink",
+  muted: "bg-paper text-op-muted",
+};
+
+function computePill(
+  status: string,
+  items: PillItem[],
+): { label: string; tint: string } {
+  if (status === "cancelled") return { label: "Cancelado", tint: TINT.muted };
+  if (status === "paying") return { label: "Cobrando", tint: TINT.ink };
+  if (items.length === 0) {
+    // No items left after round cancellations — round-cancel handler
+    // closes the order, but until that runs we show a placeholder.
+    return { label: "Vacío", tint: TINT.muted };
   }
+
+  const total = items.length;
+  const served = items.filter((i) => i.servedAt != null).length;
+  const ready = items.filter((i) => i.kitchenStatus === "ready").length;
+
+  if (served === total) return { label: "Servido", tint: TINT.ok };
+  if (served > 0) {
+    return {
+      label: `${served} de ${total} en mesa`,
+      tint: TINT.warm,
+    };
+  }
+  if (ready === total) {
+    return { label: "Listo para servir", tint: TINT.ok };
+  }
+  if (ready > 0) {
+    return { label: `${ready} de ${total} listos`, tint: TINT.warm };
+  }
+  if (status === "open") return { label: "Abierto", tint: TINT.muted };
+  // Everything still in the kitchen — either just placed or being made.
+  // We can't tell from the snapshot whether anyone started cooking yet
+  // (kitchenStatus="placed" vs "in_kitchen"); the kitchen board owns
+  // that nuance. For the mesas grid "En cocina" covers both states.
+  return { label: "En cocina", tint: TINT.warm };
 }

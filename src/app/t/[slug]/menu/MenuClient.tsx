@@ -259,6 +259,15 @@ export function MenuClient({
   // sticky header) — that's "the one whose title the user can see at the
   // top of the visible area". rAF-throttled so it stays cheap on long
   // menus (some restaurants have 200+ items, 25+ sections).
+  //
+  // We use a ref instead of comparing against `activeCat` directly: the
+  // effect only re-binds on category changes (we don't want every chip
+  // tap to tear down the scroll listener), so the closure would
+  // otherwise see a stale activeCat — that produced an annoying bug
+  // where scrolling down then back to the top wouldn't re-activate
+  // "Entrada" because the stale closure still thought it was active.
+  const activeCatRef = useRef(activeCat);
+  activeCatRef.current = activeCat;
   useEffect(() => {
     if (categories.length === 0) return;
     let rafId: number | null = null;
@@ -294,7 +303,7 @@ export function MenuClient({
       // Edge case: top of page, before any section has crossed yet —
       // default to the first one so the chip strip isn't blank.
       if (!bestSlug) bestSlug = categories[0]?.slug ?? null;
-      if (bestSlug && bestSlug !== activeCat) {
+      if (bestSlug && bestSlug !== activeCatRef.current) {
         setActiveCat(bestSlug);
         ensureChipVisible(bestSlug);
       }

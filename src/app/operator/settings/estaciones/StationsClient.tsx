@@ -394,8 +394,8 @@ export function StationsClient({
             <div>
               <div className="text-sm font-medium">Bar</div>
               <div className="text-xs text-op-muted">
-                Imprime cuando el pedido llega al bar (no hay paso de “en
-                preparación”).
+                Imprime al pasar de “Por preparar” a “En preparación”. La
+                cuenta regresiva del plato arranca al mismo tiempo.
               </div>
             </div>
             <Toggle

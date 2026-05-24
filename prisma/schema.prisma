@@ -363,6 +363,16 @@ model OrderItem {
   // Same snapshot logic for the bar sub-station. Null when not a bar
   // item or when the restaurant has no sub-stations configured.
   barSubStation      String?
+  // Snapshot of prepMinutes at send time. Used by the bar board for the
+  // countdown timer; the kitchen board ignores this and lets the cook
+  // mark ready manually. We snapshot (vs. reading from MenuItem live)
+  // because editing the menu mid-service shouldn't shift the timer on
+  // tickets that are already on the board.
+  prepMinutesSnapshot Int         @default(10)
+  // When the item moved placed → in_kitchen. Drives the bar countdown
+  // (remaining = prepMinutesSnapshot - (now - preparationStartedAt)).
+  // Survives page reloads so the countdown picks up where it left off.
+  preparationStartedAt DateTime?
   servedAt           DateTime?
 
   rating DishRating?

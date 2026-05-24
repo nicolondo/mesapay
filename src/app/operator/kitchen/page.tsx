@@ -58,6 +58,10 @@ export default async function KitchenPage() {
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,
           categoryKind: i.categoryKind,
+          prepMinutesSnapshot: i.prepMinutesSnapshot,
+          preparationStartedAt: i.preparationStartedAt
+            ? i.preparationStartedAt.toISOString()
+            : null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
         })),
       }))}

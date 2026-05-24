@@ -246,6 +246,7 @@ export async function POST(
           categoryKind: mi.category.kind,
           station,
           barSubStation,
+          prepMinutesSnapshot: mi.prepMinutes,
           kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
@@ -295,12 +296,7 @@ export async function POST(
       });
     }
 
-    const pickupBarItems = await tx.orderItem.findMany({
-      where: { roundId: round.id, station: "bar" },
-      select: { barSubStation: true },
-    });
-
-    return { order, round, pickupBarItems };
+    return { order };
   });
 
   publishOrderEvent(tenant.id, {
@@ -308,19 +304,8 @@ export async function POST(
     orderId: result.order.id,
   });
 
-  if (tenant.barPrintEnabled && result.pickupBarItems.length > 0) {
-    const subs = new Set<string | null>();
-    for (const i of result.pickupBarItems) subs.add(i.barSubStation ?? null);
-    for (const sub of subs) {
-      publishOrderEvent(tenant.id, {
-        type: "ticket.printable",
-        roundId: result.round.id,
-        orderId: result.order.id,
-        station: "bar",
-        barSubStation: sub,
-      });
-    }
-  }
+  // No more arrival-print for bar — pickup tickets print when somebody
+  // taps "Empezar" at the station (see operator/order-items PATCH).
 
   if (session?.user?.id) {
     welcomeIfFirstTime(session.user.id).catch((err) =>

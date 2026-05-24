@@ -49,9 +49,25 @@ export async function PATCH(
     const now = new Date();
 
     if (parsed.data.kitchenStatus !== undefined) {
+      const updates: {
+        kitchenStatus: typeof parsed.data.kitchenStatus;
+        preparationStartedAt?: Date | null;
+      } = { kitchenStatus: parsed.data.kitchenStatus };
+      // First time entering "in_kitchen" → start the prep timer. Going
+      // back to placed wipes the timer; subsequent "in_kitchen" hits
+      // restart it. This is what feeds the bar countdown.
+      if (
+        parsed.data.kitchenStatus === "in_kitchen" &&
+        item.preparationStartedAt == null
+      ) {
+        updates.preparationStartedAt = now;
+      }
+      if (parsed.data.kitchenStatus === "placed") {
+        updates.preparationStartedAt = null;
+      }
       await tx.orderItem.update({
         where: { id: item.id },
-        data: { kitchenStatus: parsed.data.kitchenStatus },
+        data: updates,
       });
     }
 
@@ -147,27 +163,31 @@ export async function PATCH(
     orderId: item.orderId,
   });
 
-  // Auto-print on the kitchen station when an item transitions
-  // placed → in_kitchen. We fire one event per (roundId, station) pair —
-  // the print page coalesces these by roundId so a kitchen with five
-  // items in the same round prints a single ticket, not five.
+  // Auto-print on placed → in_kitchen, for whichever station the item
+  // belongs to. We fire one event per (round, station, sub) so the
+  // matching listener prints — the page itself dedupes by roundId so
+  // five items in the same round only generate one physical ticket.
   if (
     parsed.data.kitchenStatus === "in_kitchen" &&
     item.kitchenStatus === "placed" &&
-    item.station === "kitchen" &&
-    item.roundId
+    item.roundId &&
+    (item.station === "kitchen" || item.station === "bar")
   ) {
     const tenant = await db.restaurant.findUnique({
       where: { id: item.order.restaurantId },
-      select: { kitchenPrintEnabled: true },
+      select: { kitchenPrintEnabled: true, barPrintEnabled: true },
     });
-    if (tenant?.kitchenPrintEnabled) {
+    const printEnabled =
+      item.station === "kitchen"
+        ? tenant?.kitchenPrintEnabled
+        : tenant?.barPrintEnabled;
+    if (printEnabled) {
       publishOrderEvent(item.order.restaurantId, {
         type: "ticket.printable",
         roundId: item.roundId,
         orderId: item.orderId,
-        station: "kitchen",
-        barSubStation: null,
+        station: item.station,
+        barSubStation: item.barSubStation ?? null,
       });
     }
   }

@@ -134,6 +134,7 @@ export async function POST(
           categoryKind: mi.category.kind,
           station,
           barSubStation,
+          prepMinutesSnapshot: mi.prepMinutes,
           kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
@@ -184,26 +185,9 @@ export async function POST(
 
   publishOrderEvent(tenant.id, { type: "order.updated", orderId: result.order.id });
 
-  // Auto-print: if the bar has any items in this round and bar printing
-  // is on, emit a print event (or one per sub-station). The kitchen
-  // print fires later, when the cook taps "Empezar preparación".
-  if (tenant.barPrintEnabled) {
-    const barItems = result.roundItems.filter((i) => i.station === "bar");
-    if (barItems.length > 0) {
-      // Group by sub-station so each printer gets only its own slice.
-      const subs = new Set<string | null>();
-      for (const i of barItems) subs.add(i.barSubStation ?? null);
-      for (const sub of subs) {
-        publishOrderEvent(tenant.id, {
-          type: "ticket.printable",
-          roundId: result.round.id,
-          orderId: result.order.id,
-          station: "bar",
-          barSubStation: sub,
-        });
-      }
-    }
-  }
+  // Printing now fires on placed → in_kitchen for both stations (see
+  // operator/order-items PATCH route). At round-arrival we only update
+  // the boards; no ticket prints until someone clicks "Empezar".
 
   return NextResponse.json({
     orderId: result.order.id,

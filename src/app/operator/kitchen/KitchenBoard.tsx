@@ -15,6 +15,12 @@ type Item = {
   guestName: string | null;
   kitchenStatus: KitchenStatus;
   categoryKind: CategoryKind;
+  // The bar uses these to drive a countdown that auto-advances the
+  // item to "ready" when the configured prep time elapses. Kitchen
+  // items still carry the fields (snapshot at send time) but the
+  // kitchen board ignores them — cooks mark ready manually.
+  prepMinutesSnapshot: number;
+  preparationStartedAt: string | null;
   servedAt: string | null;
 };
 
@@ -45,25 +51,19 @@ const COLUMNS_KITCHEN: { key: KitchenStatus; label: string; tint: string }[] = [
   { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
 ];
 
-// The bar doesn't have an intermediate "in preparation" beat — the
-// bartender pours / preps and the item is immediately ready. Two
-// columns keep the board uncluttered and the transitions match how
-// bartenders actually work: see the ticket, make it, mark listo.
+// Same 3 columns at the bar, but the middle one is renamed and runs
+// a countdown — when the timer hits 0 we auto-flip to "Listo" so the
+// bartender doesn't have to babysit drinks they've already poured.
+// Manual "Listo" still works for cocktails that finish early.
 const COLUMNS_BAR: { key: KitchenStatus; label: string; tint: string }[] = [
   { key: "placed", label: "Por preparar", tint: "border-[#C98A2E]/40" },
+  { key: "in_kitchen", label: "En preparación", tint: "border-[#B8893B]/50" },
   { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
 ];
 
-const NEXT_STATUS_KITCHEN: Record<KitchenStatus, KitchenStatus | null> = {
+const NEXT_STATUS: Record<KitchenStatus, KitchenStatus | null> = {
   placed: "in_kitchen",
   in_kitchen: "ready",
-  ready: null,
-};
-
-// Bar transitions skip the intermediate state entirely.
-const NEXT_STATUS_BAR: Record<KitchenStatus, KitchenStatus | null> = {
-  placed: "ready",
-  in_kitchen: "ready", // shouldn't happen for bar items, but keep safe
   ready: null,
 };
 
@@ -71,15 +71,14 @@ export function KitchenBoard({
   tenantSlug,
   serviceMode,
   rounds,
-  mode = "kitchen",
+  mode: boardMode = "kitchen",
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
   rounds: Round[];
   mode?: BoardMode;
 }) {
-  const COLUMNS = mode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
-  const NEXT_STATUS = mode === "bar" ? NEXT_STATUS_BAR : NEXT_STATUS_KITCHEN;
+  const COLUMNS = boardMode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
   const router = useRouter();
   const [, startTx] = useTransition();
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
@@ -177,13 +176,47 @@ export function KitchenBoard({
   }
 
   function effectiveItemStatus(i: Item): KitchenStatus {
-    const raw = pendingKitchen.get(i.id) ?? i.kitchenStatus;
-    // Bar mode has no "in_kitchen" column. If an item is in that state
-    // (legacy data, manual API call), treat it as "placed" so it stays
-    // visible and the bartender can still advance it.
-    if (mode === "bar" && raw === "in_kitchen") return "placed";
-    return raw;
+    return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
+
+  // Bar countdown: when an item is "in preparación" we count down from
+  // prepMinutesSnapshot. The bar UI shows the remaining time, and once
+  // it hits 0 we auto-PATCH the item to ready. The tick lives at 1s
+  // resolution so the visible countdown is smooth without hammering
+  // the server — actual advance calls fire at most once per item.
+  // We only run this effect when this board is the bar.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (boardMode !== "bar") return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [boardMode]);
+
+  // Track which items we've already fired an auto-advance for, so SSE
+  // round-trips don't trigger a second PATCH while we're waiting for
+  // the server to confirm.
+  const autoAdvancedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (boardMode !== "bar") return;
+    const now = Date.now();
+    for (const r of rounds) {
+      for (const i of r.items) {
+        if (effectiveItemStatus(i) !== "in_kitchen") continue;
+        if (!i.preparationStartedAt) continue;
+        if (autoAdvancedRef.current.has(i.id)) continue;
+        const startedMs = new Date(i.preparationStartedAt).getTime();
+        const elapsedMs = now - startedMs;
+        if (elapsedMs >= i.prepMinutesSnapshot * 60_000) {
+          autoAdvancedRef.current.add(i.id);
+          advanceItems([i.id], "ready");
+        }
+      }
+    }
+    // We intentionally key on `tick` so this runs every second without
+    // listing every item; effectiveItemStatus reads from closures
+    // fresh each tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, rounds, boardMode]);
 
   async function cancelRound(
     roundId: string,
@@ -340,6 +373,10 @@ export function KitchenBoard({
                               served={served}
                               canServe={canServe}
                               advancePending={advancePending}
+                              showCountdown={
+                                boardMode === "bar" &&
+                                status === "in_kitchen"
+                              }
                               onAdvance={() => {
                                 if (advancePending) return;
                                 const to = NEXT_STATUS[status];
@@ -427,6 +464,7 @@ function ItemRow({
   served,
   canServe,
   advancePending,
+  showCountdown,
   onAdvance,
   onToggleServed,
 }: {
@@ -435,6 +473,7 @@ function ItemRow({
   served: boolean;
   canServe: boolean;
   advancePending: boolean;
+  showCountdown: boolean;
   onAdvance: () => void;
   onToggleServed: () => void;
 }) {
@@ -475,10 +514,64 @@ function ItemRow({
             “{item.notes}”
           </div>
         )}
+        {showCountdown && item.preparationStartedAt && (
+          <Countdown
+            startedAt={item.preparationStartedAt}
+            prepMinutes={item.prepMinutesSnapshot}
+          />
+        )}
       </div>
       {canServe && (
         <ServeControl served={served} onToggle={onToggleServed} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Visible countdown for a bar item that's currently being prepared.
+ * Re-renders every second via local ticker; when the time runs out the
+ * board's auto-advance effect flips the item to ready and this row
+ * disappears from the column.
+ */
+function Countdown({
+  startedAt,
+  prepMinutes,
+}: {
+  startedAt: string;
+  prepMinutes: number;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const totalMs = prepMinutes * 60_000;
+  const elapsedMs = Math.max(0, now - new Date(startedAt).getTime());
+  const remainingMs = Math.max(0, totalMs - elapsedMs);
+  const mins = Math.floor(remainingMs / 60_000);
+  const secs = Math.floor((remainingMs % 60_000) / 1000);
+  // Visual urgency: green > 50%, amber > 20%, red below.
+  const pct = totalMs > 0 ? remainingMs / totalMs : 0;
+  const tint =
+    pct > 0.5
+      ? "text-ok bg-ok/10"
+      : pct > 0.2
+        ? "text-[#8F6828] bg-[#C98A2E]/15"
+        : "text-danger bg-danger/10";
+  return (
+    <div
+      className={
+        "mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-[11px] tabular " +
+        tint
+      }
+    >
+      <span aria-hidden>⏱</span>
+      <span>
+        {remainingMs > 0
+          ? `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+          : "¡listo!"}
+      </span>
     </div>
   );
 }

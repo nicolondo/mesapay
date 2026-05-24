@@ -205,13 +205,19 @@ export default async function OrderView({
                         <div className="flex-1">
                           <div
                             className={
-                              "text-sm " +
+                              "text-sm flex items-center gap-2 flex-wrap " +
                               (isCancelled
                                 ? "line-through text-muted"
                                 : "")
                             }
                           >
-                            {li.qty}× {li.nameSnapshot}
+                            <span>{li.qty}× {li.nameSnapshot}</span>
+                            {!isCancelled && (
+                              <ItemStatusBadge
+                                kitchenStatus={li.kitchenStatus}
+                                servedAt={li.servedAt}
+                              />
+                            )}
                           </div>
                           {li.guestName && (
                             <div className="text-[11px] text-terracotta mt-0.5">
@@ -392,4 +398,46 @@ function statusBadge(s: string) {
     default:
       return "bg-paper text-muted";
   }
+}
+
+// Per-item status chip shown next to the dish name on the diner's
+// order view. The KitchenState enum + servedAt give us four ordered
+// stages: placed → in_kitchen → ready → served. We map them to plain
+// Spanish so the diner sees "Listo para servir" rather than "ready".
+function ItemStatusBadge({
+  kitchenStatus,
+  servedAt,
+}: {
+  kitchenStatus: "placed" | "in_kitchen" | "ready";
+  servedAt: Date | null;
+}) {
+  let label: string;
+  let className: string;
+  if (servedAt) {
+    label = "Servido";
+    // Strongest "done" colour — matches the order's "paid" pill.
+    className = "bg-[#2E6B4C]/15 text-[#1E5339]";
+  } else if (kitchenStatus === "ready") {
+    label = "Listo para servir";
+    // Same green family as Servido but with a dot to signal "not on
+    // the table yet". We keep one accent colour for done-ish states so
+    // the diner reads them at a glance.
+    className = "bg-[#2E6B4C]/10 text-[#1E5339]";
+  } else if (kitchenStatus === "in_kitchen") {
+    label = "Preparando";
+    className = "bg-[#C98A2E]/15 text-[#8F6828]";
+  } else {
+    label = "Por preparar";
+    className = "bg-paper text-muted border border-hairline";
+  }
+  return (
+    <span
+      className={
+        "px-1.5 h-5 inline-flex items-center rounded-full text-[10px] font-medium tracking-wide " +
+        className
+      }
+    >
+      {label}
+    </span>
+  );
 }

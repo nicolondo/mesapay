@@ -13,10 +13,10 @@ These steps run **once** on the VPS. Everything in this directory
 
 ## 0. Prerequisites
 
-- `clowd` user can `sudo systemctl` and `sudo nginx -s reload` without
+- `deploy` user can `sudo systemctl` and `sudo nginx -s reload` without
   password. If not, add a sudoers rule:
   ```
-  clowd ALL=(ALL) NOPASSWD: /bin/systemctl restart mesapay@*, /bin/systemctl stop mesapay@*, /bin/systemctl start mesapay@*, /usr/sbin/nginx -t, /usr/sbin/nginx -s reload, /usr/bin/tee /etc/nginx/conf.d/mesapay-active.conf
+  deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart mesapay@*, /bin/systemctl stop mesapay@*, /bin/systemctl start mesapay@*, /usr/sbin/nginx -t, /usr/sbin/nginx -s reload, /usr/bin/tee /etc/nginx/mesapay-active.conf
   ```
   Place in `/etc/sudoers.d/mesapay`, then `sudo visudo -c`.
 
@@ -35,7 +35,7 @@ case you need to roll back.
 ```bash
 cd /opt/mesapay
 sudo mkdir -p releases scripts shared/uploads
-sudo chown -R clowd:clowd /opt/mesapay
+sudo chown -R deploy:deploy /opt/mesapay
 ```
 
 If the existing `current/` is a symlink, leave it as-is for the moment.
@@ -72,7 +72,7 @@ chunk should look like:
 
 ```nginx
 upstream mesapay_app {
-    include /etc/nginx/conf.d/mesapay-active.conf;
+    include /etc/nginx/mesapay-active.conf;
     keepalive 16;
 }
 
@@ -101,7 +101,7 @@ server {
 
 Install the initial upstream config (defaults to blue / port 3300):
 ```bash
-sudo cp vps/blue-green/nginx-upstream.conf /etc/nginx/conf.d/mesapay-active.conf
+sudo cp vps/blue-green/nginx-upstream.conf /etc/nginx/mesapay-active.conf
 sudo nginx -t        # must pass
 sudo nginx -s reload
 ```
@@ -191,7 +191,7 @@ sudo systemctl restart mesapay@green.service
 curl http://127.0.0.1:3301/api/health
 
 # 3. Swap nginx
-echo "server 127.0.0.1:3301;" | sudo tee /etc/nginx/conf.d/mesapay-active.conf
+echo "server 127.0.0.1:3301;" | sudo tee /etc/nginx/mesapay-active.conf
 sudo nginx -s reload
 echo green > /opt/mesapay/active-color
 sudo systemctl stop mesapay@blue.service
@@ -220,5 +220,5 @@ backfill helper) is already expand-contract compatible.
 - `vps/blue-green/mesapay@.service` → `/etc/systemd/system/mesapay@.service`
 - `vps/blue-green/env.blue` → `/opt/mesapay/shared/.env.blue`
 - `vps/blue-green/env.green` → `/opt/mesapay/shared/.env.green`
-- `vps/blue-green/nginx-upstream.conf` → `/etc/nginx/conf.d/mesapay-active.conf`
+- `vps/blue-green/nginx-upstream.conf` → `/etc/nginx/mesapay-active.conf`
 - `vps/blue-green/activate.sh` → `/opt/mesapay/scripts/activate.sh`

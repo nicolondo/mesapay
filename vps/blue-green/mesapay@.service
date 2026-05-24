@@ -14,22 +14,26 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
-User=clowd
+User=deploy
+Group=deploy
 WorkingDirectory=/opt/mesapay/%i
 # Shared secrets (.env.production) + a per-color override that sets the
 # unique PORT so blue and green don't fight for the same socket.
 EnvironmentFile=/opt/mesapay/shared/.env.production
 EnvironmentFile=/opt/mesapay/shared/.env.%i
 Environment=NODE_ENV=production
-# Adjust the path if your build output lives elsewhere. For a standard
-# `next start` (not standalone), use:
-#   ExecStart=/usr/bin/npm --prefix /opt/mesapay/%i start
-ExecStart=/usr/bin/npm --prefix /opt/mesapay/%i start
-Restart=on-failure
+Environment=HOSTNAME=127.0.0.1
+# Match the entrypoint used by the previous single-process mesapay.service
+# so behavior stays identical except for the dynamic port.
+ExecStart=/bin/sh -c 'exec /usr/bin/node node_modules/next/dist/bin/next start -p "$PORT" -H 127.0.0.1'
+Restart=always
 RestartSec=3
 # Give the process up to 30s to exit cleanly when systemctl stop fires;
 # this is the "drain" window after nginx has already swapped traffic.
 TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-%i
 
 [Install]
 WantedBy=multi-user.target

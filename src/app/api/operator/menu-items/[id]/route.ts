@@ -21,7 +21,17 @@ const patchSchema = z.object({
   description: z.string().trim().max(240).nullable().optional(),
   categoryId: z.string().min(1).optional(),
   available: z.boolean().optional(),
-  photoUrl: z.string().trim().url().nullable().optional(),
+  // Photos always come from our own upload endpoint or from the menu-
+  // import downloader, which both write under /uploads/. We refused
+  // arbitrary URLs anyway (hotlinking risk + diner privacy), and the
+  // old .url() rule incorrectly rejected those local paths — making
+  // every edit on a photographed item fail.
+  photoUrl: z
+    .string()
+    .trim()
+    .startsWith("/uploads/")
+    .nullable()
+    .optional(),
   tags: z.array(z.enum(TAGS)).max(5).optional(),
   modifiers: z.array(modifierSchema).max(8).nullable().optional(),
   prepMinutes: z.number().int().min(1).max(120).optional(),

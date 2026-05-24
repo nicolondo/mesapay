@@ -177,6 +177,20 @@ export default async function TablesPage() {
                 </div>
               )}
 
+              {/* Mesero toma pedido: si el cliente no tiene celular o
+                  prefiere dictar, el operador abre el menú en modo
+                  mesero y arma el pedido por la mesa. Va a la misma URL
+                  pública del menú pero con un flag que oculta el sheet
+                  de nombre y redirige a Salón al enviar. */}
+              <a
+                href={`/t/${tenant!.slug}/menu?table=${t.qrToken}&op=1`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 w-full h-10 inline-flex items-center justify-center rounded-xl bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+              >
+                {active ? "+ Agregar a la cuenta" : "Tomar pedido"}
+              </a>
+
               <details className="mt-3">
                 <summary className="text-xs text-op-muted cursor-pointer">
                   Enlace QR

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -7,12 +8,24 @@ export default async function MenuPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ table?: string; order?: string }>;
+  searchParams: Promise<{ table?: string; order?: string; op?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
   const tableToken = sp.table;
   if (!tableToken) redirect(`/t/${slug}`);
+
+  // Waiter mode: the operator launched this from /operator/tables to
+  // take a pedido for a diner without a phone. We only honor `?op=1`
+  // when the session actually belongs to an operator / platform admin
+  // of *this* restaurant — never trust the query param on its own.
+  // When active we skip the "Yo soy …" sheet, swap copy, and redirect
+  // back to Salón after sending.
+  const session = sp.op === "1" ? await auth() : null;
+  const operatorMode =
+    !!session?.user &&
+    (session.user.role === "operator" ||
+      session.user.role === "platform_admin");
 
   const tenant = await db.restaurant.findUnique({
     where: { slug },
@@ -69,6 +82,7 @@ export default async function MenuPage({
 
   return (
     <MenuClient
+      operatorMode={operatorMode}
       tenant={{
         slug: tenant.slug,
         name: tenant.name,

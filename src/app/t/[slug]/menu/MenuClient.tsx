@@ -81,6 +81,7 @@ export function MenuClient({
   items,
   activeOrder,
   pickup,
+  operatorMode = false,
 }: {
   tenant: Tenant;
   tableId: string;
@@ -96,6 +97,12 @@ export function MenuClient({
     kushkiPublicKey: string | null;
     isMockMode: boolean;
   } | null;
+  // Server-verified flag: this view is being driven by a logged-in
+  // operator taking a pedido on behalf of a diner who doesn't have a
+  // phone handy. Disables the "Yo soy …" sheet prompt, swaps the
+  // bottom-dock copy, and after sending bounces back to /operator/serve
+  // instead of the diner-side order-tracking page.
+  operatorMode?: boolean;
 }) {
   const router = useRouter();
   const [activeCat, setActiveCat] = useState<string>(categories[0]?.slug ?? "");
@@ -182,7 +189,11 @@ export function MenuClient({
     }
     const savedName = localStorage.getItem(nameKey);
     if (savedName) setGuestName(savedName);
-    else if (!isPickup) setShowNameSheet(true);
+    // Don't prompt for a name in operator (waiter) mode — the operator
+    // is the one taking the pedido, the diner may not even be in front
+    // of them. The "Yo soy" pill is still tappable from the header if
+    // they want to attach a name.
+    else if (!isPickup && !operatorMode) setShowNameSheet(true);
     try {
       const raw = localStorage.getItem(cartKey);
       if (raw) {
@@ -417,6 +428,13 @@ export function MenuClient({
       localStorage.removeItem(cartKey);
     } catch {}
     setCart([]);
+    if (operatorMode) {
+      // After the waiter sends the pedido they should be back at their
+      // own work surface, not stuck on a customer order-tracking view.
+      // Salón surfaces the round + lets them mark items served.
+      router.push("/operator/serve");
+      return;
+    }
     // Counter-mode is prepay: skip the shared-bill view and send the diner
     // straight to checkout. The kitchen only sees the order after the
     // payment route flips the round from "open" to "placed".
@@ -429,6 +447,22 @@ export function MenuClient({
 
   return (
     <div className="flex flex-1 flex-col pb-36">
+      {operatorMode && (
+        <div className="bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
+          <span>
+            <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
+              Modo mesero
+            </span>
+            Tomando pedido en <strong>{locationLabel}</strong>
+          </span>
+          <Link
+            href="/operator/tables"
+            className="font-mono text-[10px] tracking-wider uppercase underline opacity-80"
+          >
+            Volver a mesas
+          </Link>
+        </div>
+      )}
       {/* Header */}
       <header
         ref={headerRef}

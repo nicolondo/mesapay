@@ -73,6 +73,49 @@ const TAG_LABEL: Record<string, string> = {
   nuevo: "Nuevo",
 };
 
+/**
+ * Normalize a string for forgiving menu search. Goals:
+ *  - Accents and ñ shouldn't matter: "café" finds "Cafe", "piña" finds "pina".
+ *  - Punctuation shouldn't matter: "Sangría, espumosa" matches "sangria espumosa".
+ *  - Common Spanish letter swaps shouldn't matter:
+ *      pescado ↔ pezcado    (soft c / z → s)
+ *      cafe    ↔ kafe       (hard c / qu → k)
+ *      vaso    ↔ baso       (b / v → b)
+ *      ola     ↔ hola       (silent h dropped)
+ *      yegua   ↔ llegua     (ll / y → i)
+ *  - Whitespace collapses to single spaces.
+ *
+ * The transformation runs on both the query and the haystack, so any
+ * collision is symmetric — typing "vaka" finds "vaca" because both
+ * normalize to "baka". For a Colombian carta the false-positive rate
+ * is small enough that we'd rather over-match than reject a typo.
+ */
+function fuzzyNormalize(s: string): string {
+  let out = s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, ""); // strip combining accents
+  out = out
+    .replace(/ñ/g, "n")
+    .replace(/[^a-z0-9 ]+/g, " "); // punctuation → space
+  // Order matters here. Digraphs first so we don't shred them.
+  out = out
+    .replace(/qu/g, "k") // qu always sounds like k: quilo → kilo
+    .replace(/ll/g, "i") // ll sounds like i/y: llave → iave
+    // Soft c (before e/i/y) sounds like s; hard c (everywhere else)
+    // sounds like k. Splitting the rule keeps "cafe" → "kafe" and
+    // "cesta" → "sesta" both correct.
+    .replace(/c(?=[eiy])/g, "s")
+    .replace(/c/g, "k")
+    .replace(/z/g, "s")
+    .replace(/[bv]/g, "b")
+    .replace(/h/g, "") // silent h: huevo → uevo, hola → ola
+    .replace(/y/g, "i")
+    .replace(/\s+/g, " ")
+    .trim();
+  return out;
+}
+
 export function MenuClient({
   tenant,
   tableId,
@@ -241,6 +284,16 @@ export function MenuClient({
       localStorage.setItem(nameKey, name);
     } catch {}
     setShowNameSheet(false);
+    // First-load fix: opening the name sheet auto-focuses its input,
+    // which on mobile makes Safari/Chrome push the underlying page up
+    // so the input + soft keyboard fit. After dismissing the sheet the
+    // page is left scrolled a few hundred pixels down — confusing on a
+    // brand-new visit where the diner expects to land at the top of the
+    // carta. We snap back on the next microtask, once React has
+    // unmounted the sheet and the keyboard has retracted.
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
   }
 
   // Live-refresh the "pedido abierto en esta mesa" banner when another
@@ -326,12 +379,16 @@ export function MenuClient({
   }, [categories]);
 
   const itemsByCat = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = fuzzyNormalize(query);
     const map = new Map<string, MenuItem[]>();
     for (const c of categories) map.set(c.id, []);
     for (const it of items) {
       if (q) {
-        const hay = `${it.name} ${it.description ?? ""}`.toLowerCase();
+        // Match against name + description with the same fuzzy
+        // normalization applied — strips accents/punctuation and
+        // collapses common Spanish letter swaps so "pezcado" still
+        // finds "Pescado al ajillo", "limon" finds "Limón", etc.
+        const hay = fuzzyNormalize(`${it.name} ${it.description ?? ""}`);
         if (!hay.includes(q)) continue;
       }
       map.get(it.categoryId)?.push(it);

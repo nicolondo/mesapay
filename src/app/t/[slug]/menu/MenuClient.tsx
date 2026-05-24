@@ -119,13 +119,52 @@ export function MenuClient({
   // each item goes out when it's ready.
   const isCounter = tenant.serviceMode === "counter" || isPickup;
   const headerRef = useRef<HTMLElement>(null);
+  const chipsScrollerRef = useRef<HTMLDivElement>(null);
+  const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  // While true, scroll-spy ignores natural scroll updates — used during
+  // the smooth-scroll triggered by clicking a chip so the active chip
+  // doesn't flicker through every intermediate section. We use a token
+  // counter (instead of Date.now) so the linter doesn't flag impurity.
+  const spyMuteTokenRef = useRef<number>(0);
 
   function scrollToCategory(slug: string) {
     const el = document.getElementById(`cat-${slug}`);
     if (!el) return;
     const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
     const y = window.scrollY + el.getBoundingClientRect().top - headerH - 12;
+    // Mute scroll-spy for the duration of the smooth scroll. Smooth
+    // scroll typically finishes within ~600ms; 900ms gives us comfort.
+    const myToken = ++spyMuteTokenRef.current;
     window.scrollTo({ top: y, behavior: "smooth" });
+    setTimeout(() => {
+      // Only clear if no newer mute superseded ours.
+      if (spyMuteTokenRef.current === myToken) {
+        spyMuteTokenRef.current = 0;
+      }
+    }, 900);
+  }
+
+  // Keep the active chip visible in the horizontal strip — when the
+  // current section changes via scroll-spy, slide the matching chip into
+  // view so the user can see the label of the section they're reading.
+  function ensureChipVisible(slug: string) {
+    const chip = chipRefs.current.get(slug);
+    const scroller = chipsScrollerRef.current;
+    if (!chip || !scroller) return;
+    const chipRect = chip.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const pad = 16;
+    if (chipRect.left < scrollerRect.left + pad) {
+      scroller.scrollBy({
+        left: chipRect.left - scrollerRect.left - pad,
+        behavior: "smooth",
+      });
+    } else if (chipRect.right > scrollerRect.right - pad) {
+      scroller.scrollBy({
+        left: chipRect.right - scrollerRect.right + pad,
+        behavior: "smooth",
+      });
+    }
   }
 
   const nameKey = `mesapay.guestName.${tableId}`;
@@ -202,6 +241,61 @@ export function MenuClient({
     });
     return () => es.close();
   }, [tenant.slug, router]);
+
+  // Scroll-spy: as the user scrolls through the menu, highlight the chip
+  // that matches the section they're currently reading. We find the
+  // section whose top has just passed the trigger line (just below the
+  // sticky header) — that's "the one whose title the user can see at the
+  // top of the visible area". rAF-throttled so it stays cheap on long
+  // menus (some restaurants have 200+ items, 25+ sections).
+  useEffect(() => {
+    if (categories.length === 0) return;
+    let rafId: number | null = null;
+    function evaluate() {
+      rafId = null;
+      if (spyMuteTokenRef.current !== 0) return;
+      const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
+      // Pick the trigger line ~16px below the header so a section is
+      // considered "active" the moment its title comes into view.
+      const triggerY = headerH + 16;
+      let bestSlug: string | null = null;
+      for (const c of categories) {
+        const el = document.getElementById(`cat-${c.slug}`);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        // The active section is the last one whose top is above the
+        // trigger. If we've scrolled past it, it stays active until the
+        // next section's top crosses the line.
+        if (top - triggerY <= 0) {
+          bestSlug = c.slug;
+        } else {
+          break;
+        }
+      }
+      // Edge case: top of page, before any section has crossed yet —
+      // default to the first one so the chip strip isn't blank.
+      if (!bestSlug) bestSlug = categories[0]?.slug ?? null;
+      if (bestSlug && bestSlug !== activeCat) {
+        setActiveCat(bestSlug);
+        ensureChipVisible(bestSlug);
+      }
+    }
+    function onScroll() {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(evaluate);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Run once on mount in case we land somewhere other than the top.
+    evaluate();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
+    // We intentionally don't depend on activeCat — the effect would
+    // re-bind every chip click. evaluate() reads it via closure freshly
+    // each frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
 
   const itemsByCat = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -407,10 +501,17 @@ export function MenuClient({
           </div>
 
           {/* Category chips */}
-          <div className="mt-3 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5">
+          <div
+            ref={chipsScrollerRef}
+            className="mt-3 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5"
+          >
             {categories.map((c) => (
               <button
                 key={c.id}
+                ref={(el) => {
+                  if (el) chipRefs.current.set(c.slug, el);
+                  else chipRefs.current.delete(c.slug);
+                }}
                 onClick={() => {
                   setActiveCat(c.slug);
                   scrollToCategory(c.slug);

@@ -73,16 +73,24 @@ export function MenuEditor({
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
         <div className="font-display text-3xl">Menú</div>
-        {!addingCategory && (
-          <button
-            onClick={() => setAddingCategory(true)}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
+        <div className="flex items-center gap-2">
+          <a
+            href="/operator/menu/import"
+            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center gap-1.5 hover:bg-op-bg"
           >
-            + Nueva categoría
-          </button>
-        )}
+            <span aria-hidden>🧠</span> Importar con AI
+          </a>
+          {!addingCategory && (
+            <button
+              onClick={() => setAddingCategory(true)}
+              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
+            >
+              + Nueva categoría
+            </button>
+          )}
+        </div>
       </div>
 
       {addingCategory && (

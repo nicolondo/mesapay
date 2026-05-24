@@ -33,6 +33,162 @@ const BankCertSchema = z.object({
 
 export type BankCertExtraction = z.infer<typeof BankCertSchema>;
 
+// Menu import — extract dishes from a PDF / photo. The model decides
+// categories + items + tags; the operator reviews before we touch the DB.
+const MenuTag = z.enum(["firma", "popular", "veg", "spicy", "nuevo"]);
+const CategoryKind = z.enum([
+  "starter",
+  "main",
+  "side",
+  "drink",
+  "dessert",
+  "other",
+]);
+
+const ExtractedMenuItem = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(500).nullable(),
+  // Always in cents to match Prisma. Bank-cert OCR taught us model
+  // returns either "$25.000" or 25000 — we ask for cents directly.
+  priceCents: z.number().int().min(0).max(100_000_000),
+  categorySlug: z.string().min(1).max(60),
+  tags: z.array(MenuTag).default([]),
+  confidence: z.number().min(0).max(1).default(0.8),
+});
+
+const ExtractedCategory = z.object({
+  slug: z.string().min(1).max(60),
+  label: z.string().min(1).max(80),
+  kind: CategoryKind,
+  sortOrder: z.number().int().min(0).max(100).default(0),
+});
+
+const MenuExtractionSchema = z.object({
+  categories: z.array(ExtractedCategory).default([]),
+  items: z.array(ExtractedMenuItem).default([]),
+  notes: z.string().optional(),
+});
+
+export type ExtractedMenuItemType = z.infer<typeof ExtractedMenuItem>;
+export type ExtractedCategoryType = z.infer<typeof ExtractedCategory>;
+export type MenuExtraction = z.infer<typeof MenuExtractionSchema>;
+
+const MENU_SYSTEM = `Eres un asistente que extrae la información estructurada de una carta de restaurante (Colombia).
+Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
+
+{
+  "categories": [
+    {
+      "slug": "para-empezar",            // kebab-case, sin tildes, sin espacios
+      "label": "Para empezar",            // como aparece en la carta o un nombre claro
+      "kind": "starter" | "main" | "side" | "drink" | "dessert" | "other",
+      "sortOrder": 0                      // 0..N en el orden que aparecen
+    }
+  ],
+  "items": [
+    {
+      "name": "Ceviche de corvina",
+      "description": "Corvina curada en limón…" | null,
+      "priceCents": 3800000,             // en CENTAVOS de peso colombiano: $38.000 -> 3800000
+      "categorySlug": "para-empezar",
+      "tags": ["firma", "popular", "veg", "spicy", "nuevo"],  // 0..N de esa lista exacta
+      "confidence": 0.9                   // 0..1, qué tan seguro estás de este plato
+    }
+  ],
+  "notes": "opcional, 1 frase"
+}
+
+Reglas estrictas:
+- priceCents en CENTAVOS, multiplica por 100 el precio. "$25.000" -> 2500000.
+- Si no hay precio claro, omite el plato.
+- categorySlug debe coincidir con un slug en "categories". Crea categorías si la carta no las tiene explícitas — agrúpalas por sentido común (entradas, principales, postres, bebidas, etc.).
+- kind: starter (entradas), main (fuertes), side (acompañamientos), drink (bebidas), dessert (postres), other.
+- tags: usa la lista cerrada. "firma" = especialidad de la casa; "popular" = best-seller; "veg" = vegetariano; "spicy" = picante; "nuevo" = nuevo. Solo si se ve claro en la carta. Default: [].
+- description: tal cual aparece, o null si no hay.
+- Si la carta tiene varias páginas / fotos, procesa todo.
+- Si algo no se entiende, baja la confidence y mete una nota en "notes".`;
+
+export async function extractMenuFromDocument(
+  source: Source,
+): Promise<MenuExtraction> {
+  const c = getClient();
+  const base64 = source.data.toString("base64");
+
+  const content: Anthropic.Messages.ContentBlockParam[] =
+    source.kind === "pdf"
+      ? [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: base64,
+            },
+          },
+          { type: "text", text: "Extrae toda la carta del restaurante." },
+        ]
+      : [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: source.mimeType as
+                | "image/png"
+                | "image/jpeg"
+                | "image/webp"
+                | "image/gif",
+              data: base64,
+            },
+          },
+          { type: "text", text: "Extrae toda la carta del restaurante." },
+        ];
+
+  const resp = await c.messages.create({
+    // Bigger context budget — menus can have dozens of items + descriptions.
+    model: env.ANTHROPIC_MODEL,
+    max_tokens: 4096,
+    system: [
+      {
+        type: "text",
+        text: MENU_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  const text = resp.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return {
+      categories: [],
+      items: [],
+      notes: `model returned non-JSON: ${text.slice(0, 200)}`,
+    };
+  }
+  const result = MenuExtractionSchema.safeParse(parsed);
+  if (!result.success) {
+    return {
+      categories: [],
+      items: [],
+      notes: `schema mismatch: ${result.error.issues[0]?.message}`,
+    };
+  }
+  return result.data;
+}
+
 const RutSchema = z.object({
   // Razón social del comercio (persona jurídica) o nombre completo del
   // representante (persona natural). Lo usamos como "legalName".

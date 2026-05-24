@@ -64,9 +64,12 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 export function MenuImportClient({
   tenantName,
   initialCategories,
+  menus,
 }: {
   tenantName: string;
   initialCategories: ExistingCategory[];
+  // Available top-level menus. Picker only shown when >1 exists.
+  menus: { id: string; label: string; slug: string }[];
 }) {
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -77,6 +80,12 @@ export function MenuImportClient({
   >("upload");
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  // Which menu new categories from this import should land in. Defaults
+  // to the first menu (Carta). Only matters when the restaurant has more
+  // than one menu configured.
+  const [targetMenuId, setTargetMenuId] = useState<string>(
+    menus[0]?.id ?? "",
+  );
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [extractedCats, setExtractedCats] = useState<ExtractedCategory[]>([]);
   const [items, setItems] = useState<EditableItem[]>([]);
@@ -256,6 +265,9 @@ export function MenuImportClient({
           photoUrl: it.photoUrl ?? null,
         };
       }),
+      // Tell the server which menu the new categories should land in.
+      // Server validates ownership; when omitted it falls back to Carta.
+      ...(targetMenuId ? { menuId: targetMenuId } : {}),
     };
     const res = await fetch("/api/operator/menu/import/confirm", {
       method: "POST",
@@ -341,7 +353,35 @@ export function MenuImportClient({
       )}
 
       {stage === "upload" && (
-        <UploadDrop onFile={onFileChosen} onUrl={onUrlSubmitted} />
+        <>
+          {/* Destination menu picker. Only relevant when the restaurant
+              has split its menu into multiple books (Carta + Vinos +
+              ...). For everyone else the value is fixed to Carta and
+              the picker is hidden to keep the import dead-simple. */}
+          {menus.length > 1 && (
+            <div className="mb-5 bg-op-surface border border-op-border rounded-2xl p-4">
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+                Importar a
+              </div>
+              <select
+                value={targetMenuId}
+                onChange={(e) => setTargetMenuId(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              >
+                {menus.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-op-muted mt-2">
+                Las categorías nuevas se crearán en este menú. Las que
+                existan se actualizan donde estén.
+              </p>
+            </div>
+          )}
+          <UploadDrop onFile={onFileChosen} onUrl={onUrlSubmitted} />
+        </>
       )}
 
       {stage === "extracting" && (

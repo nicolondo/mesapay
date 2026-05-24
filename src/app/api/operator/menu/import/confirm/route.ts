@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { ensureDefaultMenu } from "@/lib/menus";
 
 const itemSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -39,6 +40,10 @@ const itemSchema = z.object({
 
 const schema = z.object({
   items: z.array(itemSchema).min(1).max(200),
+  // Optional target menu (e.g. "Vinos") for any *new* categories the
+  // import creates. Existing categories matched by slug keep their
+  // current menu. Omitted → default menu (Carta).
+  menuId: z.string().min(1).optional(),
 });
 
 /**
@@ -94,6 +99,26 @@ export async function POST(req: Request) {
   });
   let nextSort = (lastCategory?.sortOrder ?? -1) + 1;
 
+  // Resolve which menu the new categories should land in. Validate the
+  // operator-supplied menuId belongs to this restaurant; fall back to
+  // ensureDefaultMenu so we always have a target. This is what enables
+  // wine imports to land directly in a "Vinos" menu without polluting
+  // the main Carta.
+  let targetMenuId: string;
+  if (parsed.data.menuId) {
+    const menu = await db.menu.findUnique({
+      where: { id: parsed.data.menuId },
+      select: { restaurantId: true },
+    });
+    if (!menu || menu.restaurantId !== restaurantId) {
+      return NextResponse.json({ error: "invalid_menu" }, { status: 400 });
+    }
+    targetMenuId = parsed.data.menuId;
+  } else {
+    const fallback = await ensureDefaultMenu(restaurantId);
+    targetMenuId = fallback.id;
+  }
+
   const result = await db.$transaction(async (tx) => {
     const slugToId = new Map<string, string>();
 
@@ -115,6 +140,7 @@ export async function POST(req: Request) {
       const created = await tx.category.create({
         data: {
           restaurantId,
+          menuId: targetMenuId,
           slug,
           label: info.label,
           kind: info.kind,

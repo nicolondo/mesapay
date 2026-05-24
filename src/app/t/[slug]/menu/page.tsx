@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { normalizeModifiers } from "@/lib/modifiers";
+import { ensureDefaultMenu } from "@/lib/menus";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -39,6 +40,16 @@ export default async function MenuPage({
     },
   });
   if (!tenant) return notFound();
+
+  // Make sure the restaurant has at least one menu and that every
+  // category points at one. ensureDefaultMenu is idempotent — on
+  // first-ever read it creates the Carta and backfills null menuIds.
+  await ensureDefaultMenu(tenant.id);
+  const menus = await db.menu.findMany({
+    where: { restaurantId: tenant.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true, slug: true, label: true, description: true },
+  });
 
   // Aggregate ratings per menu item so each card can show a star average.
   // Customers never see the comments here — just the numbers.
@@ -96,10 +107,12 @@ export default async function MenuPage({
           ? "Mostrador"
           : `Mesa ${table.number}`
       }
+      menus={menus}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,
         label: c.label,
+        menuId: c.menuId ?? menus[0]?.id ?? "",
       }))}
       items={tenant.menuItems.map((m) => {
         const r = ratingByItem.get(m.id);

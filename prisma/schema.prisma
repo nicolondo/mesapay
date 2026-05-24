@@ -64,6 +64,7 @@ model Restaurant {
 
   users               User[]
   tables              Table[]
+  menus               Menu[]
   categories          Category[]
   menuItems           MenuItem[]
   orders              Order[]
@@ -186,10 +187,40 @@ enum PrepStation {
   counter
 }
 
+// A "menu" is a top-level grouping of categories — the diner-facing
+// equivalent of a physical menu book. Most restaurants only need one
+// (the "Carta"), but places with extensive wine lists or separate
+// cocktail / brunch menus benefit from splitting them up so 200
+// wines don't bury the pasta section. Each restaurant always has a
+// default "Carta" menu; additional ones are opt-in.
+model Menu {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  slug         String
+  label        String
+  description  String?
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  categories Category[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+}
+
 model Category {
   id           String       @id @default(cuid())
   restaurantId String
   restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Which menu this category belongs to. Optional because of the
+  // backfill window: existing data starts with null and a server-side
+  // ensureDefaultMenu() helper assigns it to the restaurant's "Carta"
+  // menu the next time anyone reads the menu. Treat null in the UI as
+  // "default menu" so we don't break in flight.
+  menuId       String?
+  menu         Menu?        @relation(fields: [menuId], references: [id], onDelete: SetNull)
   slug         String
   label        String
   sortOrder    Int          @default(0)
@@ -207,6 +238,7 @@ model Category {
 
   @@unique([restaurantId, slug])
   @@index([restaurantId])
+  @@index([menuId])
 }
 
 model MenuItem {

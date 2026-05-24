@@ -124,6 +124,7 @@ export default async function OperatorLayout({
               <NavLink href="/operator/payments">Cobros</NavLink>
               <NavLink href="/operator/orders">Órdenes</NavLink>
               <NavLink href="/operator/menu">Menú</NavLink>
+              <NavLink href="/operator/menus">Cartas</NavLink>
               <NavLink href="/operator/tables">
                 {tenant?.serviceMode === "counter" ? "Mostrador" : "Mesas"}
               </NavLink>

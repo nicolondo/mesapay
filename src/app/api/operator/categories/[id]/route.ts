@@ -10,6 +10,9 @@ const patchSchema = z.object({
   kind: z
     .enum(["starter", "main", "side", "drink", "dessert", "other"])
     .optional(),
+  // Move this category to a different menu (Carta → Vinos, etc).
+  // Server checks the menu belongs to the same restaurant.
+  menuId: z.string().min(1).optional(),
 });
 
 async function guard(id: string) {
@@ -41,6 +44,19 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
+  }
+
+  // If they're moving the category to a different menu, make sure that
+  // menu belongs to the same restaurant — same defensive check we do
+  // when changing categoryId on a menu item.
+  if (parsed.data.menuId !== undefined) {
+    const menu = await db.menu.findUnique({
+      where: { id: parsed.data.menuId },
+      select: { restaurantId: true },
+    });
+    if (!menu || menu.restaurantId !== g.cat.restaurantId) {
+      return NextResponse.json({ error: "invalid_menu" }, { status: 400 });
+    }
   }
 
   await db.category.update({

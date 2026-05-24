@@ -19,7 +19,13 @@ type Tenant = {
   tagline: string | null;
   serviceMode: "table" | "counter";
 };
-type Category = { id: string; slug: string; label: string };
+type Category = { id: string; slug: string; label: string; menuId: string };
+type MenuTab = {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+};
 type ModOpt = { label: string; priceDeltaCents?: number };
 type ModifierDef = {
   id: string;
@@ -173,6 +179,7 @@ export function MenuClient({
   tenant,
   tableId,
   locationLabel,
+  menus = [],
   categories,
   items,
   activeOrder,
@@ -182,6 +189,10 @@ export function MenuClient({
   tenant: Tenant;
   tableId: string;
   locationLabel: string;
+  // Top-level menus (Carta, Vinos, etc.). Optional / single-element
+  // means no tab strip is rendered. Server always sends at least one
+  // entry once ensureDefaultMenu() has run.
+  menus?: MenuTab[];
   categories: Category[];
   items: MenuItem[];
   activeOrder: ActiveOrder | null;
@@ -201,7 +212,22 @@ export function MenuClient({
   operatorMode?: boolean;
 }) {
   const router = useRouter();
-  const [activeCat, setActiveCat] = useState<string>(categories[0]?.slug ?? "");
+  // Active top-level menu tab. Hidden entirely when there's only one
+  // menu (default case). Falls back to first menu id if anything is off.
+  const [activeMenuId, setActiveMenuId] = useState<string>(
+    menus[0]?.id ?? "",
+  );
+  const showMenuTabs = menus.length > 1;
+  // Categories shown in the chip strip + sections, scoped to the
+  // active menu when tabs are visible. When there's a single menu, the
+  // filter is a no-op so legacy single-menu restaurants render the
+  // same as before.
+  const scopedCategories = showMenuTabs
+    ? categories.filter((c) => c.menuId === activeMenuId)
+    : categories;
+  const [activeCat, setActiveCat] = useState<string>(
+    scopedCategories[0]?.slug ?? "",
+  );
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openItem, setOpenItem] = useState<MenuItem | null>(null);
   const [showActiveSheet, setShowActiveSheet] = useState(false);
@@ -375,7 +401,7 @@ export function MenuClient({
   const activeCatRef = useRef(activeCat);
   activeCatRef.current = activeCat;
   useEffect(() => {
-    if (categories.length === 0) return;
+    if (scopedCategories.length === 0) return;
     let rafId: number | null = null;
     function evaluate() {
       rafId = null;
@@ -397,7 +423,7 @@ export function MenuClient({
       // value still ≤ triggerY across all rendered sections rather than
       // breaking early on the array order — more robust to changes.
       let bestTop = -Infinity;
-      for (const c of categories) {
+      for (const c of scopedCategories) {
         const el = document.getElementById(`cat-${c.slug}`);
         if (!el) continue;
         const top = el.getBoundingClientRect().top;
@@ -408,7 +434,7 @@ export function MenuClient({
       }
       // Edge case: top of page, before any section has crossed yet —
       // default to the first one so the chip strip isn't blank.
-      if (!bestSlug) bestSlug = categories[0]?.slug ?? null;
+      if (!bestSlug) bestSlug = scopedCategories[0]?.slug ?? null;
       if (bestSlug && bestSlug !== activeCatRef.current) {
         setActiveCat(bestSlug);
         ensureChipVisible(bestSlug);
@@ -429,12 +455,15 @@ export function MenuClient({
     // re-bind every chip click. evaluate() reads it via closure freshly
     // each frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories]);
+  }, [scopedCategories]);
 
   const itemsByCat = useMemo(() => {
     const q = fuzzyNormalize(query);
     const map = new Map<string, MenuItem[]>();
-    for (const c of categories) map.set(c.id, []);
+    // Only the categories of the currently-active menu — items whose
+    // category lives in a different menu just don't get a bucket and
+    // are filtered out implicitly below.
+    for (const c of scopedCategories) map.set(c.id, []);
     for (const it of items) {
       if (q) {
         // Match against name + description with the same fuzzy
@@ -447,7 +476,7 @@ export function MenuClient({
       map.get(it.categoryId)?.push(it);
     }
     return map;
-  }, [items, categories, query]);
+  }, [items, scopedCategories, query]);
 
   const searching = query.trim().length > 0;
   const visibleCount = searching
@@ -461,12 +490,12 @@ export function MenuClient({
   // pool so swipes only move between dishes the user can see.
   const flatVisibleItems = useMemo(() => {
     const out: MenuItem[] = [];
-    for (const c of categories) {
+    for (const c of scopedCategories) {
       const arr = itemsByCat.get(c.id) ?? [];
       for (const it of arr) out.push(it);
     }
     return out;
-  }, [categories, itemsByCat]);
+  }, [scopedCategories, itemsByCat]);
 
   const openItemIndex = openItem
     ? flatVisibleItems.findIndex((it) => it.id === openItem.id)
@@ -777,12 +806,42 @@ export function MenuClient({
             </div>
           </div>
 
+          {/* Top-level menu tabs (Carta, Vinos, Bebidas...). Hidden
+              when there's only one menu so most restaurants don't
+              see any new chrome. */}
+          {showMenuTabs && (
+            <div className="mt-3 flex gap-2 -mx-5 px-5 overflow-x-auto scroll-hide">
+              {menus.map((m) => {
+                const active = m.id === activeMenuId;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setActiveMenuId(m.id);
+                      // Reset the chip selection + scroll to top of
+                      // the new menu so the diner starts fresh.
+                      window.scrollTo({ top: 0, behavior: "auto" });
+                    }}
+                    className={
+                      "shrink-0 px-5 h-10 rounded-full text-sm font-display tracking-[-0.01em] border-2 transition-colors " +
+                      (active
+                        ? "bg-ink text-bone border-ink"
+                        : "bg-paper text-ink border-hairline")
+                    }
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Category chips */}
           <div
             ref={chipsScrollerRef}
             className="mt-3 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5"
           >
-            {categories.map((c) => (
+            {scopedCategories.map((c) => (
               <button
                 key={c.id}
                 ref={(el) => {
@@ -815,7 +874,7 @@ export function MenuClient({
             <span className="text-ink font-medium">“{query}”</span>.
           </div>
         )}
-        {categories.map((c) => {
+        {scopedCategories.map((c) => {
           const rows = itemsByCat.get(c.id) ?? [];
           if (!rows.length) return null;
           return (

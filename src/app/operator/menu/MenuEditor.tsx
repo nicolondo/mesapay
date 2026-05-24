@@ -17,7 +17,9 @@ type Cat = {
   slug: string;
   kind: CategoryKind;
   prepStation: PrepStation;
+  menuId: string;
 };
+type MenuRef = { id: string; label: string; slug: string };
 
 const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
   { value: "starter", label: "Entradas" },
@@ -66,9 +68,11 @@ const TAG_LABEL: Record<string, string> = {
 };
 
 export function MenuEditor({
+  menus,
   categories: initialCategories,
   items: initialItems,
 }: {
+  menus: MenuRef[];
   categories: Cat[];
   items: Item[];
 }) {
@@ -82,6 +86,10 @@ export function MenuEditor({
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingItemInCat, setAddingItemInCat] = useState<string | null>(null);
+  // Active menu tab. Only relevant when the restaurant has >1 menu.
+  const [activeMenuId, setActiveMenuId] = useState<string>(
+    menus[0]?.id ?? "",
+  );
 
   // CRUD helpers passed to children. They return synchronously — the
   // child has already confirmed with the server before calling us.
@@ -116,6 +124,14 @@ export function MenuEditor({
   for (const c of categories) byCat.set(c.id, []);
   for (const it of items) byCat.get(it.categoryId)?.push(it);
 
+  // When >1 menu we filter the visible category list by the active tab.
+  // With a single menu we skip the tab strip entirely so existing
+  // restaurants don't see any new chrome.
+  const hasMultipleMenus = menus.length > 1;
+  const visibleCategories = hasMultipleMenus
+    ? categories.filter((c) => c.menuId === activeMenuId)
+    : categories;
+
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
@@ -138,11 +154,43 @@ export function MenuEditor({
         </div>
       </div>
 
+      {hasMultipleMenus && (
+        <div className="mb-5 flex gap-2 flex-wrap">
+          {menus.map((m) => {
+            const active = m.id === activeMenuId;
+            const count = categories.filter((c) => c.menuId === m.id).length;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setActiveMenuId(m.id)}
+                className={
+                  "h-9 px-4 rounded-full text-sm font-medium border " +
+                  (active
+                    ? "bg-ink text-bone border-ink"
+                    : "bg-op-surface text-op-text border-op-border")
+                }
+              >
+                {m.label}
+                <span className="ml-1.5 opacity-60 text-xs">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {addingCategory && (
         <div className="mb-5">
           <NewCategoryForm
+            menuId={hasMultipleMenus ? activeMenuId : undefined}
             onSave={(newCat) => {
-              addCategory(newCat);
+              // New category lands in the active menu when there are
+              // multiple; otherwise the server-side default (Carta) takes it.
+              addCategory({
+                ...newCat,
+                menuId: hasMultipleMenus
+                  ? activeMenuId
+                  : (newCat.menuId ?? menus[0]?.id ?? ""),
+              });
               setAddingCategory(false);
             }}
             onClose={() => setAddingCategory(false)}
@@ -150,21 +198,23 @@ export function MenuEditor({
         </div>
       )}
 
-      {categories.length === 0 && !addingCategory && (
+      {visibleCategories.length === 0 && !addingCategory && (
         <div className="text-sm text-op-muted border border-dashed border-op-border rounded-xl p-8 text-center">
-          Todavía no tienes categorías. Crea la primera — por ejemplo, “Para
-          empezar”, “Principales”, “Postres”.
+          {hasMultipleMenus
+            ? "Este menú aún no tiene categorías. Crea una o mueve alguna desde otro menú."
+            : "Todavía no tienes categorías. Crea la primera — por ejemplo, “Para empezar”, “Principales”, “Postres”."}
         </div>
       )}
 
       <div className="space-y-8">
-        {categories.map((c) => {
+        {visibleCategories.map((c) => {
           const rows = byCat.get(c.id) ?? [];
           return (
             <section key={c.id}>
               <div className="flex items-center justify-between mb-3">
                 <CategoryHeader
                   cat={c}
+                  menus={menus}
                   onPatch={(patch) => replaceCategory({ ...c, ...patch })}
                   onDeleted={() => removeCategory(c.id)}
                 />
@@ -323,9 +373,13 @@ function AvailabilityToggle({
 }
 
 function NewCategoryForm({
+  menuId,
   onSave,
   onClose,
 }: {
+  // Which menu the new category should belong to. Omitted → server
+  // drops it into the restaurant's default (Carta).
+  menuId: string | undefined;
   onSave: (newCat: Cat) => void;
   onClose: () => void;
 }) {
@@ -342,7 +396,13 @@ function NewCategoryForm({
     const res = await fetch("/api/operator/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label: label.trim(), kind }),
+      body: JSON.stringify({
+        label: label.trim(),
+        kind,
+        // Only include menuId when we've got one. The server's fallback
+        // (ensureDefaultMenu) handles the legacy single-menu case.
+        ...(menuId ? { menuId } : {}),
+      }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -366,6 +426,8 @@ function NewCategoryForm({
         .replace(/^-|-$/g, ""),
       kind,
       prepStation: "kitchen",
+      // Parent overwrites this with the active menu if it has one.
+      menuId: menuId ?? "",
     });
   }
 
@@ -432,10 +494,12 @@ function NewCategoryForm({
 
 function CategoryHeader({
   cat,
+  menus,
   onPatch,
   onDeleted,
 }: {
   cat: Cat;
+  menus: MenuRef[];
   onPatch: (patch: Partial<Cat>) => void;
   onDeleted: () => void;
 }) {
@@ -476,6 +540,23 @@ function CategoryHeader({
       return;
     }
     onPatch({ kind });
+  }
+
+  async function changeMenu(menuId: string) {
+    if (menuId === cat.menuId) return;
+    const res = await fetch(`/api/operator/categories/${cat.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ menuId }),
+    });
+    if (!res.ok) {
+      alert("No se pudo cambiar de menú.");
+      return;
+    }
+    // Parent's replaceCategory uses this patch to update local state.
+    // The category will disappear from the current tab and appear under
+    // the new menu — that's the expected UX when moving categories.
+    onPatch({ menuId });
   }
 
   async function del() {
@@ -537,6 +618,20 @@ function CategoryHeader({
           </option>
         ))}
       </select>
+      {menus.length > 1 && (
+        <select
+          value={cat.menuId}
+          onChange={(e) => changeMenu(e.target.value)}
+          title="Menú al que pertenece esta categoría"
+          className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+        >
+          {menus.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      )}
       <button
         onClick={() => setEditing(true)}
         className="text-[11px] text-op-muted hover:text-ink"

@@ -11,7 +11,14 @@ type CategoryKind =
   | "drink"
   | "dessert"
   | "other";
-type Cat = { id: string; label: string; slug: string; kind: CategoryKind };
+type PrepStation = "kitchen" | "bar" | "counter";
+type Cat = {
+  id: string;
+  label: string;
+  slug: string;
+  kind: CategoryKind;
+  prepStation: PrepStation;
+};
 
 const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
   { value: "starter", label: "Entradas" },
@@ -21,6 +28,13 @@ const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
   { value: "dessert", label: "Postres" },
   { value: "other", label: "Otro" },
 ];
+
+const STATION_LABEL: Record<PrepStation, string> = {
+  kitchen: "Cocina",
+  bar: "Bar",
+  counter: "Refri / mostrador",
+};
+
 type ModifierDef = {
   id: string;
   label: string;
@@ -39,6 +53,7 @@ type Item = {
   tags: string[];
   modifiers: ModifierDef[];
   prepMinutes: number;
+  prepStation: PrepStation | null;
 };
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
@@ -618,6 +633,10 @@ function ItemSheet({
   const [tags, setTags] = useState<string[]>(item.tags);
   const [modifiers, setModifiers] = useState<ModifierDef[]>(item.modifiers);
   const [prepMinutes, setPrepMinutes] = useState(String(item.prepMinutes));
+  // null = "use category default"; otherwise it's the per-item override.
+  const [prepStation, setPrepStation] = useState<PrepStation | null>(
+    item.prepStation,
+  );
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -670,6 +689,7 @@ function ItemSheet({
         tags,
         modifiers: modifiers.length > 0 ? modifiers : null,
         prepMinutes: mins,
+        prepStation,
       }),
     });
     setBusy(false);
@@ -841,6 +861,44 @@ function ItemSheet({
               ))}
             </select>
           </label>
+
+          {/* Per-item station override. The default option pulls in the
+              current category's station so the operator can see what
+              "inherit" actually means right now. */}
+          {(() => {
+            const inheritedStation =
+              categories.find((c) => c.id === categoryId)?.prepStation ??
+              "kitchen";
+            return (
+              <label className="flex flex-col">
+                <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                  Estación
+                </span>
+                <select
+                  value={prepStation ?? ""}
+                  onChange={(e) =>
+                    setPrepStation(
+                      e.target.value === ""
+                        ? null
+                        : (e.target.value as PrepStation),
+                    )
+                  }
+                  className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                >
+                  <option value="">
+                    Usar la de la categoría ({STATION_LABEL[inheritedStation]})
+                  </option>
+                  <option value="kitchen">Cocina</option>
+                  <option value="bar">Bar</option>
+                  <option value="counter">Refri / mostrador</option>
+                </select>
+                <span className="text-[11px] text-op-muted mt-1">
+                  Sirve para casos como “jugo natural” en una categoría que en
+                  general va al bar pero este específico va a cocina.
+                </span>
+              </label>
+            );
+          })()}
 
           <div>
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">

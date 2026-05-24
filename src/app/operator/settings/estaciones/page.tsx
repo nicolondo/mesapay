@@ -11,12 +11,26 @@ export default async function StationsSettingsPage() {
   const [tenant, categories] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { hasBar: true, name: true },
+      select: {
+        hasBar: true,
+        name: true,
+        barSubStations: true,
+        kitchenPrintEnabled: true,
+        barPrintEnabled: true,
+        printPaperWidthMm: true,
+      },
     }),
     db.category.findMany({
       where: { restaurantId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, label: true, slug: true, kind: true, prepStation: true },
+      select: {
+        id: true,
+        label: true,
+        slug: true,
+        kind: true,
+        prepStation: true,
+        barSubStation: true,
+      },
     }),
   ]);
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
@@ -24,12 +38,17 @@ export default async function StationsSettingsPage() {
   return (
     <StationsClient
       hasBar={tenant.hasBar}
+      barSubStations={tenant.barSubStations}
+      kitchenPrintEnabled={tenant.kitchenPrintEnabled}
+      barPrintEnabled={tenant.barPrintEnabled}
+      printPaperWidthMm={tenant.printPaperWidthMm as 58 | 80}
       categories={categories.map((c) => ({
         id: c.id,
         label: c.label,
         slug: c.slug,
         kind: c.kind,
         prepStation: c.prepStation,
+        barSubStation: c.barSubStation,
       }))}
     />
   );

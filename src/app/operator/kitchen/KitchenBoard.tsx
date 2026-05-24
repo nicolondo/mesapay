@@ -37,15 +37,33 @@ type Round = {
   items: Item[];
 };
 
-const COLUMNS: { key: KitchenStatus; label: string; tint: string }[] = [
+type BoardMode = "kitchen" | "bar";
+
+const COLUMNS_KITCHEN: { key: KitchenStatus; label: string; tint: string }[] = [
   { key: "placed", label: "Por preparar", tint: "border-[#C98A2E]/40" },
   { key: "in_kitchen", label: "En cocina", tint: "border-[#B8893B]/50" },
   { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
 ];
 
-const NEXT_STATUS: Record<KitchenStatus, KitchenStatus | null> = {
+// The bar doesn't have an intermediate "in preparation" beat — the
+// bartender pours / preps and the item is immediately ready. Two
+// columns keep the board uncluttered and the transitions match how
+// bartenders actually work: see the ticket, make it, mark listo.
+const COLUMNS_BAR: { key: KitchenStatus; label: string; tint: string }[] = [
+  { key: "placed", label: "Por preparar", tint: "border-[#C98A2E]/40" },
+  { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
+];
+
+const NEXT_STATUS_KITCHEN: Record<KitchenStatus, KitchenStatus | null> = {
   placed: "in_kitchen",
   in_kitchen: "ready",
+  ready: null,
+};
+
+// Bar transitions skip the intermediate state entirely.
+const NEXT_STATUS_BAR: Record<KitchenStatus, KitchenStatus | null> = {
+  placed: "ready",
+  in_kitchen: "ready", // shouldn't happen for bar items, but keep safe
   ready: null,
 };
 
@@ -53,11 +71,15 @@ export function KitchenBoard({
   tenantSlug,
   serviceMode,
   rounds,
+  mode = "kitchen",
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
   rounds: Round[];
+  mode?: BoardMode;
 }) {
+  const COLUMNS = mode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
+  const NEXT_STATUS = mode === "bar" ? NEXT_STATUS_BAR : NEXT_STATUS_KITCHEN;
   const router = useRouter();
   const [, startTx] = useTransition();
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
@@ -155,7 +177,12 @@ export function KitchenBoard({
   }
 
   function effectiveItemStatus(i: Item): KitchenStatus {
-    return pendingKitchen.get(i.id) ?? i.kitchenStatus;
+    const raw = pendingKitchen.get(i.id) ?? i.kitchenStatus;
+    // Bar mode has no "in_kitchen" column. If an item is in that state
+    // (legacy data, manual API call), treat it as "placed" so it stays
+    // visible and the bartender can still advance it.
+    if (mode === "bar" && raw === "in_kitchen") return "placed";
+    return raw;
   }
 
   async function cancelRound(

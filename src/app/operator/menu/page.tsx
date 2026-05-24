@@ -26,6 +26,7 @@ export default async function MenuAdminPage() {
         label: c.label,
         slug: c.slug,
         kind: c.kind,
+        prepStation: c.prepStation,
       }))}
       items={items.map((i) => ({
         id: i.id,
@@ -38,6 +39,7 @@ export default async function MenuAdminPage() {
         tags: i.tags,
         modifiers: (i.modifiers as unknown as ModifierDef[] | null) ?? [],
         prepMinutes: i.prepMinutes,
+        prepStation: i.prepStation,
       }))}
     />
   );

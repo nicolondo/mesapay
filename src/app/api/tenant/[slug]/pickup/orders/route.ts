@@ -77,7 +77,11 @@ export async function POST(
   );
   const menuItems = await db.menuItem.findMany({
     where: { id: { in: menuIds }, restaurantId: tenant.id, available: true },
-    include: { category: { select: { kind: true, prepStation: true } } },
+    include: {
+      category: {
+        select: { kind: true, prepStation: true, barSubStation: true },
+      },
+    },
   });
   const menuById = new Map(menuItems.map((m) => [m.id, m]));
   if (menuById.size !== menuIds.length) {
@@ -227,6 +231,10 @@ export async function POST(
       const mi = menuById.get(it.menuItemId)!;
       const station = resolveStation(mi.prepStation, mi.category.prepStation);
       const autoReady = isAutoReadyStation(station, tenant.hasBar);
+      const barSubStation =
+        station === "bar" && tenant.barSubStations.length > 0
+          ? (mi.category.barSubStation ?? null)
+          : null;
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -237,6 +245,7 @@ export async function POST(
           priceCentsSnapshot: mi.priceCents,
           categoryKind: mi.category.kind,
           station,
+          barSubStation,
           kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
@@ -286,13 +295,32 @@ export async function POST(
       });
     }
 
-    return { order };
+    const pickupBarItems = await tx.orderItem.findMany({
+      where: { roundId: round.id, station: "bar" },
+      select: { barSubStation: true },
+    });
+
+    return { order, round, pickupBarItems };
   });
 
   publishOrderEvent(tenant.id, {
     type: "order.updated",
     orderId: result.order.id,
   });
+
+  if (tenant.barPrintEnabled && result.pickupBarItems.length > 0) {
+    const subs = new Set<string | null>();
+    for (const i of result.pickupBarItems) subs.add(i.barSubStation ?? null);
+    for (const sub of subs) {
+      publishOrderEvent(tenant.id, {
+        type: "ticket.printable",
+        roundId: result.round.id,
+        orderId: result.order.id,
+        station: "bar",
+        barSubStation: sub,
+      });
+    }
+  }
 
   if (session?.user?.id) {
     welcomeIfFirstTime(session.user.id).catch((err) =>

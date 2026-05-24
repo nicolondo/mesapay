@@ -25,6 +25,10 @@ const patchSchema = z.object({
   tags: z.array(z.enum(TAGS)).max(5).optional(),
   modifiers: z.array(modifierSchema).max(8).nullable().optional(),
   prepMinutes: z.number().int().min(1).max(120).optional(),
+  // Override the category's default station for this specific item.
+  // null = inherit from category (the common case). The frontend sends
+  // null when the operator picks "Usar la de la categoría".
+  prepStation: z.enum(["kitchen", "bar", "counter"]).nullable().optional(),
 });
 
 async function guard(id: string) {
@@ -82,6 +86,7 @@ export async function PATCH(
         : (parsed.data.modifiers as unknown as Prisma.InputJsonValue);
   }
   if (parsed.data.prepMinutes !== undefined) data.prepMinutes = parsed.data.prepMinutes;
+  if (parsed.data.prepStation !== undefined) data.prepStation = parsed.data.prepStation;
 
   await db.menuItem.update({ where: { id }, data });
   return NextResponse.json({ ok: true });

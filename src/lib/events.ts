@@ -21,7 +21,22 @@ export type OrderEvent =
   // A specific round (a batch of items, usually a single dish) was
   // cancelled in the kitchen. Subscribers: customer order view (show
   // "tu plato fue cancelado" banner), waiter Salón (queue an ack).
-  | { type: "order.round_cancelled"; orderId: string; roundId: string; reason: string };
+  | { type: "order.round_cancelled"; orderId: string; roundId: string; reason: string }
+  // A ticket is ready to be physically printed at a specific station.
+  // Emitted on placed→in_kitchen for kitchen tickets, and on arrival
+  // for bar tickets (the bar has no "start preparing" intermediate
+  // beat). The print listener page at /operator/print/{station}
+  // subscribes, fetches the ticket payload via API, and pushes it to
+  // window.print(). barSubStation is set when the restaurant defined
+  // sub-stations and the items belong to one — listeners filter on it
+  // so a "Cocteles" printer only fires for cocteles.
+  | {
+      type: "ticket.printable";
+      roundId: string;
+      orderId: string;
+      station: "kitchen" | "bar";
+      barSubStation: string | null;
+    };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

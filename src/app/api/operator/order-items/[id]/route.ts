@@ -147,5 +147,30 @@ export async function PATCH(
     orderId: item.orderId,
   });
 
+  // Auto-print on the kitchen station when an item transitions
+  // placed → in_kitchen. We fire one event per (roundId, station) pair —
+  // the print page coalesces these by roundId so a kitchen with five
+  // items in the same round prints a single ticket, not five.
+  if (
+    parsed.data.kitchenStatus === "in_kitchen" &&
+    item.kitchenStatus === "placed" &&
+    item.station === "kitchen" &&
+    item.roundId
+  ) {
+    const tenant = await db.restaurant.findUnique({
+      where: { id: item.order.restaurantId },
+      select: { kitchenPrintEnabled: true },
+    });
+    if (tenant?.kitchenPrintEnabled) {
+      publishOrderEvent(item.order.restaurantId, {
+        type: "ticket.printable",
+        roundId: item.roundId,
+        orderId: item.orderId,
+        station: "kitchen",
+        barSubStation: null,
+      });
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }

@@ -46,6 +46,22 @@ model Restaurant {
   // bar" tickets in the waiter's serve view.
   hasBar              Boolean   @default(false)
 
+  // Optional sub-station labels within the bar — e.g. ["Cocteles",
+  // "Cervezas", "Café"]. When non-empty, each bar category can pick
+  // which sub-station it belongs to via Category.barSubStation, and the
+  // /operator/bar board surfaces tabs to filter. Empty list = single
+  // unified bar board.
+  barSubStations      String[]  @default([])
+
+  // Physical printing config. When *PrintEnabled is true the server
+  // emits SSE "ticket.printable" events at the right transitions; an
+  // operator opens /operator/print/{station} on the kitchen/bar
+  // computer (with a USB or network thermal printer attached) and that
+  // page auto-prints tickets as they arrive.
+  kitchenPrintEnabled Boolean   @default(false)
+  barPrintEnabled     Boolean   @default(false)
+  printPaperWidthMm   Int       @default(80)
+
   users               User[]
   tables              Table[]
   categories          Category[]
@@ -181,6 +197,11 @@ model Category {
   // Default station for items in this category. Items can override
   // individually via MenuItem.prepStation.
   prepStation  PrepStation  @default(kitchen)
+  // Only meaningful when prepStation=bar AND the restaurant has
+  // sub-stations defined. Free-text label that should match one of
+  // Restaurant.barSubStations. Null means "no specific sub-station" —
+  // shows on the default tab of /operator/bar.
+  barSubStation String?
 
   items MenuItem[]
 
@@ -339,6 +360,9 @@ model OrderItem {
   // ticket so re-routing the menu later doesn't yank already-fired items
   // between boards mid-service.
   station            PrepStation  @default(kitchen)
+  // Same snapshot logic for the bar sub-station. Null when not a bar
+  // item or when the restaurant has no sub-stations configured.
+  barSubStation      String?
   servedAt           DateTime?
 
   rating DishRating?

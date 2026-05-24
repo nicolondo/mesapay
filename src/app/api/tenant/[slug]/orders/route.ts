@@ -56,7 +56,11 @@ export async function POST(
   const menuIds = Array.from(new Set(parsed.data.items.map((i) => i.menuItemId)));
   const menuItems = await db.menuItem.findMany({
     where: { id: { in: menuIds }, restaurantId: tenant.id },
-    include: { category: { select: { kind: true, prepStation: true } } },
+    include: {
+      category: {
+        select: { kind: true, prepStation: true, barSubStation: true },
+      },
+    },
   });
   const menuById = new Map(menuItems.map((m) => [m.id, m]));
   if (menuById.size !== menuIds.length) {
@@ -112,6 +116,13 @@ export async function POST(
       // the moment the round is sent. The waiter sees them in their serve
       // list with the appropriate "Refri / Bar" pill.
       const autoReady = isAutoReadyStation(station, tenant.hasBar);
+      // Snapshot the bar sub-station (e.g. "Cocteles") so the bar board
+      // can filter tabs without re-resolving. Only meaningful for bar
+      // items in a restaurant that defined sub-stations.
+      const barSubStation =
+        station === "bar" && tenant.barSubStations.length > 0
+          ? (mi.category.barSubStation ?? null)
+          : null;
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -122,6 +133,7 @@ export async function POST(
           priceCentsSnapshot: mi.priceCents,
           categoryKind: mi.category.kind,
           station,
+          barSubStation,
           kitchenStatus: autoReady ? "ready" : "placed",
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
@@ -167,10 +179,31 @@ export async function POST(
         placedAt: isCounter ? order.placedAt : (order.placedAt ?? new Date()),
       },
     });
-    return { order: updated, round };
+    return { order: updated, round, roundItems };
   });
 
   publishOrderEvent(tenant.id, { type: "order.updated", orderId: result.order.id });
+
+  // Auto-print: if the bar has any items in this round and bar printing
+  // is on, emit a print event (or one per sub-station). The kitchen
+  // print fires later, when the cook taps "Empezar preparación".
+  if (tenant.barPrintEnabled) {
+    const barItems = result.roundItems.filter((i) => i.station === "bar");
+    if (barItems.length > 0) {
+      // Group by sub-station so each printer gets only its own slice.
+      const subs = new Set<string | null>();
+      for (const i of barItems) subs.add(i.barSubStation ?? null);
+      for (const sub of subs) {
+        publishOrderEvent(tenant.id, {
+          type: "ticket.printable",
+          roundId: result.round.id,
+          orderId: result.order.id,
+          station: "bar",
+          barSubStation: sub,
+        });
+      }
+    }
+  }
 
   return NextResponse.json({
     orderId: result.order.id,

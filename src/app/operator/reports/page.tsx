@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { addDaysIso, bogotaDayRange, bogotaTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import {
+  computeOpenShiftMetrics,
+  getCurrentShift,
+  getRecentShifts,
+  listOpenOrders,
+} from "@/lib/shift";
+import { ShiftPanel } from "./ShiftPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +19,9 @@ const METHOD_LABEL: Record<string, string> = {
   wompi_card: "Tarjeta",
   wompi_pse: "PSE",
   wompi_nequi: "Nequi",
+  kushki_apple_pay: "Apple Pay",
+  kushki_google_pay: "Google Pay",
+  kushki_card_terminal: "Datáfono",
 };
 
 export default async function ReportsPage({
@@ -137,13 +147,48 @@ export default async function ReportsPage({
 
   const downloadHref = `/api/operator/reports/close-of-day?date=${dateIso}`;
 
+  // Shift state — only meaningful for "today". For historical date views we
+  // hide the live panel and just show the closed shift(s) for that date.
+  const currentShift = isToday ? await getCurrentShift(restaurantId) : null;
+  const shiftPanelInitial = currentShift
+    ? {
+        open: true as const,
+        shift: {
+          id: currentShift.id,
+          openedAt: currentShift.openedAt.toISOString(),
+          openingCashCents: currentShift.openingCashCents,
+        },
+        metrics: await computeOpenShiftMetrics(restaurantId, currentShift),
+        openOrders: (await listOpenOrders(restaurantId, currentShift.openedAt)).map(
+          (o) => ({
+            id: o.id,
+            shortCode: o.shortCode,
+            status: o.status,
+            subtotalCents: o.subtotalCents,
+            totalCents: o.totalCents,
+            tableLabel: o.table
+              ? o.table.label ?? `Mesa ${o.table.number}`
+              : "Para llevar",
+          }),
+        ),
+        expectedCashCents: 0, // computed below
+      }
+    : { open: false as const };
+  if (shiftPanelInitial.open) {
+    shiftPanelInitial.expectedCashCents =
+      shiftPanelInitial.shift.openingCashCents +
+      shiftPanelInitial.metrics.cashCents;
+  }
+  // Historial de cierres recientes (últimos 10) para mostrar bajo el panel.
+  const recentClosed = await getRecentShifts(restaurantId, 10);
+
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
-          <div className="font-display text-3xl">Cierre de día</div>
+          <div className="font-display text-3xl">Cierre</div>
           <p className="text-sm text-op-muted mt-1">
-            Cobros y pedidos del día en hora Colombia.
+            Abre y cierra el turno, y consulta el detalle del día.
           </p>
         </div>
         <div className="flex items-end gap-3">
@@ -197,6 +242,8 @@ export default async function ReportsPage({
           </div>
         </div>
       </div>
+
+      {isToday && <ShiftPanel initial={shiftPanelInitial} />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <Stat label="Cobrado" value={fmtCOP(paymentsTotal)} hint={`${payments.length} cobro${payments.length === 1 ? "" : "s"}`} />
@@ -342,6 +389,74 @@ export default async function ReportsPage({
           </div>
         </div>
       </div>
+
+      {recentClosed.length > 0 && (
+        <div className="bg-op-surface border border-op-border rounded-2xl p-5 mt-4">
+          <div className="font-display text-xl mb-3">Cierres recientes</div>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left">
+                  <Th>Cerrado</Th>
+                  <Th>Duración</Th>
+                  <Th align="right">Fondo</Th>
+                  <Th align="right">Esperado</Th>
+                  <Th align="right">Contado</Th>
+                  <Th align="right">Diferencia</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentClosed.map((s) => {
+                  const closed = s.closedAt ? fmtBogotaDateTime(s.closedAt) : null;
+                  const durMin =
+                    s.closedAt
+                      ? Math.round(
+                          (s.closedAt.getTime() - s.openedAt.getTime()) / 60_000,
+                        )
+                      : 0;
+                  const hours = Math.floor(durMin / 60);
+                  const mins = durMin % 60;
+                  const diff = s.cashDiffCents ?? 0;
+                  return (
+                    <tr key={s.id} className="border-t border-op-border">
+                      <Td className="font-mono tabular">
+                        {closed ? `${closed.date} ${closed.time}` : "—"}
+                      </Td>
+                      <Td>
+                        {hours > 0 ? `${hours}h ${mins}m` : `${mins}m`}
+                      </Td>
+                      <Td align="right" className="font-mono tabular">
+                        {fmtCOP(s.openingCashCents)}
+                      </Td>
+                      <Td align="right" className="font-mono tabular">
+                        {s.expectedCashCents != null ? fmtCOP(s.expectedCashCents) : "—"}
+                      </Td>
+                      <Td align="right" className="font-mono tabular">
+                        {s.declaredCashCents != null ? fmtCOP(s.declaredCashCents) : "—"}
+                      </Td>
+                      <Td
+                        align="right"
+                        className={
+                          "font-mono tabular " +
+                          (diff === 0
+                            ? "text-op-muted"
+                            : diff > 0
+                              ? "text-emerald-700"
+                              : "text-red-700")
+                        }
+                      >
+                        {diff === 0
+                          ? "—"
+                          : (diff > 0 ? "+" : "−") + fmtCOP(Math.abs(diff))}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

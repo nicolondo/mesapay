@@ -20,47 +20,47 @@ model Restaurant {
   periodEndsAt      DateTime?
   suspended         Boolean   @default(false)
 
-  serviceMode       ServiceMode @default(table)
-  pickupEnabled     Boolean     @default(false)
-  pickupHours       Json?
-  pickupMaxEtaMinutes Int?      @default(45)
+  serviceMode         ServiceMode @default(table)
+  pickupEnabled       Boolean     @default(false)
+  pickupHours         Json?
+  pickupMaxEtaMinutes Int?        @default(45)
 
   // Kushki sub-merchant credentials. publicKey is safe to expose to the
   // browser SDK; privateKeyEnc is AES-GCM ciphertext (src/lib/crypto.ts).
-  kushkiMerchantId        String?
-  kushkiPublicKey         String?
-  kushkiPrivateKeyEnc     String?
-  kushkiOnboardingStatus  KushkiOnboardingStatus @default(not_started)
-  kushkiOnboardingNotes   String?
-  kushkiSubmittedAt       DateTime?
-  kushkiActivatedAt       DateTime?
+  kushkiMerchantId       String?
+  kushkiPublicKey        String?
+  kushkiPrivateKeyEnc    String?
+  kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes  String?
+  kushkiSubmittedAt      DateTime?
+  kushkiActivatedAt      DateTime?
 
   // Bank info — populated by AI OCR of the bank certification then verified
   // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).
-  bankInfo            Json?
-  autoDispersePolicy  Json?
+  bankInfo           Json?
+  autoDispersePolicy Json?
 
   // Does this restaurant have a dedicated bartender / barista (separate
   // person from cooks)? Controls whether items routed to station=bar get
   // their own board at /operator/bar, or fall through as "grab from the
   // bar" tickets in the waiter's serve view.
-  hasBar              Boolean   @default(false)
+  hasBar Boolean @default(false)
 
   // Optional sub-station labels within the bar — e.g. ["Cocteles",
   // "Cervezas", "Café"]. When non-empty, each bar category can pick
   // which sub-station it belongs to via Category.barSubStation, and the
   // /operator/bar board surfaces tabs to filter. Empty list = single
   // unified bar board.
-  barSubStations      String[]  @default([])
+  barSubStations String[] @default([])
 
   // Physical printing config. When *PrintEnabled is true the server
   // emits SSE "ticket.printable" events at the right transitions; an
   // operator opens /operator/print/{station} on the kitchen/bar
   // computer (with a USB or network thermal printer attached) and that
   // page auto-prints tickets as they arrive.
-  kitchenPrintEnabled Boolean   @default(false)
-  barPrintEnabled     Boolean   @default(false)
-  printPaperWidthMm   Int       @default(80)
+  kitchenPrintEnabled Boolean @default(false)
+  barPrintEnabled     Boolean @default(false)
+  printPaperWidthMm   Int     @default(80)
 
   users               User[]
   tables              Table[]
@@ -76,6 +76,7 @@ model Restaurant {
   terminalDevices     TerminalDevice[]
   kushkiWebhookEvents KushkiWebhookEvent[]
   invoiceRequests     InvoiceRequest[]
+  shifts              Shift[]
 
   @@index([slug])
 }
@@ -108,16 +109,16 @@ enum MembershipMethod {
 }
 
 model MembershipPayment {
-  id            String           @id @default(cuid())
-  restaurantId  String
-  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  amountCents   Int
-  method        MembershipMethod
-  note          String?
-  periodStart   DateTime
-  periodEnd     DateTime
+  id              String           @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  amountCents     Int
+  method          MembershipMethod
+  note            String?
+  periodStart     DateTime
+  periodEnd       DateTime
   recordedByEmail String
-  createdAt     DateTime         @default(now())
+  createdAt       DateTime         @default(now())
 
   @@index([restaurantId, createdAt])
 }
@@ -146,6 +147,9 @@ model User {
 
   uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
   terminalDevices         TerminalDevice[]
+
+  shiftsOpened Shift[] @relation("ShiftsOpened")
+  shiftsClosed Shift[] @relation("ShiftsClosed")
 
   @@index([restaurantId])
 }
@@ -211,23 +215,23 @@ model Menu {
 }
 
 model Category {
-  id           String       @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Which menu this category belongs to. Optional because of the
   // backfill window: existing data starts with null and a server-side
   // ensureDefaultMenu() helper assigns it to the restaurant's "Carta"
   // menu the next time anyone reads the menu. Treat null in the UI as
   // "default menu" so we don't break in flight.
-  menuId       String?
-  menu         Menu?        @relation(fields: [menuId], references: [id], onDelete: SetNull)
-  slug         String
-  label        String
-  sortOrder    Int          @default(0)
-  kind         CategoryKind @default(other)
+  menuId        String?
+  menu          Menu?        @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  slug          String
+  label         String
+  sortOrder     Int          @default(0)
+  kind          CategoryKind @default(other)
   // Default station for items in this category. Items can override
   // individually via MenuItem.prepStation.
-  prepStation  PrepStation  @default(kitchen)
+  prepStation   PrepStation  @default(kitchen)
   // Only meaningful when prepStation=bar AND the restaurant has
   // sub-stations defined. Free-text label that should match one of
   // Restaurant.barSubStations. Null means "no specific sub-station" —
@@ -254,9 +258,9 @@ model MenuItem {
   tags        String[]
   photoUrl    String?
   modifiers   Json?
-  available   Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  prepMinutes Int      @default(10)
+  available   Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  prepMinutes Int          @default(10)
   // Override the category's default prep station for this specific item.
   // null = inherit from category.prepStation. Common case: "Bebidas" =
   // bar but "Jugo natural" overrides to kitchen because it requires prep.
@@ -319,14 +323,14 @@ model Order {
 
   servingMode ServingMode @default(asReady)
 
-  orderType    OrderType @default(dineIn)
-  etaMinutes   Int?
-  readyEta     DateTime?
-  pickupName   String?
-  pickupPhone  String?
+  orderType   OrderType @default(dineIn)
+  etaMinutes  Int?
+  readyEta    DateTime?
+  pickupName  String?
+  pickupPhone String?
 
-  needsWaiter     Boolean   @default(false)
-  waiterCalledAt  DateTime?
+  needsWaiter    Boolean   @default(false)
+  waiterCalledAt DateTime?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -334,10 +338,10 @@ model Order {
   servedAt  DateTime?
   paidAt    DateTime?
 
-  items    OrderItem[]
-  payments Payment[]
-  rounds   Round[]
-  ratings  DishRating[]
+  items           OrderItem[]
+  payments        Payment[]
+  rounds          Round[]
+  ratings         DishRating[]
   invoiceRequests InvoiceRequest[]
 
   @@index([restaurantId, status])
@@ -346,20 +350,20 @@ model Order {
 }
 
 model Round {
-  id               String      @id @default(cuid())
-  orderId          String
-  order            Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seq              Int
-  status           OrderStatus @default(placed)
-  placedAt         DateTime    @default(now())
-  kitchenStartedAt DateTime?
-  readyAt          DateTime?
+  id                       String      @id @default(cuid())
+  orderId                  String
+  order                    Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seq                      Int
+  status                   OrderStatus @default(placed)
+  placedAt                 DateTime    @default(now())
+  kitchenStartedAt         DateTime?
+  readyAt                  DateTime?
   // Cancelled rounds are pulled out of the kitchen board immediately. We
   // keep them in the DB for the audit trail — cancelledBy/At pair plus the
   // free-text reason captured at the moment of cancellation.
-  cancelledAt        DateTime?
-  cancelledByEmail   String?
-  cancellationReason String?
+  cancelledAt              DateTime?
+  cancelledByEmail         String?
+  cancellationReason       String?
   // The waiter clicks "avisé al cliente" once they've gone to the table.
   // Until then the cancellation surfaces in Salón as an action item.
   cancellationAckedAt      DateTime?
@@ -380,32 +384,32 @@ model OrderItem {
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
 
-  qty                Int          @default(1)
-  nameSnapshot       String
-  priceCentsSnapshot Int
-  modifierSelections Json?
-  notes              String?
-  guestName          String?
-  kitchenStatus      KitchenState @default(placed)
-  categoryKind       CategoryKind @default(other)
+  qty                  Int          @default(1)
+  nameSnapshot         String
+  priceCentsSnapshot   Int
+  modifierSelections   Json?
+  notes                String?
+  guestName            String?
+  kitchenStatus        KitchenState @default(placed)
+  categoryKind         CategoryKind @default(other)
   // Snapshot of the resolved station at send time. We freeze it on the
   // ticket so re-routing the menu later doesn't yank already-fired items
   // between boards mid-service.
-  station            PrepStation  @default(kitchen)
+  station              PrepStation  @default(kitchen)
   // Same snapshot logic for the bar sub-station. Null when not a bar
   // item or when the restaurant has no sub-stations configured.
-  barSubStation      String?
+  barSubStation        String?
   // Snapshot of prepMinutes at send time. Used by the bar board for the
   // countdown timer; the kitchen board ignores this and lets the cook
   // mark ready manually. We snapshot (vs. reading from MenuItem live)
   // because editing the menu mid-service shouldn't shift the timer on
   // tickets that are already on the board.
-  prepMinutesSnapshot Int         @default(10)
+  prepMinutesSnapshot  Int          @default(10)
   // When the item moved placed → in_kitchen. Drives the bar countdown
   // (remaining = prepMinutesSnapshot - (now - preparationStartedAt)).
   // Survives page reloads so the countdown picks up where it left off.
   preparationStartedAt DateTime?
-  servedAt           DateTime?
+  servedAt             DateTime?
 
   rating DishRating?
 
@@ -454,26 +458,76 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id           String        @id @default(cuid())
-  orderId      String
-  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method       PaymentMethod
-  status       PaymentStatus @default(pending)
-  amountCents  Int
-  tipCents     Int           @default(0)
-  splitOfCount Int?
-  providerRef  String?
+  id              String        @id @default(cuid())
+  orderId         String
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method          PaymentMethod
+  status          PaymentStatus @default(pending)
+  amountCents     Int
+  tipCents        Int           @default(0)
+  splitOfCount    Int?
+  providerRef     String?
   // Only set for cash payments where the diner declared upfront with how
   // much they'd pay (e.g. "voy a pagar con $100k"). Lets the waiter bring
   // exact change on the first trip. Operator can overwrite at settle time
   // if the diner changes their mind.
   cashTenderCents Int?
-  createdAt    DateTime      @default(now())
-  settledAt    DateTime?
+  createdAt       DateTime      @default(now())
+  settledAt       DateTime?
+
+  // Set when this payment is rolled into a shift close (arqueo de caja).
+  // Stays null while the shift is open or if there was no open shift.
+  shiftId String?
+  shift   Shift?  @relation(fields: [shiftId], references: [id])
 
   kushkiTransactions KushkiTransaction[]
 
   @@index([orderId])
+  @@index([shiftId])
+}
+
+// === Cierre de turno ======================================================
+//
+// One Shift per restaurant from "abrir turno" (operator declares opening
+// cash float) to "cerrar turno" (operator declares the physical cash they
+// counted; system computes the difference vs what payments say should be
+// there). Approved payments get pinned to the shift at close time so a
+// historical close stays consistent even if a payment is edited later.
+
+enum ShiftStatus {
+  open
+  closed
+}
+
+model Shift {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  status ShiftStatus @default(open)
+
+  openedAt         DateTime @default(now())
+  openedById       String
+  openedBy         User     @relation("ShiftsOpened", fields: [openedById], references: [id])
+  // Fondo de caja inicial — efectivo con el que arrancó el turno para dar
+  // vueltas. Suma al efectivo esperado al cerrar.
+  openingCashCents Int
+
+  closedAt          DateTime?
+  closedById        String?
+  closedBy          User?     @relation("ShiftsClosed", fields: [closedById], references: [id])
+  // Efectivo físico que el cajero declaró al cerrar.
+  declaredCashCents Int?
+  // Lo que el sistema esperaba según pagos en efectivo + fondo inicial.
+  expectedCashCents Int?
+  // declared - expected. Positivo = sobrante, negativo = faltante.
+  cashDiffCents     Int?
+  notes             String?
+
+  payments Payment[]
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, openedAt])
 }
 
 // === Kushki integration ====================================================
@@ -500,21 +554,21 @@ enum KushkiDocumentStatus {
 }
 
 model KushkiDocument {
-  id           String               @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
-  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   uploadedById String?
-  uploadedBy   User?                @relation("KushkiDocumentUploader", fields: [uploadedById], references: [id])
+  uploadedBy   User?      @relation("KushkiDocumentUploader", fields: [uploadedById], references: [id])
 
-  kind             KushkiDocumentKind
-  status           KushkiDocumentStatus @default(pending)
-  fileUrl          String
-  fileName         String
-  mimeType         String
-  fileSize         Int
+  kind            KushkiDocumentKind
+  status          KushkiDocumentStatus @default(pending)
+  fileUrl         String
+  fileName        String
+  mimeType        String
+  fileSize        Int
   // Structured fields extracted by Claude (only set for bank_cert today).
-  extractedFields  Json?
-  reviewNotes      String?
+  extractedFields Json?
+  reviewNotes     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -540,17 +594,17 @@ enum KushkiTransactionStatus {
 // dashboards without round-tripping their API and provides a reconciliation
 // audit trail. Webhook handlers upsert here on (kushkiTxId).
 model KushkiTransaction {
-  id           String                  @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
-  restaurant   Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   paymentId    String?
-  payment      Payment?                @relation(fields: [paymentId], references: [id])
+  payment      Payment?   @relation(fields: [paymentId], references: [id])
 
-  kushkiTxId String                  @unique
-  kind       KushkiTransactionKind
-  status     KushkiTransactionStatus
+  kushkiTxId  String                  @unique
+  kind        KushkiTransactionKind
+  status      KushkiTransactionStatus
   amountCents Int
-  currency    String                 @default("COP")
+  currency    String                  @default("COP")
   raw         Json
   message     String?
 
@@ -569,17 +623,17 @@ enum WalletMovementKind {
 }
 
 model WalletMovement {
-  id           String             @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
-  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  kind             WalletMovementKind
-  amountCents      Int
+  kind              WalletMovementKind
+  amountCents       Int
   balanceAfterCents Int
-  currency         String             @default("COP")
-  kushkiRef        String?
-  description      String?
-  occurredAt       DateTime
+  currency          String             @default("COP")
+  kushkiRef         String?
+  description       String?
+  occurredAt        DateTime
 
   createdAt DateTime @default(now())
 
@@ -588,15 +642,15 @@ model WalletMovement {
 }
 
 model TerminalDevice {
-  id              String     @id @default(cuid())
-  restaurantId    String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  kushkiDeviceId  String     @unique
-  label           String
-  active          Boolean    @default(true)
-  lastSeenAt      DateTime?
-  assignedUserId  String?
-  assignedUser    User?      @relation(fields: [assignedUserId], references: [id])
+  id             String     @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  kushkiDeviceId String     @unique
+  label          String
+  active         Boolean    @default(true)
+  lastSeenAt     DateTime?
+  assignedUserId String?
+  assignedUser   User?      @relation(fields: [assignedUserId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -608,15 +662,15 @@ model TerminalDevice {
 // their callback header gives us; we reject duplicates by returning 200
 // without reprocessing.
 model KushkiWebhookEvent {
-  id           String     @id @default(cuid())
+  id           String      @id @default(cuid())
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
-  eventId      String     @unique
+  eventId      String      @unique
   type         String
   payload      Json
   processedAt  DateTime?
   error        String?
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime    @default(now())
 
   @@index([type, createdAt])
 }
@@ -639,32 +693,32 @@ enum InvoiceRequestStatus {
 // Alegra, etc.). We just store the data and track which ones have been
 // emitted so nothing falls through the cracks.
 model InvoiceRequest {
-  id             String   @id @default(cuid())
-  restaurantId   String
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orderId        String
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  customerName   String
-  docType        InvoiceDocType
-  docNumber      String
-  address        String
-  city           String
-  department     String
-  email          String
+  customerName String
+  docType      InvoiceDocType
+  docNumber    String
+  address      String
+  city         String
+  department   String
+  email        String
 
   // For audit + future API integrations — keep the raw Google Place when
   // available so we can re-derive components if our parsing was off.
-  placeId        String?
-  rawComponents  Json?
+  placeId       String?
+  rawComponents Json?
 
-  status         InvoiceRequestStatus @default(pending)
-  generatedAt    DateTime?
+  status           InvoiceRequestStatus @default(pending)
+  generatedAt      DateTime?
   generatedByEmail String?
-  notes          String?
+  notes            String?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([restaurantId, status, createdAt])
   @@index([orderId])

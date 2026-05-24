@@ -10,6 +10,9 @@ const METHOD_LABEL: Record<string, string> = {
   wompi_card: "Tarjeta",
   wompi_pse: "PSE",
   wompi_nequi: "Nequi",
+  kushki_apple_pay: "Apple Pay",
+  kushki_google_pay: "Google Pay",
+  kushki_card_terminal: "Datáfono",
 };
 
 function csvField(v: string | number | null | undefined): string {

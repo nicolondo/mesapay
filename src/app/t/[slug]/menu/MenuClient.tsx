@@ -1161,7 +1161,10 @@ function CartBar({
                         // line.
                         <div className="text-xs text-muted mt-0.5 space-y-0.5">
                           {groups.map((g, i) => (
-                            <div key={i}>{g}</div>
+                            // Dash prefix makes the list feel like a
+                            // proper bullet ticket instead of two
+                            // unrelated lines under the dish name.
+                            <div key={i}>- {g}</div>
                           ))}
                         </div>
                       )}
@@ -2242,7 +2245,7 @@ function PickupCheckoutSheet({
                       <div className="text-[11px] text-muted space-y-0.5">
                         {groups.map((g, i) => (
                           <div key={i} className="truncate">
-                            {g}
+                            - {g}
                           </div>
                         ))}
                       </div>

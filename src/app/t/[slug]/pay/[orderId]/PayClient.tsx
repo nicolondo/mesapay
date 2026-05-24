@@ -37,6 +37,7 @@ export function PayClient({
   kushkiReady,
   kushkiPublicKey,
   isMockMode,
+  operatorMode = false,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -52,6 +53,11 @@ export function PayClient({
   kushkiReady: boolean;
   kushkiPublicKey: string | null;
   isMockMode: boolean;
+  // The waiter is initiating payment for a diner who didn't tap "Pedir
+  // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
+  // a banner, and bounces back to /operator/serve once the bill is
+  // either approved or queued (instead of the diner-side /done view).
+  operatorMode?: boolean;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -137,7 +143,11 @@ export function PayClient({
         return;
       }
       if (j.approved && j.paymentId) {
-        router.push(`/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`);
+        router.push(
+          operatorMode
+            ? "/operator/serve"
+            : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
+        );
       } else {
         setErr(j.message ?? "Pago rechazado. Intenta con otra tarjeta o medio.");
       }
@@ -165,7 +175,14 @@ export function PayClient({
         setErr(j.error ?? "No pudimos avisar al mesero.");
         return;
       }
-      router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`);
+      // In waiter mode the operator shouldn't get stuck on a diner-
+      // facing "esperando datáfono" screen — they fire the terminal
+      // request and head back to Salón where they can follow up.
+      router.push(
+        operatorMode
+          ? "/operator/serve"
+          : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`,
+      );
     } finally {
       setBusy(null);
     }
@@ -193,7 +210,11 @@ export function PayClient({
         return;
       }
       if (j.pending && j.paymentId) {
-        router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
+        router.push(
+          operatorMode
+            ? "/operator/serve"
+            : `/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`,
+        );
       }
     } finally {
       setBusy(null);
@@ -225,17 +246,39 @@ export function PayClient({
 
   return (
     <main className="flex flex-1 flex-col max-w-lg mx-auto w-full px-5 py-8">
+      {operatorMode && (
+        <div className="-mx-5 -mt-8 mb-5 bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
+          <span>
+            <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
+              Modo mesero
+            </span>
+            Cobrando <strong>{locationLabel}</strong>
+          </span>
+          <Link
+            href="/operator/tables"
+            className="font-mono text-[10px] tracking-wider uppercase underline opacity-80"
+          >
+            Volver a mesas
+          </Link>
+        </div>
+      )}
       <Link
-        href={`/t/${tenantSlug}/order/${orderId}`}
+        href={
+          operatorMode
+            ? "/operator/tables"
+            : `/t/${tenantSlug}/order/${orderId}`
+        }
         className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
       >
         <span aria-hidden>←</span>
-        <span>Volver al pedido</span>
+        <span>{operatorMode ? "Volver a mesas" : "Volver al pedido"}</span>
       </Link>
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
         {locationLabel} · {tenantName} · {shortCode}
       </div>
-      <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">Pagar</h1>
+      <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
+        {operatorMode ? "Cobrar" : "Pagar"}
+      </h1>
 
       {!isCounter && (
         <div className="mt-6">
@@ -388,7 +431,11 @@ export function PayClient({
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
       <div className="mt-6 space-y-2">
-        {kushkiReady && hasApplePay && (
+        {/* Apple Pay requires the diner's own iPhone — the waiter can't
+            tap their own watch / Touch ID for someone else's card. So
+            in waiter mode we hide it entirely; the operator collects
+            via datáfono or efectivo. */}
+        {kushkiReady && hasApplePay && !operatorMode && (
           <PayButton
             kind="apple"
             disabled={busy !== null || amountCents <= 0}

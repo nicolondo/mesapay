@@ -1,15 +1,28 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { env } from "@/lib/env";
+import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
 export default async function PayPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
+  searchParams: Promise<{ op?: string }>;
 }) {
   const { slug, orderId } = await params;
+  const sp = await searchParams;
+  // Operator-mode pay flow: a waiter is collecting the bill on behalf
+  // of a diner who doesn't have a phone or who asked verbally. We
+  // honour ?op=1 only if the session belongs to a real operator —
+  // never trust the URL alone.
+  const session = sp.op === "1" ? await auth() : null;
+  const operatorMode =
+    !!session?.user &&
+    (session.user.role === "operator" ||
+      session.user.role === "platform_admin");
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
 
@@ -35,6 +48,7 @@ export default async function PayPage({
 
   return (
     <PayClient
+      operatorMode={operatorMode}
       tenantSlug={slug}
       tenantName={tenant.name}
       orderId={order.id}

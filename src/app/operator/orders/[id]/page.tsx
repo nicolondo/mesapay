@@ -28,7 +28,7 @@ export default async function OperatorOrderDetail({
   if (!order || order.restaurantId !== restaurantId) return notFound();
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { serviceMode: true },
+    select: { serviceMode: true, slug: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
 
@@ -50,6 +50,12 @@ export default async function OperatorOrderDetail({
   const paidSum = order.payments
     .filter((p) => p.status === "approved")
     .reduce((s, p) => s + p.amountCents, 0);
+  // foodPaid = approved (amount - tip). Drives whether the Cobrar
+  // shortcut shows on the actions card.
+  const paidFood = order.payments
+    .filter((p) => p.status === "approved")
+    .reduce((s, p) => s + p.amountCents - p.tipCents, 0);
+  const outstandingCents = Math.max(0, order.subtotalCents - paidFood);
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
@@ -100,7 +106,12 @@ export default async function OperatorOrderDetail({
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             Acciones
           </div>
-          <TableActions orderId={order.id} status={order.status} />
+          <TableActions
+            orderId={order.id}
+            tenantSlug={tenant!.slug}
+            status={order.status}
+            outstandingCents={outstandingCents}
+          />
         </div>
       )}
 

@@ -43,6 +43,9 @@ export default async function TablesPage() {
               OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
             },
           },
+          // Approved payments feed the "Cobrar la cuenta" CTA — when
+          // the diner already settled the full bill we hide the button.
+          payments: { where: { status: "approved" } },
         },
       },
       _count: { select: { orders: true } },
@@ -171,9 +174,26 @@ export default async function TablesPage() {
                       round-cancellation flow has already closed the order
                       out (or is about to). Showing "Marcar servido" against
                       zero items is misleading. */}
-                  {itemCount > 0 && (
-                    <TableActions orderId={order.id} status={order.status} />
-                  )}
+                  {itemCount > 0 && (() => {
+                    // foodPaidCents = approved (amount - tip). Outstanding
+                    // is whatever the diner still owes against subtotal.
+                    const foodPaid = order.payments.reduce(
+                      (s, p) => s + p.amountCents - p.tipCents,
+                      0,
+                    );
+                    const outstanding = Math.max(
+                      0,
+                      order.subtotalCents - foodPaid,
+                    );
+                    return (
+                      <TableActions
+                        orderId={order.id}
+                        tenantSlug={tenant!.slug}
+                        status={order.status}
+                        outstandingCents={outstanding}
+                      />
+                    );
+                  })()}
                 </div>
               )}
 

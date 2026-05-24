@@ -39,7 +39,14 @@ export function TableActions({
     startTx(() => router.refresh());
   }
 
-  const canMarkServed = status !== "served" && status !== "cancelled";
+  // "Marcar servido" is a table-level override that flips the whole
+  // order to served — only meaningful once the kitchen has actually
+  // finished everything (status=ready). Showing it on placed /
+  // in_kitchen invited the operator to claim food was on the table
+  // before it had been cooked. For partial deliveries (some items
+  // ready, others still cooking), the per-item "Entregado" button on
+  // /operator/serve is the right tool.
+  const canMarkServed = status === "ready";
   // Cancelling only makes sense while the food is still being made.
   // Once the kitchen has plated it (ready) or the waiter dropped it
   // off (served), the cost is sunk and cancellation would just create

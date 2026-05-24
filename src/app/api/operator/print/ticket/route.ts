@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { flattenSelections } from "@/lib/modifiers";
 
 /**
  * Return the data needed to print a single ticket. The print listener
@@ -76,10 +77,7 @@ export async function GET(req: Request) {
     items: round.items.map((i) => ({
       qty: i.qty,
       name: i.nameSnapshot,
-      modifiers:
-        i.modifierSelections && typeof i.modifierSelections === "object"
-          ? Object.values(i.modifierSelections as Record<string, string>)
-          : [],
+      modifiers: flattenSelections(i.modifierSelections),
       notes: i.notes,
       guestName: i.guestName,
     })),

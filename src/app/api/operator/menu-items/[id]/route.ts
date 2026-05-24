@@ -7,11 +7,29 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
 
+// Accept both shapes for the option list:
+//   "Pollo"                            (legacy, no price delta)
+//   { label: "Camarón", priceDeltaCents: 500000 }
+// The string form is rewritten to the object form on parse so the rest
+// of the code only deals with one type.
+const modOptSchema = z.union([
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(60)
+    .transform((label) => ({ label }) as { label: string; priceDeltaCents?: number }),
+  z.object({
+    label: z.string().trim().min(1).max(60),
+    priceDeltaCents: z.number().int().min(-1_000_000).max(1_000_000).optional(),
+  }),
+]);
+
 const modifierSchema = z.object({
   id: z.string().trim().min(1).max(40),
   label: z.string().trim().min(1).max(60),
   type: z.enum(["radio", "checkbox"]),
-  opts: z.array(z.string().trim().min(1).max(60)).min(1).max(12),
+  opts: z.array(modOptSchema).min(1).max(12),
   default: z.string().trim().max(60).optional(),
 });
 

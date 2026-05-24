@@ -6,17 +6,10 @@ import {
   formatNextOpening,
   pickupStatus,
 } from "@/lib/pickupAvailability";
+import { normalizeModifiers } from "@/lib/modifiers";
 import { MenuClient } from "../../t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
-
-type ModifierDef = {
-  id: string;
-  label: string;
-  type: "radio" | "checkbox";
-  opts: string[];
-  default?: string;
-};
 
 export default async function PickupPage({
   params,
@@ -136,7 +129,10 @@ export default async function PickupPage({
           priceCents: m.priceCents,
           tags: m.tags,
           photoUrl: m.photoUrl ?? null,
-          modifiers: m.modifiers as unknown as ModifierDef[] | null,
+          modifiers: (() => {
+            const norm = normalizeModifiers(m.modifiers);
+            return norm.length > 0 ? norm : null;
+          })(),
           ratingAvg: r?.avg ?? 0,
           ratingCount: r?.count ?? 0,
         };

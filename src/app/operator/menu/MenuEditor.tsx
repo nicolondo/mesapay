@@ -34,11 +34,12 @@ const STATION_LABEL: Record<PrepStation, string> = {
   counter: "Refri / mostrador",
 };
 
+type ModOpt = { label: string; priceDeltaCents?: number };
 type ModifierDef = {
   id: string;
   label: string;
   type: "radio" | "checkbox";
-  opts: string[];
+  opts: ModOpt[];
   default?: string;
 };
 type Item = {
@@ -1191,7 +1192,7 @@ function ModifiersEditor({
                   opts,
                   default:
                     m.type === "radio"
-                      ? def && opts.includes(def)
+                      ? def && opts.some((o) => o.label === def)
                         ? def
                         : undefined
                       : undefined,
@@ -1211,63 +1212,106 @@ function OptionsEditor({
   canDefault,
   onChange,
 }: {
-  opts: string[];
+  opts: ModOpt[];
   defaultOpt: string | undefined;
   canDefault: boolean;
-  onChange: (opts: string[], defaultOpt: string | undefined) => void;
+  onChange: (opts: ModOpt[], defaultOpt: string | undefined) => void;
 }) {
   const [draft, setDraft] = useState("");
 
   function addDraft() {
     const v = draft.trim();
-    if (!v || opts.includes(v)) {
+    if (!v || opts.some((o) => o.label === v)) {
       setDraft("");
       return;
     }
-    onChange([...opts, v], defaultOpt);
+    onChange([...opts, { label: v }], defaultOpt);
     setDraft("");
   }
 
   function removeAt(ix: number) {
     const next = opts.filter((_, i) => i !== ix);
-    const nextDefault = defaultOpt && next.includes(defaultOpt) ? defaultOpt : undefined;
+    const nextDefault =
+      defaultOpt && next.some((o) => o.label === defaultOpt)
+        ? defaultOpt
+        : undefined;
     onChange(next, nextDefault);
+  }
+
+  function setOptPrice(ix: number, raw: string) {
+    // The price field is in COP-pesos (whole numbers), to match the
+    // dish-price input above it. Empty / non-numeric clears the delta.
+    const pesos = raw.trim() === "" ? null : Number(raw);
+    let delta: number | undefined;
+    if (pesos === null || !Number.isFinite(pesos) || pesos === 0) {
+      delta = undefined;
+    } else {
+      delta = Math.round(pesos * 100);
+    }
+    const next = opts.map((o, i) =>
+      i === ix
+        ? delta === undefined
+          ? { label: o.label }
+          : { label: o.label, priceDeltaCents: delta }
+        : o,
+    );
+    onChange(next, defaultOpt);
   }
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-1.5">
         {opts.map((o, i) => {
-          const isDefault = canDefault && o === defaultOpt;
+          const isDefault = canDefault && o.label === defaultOpt;
+          const deltaPesos =
+            o.priceDeltaCents != null ? o.priceDeltaCents / 100 : "";
           return (
-            <span
-              key={o}
+            <div
+              key={o.label}
               className={
-                "inline-flex items-center gap-1 h-7 pl-3 pr-1 rounded-full border text-xs " +
+                "flex items-center gap-2 rounded-lg border px-2 py-1.5 " +
                 (isDefault
-                  ? "bg-ink text-bone border-ink"
+                  ? "bg-ink/5 border-ink/30"
                   : "bg-op-surface border-op-border")
               }
             >
-              <span>{o}</span>
+              <span className="flex-1 text-sm truncate">{o.label}</span>
+              <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
+                <span>+</span>
+                <input
+                  type="number"
+                  value={deltaPesos}
+                  onChange={(e) => setOptPrice(i, e.target.value)}
+                  placeholder="0"
+                  step={100}
+                  className="w-20 h-7 px-2 rounded border border-op-border bg-op-bg text-right tabular text-xs"
+                  title="Costo adicional (COP). Vacío = sin recargo."
+                />
+              </div>
               {canDefault && !isDefault && (
                 <button
                   type="button"
-                  onClick={() => onChange(opts, o)}
-                  className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1"
+                  onClick={() => onChange(opts, o.label)}
+                  className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1.5 shrink-0"
                   title="Marcar como opción por defecto"
                 >
                   default
                 </button>
               )}
+              {isDefault && (
+                <span className="text-[9px] uppercase tracking-wider text-ink shrink-0 px-1.5">
+                  default
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => removeAt(i)}
-                className="w-5 h-5 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center"
+                className="w-6 h-6 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center text-op-muted shrink-0"
+                aria-label={`Quitar ${o.label}`}
               >
                 ×
               </button>
-            </span>
+            </div>
           );
         })}
       </div>

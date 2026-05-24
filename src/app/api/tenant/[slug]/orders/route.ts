@@ -4,11 +4,20 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
+import {
+  computeSelectionsPriceDelta,
+  normalizeModifiers,
+} from "@/lib/modifiers";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().min(1).max(20),
-  selections: z.record(z.string(), z.string()).optional(),
+  // A radio modifier's value is the chosen option label (string).
+  // A checkbox modifier's value is an array of zero or more labels.
+  // The server validates types and ignores unknown options.
+  selections: z
+    .record(z.string(), z.union([z.string(), z.array(z.string())]))
+    .optional(),
   notes: z.string().max(240).optional(),
 });
 
@@ -123,6 +132,11 @@ export async function POST(
         station === "bar" && tenant.barSubStations.length > 0
           ? (mi.category.barSubStation ?? null)
           : null;
+      // Effective price = base + sum of selected modifier deltas. We
+      // recompute server-side so a tampered cart can't undercharge.
+      const liveMods = normalizeModifiers(mi.modifiers);
+      const delta = computeSelectionsPriceDelta(liveMods, it.selections);
+      const effectivePrice = Math.max(0, mi.priceCents + delta);
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -130,7 +144,7 @@ export async function POST(
           menuItemId: mi.id,
           qty: it.qty,
           nameSnapshot: mi.name,
-          priceCentsSnapshot: mi.priceCents,
+          priceCentsSnapshot: effectivePrice,
           categoryKind: mi.category.kind,
           station,
           barSubStation,

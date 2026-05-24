@@ -20,13 +20,20 @@ type Tenant = {
   serviceMode: "table" | "counter";
 };
 type Category = { id: string; slug: string; label: string };
+type ModOpt = { label: string; priceDeltaCents?: number };
 type ModifierDef = {
   id: string;
   label: string;
   type: "radio" | "checkbox";
-  opts: string[];
+  opts: ModOpt[];
   default?: string;
 };
+
+// A selection value is either a single label (radio) or a list of
+// labels (checkbox). Empty arrays mean "nothing picked" for an
+// optional checkbox modifier.
+type SelectionValue = string | string[];
+type Selections = Record<string, SelectionValue>;
 type MenuItem = {
   id: string;
   categoryId: string;
@@ -43,9 +50,12 @@ type CartLine = {
   key: string; // id + JSON(selections)
   menuItemId: string;
   name: string;
+  // Effective price per unit, already including any modifier deltas
+  // the diner picked. Server recomputes from raw selections + the
+  // live menu when the round is sent.
   priceCents: number;
   qty: number;
-  selections: Record<string, string>;
+  selections: Selections;
   notes?: string;
 };
 type ActiveOrder = {
@@ -484,23 +494,37 @@ export function MenuClient({
   const totalQty = cart.reduce((s, l) => s + l.qty, 0);
 
   function quickAdd(item: MenuItem) {
-    // If every modifier has a default, we can add straight to the cart.
-    // Otherwise open the detail sheet so the user can pick.
+    // Quick-add can only fire when there's nothing to choose. If any
+    // modifier needs the diner's input (radio with no default, or any
+    // checkbox at all — since those let the diner add extras like
+    // "+camarón"), we open the sheet so they can decide.
     const mods = item.modifiers ?? [];
-    const allHaveDefaults = mods.every((m) => m.default);
-    if (!allHaveDefaults) {
+    const needsInput = mods.some(
+      (m) => m.type === "checkbox" || !m.default,
+    );
+    if (needsInput) {
       setOpenItem(item);
       return;
     }
-    const selections: Record<string, string> = {};
+    const selections: Selections = {};
     for (const m of mods) {
       if (m.default) selections[m.id] = m.default;
     }
     addToCart(item, selections, 1);
   }
 
-  function addToCart(item: MenuItem, selections: Record<string, string>, qty = 1, notes?: string) {
-    const key = item.id + "::" + JSON.stringify(selections) + "::" + (notes ?? "");
+  function addToCart(
+    item: MenuItem,
+    selections: Selections,
+    qty = 1,
+    notes?: string,
+  ) {
+    // Snapshot the price the diner is seeing — includes whatever
+    // modifier deltas they picked. The server still recomputes from
+    // the live menu at send time as a guardrail.
+    const priceCents = effectiveItemPrice(item, selections);
+    const key =
+      item.id + "::" + JSON.stringify(selections) + "::" + (notes ?? "");
     setCart((prev) => {
       const ix = prev.findIndex((l) => l.key === key);
       if (ix >= 0) {
@@ -514,13 +538,36 @@ export function MenuClient({
           key,
           menuItemId: item.id,
           name: item.name,
-          priceCents: item.priceCents,
+          priceCents,
           qty,
           selections,
           notes,
         },
       ];
     });
+  }
+
+  /**
+   * Sum the price deltas of whatever options the diner selected so the
+   * cart line shows the price they'll actually pay (e.g. "Tacos +
+   * Camarón = $48.000"). Mirrors the server's
+   * computeSelectionsPriceDelta logic.
+   */
+  function effectiveItemPrice(
+    item: MenuItem,
+    selections: Selections,
+  ): number {
+    let total = item.priceCents;
+    for (const m of item.modifiers ?? []) {
+      const v = selections[m.id];
+      if (v == null) continue;
+      const labels = typeof v === "string" ? [v] : v;
+      for (const lab of labels) {
+        const opt = m.opts.find((o) => o.label === lab);
+        if (opt?.priceDeltaCents) total += opt.priceDeltaCents;
+      }
+    }
+    return Math.max(0, total);
   }
 
   function removeLine(key: string) {
@@ -1478,17 +1525,62 @@ function ItemSheet({
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
-  onAdd: (sel: Record<string, string>, qty: number, notes?: string) => void;
+  onAdd: (sel: Selections, qty: number, notes?: string) => void;
 }) {
-  const [selections, setSelections] = useState<Record<string, string>>(() => {
-    const d: Record<string, string> = {};
+  const [selections, setSelections] = useState<Selections>(() => {
+    const d: Selections = {};
     for (const m of item.modifiers ?? []) {
-      if (m.default) d[m.id] = m.default;
+      if (m.default) {
+        // checkbox default seeds as a one-element array so we can keep
+        // toggling more options on; radio stays a string.
+        d[m.id] = m.type === "checkbox" ? [m.default] : m.default;
+      } else if (m.type === "checkbox") {
+        // Empty array for an unset checkbox modifier — distinguishes
+        // "no selection yet" from "modifier doesn't apply".
+        d[m.id] = [];
+      }
     }
     return d;
   });
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
+
+  function isOptSelected(modId: string, optLabel: string): boolean {
+    const v = selections[modId];
+    if (v == null) return false;
+    if (typeof v === "string") return v === optLabel;
+    return v.includes(optLabel);
+  }
+  function toggleOpt(mod: ModifierDef, optLabel: string) {
+    setSelections((prev) => {
+      const next = { ...prev };
+      if (mod.type === "radio") {
+        next[mod.id] = optLabel; // replace
+      } else {
+        const cur = prev[mod.id];
+        const arr = Array.isArray(cur) ? cur : cur ? [cur as string] : [];
+        next[mod.id] = arr.includes(optLabel)
+          ? arr.filter((x) => x !== optLabel)
+          : [...arr, optLabel];
+      }
+      return next;
+    });
+  }
+
+  // Effective unit price reflects the diner's current picks. Updates
+  // live as they tap options so the Add button doesn't lie about the
+  // amount the cart will pick up.
+  let unitPrice = item.priceCents;
+  for (const m of item.modifiers ?? []) {
+    const v = selections[m.id];
+    if (v == null) continue;
+    const labels = typeof v === "string" ? [v] : v;
+    for (const lab of labels) {
+      const opt = m.opts.find((o) => o.label === lab);
+      if (opt?.priceDeltaCents) unitPrice += opt.priceDeltaCents;
+    }
+  }
+  unitPrice = Math.max(0, unitPrice);
 
   // Horizontal swipe to flip between dishes. We only commit on
   // touchend so vertical scrolling inside the sheet isn't hijacked.
@@ -1589,26 +1681,41 @@ function ItemSheet({
 
           {item.modifiers?.map((m) => (
             <div key={m.id} className="mt-6">
-              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-                {m.label}
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                  {m.label}
+                </div>
+                <div className="font-mono text-[10px] tracking-wider uppercase text-muted-2">
+                  {m.type === "checkbox" ? "Varias" : "Una"}
+                </div>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {m.opts.map((opt) => {
-                  const active = selections[m.id] === opt;
+                  const active = isOptSelected(m.id, opt.label);
+                  const delta = opt.priceDeltaCents ?? 0;
                   return (
                     <button
-                      key={opt}
-                      onClick={() =>
-                        setSelections((s) => ({ ...s, [m.id]: opt }))
-                      }
+                      key={opt.label}
+                      onClick={() => toggleOpt(m, opt.label)}
                       className={
-                        "h-9 px-3 rounded-full text-sm border " +
+                        "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
                         (active
                           ? "bg-ink text-bone border-ink"
                           : "bg-ivory text-ink border-hairline")
                       }
                     >
-                      {opt}
+                      <span>{opt.label}</span>
+                      {delta !== 0 && (
+                        <span
+                          className={
+                            "font-mono text-[11px] " +
+                            (active ? "text-bone/80" : "text-muted")
+                          }
+                        >
+                          {delta > 0 ? "+" : "−"}
+                          {fmtCOP(Math.abs(delta))}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1649,7 +1756,7 @@ function ItemSheet({
               onClick={() => onAdd(selections, qty, notes || undefined)}
               className="flex-1 h-11 rounded-full bg-ink text-bone font-medium"
             >
-              Añadir · {fmtCOP(item.priceCents * qty)}
+              Añadir · {fmtCOP(unitPrice * qty)}
             </button>
           </div>
         </div>

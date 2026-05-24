@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { normalizeModifiers } from "@/lib/modifiers";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -110,7 +111,14 @@ export default async function MenuPage({
           priceCents: m.priceCents,
           tags: m.tags,
           photoUrl: m.photoUrl ?? null,
-          modifiers: m.modifiers as unknown as ModifierDef[] | null,
+          // Normalise legacy string-only opts and drop malformed
+          // entries so the diner sheet only deals with one shape.
+          // Returning null when there are no usable modifiers keeps
+          // the menu light — the renderer skips the section entirely.
+          modifiers: (() => {
+            const norm = normalizeModifiers(m.modifiers);
+            return norm.length > 0 ? norm : null;
+          })(),
           ratingAvg: r?.avg ?? 0,
           ratingCount: r?.count ?? 0,
         };
@@ -137,10 +145,5 @@ export default async function MenuPage({
   );
 }
 
-type ModifierDef = {
-  id: string;
-  label: string;
-  type: "radio" | "checkbox";
-  opts: string[];
-  default?: string;
-};
+// ModifierDef + ModOpt are defined inside MenuClient.tsx; this page
+// just passes the normalised array through.

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { flattenSelections } from "@/lib/modifiers";
 import { ServeBoard } from "./ServeBoard";
 
 export const dynamic = "force-dynamic";
@@ -107,10 +108,7 @@ export default async function ServePage() {
           id: i.id,
           qty: i.qty,
           name: i.nameSnapshot,
-          modifiers:
-            i.modifierSelections && typeof i.modifierSelections === "object"
-              ? Object.values(i.modifierSelections as Record<string, string>)
-              : [],
+          modifiers: flattenSelections(i.modifierSelections),
           notes: i.notes ?? null,
           guestName: i.guestName ?? null,
           kitchenStatus: i.kitchenStatus,

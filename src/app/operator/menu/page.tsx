@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { normalizeModifiers } from "@/lib/modifiers";
 import { MenuEditor } from "./MenuEditor";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,10 @@ export default async function MenuAdminPage() {
         available: i.available,
         photoUrl: i.photoUrl ?? null,
         tags: i.tags,
-        modifiers: (i.modifiers as unknown as ModifierDef[] | null) ?? [],
+        // Normalise legacy `opts: string[]` to the new object form so
+        // the editor only deals with one shape. Bad / missing entries
+        // are dropped.
+        modifiers: normalizeModifiers(i.modifiers),
         prepMinutes: i.prepMinutes,
         prepStation: i.prepStation,
       }))}
@@ -45,10 +49,5 @@ export default async function MenuAdminPage() {
   );
 }
 
-type ModifierDef = {
-  id: string;
-  label: string;
-  type: "radio" | "checkbox";
-  opts: string[];
-  default?: string;
-};
+// (ModifierDef shape now defined inline in MenuEditor.tsx — this page
+// passes the normalised array straight through.)

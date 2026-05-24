@@ -6,6 +6,10 @@ import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import {
+  computeSelectionsPriceDelta,
+  normalizeModifiers,
+} from "@/lib/modifiers";
+import {
   isWithinEtaCap,
   pickupStatus,
 } from "@/lib/pickupAvailability";
@@ -18,7 +22,9 @@ import {
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
   qty: z.number().int().min(1).max(20),
-  selections: z.record(z.string(), z.string()).optional(),
+  selections: z
+    .record(z.string(), z.union([z.string(), z.array(z.string())]))
+    .optional(),
   notes: z.string().max(240).optional(),
 });
 
@@ -89,10 +95,15 @@ export async function POST(
   }
 
   const session = await auth();
-  const subtotalCents = parsed.data.items.reduce(
-    (s, it) => s + menuById.get(it.menuItemId)!.priceCents * it.qty,
-    0,
-  );
+  // Subtotal must factor modifier price deltas too — otherwise the
+  // Kushki charge below would undercharge by the value of every
+  // "+$5.000 Camarón" the diner added.
+  const subtotalCents = parsed.data.items.reduce((s, it) => {
+    const mi = menuById.get(it.menuItemId)!;
+    const liveMods = normalizeModifiers(mi.modifiers);
+    const delta = computeSelectionsPriceDelta(liveMods, it.selections);
+    return s + Math.max(0, mi.priceCents + delta) * it.qty;
+  }, 0);
 
   // Gate on hours and capacity before we touch the DB. The client also
   // surfaces these but we cannot trust it — someone can POST straight to
@@ -235,6 +246,9 @@ export async function POST(
         station === "bar" && tenant.barSubStations.length > 0
           ? (mi.category.barSubStation ?? null)
           : null;
+      const liveMods = normalizeModifiers(mi.modifiers);
+      const delta = computeSelectionsPriceDelta(liveMods, it.selections);
+      const effectivePrice = Math.max(0, mi.priceCents + delta);
       await tx.orderItem.create({
         data: {
           orderId: order.id,
@@ -242,7 +256,7 @@ export async function POST(
           menuItemId: mi.id,
           qty: it.qty,
           nameSnapshot: mi.name,
-          priceCentsSnapshot: mi.priceCents,
+          priceCentsSnapshot: effectivePrice,
           categoryKind: mi.category.kind,
           station,
           barSubStation,

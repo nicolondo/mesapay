@@ -20,6 +20,7 @@ import {
   SuspendButton,
 } from "./BillingPanel";
 import { UsersPanel } from "./UsersPanel";
+import { RestaurantNameEditor } from "./RestaurantNameEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -120,9 +121,12 @@ export default async function RestaurantDetail({
         ← Restaurantes
       </Link>
 
-      <div className="flex items-start justify-between mt-4 mb-6">
-        <div>
-          <div className="font-display text-3xl">{rest.name}</div>
+      <div className="flex items-start justify-between mt-4 mb-6 gap-3">
+        <div className="min-w-0 flex-1">
+          <RestaurantNameEditor
+            restaurantId={rest.id}
+            initialName={rest.name}
+          />
           <div className="font-mono text-xs text-op-muted mt-1">/{rest.slug}</div>
           <div className="font-mono text-[11px] text-op-muted mt-1">
             Alta: {fmtBogotaDateTime(rest.createdAt).date}

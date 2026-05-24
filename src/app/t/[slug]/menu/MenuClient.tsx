@@ -1145,8 +1145,16 @@ function CartBar({
                     <div className="flex-1">
                       <div className="font-medium">{l.name}</div>
                       {groups.length > 0 && (
-                        <div className="text-xs text-muted mt-0.5">
-                          {groups.join(" · ")}
+                        // One line per modifier group. The old " · "
+                        // separator squashed everything together so a
+                        // two-group selection like "Adición: Carne,
+                        // Pollo · Picante: Fuerte" was hard to scan;
+                        // the diner now reads each label on its own
+                        // line.
+                        <div className="text-xs text-muted mt-0.5 space-y-0.5">
+                          {groups.map((g, i) => (
+                            <div key={i}>{g}</div>
+                          ))}
                         </div>
                       )}
                       {l.notes && (
@@ -2223,8 +2231,12 @@ function PickupCheckoutSheet({
                       {l.qty}× {l.name}
                     </div>
                     {groups.length > 0 && (
-                      <div className="text-[11px] text-muted truncate">
-                        {groups.join(" · ")}
+                      <div className="text-[11px] text-muted space-y-0.5">
+                        {groups.map((g, i) => (
+                          <div key={i} className="truncate">
+                            {g}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {l.notes && (

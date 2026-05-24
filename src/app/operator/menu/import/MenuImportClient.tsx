@@ -508,7 +508,7 @@ function UploadDrop({
           {dragOver ? "Suelta aquí" : "Arrastra tu carta o haz click"}
         </div>
         <div className="text-sm text-op-muted">
-          PDF, JPG, PNG o WebP · máx 15 MB
+          PDF, JPG, PNG o WebP · máx 45 MB
         </div>
         <div className="text-[11px] text-op-muted mt-3">
           Funciona con cartas escaneadas, fotos del menú impreso, o PDFs hechos

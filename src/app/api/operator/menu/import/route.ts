@@ -4,7 +4,12 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
 
-const MAX_BYTES = 15 * 1024 * 1024;
+// Anthropic's PDF input cap is 32 MB / 100 pages. We allow 45 MB at
+// the upload edge so a scanned wine list with image-heavy pages can
+// land before we trim / re-encode; the model API call itself may
+// still 4xx if the PDF is too big once base64'd. Most cartas land
+// under 10 MB so this only matters for the edge case.
+const MAX_BYTES = 45 * 1024 * 1024;
 const ALLOWED_MIMES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -45,7 +50,7 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { error: "file_too_large", message: "Máximo 15 MB." },
+      { error: "file_too_large", message: "Máximo 45 MB." },
       { status: 413 },
     );
   }

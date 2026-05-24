@@ -456,7 +456,7 @@ function Benefits() {
                 label="Lo que tú inviertes"
                 value={
                   <span className="text-ink">
-                    Desde <span className="tabular">$ 200.000</span>
+                    Desde <span className="tabular">$ 250.000</span>
                     <span className="text-lg ml-1 text-muted">/ mes</span>
                   </span>
                 }
@@ -612,7 +612,7 @@ function Pricing() {
     },
     {
       name: "Básico",
-      price: "$ 200.000",
+      price: "$ 250.000",
       per: "/ mes · COP",
       copy: "Para un restaurante consolidado, un turno, hasta 20 mesas.",
       features: [
@@ -626,7 +626,7 @@ function Pricing() {
     },
     {
       name: "Pro",
-      price: "$ 400.000",
+      price: "$ 450.000",
       per: "/ mes · COP",
       copy: "Para cadenas o restaurantes con servicio continuo de alto volumen.",
       features: [

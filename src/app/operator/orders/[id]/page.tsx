@@ -126,6 +126,7 @@ export default async function OperatorOrderDetail({
         <ul className="space-y-2">
           {order.rounds.map((r) => {
             const lines = order.items.filter((i) => i.roundId === r.id);
+            const roundCancelled = r.status === "cancelled";
             return (
               <li
                 key={r.id}
@@ -144,8 +145,17 @@ export default async function OperatorOrderDetail({
                       className="py-2 flex justify-between gap-3"
                     >
                       <div className="flex-1">
-                        <div className="text-sm">
-                          {li.qty}× {li.nameSnapshot}
+                        <div className={
+                          "text-sm flex items-center gap-2 flex-wrap " +
+                          (roundCancelled ? "line-through text-op-muted" : "")
+                        }>
+                          <span>{li.qty}× {li.nameSnapshot}</span>
+                          {!roundCancelled && (
+                            <ItemStatusBadge
+                              kitchenStatus={li.kitchenStatus}
+                              servedAt={li.servedAt}
+                            />
+                          )}
                         </div>
                         {li.guestName && (
                           <div className="text-[11px] text-terracotta mt-0.5">
@@ -321,6 +331,44 @@ function PaymentPill({ status }: { status: string }) {
       className={
         "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
         tint
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
+// Per-item status chip — same four stages as the diner-facing order
+// view (Por preparar / Preparando / Listo para servir / Servido),
+// rendered with the same colour palette so support can talk about
+// what they see across both surfaces.
+function ItemStatusBadge({
+  kitchenStatus,
+  servedAt,
+}: {
+  kitchenStatus: "placed" | "in_kitchen" | "ready";
+  servedAt: Date | null;
+}) {
+  let label: string;
+  let className: string;
+  if (servedAt) {
+    label = "Servido";
+    className = "bg-[#2E6B4C]/15 text-[#1E5339]";
+  } else if (kitchenStatus === "ready") {
+    label = "Listo para servir";
+    className = "bg-[#2E6B4C]/10 text-[#1E5339]";
+  } else if (kitchenStatus === "in_kitchen") {
+    label = "Preparando";
+    className = "bg-[#C98A2E]/20 text-[#8F6828]";
+  } else {
+    label = "Por preparar";
+    className = "bg-paper text-op-muted border border-op-border";
+  }
+  return (
+    <span
+      className={
+        "px-1.5 h-5 inline-flex items-center rounded-full text-[10px] font-medium tracking-wide " +
+        className
       }
     >
       {label}

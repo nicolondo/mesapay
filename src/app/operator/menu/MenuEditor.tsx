@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { fmtCOP } from "@/lib/format";
 
 type CategoryKind =
@@ -66,20 +65,50 @@ const TAG_LABEL: Record<string, string> = {
 };
 
 export function MenuEditor({
-  categories,
-  items,
+  categories: initialCategories,
+  items: initialItems,
 }: {
   categories: Cat[];
   items: Item[];
 }) {
-  const router = useRouter();
-  const [, startTx] = useTransition();
+  // Local state for items + categories. We mutate on every CRUD op
+  // instead of router.refresh() — refreshing re-renders the whole
+  // page and bounces the operator's scroll position to the top, which
+  // hurts a lot when editing a long menu (every delete/save loses
+  // their place in the list).
+  const [items, setItems] = useState<Item[]>(initialItems);
+  const [categories, setCategories] = useState<Cat[]>(initialCategories);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingItemInCat, setAddingItemInCat] = useState<string | null>(null);
 
-  function refresh() {
-    startTx(() => router.refresh());
+  // CRUD helpers passed to children. They return synchronously — the
+  // child has already confirmed with the server before calling us.
+  function addItem(item: Item) {
+    setItems((prev) => [...prev, item]);
+  }
+  function replaceItem(item: Item) {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+  }
+  function removeItem(itemId: string) {
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+  }
+  function patchItem(itemId: string, patch: Partial<Item>) {
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i)),
+    );
+  }
+  function addCategory(cat: Cat) {
+    setCategories((prev) => [...prev, cat]);
+  }
+  function replaceCategory(cat: Cat) {
+    setCategories((prev) => prev.map((c) => (c.id === cat.id ? cat : c)));
+  }
+  function removeCategory(catId: string) {
+    setCategories((prev) => prev.filter((c) => c.id !== catId));
+    // Items belonging to a deleted category go with it — DB cascade
+    // does the same on the server.
+    setItems((prev) => prev.filter((i) => i.categoryId !== catId));
   }
 
   const byCat = new Map<string, Item[]>();
@@ -111,7 +140,10 @@ export function MenuEditor({
       {addingCategory && (
         <div className="mb-5">
           <NewCategoryForm
-            onSave={refresh}
+            onSave={(newCat) => {
+              addCategory(newCat);
+              setAddingCategory(false);
+            }}
             onClose={() => setAddingCategory(false)}
           />
         </div>
@@ -130,7 +162,11 @@ export function MenuEditor({
           return (
             <section key={c.id}>
               <div className="flex items-center justify-between mb-3">
-                <CategoryHeader cat={c} onSave={refresh} />
+                <CategoryHeader
+                  cat={c}
+                  onPatch={(patch) => replaceCategory({ ...c, ...patch })}
+                  onDeleted={() => removeCategory(c.id)}
+                />
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setAddingItemInCat(c.id)}
@@ -145,8 +181,9 @@ export function MenuEditor({
                 <div className="mb-3">
                   <NewItemForm
                     categoryId={c.id}
-                    onSave={() => {
-                      refresh();
+                    onSave={(newItem) => {
+                      addItem(newItem);
+                      setAddingItemInCat(null);
                     }}
                     onClose={() => setAddingItemInCat(null)}
                   />
@@ -189,7 +226,12 @@ export function MenuEditor({
                       )}
                     </div>
                     <div className="shrink-0 flex items-center gap-3">
-                      <AvailabilityToggle item={it} onChanged={refresh} />
+                      <AvailabilityToggle
+                        item={it}
+                        onChanged={(available) =>
+                          patchItem(it.id, { available })
+                        }
+                      />
                       <button
                         onClick={() => setEditingItem(it)}
                         className="text-xs text-terracotta hover:underline"
@@ -210,9 +252,19 @@ export function MenuEditor({
           item={editingItem}
           categories={categories}
           onClose={() => setEditingItem(null)}
-          onSaved={() => {
+          onSaved={(savedItem) => {
+            replaceItem(savedItem);
             setEditingItem(null);
-            refresh();
+          }}
+          onDeleted={(archivedAsUnavailable) => {
+            if (archivedAsUnavailable) {
+              // Server kept the row but flipped `available` because it
+              // still appears in historical orders.
+              patchItem(editingItem.id, { available: false });
+            } else {
+              removeItem(editingItem.id);
+            }
+            setEditingItem(null);
           }}
         />
       )}
@@ -225,7 +277,7 @@ function AvailabilityToggle({
   onChanged,
 }: {
   item: Item;
-  onChanged: () => void;
+  onChanged: (available: boolean) => void;
 }) {
   const [available, setAvailable] = useState(item.available);
   const [busy, setBusy] = useState(false);
@@ -245,7 +297,7 @@ function AvailabilityToggle({
       alert("No se pudo cambiar la disponibilidad.");
       return;
     }
-    onChanged();
+    onChanged(next);
   }
 
   return (
@@ -273,7 +325,7 @@ function NewCategoryForm({
   onSave,
   onClose,
 }: {
-  onSave: () => void;
+  onSave: (newCat: Cat) => void;
   onClose: () => void;
 }) {
   const [label, setLabel] = useState("");
@@ -297,8 +349,23 @@ function NewCategoryForm({
       setErr(j.error ?? "Error");
       return;
     }
-    onSave();
-    onClose();
+    const j = (await res.json()) as { id: string };
+    // Slug isn't returned by the API; the server derives it from the
+    // label the same way we do. We'll do an optimistic local copy and
+    // accept a tiny mismatch risk — it doesn't drive any logic.
+    onSave({
+      id: j.id,
+      label: label.trim(),
+      slug: label
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, ""),
+      kind,
+      prepStation: "kitchen",
+    });
   }
 
   return (
@@ -364,17 +431,20 @@ function NewCategoryForm({
 
 function CategoryHeader({
   cat,
-  onSave,
+  onPatch,
+  onDeleted,
 }: {
   cat: Cat;
-  onSave: () => void;
+  onPatch: (patch: Partial<Cat>) => void;
+  onDeleted: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(cat.label);
   const [busy, setBusy] = useState(false);
 
   async function save() {
-    if (!label.trim() || label.trim() === cat.label) {
+    const trimmed = label.trim();
+    if (!trimmed || trimmed === cat.label) {
       setEditing(false);
       return;
     }
@@ -382,7 +452,7 @@ function CategoryHeader({
     const res = await fetch(`/api/operator/categories/${cat.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label: label.trim() }),
+      body: JSON.stringify({ label: trimmed }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -390,7 +460,7 @@ function CategoryHeader({
       return;
     }
     setEditing(false);
-    onSave();
+    onPatch({ label: trimmed });
   }
 
   async function changeKind(kind: CategoryKind) {
@@ -404,7 +474,7 @@ function CategoryHeader({
       alert("No se pudo cambiar el tipo.");
       return;
     }
-    onSave();
+    onPatch({ kind });
   }
 
   async function del() {
@@ -418,7 +488,7 @@ function CategoryHeader({
       alert(j.error ?? "No se pudo eliminar.");
       return;
     }
-    onSave();
+    onDeleted();
   }
 
   if (editing) {
@@ -488,7 +558,7 @@ function NewItemForm({
   onClose,
 }: {
   categoryId: string;
-  onSave: () => void;
+  onSave: (newItem: Item) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
@@ -529,8 +599,20 @@ function NewItemForm({
       setErr(j.error ?? "Error");
       return;
     }
-    onSave();
-    onClose();
+    const j = (await res.json()) as { id: string };
+    onSave({
+      id: j.id,
+      categoryId,
+      name: name.trim(),
+      description: description.trim(),
+      priceCents: cents,
+      available: true,
+      photoUrl: null,
+      tags: [],
+      modifiers: [],
+      prepMinutes: mins,
+      prepStation: null,
+    });
   }
 
   return (
@@ -618,11 +700,16 @@ function ItemSheet({
   categories,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   item: Item;
   categories: Cat[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: Item) => void;
+  // The server may "archive" a delete (set available=false) if the item
+  // is referenced by past orders. The boolean tells the parent which
+  // local mutation to run.
+  onDeleted: (archivedAsUnavailable: boolean) => void;
 }) {
   const [name, setName] = useState(item.name);
   const [priceCents, setPriceCents] = useState(String(item.priceCents / 100));
@@ -698,7 +785,21 @@ function ItemSheet({
       setErr(j.error ?? "Error");
       return;
     }
-    onSaved();
+    // Hand the updated item back to the parent — they patch local
+    // state without a page refresh.
+    onSaved({
+      ...item,
+      name: name.trim(),
+      priceCents: cents,
+      description: description.trim(),
+      categoryId,
+      available,
+      photoUrl: photoUrl.trim() || null,
+      tags,
+      modifiers,
+      prepMinutes: mins,
+      prepStation,
+    });
   }
 
   async function del() {
@@ -720,7 +821,7 @@ function ItemSheet({
         "Este plato ya aparece en pedidos antiguos, así que se marcó como agotado en lugar de eliminarse.",
       );
     }
-    onSaved();
+    onDeleted(!!j.archived);
   }
 
   function toggleTag(t: string) {

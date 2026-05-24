@@ -255,21 +255,29 @@ export function MenuClient({
       rafId = null;
       if (spyMuteTokenRef.current !== 0) return;
       const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
-      // Pick the trigger line ~16px below the header so a section is
-      // considered "active" the moment its title comes into view.
-      const triggerY = headerH + 16;
+      // Trigger line about a third of the way down the visible content
+      // area (capped at 200px). Earlier we used header+16, which only
+      // activated a section AFTER its title had nearly left the screen
+      // — so the user would be reading "Molcajete" content while the
+      // chip still said "Tartar". With the line lower, a section
+      // becomes active the moment its title crosses into the upper
+      // third of the viewport, which matches where the eye lands.
+      const viewportH = window.innerHeight;
+      const triggerY =
+        headerH + Math.min(200, (viewportH - headerH) * 0.33);
       let bestSlug: string | null = null;
+      // DOM iteration order may differ from `categories` array order
+      // (filtered, hidden sections, etc.). We track the highest `top`
+      // value still ≤ triggerY across all rendered sections rather than
+      // breaking early on the array order — more robust to changes.
+      let bestTop = -Infinity;
       for (const c of categories) {
         const el = document.getElementById(`cat-${c.slug}`);
         if (!el) continue;
         const top = el.getBoundingClientRect().top;
-        // The active section is the last one whose top is above the
-        // trigger. If we've scrolled past it, it stays active until the
-        // next section's top crosses the line.
-        if (top - triggerY <= 0) {
+        if (top - triggerY <= 0 && top > bestTop) {
+          bestTop = top;
           bestSlug = c.slug;
-        } else {
-          break;
         }
       }
       // Edge case: top of page, before any section has crossed yet —

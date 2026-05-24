@@ -239,7 +239,7 @@ function HowItWorks() {
     {
       kicker: "03 · Pagar",
       title: "Pagan solos, dividen la cuenta o llaman al mesero",
-      copy: "Tarjeta, Apple Pay, Google Pay, Nequi, PSE, USDT o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
+      copy: "Tarjeta, Apple Pay, Nequi, PSE, USDT o efectivo. Dividen por persona o en partes iguales. Si pagan en efectivo, el mesero recibe el cobro con el cambio ya calculado.",
       badge: "Cuenta dividida sin drama",
     },
   ];

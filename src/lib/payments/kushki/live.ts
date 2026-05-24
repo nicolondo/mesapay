@@ -86,9 +86,10 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   async chargeWithToken(req: ChargeRequest): Promise<ChargeResult> {
-    // Kushki tokens carry the payment instrument (Apple Pay, Google Pay,
-    // saved card). We charge with the sub-merchant's private key so funds
-    // route to the right wallet.
+    // Kushki tokens carry the payment instrument (Apple Pay or saved
+    // card — Google Pay isn't offered by Kushki Colombia). We charge
+    // with the sub-merchant's private key so funds route to the right
+    // wallet.
     const resp = await kushkiFetch<ChargeResponse>("/card/v1/charges", {
       method: "POST",
       auth: { kind: "submerchant", privateKey: req.merchantId },

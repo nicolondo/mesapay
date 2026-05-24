@@ -11,14 +11,18 @@ import {
 } from "@/lib/payments";
 
 /**
- * Wallet (Apple Pay / Google Pay) charge through Kushki.
+ * Apple Pay charge through Kushki.
  *
  * Frontend flow:
  *   1. Get tenant.kushkiPublicKey from page props.
- *   2. Kushki JS SDK opens Apple Pay / Google Pay sheet, returns a token.
+ *   2. Kushki JS SDK opens the Apple Pay sheet, returns a token.
  *   3. POST { orderId, method, token, amountCents, tipCents } here.
  *   4. We charge via provider.chargeWithToken using the sub-merchant key.
  *   5. On approval, Payment becomes approved and the order recomputes.
+ *
+ * Google Pay isn't offered through Kushki Colombia, so the wallet path
+ * is Apple-only. The method enum is restricted to kushki_apple_pay
+ * below to make that explicit.
  *
  * In KUSHKI_MODE=mock the token can be any non-empty string — the mock
  * provider doesn't validate it, just returns approved/declined based on a
@@ -28,8 +32,8 @@ import {
 
 const schema = z.object({
   orderId: z.string().min(1),
-  // Google Pay support was dropped — Kushki Colombia doesn't offer it.
-  // Apple Pay remains as the only wallet method through this route.
+  // Apple Pay is the only wallet method through this route — Kushki
+  // Colombia doesn't offer Google Pay.
   method: z.enum(["kushki_apple_pay"]),
   token: z.string().min(1).max(2000),
   amountCents: z.number().int().min(100),

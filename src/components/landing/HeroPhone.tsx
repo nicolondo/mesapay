@@ -250,7 +250,6 @@ function PayScene() {
         <PayMethod label="Tarjeta" hint="Débito o crédito" />
         <PayMethod label="Nequi" hint="Transferencia" active />
         <PayMethod label="Apple Pay" hint="Face ID" />
-        <PayMethod label="Google Pay" hint="1 toque" />
         <PayMethod label="PSE" hint="Bancolombia · Dav…" />
         <PayMethod label="USDT" hint="Cripto · TRC-20" />
         <PayMethod label="Efectivo" hint="Llamar al mesero" />

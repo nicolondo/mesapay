@@ -75,7 +75,8 @@ export type MerchantSummary = {
 export type ChargeRequest = {
   merchantId: string;
   amount: Money;
-  // Provider-tokenised payment instrument (Apple Pay / Google Pay / card token)
+  // Provider-tokenised payment instrument (Apple Pay token today; the
+  // type stays generic so we can plug in other wallets later).
   token: string;
   metadata: {
     orderId: string;
@@ -148,7 +149,7 @@ export interface PaymentProvider {
   submitOnboarding(submission: OnboardingSubmission): Promise<MerchantSummary>;
   getMerchantStatus(merchantId: string): Promise<MerchantSummary>;
 
-  // Charges (Apple Pay, Google Pay, etc.)
+  // Charges (Apple Pay token today; provider stays generic for the future).
   chargeWithToken(req: ChargeRequest): Promise<ChargeResult>;
 
   // Smart-POS terminal cloud push

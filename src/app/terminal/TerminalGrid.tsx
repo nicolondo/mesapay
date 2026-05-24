@@ -736,8 +736,6 @@ function humanMethod(m: string): string {
   switch (m) {
     case "kushki_apple_pay":
       return "Apple Pay";
-    case "kushki_google_pay":
-      return "Google Pay";
     case "kushki_card_terminal":
       return "Tarjeta · datáfono";
     case "demo_cash":

@@ -121,8 +121,15 @@ export function MenuImportClient({
   }): boolean {
     const ext = payload.extraction;
     if (ext.items.length === 0) {
+      // The extractor returns a `notes` blurb on failure — e.g.
+      // "model returned non-JSON: …" when the response got truncated,
+      // or "schema mismatch: …" when a field is wrong. Surfacing it
+      // helps debug instead of silently telling the operator to "try
+      // again". Cap length so a runaway model dump doesn't break the
+      // banner layout.
+      const reason = ext.notes ? ` — ${ext.notes.slice(0, 240)}` : "";
       setError(
-        "No detectamos platos. Prueba con una imagen más clara, otra URL, o sube un PDF.",
+        `No detectamos platos. Prueba con una imagen más clara, otra URL, o sube un PDF.${reason}`,
       );
       setStage("upload");
       return false;

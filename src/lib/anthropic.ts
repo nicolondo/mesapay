@@ -199,9 +199,15 @@ export async function extractMenuFromDocument(
   }
 
   const resp = await c.messages.create({
-    // Bigger context budget — menus can have dozens of items + descriptions.
+    // Big output budget. A multi-page carta (e.g. a 27-page PDF with
+    // ~150 dishes, each with descriptions) easily emits 15-20k tokens
+    // of JSON. The previous 4096-token cap was silently truncating the
+    // response, which made JSON.parse throw and the import return
+    // zero items — looking to the operator like "the model didn't see
+    // any food". 32k leaves headroom for very long cartas while
+    // keeping the bill bounded.
     model: env.ANTHROPIC_MODEL,
-    max_tokens: 4096,
+    max_tokens: 32_000,
     system: [
       {
         type: "text",
@@ -211,6 +217,12 @@ export async function extractMenuFromDocument(
     ],
     messages: [{ role: "user", content }],
   });
+
+  // If the model genuinely ran out of room (stop_reason="max_tokens"),
+  // the JSON is mid-emit and JSON.parse will fail. We log that case so
+  // the notes returned to the client point at the real cause rather
+  // than a generic parse error.
+  const truncated = resp.stop_reason === "max_tokens";
 
   const text = resp.content
     .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
@@ -230,7 +242,9 @@ export async function extractMenuFromDocument(
     return {
       categories: [],
       items: [],
-      notes: `model returned non-JSON: ${text.slice(0, 200)}`,
+      notes: truncated
+        ? "La carta es muy larga y la respuesta se cortó. Sube la carta por partes o en un PDF más corto."
+        : `model returned non-JSON: ${text.slice(0, 200)}`,
     };
   }
   const result = MenuExtractionSchema.safeParse(parsed);

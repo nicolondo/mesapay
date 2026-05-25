@@ -115,7 +115,7 @@ export default async function RestaurantDetail({
   }
 
   return (
-    <div className="flex-1 p-6 max-w-5xl mx-auto w-full">
+    <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
       <Link
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"

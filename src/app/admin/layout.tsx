@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
+import { AdminMobileMenu } from "./AdminMobileMenu";
 
 export default async function AdminLayout({
   children,
@@ -11,23 +12,57 @@ export default async function AdminLayout({
   if (!session?.user) redirect("/signin?callbackUrl=/admin");
   if (session.user.role !== "platform_admin") redirect("/");
 
+  // The signout server-action is the same one rendered inline in the
+  // desktop header AND inside the mobile drawer. We define it once and
+  // pass both shapes around so there's a single source of truth for
+  // the logout flow.
+  const signOutFormDesktop = (
+    <form
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      <button className="text-terracotta hover:underline">Salir</button>
+    </form>
+  );
+  const signOutFormMobile = (
+    <form
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      <button
+        type="submit"
+        className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
+      >
+        Cerrar sesión
+      </button>
+    </form>
+  );
+
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
       <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-4">
-            <div>
+        <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">
+          <div className="flex items-center gap-4 md:gap-6 min-w-0">
+            <div className="shrink-0">
               <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
                 Plataforma · Admin
               </div>
-              <div className="font-display text-xl tracking-[-0.015em]">MESAPAY</div>
+              <div className="font-display text-xl tracking-[-0.015em]">
+                MESAPAY
+              </div>
             </div>
-            <nav className="flex gap-1 ml-6">
+            {/* Inline nav hidden on small screens — see AdminMobileMenu
+                for the hamburger drawer that takes its place. */}
+            <nav className="hidden md:flex gap-1">
               <NavLink href="/admin">Resumen</NavLink>
               <NavLink href="/admin/restaurants">Restaurantes</NavLink>
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="hidden md:flex items-center gap-3 text-sm">
             <Link
               href="/operator"
               className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
@@ -35,15 +70,12 @@ export default async function AdminLayout({
               ← Operador
             </Link>
             <span className="text-op-muted">{session.user.email}</span>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/" });
-              }}
-            >
-              <button className="text-terracotta hover:underline">Salir</button>
-            </form>
+            {signOutFormDesktop}
           </div>
+          <AdminMobileMenu
+            userEmail={session.user.email}
+            signOutAction={signOutFormMobile}
+          />
         </div>
       </header>
       <main className="flex flex-1 flex-col">{children}</main>

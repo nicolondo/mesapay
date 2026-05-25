@@ -63,10 +63,10 @@ export default async function RestaurantsAdmin({
   );
 
   return (
-    <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
-      <div className="flex items-baseline justify-between mb-6">
-        <div>
-          <div className="font-display text-3xl">Restaurantes</div>
+    <div className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
+      <div className="flex items-baseline justify-between gap-3 mb-6 flex-wrap">
+        <div className="min-w-0">
+          <div className="font-display text-2xl md:text-3xl">Restaurantes</div>
           <div className="text-sm text-op-muted mt-1">
             {restaurants.length}{" "}
             {restaurants.length === 1 ? "cuenta" : "cuentas"} en la plataforma
@@ -74,7 +74,7 @@ export default async function RestaurantsAdmin({
         </div>
         <Link
           href="/admin/restaurants/new"
-          className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium inline-flex items-center"
+          className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
         >
           + Nuevo restaurante
         </Link>
@@ -100,7 +100,66 @@ export default async function RestaurantsAdmin({
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
+        <>
+        {/* Mobile: card list — much friendlier than horizontal-scrolling
+            a 10-column table. Shows the same data the operator needs
+            to triage at a glance (name, plan/status pills, key counts). */}
+        <ul className="md:hidden space-y-3">
+          {restaurants.map((r) => {
+            const paid = paidByRest.get(r.id) ?? 0;
+            const last = lastByRest.get(r.id) ?? null;
+            const ops = opsByRest.get(r.id) ?? 0;
+            const state = deriveState({
+              orders: r._count.orders,
+              paid,
+              lastOrderAt: last,
+              operators: ops,
+            });
+            const membership = deriveMembershipStatus({
+              plan: r.plan,
+              periodEndsAt: r.periodEndsAt,
+              suspended: r.suspended,
+            });
+            return (
+              <li key={r.id}>
+                <Link
+                  href={`/admin/restaurants/${r.id}`}
+                  className="block rounded-2xl border border-op-border bg-op-surface p-4 active:scale-[0.99] transition-transform"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <div className="font-display text-lg leading-tight truncate">
+                        {r.name}
+                      </div>
+                      <div className="font-mono text-[11px] text-op-muted">
+                        /{r.slug}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <MembershipPill status={membership} plan={r.plan} />
+                      <StatePill state={state} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <MiniStat label="Operadores" value={ops} />
+                    <MiniStat label="Menú" value={r._count.menuItems} />
+                    <MiniStat label="Mesas" value={r._count.tables} />
+                    <MiniStat label="Órdenes" value={r._count.orders} />
+                    <MiniStat label="Pagadas" value={paid} />
+                    <MiniStat
+                      label="Última"
+                      value={last ? <RelTime date={last} /> : "—"}
+                    />
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Desktop: full table view. Hidden on mobile because horizontal
+            scroll on a 10-column table is borderline unusable on a phone. */}
+        <div className="hidden md:block rounded-2xl border border-op-border bg-op-surface overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-op-bg">
               <tr className="text-left">
@@ -183,7 +242,25 @@ export default async function RestaurantsAdmin({
             </tbody>
           </table>
         </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-op-border px-2 py-1.5">
+      <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
+        {label}
+      </div>
+      <div className="text-sm mt-0.5 truncate">{value}</div>
     </div>
   );
 }

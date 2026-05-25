@@ -26,6 +26,12 @@ export default async function SettingsPage() {
     where: { restaurantId, prepStation: { not: "kitchen" } },
   });
   const tagCount = resolveMenuTags(tenant.menuTags).length;
+  const [deviceCount, deviceAssigned] = await Promise.all([
+    db.terminalDevice.count({ where: { restaurantId } }),
+    db.terminalDevice.count({
+      where: { restaurantId, assignedUserId: { not: null } },
+    }),
+  ]);
   const [meseroCount, meserosWithRange] = await Promise.all([
     db.user.count({ where: { restaurantId, role: "mesero" } }),
     db.user.count({
@@ -72,6 +78,23 @@ export default async function SettingsPage() {
           badge={`${tagCount} ${tagCount === 1 ? "etiqueta" : "etiquetas"}`}
           tint="bg-paper text-op-muted"
         />
+        {deviceCount > 0 && (
+          <SettingCard
+            href="/operator/settings/datafonos"
+            title="Datáfonos"
+            subtitle="Asigna cada Smart POS al mesero que lo carga"
+            badge={
+              deviceAssigned === 0
+                ? `${deviceCount} sin asignar`
+                : `${deviceAssigned}/${deviceCount} asignados`
+            }
+            tint={
+              deviceAssigned > 0
+                ? "bg-ok/15 text-ok"
+                : "bg-paper text-op-muted"
+            }
+          />
+        )}
         {meseroCount > 0 && (
           <SettingCard
             href="/operator/settings/meseros"

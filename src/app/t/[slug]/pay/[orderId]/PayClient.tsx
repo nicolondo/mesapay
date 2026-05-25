@@ -38,6 +38,8 @@ export function PayClient({
   kushkiPublicKey,
   isMockMode,
   enabledMethods,
+  assignedDeviceId,
+  assignedDeviceLabel,
   operatorMode = false,
 }: {
   tenantSlug: string;
@@ -58,6 +60,12 @@ export function PayClient({
   // enabled in /admin/restaurants/[id]. Buttons are filtered against
   // this list so disabled methods never render.
   enabledMethods: ("kushki_card_terminal" | "kushki_apple_pay" | "cash")[];
+  // Operator's assigned Smart POS (set in /operator/settings/datafonos).
+  // When operatorMode is true and this is non-null, "Cobrar con
+  // datáfono" pushes the charge straight to this device instead of
+  // bouncing through Salón to pick one.
+  assignedDeviceId?: string | null;
+  assignedDeviceLabel?: string | null;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to /operator/serve once the bill is
@@ -194,9 +202,41 @@ export function PayClient({
         setErr(j.error ?? "No pudimos avisar al mesero.");
         return;
       }
-      // In waiter mode the operator shouldn't get stuck on a diner-
-      // facing "esperando datáfono" screen — they fire the terminal
-      // request and head back to Salón where they can follow up.
+
+      // Operator mode + tied to a specific Smart POS → fire the push
+      // straight to that device. The mesero is already standing at
+      // the table with the datáfono in hand; no reason to bounce them
+      // through Salón to pick a device manually. The push call below
+      // is async on the hardware side — the webhook flips the
+      // payment to approved when the customer taps their card.
+      if (operatorMode && assignedDeviceId) {
+        const pushRes = await fetch(
+          `/api/tenant/${tenantSlug}/terminal/charge`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              paymentId: j.paymentId,
+              deviceId: assignedDeviceId,
+            }),
+          },
+        );
+        if (!pushRes.ok) {
+          const pj = await pushRes.json().catch(() => ({}));
+          setErr(pj.error ?? "No pudimos enviar el cobro al datáfono.");
+          return;
+        }
+        // Land on the operator-side waiting screen instead of /salón
+        // — they can stay focused on this transaction until it
+        // approves or declines.
+        router.push(
+          `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&op=1`,
+        );
+        return;
+      }
+
+      // Diner-side flow OR operator without an assigned device:
+      // create the pending and let someone pick the device in Salón.
       router.push(
         operatorMode
           ? "/operator/serve"

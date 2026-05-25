@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { getAssignedDevice } from "@/lib/meseroDevice";
 
 export default async function PayPage({
   params,
@@ -47,6 +48,15 @@ export default async function PayPage({
   const kushkiReady =
     !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
 
+  // In operator mode, look up which Smart POS this user is logged into
+  // (set by the operator in /operator/settings/datafonos). When set,
+  // PayClient skips the Salón bounce and pushes the datáfono charge
+  // straight to the assigned device.
+  const assignedDevice =
+    operatorMode && session?.user?.id
+      ? await getAssignedDevice(session.user.id, tenant.id)
+      : null;
+
   return (
     <PayClient
       operatorMode={operatorMode}
@@ -75,6 +85,8 @@ export default async function PayPage({
       kushkiPublicKey={tenant.kushkiPublicKey}
       isMockMode={env.KUSHKI_MODE === "mock"}
       enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
+      assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
+      assignedDeviceLabel={assignedDevice?.label ?? null}
     />
   );
 }

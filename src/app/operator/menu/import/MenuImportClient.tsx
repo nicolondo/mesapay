@@ -60,12 +60,18 @@ export function MenuImportClient({
   tenantName,
   initialCategories,
   menus,
+  initialMenuId,
   menuTags,
 }: {
   tenantName: string;
   initialCategories: ExistingCategory[];
   // Available top-level menus. Picker only shown when >1 exists.
   menus: { id: string; label: string; slug: string }[];
+  // Pre-selected target menu id (from ?menu=… in the URL). The button
+  // on the editor passes whichever carta tab was active so the import
+  // lands there by default. Falls back to the first menu when unset
+  // or stale.
+  initialMenuId: string | null;
   // Tag registry of this restaurant — drives the chips shown in the
   // review step. Unknown slugs returned by the AI are dropped silently.
   menuTags: MenuTag[];
@@ -83,7 +89,7 @@ export function MenuImportClient({
   // to the first menu (Carta). Only matters when the restaurant has more
   // than one menu configured.
   const [targetMenuId, setTargetMenuId] = useState<string>(
-    menus[0]?.id ?? "",
+    initialMenuId ?? menus[0]?.id ?? "",
   );
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [extractedCats, setExtractedCats] = useState<ExtractedCategory[]>([]);

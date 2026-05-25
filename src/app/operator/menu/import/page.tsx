@@ -6,9 +6,16 @@ import { MenuImportClient } from "./MenuImportClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function MenuImportPage() {
+export default async function MenuImportPage({
+  searchParams,
+}: {
+  // The "Importar con AI" button on the menu editor passes the active
+  // tab's menu id here so we can default-target the right carta.
+  searchParams: Promise<{ menu?: string }>;
+}) {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  const sp = await searchParams;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -34,11 +41,18 @@ export default async function MenuImportPage() {
     getRestaurantMenuTags(restaurantId),
   ]);
 
+  // Honour the requested menu only if it actually belongs to this
+  // restaurant; otherwise fall back to the first menu (the default
+  // Carta) so a stale URL never lands dishes in the wrong tenant.
+  const requestedMenuId =
+    sp.menu && menus.some((m) => m.id === sp.menu) ? sp.menu : null;
+
   return (
     <MenuImportClient
       tenantName={tenant.name}
       initialCategories={existingCategories}
       menus={menus}
+      initialMenuId={requestedMenuId}
       menuTags={menuTags}
     />
   );

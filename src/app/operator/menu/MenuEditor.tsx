@@ -139,7 +139,16 @@ export function MenuEditor({
         <div className="font-display text-3xl">Menú</div>
         <div className="flex items-center gap-2">
           <a
-            href="/operator/menu/import"
+            // Pass the active menu so the import wizard lands the new
+            // dishes in the tab the operator was looking at. Without
+            // this it always defaulted to the first menu (Carta de
+            // comida), which is what made the wine list end up under
+            // food.
+            href={
+              hasMultipleMenus
+                ? `/operator/menu/import?menu=${encodeURIComponent(activeMenuId)}`
+                : "/operator/menu/import"
+            }
             className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center gap-1.5 hover:bg-op-bg"
           >
             <span aria-hidden>🧠</span> Importar con AI
@@ -928,7 +937,14 @@ function ItemSheet({
   }
 
   async function del() {
-    const ok = window.confirm(`¿Eliminar "${item.name}"?`);
+    // We tell the operator up-front that historic-orders items will be
+    // archived instead of hard-deleted, so the post-delete alert that
+    // used to surprise them is no longer needed.
+    const ok = window.confirm(
+      `¿Eliminar "${item.name}"?\n\n` +
+        `Si aparece en pedidos anteriores no se puede borrar del todo — ` +
+        `lo dejaremos archivado (deja de mostrarse en la carta del cliente).`,
+    );
     if (!ok) return;
     setBusy(true);
     const res = await fetch(`/api/operator/menu-items/${item.id}`, {
@@ -941,12 +957,33 @@ function ItemSheet({
       return;
     }
     const j = await res.json().catch(() => ({}));
-    if (j.archived) {
-      alert(
-        "Este plato ya aparece en pedidos antiguos, así que se marcó como agotado en lugar de eliminarse.",
-      );
-    }
     onDeleted(!!j.archived);
+  }
+
+  /**
+   * Archivar es el camino explícito para que un plato deje de mostrarse
+   * en la carta sin intentar borrarlo (útil para platos de temporada o
+   * para los que tienen historial y nunca se podrían hard-delete-ear de
+   * todas formas). Internamente sólo apaga `available`. El operador
+   * puede volverlo a habilitar con el checkbox "Disponible" más arriba.
+   */
+  async function archive() {
+    setBusy(true);
+    const res = await fetch(`/api/operator/menu-items/${item.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ available: false }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "No se pudo archivar.");
+      return;
+    }
+    // Reuse the "archived" branch in the parent — keeps the row in
+    // local state with available=false (the operator can find it and
+    // re-enable from the Disponible checkbox later).
+    onDeleted(true);
   }
 
   function toggleTag(t: string) {
@@ -1202,13 +1239,25 @@ function ItemSheet({
           {err && <div className="text-danger text-sm">{err}</div>}
 
           <div className="flex items-center justify-between pt-2 border-t border-op-border">
-            <button
-              onClick={del}
-              disabled={busy}
-              className="text-sm text-danger hover:underline disabled:opacity-60"
-            >
-              Eliminar
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={del}
+                disabled={busy}
+                className="text-sm text-danger hover:underline disabled:opacity-60"
+              >
+                Eliminar
+              </button>
+              {available && (
+                <button
+                  onClick={archive}
+                  disabled={busy}
+                  className="text-sm text-op-muted hover:underline disabled:opacity-60"
+                  title="Deja de mostrarse en la carta del cliente sin borrarlo"
+                >
+                  Archivar
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={onClose}

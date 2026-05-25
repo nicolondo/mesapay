@@ -2,6 +2,12 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
+import {
+  resolveTipPolicy,
+  resolveShiftPolicy,
+  TIP_POLICY_LABELS,
+  SHIFT_POLICY_LABELS,
+} from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +23,15 @@ export default async function SettingsPage() {
       kushkiOnboardingStatus: true,
       hasBar: true,
       menuTags: true,
+      tipPolicy: true,
+      shiftPolicy: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
 
   const status = humanStatus(tenant.kushkiOnboardingStatus);
+  const tipPol = resolveTipPolicy(tenant.tipPolicy);
+  const shiftPol = resolveShiftPolicy(tenant.shiftPolicy);
   const stationsCount = await db.category.count({
     where: { restaurantId, prepStation: { not: "kitchen" } },
   });
@@ -112,6 +122,13 @@ export default async function SettingsPage() {
             }
           />
         )}
+        <SettingCard
+          href="/operator/settings/staff-policies"
+          title="Propinas y turnos"
+          subtitle="Compartidas o por mesero. Turno único del local o por mesero."
+          badge={`${TIP_POLICY_LABELS[tipPol]} · ${SHIFT_POLICY_LABELS[shiftPol]}`}
+          tint="bg-paper text-op-muted"
+        />
         {meseroCount > 0 && (
           <SettingCard
             href="/operator/settings/meseros"

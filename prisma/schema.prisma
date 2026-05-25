@@ -76,6 +76,32 @@ model Restaurant {
   barPrintEnabled     Boolean @default(false)
   printPaperWidthMm   Int     @default(80)
 
+  // === Políticas del staff ================================================
+  //
+  // Configurables por el comercio desde /operator/settings/staff-policies.
+  // No usamos enums Prisma para que agregar más policies en el futuro no
+  // requiera migración. Helpers de validación + defaults viven en
+  // src/lib/staffPolicies.ts.
+  //
+  // tipPolicy:
+  //   "shared"    → las propinas son del restaurante (default histórico).
+  //                 La vista "Yo" del mesero NO muestra propinas
+  //                 acumuladas porque no son personales.
+  //   "by_waiter" → cada propina queda atada al mesero que cobró
+  //                 (Payment.collectedByUserId). La vista "Yo" suma
+  //                 sus propinas por turno / día.
+  //
+  // shiftPolicy:
+  //   "global"    → un solo Shift por restaurante, abierto/cerrado por
+  //                 operador (flujo de arqueo existente). Shift.userId
+  //                 queda null.
+  //   "by_waiter" → cada mesero abre su propio Shift cuando entra a su
+  //                 jornada. Coexiste con el shift global del restaurante
+  //                 si lo hay; sirve para que el mesero tenga su propio
+  //                 corte aunque la caja sea una sola.
+  tipPolicy   String @default("shared")
+  shiftPolicy String @default("global")
+
   users               User[]
   tables              Table[]
   menus               Menu[]
@@ -182,6 +208,14 @@ model User {
 
   shiftsOpened Shift[] @relation("ShiftsOpened")
   shiftsClosed Shift[] @relation("ShiftsClosed")
+  // Shifts donde este user es el dueño (modo by_waiter). Distinto a
+  // shiftsOpened/Closed que pueden referenciar al operador que
+  // abrió/cerró un turno de OTRO mesero (admin operativo).
+  shiftsOfUser Shift[] @relation("ShiftsOfUser")
+
+  // Pagos físicamente cobrados por este user (mesero/operator). Útil
+  // para vista "Yo": sum(tipCents) + count(payments) por turno.
+  paymentsCollected Payment[] @relation("PaymentsCollected")
 
   pushSubscriptions PushSubscription[]
 
@@ -537,10 +571,20 @@ model Payment {
   shiftId String?
   shift   Shift?  @relation(fields: [shiftId], references: [id])
 
+  // Quién cobró físicamente este pago. Lo escribimos siempre que el
+  // staff (mesero / operator / platform_admin) settle desde un endpoint
+  // — independiente de la tipPolicy del restaurante, los datos son
+  // útiles aun cuando la propina sea compartida (auditoría, vista
+  // personal por mesero). Null = pago iniciado por el cliente desde
+  // su propio QR.
+  collectedByUserId String?
+  collectedBy       User?   @relation("PaymentsCollected", fields: [collectedByUserId], references: [id])
+
   kushkiTransactions KushkiTransaction[]
 
   @@index([orderId])
   @@index([shiftId])
+  @@index([collectedByUserId])
 }
 
 // === Cierre de turno ======================================================
@@ -562,6 +606,15 @@ model Shift {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   status ShiftStatus @default(open)
+
+  // Cuando shiftPolicy = "by_waiter", cada mesero tiene su propio
+  // Shift y este campo apunta a él. Null = turno global del
+  // restaurante (default histórico) — abierto/cerrado por operador
+  // y agregando todas las ventas del local. Los dos modos coexisten
+  // sin chocar: queries filtran por userId is null / not null según
+  // contexto.
+  userId String?
+  user   User?   @relation("ShiftsOfUser", fields: [userId], references: [id])
 
   openedAt         DateTime @default(now())
   openedById       String
@@ -585,6 +638,7 @@ model Shift {
 
   @@index([restaurantId, status])
   @@index([restaurantId, openedAt])
+  @@index([userId, status])
 }
 
 // === Kushki integration ====================================================

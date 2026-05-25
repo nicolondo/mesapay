@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
@@ -61,6 +62,19 @@ export async function POST(
     );
   }
 
+  // Quién inicia el cobro vía datáfono. Si lo lanza un mesero/operator
+  // desde su PWA, lo registramos para reportes de propinas/turno
+  // personal — el webhook que luego aprueba el pago preserva esta
+  // referencia (sólo cambia status + settledAt).
+  const session = await auth();
+  const collectedByUserId =
+    session?.user &&
+    (session.user.role === "mesero" ||
+      session.user.role === "operator" ||
+      session.user.role === "platform_admin")
+      ? session.user.id
+      : null;
+
   const payment = await db.$transaction(async (tx) => {
     const p = await tx.payment.create({
       data: {
@@ -69,6 +83,7 @@ export async function POST(
         status: "pending",
         amountCents: parsed.data.amountCents,
         tipCents: parsed.data.tipCents,
+        collectedByUserId,
       },
     });
     await tx.order.update({

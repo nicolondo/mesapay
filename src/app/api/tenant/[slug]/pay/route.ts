@@ -169,6 +169,11 @@ export async function POST(
             tipCents: finalTip,
             cashTenderCents: tender ?? null,
             settledAt: new Date(),
+            // Tracking de quién cobró físicamente. Se usa por la vista
+            // "Yo" del mesero y por reportes de propinas. Lo
+            // guardamos siempre que se cobra desde sesión staff,
+            // independiente de tipPolicy.
+            collectedByUserId: session!.user.id,
           },
         });
         const totals = await recomputeOrderTotalsInTx(tx, order.id);

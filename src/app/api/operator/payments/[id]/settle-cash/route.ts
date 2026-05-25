@@ -83,6 +83,13 @@ export async function POST(
         tipCents: payment.tipCents + extraTipCents,
         status: "approved",
         settledAt: now,
+        // Solo sobreescribimos collectedByUserId si la fila no tenía
+        // uno asignado todavía (caso: cliente solicitó cobro desde
+        // su QR con method=demo_cash, mesero llega después y settlea
+        // — el mesero pasa a ser el cobrador). Si ya estaba seteado
+        // (otro mesero le pasó la cuenta y este la cierra) lo
+        // respetamos.
+        collectedByUserId: payment.collectedByUserId ?? session.user.id,
       },
     });
 

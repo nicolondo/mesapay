@@ -496,17 +496,21 @@ function ItemRow({
           >
             <span className="font-mono">{item.qty}×</span> {item.name}
             {item.expediteRequestedAt && !served && (
-              // 🔥 = "el mesero pidió apurar este plato". El cocinero
-              // lo prioriza visualmente sin tener que cambiar de orden.
-              // Cuando el item pasa a ready/served el badge desaparece
-              // por el `!served` guard (y porque deja de mostrarse en
-              // el board en la mayoría de columnas).
-              <span
-                className="ml-2 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-1.5 py-0.5 rounded"
-                title={`Apurado a las ${new Date(item.expediteRequestedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
-              >
-                🔥 Apurar
-              </span>
+              // 🔥 = "el mesero pidió apurar este plato". Línea propia
+              // debajo del nombre para que el pill no se parta al
+              // wrappear (antes "🔥" quedaba al final del nombre y
+              // "APURAR" caía con su rounded background en línea
+              // separada — se veía como dos cosas distintas).
+              // inline-flex + w-fit lo mantiene en un solo pill.
+              <div className="mt-1">
+                <span
+                  className="inline-flex items-center gap-1 w-fit font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-1.5 py-0.5 rounded"
+                  title={`Apurado a las ${new Date(item.expediteRequestedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+                >
+                  <span aria-hidden>🔥</span>
+                  <span>Apurar</span>
+                </span>
+              </div>
             )}
             {item.modifiers.length > 0 && (
               // One line per modifier group ("Adición: Carne, Pollo") —

@@ -37,6 +37,7 @@ export function PayClient({
   kushkiReady,
   kushkiPublicKey,
   isMockMode,
+  enabledMethods,
   operatorMode = false,
 }: {
   tenantSlug: string;
@@ -53,6 +54,10 @@ export function PayClient({
   kushkiReady: boolean;
   kushkiPublicKey: string | null;
   isMockMode: boolean;
+  // Per-restaurant payment method toggles. Slugs of methods the admin
+  // enabled in /admin/restaurants/[id]. Buttons are filtered against
+  // this list so disabled methods never render.
+  enabledMethods: ("kushki_card_terminal" | "kushki_apple_pay" | "cash")[];
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to /operator/serve once the bill is
@@ -451,17 +456,20 @@ export function PayClient({
             tap their own watch / Touch ID for someone else's card. So
             in waiter mode we hide it entirely; the operator collects
             via datáfono or efectivo. */}
-        {kushkiReady && hasApplePay && !operatorMode && (
-          <PayButton
-            kind="apple"
-            disabled={busy !== null || amountCents <= 0}
-            busy={busy === "kushki_apple_pay"}
-            onClick={() => payWithKushkiToken("kushki_apple_pay")}
-            amountCents={amountCents}
-            operatorMode={operatorMode}
-          />
-        )}
-        {kushkiReady && (
+        {kushkiReady &&
+          hasApplePay &&
+          !operatorMode &&
+          enabledMethods.includes("kushki_apple_pay") && (
+            <PayButton
+              kind="apple"
+              disabled={busy !== null || amountCents <= 0}
+              busy={busy === "kushki_apple_pay"}
+              onClick={() => payWithKushkiToken("kushki_apple_pay")}
+              amountCents={amountCents}
+              operatorMode={operatorMode}
+            />
+          )}
+        {kushkiReady && enabledMethods.includes("kushki_card_terminal") && (
           <PayButton
             kind="terminal"
             disabled={busy !== null || amountCents <= 0}
@@ -471,15 +479,17 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
-        <PayButton
-          kind="cash"
-          disabled={busy !== null || amountCents <= 0}
-          busy={busy === "demo_cash"}
-          onClick={() => setCashTenderOpen(true)}
-          amountCents={amountCents}
-          operatorMode={operatorMode}
-        />
-        {showDemoFallback && (
+        {enabledMethods.includes("cash") && (
+          <PayButton
+            kind="cash"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "demo_cash"}
+            onClick={() => setCashTenderOpen(true)}
+            amountCents={amountCents}
+            operatorMode={operatorMode}
+          />
+        )}
+        {showDemoFallback && enabledMethods.includes("kushki_card_terminal") && (
           <>
             {/* Same flow as the real "Tarjeta con datáfono" button — useful
                 for previewing the customer's "esperando datáfono" screen

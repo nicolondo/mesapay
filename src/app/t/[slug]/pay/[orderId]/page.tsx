@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
+import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 
 export default async function PayPage({
   params,
@@ -73,6 +74,7 @@ export default async function PayPage({
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
       isMockMode={env.KUSHKI_MODE === "mock"}
+      enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
     />
   );
 }

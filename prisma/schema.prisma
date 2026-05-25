@@ -47,6 +47,13 @@ model Restaurant {
   // eliminar desde /operator/settings/etiquetas.
   menuTags Json?
 
+  // Medios de pago habilitados para este comercio (toggles en
+  // /admin/restaurants/[id]). Shape: string[] de slugs como
+  // "kushki_card_terminal", "kushki_apple_pay", "cash". Null = todos
+  // habilitados (back-compat para comercios existentes). Una lista
+  // vacía explícita = ninguno permitido (raro pero válido).
+  enabledPaymentMethods Json?
+
   // Does this restaurant have a dedicated bartender / barista (separate
   // person from cooks)? Controls whether items routed to station=bar get
   // their own board at /operator/bar, or fall through as "grab from the

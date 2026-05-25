@@ -21,6 +21,8 @@ import {
 } from "./BillingPanel";
 import { UsersPanel } from "./UsersPanel";
 import { RestaurantNameEditor } from "./RestaurantNameEditor";
+import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
+import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 
 export const dynamic = "force-dynamic";
 
@@ -250,6 +252,11 @@ export default async function RestaurantDetail({
           )}
         </div>
       </div>
+
+      <PaymentMethodsPanel
+        restaurantId={id}
+        initialEnabled={resolveEnabledPaymentMethods(rest.enabledPaymentMethods)}
+      />
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="flex items-center justify-between gap-3">

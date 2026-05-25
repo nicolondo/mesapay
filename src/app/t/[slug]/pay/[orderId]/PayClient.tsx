@@ -398,12 +398,10 @@ export function PayClient({
               {fmtCOP(subtotalCents)}
             </span>
           </div>
-          {paidCents > 0 && (
-            <div className="flex items-baseline justify-between px-4 py-2 bg-ivory border-t border-hairline text-xs text-muted">
-              <span>Ya pagado</span>
-              <span className="font-mono tabular">−{fmtCOP(paidCents)}</span>
-            </div>
-          )}
+          {/* No mostramos "Ya pagado" aquí — esta sección es para que
+              el cliente confirme que el menú coincide con lo que pidió.
+              El estado de pagos vive abajo en el breakdown del cobro,
+              con la convención correcta (solo comida, sin propinas). */}
         </section>
       )}
 
@@ -511,40 +509,38 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
-        <Row label="Subtotal de la cuenta" value={fmtCOP(subtotalCents)} />
+        <Row label="Tu cuenta" value={fmtCOP(subtotalCents)} />
         {paidFoodCents > 0 && (
           <>
             <Row
-              label="Ya cubierto por otros"
+              label="Pagado en comida"
               value={"− " + fmtCOP(paidFoodCents)}
               muted
             />
-            {/* Surface the remaining balance explicitly so the mesero
-                (or diner) can sanity-check the split per-person amount
-                below it: "$42.400 ÷ 2 = $21.200, sí cuadra". Without
-                this row the relationship between paid/outstanding/split
-                was easy to misread. */}
             <Row
-              label="Pendiente por cobrar"
+              label="Falta de comida"
               value={fmtCOP(outstandingSubtotalCents)}
               accent
             />
           </>
         )}
-        <Row
-          label={
-            operatorMode
-              ? mode === "full"
-                ? "A cobrar"
-                : `A cobrar (1 de ${splitCount})`
-              : mode === "full"
-                ? "Tu parte"
+        {/* La fila "A cobrar / Tu parte" solo aporta info cuando el
+            monto difiere del "Falta de comida" (i.e. modo Partes
+            iguales o Lo mío). Si es modo Todo y coincide, esconderla
+            evita el "$30.550 / $30.550" duplicado que confundía. */}
+        {amountSubtotal !== outstandingSubtotalCents && (
+          <Row
+            label={
+              operatorMode
+                ? `A cobrar (1 de ${splitCount})`
                 : mode === "equal"
                   ? `Tu parte (1 de ${splitCount})`
                   : `Lo de ${myGuest || "ti"}`
-          }
-          value={fmtCOP(amountSubtotal)}
-        />
+            }
+            value={fmtCOP(amountSubtotal)}
+            accent
+          />
+        )}
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
             {operatorMode ? "Propina" : "Propina sobre tu parte"}
@@ -573,7 +569,7 @@ export function PayClient({
         <div className="mt-4 pt-4 border-t border-hairline">
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Total a pagar
+              {operatorMode ? "A cobrar ahora" : "Total a pagar"}
             </span>
             <span className="font-display text-3xl">{fmtCOP(amountCents)}</span>
           </div>

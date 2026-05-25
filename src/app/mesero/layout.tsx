@@ -114,9 +114,9 @@ export default async function MeseroLayout({
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="grid grid-cols-3 max-w-md mx-auto">
-          <TabLink href="/mesero/salon" label="Salón" icon="🍽️" />
-          <TabLink href="/mesero/cobros" label="Cobros" icon="💵" />
           <TabLink href="/mesero/mesas" label="Mesas" icon="🪑" />
+          <TabLink href="/mesero/salon" label="Salón" icon="🍽️" />
+          <TabLink href="/mesero/yo" label="Yo" icon="👤" />
         </ul>
       </nav>
     </div>

@@ -344,17 +344,18 @@ export function PayClient({
           </Link>
         </div>
       )}
-      <Link
-        href={
-          operatorMode
-            ? staffHomeHref
-            : `/t/${tenantSlug}/order/${orderId}`
-        }
-        className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
-      >
-        <span aria-hidden>←</span>
-        <span>{operatorMode ? "Volver a mesas" : "Volver al pedido"}</span>
-      </Link>
+      {/* En modo mesero el banner negro ya tiene "Volver a mesas".
+          El cliente que paga desde su QR sí necesita un link de
+          volver al pedido — lo mostramos solo para ese caso. */}
+      {!operatorMode && (
+        <Link
+          href={`/t/${tenantSlug}/order/${orderId}`}
+          className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
+        >
+          <span aria-hidden>←</span>
+          <span>Volver al pedido</span>
+        </Link>
+      )}
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
         {locationLabel} · {tenantName} · {shortCode}
       </div>
@@ -405,22 +406,20 @@ export function PayClient({
         </section>
       )}
 
-      {!isCounter && (
+      {/* Selector de modo de pago.
+          - Cliente (no operatorMode): los 3 modos en grilla (Todo / Partes / Lo mío)
+            porque es el flujo principal del checkout y todos son habituales.
+          - Mesero (operatorMode): el 95% del tiempo cobra TODO. Esconder
+            "Partes iguales" detrás de un link compacto evita ruido en
+            mobile sin sacrificar la opción cuando un grupo dice "mitad
+            y mitad". El default es Todo; al tocar el link aparecen los
+            dos botones para escoger. */}
+      {!isCounter && !operatorMode && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            {operatorMode ? "¿Cómo paga el cliente?" : "¿Cómo quieres pagar?"}
+            ¿Cómo quieres pagar?
           </div>
-          {/* The "Lo mío" split mode is the diner saying "I'll cover the
-              items I ordered". A waiter cobrando on behalf of the table
-              has no "mine" — they're collecting the whole bill or a
-              shared split. Drop the third button in op mode and switch
-              to a 2-column grid so the remaining two fill the row. */}
-          <div
-            className={
-              "grid gap-2 " +
-              (operatorMode ? "grid-cols-2" : "grid-cols-3")
-            }
-          >
+          <div className="grid gap-2 grid-cols-3">
             <ModeButton
               active={mode === "full"}
               label="Todo"
@@ -433,19 +432,50 @@ export function PayClient({
               hint="Divide por N"
               onClick={() => setMode("equal")}
             />
-            {!operatorMode && (
-              <ModeButton
-                active={mode === "mine"}
-                label="Lo mío"
-                hint="Solo lo que pedí"
-                onClick={() => hasGuests && setMode("mine")}
-                disabled={!hasGuests}
-              />
-            )}
+            <ModeButton
+              active={mode === "mine"}
+              label="Lo mío"
+              hint="Solo lo que pedí"
+              onClick={() => hasGuests && setMode("mine")}
+              disabled={!hasGuests}
+            />
           </div>
-          {mode === "mine" && !hasGuests && !operatorMode && (
+          {mode === "mine" && !hasGuests && (
             <div className="mt-2 text-xs text-muted-2">
               Nadie dejó su nombre en los platos — usa Partes iguales.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isCounter && operatorMode && (
+        <div className="mt-6">
+          {mode === "full" ? (
+            // Caso default — la cuenta entera. Solo un link discreto
+            // para dividir; el grueso del flow va directo al breakdown.
+            <button
+              type="button"
+              onClick={() => setMode("equal")}
+              className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted underline"
+            >
+              Dividir en partes iguales
+            </button>
+          ) : (
+            // Mesero abrió el split — mostramos los 2 modos en
+            // botones compactos para que pueda volver a "Todo" fácil.
+            <div className="grid gap-2 grid-cols-2">
+              <ModeButton
+                active={mode === "full"}
+                label="Todo"
+                hint="La cuenta completa"
+                onClick={() => setMode("full")}
+              />
+              <ModeButton
+                active={mode === "equal"}
+                label="Partes iguales"
+                hint="Divide por N"
+                onClick={() => setMode("equal")}
+              />
             </div>
           )}
         </div>

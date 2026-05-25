@@ -141,7 +141,16 @@ enum Role {
   customer
   operator
   platform_admin
+  // Smart POS device on a Kushki terminal — exists since the cloud-push
+  // datafono flow.
   terminal
+  // Mobile-first staff role with a bottom nav (Salón / Cobros / Mesas)
+  // optimised for PWA install + push notifications.
+  mesero
+  // Single-purpose roles that land the user on their station board with
+  // no top nav — they don't need to navigate around the app.
+  kitchen
+  bar
 }
 
 model User {

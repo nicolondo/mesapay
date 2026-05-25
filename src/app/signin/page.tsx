@@ -45,6 +45,9 @@ function SignIn() {
       const session = await getSession();
       const role = session?.user?.role;
       if (role === "terminal") dest = "/terminal";
+      else if (role === "mesero") dest = "/mesero/salon";
+      else if (role === "kitchen") dest = "/cocina";
+      else if (role === "bar") dest = "/bar";
       else if (role === "operator") dest = "/operator";
       else if (role === "platform_admin") dest = "/admin";
     }

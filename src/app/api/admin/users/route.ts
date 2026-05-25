@@ -8,7 +8,14 @@ const schema = z.object({
   email: z.string().email().transform((s) => s.toLowerCase().trim()),
   name: z.string().trim().min(1).max(80).optional(),
   password: z.string().min(8).max(200),
-  role: z.enum(["operator", "terminal", "platform_admin"]),
+  role: z.enum([
+    "operator",
+    "terminal",
+    "mesero",
+    "kitchen",
+    "bar",
+    "platform_admin",
+  ]),
   // Required for operator + terminal; ignored for platform_admin.
   restaurantId: z.string().min(1).optional(),
 });

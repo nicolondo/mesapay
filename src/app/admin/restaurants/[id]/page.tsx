@@ -50,7 +50,7 @@ export default async function RestaurantDetail({
       db.user.findMany({
         where: {
           restaurantId: id,
-          role: { in: ["operator", "terminal"] },
+          role: { in: ["operator", "terminal", "mesero", "kitchen", "bar"] },
         },
         select: {
           id: true,
@@ -358,7 +358,7 @@ export default async function RestaurantDetail({
           id: u.id,
           email: u.email,
           name: u.name,
-          role: u.role as "operator" | "terminal",
+          role: u.role as "operator" | "terminal" | "mesero" | "kitchen" | "bar",
           createdAt: u.createdAt.toISOString(),
         }))}
       />

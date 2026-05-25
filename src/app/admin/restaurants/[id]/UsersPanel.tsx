@@ -3,22 +3,28 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-type Role = "operator" | "terminal";
+type Role = "operator" | "terminal" | "mesero" | "kitchen" | "bar";
 type User = {
   id: string;
   email: string;
   name: string | null;
-  role: "operator" | "terminal";
+  role: Role;
   createdAt: string;
 };
 
 const ROLE_LABEL: Record<Role, string> = {
   operator: "Operador",
   terminal: "Datáfono",
+  mesero: "Mesero",
+  kitchen: "Cocina",
+  bar: "Bar",
 };
 const ROLE_TINT: Record<Role, string> = {
   operator: "bg-terracotta/15 text-terracotta",
   terminal: "bg-ink/15 text-ink",
+  mesero: "bg-[#2E6B4C]/15 text-[#1E5339]",
+  kitchen: "bg-[#C98A2E]/15 text-[#8F6828]",
+  bar: "bg-[#7C4A8A]/15 text-[#5C3568]",
 };
 
 export function UsersPanel({
@@ -156,10 +162,19 @@ export function UsersPanel({
                 className="mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               >
                 <option value="operator">
-                  Operador — acceso a /operator (cocina, salón, menú, etc.)
+                  Operador — acceso completo (cocina, salón, menú, configuración…)
+                </option>
+                <option value="mesero">
+                  Mesero — app móvil con bottom-nav (Salón / Cobros / Mesas)
+                </option>
+                <option value="kitchen">
+                  Cocina — solo el tablero de cocina, sin nav
+                </option>
+                <option value="bar">
+                  Bar — solo el tablero del bar, sin nav
                 </option>
                 <option value="terminal">
-                  Datáfono — solo grilla de mesas y cobros con datáfono
+                  Datáfono — grilla de mesas para cobrar con Smart POS
                 </option>
               </select>
             </label>

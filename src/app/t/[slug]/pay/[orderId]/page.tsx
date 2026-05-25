@@ -16,15 +16,18 @@ export default async function PayPage({
 }) {
   const { slug, orderId } = await params;
   const sp = await searchParams;
-  // Operator-mode pay flow: a waiter is collecting the bill on behalf
-  // of a diner who doesn't have a phone or who asked verbally. We
-  // honour ?op=1 only if the session belongs to a real operator —
-  // never trust the URL alone.
+  // Operator-mode pay flow: el staff está cobrando la cuenta en
+  // nombre de un comensal que no tiene celular o pidió verbalmente.
+  // Sólo honramos ?op=1 si la sesión es staff real — nunca confiar
+  // en la URL sola. Incluimos `mesero` porque desde su PWA tiene
+  // un botón "Cobrar la cuenta" que apunta acá; sin este rol caía
+  // al flow del cliente con "Partes iguales / Lo mío".
   const session = sp.op === "1" ? await auth() : null;
   const operatorMode =
     !!session?.user &&
     (session.user.role === "operator" ||
-      session.user.role === "platform_admin");
+      session.user.role === "platform_admin" ||
+      session.user.role === "mesero");
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
 
@@ -57,9 +60,18 @@ export default async function PayPage({
       ? await getAssignedDevice(session.user.id, tenant.id)
       : null;
 
+  // Mesero usa su propia PWA con bottom nav (Salón/Cobros/Mesas) y
+  // está bloqueado por el guard de /operator/*. Operator y platform_admin
+  // vuelven a las pantallas del backoffice.
+  const isMeseroSession = session?.user?.role === "mesero";
+  const staffHomeHref = isMeseroSession ? "/mesero/mesas" : "/operator/tables";
+  const staffServeHref = isMeseroSession ? "/mesero/salon" : "/operator/serve";
+
   return (
     <PayClient
       operatorMode={operatorMode}
+      staffHomeHref={staffHomeHref}
+      staffServeHref={staffServeHref}
       tenantSlug={slug}
       tenantName={tenant.name}
       orderId={order.id}

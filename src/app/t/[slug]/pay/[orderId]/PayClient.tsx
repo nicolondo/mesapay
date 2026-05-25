@@ -44,6 +44,8 @@ export function PayClient({
   assignedDeviceId,
   assignedDeviceLabel,
   operatorMode = false,
+  staffHomeHref = "/operator/tables",
+  staffServeHref = "/operator/serve",
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -71,9 +73,16 @@ export function PayClient({
   assignedDeviceLabel?: string | null;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
-  // a banner, and bounces back to /operator/serve once the bill is
-  // either approved or queued (instead of the diner-side /done view).
+  // a banner, and bounces back to staffHomeHref/staffServeHref once
+  // the bill is either approved or queued (instead of the diner-side
+  // /done view).
   operatorMode?: boolean;
+  // Post-settle destinations resueltos por el server según el rol:
+  // operator/platform_admin → /operator/tables + /operator/serve.
+  // mesero → /mesero/mesas + /mesero/salon (el operator layout está
+  // gated y un mesero quedaría con 403).
+  staffHomeHref?: string;
+  staffServeHref?: string;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -175,7 +184,7 @@ export function PayClient({
       if (j.approved && j.paymentId) {
         router.push(
           operatorMode
-            ? "/operator/serve"
+            ? staffServeHref
             : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
         );
       } else {
@@ -242,7 +251,7 @@ export function PayClient({
       // create the pending and let someone pick the device in Salón.
       router.push(
         operatorMode
-          ? "/operator/serve"
+          ? staffServeHref
           : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`,
       );
     } finally {
@@ -283,7 +292,7 @@ export function PayClient({
       if (operatorMode) {
         // Bill closed (or partially paid) directly. Skip the diner
         // cash-wait screen and the Salón roundtrip.
-        router.push("/operator/tables");
+        router.push(staffHomeHref);
         return;
       }
       if (j.pending && j.paymentId) {
@@ -328,7 +337,7 @@ export function PayClient({
             Cobrando <strong>{locationLabel}</strong>
           </span>
           <Link
-            href="/operator/tables"
+            href={staffHomeHref}
             className="font-mono text-[10px] tracking-wider uppercase underline opacity-80"
           >
             Volver a mesas
@@ -338,7 +347,7 @@ export function PayClient({
       <Link
         href={
           operatorMode
-            ? "/operator/tables"
+            ? staffHomeHref
             : `/t/${tenantSlug}/order/${orderId}`
         }
         className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"

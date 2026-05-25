@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
+import { sendPushToMeserosForTable } from "@/lib/push";
 
 const schema = z.discriminatedUnion("status", [
   z.object({
@@ -26,7 +27,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  if (!session?.user || (session.user.role !== "operator" && session.user.role !== "platform_admin")) {
+  // Quien marca: cocina (desde /cocina), bar (desde /bar) o el operador
+  // (desde /operator/kitchen o impersonando como platform_admin). Sin
+  // kitchen/bar acá, el cocinero recibe 401 al pulsar "listo".
+  if (
+    !session?.user ||
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "kitchen" &&
+      session.user.role !== "bar")
+  ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -207,6 +217,27 @@ export async function PATCH(
       type: parsed.data.status === "ready" ? "order.ready" : "order.updated",
       orderId: round.orderId,
     });
+
+    // Native push a los meseros asignados a la mesa cuando el round
+    // pasa a "ready" — así el mesero sabe sin mirar la app que tiene
+    // platos esperando ser entregados. Fire-and-forget para no
+    // bloquear la respuesta del cocinero.
+    if (parsed.data.status === "ready" && round.order.tableId) {
+      void (async () => {
+        const table = await db.table.findUnique({
+          where: { id: round.order.tableId! },
+          select: { number: true, label: true },
+        });
+        if (!table || table.number < 0) return;
+        const where = table.label ?? `Mesa ${table.number}`;
+        await sendPushToMeserosForTable(round.order.restaurantId, table.number, {
+          title: `${where}: listo para entregar`,
+          body: "Pasa por cocina a recoger",
+          tag: `ready-${round.orderId}-${round.id}`,
+          url: "/mesero/salon",
+        });
+      })().catch((err) => console.error("[push:round_ready]", err));
+    }
   }
 
   return NextResponse.json({ ok: true });

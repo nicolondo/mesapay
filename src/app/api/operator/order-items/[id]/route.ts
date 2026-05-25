@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
+import { sendPushToMeserosForTable } from "@/lib/push";
 
 const schema = z
   .object({
@@ -19,9 +20,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
+  // Ver `rounds/[id]/route.ts`: kitchen y bar también pulsan listo
+  // desde su PWA.
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "kitchen" &&
+      session.user.role !== "bar")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -162,6 +168,27 @@ export async function PATCH(
     type: becameRoundReady ? "order.ready" : "order.updated",
     orderId: item.orderId,
   });
+
+  // Push al mesero cuando este item-bump cierra el round (todos los
+  // platos del round quedan ready). Replicamos el patrón del
+  // /operator/rounds/[id] PATCH para que el aviso llegue sin importar
+  // si la cocina pulsó "Marcar todo listo" o cerró item por item.
+  if (becameRoundReady && item.order.tableId) {
+    void (async () => {
+      const table = await db.table.findUnique({
+        where: { id: item.order.tableId! },
+        select: { number: true, label: true },
+      });
+      if (!table || table.number < 0) return;
+      const where = table.label ?? `Mesa ${table.number}`;
+      await sendPushToMeserosForTable(item.order.restaurantId, table.number, {
+        title: `${where}: listo para entregar`,
+        body: "Pasa por cocina a recoger",
+        tag: `ready-${item.orderId}-${item.roundId}`,
+        url: "/mesero/salon",
+      });
+    })().catch((err) => console.error("[push:item_ready]", err));
+  }
 
   // Auto-print on placed → in_kitchen, for whichever station the item
   // belongs to. We fire one event per (round, station, sub) so the

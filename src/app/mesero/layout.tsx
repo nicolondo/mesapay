@@ -48,7 +48,12 @@ export default async function MeseroLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-paper">
+    <div className="flex flex-col min-h-screen bg-paper">
+      {/* `min-h-screen` (100vh) en vez de `100dvh` — iOS Safari/PWA
+          tiene un bug donde dvh no se computa bien en el primer
+          paint y se "arregla" cuando el usuario intenta scroll,
+          causando que el bottom-nav o el fondo se vea raro al
+          abrir la app. 100vh es estable. */}
       {/* Compact header — restaurant identity + signout. No nav links;
           everything happens in the bottom tabs.
 

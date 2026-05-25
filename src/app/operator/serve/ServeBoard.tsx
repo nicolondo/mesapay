@@ -814,7 +814,7 @@ function CashSettleModal({
 
   return (
     <div
-      className="fixed inset-0 z-20 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
       onClick={onClose}
     >
       <div

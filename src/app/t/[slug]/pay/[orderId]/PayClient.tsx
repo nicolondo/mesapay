@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
-const TIP_OPTIONS = [0, 5, 8, 10, 12] as const;
+// Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
+// implicit social default in Colombia ("propina del 10"); 15% / 20%
+// cubren the "el servicio fue muy bueno" case.
+const TIP_OPTIONS = [0, 5, 10, 15, 20] as const;
 
 type PayMode = "full" | "equal" | "mine";
 

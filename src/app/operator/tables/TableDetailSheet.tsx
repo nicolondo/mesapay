@@ -229,26 +229,24 @@ export function TableDetailSheet({
                           </div>
                         )}
                         <div className="mt-1.5 flex items-center justify-between gap-2">
-                          <div className="text-xs text-op-muted">
-                            {it.servedAt ? (
-                              <span>Entregado</span>
-                            ) : it.kitchenStatus === "ready" ? (
-                              <span>
-                                Listo
-                                {readyElapsed != null && readyElapsed > 0
-                                  ? ` hace ${readyElapsed} min`
-                                  : ""}
-                              </span>
-                            ) : it.kitchenStatus === "in_kitchen" ? (
-                              <span>
-                                Preparando{" "}
-                                {elapsed != null
-                                  ? `· hace ${elapsed} min`
-                                  : ""}
-                              </span>
-                            ) : (
-                              <span>Por preparar</span>
-                            )}
+                          {/* El estado vive solo en el pill de la
+                              derecha (StatusPill arriba). Acá solo
+                              mostramos el elapsed time cuando aporta
+                              info — duplicar "Preparando" / "Por
+                              preparar" gastaba espacio sin valor. */}
+                          <div className="text-[11px] text-op-muted">
+                            {!it.servedAt &&
+                              it.kitchenStatus === "in_kitchen" &&
+                              elapsed != null &&
+                              elapsed > 0 && (
+                                <span>hace {elapsed} min</span>
+                              )}
+                            {!it.servedAt &&
+                              it.kitchenStatus === "ready" &&
+                              readyElapsed != null &&
+                              readyElapsed > 0 && (
+                                <span>listo hace {readyElapsed} min</span>
+                              )}
                           </div>
                           <div className="flex items-center gap-1.5">
                             {/* Cancelar — solo si el item todavía

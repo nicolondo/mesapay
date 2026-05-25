@@ -10,10 +10,19 @@ const schema = z
   .object({
     served: z.boolean().optional(),
     kitchenStatus: z.enum(["placed", "in_kitchen", "ready"]).optional(),
+    // "Apurar" — el mesero le dice a cocina que este plato es urgente
+    // porque el cliente está preguntando. true = setea timestamp now.
+    // No hay forma de "des-apurar" — una vez marcado queda hasta que
+    // el item se mueve a ready (el badge desaparece naturalmente).
+    expedite: z.literal(true).optional(),
   })
-  .refine((d) => d.served !== undefined || d.kitchenStatus !== undefined, {
-    message: "served or kitchenStatus required",
-  });
+  .refine(
+    (d) =>
+      d.served !== undefined ||
+      d.kitchenStatus !== undefined ||
+      d.expedite !== undefined,
+    { message: "served, kitchenStatus or expedite required" },
+  );
 
 export async function PATCH(
   req: Request,
@@ -59,6 +68,19 @@ export async function PATCH(
 
   await db.$transaction(async (tx) => {
     const now = new Date();
+
+    if (parsed.data.expedite === true && !item.expediteRequestedAt) {
+      // Solo registramos el primer apurón — clicks repetidos no
+      // re-pisan el timestamp ni cambian el email. El badge en el
+      // kitchen board se mantiene hasta que el item pasa a ready.
+      await tx.orderItem.update({
+        where: { id: item.id },
+        data: {
+          expediteRequestedAt: now,
+          expediteRequestedByEmail: session.user.email,
+        },
+      });
+    }
 
     if (parsed.data.kitchenStatus !== undefined) {
       const updates: {

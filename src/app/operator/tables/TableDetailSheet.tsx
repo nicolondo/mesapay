@@ -1,0 +1,285 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type ItemDetail = {
+  id: string;
+  name: string;
+  qty: number;
+  priceCents: number;
+  kitchenStatus: "placed" | "in_kitchen" | "ready";
+  preparationStartedAt: string | null;
+  servedAt: string | null;
+  expediteRequestedAt: string | null;
+  guestName: string | null;
+  notes: string | null;
+};
+
+type Round = {
+  id: string;
+  seq: number;
+  // OrderStatus enum incluye más valores que estos pero solo
+  // filtramos por "cancelled" para esconderlas; el resto fluyen.
+  status: string;
+  placedAt: string;
+  items: ItemDetail[];
+};
+
+/**
+ * Detalle de mesa visto por el mesero — sheet bottom-up con cada plato,
+ * su estado actual ("Por preparar / Preparando / Listo / Servido") y el
+ * tiempo en cocina si aplica. Botón "🔥 Apurar" por item en preparación
+ * pinta un badge en el kitchen board.
+ *
+ * Se monta en cada tarjeta de mesa de /operator/tables (que el mesero
+ * ve via re-export /mesero/mesas). La data se fetcheaba ya en el server
+ * page pero estaba comprimida en counts; acá pedimos a un endpoint
+ * lightweight que devuelve los items expandidos cuando el sheet abre.
+ */
+export function TableDetailSheet({
+  orderId,
+  shortCode,
+  tableLabel,
+  initialRounds,
+}: {
+  orderId: string;
+  shortCode: string;
+  tableLabel: string;
+  initialRounds: Round[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [rounds, setRounds] = useState<Round[]>(initialRounds);
+  const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Refresca el detalle cada 15s mientras está abierto — los estados
+  // de cocina cambian y queremos que el mesero vea ETA actualizada
+  // sin tener que cerrar/reabrir.
+  useEffect(() => {
+    if (!open) return;
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/operator/orders/${orderId}/detail`);
+        if (!r.ok) return;
+        const j = (await r.json()) as { rounds: Round[] };
+        setRounds(j.rounds);
+      } catch {}
+    };
+    void tick();
+    const h = setInterval(tick, 15_000);
+    return () => clearInterval(h);
+  }, [open, orderId]);
+
+  async function expedite(itemId: string) {
+    setPendingExpedite((s) => new Set(s).add(itemId));
+    try {
+      const r = await fetch(`/api/operator/order-items/${itemId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expedite: true }),
+      });
+      if (r.ok) {
+        // Optimistically marcar el item como expedited localmente.
+        const stamp = new Date().toISOString();
+        setRounds((prev) =>
+          prev.map((rd) => ({
+            ...rd,
+            items: rd.items.map((it) =>
+              it.id === itemId ? { ...it, expediteRequestedAt: stamp } : it,
+            ),
+          })),
+        );
+      }
+    } finally {
+      setPendingExpedite((s) => {
+        const next = new Set(s);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  }
+
+  // Aplanamos rondas pero conservamos el seq como header — útil para
+  // mostrar "Ronda 2" cuando el cliente pidió segunda vuelta.
+  const visibleRounds = rounds.filter((r) => r.status !== "cancelled");
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 w-full text-xs text-op-muted hover:text-op-text underline-offset-2 hover:underline text-left"
+      >
+        Ver detalle del pedido →
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full md:max-w-lg bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                  {tableLabel} · {shortCode}
+                </div>
+                <h2 className="font-display text-2xl mt-1">Estado del pedido</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-muted text-sm shrink-0"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            {visibleRounds.length === 0 && (
+              <div className="text-sm text-op-muted">
+                No hay platos activos.
+              </div>
+            )}
+
+            {visibleRounds.map((round) => (
+              <section key={round.id} className="space-y-2">
+                {visibleRounds.length > 1 && (
+                  <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                    Ronda {round.seq}
+                  </div>
+                )}
+                <ul className="space-y-2">
+                  {round.items.map((it) => {
+                    const elapsed = it.preparationStartedAt
+                      ? minutesSince(it.preparationStartedAt)
+                      : null;
+                    const readyElapsed = it.servedAt
+                      ? null
+                      : it.kitchenStatus === "ready" && it.preparationStartedAt
+                        ? minutesSince(it.preparationStartedAt)
+                        : null;
+                    const canExpedite =
+                      !it.servedAt &&
+                      it.kitchenStatus !== "ready" &&
+                      !it.expediteRequestedAt;
+                    return (
+                      <li
+                        key={it.id}
+                        className="rounded-xl border border-hairline bg-op-surface p-3"
+                      >
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-mono tabular text-muted shrink-0">
+                            {it.qty}×
+                          </span>
+                          <span className="flex-1 text-sm font-medium">
+                            {it.name}
+                          </span>
+                          <StatusPill
+                            status={
+                              it.servedAt
+                                ? "served"
+                                : (it.kitchenStatus as
+                                    | "placed"
+                                    | "in_kitchen"
+                                    | "ready")
+                            }
+                          />
+                        </div>
+                        {(it.notes || it.guestName) && (
+                          <div className="mt-1 text-xs text-op-muted flex gap-2 flex-wrap">
+                            {it.guestName && (
+                              <span className="font-mono tracking-wider uppercase text-[10px]">
+                                {it.guestName}
+                              </span>
+                            )}
+                            {it.notes && <span>“{it.notes}”</span>}
+                          </div>
+                        )}
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <div className="text-xs text-op-muted">
+                            {it.servedAt ? (
+                              <span>Entregado</span>
+                            ) : it.kitchenStatus === "ready" ? (
+                              <span>
+                                Listo
+                                {readyElapsed != null && readyElapsed > 0
+                                  ? ` hace ${readyElapsed} min`
+                                  : ""}
+                              </span>
+                            ) : it.kitchenStatus === "in_kitchen" ? (
+                              <span>
+                                Preparando{" "}
+                                {elapsed != null
+                                  ? `· hace ${elapsed} min`
+                                  : ""}
+                              </span>
+                            ) : (
+                              <span>Por preparar</span>
+                            )}
+                          </div>
+                          {it.expediteRequestedAt ? (
+                            <span className="font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-2 py-0.5 rounded-full">
+                              🔥 Apurado
+                            </span>
+                          ) : canExpedite ? (
+                            <button
+                              type="button"
+                              onClick={() => expedite(it.id)}
+                              disabled={pendingExpedite.has(it.id)}
+                              className="font-mono text-[10px] tracking-wider uppercase border border-terracotta/40 text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full disabled:opacity-40"
+                            >
+                              {pendingExpedite.has(it.id)
+                                ? "Avisando…"
+                                : "🔥 Apurar"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+
+            <p className="text-[10px] text-op-muted">
+              El detalle se actualiza automáticamente cada 15 segundos.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function StatusPill({
+  status,
+}: {
+  status: "placed" | "in_kitchen" | "ready" | "served";
+}) {
+  const map: Record<typeof status, { label: string; cls: string }> = {
+    placed: { label: "Por preparar", cls: "bg-op-bg text-op-muted" },
+    in_kitchen: { label: "Preparando", cls: "bg-[#C98A2E]/15 text-[#8F6828]" },
+    ready: { label: "Listo", cls: "bg-ok/15 text-ok" },
+    served: { label: "Servido", cls: "bg-op-bg text-op-muted" },
+  };
+  const m = map[status];
+  return (
+    <span
+      className={
+        "shrink-0 font-mono text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-full " +
+        m.cls
+      }
+    >
+      {m.label}
+    </span>
+  );
+}
+
+function minutesSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+}

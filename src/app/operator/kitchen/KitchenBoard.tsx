@@ -22,6 +22,9 @@ type Item = {
   prepMinutesSnapshot: number;
   preparationStartedAt: string | null;
   servedAt: string | null;
+  // Apurar: el mesero pulsó "🔥 Apurar" desde Mesas. El kitchen
+  // board pinta un badge urgente para que el cocinero priorice.
+  expediteRequestedAt: string | null;
 };
 
 type Round = {
@@ -492,6 +495,19 @@ function ItemRow({
             }
           >
             <span className="font-mono">{item.qty}×</span> {item.name}
+            {item.expediteRequestedAt && !served && (
+              // 🔥 = "el mesero pidió apurar este plato". El cocinero
+              // lo prioriza visualmente sin tener que cambiar de orden.
+              // Cuando el item pasa a ready/served el badge desaparece
+              // por el `!served` guard (y porque deja de mostrarse en
+              // el board en la mayoría de columnas).
+              <span
+                className="ml-2 font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-1.5 py-0.5 rounded"
+                title={`Apurado a las ${new Date(item.expediteRequestedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+              >
+                🔥 Apurar
+              </span>
+            )}
             {item.modifiers.length > 0 && (
               // One line per modifier group ("Adición: Carne, Pollo") —
               // far easier to scan from a kitchen pass than a single

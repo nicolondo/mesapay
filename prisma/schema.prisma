@@ -502,6 +502,13 @@ model OrderItem {
   preparationStartedAt DateTime?
   servedAt             DateTime?
 
+  // "Apurar" — el mesero / operador marca un plato como urgente
+  // desde la vista de mesa cuando el cliente pregunta dónde está
+  // su comida. Se refleja en el kitchen board como badge 🔥 +
+  // ordena el item arriba en su round. Null = no apurado (default).
+  expediteRequestedAt      DateTime?
+  expediteRequestedByEmail String?
+
   rating DishRating?
 
   @@index([orderId])

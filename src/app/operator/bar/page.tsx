@@ -123,6 +123,9 @@ export default async function BarPage({
             ? i.preparationStartedAt.toISOString()
             : null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
+          expediteRequestedAt: i.expediteRequestedAt
+            ? i.expediteRequestedAt.toISOString()
+            : null,
         })),
       }))}
       />

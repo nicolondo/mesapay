@@ -70,6 +70,11 @@ export default async function KitchenPage() {
             ? i.preparationStartedAt.toISOString()
             : null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
+          // Marca de "apurar" del mesero — el board la pinta como
+          // badge urgente. Stringificada para serializarla al cliente.
+          expediteRequestedAt: i.expediteRequestedAt
+            ? i.expediteRequestedAt.toISOString()
+            : null,
         })),
       }))}
     />

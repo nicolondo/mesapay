@@ -6,6 +6,7 @@ import { getMeseroScope } from "@/lib/meseroScope";
 import { TableActions } from "./TableActions";
 import { NewTableForm } from "./NewTableForm";
 import { DeleteTableButton, EditLabelButton } from "./TableAdminActions";
+import { TableDetailSheet } from "./TableDetailSheet";
 import { LiveRefresh } from "../LiveRefresh";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
@@ -68,6 +69,14 @@ export default async function TablesPage() {
             where: {
               OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
             },
+          },
+          // Rondas con items para hidratar el detail sheet del mesero
+          // sin un round-trip extra al cliente. Filtramos cancelled
+          // como en items.
+          rounds: {
+            where: { status: { not: "cancelled" } },
+            orderBy: { seq: "asc" },
+            include: { items: { orderBy: { id: "asc" } } },
           },
           // Approved payments feed the "Cobrar la cuenta" CTA — when
           // the diner already settled the full bill we hide the button.
@@ -278,6 +287,39 @@ export default async function TablesPage() {
                       />
                     );
                   })()}
+                  {itemCount > 0 && (
+                    <TableDetailSheet
+                      orderId={order.id}
+                      shortCode={order.shortCode}
+                      tableLabel={
+                        counterMode ? "Mostrador" : `Mesa ${t.number}`
+                      }
+                      initialRounds={order.rounds.map((r) => ({
+                        id: r.id,
+                        seq: r.seq,
+                        status: r.status,
+                        placedAt: r.placedAt.toISOString(),
+                        items: r.items.map((i) => ({
+                          id: i.id,
+                          name: i.nameSnapshot,
+                          qty: i.qty,
+                          priceCents: i.priceCentsSnapshot,
+                          kitchenStatus: i.kitchenStatus,
+                          preparationStartedAt: i.preparationStartedAt
+                            ? i.preparationStartedAt.toISOString()
+                            : null,
+                          servedAt: i.servedAt
+                            ? i.servedAt.toISOString()
+                            : null,
+                          expediteRequestedAt: i.expediteRequestedAt
+                            ? i.expediteRequestedAt.toISOString()
+                            : null,
+                          guestName: i.guestName ?? null,
+                          notes: i.notes ?? null,
+                        })),
+                      }))}
+                    />
+                  )}
                 </div>
               )}
 

@@ -1,5 +1,18 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+
+/** Ver `src/app/mesero/layout.tsx` para el racional. */
+export const metadata: Metadata = {
+  title: "MP BAR",
+  applicationName: "MP BAR",
+  manifest: "/api/manifest/bar",
+  appleWebApp: {
+    capable: true,
+    title: "MP BAR",
+    statusBarStyle: "black-translucent",
+  },
+};
 
 /**
  * Bar-only layout — same single-purpose pattern as /cocina. Drops the
@@ -28,8 +41,9 @@ export default async function BarLayout({
       <header
         className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
         style={{
+          // Ver `src/app/mesero/layout.tsx`.
           paddingTop:
-            "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
+            "max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3rem)",
         }}
       >
         <div className="font-display text-lg">Bar</div>

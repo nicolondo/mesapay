@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type Status =
   | "unsupported"
+  | "not_configured"
   | "default"
   | "denied"
   | "granted"
@@ -76,10 +77,14 @@ export function PushSetup() {
             return;
           }
           // Permission granted but no sub — subscribe now.
-          const sub = await subscribe(reg);
+          const result = await subscribe(reg);
           if (cancelled) return;
-          if (sub) {
-            await persistSubscription(sub).catch(() => undefined);
+          if (result.kind === "not_configured") {
+            setStatus("not_configured");
+            return;
+          }
+          if (result.kind === "ok" && result.sub) {
+            await persistSubscription(result.sub).catch(() => undefined);
             setStatus("subscribed");
           } else {
             setStatus("error");
@@ -109,12 +114,18 @@ export function PushSetup() {
         return;
       }
       const reg = await navigator.serviceWorker.ready;
-      const sub = await subscribe(reg);
-      if (!sub) {
+      const result = await subscribe(reg);
+      if (result.kind === "not_configured") {
+        // VAPID no está seteado en el server todavía. No es un error
+        // del mesero; ocultamos el banner hasta que ops lo configure.
+        setStatus("not_configured");
+        return;
+      }
+      if (result.kind === "error" || !result.sub) {
         setStatus("error");
         return;
       }
-      await persistSubscription(sub);
+      await persistSubscription(result.sub);
       setStatus("subscribed");
     } catch (err) {
       console.error("[PushSetup] enable failed", err);
@@ -123,7 +134,13 @@ export function PushSetup() {
   }
 
   // No UI when nothing actionable is left.
-  if (status === "subscribed" || status === "unsupported") return null;
+  if (
+    status === "subscribed" ||
+    status === "unsupported" ||
+    status === "not_configured"
+  ) {
+    return null;
+  }
 
   return (
     <div className="border-b border-hairline bg-ivory px-4 py-2.5 flex items-center justify-between gap-3">
@@ -153,20 +170,35 @@ export function PushSetup() {
   );
 }
 
+type SubscribeResult =
+  | { kind: "ok"; sub: PushSubscription }
+  | { kind: "not_configured" }
+  | { kind: "error" };
+
 async function subscribe(
   reg: ServiceWorkerRegistration,
-): Promise<PushSubscription | null> {
+): Promise<SubscribeResult> {
   const res = await fetch("/api/push/vapid-key");
-  if (!res.ok) return null;
+  // 503 = server-side VAPID no configurado. Distinto a un error
+  // real porque no hay nada que el mesero pueda hacer; lo manejamos
+  // ocultando el banner.
+  if (res.status === 503) return { kind: "not_configured" };
+  if (!res.ok) return { kind: "error" };
   const { publicKey } = (await res.json()) as { publicKey?: string };
-  if (!publicKey) return null;
-  return reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    // Cast to BufferSource — DOM types for applicationServerKey are
-    // overly strict about SharedArrayBuffer that Uint8Array doesn't
-    // even use here.
-    applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-  });
+  if (!publicKey) return { kind: "not_configured" };
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      // Cast to BufferSource — DOM types for applicationServerKey are
+      // overly strict about SharedArrayBuffer that Uint8Array doesn't
+      // even use here.
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+    });
+    return { kind: "ok", sub };
+  } catch (err) {
+    console.error("[PushSetup] subscribe failed", err);
+    return { kind: "error" };
+  }
 }
 
 async function persistSubscription(sub: PushSubscription): Promise<void> {

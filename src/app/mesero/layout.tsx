@@ -1,7 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { PushSetup } from "./PushSetup";
+
+/**
+ * Override del root metadata. Cuando un mesero hace "Add to Home
+ * Screen" desde su iPhone, el icono lleva el título de
+ * `apple-mobile-web-app-title` (iOS) y el `short_name` del manifest
+ * (Android). Apuntamos a un manifest distinto que carga "MP MESERO"
+ * para diferenciarlo del PWA del cliente (MESAPAY).
+ */
+export const metadata: Metadata = {
+  title: "MP MESERO",
+  applicationName: "MP MESERO",
+  manifest: "/api/manifest/mesero",
+  appleWebApp: {
+    capable: true,
+    title: "MP MESERO",
+    statusBarStyle: "black-translucent",
+  },
+};
 
 /**
  * Mesero layout — mobile-first PWA wrapper. Reaches into the diner side
@@ -43,8 +62,11 @@ export default async function MeseroLayout({
       <header
         className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-3"
         style={{
+          // En PWA standalone iOS devuelve ~47px+. En Safari browser
+          // tab a veces devuelve 0 — el `max()` garantiza que el
+          // título nunca quede tapado por el reloj del sistema.
           paddingTop:
-            "calc(env(safe-area-inset-top, 0px) + 0.75rem)",
+            "max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 3.25rem)",
         }}
       >
         <div className="font-display text-lg">Mesero</div>

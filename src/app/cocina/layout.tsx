@@ -1,5 +1,18 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+
+/** Ver `src/app/mesero/layout.tsx` para el racional. */
+export const metadata: Metadata = {
+  title: "MP COCINA",
+  applicationName: "MP COCINA",
+  manifest: "/api/manifest/cocina",
+  appleWebApp: {
+    capable: true,
+    title: "MP COCINA",
+    statusBarStyle: "black-translucent",
+  },
+};
 
 /**
  * Cocina-only layout — no top nav, no chrome. The cook opens the app,
@@ -31,8 +44,9 @@ export default async function CocinaLayout({
       <header
         className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
         style={{
+          // Ver `src/app/mesero/layout.tsx`.
           paddingTop:
-            "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
+            "max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3rem)",
         }}
       >
         <div className="font-display text-lg">Cocina</div>

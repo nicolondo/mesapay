@@ -150,51 +150,58 @@ export default async function RestaurantDetail({
         <Stat label="Órdenes" value={counts?._count.orders ?? 0} />
       </div>
 
-      <div className="rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            Facturación
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusPill status={status} />
-            <SuspendButton restaurantId={id} suspended={rest.suspended} />
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <Row label="Plan">{PLAN_LABEL[rest.plan]}</Row>
-            <Row label="Mensualidad">
-              {rest.monthlyPriceCents > 0
-                ? fmtCOP(rest.monthlyPriceCents)
-                : "Sin costo"}
-            </Row>
-            <Row label="Periodo hasta">
-              {rest.periodEndsAt
-                ? fmtBogotaDateTime(rest.periodEndsAt).date
-                : "—"}
-            </Row>
-            {rest.periodEndsAt && (
-              <Row label="Días restantes">
-                <DaysLeft date={rest.periodEndsAt} />
-              </Row>
-            )}
-          </div>
-          <div>
-            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-              Plan
+      <div className="rounded-2xl border border-op-border bg-op-surface mb-4 overflow-hidden">
+        {/* Section 1 — plan + estado del periodo */}
+        <div className="p-5">
+          <div className="flex items-start justify-between mb-5">
+            <div>
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+                Plan y facturación
+              </div>
+              <div className="font-display text-2xl mt-1">
+                {PLAN_LABEL[rest.plan]}{" "}
+                <span className="text-op-muted text-base font-sans">
+                  ·{" "}
+                  {rest.monthlyPriceCents > 0
+                    ? `${fmtCOP(rest.monthlyPriceCents)}/mes`
+                    : "Sin costo"}
+                </span>
+              </div>
             </div>
-            <PlanEditor
-              restaurantId={id}
-              plan={rest.plan}
-              monthlyPriceCents={rest.monthlyPriceCents}
+            <div className="flex items-center gap-2">
+              <StatusPill status={status} />
+              <SuspendButton restaurantId={id} suspended={rest.suspended} />
+            </div>
+          </div>
+
+          <PlanEditor
+            restaurantId={id}
+            plan={rest.plan}
+            monthlyPriceCents={rest.monthlyPriceCents}
+          />
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <MiniStat
+              label="Vence"
+              value={
+                rest.periodEndsAt
+                  ? fmtBogotaDateTime(rest.periodEndsAt).date
+                  : "—"
+              }
+            />
+            <MiniStat
+              label="Días restantes"
+              value={
+                rest.periodEndsAt ? <DaysLeft date={rest.periodEndsAt} /> : "—"
+              }
             />
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-op-border">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-            Registrar pago
+        {/* Section 2 — registrar pago manual */}
+        <div className="p-5 border-t border-op-border bg-op-bg/30">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
+            Registrar pago manual
           </div>
           <RecordPaymentForm
             restaurantId={id}
@@ -202,9 +209,10 @@ export default async function RestaurantDetail({
           />
         </div>
 
-        <div className="mt-5 pt-4 border-t border-op-border">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-            Historial ({payments.length})
+        {/* Section 3 — historial */}
+        <div className="p-5 border-t border-op-border">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
+            Historial · {payments.length}
           </div>
           {payments.length === 0 ? (
             <div className="text-sm text-op-muted">Sin pagos registrados.</div>
@@ -213,25 +221,25 @@ export default async function RestaurantDetail({
               {payments.map((p) => (
                 <li
                   key={p.id}
-                  className="py-2 flex items-start justify-between text-sm gap-4"
+                  className="py-3 flex items-start justify-between text-sm gap-4"
                 >
-                  <div>
-                    <div className="font-mono tabular">
-                      {fmtCOP(p.amountCents)}{" "}
-                      <span className="text-op-muted">
-                        · {METHOD_LABEL[p.method] ?? p.method}
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="font-mono tabular font-medium">
+                        {fmtCOP(p.amountCents)}
+                      </span>
+                      <span className="text-[11px] text-op-muted">
+                        {METHOD_LABEL[p.method] ?? p.method}
                       </span>
                     </div>
-                    <div className="font-mono text-[11px] text-op-muted">
+                    <div className="font-mono text-[11px] text-op-muted mt-0.5">
                       {fmtBogotaDateTime(p.periodStart).date} →{" "}
-                      {fmtBogotaDateTime(p.periodEnd).date} · registrado por{" "}
-                      {p.recordedByEmail}
+                      {fmtBogotaDateTime(p.periodEnd).date}
                     </div>
-                    {p.note && (
-                      <div className="text-[11px] text-op-muted mt-0.5">
-                        {p.note}
-                      </div>
-                    )}
+                    <div className="text-[11px] text-op-muted mt-0.5">
+                      Por {p.recordedByEmail}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </div>
                   </div>
                   <div className="font-mono text-[10px] text-op-muted shrink-0">
                     {fmtBogotaDateTime(p.createdAt).date}
@@ -358,6 +366,23 @@ function Stat({ label, value }: { label: string; value: number }) {
         {label}
       </div>
       <div className="font-display text-2xl mt-1">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-op-border bg-op-bg/40 px-3 py-2">
+      <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
+        {label}
+      </div>
+      <div className="text-sm mt-0.5">{value}</div>
     </div>
   );
 }

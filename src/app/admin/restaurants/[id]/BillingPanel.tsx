@@ -58,52 +58,62 @@ export function PlanEditor({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap">
-        {PLAN_OPTIONS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => {
-              setSelected(p.value);
-              if (p.value !== plan) {
-                setPriceCop(String(Math.round(p.suggestedPriceCents / 100)));
-              } else {
-                setPriceCop(String(Math.round(monthlyPriceCents / 100)));
+    <div className="space-y-4">
+      <div>
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+          Plan
+        </div>
+        <div className="inline-flex p-1 rounded-full bg-op-bg border border-op-border">
+          {PLAN_OPTIONS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => {
+                setSelected(p.value);
+                if (p.value !== plan) {
+                  setPriceCop(String(Math.round(p.suggestedPriceCents / 100)));
+                } else {
+                  setPriceCop(String(Math.round(monthlyPriceCents / 100)));
+                }
+              }}
+              className={
+                "h-8 px-4 rounded-full text-xs font-medium transition-colors " +
+                (selected === p.value
+                  ? "bg-ink text-bone"
+                  : "text-op-muted hover:text-op-text")
               }
-            }}
-            className={
-              "h-8 px-3 rounded-full text-xs border " +
-              (selected === p.value
-                ? "bg-ink text-bone border-ink"
-                : "bg-op-bg border-op-border")
-            }
-          >
-            {p.label}
-          </button>
-        ))}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+      <div>
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
           Mensualidad
-        </span>
-        <input
-          type="number"
-          value={priceCop}
-          onChange={(e) => setPriceCop(e.target.value)}
-          min={0}
-          step={1000}
-          className="h-9 w-36 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular"
-        />
-        <span className="text-op-muted text-xs">COP / mes</span>
-      </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-op-muted text-sm">$</span>
+          <input
+            type="number"
+            value={priceCop}
+            onChange={(e) => setPriceCop(e.target.value)}
+            min={0}
+            step={1000}
+            className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
+          />
+          <span className="text-op-muted text-xs">COP / mes</span>
+        </div>
+      </div>
       {err && <div className="text-danger text-xs">{err}</div>}
-      <button
-        onClick={save}
-        disabled={busy || !dirty}
-        className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
-      >
-        {busy ? "Guardando…" : "Guardar plan"}
-      </button>
+      <div className="flex">
+        <button
+          onClick={save}
+          disabled={busy || !dirty}
+          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {busy ? "Guardando…" : "Guardar plan"}
+        </button>
+      </div>
     </div>
   );
 }

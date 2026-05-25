@@ -449,35 +449,22 @@ export function PayClient({
       )}
 
       {!isCounter && operatorMode && (
+        // Toggle único compacto. Default = Todo (la inmensa mayoría de
+        // los cobros del mesero son la cuenta entera). Si el cliente
+        // dice "mitad y mitad" el mesero pulsa el link y el modo
+        // cambia a Partes iguales (el contador +/- aparece abajo).
+        // Pulsar otra vez vuelve a Todo. Un único control en vez de
+        // dos botones grandes ahorra espacio en mobile.
         <div className="mt-6">
-          {mode === "full" ? (
-            // Caso default — la cuenta entera. Solo un link discreto
-            // para dividir; el grueso del flow va directo al breakdown.
-            <button
-              type="button"
-              onClick={() => setMode("equal")}
-              className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted underline"
-            >
-              Dividir en partes iguales
-            </button>
-          ) : (
-            // Mesero abrió el split — mostramos los 2 modos en
-            // botones compactos para que pueda volver a "Todo" fácil.
-            <div className="grid gap-2 grid-cols-2">
-              <ModeButton
-                active={mode === "full"}
-                label="Todo"
-                hint="La cuenta completa"
-                onClick={() => setMode("full")}
-              />
-              <ModeButton
-                active={mode === "equal"}
-                label="Partes iguales"
-                hint="Divide por N"
-                onClick={() => setMode("equal")}
-              />
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setMode(mode === "full" ? "equal" : "full")}
+            className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted underline"
+          >
+            {mode === "full"
+              ? "Dividir en partes iguales"
+              : "Volver a cobrar todo"}
+          </button>
         </div>
       )}
 

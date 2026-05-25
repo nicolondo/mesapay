@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 
 // Anthropic's PDF input cap is 32 MB / 100 pages. We allow 45 MB at
 // the upload edge so a scanned wine list with image-heavy pages can
@@ -62,10 +63,12 @@ export async function POST(req: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const tags = await getRestaurantMenuTags(restaurantId);
   const extraction = await extractMenuFromDocument(
     file.type === "application/pdf"
       ? { kind: "pdf", data: buffer }
       : { kind: "image", data: buffer, mimeType: file.type },
+    tags.map((t) => t.slug),
   );
 
   // Provide the existing categories so the review UI can suggest reuse.

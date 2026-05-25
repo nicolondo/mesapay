@@ -4,8 +4,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-
-const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
+import { MAX_TAGS_PER_ITEM, SLUG_REGEX } from "@/lib/menuTags";
 
 // Accept both shapes for the option list:
 //   "Pollo"                            (legacy, no price delta)
@@ -50,7 +49,11 @@ const patchSchema = z.object({
     .startsWith("/uploads/")
     .nullable()
     .optional(),
-  tags: z.array(z.enum(TAGS)).max(5).optional(),
+  // Tags are now a per-restaurant registry (see /operator/settings/etiquetas),
+  // so we only enforce shape here — that they look like slugs. The
+  // diner-side renderer ignores unknown slugs, so a desync between an
+  // item's tags and the registry never breaks the page.
+  tags: z.array(z.string().regex(SLUG_REGEX)).max(MAX_TAGS_PER_ITEM).optional(),
   modifiers: z.array(modifierSchema).max(8).nullable().optional(),
   prepMinutes: z.number().int().min(1).max(120).optional(),
   // Override the category's default station for this specific item.

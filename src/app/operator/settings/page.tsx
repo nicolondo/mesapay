@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { resolveMenuTags } from "@/lib/menuTags";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function SettingsPage() {
       kushkiMerchantId: true,
       kushkiOnboardingStatus: true,
       hasBar: true,
+      menuTags: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
@@ -23,6 +25,7 @@ export default async function SettingsPage() {
   const stationsCount = await db.category.count({
     where: { restaurantId, prepStation: { not: "kitchen" } },
   });
+  const tagCount = resolveMenuTags(tenant.menuTags).length;
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -50,6 +53,13 @@ export default async function SettingsPage() {
               ? "bg-ok/15 text-ok"
               : "bg-op-bg text-op-muted"
           }
+        />
+        <SettingCard
+          href="/operator/settings/etiquetas"
+          title="Etiquetas de platos"
+          subtitle="De la casa, Favorito, Vegetariano… o las que tú definas"
+          badge={`${tagCount} ${tagCount === 1 ? "etiqueta" : "etiquetas"}`}
+          tint="bg-paper text-op-muted"
         />
         <SettingCard
           href="/operator/settings/estaciones"

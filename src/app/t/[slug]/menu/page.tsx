@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -45,11 +46,14 @@ export default async function MenuPage({
   // category points at one. ensureDefaultMenu is idempotent — on
   // first-ever read it creates the Carta and backfills null menuIds.
   await ensureDefaultMenu(tenant.id);
-  const menus = await db.menu.findMany({
-    where: { restaurantId: tenant.id },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, slug: true, label: true, description: true },
-  });
+  const [menus, menuTags] = await Promise.all([
+    db.menu.findMany({
+      where: { restaurantId: tenant.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, slug: true, label: true, description: true },
+    }),
+    getRestaurantMenuTags(tenant.id),
+  ]);
 
   // Aggregate ratings per menu item so each card can show a star average.
   // Customers never see the comments here — just the numbers.
@@ -108,6 +112,7 @@ export default async function MenuPage({
           : `Mesa ${table.number}`
       }
       menus={menus}
+      menuTags={menuTags}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,

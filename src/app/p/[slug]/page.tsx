@@ -7,6 +7,7 @@ import {
   pickupStatus,
 } from "@/lib/pickupAvailability";
 import { normalizeModifiers } from "@/lib/modifiers";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { MenuClient } from "../../t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,8 @@ export default async function PickupPage({
     ]),
   );
 
+  const menuTags = await getRestaurantMenuTags(tenant.id);
+
   const session = await auth();
   const customer = session?.user?.id
     ? await db.user.findUnique({
@@ -114,6 +117,7 @@ export default async function PickupPage({
       }}
       tableId={pickupTable.id}
       locationLabel="Recogida"
+      menuTags={menuTags}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { checkUrlSafe } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
@@ -213,24 +214,35 @@ export async function POST(req: Request) {
     );
   }
 
+  const restaurantTags = await getRestaurantMenuTags(restaurantId);
+  const allowedTagSlugs = restaurantTags.map((t) => t.slug);
   const extraction = await (async () => {
     if (contentType === "application/pdf") {
-      return extractMenuFromDocument({ kind: "pdf", data: buffer });
+      return extractMenuFromDocument(
+        { kind: "pdf", data: buffer },
+        allowedTagSlugs,
+      );
     }
     if (contentType.startsWith("image/")) {
-      return extractMenuFromDocument({
-        kind: "image",
-        data: buffer,
-        mimeType: contentType,
-      });
+      return extractMenuFromDocument(
+        {
+          kind: "image",
+          data: buffer,
+          mimeType: contentType,
+        },
+        allowedTagSlugs,
+      );
     }
     // HTML path
     const html = buffer.toString("utf-8");
-    return extractMenuFromDocument({
-      kind: "html",
-      text: html,
-      sourceUrl: finalUrl,
-    });
+    return extractMenuFromDocument(
+      {
+        kind: "html",
+        text: html,
+        sourceUrl: finalUrl,
+      },
+      allowedTagSlugs,
+    );
   })();
 
   // Download any external photo URLs Claude found and rewrite to local

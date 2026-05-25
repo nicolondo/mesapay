@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { ensureDefaultMenu } from "@/lib/menus";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { MenuImportClient } from "./MenuImportClient";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function MenuImportPage() {
   // always has a valid target.
   await ensureDefaultMenu(restaurantId);
 
-  const [existingCategories, menus] = await Promise.all([
+  const [existingCategories, menus, menuTags] = await Promise.all([
     db.category.findMany({
       where: { restaurantId },
       orderBy: { sortOrder: "asc" },
@@ -30,6 +31,7 @@ export default async function MenuImportPage() {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: { id: true, label: true, slug: true },
     }),
+    getRestaurantMenuTags(restaurantId),
   ]);
 
   return (
@@ -37,6 +39,7 @@ export default async function MenuImportPage() {
       tenantName={tenant.name}
       initialCategories={existingCategories}
       menus={menus}
+      menuTags={menuTags}
     />
   );
 }

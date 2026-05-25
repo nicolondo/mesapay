@@ -35,7 +35,9 @@ export type BankCertExtraction = z.infer<typeof BankCertSchema>;
 
 // Menu import — extract dishes from a PDF / photo. The model decides
 // categories + items + tags; the operator reviews before we touch the DB.
-const MenuTag = z.enum(["firma", "popular", "veg", "spicy", "nuevo"]);
+// Tags are now configured per restaurant; we accept any non-empty slug
+// here and filter at the import-preview step so the operator sees only
+// tags that match their registry.
 const CategoryKind = z.enum([
   "starter",
   "main",
@@ -52,7 +54,7 @@ const ExtractedMenuItem = z.object({
   // returns either "$25.000" or 25000 — we ask for cents directly.
   priceCents: z.number().int().min(0).max(100_000_000),
   categorySlug: z.string().min(1).max(60),
-  tags: z.array(MenuTag).default([]),
+  tags: z.array(z.string().min(1).max(32)).default([]),
   // For HTML imports: the absolute URL of the dish photo when one is
   // visible near the item in the source page. Server-side we download
   // these to UPLOAD_DIR and rewrite to local paths before sending to the
@@ -78,7 +80,20 @@ export type ExtractedMenuItemType = z.infer<typeof ExtractedMenuItem>;
 export type ExtractedCategoryType = z.infer<typeof ExtractedCategory>;
 export type MenuExtraction = z.infer<typeof MenuExtractionSchema>;
 
-const MENU_SYSTEM = `Eres un asistente que extrae la información estructurada de una carta de restaurante (Colombia).
+function buildMenuSystem(allowedTagSlugs: string[]): string {
+  // Inject the restaurant's current tag registry into the prompt so the
+  // model picks from THEIR slugs rather than the legacy hardcoded five.
+  // Empty list → instruct the model to leave tags empty.
+  const tagsRule =
+    allowedTagSlugs.length > 0
+      ? `- tags: usa SOLO estos slugs (lista cerrada de este restaurante): ${allowedTagSlugs
+          .map((s) => `"${s}"`)
+          .join(
+            ", ",
+          )}. Solo si se ve claro en la carta. Si no estás seguro, omite el tag. Default: [].`
+      : "- tags: este restaurante no tiene etiquetas configuradas. Devuelve siempre [].";
+  const tagsExample = allowedTagSlugs.length > 0 ? allowedTagSlugs : ["firma"];
+  return `Eres un asistente que extrae la información estructurada de una carta de restaurante (Colombia).
 Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
 
 {
@@ -96,7 +111,7 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "description": "Corvina curada en limón…" | null,
       "priceCents": 3800000,             // en CENTAVOS de peso colombiano: $38.000 -> 3800000
       "categorySlug": "para-empezar",
-      "tags": ["firma", "popular", "veg", "spicy", "nuevo"],  // 0..N de esa lista exacta
+      "tags": ${JSON.stringify(tagsExample)},  // 0..N de la lista permitida abajo
       "photoUrl": "https://restaurante.com/imgs/ceviche.jpg" | null,
       "confidence": 0.9                   // 0..1, qué tan seguro estás de este plato
     }
@@ -109,16 +124,22 @@ Reglas estrictas:
 - Si no hay precio claro, omite el plato.
 - categorySlug debe coincidir con un slug en "categories". Crea categorías si la carta no las tiene explícitas — agrúpalas por sentido común (entradas, principales, postres, bebidas, etc.).
 - kind: starter (entradas), main (fuertes), side (acompañamientos), drink (bebidas), dessert (postres), other.
-- tags: usa la lista cerrada. "firma" = especialidad de la casa; "popular" = best-seller; "veg" = vegetariano; "spicy" = picante; "nuevo" = nuevo. Solo si se ve claro en la carta. Default: [].
+${tagsRule}
 - description: tal cual aparece, o null si no hay.
 - photoUrl: si en el HTML hay una etiqueta <img src="..."> de la foto del plato cerca del nombre y precio, incluye la URL ABSOLUTA (http o https). Si no hay foto o no estás seguro de cuál corresponde, null. NO inventes URLs. NO uses data: URIs. Solo aplica a HTML — en PDFs/imágenes deja null.
 - Si la carta tiene varias páginas / fotos, procesa todo.
 - Si algo no se entiende, baja la confidence y mete una nota en "notes".`;
+}
 
 export async function extractMenuFromDocument(
   source: Source,
+  // List of tag slugs the operator has configured for this restaurant.
+  // Optional for back-compat (callers that haven't been wired yet fall
+  // back to the legacy hardcoded five so behaviour doesn't change).
+  allowedTagSlugs: string[] = ["firma", "popular", "veg", "spicy", "nuevo"],
 ): Promise<MenuExtraction> {
   const c = getClient();
+  const systemPrompt = buildMenuSystem(allowedTagSlugs);
 
   let content: Anthropic.Messages.ContentBlockParam[];
 
@@ -234,7 +255,7 @@ export async function extractMenuFromDocument(
     system: [
       {
         type: "text",
-        text: MENU_SYSTEM,
+        text: systemPrompt,
         cache_control: { type: "ephemeral" },
       },
     ],

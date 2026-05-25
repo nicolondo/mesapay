@@ -4,9 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import type { MenuTag } from "@/lib/menuTags";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
-type Tag = "firma" | "popular" | "veg" | "spicy" | "nuevo";
+// Tag slugs are now per-restaurant. We treat the extracted/edited value
+// as a plain string and filter against the registry at render time.
+type Tag = string;
 
 type ExistingCategory = {
   id: string;
@@ -44,14 +47,6 @@ type EditableItem = ExtractedItem & {
   selected: boolean;
 };
 
-const TAG_LABELS: Record<Tag, string> = {
-  firma: "De la casa",
-  popular: "Favorito",
-  veg: "Vegetariano",
-  spicy: "Picante",
-  nuevo: "Nuevo",
-};
-
 const KIND_LABELS: Record<CategoryKind, string> = {
   starter: "Entradas",
   main: "Principales",
@@ -65,11 +60,15 @@ export function MenuImportClient({
   tenantName,
   initialCategories,
   menus,
+  menuTags,
 }: {
   tenantName: string;
   initialCategories: ExistingCategory[];
   // Available top-level menus. Picker only shown when >1 exists.
   menus: { id: string; label: string; slug: string }[];
+  // Tag registry of this restaurant — drives the chips shown in the
+  // review step. Unknown slugs returned by the AI are dropped silently.
+  menuTags: MenuTag[];
 }) {
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -430,6 +429,7 @@ export function MenuImportClient({
           items={items}
           extractionNotes={extractionNotes}
           categoryChoices={allCategoryChoices}
+          menuTags={menuTags}
           onPatch={patchItem}
           onToggleTag={toggleTag}
           onSelectAll={selectAll}
@@ -650,6 +650,7 @@ function ReviewState({
   items,
   extractionNotes,
   categoryChoices,
+  menuTags,
   onPatch,
   onToggleTag,
   onSelectAll,
@@ -668,6 +669,7 @@ function ReviewState({
     kind: CategoryKind;
     isNew: boolean;
   }[];
+  menuTags: MenuTag[];
   onPatch: (id: string, patch: Partial<EditableItem>) => void;
   onToggleTag: (id: string, tag: Tag) => void;
   onSelectAll: (value: boolean) => void;
@@ -752,6 +754,7 @@ function ReviewState({
                       key={item.localId}
                       item={item}
                       categoryChoices={categoryChoices}
+                      menuTags={menuTags}
                       onPatch={(patch) => onPatch(item.localId, patch)}
                       onToggleTag={(t) => onToggleTag(item.localId, t)}
                     />
@@ -854,6 +857,7 @@ function ReviewState({
 function ReviewCard({
   item,
   categoryChoices,
+  menuTags,
   onPatch,
   onToggleTag,
 }: {
@@ -865,6 +869,7 @@ function ReviewCard({
     kind: CategoryKind;
     isNew: boolean;
   }[];
+  menuTags: MenuTag[];
   onPatch: (patch: Partial<EditableItem>) => void;
   onToggleTag: (t: Tag) => void;
 }) {
@@ -956,26 +961,25 @@ function ReviewCard({
               </select>
             </label>
             <div className="flex flex-wrap gap-1">
-              {(["firma", "popular", "veg", "spicy", "nuevo"] as Tag[]).map(
-                (tag) => {
-                  const active = item.tags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => onToggleTag(tag)}
-                      className={
-                        "h-6 px-2 rounded-full text-[10px] font-medium border " +
-                        (active
-                          ? "bg-terracotta text-bone border-terracotta"
-                          : "bg-op-bg text-op-muted border-op-border hover:border-terracotta")
-                      }
-                    >
-                      {TAG_LABELS[tag]}
-                    </button>
-                  );
-                },
-              )}
+              {menuTags.map((mt) => {
+                const active = item.tags.includes(mt.slug);
+                return (
+                  <button
+                    key={mt.slug}
+                    type="button"
+                    onClick={() => onToggleTag(mt.slug)}
+                    className={
+                      "h-6 px-2 rounded-full text-[10px] font-medium border inline-flex items-center gap-1 " +
+                      (active
+                        ? "bg-terracotta text-bone border-terracotta"
+                        : "bg-op-bg text-op-muted border-op-border hover:border-terracotta")
+                    }
+                  >
+                    {mt.emoji && <span aria-hidden>{mt.emoji}</span>}
+                    {mt.label}
+                  </button>
+                );
+              })}
             </div>
             {lowConfidence && (
               <span className="ml-auto text-[10px] text-[#7F5A1F] bg-[#C98A2E]/15 px-2 py-0.5 rounded-full">

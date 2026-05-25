@@ -40,6 +40,13 @@ model Restaurant {
   bankInfo           Json?
   autoDispersePolicy Json?
 
+  // Lista de etiquetas para platos del restaurante. Shape:
+  // [{ slug: string, label: string, emoji?: string }]. Cuando es null
+  // se aplican los defaults (firma, popular, veg, spicy, nuevo) — ver
+  // src/lib/menuTags.ts. Los operadores pueden crear / renombrar /
+  // eliminar desde /operator/settings/etiquetas.
+  menuTags Json?
+
   // Does this restaurant have a dedicated bartender / barista (separate
   // person from cooks)? Controls whether items routed to station=bar get
   // their own board at /operator/bar, or fall through as "grab from the

@@ -10,6 +10,7 @@ import {
   findCountryByCode,
   type Country,
 } from "@/lib/countries";
+import type { MenuTag } from "@/lib/menuTags";
 
 type MenuLayout = "list" | "grid" | "editorial";
 
@@ -74,6 +75,9 @@ type ActiveOrder = {
   items: { id: string; name: string; qty: number; priceCents: number }[];
 };
 
+// Style palette for the built-in tag slugs. Custom tags created by the
+// operator fall back to a neutral pill — keeps the diner-side visual
+// language calm regardless of how many tags the restaurant defines.
 const TAG_STYLES: Record<string, string> = {
   firma: "bg-[#B8893B]/12 text-[#8F6828]",
   popular: "bg-ink/10 text-ink",
@@ -81,13 +85,7 @@ const TAG_STYLES: Record<string, string> = {
   spicy: "bg-terracotta/15 text-terracotta",
   nuevo: "bg-[#2E6B4C]/15 text-[#1E5339]",
 };
-const TAG_LABEL: Record<string, string> = {
-  firma: "De la casa",
-  popular: "Favorito",
-  veg: "Vegetariano",
-  spicy: "Picante",
-  nuevo: "Nuevo",
-};
+const NEUTRAL_TAG_STYLE = "bg-paper text-muted border border-hairline";
 
 /**
  * Render a cart line's selections as a readable list of groups for the
@@ -180,6 +178,7 @@ export function MenuClient({
   tableId,
   locationLabel,
   menus = [],
+  menuTags = [],
   categories,
   items,
   activeOrder,
@@ -193,6 +192,9 @@ export function MenuClient({
   // means no tab strip is rendered. Server always sends at least one
   // entry once ensureDefaultMenu() has run.
   menus?: MenuTab[];
+  // Registro de etiquetas del restaurante (slug → label + emoji).
+  // Si llega vacío no se renderiza ningún chip de etiqueta.
+  menuTags?: MenuTag[];
   categories: Category[];
   items: MenuItem[];
   activeOrder: ActiveOrder | null;
@@ -899,6 +901,7 @@ export function MenuClient({
                     <ItemRowList
                       key={it.id}
                       item={it}
+                      menuTags={menuTags}
                       onOpen={() => setOpenItem(it)}
                       onQuickAdd={() => quickAdd(it)}
                     />
@@ -924,6 +927,7 @@ export function MenuClient({
                       key={it.id}
                       item={it}
                       index={i}
+                      menuTags={menuTags}
                       onOpen={() => setOpenItem(it)}
                       onQuickAdd={() => quickAdd(it)}
                     />
@@ -1445,19 +1449,34 @@ function MenuStars({
   );
 }
 
-function ItemTags({ tags }: { tags: string[] }) {
-  if (!tags.length) return null;
+function ItemTags({
+  tags,
+  registry,
+}: {
+  tags: string[];
+  registry: MenuTag[];
+}) {
+  if (!tags.length || registry.length === 0) return null;
+  // Render only tags that exist in the current registry — keeps the
+  // diner UI tidy when the operator renames or deletes a tag without
+  // mass-editing every item.
+  const lookup = new Map(registry.map((t) => [t.slug, t]));
+  const visible = tags
+    .map((t) => lookup.get(t))
+    .filter((t): t is MenuTag => Boolean(t));
+  if (visible.length === 0) return null;
   return (
     <div className="flex gap-1.5 flex-wrap">
-      {tags.map((t) => (
+      {visible.map((t) => (
         <span
-          key={t}
+          key={t.slug}
           className={
-            "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
-            (TAG_STYLES[t] ?? "bg-paper text-muted")
+            "px-2 h-5 inline-flex items-center gap-1 rounded-full text-[10px] font-medium " +
+            (TAG_STYLES[t.slug] ?? NEUTRAL_TAG_STYLE)
           }
         >
-          {TAG_LABEL[t] ?? t}
+          {t.emoji && <span aria-hidden>{t.emoji}</span>}
+          {t.label}
         </span>
       ))}
     </div>
@@ -1491,10 +1510,12 @@ function QuickAddButton({
 
 function ItemRowList({
   item,
+  menuTags,
   onOpen,
   onQuickAdd,
 }: {
   item: MenuItem;
+  menuTags: MenuTag[];
   onOpen: () => void;
   onQuickAdd: () => void;
 }) {
@@ -1533,7 +1554,7 @@ function ItemRowList({
           )}
           {item.tags.length > 0 && (
             <div className="mt-2">
-              <ItemTags tags={item.tags} />
+              <ItemTags tags={item.tags} registry={menuTags} />
             </div>
           )}
         </button>
@@ -1593,11 +1614,13 @@ function ItemCardGrid({
 function ItemCardEditorial({
   item,
   index,
+  menuTags,
   onOpen,
   onQuickAdd,
 }: {
   item: MenuItem;
   index: number;
+  menuTags: MenuTag[];
   onOpen: () => void;
   onQuickAdd: () => void;
 }) {
@@ -1606,7 +1629,12 @@ function ItemCardEditorial({
   if (!isHero) {
     return (
       <ul className="divide-y divide-hairline border-t border-hairline -mt-3 first:mt-0">
-        <ItemRowList item={item} onOpen={onOpen} onQuickAdd={onQuickAdd} />
+        <ItemRowList
+          item={item}
+          menuTags={menuTags}
+          onOpen={onOpen}
+          onQuickAdd={onQuickAdd}
+        />
       </ul>
     );
   }
@@ -1623,7 +1651,7 @@ function ItemCardEditorial({
       <div className="mt-3 flex items-center gap-3">
         <button onClick={onOpen} className="text-left flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-3 mb-1">
-            <ItemTags tags={item.tags.slice(0, 2)} />
+            <ItemTags tags={item.tags.slice(0, 2)} registry={menuTags} />
             <div className="font-mono text-sm tabular shrink-0">
               {fmtCOP(item.priceCents)}
             </div>

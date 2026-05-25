@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
+import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { MenuEditor } from "./MenuEditor";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function MenuAdminPage() {
   // backfills any null menuId on existing categories.
   await ensureDefaultMenu(restaurantId);
 
-  const [menus, categories, items] = await Promise.all([
+  const [menus, categories, items, menuTags] = await Promise.all([
     db.menu.findMany({
       where: { restaurantId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -28,11 +29,13 @@ export default async function MenuAdminPage() {
       where: { restaurantId },
       orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }],
     }),
+    getRestaurantMenuTags(restaurantId),
   ]);
 
   return (
     <MenuEditor
       menus={menus}
+      menuTags={menuTags}
       categories={categories.map((c) => ({
         id: c.id,
         label: c.label,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { fmtCOP } from "@/lib/format";
+import type { MenuTag } from "@/lib/menuTags";
 
 type CategoryKind =
   | "starter"
@@ -58,21 +59,21 @@ type Item = {
   prepStation: PrepStation | null;
 };
 
-const TAGS = ["firma", "popular", "veg", "spicy", "nuevo"] as const;
-const TAG_LABEL: Record<string, string> = {
-  firma: "De la casa",
-  popular: "Favorito",
-  veg: "Vegetariano",
-  spicy: "Picante",
-  nuevo: "Nuevo",
-};
+// Tags are now configured per restaurant in /operator/settings/etiquetas
+// and arrive via the `menuTags` prop. The hardcoded list that used to
+// live here is gone — we render whatever the operator picked.
 
 export function MenuEditor({
   menus,
+  menuTags,
   categories: initialCategories,
   items: initialItems,
 }: {
   menus: MenuRef[];
+  // Lista de etiquetas del restaurante (resuelta server-side desde
+  // Restaurant.menuTags). Si el operador no configuró nada llegan los
+  // defaults — ver src/lib/menuTags.ts.
+  menuTags: MenuTag[];
   categories: Cat[];
   items: Item[];
 }) {
@@ -312,6 +313,7 @@ export function MenuEditor({
         <ItemSheet
           item={editingItem}
           categories={categories}
+          menuTags={menuTags}
           onClose={() => setEditingItem(null)}
           onSaved={(savedItem) => {
             replaceItem(savedItem);
@@ -819,12 +821,14 @@ function NewItemForm({
 function ItemSheet({
   item,
   categories,
+  menuTags,
   onClose,
   onSaved,
   onDeleted,
 }: {
   item: Item;
   categories: Cat[];
+  menuTags: MenuTag[];
   onClose: () => void;
   onSaved: (saved: Item) => void;
   // The server may "archive" a delete (set available=false) if the item
@@ -1123,28 +1127,64 @@ function ItemSheet({
           })()}
 
           <div>
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-              Etiquetas
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2 flex items-center justify-between">
+              <span>Etiquetas</span>
+              <a
+                href="/operator/settings/etiquetas"
+                className="font-sans normal-case tracking-normal text-[11px] text-terracotta hover:underline"
+              >
+                Editar lista →
+              </a>
             </div>
-            <div className="flex gap-2 flex-wrap">
-              {TAGS.map((t) => {
-                const active = tags.includes(t);
-                return (
-                  <button
-                    key={t}
-                    onClick={() => toggleTag(t)}
-                    className={
-                      "h-8 px-3 rounded-full text-xs border " +
-                      (active
-                        ? "bg-ink text-bone border-ink"
-                        : "bg-op-bg border-op-border text-op-text")
-                    }
-                  >
-                    {TAG_LABEL[t] ?? t}
-                  </button>
-                );
-              })}
-            </div>
+            {menuTags.length === 0 ? (
+              <div className="text-[11px] text-op-muted border border-dashed border-op-border rounded-xl px-3 py-2">
+                Aún no hay etiquetas configuradas. Crea las primeras en{" "}
+                <a
+                  href="/operator/settings/etiquetas"
+                  className="text-terracotta hover:underline"
+                >
+                  Configuración → Etiquetas
+                </a>
+                .
+              </div>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {menuTags.map((t) => {
+                  const active = tags.includes(t.slug);
+                  return (
+                    <button
+                      key={t.slug}
+                      onClick={() => toggleTag(t.slug)}
+                      className={
+                        "h-8 px-3 rounded-full text-xs border inline-flex items-center gap-1.5 " +
+                        (active
+                          ? "bg-ink text-bone border-ink"
+                          : "bg-op-bg border-op-border text-op-text")
+                      }
+                    >
+                      {t.emoji && <span aria-hidden>{t.emoji}</span>}
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {/* Show any extra slugs the item carries that aren't in the
+                current registry — typically because the operator
+                renamed or deleted a tag. The button lets them clear it
+                so it stops being sent on save. */}
+            {tags
+              .filter((t) => !menuTags.some((m) => m.slug === t))
+              .map((orphan) => (
+                <button
+                  key={orphan}
+                  onClick={() => toggleTag(orphan)}
+                  className="mt-2 mr-2 h-8 px-3 rounded-full text-xs border bg-paper border-dashed border-op-border text-op-muted line-through"
+                  title="Etiqueta ya no existe en tu configuración"
+                >
+                  {orphan} ✕
+                </button>
+              ))}
           </div>
 
           <ModifiersEditor modifiers={modifiers} onChange={setModifiers} />

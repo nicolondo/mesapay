@@ -799,18 +799,33 @@ function OperatorCashSheet({
 }) {
   const dueCop = Math.ceil(amountCents / 100);
 
-  // Colombian bill denominations the diner might hand over. Include
-  // every bill that's at least as big as the bill amount — the mesero
-  // sees the realistic set and taps one. We add the next-round-up of
-  // the bill itself (e.g. $13.500 → $14.000) so even oddly priced
-  // tabs get a "round up to next thousand" shortcut.
-  const REAL_BILLS_COP = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
-  const nextThousand = Math.ceil(dueCop / 1000) * 1000;
-  const presetsCop = Array.from(
-    new Set(
-      [nextThousand, ...REAL_BILLS_COP].filter((b) => b > dueCop),
-    ),
-  )
+  // Smart presets para los billetes que se usan en Colombia. Lógica:
+  //
+  //   1) Round-up al próximo múltiplo de $1k, $5k, $10k, $20k, $50k
+  //      y $100k. Cubre los casos "le agrego mil para no buscar
+  //      monedas" y "redondeo al billete más cercano".
+  //   2) Billetes reales ($50k / $100k / $200k) cuando NO son
+  //      absurdamente más grandes que la cuenta. Sin esto, una mesa
+  //      de $23k mostraba $200k como atajo — irreal, el cliente no
+  //      pasa $200k por una cuenta de $23k. Cap = max(amount × 5,
+  //      $100k); el max contra $100k es para que cuentas pequeñas
+  //      ($5k) sigan ofreciendo billetes comunes hasta $100k.
+  //   3) Dedupe entre las dos fuentes, ordena ascendente, toma hasta
+  //      6 chips para mantener la fila scannable.
+  //
+  // Ejemplo $23.320 → 24, 25, 30, 40, 50, 100 (sin $200k). ✓
+  const ROUND_STEPS = [1_000, 5_000, 10_000, 20_000, 50_000, 100_000];
+  const REAL_BILLS_COP = [50_000, 100_000, 200_000];
+  const reasonableCap = Math.max(dueCop * 5, 100_000);
+  const candidates = new Set<number>();
+  for (const step of ROUND_STEPS) {
+    const next = Math.ceil(dueCop / step) * step;
+    if (next > dueCop) candidates.add(next);
+  }
+  for (const bill of REAL_BILLS_COP) {
+    if (bill > dueCop && bill <= reasonableCap) candidates.add(bill);
+  }
+  const presetsCop = Array.from(candidates)
     .sort((a, b) => a - b)
     .slice(0, 6);
 

@@ -1053,6 +1053,27 @@ function OperatorCashSheet({
             <span>El cliente debe pasarte al menos {fmtCOP(amountCents)}.</span>
           ) : !validChange ? (
             <span>La devuelta no puede ser mayor a lo recibido.</span>
+          ) : extraTip < 0 ? (
+            // La devuelta es más alta que el vuelto real → mesero pondría
+            // plata de su bolsillo. Mostramos el faltante y un atajo para
+            // ajustar al vuelto exacto.
+            <div className="space-y-2">
+              <div>
+                La devuelta es{" "}
+                <strong className="font-mono tabular">
+                  {fmtCOP(-extraTip)}
+                </strong>{" "}
+                mayor de lo que corresponde. El cliente te quedó debiendo
+                esa diferencia.
+              </div>
+              <button
+                type="button"
+                onClick={refundExactChange}
+                className="font-mono text-[10px] tracking-wider uppercase underline"
+              >
+                Corregir al vuelto exacto · {fmtCOP(expectedChange)}
+              </button>
+            </div>
           ) : extraTip > 0 ? (
             <span>
               Propina por vuelto:{" "}

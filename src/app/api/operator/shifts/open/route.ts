@@ -8,7 +8,11 @@ import { getCurrentShift } from "@/lib/shift";
 const schema = z.object({
   // Fondo de caja inicial. Cero es válido (puedes abrir un turno con
   // cero efectivo si el restaurante solo acepta tarjeta hoy).
-  openingCashCents: z.number().int().min(0).max(100_000_000),
+  // Cap = $100M COP en cents. El cap viejo de 100M cents ($1M COP)
+  // se quedaba corto para restaurantes con un turno mediano cash-
+  // heavy (un cierre legítimo de $1.013.657 levantó zod "invalid"
+  // porque excedía el max por 13k pesos).
+  openingCashCents: z.number().int().min(0).max(10_000_000_000),
 });
 
 export async function POST(req: Request) {

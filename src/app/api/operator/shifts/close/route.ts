@@ -13,7 +13,9 @@ import {
 const schema = z.object({
   // Efectivo físico contado por el cajero. Puede ser cero si abrieron sin
   // fondo y no se cobró nada en efectivo.
-  declaredCashCents: z.number().int().min(0).max(100_000_000),
+  // Cap = $100M COP en cents (subido desde $1M, que rechazaba turnos
+  // legítimos cash-heavy con un mensaje "invalid" poco útil).
+  declaredCashCents: z.number().int().min(0).max(10_000_000_000),
   notes: z.string().max(2000).optional(),
   // Operator override: cerrar AUNQUE haya órdenes abiertas. UI no lo
   // ofrece todavía pero el endpoint lo soporta para soporte en producción.
@@ -36,7 +38,15 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
+    // Surface the actual field issue instead of a bare "invalid" —
+    // tellers were getting that as the only feedback when they
+    // declared cash above the (too-low) cap, with no clue why.
+    const issue = parsed.error.issues[0];
+    const message =
+      issue?.path[0] === "declaredCashCents"
+        ? "El monto declarado está fuera de rango."
+        : (issue?.message ?? "Datos inválidos.");
+    return NextResponse.json({ error: message }, { status: 400 });
   }
   const { declaredCashCents, notes, forceOpenOrders } = parsed.data;
 

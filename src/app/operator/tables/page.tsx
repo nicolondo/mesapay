@@ -205,16 +205,34 @@ export default async function TablesPage() {
 
               {/* Mesero toma pedido: si el cliente no tiene celular o
                   prefiere dictar, el operador abre el menú en modo
-                  mesero y arma el pedido por la mesa. Va a la misma URL
-                  pública del menú pero con un flag que oculta el sheet
-                  de nombre y redirige a Salón al enviar. */}
+                  mesero y arma el pedido por la mesa. Va a la misma
+                  URL pública del menú pero con un flag que oculta el
+                  sheet de nombre y redirige a Salón al enviar.
+                  Cuando ya hay una cuenta activa el botón es
+                  secundario (outline) — "Cobrar la cuenta" es la
+                  acción principal en ese estado. Para una mesa libre
+                  "Tomar pedido" SÍ es la acción principal. */}
               <a
                 href={`/t/${tenant!.slug}/menu?table=${t.qrToken}&op=1`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 w-full h-10 inline-flex items-center justify-center rounded-xl bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+                className={
+                  "mt-3 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors " +
+                  (active
+                    ? "border border-op-border bg-op-surface text-op-text hover:bg-op-bg"
+                    : "bg-ink text-bone hover:bg-ink/90")
+                }
               >
-                {active ? "+ Agregar a la cuenta" : "Tomar pedido"}
+                {active ? (
+                  <>
+                    <span aria-hidden className="text-base leading-none">
+                      +
+                    </span>
+                    <span>Agregar platos</span>
+                  </>
+                ) : (
+                  "Tomar pedido"
+                )}
               </a>
 
               <details className="mt-3">

@@ -441,19 +441,28 @@ function CashInput({
   onChange: (cents: number) => void;
   autoFocus?: boolean;
 }) {
-  // Plain integer pesos field. Cents are uncommon for cash drawer arqueo
-  // in CO so we just treat the input as whole pesos and multiply by 100.
-  const [raw, setRaw] = useState(value > 0 ? String(Math.round(value / 100)) : "");
+  // Plain integer pesos field. Cents are uncommon for cash drawer
+  // arqueo in CO so we treat the input as whole pesos and multiply by
+  // 100. We store the user's keystrokes as digits-only internally,
+  // but render them with es-CO thousand separators ("397.337") so a
+  // cajero counting $397.337 actually sees the number formatted the
+  // way they wrote it on paper.
+  const [digits, setDigits] = useState(
+    value > 0 ? String(Math.round(value / 100)) : "",
+  );
+  const display = digits ? Number(digits).toLocaleString("es-CO") : "";
   return (
     <input
       type="text"
       inputMode="numeric"
       autoFocus={autoFocus}
-      value={raw}
+      value={display}
       onChange={(e) => {
-        const digits = e.target.value.replace(/[^0-9]/g, "");
-        setRaw(digits);
-        onChange(digits ? Number(digits) * 100 : 0);
+        // Strip the formatting (dots, commas, spaces) before
+        // remembering the raw value.
+        const clean = e.target.value.replace(/[^0-9]/g, "");
+        setDigits(clean);
+        onChange(clean ? Number(clean) * 100 : 0);
       }}
       placeholder="0"
       className="w-full mt-1 rounded-lg border border-op-border bg-op-surface px-3 py-2 text-2xl font-display tabular"

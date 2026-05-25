@@ -200,8 +200,10 @@ export async function PATCH(
       //  - any placed → placed
       //  - any in_kitchen (none placed) → in_kitchen
       //  - all ready → ready
+      // Excluimos cancelled — un item cancelado no debe pegar la
+      // ronda en "placed" cuando los demás ya están en cocina.
       const siblings = await tx.orderItem.findMany({
-        where: { roundId: item.roundId },
+        where: { roundId: item.roundId, cancelledAt: null },
         select: { id: true, kitchenStatus: true, servedAt: true },
       });
       const effective = siblings.map((s) => {
@@ -235,9 +237,14 @@ export async function PATCH(
     }
 
     if (parsed.data.served !== undefined && item.roundId) {
-      // Bubble served-state up to order (unchanged from earlier behaviour).
+      // Bubble served-state up to order. CRÍTICO: solo contamos
+      // items vivos (no cancelados). Antes el cálculo incluía items
+      // cancelados (con servedAt=null), lo que dejaba el round
+      // pegado en "ready" cuando el mesero servía el último plato
+      // vivo tras cancelar otro — kitchen lo seguía mostrando aun
+      // sin trabajo pendiente.
       const siblings = await tx.orderItem.findMany({
-        where: { roundId: item.roundId },
+        where: { roundId: item.roundId, cancelledAt: null },
         select: { id: true, servedAt: true },
       });
       const allServed = siblings.every((i) =>

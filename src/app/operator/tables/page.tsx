@@ -36,6 +36,14 @@ export default async function TablesPage() {
       ? { number: { in: scope.tableNumbers } }
       : {};
 
+  // 15 minutes is our "recién pagada" window. After a bill closes the
+  // card stays green while the mesero is still around the table cleaning
+  // up and showing the next guests in; once that window passes the
+  // table reverts to neutral "free" so the floor view stops drawing the
+  // eye to a table that's already turned over.
+  const RECENTLY_PAID_MS = 15 * 60 * 1000;
+  const recentlyPaidSince = new Date(Date.now() - RECENTLY_PAID_MS);
+
   const allTables = await db.table.findMany({
     where: { restaurantId, ...tableNumberFilter },
     orderBy: { number: "asc" },
@@ -61,6 +69,28 @@ export default async function TablesPage() {
       _count: { select: { orders: true } },
     },
   });
+
+  // Most recent paid order per table within the "recién pagada" window.
+  // Used for the green-card state below. Cheap because we only ask for
+  // paidAt and we filter by both table + time.
+  const tableIds = allTables.map((t) => t.id);
+  const recentPaid = tableIds.length
+    ? await db.order.findMany({
+        where: {
+          tableId: { in: tableIds },
+          status: "paid",
+          paidAt: { gte: recentlyPaidSince },
+        },
+        select: { tableId: true, paidAt: true },
+        orderBy: { paidAt: "desc" },
+      })
+    : [];
+  const recentPaidByTable = new Map<string, Date>();
+  for (const o of recentPaid) {
+    if (o.tableId && !recentPaidByTable.has(o.tableId) && o.paidAt) {
+      recentPaidByTable.set(o.tableId, o.paidAt);
+    }
+  }
   const pickupTable = allTables.find((t) => t.number === -1) ?? null;
   const counterMode = tenant?.serviceMode === "counter";
   // Counter-mode restaurants are the mostrador — one QR is enough.
@@ -142,26 +172,52 @@ export default async function TablesPage() {
           const active = !!order;
           const itemCount = order?.items.reduce((s, i) => s + i.qty, 0) ?? 0;
           const canDelete = !counterMode && t._count.orders === 0;
+          // Card colour state (mesero-friendly visual triage):
+          //   - needs_payment: active order pending payment → rojizo
+          //   - recently_paid: bill cerró hace < 15 min → verde
+          //   - free: nada activo y nada reciente → blanco neutro
+          const recentlyPaidAt = recentPaidByTable.get(t.id);
+          const isRecentlyPaid = !active && !!recentlyPaidAt;
+          const cardTone = active
+            ? "bg-[#C9302C]/8 border-[#C9302C]/35"
+            : isRecentlyPaid
+              ? "bg-ok/10 border-ok/35"
+              : "bg-op-surface border-op-border";
+          const dotTone = active
+            ? "bg-[#C9302C]"
+            : isRecentlyPaid
+              ? "bg-ok"
+              : "bg-op-border-2";
+          const dotTitle = active
+            ? "Cuenta pendiente"
+            : isRecentlyPaid
+              ? "Recién pagada"
+              : "Libre";
           return (
             <div
               key={t.id}
-              className="bg-op-surface border border-op-border rounded-2xl p-4"
+              className={
+                "border rounded-2xl p-4 transition-colors " + cardTone
+              }
             >
               <div className="flex items-center justify-between">
                 <div className="font-display text-2xl">
                   {counterMode ? "Mostrador" : `Mesa ${t.number}`}
                 </div>
                 <span
-                  className={
-                    "w-2 h-2 rounded-full " +
-                    (active ? "bg-terracotta" : "bg-op-border-2")
-                  }
-                  title={active ? "Orden abierta" : "Libre"}
+                  className={"w-2 h-2 rounded-full " + dotTone}
+                  title={dotTitle}
                 />
               </div>
               {!counterMode && (
                 <div className="mt-1">
                   <EditLabelButton tableId={t.id} currentLabel={t.label} />
+                </div>
+              )}
+
+              {isRecentlyPaid && recentlyPaidAt && (
+                <div className="mt-3 text-[12px] text-[#1E5339] font-medium">
+                  ✓ Pagada · {minutesAgo(recentlyPaidAt)}
                 </div>
               )}
 
@@ -356,4 +412,15 @@ function computePill(
   // (kitchenStatus="placed" vs "in_kitchen"); the kitchen board owns
   // that nuance. For the mesas grid "En cocina" covers both states.
   return { label: "En cocina", tint: TINT.warm };
+}
+
+// Friendly "hace X min" for the recently-paid hint on the table card.
+// Server-rendered so it's accurate to within a refresh cycle — the
+// card overall fades to neutral after RECENTLY_PAID_MS so we won't
+// ever show "hace 2 h".
+function minutesAgo(date: Date): string {
+  const mins = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+  if (mins < 1) return "hace un momento";
+  if (mins === 1) return "hace 1 min";
+  return `hace ${mins} min`;
 }

@@ -221,6 +221,11 @@ export function PayClient({
           amountCents,
           tipCents: amountTip,
           cashTenderCents: cashTenderCents ?? undefined,
+          // In operator mode the mesero is the one collecting AND
+          // settling — no need to bounce through Salón as a pending
+          // request that the same person will then settle one click
+          // later. Server validates the session role before honouring.
+          settleNow: operatorMode || undefined,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -228,12 +233,14 @@ export function PayClient({
         setErr(j.error ?? "No pudimos avisar al mesero.");
         return;
       }
+      if (operatorMode) {
+        // Bill closed (or partially paid) directly. Skip the diner
+        // cash-wait screen and the Salón roundtrip.
+        router.push("/operator/tables");
+        return;
+      }
       if (j.pending && j.paymentId) {
-        router.push(
-          operatorMode
-            ? "/operator/serve"
-            : `/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`,
-        );
+        router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
       }
     } finally {
       setBusy(null);
@@ -498,7 +505,16 @@ export function PayClient({
             kind="cash"
             disabled={busy !== null || amountCents <= 0}
             busy={busy === "demo_cash"}
-            onClick={() => setCashTenderOpen(true)}
+            // Operator mode: skip the "¿con cuánto vas a pagar?" sheet
+            // — that's a diner-side flow so the waiter knows in
+            // advance what change to bring. When the mesero IS the
+            // waiter (waiter mode) they already have the cash in
+            // hand; just settle the payment immediately.
+            onClick={
+              operatorMode
+                ? () => payWithCash(null)
+                : () => setCashTenderOpen(true)
+            }
             amountCents={amountCents}
             operatorMode={operatorMode}
           />

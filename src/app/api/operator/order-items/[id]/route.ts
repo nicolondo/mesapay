@@ -20,14 +20,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  // Ver `rounds/[id]/route.ts`: kitchen y bar también pulsan listo
-  // desde su PWA.
+  // Quién toca esta API:
+  // - operator/platform_admin: gestión general.
+  // - kitchen/bar: marcan items como listos (kitchenStatus=ready).
+  // - mesero: marca items como entregados (served=true) desde Salón.
+  // Sin mesero acá el "Entregar" del PWA mesero caía a 401 y el
+  // frontend lo borraba optimistamente — el item quedaba zombie en
+  // DB, sin entregar.
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
       session.user.role !== "platform_admin" &&
       session.user.role !== "kitchen" &&
-      session.user.role !== "bar")
+      session.user.role !== "bar" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -27,15 +27,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  // Quien marca: cocina (desde /cocina), bar (desde /bar) o el operador
-  // (desde /operator/kitchen o impersonando como platform_admin). Sin
-  // kitchen/bar acá, el cocinero recibe 401 al pulsar "listo".
+  // Quien marca: cocina (desde /cocina), bar (desde /bar), mesero
+  // (desde Salón cuando entrega una ronda completa) o el operador
+  // (desde /operator/kitchen o impersonando como platform_admin).
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
       session.user.role !== "platform_admin" &&
       session.user.role !== "kitchen" &&
-      session.user.role !== "bar")
+      session.user.role !== "bar" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

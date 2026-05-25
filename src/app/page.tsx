@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import QRCode from "qrcode";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { HeroPhone } from "@/components/landing/HeroPhone";
 import { Reveal } from "@/components/landing/Reveal";
@@ -8,6 +10,24 @@ import { StatCountUp } from "@/components/landing/StatCountUp";
 export const dynamic = "force-dynamic";
 
 export default async function Landing() {
+  // Staff that landed here while logged in — typically because their
+  // PWA's start_url is "/" and iOS reopened the app from the home
+  // screen — get bounced to their proper dashboard. Without this
+  // they'd see the marketing landing every time they re-launched
+  // the saved app, which feels broken.
+  //
+  // Customers stay on the landing as before. Sign-out always
+  // redirects to /signin, so a fresh open after logout lands at the
+  // login form (not here) until the next session begins.
+  const session = await auth();
+  const role = session?.user?.role;
+  if (role === "mesero") redirect("/mesero/salon");
+  if (role === "kitchen") redirect("/cocina");
+  if (role === "bar") redirect("/bar");
+  if (role === "terminal") redirect("/terminal");
+  if (role === "operator") redirect("/operator");
+  if (role === "platform_admin") redirect("/admin");
+
   const tenants = await db.restaurant
     .findMany({ orderBy: { name: "asc" }, take: 6 })
     .catch(() => []);

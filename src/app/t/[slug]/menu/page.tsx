@@ -18,17 +18,23 @@ export default async function MenuPage({
   const tableToken = sp.table;
   if (!tableToken) redirect(`/t/${slug}`);
 
-  // Waiter mode: the operator launched this from /operator/tables to
-  // take a pedido for a diner without a phone. We only honor `?op=1`
-  // when the session actually belongs to an operator / platform admin
-  // of *this* restaurant — never trust the query param on its own.
-  // When active we skip the "Yo soy …" sheet, swap copy, and redirect
-  // back to Salón after sending.
+  // Waiter mode: el staff (operator/admin/mesero) abrió esta página
+  // para tomar pedido por un comensal que no tiene celular. Solo
+  // honramos ?op=1 cuando la sesión es staff real — nunca confiamos
+  // en el query param solo. Cuando está activo: skip del sheet
+  // "Yo soy …", copy de mesero, y al enviar redirige al home del
+  // staff (Salón).
   const session = sp.op === "1" ? await auth() : null;
-  const operatorMode =
+  const isStaff =
     !!session?.user &&
     (session.user.role === "operator" ||
-      session.user.role === "platform_admin");
+      session.user.role === "platform_admin" ||
+      session.user.role === "mesero");
+  const operatorMode = isStaff;
+  // Donde aterriza el staff después de enviar el round. Mesero no
+  // tiene acceso a /operator/* (layout gated) → /mesero/salon.
+  const postSendHref =
+    session?.user?.role === "mesero" ? "/mesero/salon" : "/operator/serve";
 
   const tenant = await db.restaurant.findUnique({
     where: { slug },
@@ -99,6 +105,7 @@ export default async function MenuPage({
   return (
     <MenuClient
       operatorMode={operatorMode}
+      postSendHref={postSendHref}
       tenant={{
         slug: tenant.slug,
         name: tenant.name,

@@ -184,6 +184,7 @@ export function MenuClient({
   activeOrder,
   pickup,
   operatorMode = false,
+  postSendHref = "/operator/serve",
 }: {
   tenant: Tenant;
   tableId: string;
@@ -209,9 +210,13 @@ export function MenuClient({
   // Server-verified flag: this view is being driven by a logged-in
   // operator taking a pedido on behalf of a diner who doesn't have a
   // phone handy. Disables the "Yo soy …" sheet prompt, swaps the
-  // bottom-dock copy, and after sending bounces back to /operator/serve
+  // bottom-dock copy, and after sending bounces back to staff land
   // instead of the diner-side order-tracking page.
   operatorMode?: boolean;
+  // Destino post-envío en operatorMode. Operator/admin → /operator/serve
+  // (default). Mesero → /mesero/salon (el operator layout está gated
+  // y un mesero rebotaría a /). Puede ser cualquier URL absoluta.
+  postSendHref?: string;
 }) {
   const router = useRouter();
   // Active top-level menu tab. Hidden entirely when there's only one
@@ -759,8 +764,9 @@ export function MenuClient({
     if (operatorMode) {
       // After the waiter sends the pedido they should be back at their
       // own work surface, not stuck on a customer order-tracking view.
-      // Salón surfaces the round + lets them mark items served.
-      router.push("/operator/serve");
+      // postSendHref viene del server según el rol — operator →
+      // /operator/serve, mesero → /mesero/salon.
+      router.push(postSendHref);
       return;
     }
     // Counter-mode is prepay: skip the shared-bill view and send the diner

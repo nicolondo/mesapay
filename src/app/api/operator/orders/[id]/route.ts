@@ -14,9 +14,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
+  // Mesero también cancela órdenes desde Mesas (cliente se fue sin
+  // pedir / pedido equivocado). Tenant scope ya se verifica abajo.
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

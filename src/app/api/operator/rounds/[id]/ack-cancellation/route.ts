@@ -13,9 +13,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
+  // El mesero también acknowledgea cancelaciones cuando avisa al
+  // cliente en la mesa; sin él acá Salón le tira 401 silencioso.
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

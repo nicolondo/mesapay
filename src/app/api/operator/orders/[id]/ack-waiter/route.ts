@@ -9,9 +9,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
+  // Mesero también ack'ea: cuando va a la mesa al ser llamado, despeja
+  // el flag desde Salón con un tap.
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

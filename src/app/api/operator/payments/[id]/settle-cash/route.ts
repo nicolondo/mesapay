@@ -18,13 +18,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
+  // Quién settle cash:
+  //   - operator/platform_admin: gestión general.
+  //   - terminal: el cajero del datáfono también cobra efectivo en algunas
+  //     configuraciones.
+  //   - mesero: cuando un cliente pidió cobrar en efectivo desde el QR,
+  //     el mesero confirma físicamente (recibido + vuelta) desde Salón.
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
       session.user.role !== "platform_admin" &&
-      // Terminal users settle cash directly from /terminal too — they are
-      // the cashier on the floor in many setups.
-      session.user.role !== "terminal")
+      session.user.role !== "terminal" &&
+      session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

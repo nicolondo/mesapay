@@ -799,19 +799,20 @@ function OperatorCashSheet({
 }) {
   const dueCop = Math.ceil(amountCents / 100);
 
-  // Common bill denominations the diner is likely to hand over.
-  // Skip the "exact" case as a preset since it's the obvious default;
-  // we add a separate "Cuenta exacta" button further down.
-  const REAL_BILLS_COP = [10000, 20000, 50000, 100000, 200000];
+  // Colombian bill denominations the diner might hand over. Include
+  // every bill that's at least as big as the bill amount — the mesero
+  // sees the realistic set and taps one. We add the next-round-up of
+  // the bill itself (e.g. $13.500 → $14.000) so even oddly priced
+  // tabs get a "round up to next thousand" shortcut.
+  const REAL_BILLS_COP = [2000, 5000, 10000, 20000, 50000, 100000, 200000];
+  const nextThousand = Math.ceil(dueCop / 1000) * 1000;
   const presetsCop = Array.from(
     new Set(
-      [Math.ceil(dueCop / 10000) * 10000, ...REAL_BILLS_COP].filter(
-        (b) => b > dueCop && b <= dueCop * 4,
-      ),
+      [nextThousand, ...REAL_BILLS_COP].filter((b) => b > dueCop),
     ),
   )
     .sort((a, b) => a - b)
-    .slice(0, 4);
+    .slice(0, 6);
 
   const [tenderCop, setTenderCop] = useState<string>(String(dueCop));
   const [changeCop, setChangeCop] = useState<string>("0");
@@ -831,6 +832,20 @@ function OperatorCashSheet({
     // extraTip readout below updates live.
     const exactChange = bill * 100 - amountCents;
     setChangeCop(String(Math.max(0, Math.round(exactChange / 100))));
+  }
+
+  // "Cliente deja todo de propina" — set devuelta = 0 so the entire
+  // difference (tender - amount) becomes the tip. Stays disabled when
+  // tender is below the bill (no propina possible) or already at exact
+  // (nothing to leave).
+  const expectedChange = Math.max(0, tender - amountCents);
+  const canKeepAll = validTender && expectedChange > 0 && change > 0;
+  const isKeepingAll = validTender && expectedChange > 0 && change === 0;
+  function keepAllAsTip() {
+    setChangeCop("0");
+  }
+  function refundExactChange() {
+    setChangeCop(String(Math.max(0, Math.round(expectedChange / 100))));
   }
 
   return (
@@ -864,37 +879,49 @@ function OperatorCashSheet({
           </button>
         </div>
 
-        {presetsCop.length > 0 && (
-          <div>
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-              Atajos
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setTenderCop(String(dueCop));
-                  setChangeCop("0");
-                }}
-                disabled={busy}
-                className="h-9 px-3 rounded-full text-xs font-medium bg-paper border border-hairline"
-              >
-                Cuenta exacta
-              </button>
-              {presetsCop.map((bill) => (
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+            ¿Con qué te pagó?
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setTenderCop(String(dueCop));
+                setChangeCop("0");
+              }}
+              disabled={busy}
+              className={
+                "h-9 px-3 rounded-full text-xs font-medium border transition-colors " +
+                (tender === amountCents
+                  ? "bg-ink text-bone border-ink"
+                  : "bg-paper border-hairline")
+              }
+            >
+              Cuenta exacta
+            </button>
+            {presetsCop.map((bill) => {
+              const billCents = bill * 100;
+              const active = tender === billCents;
+              return (
                 <button
                   key={bill}
                   type="button"
                   onClick={() => pickPreset(bill)}
                   disabled={busy}
-                  className="h-9 px-3 rounded-full text-xs font-medium bg-paper border border-hairline tabular"
+                  className={
+                    "h-9 px-3 rounded-full text-xs font-medium border tabular transition-colors " +
+                    (active
+                      ? "bg-ink text-bone border-ink"
+                      : "bg-paper border-hairline")
+                  }
                 >
-                  {fmtCOP(bill * 100)}
+                  {fmtCOP(billCents)}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
@@ -928,6 +955,48 @@ function OperatorCashSheet({
             />
           </label>
         </div>
+
+        {/* Propina toggle — only meaningful when there IS change to
+            redirect. Two states:
+              - Devolver vuelto: full change goes back, no propina.
+              - Cliente deja todo de propina: devuelta = 0, propina = full
+                expected change. One tap covers the common
+                "quédate con esto" interaction. */}
+        {expectedChange > 0 && (
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+              ¿El cliente quiere su vuelto?
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={refundExactChange}
+                disabled={busy || !canKeepAll}
+                className={
+                  "h-10 rounded-full text-xs font-medium border px-3 transition-colors " +
+                  (!isKeepingAll
+                    ? "bg-ink text-bone border-ink"
+                    : "bg-paper border-hairline text-ink hover:border-ink")
+                }
+              >
+                Devolver vuelto · {fmtCOP(expectedChange)}
+              </button>
+              <button
+                type="button"
+                onClick={keepAllAsTip}
+                disabled={busy || isKeepingAll}
+                className={
+                  "h-10 rounded-full text-xs font-medium border px-3 transition-colors " +
+                  (isKeepingAll
+                    ? "bg-ink text-bone border-ink"
+                    : "bg-paper border-hairline text-ink hover:border-ink")
+                }
+              >
+                Dejar de propina · {fmtCOP(expectedChange)}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div
           className={

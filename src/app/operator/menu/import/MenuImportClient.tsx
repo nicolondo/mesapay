@@ -47,15 +47,6 @@ type EditableItem = ExtractedItem & {
   selected: boolean;
 };
 
-const KIND_LABELS: Record<CategoryKind, string> = {
-  starter: "Entradas",
-  main: "Principales",
-  side: "Acompañamientos",
-  drink: "Bebidas",
-  dessert: "Postres",
-  other: "Otro",
-};
-
 export function MenuImportClient({
   tenantName,
   initialCategories,

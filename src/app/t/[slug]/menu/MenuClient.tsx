@@ -543,12 +543,35 @@ export function MenuClient({
     const closedId = openItemRef.current?.id ?? null;
     setOpenItem(null);
     if (!closedId) return;
-    // rAF gives React time to unmount the sheet first so the layout
-    // computation in scrollIntoView is accurate.
+    // Two layers of stomp-protection here, because this single
+    // operation has been flaky for months:
+    //
+    //   1. The browser's automatic scroll restoration kicks in on
+    //      history.back() (which fires for the device back-gesture
+    //      path). It snaps the page to where scrollY was when we
+    //      pushed the sheet entry — i.e. the dish the diner
+    //      *originally* tapped — overwriting whatever we just did
+    //      with scrollIntoView. We pre-emptively turn that off on
+    //      mount (see effect below); here we also re-disable it
+    //      defensively in case some other navigation flipped it on.
+    //   2. Even with restoration off, the browser still runs its
+    //      own layout pass after popstate. If we scroll inside the
+    //      same frame the dish sheet unmounted, the new layout
+    //      isn't finalised yet and the scroll lands at the wrong
+    //      offset. We chain two rAFs + a 0ms timeout so we're
+    //      guaranteed to run AFTER React paints + AFTER the browser
+    //      finishes any post-popstate work.
+    if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
     requestAnimationFrame(() => {
-      const el = document.getElementById(`menu-item-${closedId}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "auto", block: "center" });
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`menu-item-${closedId}`);
+          if (!el) return;
+          el.scrollIntoView({ behavior: "auto", block: "center" });
+        }, 0);
+      });
     });
   }
 
@@ -576,6 +599,21 @@ export function MenuClient({
       }
     }
   }, [openItem]);
+  // Take over scroll restoration once at mount. Without this the
+  // browser snaps the page back to where scrollY was when the dish
+  // sheet first opened, fighting against our scrollIntoView in
+  // closeItemSheet and landing the diner on the dish they originally
+  // tapped instead of the last one they swiped to. Setting this to
+  // "manual" stays in effect for the life of the document.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("scrollRestoration" in window.history)) return;
+    const original = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = original;
+    };
+  }, []);
   useEffect(() => {
     function onPop() {
       if (sheetHistoryActiveRef.current) {

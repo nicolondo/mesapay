@@ -40,11 +40,14 @@ export default async function ServePage() {
           status: { notIn: ["paid", "cancelled"] },
           ...tableFilter,
         },
-        items: { some: { kitchenStatus: "ready", servedAt: null } },
+        items: {
+          some: { kitchenStatus: "ready", servedAt: null, cancelledAt: null },
+        },
       },
       include: {
         order: { include: { table: true } },
         items: {
+          where: { cancelledAt: null },
           orderBy: { id: "asc" },
           include: { menuItem: { select: { modifiers: true } } },
         },

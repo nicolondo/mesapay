@@ -62,21 +62,28 @@ export default async function TablesPage() {
         orderBy: { createdAt: "desc" },
         take: 1,
         include: {
-          // Only include items whose parent round is not cancelled. The
-          // mesas grid shows the diner's live state, so a cancelled plate
-          // should disappear from the count and the subtotal here.
+          // Items vivos: ni la ronda ni el item están cancelados. La
+          // mesas grid muestra el estado actual del comensal — un
+          // plato cancelado (sea por round o individual) no aporta
+          // al count ni al subtotal.
           items: {
             where: {
+              cancelledAt: null,
               OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
             },
           },
           // Rondas con items para hidratar el detail sheet del mesero
           // sin un round-trip extra al cliente. Filtramos cancelled
-          // como en items.
+          // tanto a nivel ronda como item.
           rounds: {
             where: { status: { not: "cancelled" } },
             orderBy: { seq: "asc" },
-            include: { items: { orderBy: { id: "asc" } } },
+            include: {
+              items: {
+                where: { cancelledAt: null },
+                orderBy: { id: "asc" },
+              },
+            },
           },
           // Approved payments feed the "Cobrar la cuenta" CTA — when
           // the diner already settled the full bill we hide the button.

@@ -509,6 +509,17 @@ model OrderItem {
   expediteRequestedAt      DateTime?
   expediteRequestedByEmail String?
 
+  // Cancelación a nivel item — distinto a Round.cancelledAt que
+  // tumba la ronda completa. Cuando el cliente dice "saca el lomito
+  // pero deja los demás", el mesero usa esto desde el detail sheet.
+  // Items con cancelledAt != null se excluyen del subtotal, del
+  // kitchen/bar board, del Salón y del breakdown del cobro. El
+  // motivo es free-text (con presets en la UI). El email es para
+  // auditoría — quién canceló.
+  cancelledAt        DateTime?
+  cancellationReason String?
+  cancelledByEmail   String?
+
   rating DishRating?
 
   @@index([orderId])

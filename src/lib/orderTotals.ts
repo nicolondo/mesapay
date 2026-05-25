@@ -192,10 +192,13 @@ export async function syncOrderSubtotalFromLiveItems(
       changed: false,
     };
   }
-  // Live items = items whose round is either null (legacy) or not cancelled.
+  // Live items = items whose round is either null (legacy) or not cancelled,
+  // y que tampoco fueron cancelados individualmente desde el detail sheet
+  // del mesero (cancelledAt != null).
   const items = await db.orderItem.findMany({
     where: {
       orderId,
+      cancelledAt: null,
       OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
     },
     select: { qty: true, priceCentsSnapshot: true },

@@ -52,6 +52,11 @@ export function TableDetailSheet({
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),
   );
+  // Item id pending cancel — abre el sub-sheet de motivo.
+  const [cancelTarget, setCancelTarget] = useState<{
+    itemId: string;
+    name: string;
+  } | null>(null);
 
   // Refresca el detalle cada 15s mientras está abierto — los estados
   // de cocina cambian y queremos que el mesero vea ETA actualizada
@@ -70,6 +75,29 @@ export function TableDetailSheet({
     const h = setInterval(tick, 15_000);
     return () => clearInterval(h);
   }, [open, orderId]);
+
+  async function cancelItem(itemId: string, reason: string) {
+    const r = await fetch(`/api/operator/order-items/${itemId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cancel: { reason } }),
+    });
+    if (!r.ok) {
+      alert("No pudimos cancelar el plato. Intenta de nuevo.");
+      return;
+    }
+    // Quitar el item localmente para feedback inmediato. El poll
+    // siguiente trae la verdad del server (subtotal recalculado).
+    setRounds((prev) =>
+      prev
+        .map((rd) => ({
+          ...rd,
+          items: rd.items.filter((it) => it.id !== itemId),
+        }))
+        .filter((rd) => rd.items.length > 0),
+    );
+    setCancelTarget(null);
+  }
 
   async function expedite(itemId: string) {
     setPendingExpedite((s) => new Set(s).add(itemId));
@@ -222,22 +250,43 @@ export function TableDetailSheet({
                               <span>Por preparar</span>
                             )}
                           </div>
-                          {it.expediteRequestedAt ? (
-                            <span className="font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-2 py-0.5 rounded-full">
-                              🔥 Apurado
-                            </span>
-                          ) : canExpedite ? (
-                            <button
-                              type="button"
-                              onClick={() => expedite(it.id)}
-                              disabled={pendingExpedite.has(it.id)}
-                              className="font-mono text-[10px] tracking-wider uppercase border border-terracotta/40 text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full disabled:opacity-40"
-                            >
-                              {pendingExpedite.has(it.id)
-                                ? "Avisando…"
-                                : "🔥 Apurar"}
-                            </button>
-                          ) : null}
+                          <div className="flex items-center gap-1.5">
+                            {/* Cancelar — solo si el item todavía
+                                está en el flow (no entregado ni
+                                listo, para no quitar comida que ya
+                                salió de cocina). El sub-sheet pide
+                                un motivo antes de confirmar. */}
+                            {!it.servedAt && it.kitchenStatus !== "ready" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCancelTarget({
+                                    itemId: it.id,
+                                    name: it.name,
+                                  })
+                                }
+                                className="font-mono text-[10px] tracking-wider uppercase text-danger hover:bg-danger/10 px-2 py-1 rounded-full"
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                            {it.expediteRequestedAt ? (
+                              <span className="font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-2 py-0.5 rounded-full">
+                                🔥 Apurado
+                              </span>
+                            ) : canExpedite ? (
+                              <button
+                                type="button"
+                                onClick={() => expedite(it.id)}
+                                disabled={pendingExpedite.has(it.id)}
+                                className="font-mono text-[10px] tracking-wider uppercase border border-terracotta/40 text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full disabled:opacity-40"
+                              >
+                                {pendingExpedite.has(it.id)
+                                  ? "Avisando…"
+                                  : "🔥 Apurar"}
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </li>
                     );
@@ -252,7 +301,122 @@ export function TableDetailSheet({
           </div>
         </div>
       )}
+
+      {cancelTarget && (
+        <CancelItemSheet
+          itemName={cancelTarget.name}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={(reason) => cancelItem(cancelTarget.itemId, reason)}
+        />
+      )}
     </>
+  );
+}
+
+const CANCEL_PRESETS = [
+  "Cliente cambió de opinión",
+  "Demora excesiva",
+  "Error al tomar pedido",
+  "Ingrediente faltante",
+];
+
+function CancelItemSheet({
+  itemName,
+  onClose,
+  onConfirm,
+}: {
+  itemName: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => void | Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const trimmed = reason.trim();
+  const canSubmit = trimmed.length >= 3 && !busy;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    try {
+      await onConfirm(trimmed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              Cancelar plato
+            </div>
+            <h2 className="font-display text-2xl mt-1">{itemName}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="text-xs text-muted">
+          Sale del pedido, del kitchen board y del subtotal. Esta acción
+          no se puede deshacer — si era un error, tendrá que volver a
+          pedirse.
+        </p>
+
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+            Motivo
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {CANCEL_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setReason(p)}
+                className={
+                  "h-8 px-3 rounded-full text-[11px] font-medium border transition-colors " +
+                  (reason === p
+                    ? "bg-ink text-bone border-ink"
+                    : "bg-paper border-hairline text-ink hover:border-ink")
+                }
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="O escribe otro motivo…"
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg border border-hairline bg-paper text-sm resize-none"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="w-full h-12 rounded-2xl bg-danger text-bone text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {busy ? "Cancelando…" : "Cancelar plato"}
+        </button>
+      </div>
+    </div>
   );
 }
 

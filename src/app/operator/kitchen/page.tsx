@@ -18,12 +18,12 @@ export default async function KitchenPage() {
     where: {
       order: { restaurantId },
       status: { in: ["placed", "in_kitchen", "ready"] },
-      items: { some: { station: "kitchen" } },
+      items: { some: { station: "kitchen", cancelledAt: null } },
     },
     include: {
       order: { include: { table: true } },
       items: {
-        where: { station: "kitchen" },
+        where: { station: "kitchen", cancelledAt: null },
         // Pull the menu item's modifier definitions so the kitchen
         // ticket renders "Adición: Carne, Pollo" instead of a flat
         // "Carne · Pollo" list with no context.

@@ -39,6 +39,7 @@ export default async function TerminalPage() {
           // separately and the cashier needs to know who ate what.
           items: {
             where: {
+              cancelledAt: null,
               OR: [
                 { roundId: null },
                 { round: { status: { not: "cancelled" } } },

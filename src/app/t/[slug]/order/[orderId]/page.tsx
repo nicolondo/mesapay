@@ -30,6 +30,7 @@ export default async function OrderView({
     include: {
       table: true,
       items: {
+        where: { cancelledAt: null },
         include: { menuItem: true, rating: true, round: true },
         orderBy: { id: "asc" },
       },

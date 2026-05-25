@@ -33,7 +33,10 @@ export async function GET(
       rounds: {
         orderBy: { seq: "asc" },
         include: {
-          items: { orderBy: { id: "asc" } },
+          // Mismo filtro que el server page de tables: solo items
+          // vivos. El sheet del mesero no debe ver platos cancelados
+          // por él mismo segundos antes.
+          items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
         },
       },
     },

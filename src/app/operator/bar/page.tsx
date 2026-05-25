@@ -44,7 +44,8 @@ export default async function BarPage({
   const itemsWhere: {
     station: "bar";
     barSubStation?: string | null;
-  } = { station: "bar" };
+    cancelledAt: null;
+  } = { station: "bar", cancelledAt: null };
   if (activeSub) {
     itemsWhere.barSubStation = activeSub;
   }

@@ -15,13 +15,23 @@ const schema = z
     // No hay forma de "des-apurar" — una vez marcado queda hasta que
     // el item se mueve a ready (el badge desaparece naturalmente).
     expedite: z.literal(true).optional(),
+    // Cancelar este item específico (distinto a cancelar la ronda).
+    // Cuando el cliente pide "saca el lomito pero deja los demás",
+    // el mesero usa esto desde el detail sheet. Recompute del
+    // subtotal corre en la misma transacción.
+    cancel: z
+      .object({
+        reason: z.string().trim().min(3).max(240),
+      })
+      .optional(),
   })
   .refine(
     (d) =>
       d.served !== undefined ||
       d.kitchenStatus !== undefined ||
-      d.expedite !== undefined,
-    { message: "served, kitchenStatus or expedite required" },
+      d.expedite !== undefined ||
+      d.cancel !== undefined,
+    { message: "served, kitchenStatus, expedite or cancel required" },
   );
 
 export async function PATCH(
@@ -68,6 +78,75 @@ export async function PATCH(
 
   await db.$transaction(async (tx) => {
     const now = new Date();
+
+    if (parsed.data.cancel) {
+      // Cancelación del item. Idempotente: si ya estaba cancelado no
+      // re-pisamos timestamps ni recalculamos. Si no, marcamos y
+      // re-derivamos el subtotal de la orden a partir de los items
+      // vivos restantes (excluye este recién cancelado por el WHERE).
+      if (!item.cancelledAt) {
+        await tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            cancelledAt: now,
+            cancellationReason: parsed.data.cancel.reason,
+            cancelledByEmail: session.user.email,
+          },
+        });
+        // Re-derivar subtotal — el item recién cancelado ya tiene
+        // cancelledAt != null, así que el WHERE de items vivos lo
+        // saca.
+        const liveItems = await tx.orderItem.findMany({
+          where: {
+            orderId: item.order.id,
+            cancelledAt: null,
+            OR: [
+              { roundId: null },
+              { round: { status: { not: "cancelled" } } },
+            ],
+          },
+          select: { qty: true, priceCentsSnapshot: true },
+        });
+        const liveSubtotal = liveItems.reduce(
+          (s, i) => s + i.priceCentsSnapshot * i.qty,
+          0,
+        );
+        // No tocamos el subtotal si la orden ya está paga — sería
+        // una orden cerrada y mover el subtotal implicaría refund
+        // que no modelamos acá.
+        if (item.order.status !== "paid" && item.order.status !== "paying") {
+          await tx.order.update({
+            where: { id: item.order.id },
+            data: {
+              subtotalCents: liveSubtotal,
+              totalCents: liveSubtotal + item.order.tipCents,
+            },
+          });
+        }
+      }
+      // Si la cancelación era el único item activo del round,
+      // mover el round a "cancelled" para que el kitchen board lo
+      // saque del flujo. UX coherente: si la última cosa del round
+      // se canceló, la ronda entera está cancelada.
+      if (item.roundId) {
+        const remaining = await tx.orderItem.count({
+          where: { roundId: item.roundId, cancelledAt: null },
+        });
+        if (remaining === 0) {
+          await tx.round.update({
+            where: { id: item.roundId },
+            data: {
+              status: "cancelled",
+              cancelledAt: now,
+              cancelledByEmail: session.user.email,
+              cancellationReason: parsed.data.cancel.reason,
+            },
+          });
+        }
+      }
+      // Skip todas las otras ramas — cancelar es exclusivo.
+      return;
+    }
 
     if (parsed.data.expedite === true && !item.expediteRequestedAt) {
       // Solo registramos el primer apurón — clicks repetidos no

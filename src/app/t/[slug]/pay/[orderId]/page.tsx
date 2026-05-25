@@ -40,7 +40,10 @@ export default async function PayPage({
     include: {
       table: true,
       payments: true,
-      items: { orderBy: { id: "asc" } },
+      // El resumen del cobro (y el OrderItem.guestName aggregator)
+      // solo deben ver items vivos — un plato cancelado no aporta a
+      // lo que el cliente paga.
+      items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();

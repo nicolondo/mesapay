@@ -98,7 +98,7 @@ export default async function MenuPage({
           orderBy: { createdAt: "desc" },
           include: {
             rounds: { orderBy: { seq: "asc" } },
-            items: { orderBy: { id: "asc" } },
+            items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
           },
         });
 

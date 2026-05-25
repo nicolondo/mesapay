@@ -32,7 +32,7 @@ export default async function SettingsPage() {
       where: { restaurantId, assignedUserId: { not: null } },
     }),
   ]);
-  const [meseroCount, meserosWithRange] = await Promise.all([
+  const [meseroCount, meserosWithRange, staffCount] = await Promise.all([
     db.user.count({ where: { restaurantId, role: "mesero" } }),
     db.user.count({
       where: {
@@ -40,6 +40,12 @@ export default async function SettingsPage() {
         role: "mesero",
         // Postgres `Int[]` non-empty check via NOT isEmpty.
         NOT: { assignedTableNumbers: { isEmpty: true } },
+      },
+    }),
+    db.user.count({
+      where: {
+        restaurantId,
+        role: { in: ["operator", "mesero", "kitchen", "bar", "terminal"] },
       },
     }),
   ]);
@@ -53,6 +59,17 @@ export default async function SettingsPage() {
       </p>
 
       <div className="space-y-3">
+        <SettingCard
+          href="/operator/settings/usuarios"
+          title="Usuarios"
+          subtitle="Meseros, cocina, bar, datáfono y operadores"
+          badge={`${staffCount} ${staffCount === 1 ? "usuario" : "usuarios"}`}
+          tint={
+            staffCount > 0
+              ? "bg-ok/15 text-ok"
+              : "bg-paper text-op-muted"
+          }
+        />
         <SettingCard
           href="/operator/settings/pagos"
           title="Pagos"

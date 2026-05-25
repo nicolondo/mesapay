@@ -1201,7 +1201,7 @@ function CartBar({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
           onClick={() => setOpen(false)}
         >
           <div
@@ -1371,7 +1371,7 @@ function ActiveOrderSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/40 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
       onClick={onClose}
     >
       <div
@@ -1856,7 +1856,7 @@ function ItemSheet({
       // a centred card on desktop. The mobile sheet stops behaving
       // like a "bottom drawer" — diners expect a takeover view, not a
       // sliver of carta visible at the top.
-      className="fixed inset-0 z-40 bg-black/40 md:flex md:items-center md:justify-center"
+      className="fixed inset-0 z-50 bg-black/40 md:flex md:items-center md:justify-center"
       onClick={onClose}
     >
       <div

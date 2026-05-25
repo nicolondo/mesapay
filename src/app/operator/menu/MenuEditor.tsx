@@ -22,14 +22,12 @@ type Cat = {
 };
 type MenuRef = { id: string; label: string; slug: string };
 
-const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
-  { value: "starter", label: "Entradas" },
-  { value: "main", label: "Fuertes" },
-  { value: "side", label: "Acompañamientos" },
-  { value: "drink", label: "Bebidas" },
-  { value: "dessert", label: "Postres" },
-  { value: "other", label: "Otro" },
-];
+// CategoryKind enum survives in the schema and the API, but the editor
+// only exposes the one distinction that drives product behaviour: is
+// this the category of platos fuertes (used by Fuertes-juntos mode)?
+// The other slugs (starter / side / drink / dessert) are accepted by
+// the API for historical reasons but no longer surfaced anywhere — the
+// editor only writes "main" or "other".
 
 const STATION_LABEL: Record<PrepStation, string> = {
   kitchen: "Cocina",
@@ -402,15 +400,17 @@ function NewCategoryForm({
   // Which menu the new category should belong to. Omitted → server
   // drops it into the restaurant's default (Carta).
   menuId: string | undefined;
-  // When false the kind selector + Fuertes-juntos hint are hidden and
-  // kind silently defaults to "other". Used for non-food menus (vinos,
-  // cócteles, etc.) where the kind enum makes no sense.
+  // When false the "platos fuertes" toggle is hidden (non-food menus
+  // like vinos / cócteles never use the Fuertes-juntos serving flow).
   showKind: boolean;
   onSave: (newCat: Cat) => void;
   onClose: () => void;
 }) {
   const [label, setLabel] = useState("");
-  const [kind, setKind] = useState<CategoryKind>("other");
+  // Internally we still write to CategoryKind. Only "main" vs "other"
+  // matters in product behaviour (drives Fuertes juntos), so we expose
+  // a simple boolean and translate at submit time.
+  const [isMainCourse, setIsMainCourse] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -419,12 +419,13 @@ function NewCategoryForm({
     if (!label.trim()) return;
     setBusy(true);
     setErr(null);
+    const kindToSave: CategoryKind = isMainCourse ? "main" : "other";
     const res = await fetch("/api/operator/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         label: label.trim(),
-        kind,
+        kind: kindToSave,
         // Only include menuId when we've got one. The server's fallback
         // (ensureDefaultMenu) handles the legacy single-menu case.
         ...(menuId ? { menuId } : {}),
@@ -450,7 +451,7 @@ function NewCategoryForm({
         .replace(/[̀-ͯ]/g, "")
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, ""),
-      kind,
+      kind: kindToSave,
       prepStation: "kitchen",
       // Parent overwrites this with the active menu if it has one.
       menuId: menuId ?? "",
@@ -476,30 +477,24 @@ function NewCategoryForm({
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
-        {showKind && (
-          <label className="w-48 flex flex-col">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-              Tipo
-            </span>
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value as CategoryKind)}
-              className="h-10 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
-            >
-              {KIND_OPTIONS.map((k) => (
-                <option key={k.value} value={k.value}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </div>
       {showKind && (
-        <div className="text-[11px] text-op-muted">
-          Marcar como <span className="font-medium">Fuertes</span> activa el modo
-          “Fuertes juntos” cuando el comensal lo elige al pedir.
-        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isMainCourse}
+            onChange={(e) => setIsMainCourse(e.target.checked)}
+            className="w-4 h-4 mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="font-medium">Categoría de platos fuertes</span>
+            <span className="block text-[11px] text-op-muted mt-0.5">
+              Activa el modo “Fuertes juntos” cuando el comensal lo elige al
+              pedir — la cocina retiene estos platos hasta que TODOS estén
+              listos para salir a la mesa juntos.
+            </span>
+          </span>
+        </label>
       )}
       <div className="flex justify-end gap-2">
         <button
@@ -641,18 +636,18 @@ function CategoryHeader({
     <div className="flex items-center gap-3 flex-wrap">
       <div className="font-display text-2xl">{cat.label}</div>
       {showKind && (
-        <select
-          value={cat.kind}
-          onChange={(e) => changeKind(e.target.value as CategoryKind)}
-          title="Tipo de categoría — los fuertes controlan el modo ‘Fuertes juntos’"
-          className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+        <label
+          className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
+          title="Activa el modo ‘Fuertes juntos’ — la cocina retiene estos platos hasta que TODOS estén listos para servir a la mesa juntos."
         >
-          {KIND_OPTIONS.map((k) => (
-            <option key={k.value} value={k.value}>
-              {k.label}
-            </option>
-          ))}
-        </select>
+          <input
+            type="checkbox"
+            checked={cat.kind === "main"}
+            onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
+            className="w-3 h-3"
+          />
+          <span>Platos fuertes</span>
+        </label>
       )}
       {menus.length > 1 && (
         <select

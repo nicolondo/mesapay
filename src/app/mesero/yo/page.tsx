@@ -1,19 +1,25 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
+import {
+  getCurrentMeseroShift,
+  startOfMeseroDay,
+} from "@/lib/meseroShift";
+import {
+  resolveShiftPolicy,
+  resolveTipPolicy,
+} from "@/lib/staffPolicies";
+import { YoClient } from "./YoClient";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Vista personal del mesero — esqueleto inicial.
+ * Vista personal del mesero — identidad + asignaciones + stats del
+ * turno (o del día) + control de turno personal cuando aplica.
  *
- * Hoy muestra solo identidad, mesas asignadas y "Próximamente" para
- * turnos / propinas (esos datos llegan cuando agreguemos
- * Payment.collectedByUserId + MeseroShift en el siguiente sprint).
- *
- * Reemplaza el tab "Cobros" (que era una tabla de pagos diseñada
- * para desktop y no aportaba en mobile). La info de cobros
- * pendientes ya vive en Salón.
+ * El cliente (YoClient) maneja la parte reactiva: abrir / cerrar
+ * turno + refresh de stats. El server pre-llena con la primera
+ * snapshot para evitar un loading vacío al abrir el tab.
  */
 export default async function YoPage() {
   const session = await auth();
@@ -28,10 +34,65 @@ export default async function YoPage() {
       role: true,
       restaurantId: true,
       assignedTableNumbers: true,
-      restaurant: { select: { name: true } },
+      restaurant: {
+        select: { name: true, tipPolicy: true, shiftPolicy: true },
+      },
     },
   });
   if (!user) redirect("/signin");
+
+  const tipPolicy = resolveTipPolicy(user.restaurant?.tipPolicy);
+  const shiftPolicy = resolveShiftPolicy(user.restaurant?.shiftPolicy);
+
+  // Pre-cargamos stats iniciales — el client refresca a partir de
+  // estos sin esperar a la primera GET. Solo aplicable cuando el
+  // user es mesero (otros roles ven la vista sin stats).
+  let initialStats: {
+    sinceIso: string;
+    tipsCents: number | null;
+    tipsRawCents: number;
+    salesCents: number;
+    paymentCount: number;
+    tableCount: number;
+    shift: { id: string; openedAtIso: string } | null;
+  } | null = null;
+  if (user.role === "mesero" && user.restaurantId) {
+    const openShift =
+      shiftPolicy === "by_waiter"
+        ? await getCurrentMeseroShift(user.id)
+        : null;
+    const since = startOfMeseroDay(openShift?.openedAt ?? null);
+    const payments = await db.payment.findMany({
+      where: {
+        collectedByUserId: user.id,
+        status: "approved",
+        settledAt: { gte: since },
+      },
+      select: {
+        amountCents: true,
+        tipCents: true,
+        order: { select: { tableId: true } },
+      },
+    });
+    const tipsCentsRaw = payments.reduce((s, p) => s + p.tipCents, 0);
+    const tableSet = new Set<string>();
+    for (const p of payments)
+      if (p.order?.tableId) tableSet.add(p.order.tableId);
+    initialStats = {
+      sinceIso: since.toISOString(),
+      tipsCents: tipPolicy === "by_waiter" ? tipsCentsRaw : null,
+      tipsRawCents: tipsCentsRaw,
+      salesCents: payments.reduce(
+        (s, p) => s + (p.amountCents - p.tipCents),
+        0,
+      ),
+      paymentCount: payments.length,
+      tableCount: tableSet.size,
+      shift: openShift
+        ? { id: openShift.id, openedAtIso: openShift.openedAt.toISOString() }
+        : null,
+    };
+  }
 
   const displayName = user.name?.trim() || user.email.split("@")[0];
   const initials = (user.name?.trim() || user.email)
@@ -39,6 +100,14 @@ export default async function YoPage() {
     .slice(0, 2)
     .map((s) => s[0]?.toUpperCase() ?? "")
     .join("");
+
+  // Server action para cerrar sesión — se pasa al client y el form
+  // wrapper la dispara. Mantenemos así para no exponer una API
+  // adicional.
+  async function doSignOut() {
+    "use server";
+    await signOut({ redirectTo: "/signin" });
+  }
 
   return (
     <div className="p-5 max-w-md mx-auto w-full space-y-5">
@@ -61,6 +130,17 @@ export default async function YoPage() {
           )}
         </div>
       </section>
+
+      {/* Stats + turno (solo para mesero). Para operator/admin que
+          accedan a /mesero/yo por dogfooding, mostramos solo
+          identidad + mesas + cerrar sesión. */}
+      {user.role === "mesero" && initialStats && (
+        <YoClient
+          tipPolicy={tipPolicy}
+          shiftPolicy={shiftPolicy}
+          initial={initialStats}
+        />
+      )}
 
       {/* Mesas asignadas */}
       <section className="rounded-2xl border border-hairline bg-paper p-5">
@@ -92,46 +172,7 @@ export default async function YoPage() {
         )}
       </section>
 
-      {/* Próximamente — placeholders honestos para que el mesero sepa
-          qué viene. Vienen con Sprint 2 cuando se enganche tracking
-          de quién cobra cada Payment + modelo de turno por mesero. */}
-      <section className="rounded-2xl border border-dashed border-hairline bg-paper/50 p-5 space-y-3">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-          Próximamente
-        </div>
-        <ul className="text-sm text-ink/70 space-y-2">
-          <li className="flex items-start gap-2">
-            <span aria-hidden>⏱️</span>
-            <span>
-              <strong>Abrir / cerrar mi turno</strong> — registra cuándo
-              empezaste y terminaste.
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span aria-hidden>💰</span>
-            <span>
-              <strong>Propinas del día</strong> — todo lo que recibiste
-              acumulado por turno.
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span aria-hidden>📊</span>
-            <span>
-              <strong>Resumen</strong> — mesas atendidas, ventas y
-              tiempo trabajado al cerrar tu turno.
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      {/* Cerrar sesión también vive en el header pero en mobile es
-          útil tenerlo al alcance al final del scroll del tab Yo. */}
-      <form
-        action={async () => {
-          "use server";
-          await signOut({ redirectTo: "/signin" });
-        }}
-      >
+      <form action={doSignOut}>
         <button
           type="submit"
           className="w-full h-12 rounded-2xl border border-hairline bg-paper text-ink text-sm font-medium"

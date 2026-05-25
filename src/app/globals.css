@@ -256,3 +256,28 @@ textarea,
 select {
   font-size: 16px !important;
 }
+
+/* Header de las apps PWA del staff (mesero / cocina / bar).
+   `viewport-fit=cover` + `apple-mobile-web-app-status-bar-style=black-translucent`
+   hacen que el contenido se renderice DEBAJO de la status bar de iOS,
+   tapando el título con el reloj del sistema. Padding-top con
+   env(safe-area-inset-top) lo empuja debajo del notch / reloj.
+
+   PERO en Safari browser (no instalado como PWA) el URL bar ya hace
+   ese trabajo y env() suele devolver 0 — un mínimo forzado generaba
+   un gap inútil. La media query `display-mode: standalone` aplica el
+   ajuste solo cuando la app está realmente instalada. El padding-top
+   base lo controla el inline style (--staff-safe-base-pt).
+
+   Fallback: si la variable no está seteada usamos 0.75rem para
+   meseros (header más alto) — los otros layouts overridean. */
+.staff-safe-top {
+  padding-top: var(--staff-safe-base-pt, 0.75rem);
+}
+@media (display-mode: standalone) {
+  .staff-safe-top {
+    padding-top: calc(
+      env(safe-area-inset-top, 0px) + var(--staff-safe-base-pt, 0.75rem)
+    );
+  }
+}

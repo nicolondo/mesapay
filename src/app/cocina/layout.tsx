@@ -42,12 +42,11 @@ export default async function CocinaLayout({
           header below the iOS status bar so the title doesn't sit
           under the system clock when launched as an installed PWA. */}
       <header
-        className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
-        style={{
-          // Ver `src/app/mesero/layout.tsx`.
-          paddingTop:
-            "max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3rem)",
-        }}
+        className="staff-safe-top sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
+        style={
+          // Ver `src/app/mesero/layout.tsx` para el racional.
+          { "--staff-safe-base-pt": "0.5rem" } as React.CSSProperties
+        }
       >
         <div className="font-display text-lg">Cocina</div>
         <form

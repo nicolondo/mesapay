@@ -60,14 +60,13 @@ export default async function MeseroLayout({
           bone color extends up under the status bar — clean look on
           installed PWA + harmless 0 padding in a regular browser tab. */}
       <header
-        className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-3"
-        style={{
-          // En PWA standalone iOS devuelve ~47px+. En Safari browser
-          // tab a veces devuelve 0 — el `max()` garantiza que el
-          // título nunca quede tapado por el reloj del sistema.
-          paddingTop:
-            "max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 3.25rem)",
-        }}
+        className="staff-safe-top sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-3"
+        style={
+          // `staff-safe-top` (en globals.css) suma env(safe-area-inset-top)
+          // solo en standalone PWA. En Safari browser usa el base sin
+          // sumar nada — el URL bar ya empuja el contenido hacia abajo.
+          { "--staff-safe-base-pt": "0.75rem" } as React.CSSProperties
+        }
       >
         <div className="font-display text-lg">Mesero</div>
         <form

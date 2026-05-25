@@ -247,7 +247,10 @@ export function PayClient({
     }
   }
 
-  async function payWithCash(cashTenderCents: number | null) {
+  async function payWithCash(
+    cashTenderCents: number | null,
+    changeGivenCents: number | null = null,
+  ) {
     if (amountCents <= 0) return;
     setBusy("demo_cash");
     setErr(null);
@@ -261,6 +264,7 @@ export function PayClient({
           amountCents,
           tipCents: amountTip,
           cashTenderCents: cashTenderCents ?? undefined,
+          changeGivenCents: changeGivenCents ?? undefined,
           // In operator mode the mesero is the one collecting AND
           // settling — no need to bounce through Salón as a pending
           // request that the same person will then settle one click
@@ -545,16 +549,12 @@ export function PayClient({
             kind="cash"
             disabled={busy !== null || amountCents <= 0}
             busy={busy === "demo_cash"}
-            // Operator mode: skip the "¿con cuánto vas a pagar?" sheet
-            // — that's a diner-side flow so the waiter knows in
-            // advance what change to bring. When the mesero IS the
-            // waiter (waiter mode) they already have the cash in
-            // hand; just settle the payment immediately.
-            onClick={
-              operatorMode
-                ? () => payWithCash(null)
-                : () => setCashTenderOpen(true)
-            }
+            // Both diner + operator open a sheet first. Diner sheet:
+            // "¿con cuánto vas a pagar?" so the mesero brings the
+            // right change. Operator sheet: tender + vuelto + keep-
+            // the-change tip captured in one go so we settle in a
+            // single click.
+            onClick={() => setCashTenderOpen(true)}
             amountCents={amountCents}
             operatorMode={operatorMode}
           />
@@ -581,7 +581,7 @@ export function PayClient({
         )}
       </div>
 
-      {cashTenderOpen && (
+      {cashTenderOpen && !operatorMode && (
         <CashTenderSheet
           amountCents={amountCents}
           busy={busy === "demo_cash"}
@@ -589,6 +589,17 @@ export function PayClient({
           onPay={(tender) => {
             setCashTenderOpen(false);
             payWithCash(tender);
+          }}
+        />
+      )}
+      {cashTenderOpen && operatorMode && (
+        <OperatorCashSheet
+          amountCents={amountCents}
+          busy={busy === "demo_cash"}
+          onClose={() => setCashTenderOpen(false)}
+          onConfirm={({ tenderCents, changeGivenCents }) => {
+            setCashTenderOpen(false);
+            payWithCash(tenderCents, changeGivenCents);
           }}
         />
       )}
@@ -753,6 +764,205 @@ function CashTenderSheet({
       </div>
     </div>
   );
+}
+
+/**
+ * Operator-side cash collection sheet. Different shape than the diner
+ * one: the mesero already has the cash in hand and is closing the
+ * round right now, so we collect tender + change + keep-the-change
+ * tip in a single confirmation. The diner-facing sheet stays focused
+ * on "tell the waiter how much you'll pay so they bring the right
+ * change."
+ */
+function OperatorCashSheet({
+  amountCents,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  amountCents: number;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (v: { tenderCents: number; changeGivenCents: number }) => void;
+}) {
+  const dueCop = Math.ceil(amountCents / 100);
+
+  // Common bill denominations the diner is likely to hand over.
+  // Skip the "exact" case as a preset since it's the obvious default;
+  // we add a separate "Cuenta exacta" button further down.
+  const REAL_BILLS_COP = [10000, 20000, 50000, 100000, 200000];
+  const presetsCop = Array.from(
+    new Set(
+      [Math.ceil(dueCop / 10000) * 10000, ...REAL_BILLS_COP].filter(
+        (b) => b > dueCop && b <= dueCop * 4,
+      ),
+    ),
+  )
+    .sort((a, b) => a - b)
+    .slice(0, 4);
+
+  const [tenderCop, setTenderCop] = useState<string>(String(dueCop));
+  const [changeCop, setChangeCop] = useState<string>("0");
+
+  const tender = Math.round(Number(tenderCop || 0) * 100);
+  const change = Math.round(Number(changeCop || 0) * 100);
+  const netReceived = tender - change;
+  const extraTip = netReceived - amountCents;
+  const validTender = tender >= amountCents;
+  const validChange = change >= 0 && change <= tender;
+  const valid = validTender && validChange && netReceived >= amountCents;
+
+  function pickPreset(bill: number) {
+    setTenderCop(String(bill));
+    // Sensible default: give back exact change (no extra tip). The
+    // mesero can lower the change if the diner says "keep $X" — the
+    // extraTip readout below updates live.
+    const exactChange = bill * 100 - amountCents;
+    setChangeCop(String(Math.max(0, Math.round(exactChange / 100))));
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+              Cobrar en efectivo · {fmtCOP(amountCents)}
+            </div>
+            <h2 className="font-display text-2xl mt-1">Confirma el cobro</h2>
+            <p className="text-xs text-muted mt-1">
+              Anota cuánto te pasó el cliente y cuánto vuelto le diste.
+              Si te dice que te quedes con todo o parte, ajusta la
+              devuelta para abajo — la diferencia entra como propina.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        {presetsCop.length > 0 && (
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+              Atajos
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setTenderCop(String(dueCop));
+                  setChangeCop("0");
+                }}
+                disabled={busy}
+                className="h-9 px-3 rounded-full text-xs font-medium bg-paper border border-hairline"
+              >
+                Cuenta exacta
+              </button>
+              {presetsCop.map((bill) => (
+                <button
+                  key={bill}
+                  type="button"
+                  onClick={() => pickPreset(bill)}
+                  disabled={busy}
+                  className="h-9 px-3 rounded-full text-xs font-medium bg-paper border border-hairline tabular"
+                >
+                  {fmtCOP(bill * 100)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Recibido del cliente
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatMiles(tenderCop)}
+              onChange={(e) => {
+                const clean = e.target.value.replace(/[^0-9]/g, "");
+                setTenderCop(clean);
+              }}
+              className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-xl font-display tabular"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Devuelta dada
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatMiles(changeCop)}
+              onChange={(e) => {
+                const clean = e.target.value.replace(/[^0-9]/g, "");
+                setChangeCop(clean);
+              }}
+              className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-xl font-display tabular"
+            />
+          </label>
+        </div>
+
+        <div
+          className={
+            "rounded-xl px-3 py-3 text-sm border " +
+            (valid
+              ? extraTip > 0
+                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                : "bg-paper border-hairline text-ink"
+              : "bg-red-50 border-red-200 text-red-900")
+          }
+        >
+          {!validTender ? (
+            <span>El cliente debe pasarte al menos {fmtCOP(amountCents)}.</span>
+          ) : !validChange ? (
+            <span>La devuelta no puede ser mayor a lo recibido.</span>
+          ) : extraTip > 0 ? (
+            <span>
+              Propina por vuelto:{" "}
+              <strong className="font-mono tabular">{fmtCOP(extraTip)}</strong>
+            </span>
+          ) : (
+            <span>Sin propina por vuelto.</span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            onConfirm({ tenderCents: tender, changeGivenCents: change })
+          }
+          disabled={busy || !valid}
+          className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {busy
+            ? "Registrando…"
+            : `Confirmar cobro · ${fmtCOP(amountCents + Math.max(0, extraTip))}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Tiny helper for the inputs above — renders an integer-peso string
+// with es-CO thousand dots while keeping the underlying digits clean.
+function formatMiles(digits: string): string {
+  if (!digits) return "";
+  return Number(digits).toLocaleString("es-CO");
 }
 
 function PresetBill({

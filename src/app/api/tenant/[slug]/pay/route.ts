@@ -16,7 +16,13 @@ const schema = z.object({
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),
   // Only meaningful for demo_cash. Ignored otherwise.
-  cashTenderCents: z.number().int().min(0).max(100_000_000).optional(),
+  cashTenderCents: z.number().int().min(0).max(10_000_000_000).optional(),
+  // The vuelto the mesero physically handed back. Only meaningful when
+  // settleNow + demo_cash + cashTenderCents are all set. Lets us
+  // record the keep-the-change tip in a single round-trip when the
+  // operator initiates the cobro (diner says "quédate con todo" /
+  // "con $2k" and we capture both numbers right there).
+  changeGivenCents: z.number().int().min(0).max(10_000_000_000).optional(),
   // When the operator/mesero is the one collecting (waiter mode),
   // there's no point creating a pending demo_cash payment that the
   // SAME person will then settle from Salón one second later. With
@@ -85,18 +91,54 @@ export async function POST(
         session.user.role === "platform_admin");
 
     if (operatorSettling) {
+      // Keep-the-change math. When the mesero hands us both the
+      // tender ($ recibido del cliente) and the change ($ devuelta
+      // dada), the diner's "leftover" — tender minus change minus
+      // the expected bill — is the keep-the-change propina.
+      //
+      // Example: bill $43.000 with $3.000 propina seleccionada
+      //   tender = $50.000, change = $5.000
+      //   netReceived = $45.000
+      //   extraTip = $45.000 - $43.000 = $2.000 (cliente dejó vuelto)
+      //   final amountCents = $45.000
+      //   final tipCents = $3.000 + $2.000 = $5.000
+      //
+      // If only tender is provided (no change number), we assume the
+      // mesero gave exact change and the keep-the-change is zero.
+      const baseAmount = parsed.data.amountCents;
+      const baseTip = parsed.data.tipCents;
+      let finalAmount = baseAmount;
+      let finalTip = baseTip;
+      const tender = parsed.data.cashTenderCents;
+      const change = parsed.data.changeGivenCents;
+      if (tender != null && change != null) {
+        const netReceived = tender - change;
+        if (netReceived < baseAmount) {
+          return NextResponse.json(
+            { error: "Recibido neto menor al monto a cobrar." },
+            { status: 400 },
+          );
+        }
+        if (change > tender) {
+          return NextResponse.json(
+            { error: "La devuelta no puede ser mayor a lo recibido." },
+            { status: 400 },
+          );
+        }
+        const extraTip = netReceived - baseAmount;
+        finalAmount = netReceived;
+        finalTip = baseTip + extraTip;
+      }
+
       const result = await db.$transaction(async (tx) => {
         const payment = await tx.payment.create({
           data: {
             orderId: order.id,
             method: "demo_cash",
             status: "approved",
-            amountCents: parsed.data.amountCents,
-            tipCents: parsed.data.tipCents,
-            cashTenderCents:
-              parsed.data.cashTenderCents != null
-                ? parsed.data.cashTenderCents
-                : null,
+            amountCents: finalAmount,
+            tipCents: finalTip,
+            cashTenderCents: tender ?? null,
             settledAt: new Date(),
           },
         });

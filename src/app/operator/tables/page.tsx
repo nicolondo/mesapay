@@ -290,20 +290,17 @@ export default async function TablesPage() {
                   secundario (outline) — "Cobrar la cuenta" es la
                   acción principal en ese estado. Para una mesa libre
                   "Tomar pedido" SÍ es la acción principal. */}
-              {/* Mesero: navega dentro del scope de la PWA
-                  (/mesero/pedir/[id]) para que el PWA standalone no
-                  rompa el scope hacia /t/* y termine abriendo Safari
-                  aparte. Operator/admin abren en nueva pestaña (su
-                  flujo tradicional para no perder el dashboard). */}
+              {/* Abrimos en pestaña nueva para todos (operator y
+                  mesero). En iOS PWA standalone esto sale como
+                  Safari View Controller (in-app browser con X
+                  arriba), no como tab full de Safari — el mesero
+                  no pierde la PWA y vuelve cerrando. El sheet de
+                  "Yo soy …" se omite porque operatorMode incluye
+                  mesero (ver /t/[slug]/menu/page.tsx). */}
               <a
-                href={
-                  isMeseroView
-                    ? `/mesero/pedir/${t.id}`
-                    : `/t/${tenant!.slug}/menu?table=${t.qrToken}&op=1`
-                }
-                {...(isMeseroView
-                  ? {}
-                  : { target: "_blank", rel: "noreferrer" })}
+                href={`/t/${tenant!.slug}/menu?table=${t.qrToken}&op=1`}
+                target="_blank"
+                rel="noreferrer"
                 className={
                   "mt-3 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors " +
                   (active

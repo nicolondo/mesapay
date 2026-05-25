@@ -185,6 +185,7 @@ export function MenuClient({
   pickup,
   operatorMode = false,
   postSendHref = "/operator/serve",
+  dockBottomClass = "bottom-4",
 }: {
   tenant: Tenant;
   tableId: string;
@@ -217,6 +218,11 @@ export function MenuClient({
   // (default). Mesero → /mesero/salon (el operator layout está gated
   // y un mesero rebotaría a /). Puede ser cualquier URL absoluta.
   postSendHref?: string;
+  // Cuando el menú se renderiza dentro de un layout con bottom nav
+  // (caso /mesero/pedir/[id]), el dock fijo "Enviar a cocina" choca
+  // con la nav. Empujarlo hacia arriba via clase Tailwind. Default
+  // "bottom-4" mantiene el comportamiento histórico.
+  dockBottomClass?: string;
 }) {
   const router = useRouter();
   // Active top-level menu tab. Hidden entirely when there's only one
@@ -318,11 +324,19 @@ export function MenuClient({
     }
     const savedName = localStorage.getItem(nameKey);
     if (savedName) setGuestName(savedName);
-    // Don't prompt for a name in operator (waiter) mode — the operator
-    // is the one taking the pedido, the diner may not even be in front
-    // of them. The "Yo soy" pill is still tappable from the header if
-    // they want to attach a name.
-    else if (!isPickup && !operatorMode) setShowNameSheet(true);
+    else if (operatorMode) {
+      // El mesero/operator está tomando el pedido por el cliente. En
+      // vez de pedirle un nombre (no es relevante para reportes y
+      // genera un sheet extra), atamos los items a un guest "Mesero"
+      // por defecto. Sirve también de marcador en la cuenta de quién
+      // ingresó cada ronda. No tocamos localStorage para no
+      // contaminar futuras sesiones del mismo dispositivo si lo
+      // usara un comensal.
+      setGuestName("Mesero");
+    } else if (!isPickup) {
+      // Cliente sin nombre guardado → pedirle que se identifique.
+      setShowNameSheet(true);
+    }
     try {
       const raw = localStorage.getItem(cartKey);
       if (raw) {
@@ -1025,7 +1039,12 @@ export function MenuClient({
           position:fixed, which would trap the cart modal inside this dock
           instead of the viewport. Use auto margins to center instead. */}
       {!openItem && (cart.length > 0 || activeOrder) && (
-        <div className="fixed bottom-4 inset-x-0 mx-auto z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch">
+        <div
+          className={
+            "fixed inset-x-0 mx-auto z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch " +
+            dockBottomClass
+          }
+        >
           {activeOrder && (
             <button
               type="button"

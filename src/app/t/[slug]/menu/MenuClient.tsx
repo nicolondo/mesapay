@@ -409,34 +409,50 @@ export function MenuClient({
       rafId = null;
       if (spyMuteTokenRef.current !== 0) return;
       const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
-      // Trigger line about a third of the way down the visible content
-      // area (capped at 200px). Earlier we used header+16, which only
-      // activated a section AFTER its title had nearly left the screen
-      // — so the user would be reading "Molcajete" content while the
-      // chip still said "Tartar". With the line lower, a section
-      // becomes active the moment its title crosses into the upper
-      // third of the viewport, which matches where the eye lands.
-      const viewportH = window.innerHeight;
-      const triggerY =
-        headerH + Math.min(200, (viewportH - headerH) * 0.33);
       let bestSlug: string | null = null;
-      // DOM iteration order may differ from `categories` array order
-      // (filtered, hidden sections, etc.). We track the highest `top`
-      // value still ≤ triggerY across all rendered sections rather than
-      // breaking early on the array order — more robust to changes.
-      let bestTop = -Infinity;
-      for (const c of scopedCategories) {
-        const el = document.getElementById(`cat-${c.slug}`);
-        if (!el) continue;
-        const top = el.getBoundingClientRect().top;
-        if (top - triggerY <= 0 && top > bestTop) {
-          bestTop = top;
-          bestSlug = c.slug;
+      // Hard override at the very top of the page: when the user
+      // hasn't scrolled (or just scrolled back to the top), the active
+      // chip should always be the first category — regardless of how
+      // the trigger-line maths plays out. Without this, a carta whose
+      // first category has few items (e.g. Malbec with one wine) sees
+      // BOTH its title AND the next one above the trigger line at
+      // scrollY=0, and the "closest to trigger from above" tiebreak
+      // picks the SECOND. The result: you scroll back to the top, see
+      // Malbec on screen, but the chip says the next category. Fixed
+      // by short-circuiting the algorithm in this exact range.
+      if (window.scrollY < 16) {
+        bestSlug = scopedCategories[0]?.slug ?? null;
+      } else {
+        // Trigger line about a third of the way down the visible
+        // content area (capped at 200px). Earlier we used header+16,
+        // which only activated a section AFTER its title had nearly
+        // left the screen — so the user would be reading "Molcajete"
+        // content while the chip still said "Tartar". With the line
+        // lower, a section becomes active the moment its title
+        // crosses into the upper third of the viewport, which
+        // matches where the eye lands.
+        const viewportH = window.innerHeight;
+        const triggerY =
+          headerH + Math.min(200, (viewportH - headerH) * 0.33);
+        // DOM iteration order may differ from `categories` array
+        // order (filtered, hidden sections, etc.). We track the
+        // highest `top` value still ≤ triggerY across all rendered
+        // sections rather than breaking early on the array order —
+        // more robust to changes.
+        let bestTop = -Infinity;
+        for (const c of scopedCategories) {
+          const el = document.getElementById(`cat-${c.slug}`);
+          if (!el) continue;
+          const top = el.getBoundingClientRect().top;
+          if (top - triggerY <= 0 && top > bestTop) {
+            bestTop = top;
+            bestSlug = c.slug;
+          }
         }
+        // Edge case: top of page, before any section has crossed yet —
+        // default to the first one so the chip strip isn't blank.
+        if (!bestSlug) bestSlug = scopedCategories[0]?.slug ?? null;
       }
-      // Edge case: top of page, before any section has crossed yet —
-      // default to the first one so the chip strip isn't blank.
-      if (!bestSlug) bestSlug = scopedCategories[0]?.slug ?? null;
       if (bestSlug && bestSlug !== activeCatRef.current) {
         setActiveCat(bestSlug);
         ensureChipVisible(bestSlug);

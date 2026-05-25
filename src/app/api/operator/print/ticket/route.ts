@@ -20,10 +20,16 @@ import { formatItemSelections } from "@/lib/modifiers";
  */
 export async function GET(req: Request) {
   const session = await auth();
+  // Kitchen / bar también imprimen — sus pantallas (/cocina, /bar)
+  // re-exportan los boards del operador y la auto-impresión dispara
+  // este GET cada vez que un round nuevo entra a la estación. Sin
+  // estos roles acá la impresión falla en silencio.
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "kitchen" &&
+      session.user.role !== "bar")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getMeseroScope } from "@/lib/meseroScope";
@@ -26,6 +27,13 @@ export default async function TablesPage() {
   await Promise.all(
     openOrderIds.map((o) => syncOrderSubtotalFromLiveItems(o.id)),
   );
+
+  // Esta página se reusa en /mesero/mesas vía re-export. El mesero
+  // no debe ver acciones administrativas (crear mesa, imprimir QRs,
+  // configurar pickup) — usa la grilla solo para cobrar / tomar
+  // pedidos. El operador sí ve todo.
+  const session = await auth();
+  const isMeseroView = session?.user?.role === "mesero";
 
   // Mesero-scoped users only see their assigned table numbers (and
   // the pickup pseudo-table when their assignment includes -1, which
@@ -110,26 +118,30 @@ export default async function TablesPage() {
         <div className="font-display text-3xl">
           {counterMode ? "Mostrador" : "Mesas"}
         </div>
-        <a
-          href="/operator/tables/print"
-          target="_blank"
-          className="h-10 px-5 rounded-full border border-op-border inline-flex items-center text-sm font-medium"
-        >
-          {counterMode ? "Imprimir QR" : "Imprimir QRs"}
-        </a>
+        {!isMeseroView && (
+          <a
+            href="/operator/tables/print"
+            target="_blank"
+            className="h-10 px-5 rounded-full border border-op-border inline-flex items-center text-sm font-medium"
+          >
+            {counterMode ? "Imprimir QR" : "Imprimir QRs"}
+          </a>
+        )}
       </div>
-      <p className="text-sm text-op-muted mb-4">
-        {counterMode
-          ? "En modo mostrador hay un solo QR. El cliente lo escanea, ordena y paga."
-          : "Cada mesa tiene un enlace QR único. Imprímelo y colócalo en la mesa."}
-      </p>
-      {!counterMode && (
+      {!isMeseroView && (
+        <p className="text-sm text-op-muted mb-4">
+          {counterMode
+            ? "En modo mostrador hay un solo QR. El cliente lo escanea, ordena y paga."
+            : "Cada mesa tiene un enlace QR único. Imprímelo y colócalo en la mesa."}
+        </p>
+      )}
+      {!counterMode && !isMeseroView && (
         <div className="mb-5">
           <NewTableForm suggestedNumber={nextNumber} />
         </div>
       )}
 
-      {!counterMode && tenant?.pickupEnabled && pickupTable && (
+      {!counterMode && !isMeseroView && tenant?.pickupEnabled && pickupTable && (
         <div className="mb-5 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-4">
           <div className="flex items-center justify-between">
             <div>

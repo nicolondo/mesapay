@@ -249,12 +249,15 @@ export function TableDetailSheet({
                               )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            {/* Cancelar — solo si el item todavía
-                                está en el flow (no entregado ni
-                                listo, para no quitar comida que ya
-                                salió de cocina). El sub-sheet pide
-                                un motivo antes de confirmar. */}
-                            {!it.servedAt && it.kitchenStatus !== "ready" && (
+                            {/* Cancelar — solo si el item está en
+                                "placed" (todavía no entró a cocina).
+                                Una vez que cocina lo empieza, la
+                                cancelación tiene que pasar por la
+                                cocina (rinde cuenta de insumos /
+                                tiempo) — no desde la app del mesero.
+                                Ready / servido tampoco se cancelan
+                                desde acá. */}
+                            {!it.servedAt && it.kitchenStatus === "placed" && (
                               <button
                                 type="button"
                                 onClick={() =>

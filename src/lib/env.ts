@@ -39,6 +39,17 @@ const schema = z.object({
 
   // Cron auth — shared secret in `x-cron-secret` header for cron endpoints.
   CRON_SECRET: z.string().optional(),
+
+  // Web Push (VAPID). Generated once with:
+  //   node -e "const w=require('web-push');const k=w.generateVAPIDKeys();
+  //     console.log('PUBLIC='+k.publicKey);console.log('PRIVATE='+k.privateKey)"
+  // The public key is exposed to the browser (NEXT_PUBLIC_) so the
+  // service worker can subscribe; the private key stays on the
+  // server. VAPID_SUBJECT is a mailto: URL the push services use to
+  // reach us about abuse / quota.
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:hola@mesapay.co"),
 });
 
 type EnvShape = z.infer<typeof schema>;

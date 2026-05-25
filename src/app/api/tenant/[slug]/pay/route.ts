@@ -9,6 +9,7 @@ import {
   recomputeOrderTotalsInTx,
   validateNewPaymentAmount,
 } from "@/lib/orderTotals";
+import { sendPushToMeserosForTable } from "@/lib/push";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -224,6 +225,25 @@ export async function POST(
       orderId: order.id,
       paymentId: payment.id,
     });
+
+    // Native push to meseros assigned to this table. Fire-and-forget
+    // so a slow push service doesn't delay the diner's response.
+    void (async () => {
+      const table = order.tableId
+        ? await db.table.findUnique({
+            where: { id: order.tableId },
+            select: { number: true, label: true },
+          })
+        : null;
+      if (!table || table.number < 0) return; // pickup pseudo-table
+      const where = table.label ?? `Mesa ${table.number}`;
+      await sendPushToMeserosForTable(tenant.id, table.number, {
+        title: `${where} pidió cobrar`,
+        body: `Pago en efectivo · ${(parsed.data.amountCents / 100).toLocaleString("es-CO")} COP`,
+        tag: `cash-${order.id}`,
+        url: "/mesero/salon",
+      });
+    })().catch((err) => console.error("[push:cash]", err));
 
     return NextResponse.json({
       paymentId: payment.id,

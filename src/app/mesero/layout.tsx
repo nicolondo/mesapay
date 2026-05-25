@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { PushSetup } from "./PushSetup";
 
 /**
  * Mesero layout — mobile-first PWA wrapper. Reaches into the diner side
@@ -47,6 +48,11 @@ export default async function MeseroLayout({
           </button>
         </form>
       </header>
+
+      {/* Push opt-in banner — disappears once subscribed or on
+          unsupported browsers. Sits under the header so it's the
+          first thing the mesero sees on a fresh install. */}
+      <PushSetup />
 
       {/* Content area with safe padding for the bottom nav. */}
       <main className="flex-1 pb-24">{children}</main>

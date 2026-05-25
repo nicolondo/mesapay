@@ -183,6 +183,31 @@ model User {
   shiftsOpened Shift[] @relation("ShiftsOpened")
   shiftsClosed Shift[] @relation("ShiftsClosed")
 
+  pushSubscriptions PushSubscription[]
+
+  @@index([restaurantId])
+}
+
+// Web Push subscription registered by a mesero (or any staff) from
+// their PWA. Holds the endpoint + crypto keys we need to send a push
+// via the VAPID protocol. One user can have multiple subscriptions
+// (different devices). On 410 Gone from the push service we delete
+// the row — subscriptions expire on the user's end too.
+model PushSubscription {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Denormalised so push sender helpers don't have to join through
+  // user to filter by restaurant. Set on create.
+  restaurantId String?
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
   @@index([restaurantId])
 }
 

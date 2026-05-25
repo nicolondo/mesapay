@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
+import { sendPushToMeserosForTable } from "@/lib/push";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -83,6 +84,25 @@ export async function POST(
     paymentId: payment.id,
     amountCents: parsed.data.amountCents + parsed.data.tipCents,
   });
+
+  // Native push to meseros assigned to this table.
+  void (async () => {
+    const table = order.tableId
+      ? await db.table.findUnique({
+          where: { id: order.tableId },
+          select: { number: true, label: true },
+        })
+      : null;
+    if (!table || table.number < 0) return;
+    const where = table.label ?? `Mesa ${table.number}`;
+    const totalCop = (parsed.data.amountCents + parsed.data.tipCents) / 100;
+    await sendPushToMeserosForTable(tenant.id, table.number, {
+      title: `${where} pidió datáfono`,
+      body: `Cobro con tarjeta · ${totalCop.toLocaleString("es-CO")} COP`,
+      tag: `terminal-${order.id}`,
+      url: "/mesero/salon",
+    });
+  })().catch((err) => console.error("[push:terminal]", err));
 
   return NextResponse.json({
     paymentId: payment.id,

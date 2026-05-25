@@ -861,18 +861,22 @@ function OperatorCashSheet({
     setChangeCop(String(Math.max(0, Math.round(exactChange / 100))));
   }
 
-  // "Cliente deja todo de propina" — set devuelta = 0 so the entire
-  // difference (tender - amount) becomes the tip. Stays disabled when
-  // tender is below the bill (no propina possible) or already at exact
-  // (nothing to leave).
+  // Estado del vuelto: tres posibles configuraciones para no ambiguar.
+  //   - isRefunding  : devuelta = vuelto completo (cliente recibe todo)
+  //   - isKeepingAll : devuelta = 0 (todo va a propina)
+  //   - partial      : ninguna de las anteriores (cliente dijo "dame
+  //                    $1000 y deja el resto") — los dos shortcuts
+  //                    quedan inactivos y el mesero ajusta a mano.
   const expectedChange = Math.max(0, tender - amountCents);
-  const canKeepAll = validTender && expectedChange > 0 && change > 0;
+  const expectedChangeCop = Math.max(0, Math.round(expectedChange / 100));
+  const isRefunding =
+    validTender && expectedChange > 0 && change === expectedChange;
   const isKeepingAll = validTender && expectedChange > 0 && change === 0;
   function keepAllAsTip() {
     setChangeCop("0");
   }
   function refundExactChange() {
-    setChangeCop(String(Math.max(0, Math.round(expectedChange / 100))));
+    setChangeCop(String(expectedChangeCop));
   }
 
   return (
@@ -891,9 +895,9 @@ function OperatorCashSheet({
             </div>
             <h2 className="font-display text-2xl mt-1">Confirma el cobro</h2>
             <p className="text-xs text-muted mt-1">
-              Anota cuánto te pasó el cliente y cuánto vuelto le diste.
-              Si te dice que te quedes con todo o parte, ajusta la
-              devuelta para abajo — la diferencia entra como propina.
+              Anota cuánto te pasó el cliente. Si te dice que te
+              quedes con el vuelto (todo o parte), abajo eliges qué
+              hacer con él.
             </p>
           </div>
           <button
@@ -983,43 +987,53 @@ function OperatorCashSheet({
           </label>
         </div>
 
-        {/* Propina toggle — only meaningful when there IS change to
-            redirect. Two states:
-              - Devolver vuelto: full change goes back, no propina.
-              - Cliente deja todo de propina: devuelta = 0, propina = full
-                expected change. One tap covers the common
-                "quédate con esto" interaction. */}
+        {/* Decisión clara sobre los $X de vuelto. Tres estados:
+            - isRefunding  → activo el botón "Le devuelvo"
+            - isKeepingAll → activo el botón "Lo deja de propina"
+            - partial      → ningún botón activo (el mesero ajustó
+                             la devuelta a mano via los inputs)
+            Ambos botones quedan siempre clickeables salvo el que ya
+            refleja el estado actual — antes había un check al revés
+            que dejaba "Devolver" atascado al pasar a "Dejar". */}
         {expectedChange > 0 && (
           <div>
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-              ¿El cliente quiere su vuelto?
+              ¿Qué hace con los {fmtCOP(expectedChange)} de vuelto?
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={refundExactChange}
-                disabled={busy || !canKeepAll}
+                disabled={busy || isRefunding}
+                aria-pressed={isRefunding}
                 className={
-                  "h-10 rounded-full text-xs font-medium border px-3 transition-colors " +
-                  (!isKeepingAll
+                  "h-12 rounded-2xl text-sm font-medium border px-3 transition-colors " +
+                  (isRefunding
                     ? "bg-ink text-bone border-ink"
                     : "bg-paper border-hairline text-ink hover:border-ink")
                 }
               >
-                Devolver vuelto · {fmtCOP(expectedChange)}
+                <div className="leading-tight">Le devuelvo</div>
+                <div className="font-mono text-[10px] opacity-80 mt-0.5">
+                  el vuelto
+                </div>
               </button>
               <button
                 type="button"
                 onClick={keepAllAsTip}
                 disabled={busy || isKeepingAll}
+                aria-pressed={isKeepingAll}
                 className={
-                  "h-10 rounded-full text-xs font-medium border px-3 transition-colors " +
+                  "h-12 rounded-2xl text-sm font-medium border px-3 transition-colors " +
                   (isKeepingAll
                     ? "bg-ink text-bone border-ink"
                     : "bg-paper border-hairline text-ink hover:border-ink")
                 }
               >
-                Dejar de propina · {fmtCOP(expectedChange)}
+                <div className="leading-tight">Lo deja</div>
+                <div className="font-mono text-[10px] opacity-80 mt-0.5">
+                  de propina
+                </div>
               </button>
             </div>
           </div>

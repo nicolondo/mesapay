@@ -8,12 +8,14 @@ const patchSchema = z.object({
   label: z.string().trim().max(40).nullable().optional(),
 });
 
-async function guard(id: string) {
+async function guard(id: string, opts: { allowMesero?: boolean } = {}) {
   const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
-  ) {
+  const role = session?.user?.role;
+  const allowed =
+    role === "operator" ||
+    role === "platform_admin" ||
+    (opts.allowMesero === true && role === "mesero");
+  if (!session?.user || !allowed) {
     return { error: "unauthorized" as const };
   }
   const table = await db.table.findUnique({ where: { id } });
@@ -30,7 +32,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const g = await guard(id);
+  // PATCH solo cambia el label hoy — un mesero etiquetando una mesa
+  // como "Terraza 3" o "Ventana" es legítimo. Borrado (DELETE) sigue
+  // restringido al operador.
+  const g = await guard(id, { allowMesero: true });
   if ("error" in g) return NextResponse.json({ error: g.error }, { status: 403 });
 
   const body = await req.json().catch(() => null);

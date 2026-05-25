@@ -78,6 +78,13 @@ export type PaymentValidation =
 export async function validateNewPaymentAmount(
   orderId: string,
   newFoodCents: number,
+  // When the OPERATOR is the one settling cash (settleNow path), they
+  // own the canonical view of the drawer — any old pending demo_cash
+  // for this order is a stale "llamar al mesero" intent that the
+  // operator is about to override / clean up in the same transaction.
+  // Counting it here would block the legitimate cobro with
+  // amount_exceeds_outstanding even though everything checks out.
+  opts: { excludePending?: boolean } = {},
 ): Promise<PaymentValidation> {
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -89,14 +96,18 @@ export async function validateNewPaymentAmount(
   if (order.status === "paid") {
     return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
   }
-  // Count approved AND pending(cash) payments — a pending demo_cash
-  // payment is money the diner has already "claimed" they will hand to
-  // the mesero. Letting another payment slip in on top would double-
-  // collect them when the cash arrives.
+  // By default count approved AND pending(cash) payments — a pending
+  // demo_cash payment is money the diner has already "claimed" they
+  // will hand to the mesero. Letting another payment slip in on top
+  // would double-collect when the cash arrives. The opts.excludePending
+  // flag lifts that constraint for the operator settle path (see above).
+  const statusIn: ("approved" | "pending")[] = opts.excludePending
+    ? ["approved"]
+    : ["approved", "pending"];
   const claims = await db.payment.findMany({
     where: {
       orderId,
-      status: { in: ["approved", "pending"] },
+      status: { in: statusIn },
     },
     select: { amountCents: true, tipCents: true },
   });

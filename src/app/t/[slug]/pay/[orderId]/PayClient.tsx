@@ -169,7 +169,7 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.error ?? "El pago falló.");
+        setErr(j.message ?? j.error ?? "El pago falló.");
         return;
       }
       if (j.approved && j.paymentId) {
@@ -202,7 +202,7 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
-        setErr(j.error ?? "No pudimos avisar al mesero.");
+        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
         return;
       }
 
@@ -226,7 +226,7 @@ export function PayClient({
         );
         if (!pushRes.ok) {
           const pj = await pushRes.json().catch(() => ({}));
-          setErr(pj.error ?? "No pudimos enviar el cobro al datáfono.");
+          setErr(pj.message ?? pj.error ?? "No pudimos enviar el cobro al datáfono.");
           return;
         }
         // Land on the operator-side waiting screen instead of /salón
@@ -277,7 +277,7 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.error ?? "No pudimos avisar al mesero.");
+        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
         return;
       }
       if (operatorMode) {

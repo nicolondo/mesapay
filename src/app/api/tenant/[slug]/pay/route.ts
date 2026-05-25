@@ -55,8 +55,20 @@ export async function POST(
   // Server-side cap: never accept a payment whose food portion would
   // push the bill over the subtotal. Same guardrail in the kushki and
   // terminal routes — see src/lib/orderTotals.ts.
+  //
+  // For the operator-mode cash settle path we exclude pending demo_cash
+  // from the cap: the operator IS the canonical settler and we'll
+  // dismiss any stale pending in the transaction below. Counting them
+  // here was producing false "amount_exceeds_outstanding" rejections
+  // for legit cobros (e.g. diner had tapped "llamar al mesero" earlier,
+  // creating a pending, and then the operator tried to close the bill
+  // themselves).
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  const willOperatorSettle =
+    parsed.data.settleNow === true && parsed.data.method === "demo_cash";
+  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
+    excludePending: willOperatorSettle,
+  });
   if (!cap.ok) {
     return NextResponse.json(
       {
@@ -131,6 +143,22 @@ export async function POST(
       }
 
       const result = await db.$transaction(async (tx) => {
+        // Sweep stale pending demo_cash payments for this order. They
+        // typically come from a diner who tapped "llamar al mesero"
+        // earlier — by the time the operator settles directly, that
+        // intent is being overridden by THIS payment, and leaving the
+        // pending row alive would double-collect on the order. We
+        // mark them declined (not deleted) so they stay in the
+        // history for audit.
+        await tx.payment.updateMany({
+          where: {
+            orderId: order.id,
+            method: "demo_cash",
+            status: "pending",
+          },
+          data: { status: "declined" },
+        });
+
         const payment = await tx.payment.create({
           data: {
             orderId: order.id,

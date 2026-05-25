@@ -810,6 +810,15 @@ function OperatorCashSheet({
   onConfirm: (v: { tenderCents: number; changeGivenCents: number }) => void;
 }) {
   const dueCop = Math.ceil(amountCents / 100);
+  // Colombia no usa centavos físicos: si una cuenta dividida cae en
+  // fracción ($33.605 ÷ 2 = $16.802,50), la matemática del vuelto
+  // termina en $X.XX,5 que al redondear deja al cliente debiendo
+  // 50¢. Forzamos pesos enteros adentro del sheet (techo, como el
+  // display) para que el preset siempre dé un vuelto físicamente
+  // correcto. El servidor recibe ese mismo cuadre — la fracción <1
+  // peso queda como propina mínima por redondeo (invisible al
+  // usuario, contable en el back).
+  const dueCents = dueCop * 100;
 
   // Smart presets para los billetes que se usan en Colombia. Lógica:
   //
@@ -847,17 +856,21 @@ function OperatorCashSheet({
   const tender = Math.round(Number(tenderCop || 0) * 100);
   const change = Math.round(Number(changeCop || 0) * 100);
   const netReceived = tender - change;
-  const extraTip = netReceived - amountCents;
-  const validTender = tender >= amountCents;
+  // Todo se compara contra dueCents (pesos enteros redondeados al
+  // alza) en vez de amountCents (que puede tener centavos por splits)
+  // — así el preset siempre da un vuelto físico y el confirm no se
+  // bloquea por diferencias invisibles al usuario.
+  const extraTip = netReceived - dueCents;
+  const validTender = tender >= dueCents;
   const validChange = change >= 0 && change <= tender;
-  const valid = validTender && validChange && netReceived >= amountCents;
+  const valid = validTender && validChange && netReceived >= dueCents;
 
   function pickPreset(bill: number) {
     setTenderCop(String(bill));
     // Sensible default: give back exact change (no extra tip). The
     // mesero can lower the change if the diner says "keep $X" — the
     // extraTip readout below updates live.
-    const exactChange = bill * 100 - amountCents;
+    const exactChange = bill * 100 - dueCents;
     setChangeCop(String(Math.max(0, Math.round(exactChange / 100))));
   }
 
@@ -867,7 +880,7 @@ function OperatorCashSheet({
   //   - partial      : ninguna de las anteriores (cliente dijo "dame
   //                    $1000 y deja el resto") — los dos shortcuts
   //                    quedan inactivos y el mesero ajusta a mano.
-  const expectedChange = Math.max(0, tender - amountCents);
+  const expectedChange = Math.max(0, tender - dueCents);
   const expectedChangeCop = Math.max(0, Math.round(expectedChange / 100));
   const isRefunding =
     validTender && expectedChange > 0 && change === expectedChange;
@@ -891,7 +904,7 @@ function OperatorCashSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-              Cobrar en efectivo · {fmtCOP(amountCents)}
+              Cobrar en efectivo · {fmtCOP(dueCents)}
             </div>
             <h2 className="font-display text-2xl mt-1">Confirma el cobro</h2>
             <p className="text-xs text-muted mt-1">
@@ -924,7 +937,7 @@ function OperatorCashSheet({
               disabled={busy}
               className={
                 "h-9 px-3 rounded-full text-xs font-medium border transition-colors " +
-                (tender === amountCents
+                (tender === dueCents
                   ? "bg-ink text-bone border-ink"
                   : "bg-paper border-hairline")
               }
@@ -1050,7 +1063,7 @@ function OperatorCashSheet({
           }
         >
           {!validTender ? (
-            <span>El cliente debe pasarte al menos {fmtCOP(amountCents)}.</span>
+            <span>El cliente debe pasarte al menos {fmtCOP(dueCents)}.</span>
           ) : !validChange ? (
             <span>La devuelta no puede ser mayor a lo recibido.</span>
           ) : extraTip < 0 ? (
@@ -1094,7 +1107,7 @@ function OperatorCashSheet({
         >
           {busy
             ? "Registrando…"
-            : `Confirmar cobro · ${fmtCOP(amountCents + Math.max(0, extraTip))}`}
+            : `Confirmar cobro · ${fmtCOP(dueCents + Math.max(0, extraTip))}`}
         </button>
       </div>
     </div>

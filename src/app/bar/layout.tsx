@@ -24,7 +24,14 @@ export default async function BarLayout({
 
   return (
     <div className="min-h-screen bg-paper">
-      <header className="px-4 py-2 border-b border-hairline bg-bone flex items-center justify-between">
+      {/* Same safe-area pattern as the mesero / cocina layouts. */}
+      <header
+        className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
+        style={{
+          paddingTop:
+            "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
+        }}
+      >
         <div className="font-display text-lg">Bar</div>
         <form
           action={async () => {

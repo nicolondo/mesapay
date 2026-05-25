@@ -25,7 +25,16 @@ export default async function CocinaLayout({
 
   return (
     <div className="min-h-screen bg-paper">
-      <header className="px-4 py-2 border-b border-hairline bg-bone flex items-center justify-between">
+      {/* Same safe-area pattern as the mesero layout — pushes the
+          header below the iOS status bar so the title doesn't sit
+          under the system clock when launched as an installed PWA. */}
+      <header
+        className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"
+        style={{
+          paddingTop:
+            "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
+        }}
+      >
         <div className="font-display text-lg">Cocina</div>
         <form
           action={async () => {

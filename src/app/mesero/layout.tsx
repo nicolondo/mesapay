@@ -31,8 +31,22 @@ export default async function MeseroLayout({
   return (
     <div className="flex flex-col min-h-[100dvh] bg-paper">
       {/* Compact header — restaurant identity + signout. No nav links;
-          everything happens in the bottom tabs. */}
-      <header className="px-4 py-3 border-b border-hairline bg-bone flex items-center justify-between">
+          everything happens in the bottom tabs.
+
+          `viewport-fit=cover` + iOS "black-translucent" status bar
+          style means our page content sits UNDER the system clock /
+          notch by default. Padding-top of env(safe-area-inset-top)
+          pushes the header below it so the title isn't behind the
+          time. The padding is on the same element as bg-bone, so the
+          bone color extends up under the status bar — clean look on
+          installed PWA + harmless 0 padding in a regular browser tab. */}
+      <header
+        className="sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-3"
+        style={{
+          paddingTop:
+            "calc(env(safe-area-inset-top, 0px) + 0.75rem)",
+        }}
+      >
         <div className="font-display text-lg">Mesero</div>
         <form
           action={async () => {
@@ -54,8 +68,18 @@ export default async function MeseroLayout({
           first thing the mesero sees on a fresh install. */}
       <PushSetup />
 
-      {/* Content area with safe padding for the bottom nav. */}
-      <main className="flex-1 pb-24">{children}</main>
+      {/* Content area. Pads enough room for the fixed bottom nav PLUS
+          the iOS home-indicator strip (~34px on notched iPhones).
+          Without the safe-area piece the last row of the page would
+          sit under the home indicator on installed PWAs. */}
+      <main
+        className="flex-1"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 6rem)",
+        }}
+      >
+        {children}
+      </main>
 
       {/* Bottom navigation — Salón, Cobros, Mesas. Sticky at the bottom
           with safe-area inset so it sits above the iOS home-indicator. */}

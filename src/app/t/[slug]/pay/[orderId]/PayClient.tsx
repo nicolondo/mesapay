@@ -456,11 +456,23 @@ export function PayClient({
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
         <Row label="Subtotal de la cuenta" value={fmtCOP(subtotalCents)} />
         {paidFoodCents > 0 && (
-          <Row
-            label="Ya cubierto por otros"
-            value={"− " + fmtCOP(paidFoodCents)}
-            muted
-          />
+          <>
+            <Row
+              label="Ya cubierto por otros"
+              value={"− " + fmtCOP(paidFoodCents)}
+              muted
+            />
+            {/* Surface the remaining balance explicitly so the mesero
+                (or diner) can sanity-check the split per-person amount
+                below it: "$42.400 ÷ 2 = $21.200, sí cuadra". Without
+                this row the relationship between paid/outstanding/split
+                was easy to misread. */}
+            <Row
+              label="Pendiente por cobrar"
+              value={fmtCOP(outstandingSubtotalCents)}
+              accent
+            />
+          </>
         )}
         <Row
           label={
@@ -1134,11 +1146,26 @@ function ModeButton({
   );
 }
 
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+function Row({
+  label,
+  value,
+  muted,
+  accent,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  // Slight emphasis — used for the "Pendiente por cobrar" subtotal
+  // so it stands out between "Ya cubierto" (muted) and the per-
+  // person split below.
+  accent?: boolean;
+}) {
   return (
     <div
       className={
-        "flex items-center justify-between " + (muted ? "text-muted" : "")
+        "flex items-center justify-between " +
+        (muted ? "text-muted " : "") +
+        (accent ? "pt-1 mt-1 border-t border-hairline font-medium" : "")
       }
     >
       <span className="text-sm">{label}</span>

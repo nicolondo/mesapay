@@ -804,18 +804,18 @@ function OperatorCashSheet({
   //   1) Round-up al próximo múltiplo de $1k, $5k, $10k, $20k, $50k
   //      y $100k. Cubre los casos "le agrego mil para no buscar
   //      monedas" y "redondeo al billete más cercano".
-  //   2) Billetes reales ($50k / $100k / $200k) cuando NO son
-  //      absurdamente más grandes que la cuenta. Sin esto, una mesa
-  //      de $23k mostraba $200k como atajo — irreal, el cliente no
-  //      pasa $200k por una cuenta de $23k. Cap = max(amount × 5,
-  //      $100k); el max contra $100k es para que cuentas pequeñas
-  //      ($5k) sigan ofreciendo billetes comunes hasta $100k.
+  //   2) Billetes reales del país ($50k y $100k — NO existe billete
+  //      de $200k en Colombia). Solo si no son absurdamente más
+  //      grandes que la cuenta: cap = max(amount × 5, $100k). El
+  //      max contra $100k es para que cuentas chicas ($5k) sigan
+  //      ofreciendo el $100k como opción (el cliente sí puede
+  //      llegar con un billete grande).
   //   3) Dedupe entre las dos fuentes, ordena ascendente, toma hasta
   //      6 chips para mantener la fila scannable.
   //
   // Ejemplo $23.320 → 24, 25, 30, 40, 50, 100 (sin $200k). ✓
   const ROUND_STEPS = [1_000, 5_000, 10_000, 20_000, 50_000, 100_000];
-  const REAL_BILLS_COP = [50_000, 100_000, 200_000];
+  const REAL_BILLS_COP = [50_000, 100_000];
   const reasonableCap = Math.max(dueCop * 5, 100_000);
   const candidates = new Set<number>();
   for (const step of ROUND_STEPS) {

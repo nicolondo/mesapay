@@ -171,6 +171,15 @@ model User {
   uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
   terminalDevices         TerminalDevice[]
 
+  // For `mesero` users: the table numbers this person is responsible
+  // for in the dining room. Empty array = sees every table (back-
+  // compat default + the "el mesero atiende todo" case). Populated =
+  // mesero only sees those numbers in Salón / Cobros / Mesas — useful
+  // for restaurants with many tables where each mesero has a section.
+  // Operators / platform_admin / kitchen / bar / terminal ignore this
+  // field; only the mesero role is filtered.
+  assignedTableNumbers Int[] @default([])
+
   shiftsOpened Shift[] @relation("ShiftsOpened")
   shiftsClosed Shift[] @relation("ShiftsClosed")
 

@@ -26,6 +26,17 @@ export default async function SettingsPage() {
     where: { restaurantId, prepStation: { not: "kitchen" } },
   });
   const tagCount = resolveMenuTags(tenant.menuTags).length;
+  const [meseroCount, meserosWithRange] = await Promise.all([
+    db.user.count({ where: { restaurantId, role: "mesero" } }),
+    db.user.count({
+      where: {
+        restaurantId,
+        role: "mesero",
+        // Postgres `Int[]` non-empty check via NOT isEmpty.
+        NOT: { assignedTableNumbers: { isEmpty: true } },
+      },
+    }),
+  ]);
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -61,6 +72,23 @@ export default async function SettingsPage() {
           badge={`${tagCount} ${tagCount === 1 ? "etiqueta" : "etiquetas"}`}
           tint="bg-paper text-op-muted"
         />
+        {meseroCount > 0 && (
+          <SettingCard
+            href="/operator/settings/meseros"
+            title="Mesas por mesero"
+            subtitle="Asigna a cada mesero su sección del salón"
+            badge={
+              meserosWithRange === 0
+                ? `${meseroCount} ${meseroCount === 1 ? "mesero ve todas" : "meseros ven todas"}`
+                : `${meserosWithRange}/${meseroCount} ${meserosWithRange === 1 ? "asignado" : "asignados"}`
+            }
+            tint={
+              meserosWithRange > 0
+                ? "bg-ok/15 text-ok"
+                : "bg-paper text-op-muted"
+            }
+          />
+        )}
         <SettingCard
           href="/operator/settings/estaciones"
           title="Estaciones de preparación"

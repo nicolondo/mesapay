@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getMeseroScope } from "@/lib/meseroScope";
 import { TableActions } from "./TableActions";
 import { NewTableForm } from "./NewTableForm";
 import { DeleteTableButton, EditLabelButton } from "./TableAdminActions";
@@ -26,8 +27,17 @@ export default async function TablesPage() {
     openOrderIds.map((o) => syncOrderSubtotalFromLiveItems(o.id)),
   );
 
+  // Mesero-scoped users only see their assigned table numbers (and
+  // the pickup pseudo-table when their assignment includes -1, which
+  // typically it won't — pickup is operator territory).
+  const scope = await getMeseroScope();
+  const tableNumberFilter =
+    scope.scoped && scope.tableNumbers
+      ? { number: { in: scope.tableNumbers } }
+      : {};
+
   const allTables = await db.table.findMany({
-    where: { restaurantId },
+    where: { restaurantId, ...tableNumberFilter },
     orderBy: { number: "asc" },
     include: {
       orders: {

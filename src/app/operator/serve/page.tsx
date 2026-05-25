@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
+import { getMeseroScope } from "@/lib/meseroScope";
 import { ServeBoard } from "./ServeBoard";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,15 @@ export default async function ServePage() {
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
+
+  // If the current user is a `mesero` with assigned table numbers, narrow
+  // every query below to those tables. Empty assignment / other roles =
+  // no filter. The filter targets order.table.number which works whether
+  // the table is dine-in (real number) or the pickup pseudo-table (-1).
+  const scope = await getMeseroScope();
+  const tableFilter = scope.scoped
+    ? { table: { number: { in: scope.tableNumbers ?? [] } } }
+    : {};
 
   // Surface rounds with at least one ready-but-not-yet-served item.
   // That's what the waiter can actually pick up. For "together" mode
@@ -25,7 +35,11 @@ export default async function ServePage() {
   ] = await Promise.all([
     db.round.findMany({
       where: {
-        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        order: {
+          restaurantId,
+          status: { notIn: ["paid", "cancelled"] },
+          ...tableFilter,
+        },
         items: { some: { kitchenStatus: "ready", servedAt: null } },
       },
       include: {
@@ -41,7 +55,11 @@ export default async function ServePage() {
       where: {
         method: "demo_cash",
         status: "pending",
-        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        order: {
+          restaurantId,
+          status: { notIn: ["paid", "cancelled"] },
+          ...tableFilter,
+        },
       },
       include: {
         order: { include: { table: true } },
@@ -54,7 +72,11 @@ export default async function ServePage() {
       where: {
         method: "kushki_card_terminal",
         status: "pending",
-        order: { restaurantId, status: { notIn: ["paid", "cancelled"] } },
+        order: {
+          restaurantId,
+          status: { notIn: ["paid", "cancelled"] },
+          ...tableFilter,
+        },
       },
       include: { order: { include: { table: true } } },
       orderBy: { createdAt: "asc" },
@@ -64,6 +86,7 @@ export default async function ServePage() {
         restaurantId,
         needsWaiter: true,
         status: { notIn: ["paid", "cancelled"] },
+        ...tableFilter,
       },
       include: { table: true },
       orderBy: { waiterCalledAt: "asc" },
@@ -71,7 +94,7 @@ export default async function ServePage() {
     // Cancelled rounds where the waiter still has to go tell the customer.
     db.round.findMany({
       where: {
-        order: { restaurantId },
+        order: { restaurantId, ...tableFilter },
         status: "cancelled",
         cancellationAckedAt: null,
       },

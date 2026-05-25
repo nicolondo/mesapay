@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getMeseroScope } from "@/lib/meseroScope";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +9,20 @@ export default async function PaymentsPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
+  // Mesero-scoped users only see payments for orders on their tables.
+  // Other roles see everything.
+  const scope = await getMeseroScope();
+  const tableFilter = scope.scoped
+    ? { table: { number: { in: scope.tableNumbers ?? [] } } }
+    : {};
+
   const [tenant, payments] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { serviceMode: true },
     }),
     db.payment.findMany({
-      where: { order: { restaurantId } },
+      where: { order: { restaurantId, ...tableFilter } },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: { order: { include: { table: true } } },

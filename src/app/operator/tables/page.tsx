@@ -371,19 +371,23 @@ export default async function TablesPage() {
                 )}
               </a>
 
-              <details className="mt-3">
-                <summary className="text-xs text-op-muted cursor-pointer">
-                  Enlace QR
-                </summary>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 block text-xs text-terracotta font-mono break-all hover:underline"
-                >
-                  {url}
-                </a>
-              </details>
+              {/* Enlace QR — solo para operator/admin; el mesero no
+                  reparte URLs (esa info la maneja quien imprime). */}
+              {!isMeseroView && (
+                <details className="mt-3">
+                  <summary className="text-xs text-op-muted cursor-pointer">
+                    Enlace QR
+                  </summary>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 block text-xs text-terracotta font-mono break-all hover:underline"
+                  >
+                    {url}
+                  </a>
+                </details>
+              )}
 
               {canDelete && (
                 <div className="mt-3 pt-3 border-t border-op-border flex justify-end">

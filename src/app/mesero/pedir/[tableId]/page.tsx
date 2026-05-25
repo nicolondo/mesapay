@@ -121,6 +121,10 @@ export default async function MeseroPedirPage({
       // siempre visible — empujamos el dock "Enviar a cocina" para
       // que no quede tapado por las tabs.
       dockBottomClass="bottom-24"
+      // Reserva en el fondo de cada modal del menú (cart sheet,
+      // item detail, etc.) para que el botón principal no quede
+      // tapado por la bottom nav. ~5rem ≈ alto de la nav + margen.
+      modalBottomReserveRem={5}
       tenant={{
         slug: tenant.slug,
         name: tenant.name,

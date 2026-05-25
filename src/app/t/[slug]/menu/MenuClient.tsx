@@ -186,6 +186,7 @@ export function MenuClient({
   operatorMode = false,
   postSendHref = "/operator/serve",
   dockBottomClass = "bottom-4",
+  modalBottomReserveRem = 0,
 }: {
   tenant: Tenant;
   tableId: string;
@@ -223,6 +224,12 @@ export function MenuClient({
   // con la nav. Empujarlo hacia arriba via clase Tailwind. Default
   // "bottom-4" mantiene el comportamiento histórico.
   dockBottomClass?: string;
+  // Espacio reservado al fondo de los modales fullscreen del menú
+  // (carta, "Tu pedido", item detail) para no quedar tapados por la
+  // bottom nav. iOS pone la nav al ras del viewport y los modales
+  // con items-end llegaban hasta abajo, ocultando el botón principal.
+  // En PWA mesero pasamos ~5rem.
+  modalBottomReserveRem?: number;
 }) {
   const router = useRouter();
   // Active top-level menu tab. Hidden entirely when there's only one
@@ -794,7 +801,19 @@ export function MenuClient({
   }
 
   return (
-    <div className="flex flex-1 flex-col pb-36">
+    <div
+      className="flex flex-1 flex-col pb-36"
+      style={
+        // CSS var consumida por los modales del menú (cart sheet,
+        // item sheet, etc.) para reservar espacio inferior cuando
+        // viven dentro de un layout con bottom nav (PWA mesero).
+        // Cascade por DOM tree — los modales son descendientes de
+        // este div aunque visualmente sean fixed.
+        {
+          "--menu-modal-bottom-reserve": `${modalBottomReserveRem}rem`,
+        } as React.CSSProperties
+      }
+    >
       {operatorMode && (
         <div className="bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
           <span>
@@ -1201,7 +1220,7 @@ function CartBar({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
           onClick={() => setOpen(false)}
         >
           <div
@@ -1371,7 +1390,7 @@ function ActiveOrderSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
       onClick={onClose}
     >
       <div
@@ -1856,7 +1875,7 @@ function ItemSheet({
       // a centred card on desktop. The mobile sheet stops behaving
       // like a "bottom drawer" — diners expect a takeover view, not a
       // sliver of carta visible at the top.
-      className="fixed inset-0 z-50 bg-black/40 md:flex md:items-center md:justify-center"
+      className="fixed inset-0 z-50 bg-black/40 md:flex md:items-center md:justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
       onClick={onClose}
     >
       <div
@@ -2027,7 +2046,7 @@ function GuestNameSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
       onClick={canCancel ? onClose : undefined}
     >
       <div
@@ -2252,7 +2271,10 @@ function PickupCheckoutSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center"
+      style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
+    >
       <div className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl max-h-[92dvh] overflow-y-auto">
         <div className="p-5 border-b border-hairline flex items-center justify-between">
           <div className="font-display text-xl">Recogida</div>

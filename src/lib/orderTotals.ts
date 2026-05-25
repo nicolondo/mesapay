@@ -46,6 +46,74 @@ export function computeOrderTotals(
   };
 }
 
+export type PaymentValidation =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "order_already_paid" | "amount_exceeds_outstanding";
+      outstandingCents: number;
+    };
+
+/**
+ * Defense-in-depth check that runs server-side before accepting a new
+ * payment. Catches three classes of race / client-bug:
+ *
+ *   - The order is already paid and someone tries to over-collect (e.g.
+ *     two devices both call /pay with a partial amount that overlaps).
+ *   - The client did the wrong math (the famous "partes iguales over
+ *     the original subtotal" bug) and tries to charge more than what's
+ *     left on the bill.
+ *   - Cash settles and tarjeta charges interleave in a way the client
+ *     can't possibly know about ahead of time.
+ *
+ * Includes pending demo_cash payments in the outstanding calc — those
+ * are mesero-pending but already represent claimed money. Without this
+ * a diner could swipe cash at the table and the cashier could
+ * simultaneously charge by card the same amount.
+ *
+ * Pass the FOOD-only portion of the new payment (amountCents minus the
+ * tip you'd record). Tips are always allowed on top — they don't count
+ * against the outstanding balance.
+ */
+export async function validateNewPaymentAmount(
+  orderId: string,
+  newFoodCents: number,
+): Promise<PaymentValidation> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { subtotalCents: true, status: true },
+  });
+  if (!order) {
+    return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
+  }
+  if (order.status === "paid") {
+    return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
+  }
+  // Count approved AND pending(cash) payments — a pending demo_cash
+  // payment is money the diner has already "claimed" they will hand to
+  // the mesero. Letting another payment slip in on top would double-
+  // collect them when the cash arrives.
+  const claims = await db.payment.findMany({
+    where: {
+      orderId,
+      status: { in: ["approved", "pending"] },
+    },
+    select: { amountCents: true, tipCents: true },
+  });
+  const totals = computeOrderTotals(order.subtotalCents, claims);
+  // 1 peso of slack swallows the rounding loss when partes-iguales
+  // splits an odd number of pesos across N people.
+  const SLACK = 1;
+  if (newFoodCents > totals.outstandingCents + SLACK) {
+    return {
+      ok: false,
+      reason: "amount_exceeds_outstanding",
+      outstandingCents: totals.outstandingCents,
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * Inside a Prisma transaction: re-read approved payments, recompute totals,
  * and update the order's tipCents/totalCents/status/paidAt accordingly.

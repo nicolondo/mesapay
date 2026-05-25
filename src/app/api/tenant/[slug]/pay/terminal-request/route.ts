@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
+import { validateNewPaymentAmount } from "@/lib/orderTotals";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -37,6 +38,26 @@ export async function POST(
   const order = await db.order.findUnique({ where: { id: parsed.data.orderId } });
   if (!order || order.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "order not found" }, { status: 404 });
+  }
+
+  // Cap before queuing the datáfono push — same outstanding check we
+  // use for the other rails. A pending kushki_card_terminal payment
+  // also counts toward "claimed" money so we won't push two
+  // simultaneous datáfono requests for the same outstanding amount.
+  const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
+  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  if (!cap.ok) {
+    return NextResponse.json(
+      {
+        error: cap.reason,
+        outstandingCents: cap.outstandingCents,
+        message:
+          cap.reason === "order_already_paid"
+            ? "Esta cuenta ya fue pagada."
+            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+      },
+      { status: 409 },
+    );
   }
 
   const payment = await db.$transaction(async (tx) => {

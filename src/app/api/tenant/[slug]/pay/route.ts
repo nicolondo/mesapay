@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
-import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import {
+  recomputeOrderTotalsInTx,
+  validateNewPaymentAmount,
+} from "@/lib/orderTotals";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -32,6 +35,25 @@ export async function POST(
   const order = await db.order.findUnique({ where: { id: parsed.data.orderId } });
   if (!order || order.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "order not found" }, { status: 404 });
+  }
+
+  // Server-side cap: never accept a payment whose food portion would
+  // push the bill over the subtotal. Same guardrail in the kushki and
+  // terminal routes — see src/lib/orderTotals.ts.
+  const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
+  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  if (!cap.ok) {
+    return NextResponse.json(
+      {
+        error: cap.reason,
+        outstandingCents: cap.outstandingCents,
+        message:
+          cap.reason === "order_already_paid"
+            ? "Esta cuenta ya fue pagada."
+            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+      },
+      { status: 409 },
+    );
   }
 
   // Cash runs a different path: the payment stays pending until a waiter

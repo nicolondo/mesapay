@@ -103,12 +103,26 @@ export function PayClient({
   if (mode === "full") {
     amountSubtotal = outstandingSubtotalCents;
   } else if (mode === "equal") {
+    // Split the OUTSTANDING amount across N people, not the original
+    // subtotal. Critical: if someone already paid via Apple Pay /
+    // efectivo / datáfono / "lo mío" / etc., the rest of the table
+    // should split what's LEFT, not the full bill. Using subtotalCents
+    // here used to overcharge by the amount already collected (one of
+    // the most painful bugs operators reported — Mesa 1 owed $71k,
+    // partes iguales × 2 quería cobrar $214k).
     const n = Math.max(2, splitCount);
-    amountSubtotal = Math.round(subtotalCents / n);
+    amountSubtotal = Math.round(outstandingSubtotalCents / n);
   } else {
     const mine = guestTotals.find((g) => g.name === myGuest);
-    amountSubtotal = mine?.cents ?? 0;
+    // Cap "por persona" by the remaining balance too — if the diner
+    // already paid their portion (e.g. via Apple Pay in a previous
+    // round) and the system kept their guest assignment, we don't
+    // want to charge them again.
+    amountSubtotal = Math.min(mine?.cents ?? 0, outstandingSubtotalCents);
   }
+  // Final safety net: never let amountSubtotal exceed what's still owed.
+  // Belt + suspenders against any mode-specific math going sideways.
+  amountSubtotal = Math.min(amountSubtotal, outstandingSubtotalCents);
   const amountTip = Math.round((amountSubtotal * tipPct) / 100);
   const amountCents = amountSubtotal + amountTip;
 

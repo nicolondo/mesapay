@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
-import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import {
+  recomputeOrderTotalsInTx,
+  validateNewPaymentAmount,
+} from "@/lib/orderTotals";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -65,6 +68,26 @@ export async function POST(
   const order = await db.order.findUnique({ where: { id: parsed.data.orderId } });
   if (!order || order.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "order not found" }, { status: 404 });
+  }
+
+  // Cap before reaching out to Kushki — much better to reject the
+  // overcharge here than to capture a real card transaction we'd then
+  // have to refund manually. See validateNewPaymentAmount for the
+  // pending-cash-aware logic.
+  const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
+  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  if (!cap.ok) {
+    return NextResponse.json(
+      {
+        error: cap.reason,
+        outstandingCents: cap.outstandingCents,
+        message:
+          cap.reason === "order_already_paid"
+            ? "Esta cuenta ya fue pagada."
+            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+      },
+      { status: 409 },
+    );
   }
 
   // Pre-create the payment row so we can reference it from logs/webhooks even

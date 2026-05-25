@@ -362,6 +362,51 @@ export function PayClient({
         {operatorMode ? "Cobrar" : "Pagar"}
       </h1>
 
+      {/* Resumen del pedido — solo en modo mesero. El mesero le pasa
+          el celular al cliente para que confirme que todo lo que
+          ordenó está bien antes de seleccionar método de pago. Si
+          algo no cuadra el cliente lo dice y el mesero vuelve a
+          /mesero/salon a cancelar/ajustar. */}
+      {operatorMode && items.length > 0 && (
+        <section className="mt-5 rounded-2xl border border-hairline bg-paper overflow-hidden">
+          <div className="bg-ivory px-4 py-2.5 border-b border-hairline">
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Confirma tu pedido
+            </div>
+          </div>
+          <ul className="divide-y divide-hairline/60">
+            {items.map((i) => (
+              <li
+                key={i.id}
+                className="flex items-baseline gap-3 px-4 py-2.5 text-sm"
+              >
+                <span className="font-mono tabular text-muted shrink-0 w-7">
+                  {i.qty}×
+                </span>
+                <span className="flex-1 min-w-0">{i.name}</span>
+                <span className="font-mono tabular shrink-0">
+                  {fmtCOP(i.priceCents * i.qty)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-baseline justify-between px-4 py-2.5 bg-ivory border-t border-hairline">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Subtotal
+            </span>
+            <span className="font-display text-lg tabular">
+              {fmtCOP(subtotalCents)}
+            </span>
+          </div>
+          {paidCents > 0 && (
+            <div className="flex items-baseline justify-between px-4 py-2 bg-ivory border-t border-hairline text-xs text-muted">
+              <span>Ya pagado</span>
+              <span className="font-mono tabular">−{fmtCOP(paidCents)}</span>
+            </div>
+          )}
+        </section>
+      )}
+
       {!isCounter && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">

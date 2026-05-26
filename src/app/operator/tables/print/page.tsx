@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { db } from "@/lib/db";
 import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -161,36 +160,6 @@ export default async function PrintTablesPage({
           gap: 0;
           justify-content: flex-start;
         }
-        /* Cut guides — SOLO en print. En pantalla los escondemos
-           con display:none. Cuando imprimes aparecen como tickmarks
-           negros pegados a los bordes izquierdo y derecho de la
-           hoja, EN LA MISMA LÍNEA Y de los bordes horizontales
-           entre filas. La guillotina alinea su filo con los dos
-           ticks. Height 0 → no empuja el layout; sólo el tickmark
-           queda visible sobre el border line. */
-        .cut-guide {
-          display: none;
-        }
-        @media print {
-          .cut-guide {
-            display: block;
-            height: 0;
-            position: relative;
-            width: 100%;
-          }
-          .cut-guide::before,
-          .cut-guide::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            width: 5mm;
-            height: 0.2mm;
-            background: #1c1c1c;
-            transform: translateY(-50%);
-          }
-          .cut-guide::before { left: 0; }
-          .cut-guide::after { right: 0; }
-        }
       `}</style>
 
       <div className="p-6 bg-white text-ink print:p-0">
@@ -199,9 +168,8 @@ export default async function PrintTablesPage({
             <div className="font-display text-3xl">QRs para imprimir</div>
             <p className="text-sm text-op-muted mt-1">
               Tarjetas de <strong>30×30mm</strong> en hoja A4 — caben
-              hasta <strong>54 por hoja</strong>. Las guías de corte
-              en los bordes (sólo visibles al imprimir) facilitan
-              alinear la guillotina.
+              hasta <strong>54 por hoja</strong>. Cards flush con
+              borde compartido: un solo corte por línea.
             </p>
           </div>
           <PrintButton />
@@ -218,37 +186,28 @@ export default async function PrintTablesPage({
 
         {/* Chunkamos los QRs en filas de COLS_PER_ROW. Cards flush
             sin gap: cada border entre cards es UN solo trazo
-            (compartido). Cut-guides (sólo print) ponen tickmarks
-            en los bordes izq/der EN LA MISMA LÍNEA Y de los
-            bordes horizontales entre filas, así la guillotina
-            corta justo encima del trazo común. */}
+            (compartido) que también funciona como línea de corte. */}
         <div className="qr-page max-w-5xl mx-auto print:max-w-none">
-          <div className="cut-guide" aria-hidden />
           {chunk(qrs, COLS_PER_ROW).map((row, idx) => (
-            <Fragment key={idx}>
-              <div
-                className={
-                  "qr-row " + (idx === 0 ? "qr-row-first" : "")
-                }
-              >
-                {row.map((q, j) => (
+            <div
+              key={idx}
+              className={"qr-row " + (idx === 0 ? "qr-row-first" : "")}
+            >
+              {row.map((q, j) => (
+                <div
+                  key={q.id}
+                  className={
+                    "qr-card " + (j === 0 ? "qr-card-first-col" : "")
+                  }
+                >
                   <div
-                    key={q.id}
-                    className={
-                      "qr-card " +
-                      (j === 0 ? "qr-card-first-col" : "")
-                    }
-                  >
-                    <div
-                      className="qr-svg-wrap"
-                      dangerouslySetInnerHTML={{ __html: q.svg }}
-                    />
-                    <div className="qr-label">{labelOf(q.number)}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="cut-guide" aria-hidden />
-            </Fragment>
+                    className="qr-svg-wrap"
+                    dangerouslySetInnerHTML={{ __html: q.svg }}
+                  />
+                  <div className="qr-label">{labelOf(q.number)}</div>
+                </div>
+              ))}
+            </div>
           ))}
         </div>
       </div>

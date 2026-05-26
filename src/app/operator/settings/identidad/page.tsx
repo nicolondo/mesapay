@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { IdentidadClient } from "./IdentidadClient";
+import { LegalEntityPicker } from "./LegalEntityPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,21 @@ export default async function IdentidadPage() {
       dianResolutionDate: true,
       invoicePrefix: true,
       invoiceNextNumber: true,
+      groupId: true,
+      legalEntityId: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+
+  // Si pertenece a un grupo, traemos las razones sociales disponibles
+  // para que el picker arriba del form deje al operador elegir.
+  const groupLegalEntities = tenant.groupId
+    ? await db.legalEntity.findMany({
+        where: { groupId: tenant.groupId },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, taxId: true },
+      })
+    : [];
 
   return (
     <div className="p-6 max-w-2xl mx-auto w-full">
@@ -43,6 +56,13 @@ export default async function IdentidadPage() {
         aparece en las facturas que envías al cliente y en el menú que
         ve al escanear el QR.
       </p>
+
+      {tenant.groupId && (
+        <LegalEntityPicker
+          options={groupLegalEntities}
+          initialLegalEntityId={tenant.legalEntityId}
+        />
+      )}
 
       <IdentidadClient
         initial={{

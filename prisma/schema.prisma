@@ -15,6 +15,30 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Group ownership — opcional. Cuando un dueño tiene varios
+  // restaurantes los agrupa bajo un Group y crea usuarios
+  // group_admin que ven todos sus locales en /group. Restaurantes
+  // sin grupo (la mayoría hoy) tienen groupId=null y funcionan
+  // exactamente como antes.
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  // Razón social. Por defecto los datos legales/DIAN viven en
+  // las columnas legales* de este modelo (back-compat). Si se asigna
+  // un LegalEntity del grupo, ese GANA al hidratar la factura — el
+  // restaurante "hereda" razón social + numeración DIAN compartida
+  // con sus hermanas del grupo.
+  legalEntityId String?
+  legalEntity   LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
+
+  // Modo de menú dentro del grupo:
+  //   "independent"        — menú propio, sin sincronización (default).
+  //   "synced_from_group"  — items se clonan/sincronizan del menú
+  //                           maestro del grupo. Implementación de
+  //                           sync queda para fase 2; este campo
+  //                           se introduce ya para tener el flag.
+  menuMode String @default("independent")
+
   plan              Plan      @default(trial)
   monthlyPriceCents Int       @default(0)
   periodEndsAt      DateTime?
@@ -172,6 +196,61 @@ model Restaurant {
   shifts              Shift[]
 
   @@index([slug])
+  @@index([groupId])
+}
+
+/// Grupo de restaurantes — agrupa N locales bajo un mismo dueño/cadena.
+/// Los miembros con role=group_admin ven todos los restaurantes del
+/// grupo en /group, crean nuevos restaurantes, asignan razón social
+/// compartida, y opcionalmente comparten menú. Los restaurantes que
+/// no pertenecen a ningún grupo (la mayoría hoy) tienen groupId=null
+/// y funcionan exactamente como antes — la feature es opt-in.
+model Group {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants   Restaurant[]
+  members       User[]
+  legalEntities LegalEntity[]
+
+  @@index([slug])
+}
+
+/// Razón social del grupo. Un grupo puede tener N (caso: dueño con
+/// varios NITs distintos para diferentes locales). Cada Restaurant
+/// elige cuál usar via Restaurant.legalEntityId — y los locales
+/// hermanos pueden compartir la misma numeración DIAN si están
+/// bajo el mismo LegalEntity.
+model LegalEntity {
+  id      String @id @default(cuid())
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name    String
+  taxId   String
+  address String?
+  city    String?
+  phone   String?
+
+  // Resolución DIAN propia. Comparte numeración con todos los
+  // restaurantes del grupo asignados a este LegalEntity.
+  dianResolution     String?
+  dianResolutionFrom Int?
+  dianResolutionTo   Int?
+  dianResolutionDate DateTime?
+  invoicePrefix      String?
+  invoiceNextNumber  Int       @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants Restaurant[]
+
+  @@index([groupId])
 }
 
 enum KushkiOnboardingStatus {
@@ -295,6 +374,12 @@ enum Role {
   // no top nav — they don't need to navigate around the app.
   kitchen
   bar
+  // Group admin — gestiona varios restaurantes desde /group. Puede
+  // crear restaurantes nuevos bajo el grupo, configurar razones
+  // sociales compartidas, e impersonar como operator de cualquier
+  // restaurante del grupo. Scoped al grupo: NO ve restaurantes
+  // ajenos. Distinto a platform_admin (que ve todo MESAPAY).
+  group_admin
 }
 
 model User {
@@ -306,6 +391,11 @@ model User {
   role           Role        @default(customer)
   restaurantId   String?
   restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Mutuamente excluyente con restaurantId. Para users con
+  // role=group_admin guardamos el grupo al que pertenecen — desde
+  // ahí pueden impersonar cualquiera de sus restaurantes.
+  groupId        String?
+  group          Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
   marketingOptIn Boolean     @default(false)
   welcomedAt     DateTime?
   createdAt      DateTime    @default(now())
@@ -338,6 +428,7 @@ model User {
   pushSubscriptions PushSubscription[]
 
   @@index([restaurantId])
+  @@index([groupId])
 }
 
 // Web Push subscription registered by a mesero (or any staff) from

@@ -3,10 +3,14 @@ import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { PrintButton } from "./PrintButton";
 
-// Cuántas tarjetas por fila. Con A4 + 10mm @page margin = 190mm
-// útiles. Cards flush sin gap: 6 × 30mm = 180mm — cabe con 10mm
-// de aire para los tickmarks de corte en los bordes.
-const COLS_PER_ROW = 6;
+// Cuántas tarjetas por fila. A4 = 210mm. Con margenes de Chrome
+// generosos (a veces el "Default" del navegador es ~10-20mm cada
+// lado dependiendo del driver), el area imprimible puede bajar a
+// ~170mm. 5 cards × 30mm = 150mm asegura que el contenido CABE en
+// cualquier margen razonable sin que Chrome aplique scaling para
+// "ajustar a area imprimible". Sacrificamos 1 columna (de 6 a 5)
+// a cambio de garantizar las medidas reales de 30×30mm.
+const COLS_PER_ROW = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -90,37 +94,42 @@ export default async function PrintTablesPage({
   return (
     <>
       <style>{`
-        /* IMPRESIÓN A ESCALA REAL — para que las cards salgan
-           exactamente 30×30mm en papel A4:
-             1. @page con margin 8mm — gana al "Default" del browser
-                (típicamente ~10mm), y queda por encima del margen
-                físico mínimo de cualquier impresora (3-6mm). Esto
-                evita que el driver tenga que escalar para "ajustar
-                a área imprimible".
-             2. Área imprimible = 210 - 16 = 194mm de ancho.
-             3. NO declaramos un wrapper con width:210mm. El
-                contenido fluye natural en su ancho real:
-                6 cards × 30mm = 180mm. Eso entra en 194mm con
-                14mm de aire — sin overflow, sin scaling.
-           El error anterior era el .print-sheet con width:210mm.
-           Chrome no podía meter 210mm de "sheet" en 194mm de
-           printable y escalaba todo 92.4% (= 28mm en vez de 30). */
-        @page { size: 210mm 297mm; margin: 8mm; }
+        /* IMPRESIÓN A 1:1 (sin scaling) — estrategia conservadora:
+             - @page margin: 5mm (mínimo seguro de cualquier impresora)
+             - Contenido NATURAL: 5 cards × 30mm = 150mm. Cabe con
+               45mm de aire en el printable area más restrictivo.
+             - transform: scale(1) explícito en print para descartar
+               cualquier zoom heredado de la página
+             - print-color-adjust: exact para que los browsers no
+               "optimicen" el tamaño/color
+           Con 150mm de contenido en A4 (210mm), Chrome nunca tiene
+           razón para escalar — el contenido cabe en cualquier
+           margen razonable que el driver imponga. */
+        @page { size: 210mm 297mm; margin: 5mm; }
         @media print {
           html, body {
             background: #ffffff !important;
-            margin: 0;
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: scale(1) !important;
+            transform-origin: top left !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .no-print { display: none !important; }
           .qr-card { break-inside: avoid; }
           .print-sheet {
-            /* En print, el wrapper no fuerza ancho — el contenido
-               fluye natural y el @page margin maneja los bordes. */
             padding: 0 !important;
             margin: 0 !important;
             width: auto !important;
             min-height: 0 !important;
+            transform: scale(1) !important;
+            transform-origin: top left !important;
+          }
+          /* El grid también explícito sin escalado, por las dudas. */
+          .qr-page {
+            transform: scale(1) !important;
+            transform-origin: top left !important;
           }
         }
         /* Cards FLUSH — sin gap. Para evitar bordes dobles entre
@@ -192,7 +201,7 @@ export default async function PrintTablesPage({
             <div className="font-display text-3xl">QRs para imprimir</div>
             <p className="text-sm text-op-muted mt-1">
               Tarjetas de <strong>30×30mm</strong> en hoja A4 — caben
-              hasta <strong>54 por hoja</strong>. Cards flush con
+              hasta <strong>45 por hoja</strong>. Cards flush con
               borde compartido: un solo corte por línea.
             </p>
           </div>

@@ -94,25 +94,23 @@ export default async function PrintTablesPage({
   return (
     <>
       <style>{`
-        /* IMPRESIÓN A 1:1 (sin scaling) — estrategia conservadora:
-             - @page margin: 5mm (mínimo seguro de cualquier impresora)
-             - Contenido NATURAL: 5 cards × 30mm = 150mm. Cabe con
-               45mm de aire en el printable area más restrictivo.
-             - transform: scale(1) explícito en print para descartar
-               cualquier zoom heredado de la página
-             - print-color-adjust: exact para que los browsers no
-               "optimicen" el tamaño/color
-           Con 150mm de contenido en A4 (210mm), Chrome nunca tiene
-           razón para escalar — el contenido cabe en cualquier
-           margen razonable que el driver imponga. */
+        /* CALIBRACIÓN PRAGMÁTICA: Chrome aplica un shrink-to-fit en
+           print que dimensiona el contenido a ~93.3% en vez de
+           respetar mm exacto — resultado: 30mm sale 28mm físicos.
+           En vez de pelearle, compensamos con un scale up del
+           30/28 = 1.0714 en el grid de cards. Al combinarse con el
+           shrink de Chrome (30 × 1.0714 × 0.933), termina en 30mm
+           físicos exactos.
+
+           Si en tu impresora sale diferente, ajusta el factor:
+             factor = tamaño_deseado_mm / tamaño_actual_mm
+           Ej: si salen a 27mm en lugar de 28mm → 30/27 = 1.111. */
         @page { size: 210mm 297mm; margin: 5mm; }
         @media print {
           html, body {
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
-            transform: scale(1) !important;
-            transform-origin: top left !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -123,12 +121,12 @@ export default async function PrintTablesPage({
             margin: 0 !important;
             width: auto !important;
             min-height: 0 !important;
-            transform: scale(1) !important;
-            transform-origin: top left !important;
           }
-          /* El grid también explícito sin escalado, por las dudas. */
+          /* Grid escalado 30/28 para compensar shrink de Chrome.
+             transform-origin top-left así crece hacia abajo-derecha
+             desde el padding superior-izquierdo del sheet. */
           .qr-page {
-            transform: scale(1) !important;
+            transform: scale(1.0714) !important;
             transform-origin: top left !important;
           }
         }

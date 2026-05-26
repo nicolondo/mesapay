@@ -11,6 +11,7 @@ import {
   type Country,
 } from "@/lib/countries";
 import type { MenuTag } from "@/lib/menuTags";
+import { CallWaiterFab } from "./CallWaiterFab";
 
 type MenuLayout = "list" | "grid" | "editorial";
 
@@ -75,6 +76,11 @@ type ActiveOrder = {
   status: string;
   itemCount: number;
   roundCount: number;
+  // Flag para mostrar el FAB de llamar mesero como "ya llamado" en
+  // vez de "llamar". Lo recibe del server (page.tsx fetch del
+  // order); cuando el cliente hace tap localmente, optimistic
+  // overlay lo refleja sin esperar refresh.
+  needsWaiter?: boolean;
   items: { id: string; name: string; qty: number; priceCents: number }[];
 };
 
@@ -863,6 +869,16 @@ export function MenuClient({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <LayoutSwitcher layout={layout} onChange={changeLayout} />
+              {/* Llamar al mesero — solo si hay orden activa (caso pre-orden
+                  requeriria schema change para Table.waiterCalledAt). El
+                  FAB es compact (w-9 h-9) para no robar espacio al header. */}
+              {activeOrder && !isPickup && (
+                <CallWaiterFab
+                  tenantSlug={tenant.slug}
+                  orderId={activeOrder.id}
+                  initialNeedsWaiter={activeOrder.needsWaiter === true}
+                />
+              )}
               {activeOrder && (
                 <Link
                   href={`/t/${tenant.slug}/order/${activeOrder.id}`}

@@ -158,6 +158,10 @@ export default async function MenuPage({
               status: activeOrder.status,
               itemCount: activeOrder.items.reduce((s, i) => s + i.qty, 0),
               roundCount: activeOrder.rounds.length,
+              // needsWaiter alimenta el FAB de llamar mesero — si
+              // ya está llamado el FAB se renderea como "vamos en
+              // camino" en vez del estado idle.
+              needsWaiter: activeOrder.needsWaiter,
               items: activeOrder.items.map((i) => ({
                 id: i.id,
                 name: i.nameSnapshot,

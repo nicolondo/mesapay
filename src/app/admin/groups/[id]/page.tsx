@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
-import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
+import {
+  IMPERSONATE_COOKIE,
+  IMPERSONATE_GROUP_COOKIE,
+} from "@/lib/activeRestaurant";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { AddRestaurantToGroup } from "./AddRestaurantToGroup";
 
@@ -91,6 +94,25 @@ export default async function GroupDetailPage({
     redirect("/operator");
   }
 
+  // Server action: impersonar el GRUPO entero — entrar como si fuera
+  // el group_admin. Setea IMPERSONATE_GROUP_COOKIE (distinta de la de
+  // restaurante para que los scopes no se pisen) y redirige a /group.
+  async function impersonateGroup() {
+    "use server";
+    const session = await auth();
+    if (!session?.user || session.user.role !== "platform_admin") {
+      redirect("/admin");
+    }
+    const jar = await cookies();
+    jar.set(IMPERSONATE_GROUP_COOKIE, id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 4,
+    });
+    redirect("/group");
+  }
+
   return (
     <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
       <Link
@@ -100,19 +122,32 @@ export default async function GroupDetailPage({
         ← Grupos
       </Link>
 
-      <div className="mt-4 mb-6">
-        <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-          Plataforma · Grupo
-        </div>
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <div className="font-display text-3xl tracking-[-0.015em]">
-            {group.name}
+      <div className="mt-4 mb-6 flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
+            Plataforma · Grupo
           </div>
-          <div className="font-mono text-xs text-op-muted">/{group.slug}</div>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <div className="font-display text-3xl tracking-[-0.015em]">
+              {group.name}
+            </div>
+            <div className="font-mono text-xs text-op-muted">/{group.slug}</div>
+          </div>
+          <div className="font-mono text-[11px] text-op-muted mt-1">
+            Alta: {fmtBogotaDateTime(group.createdAt).date}
+          </div>
         </div>
-        <div className="font-mono text-[11px] text-op-muted mt-1">
-          Alta: {fmtBogotaDateTime(group.createdAt).date}
-        </div>
+        {/* Impersonar el grupo entero — entra a /group como si fuera
+            el group_admin. Banner naranja en /group avisa al admin
+            que está impersonando y le da un botón para salir. */}
+        <form action={impersonateGroup}>
+          <button
+            type="submit"
+            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium"
+          >
+            Entrar como grupo →
+          </button>
+        </form>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-6">

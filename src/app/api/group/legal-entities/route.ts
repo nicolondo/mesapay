@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { recordAuditEvent } from "@/lib/auditLog";
 
 /**
@@ -28,25 +28,19 @@ const createSchema = z.object({
   invoiceNextNumber: z.number().int().min(1).optional(),
 });
 
-async function requireGroupAdmin() {
-  const session = await auth();
-  if (
-    !session?.user ||
-    session.user.role !== "group_admin" ||
-    !session.user.groupId
-  ) {
-    return null;
-  }
-  return session;
+// Acepta group_admin (de su grupo) o platform_admin impersonando.
+// El helper devuelve null si ninguno aplica.
+async function requireGroupShell() {
+  return getActiveGroupShellContext();
 }
 
 export async function GET() {
-  const session = await requireGroupAdmin();
-  if (!session) {
+  const ctx = await requireGroupShell();
+  if (!ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const list = await db.legalEntity.findMany({
-    where: { groupId: session.user.groupId! },
+    where: { groupId: ctx.groupId },
     orderBy: { name: "asc" },
     include: { _count: { select: { restaurants: true } } },
   });
@@ -54,8 +48,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireGroupAdmin();
-  if (!session) {
+  const ctx = await requireGroupShell();
+  if (!ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const body = await req.json().catch(() => null);
@@ -70,7 +64,7 @@ export async function POST(req: Request) {
   const data = parsed.data;
   const created = await db.legalEntity.create({
     data: {
-      groupId: session.user.groupId!,
+      groupId: ctx.groupId,
       name: data.name,
       taxId: data.taxId,
       address: data.address ?? null,

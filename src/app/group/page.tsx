@@ -2,11 +2,10 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
 import { fmtCOP } from "@/lib/format";
 import {
   IMPERSONATE_COOKIE,
-  getActiveContext,
+  getActiveGroupShellContext,
 } from "@/lib/activeRestaurant";
 import {
   deriveMembershipStatus,
@@ -28,11 +27,11 @@ export const dynamic = "force-dynamic";
  * autenticado con groupId válido.
  */
 export default async function GroupHome() {
-  const ctx = await getActiveContext();
-  if (!ctx || !ctx.session.user.groupId) {
+  const ctx = await getActiveGroupShellContext();
+  if (!ctx) {
     redirect("/signin?callbackUrl=/group");
   }
-  const groupId = ctx.session.user.groupId;
+  const groupId = ctx.groupId;
 
   const now = new Date();
   const startOfDay = new Date(
@@ -123,19 +122,17 @@ export default async function GroupHome() {
     "use server";
     const targetId = String(formData.get("restaurantId") ?? "");
     if (!targetId) return;
-    const session = await auth();
-    if (
-      !session?.user ||
-      session.user.role !== "group_admin" ||
-      !session.user.groupId
-    ) {
-      return;
-    }
+    // Re-resolvemos el contexto en la action — group_admin lo saca
+    // del JWT, platform_admin lo saca de la cookie de impersonate de
+    // grupo. Ambos casos validan que el restaurante destino pertenece
+    // a "este" grupo.
+    const actionCtx = await getActiveGroupShellContext();
+    if (!actionCtx) return;
     const rest = await db.restaurant.findUnique({
       where: { id: targetId },
       select: { groupId: true },
     });
-    if (!rest || rest.groupId !== session.user.groupId) {
+    if (!rest || rest.groupId !== actionCtx.groupId) {
       // No es de este grupo → ignorar.
       return;
     }

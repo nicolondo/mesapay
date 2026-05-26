@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { LegalEntitiesClient } from "./LegalEntitiesClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function LegalEntitiesPage() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "group_admin" || !session.user.groupId) {
-    redirect("/group");
-  }
+  const ctx = await getActiveGroupShellContext();
+  if (!ctx) redirect("/group");
   const items = await db.legalEntity.findMany({
-    where: { groupId: session.user.groupId },
+    where: { groupId: ctx.groupId },
     orderBy: { name: "asc" },
     include: { _count: { select: { restaurants: true } } },
   });

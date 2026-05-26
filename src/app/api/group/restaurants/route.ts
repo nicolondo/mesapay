@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { recordAuditEvent } from "@/lib/auditLog";
 
 /**
@@ -54,12 +54,10 @@ const RESERVED = new Set([
 ]);
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    session.user.role !== "group_admin" ||
-    !session.user.groupId
-  ) {
+  // Acepta tanto group_admin como platform_admin impersonando grupo.
+  // El helper sólo devuelve contexto si alguno aplica.
+  const ctx = await getActiveGroupShellContext();
+  if (!ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -89,7 +87,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const groupId = session.user.groupId;
+  const groupId = ctx.groupId;
 
   const result = await db.$transaction(async (tx) => {
     const restaurant = await tx.restaurant.create({

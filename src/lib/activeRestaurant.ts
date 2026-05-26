@@ -4,6 +4,13 @@ import { db } from "@/lib/db";
 import type { Session } from "next-auth";
 
 export const IMPERSONATE_COOKIE = "mesapay_act_as";
+/** Cookie usada por platform_admin para impersonar un GRUPO entero
+ *  (vista /group/*). Distinta de IMPERSONATE_COOKIE que apunta a un
+ *  restaurante específico. Si ambas están seteadas, /operator/* usa
+ *  la de restaurante y /group/* usa la de grupo — son scopes
+ *  independientes para que el admin pueda saltar entre vistas sin
+ *  que una pise a la otra. */
+export const IMPERSONATE_GROUP_COOKIE = "mesapay_act_as_group";
 
 export type ActiveContext = {
   session: Session;
@@ -126,5 +133,40 @@ export async function getActiveGroupId(): Promise<string | null> {
     });
     return r?.groupId ?? null;
   }
+  return null;
+}
+
+/**
+ * Para el shell de /group/*. Resuelve qué grupo está activo:
+ *   - group_admin → session.user.groupId
+ *   - platform_admin → IMPERSONATE_GROUP_COOKIE
+ *   - cualquier otro → null
+ *
+ * isImpersonating=true sólo cuando es platform_admin entrando como
+ * grupo. El layout lo usa para mostrar el banner y permitir "salir".
+ */
+export async function getActiveGroupShellContext(): Promise<{
+  session: Session;
+  groupId: string;
+  isImpersonating: boolean;
+} | null> {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  if (session.user.role === "platform_admin") {
+    const jar = await cookies();
+    const groupId = jar.get(IMPERSONATE_GROUP_COOKIE)?.value ?? null;
+    if (!groupId) return null;
+    return { session, groupId, isImpersonating: true };
+  }
+
+  if (session.user.role === "group_admin" && session.user.groupId) {
+    return {
+      session,
+      groupId: session.user.groupId,
+      isImpersonating: false,
+    };
+  }
+
   return null;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { recordAuditEvent } from "@/lib/auditLog";
 
 const updateSchema = z.object({
@@ -18,24 +18,22 @@ const updateSchema = z.object({
   invoiceNextNumber: z.number().int().min(1).optional(),
 });
 
-async function requireGroupAdminAndEntity(id: string) {
-  const session = await auth();
-  if (
-    !session?.user ||
-    session.user.role !== "group_admin" ||
-    !session.user.groupId
-  ) {
+// Acepta group_admin de este grupo o platform_admin impersonando
+// este grupo. Devuelve el contexto + la entidad si todo valida.
+async function requireGroupShellAndEntity(id: string) {
+  const ctx = await getActiveGroupShellContext();
+  if (!ctx) {
     return { error: "forbidden" as const, status: 403 };
   }
   const entity = await db.legalEntity.findUnique({ where: { id } });
   if (!entity) {
     return { error: "not_found" as const, status: 404 };
   }
-  if (entity.groupId !== session.user.groupId) {
+  if (entity.groupId !== ctx.groupId) {
     // Razón social de otro grupo — no exponer existencia.
     return { error: "not_found" as const, status: 404 };
   }
-  return { session, entity } as const;
+  return { ctx, entity } as const;
 }
 
 export async function PATCH(
@@ -43,9 +41,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = await requireGroupAdminAndEntity(id);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const result = await requireGroupShellAndEntity(id);
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
   const body = await req.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
@@ -92,7 +90,7 @@ export async function PATCH(
     restaurantId: null,
     target: { type: "legal_entity", id: updated.id },
     summary: `Editó razón social ${updated.name}`,
-    diff: { before: auth.entity as unknown as Record<string, unknown>, after: data as Record<string, unknown> },
+    diff: { before: result.entity as unknown as Record<string, unknown>, after: data as Record<string, unknown> },
   });
   return NextResponse.json({ ok: true });
 }
@@ -102,7 +100,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const result = await requireGroupAdminAndEntity(id);
+  const result = await requireGroupShellAndEntity(id);
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

@@ -7,6 +7,7 @@ import {
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 import { restaurantLogoSrc } from "@/lib/branding";
+import { PrintButton } from "./PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -194,19 +195,6 @@ export default async function FacturaPage({
         </article>
       </div>
     </>
-  );
-}
-
-// Botón cliente — necesita window.print(). Component server-side
-// porque solo dispara un form action JS sin estado React.
-function PrintButton() {
-  return (
-    <form
-      action="javascript:window.print()"
-      style={{ margin: 0 }}
-    >
-      <button type="submit">Imprimir</button>
-    </form>
   );
 }
 

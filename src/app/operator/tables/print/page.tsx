@@ -122,12 +122,25 @@ export default async function PrintTablesPage({
             width: auto !important;
             min-height: 0 !important;
           }
-          /* Grid escalado 30/28 para compensar shrink de Chrome.
-             transform-origin top-left así crece hacia abajo-derecha
-             desde el padding superior-izquierdo del sheet. */
-          .qr-page {
-            transform: scale(1.0714) !important;
-            transform-origin: top left !important;
+          /* CALIBRACIÓN: Chrome shrink-to-fit deja el contenido al
+             ~93.3% del tamaño en mm. Para que las cards salgan a
+             30mm físicos exactos, las dimensionamos en print a
+             32.14mm (= 30 / 0.933). Al ser dimensiones REALES (no
+             transform) Chrome las ve en el layout y aplica su
+             shrink, dando 30mm físicos. transform: scale() no
+             funcionaba porque sólo afecta render, no layout. */
+          .qr-card {
+            width: 32.14mm !important;
+            height: 32.14mm !important;
+            border-radius: 1.39mm !important;
+            padding: 0.857mm !important;
+          }
+          .qr-svg-wrap {
+            width: 26.79mm !important;
+            height: 26.79mm !important;
+          }
+          .qr-label {
+            font-size: 2.57mm !important;
           }
         }
         /* Cards FLUSH — sin gap. Para evitar bordes dobles entre

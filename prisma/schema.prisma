@@ -19,6 +19,15 @@ model Restaurant {
   monthlyPriceCents Int       @default(0)
   periodEndsAt      DateTime?
   suspended         Boolean   @default(false)
+  // Última vez que el cron envió un recordatorio de vencimiento.
+  // Lo usa /api/cron/membership-reminders para no spamear — solo
+  // re-envía si pasó >= 1 día desde el último o si cambió de
+  // "umbral" (T-7 → T-3 → T-0 → vencido).
+  lastReminderSentAt DateTime?
+  // Etiqueta del último umbral mandado: "T-7" | "T-3" | "T-0" |
+  // "overdue" | "suspended". Permite re-enviar cuando cruzamos a
+  // un umbral distinto aunque haya pasado < 1d.
+  lastReminderKind   String?
 
   serviceMode         ServiceMode @default(table)
   pickupEnabled       Boolean     @default(false)

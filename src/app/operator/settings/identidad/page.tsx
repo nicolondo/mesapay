@@ -12,6 +12,7 @@ export default async function IdentidadPage() {
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: {
+      name: true,
       logoUrl: true,
       legalName: true,
       taxId: true,
@@ -45,6 +46,7 @@ export default async function IdentidadPage() {
 
       <IdentidadClient
         initial={{
+          name: tenant.name,
           logoUrl: tenant.logoUrl,
           legalName: tenant.legalName,
           taxId: tenant.taxId,

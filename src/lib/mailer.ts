@@ -7,11 +7,16 @@ type SendArgs = {
   subject: string;
   html: string;
   text: string;
+  // Override del From por mensaje (ej: por restaurante, para que el
+  // sender muestre el nombre del comercio). Si no se pasa, cae al
+  // MAIL_FROM global del env. El email-address tiene que ser de un
+  // dominio verificado en Resend; el display name es libre.
+  from?: string;
 };
 
 export async function sendEmail(args: SendArgs): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? "MESAPAY <hola@mesapay.co>";
+  const from = args.from ?? process.env.MAIL_FROM ?? "MESAPAY <hola@mesapay.co>";
   if (!key) {
     console.log(`[mailer] skipped (no RESEND_API_KEY) → ${args.to} — ${args.subject}`);
     return false;

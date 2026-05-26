@@ -161,11 +161,18 @@ export async function POST(
         invoiceNumber,
         invoiceUrl: invoiceUrlFor(inv.id),
       });
+      // Compose un From que muestre el nombre del restaurante para
+      // que el cliente reconozca de quién viene en la bandeja de
+      // entrada: "DELIRIO RESTAURANTE · MESAPAY <facturas@mesapay.co>".
+      // Cae al MAIL_FROM del env si por alguna razón no podemos
+      // construirlo (sin email-address parseable o sin restaurant.name).
+      const from = buildBrandedFrom(snapshot.restaurantName);
       const ok = await sendEmail({
         to: parsed.data.email,
         subject,
         html,
         text,
+        ...(from && { from }),
       });
       await db.simpleInvoice.update({
         where: { id: inv.id },
@@ -195,4 +202,27 @@ export async function POST(
 function invoiceUrlFor(id: string): string {
   const base = env.APP_PUBLIC_BASE_URL ?? "https://mesapay.co";
   return `${base.replace(/\/$/, "")}/factura/${id}`;
+}
+
+/**
+ * Compose "NOMBRE · MESAPAY <email@dominio>" usando el nombre del
+ * restaurante + el address del MAIL_FROM global. Devuelve null
+ * (caller cae al default) si el env no tiene una address parseable
+ * o si el nombre queda vacío al sanitizar.
+ *
+ * RFC 5322 prohíbe `<`, `>`, `"`, `,` en el display name — los
+ * stripeamos para evitar que el email sea rechazado por Resend.
+ */
+function buildBrandedFrom(restaurantName: string): string | null {
+  const raw = restaurantName.trim();
+  if (!raw) return null;
+  const safeName = raw.replace(/[<>"\\,]/g, "").trim().slice(0, 100);
+  if (!safeName) return null;
+  const mailFrom = process.env.MAIL_FROM ?? "";
+  // Extrae el email de "Display Name <email@dominio>" o de
+  // "email@dominio" suelto.
+  const m = mailFrom.match(/<([^>]+)>/) ?? mailFrom.match(/(\S+@\S+)/);
+  const address = m?.[1]?.trim();
+  if (!address || !/.+@.+/.test(address)) return null;
+  return `${safeName} · MESAPAY <${address}>`;
 }

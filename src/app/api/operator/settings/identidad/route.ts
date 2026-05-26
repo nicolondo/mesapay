@@ -5,6 +5,11 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const putBody = z.object({
+  // Nombre comercial del restaurante (display, distinto de razón
+  // social). Required en el schema (no se permite vaciar) pero
+  // optional acá para permitir que el operador edite solo otros
+  // campos. Si llega vacío lo ignoramos.
+  name: z.string().trim().min(1).max(120).optional(),
   logoUrl: z.string().max(500).nullable().optional(),
   legalName: z.string().trim().max(200).nullable().optional(),
   // NIT: solo dígitos (con o sin DV). Sanitizamos al guardar.
@@ -66,6 +71,7 @@ export async function PUT(req: Request) {
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
+      ...(d.name !== undefined && { name: d.name }),
       ...(d.logoUrl !== undefined && { logoUrl: d.logoUrl || null }),
       ...(d.legalName !== undefined && { legalName: d.legalName || null }),
       ...(d.taxId !== undefined && {

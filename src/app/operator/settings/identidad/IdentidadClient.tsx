@@ -3,6 +3,10 @@
 import { useRef, useState } from "react";
 
 type Identidad = {
+  // Nombre comercial — display público + sender de los correos
+  // ("NOMBRE · MESAPAY <facturas@mesapay.co>"). Distinto de
+  // legalName (razón social) que aparece dentro de la tirilla.
+  name: string;
   logoUrl: string | null;
   legalName: string | null;
   taxId: string | null;
@@ -137,6 +141,19 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           Datos legales
         </div>
+        <Field
+          label="Nombre del restaurante"
+          hint="Aparece como remitente de los correos de factura. Ej: si pones 'DELIRIO RESTAURANTE' el cliente verá 'DELIRIO RESTAURANTE · MESAPAY' en su bandeja de entrada."
+        >
+          <input
+            type="text"
+            value={v.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Delirio Restaurante"
+            maxLength={120}
+            className={inputCls}
+          />
+        </Field>
         <Field label="Razón social">
           <input
             type="text"

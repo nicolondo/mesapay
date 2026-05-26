@@ -142,6 +142,7 @@ model Restaurant {
   orders              Order[]
   dishRatings         DishRating[]
   membershipPayments  MembershipPayment[]
+  auditEvents         AuditEvent[]
   kushkiDocuments     KushkiDocument[]
   kushkiTransactions  KushkiTransaction[]
   walletMovements     WalletMovement[]
@@ -202,6 +203,48 @@ model PlanConfig {
   sortOrder         Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+/// Audit log de acciones administrativas. Lo escriben los endpoints
+/// que mutan estado sensible — cambio de plan, suspensión, registro
+/// de pago manual, edición del catálogo de planes, edición de
+/// identidad/pagos del comercio, creación/borrado de usuarios, etc.
+///
+/// `restaurantId` es null cuando el evento es a nivel plataforma
+/// (ej: editar el catálogo de planes — no pertenece a un comercio).
+/// `targetType` + `targetId` permiten linkear de vuelta al objeto
+/// afectado para que la UI pueda hacer "ver detalle" si quiere.
+/// `summary` es human-readable y siempre se llena (lo que se
+/// renderea en la lista). `diff` opcional guarda before/after para
+/// inspección detallada.
+model AuditEvent {
+  id            String      @id @default(cuid())
+  occurredAt    DateTime    @default(now())
+  // Quién hizo el cambio. userId puede ser null si la acción fue
+  // disparada por un cron del sistema; email se denormaliza para
+  // que el historial siga siendo legible aunque el usuario se borre
+  // después.
+  actorUserId   String?
+  actorEmail    String
+  actorRole    String
+  // Scope: comercio afectado o null para acciones a nivel plataforma.
+  restaurantId  String?
+  restaurant    Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  // Qué se cambió. kind es un slug estable (ej: "plan.update",
+  // "membership.payment", "restaurant.suspend") para filtrar.
+  kind          String
+  targetType    String?
+  targetId      String?
+  // Texto listo para mostrar en la lista — "Cambió plan a Pro y
+  // mensualidad a $400.000". El renderer no necesita interpretar.
+  summary       String
+  // Opcional: snapshot del estado antes/después para inspección.
+  diff          Json?
+
+  @@index([restaurantId, occurredAt])
+  @@index([kind, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([occurredAt])
 }
 
 model MembershipPayment {

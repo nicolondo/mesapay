@@ -61,6 +61,7 @@ export default async function AdminLayout({
               <NavLink href="/admin">Resumen</NavLink>
               <NavLink href="/admin/restaurants">Restaurantes</NavLink>
               <NavLink href="/admin/plans">Planes</NavLink>
+              <NavLink href="/admin/audit">Audit</NavLink>
             </nav>
           </div>
           <div className="hidden md:flex items-center gap-3 text-sm">

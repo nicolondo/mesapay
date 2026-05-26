@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { getPlanCatalog, updatePlan } from "@/lib/planCatalog";
+import { getPlanCatalog, getPlanByTier, updatePlan } from "@/lib/planCatalog";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 /**
  * Catálogo de planes (trial/basic/pro). GET devuelve todos los
@@ -67,6 +68,30 @@ export async function PATCH(req: Request) {
     );
   }
   const { tier, ...patch } = parsed.data;
+  const before = await getPlanByTier(tier);
   const updated = await updatePlan(tier, patch);
+  await recordAuditEvent({
+    kind: "plan_catalog.update",
+    // null → evento a nivel plataforma.
+    restaurantId: null,
+    target: { type: "plan", id: tier },
+    summary: `Editó plan ${updated.name} (${tier})`,
+    diff: {
+      before: {
+        name: before.name,
+        description: before.description,
+        defaultPriceCents: before.defaultPriceCents,
+        features: before.features,
+        visible: before.visible,
+      },
+      after: {
+        name: updated.name,
+        description: updated.description,
+        defaultPriceCents: updated.defaultPriceCents,
+        features: updated.features,
+        visible: updated.visible,
+      },
+    },
+  });
   return NextResponse.json({ ok: true, plan: updated });
 }

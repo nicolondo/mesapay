@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { extendOneMonth } from "@/lib/membership";
+import { recordAuditEvent } from "@/lib/auditLog";
+import { fmtCOP } from "@/lib/format";
 
 const planSchema = z.object({
   action: z.literal("set_plan"),
@@ -96,11 +98,28 @@ export async function POST(
   }
 
   if (parsed.data.action === "set_plan") {
+    const before = {
+      plan: rest.plan,
+      monthlyPriceCents: rest.monthlyPriceCents,
+    };
     await db.restaurant.update({
       where: { id },
       data: {
         plan: parsed.data.plan,
         monthlyPriceCents: parsed.data.monthlyPriceCents,
+      },
+    });
+    await recordAuditEvent({
+      kind: "membership.plan.update",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: `Cambió plan a ${parsed.data.plan} y mensualidad a ${fmtCOP(parsed.data.monthlyPriceCents)}`,
+      diff: {
+        before,
+        after: {
+          plan: parsed.data.plan,
+          monthlyPriceCents: parsed.data.monthlyPriceCents,
+        },
       },
     });
     return NextResponse.json({ ok: true });
@@ -111,11 +130,22 @@ export async function POST(
       where: { id },
       data: { suspended: parsed.data.suspended },
     });
+    await recordAuditEvent({
+      kind: parsed.data.suspended
+        ? "membership.suspend"
+        : "membership.unsuspend",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: parsed.data.suspended
+        ? "Suspendió el comercio"
+        : "Reactivó el comercio",
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (parsed.data.action === "set_pickup_enabled") {
     const next = parsed.data.pickupEnabled;
+    const wasEnabled = rest.pickupEnabled;
     await db.$transaction(async (tx) => {
       await tx.restaurant.update({
         where: { id },
@@ -140,6 +170,15 @@ export async function POST(
         }
       }
     });
+    await recordAuditEvent({
+      kind: "membership.pickup.toggle",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: next
+        ? "Activó pedido anticipado"
+        : "Desactivó pedido anticipado",
+      diff: { before: { pickupEnabled: wasEnabled }, after: { pickupEnabled: next } },
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -152,6 +191,18 @@ export async function POST(
           : Prisma.JsonNull,
       },
     });
+    await recordAuditEvent({
+      kind: "membership.pickup.hours.update",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: parsed.data.hours
+        ? "Actualizó horarios de pickup"
+        : "Quitó horarios de pickup (abierto siempre)",
+      diff: {
+        before: { pickupHours: rest.pickupHours as unknown },
+        after: { pickupHours: parsed.data.hours },
+      },
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -160,11 +211,24 @@ export async function POST(
       where: { id },
       data: { pickupMaxEtaMinutes: parsed.data.maxEtaMinutes },
     });
+    await recordAuditEvent({
+      kind: "membership.pickup.hours.update",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: parsed.data.maxEtaMinutes
+        ? `Tope de espera ${parsed.data.maxEtaMinutes}min`
+        : "Quitó tope de espera",
+      diff: {
+        before: { pickupMaxEtaMinutes: rest.pickupMaxEtaMinutes },
+        after: { pickupMaxEtaMinutes: parsed.data.maxEtaMinutes },
+      },
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (parsed.data.action === "set_service_mode") {
     const nextMode = parsed.data.serviceMode;
+    const prevMode = rest.serviceMode;
     await db.$transaction(async (tx) => {
       await tx.restaurant.update({
         where: { id },
@@ -188,12 +252,22 @@ export async function POST(
         }
       }
     });
+    await recordAuditEvent({
+      kind: "membership.service_mode.update",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: `Cambió modo de ${prevMode} a ${nextMode}`,
+      diff: {
+        before: { serviceMode: prevMode },
+        after: { serviceMode: nextMode },
+      },
+    });
     return NextResponse.json({ ok: true });
   }
 
   // record_payment
   const { periodStart, periodEnd } = extendOneMonth(rest.periodEndsAt ?? null);
-  await db.$transaction([
+  const [created] = await db.$transaction([
     db.membershipPayment.create({
       data: {
         restaurantId: id,
@@ -214,6 +288,20 @@ export async function POST(
       },
     }),
   ]);
+  await recordAuditEvent({
+    kind: "membership.payment.record",
+    restaurantId: id,
+    target: { type: "membership_payment", id: created.id },
+    summary: `Registró pago de ${fmtCOP(parsed.data.amountCents)} (${parsed.data.method})${parsed.data.note ? ` — ${parsed.data.note}` : ""}`,
+    diff: {
+      after: {
+        amountCents: parsed.data.amountCents,
+        method: parsed.data.method,
+        periodStart,
+        periodEnd,
+      },
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

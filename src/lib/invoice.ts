@@ -79,10 +79,19 @@ export function renderInvoiceEmail(args: {
   const dianDate = snapshot.dianResolutionDate
     ? new Date(snapshot.dianResolutionDate)
     : null;
-  const fechaStr = paidAt.toLocaleString("es-CO", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  // Formato compacto sin "p. m." — el locale es-CO mete espacios
+  // dentro del time que rompen línea en viewports angostos del
+  // correo. 24h + middle-dot queda limpio y MESAPAY-style.
+  const fechaStr = paidAt
+    .toLocaleString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+    .replace(", ", " · ");
   const dianDateStr = dianDate
     ? dianDate.toLocaleDateString("es-CO")
     : null;
@@ -175,17 +184,15 @@ function renderHtml(args: {
 
   // Paleta MESAPAY (mismos tokens que globals.css):
   //   bone     #F5F1EA  → fondo exterior del email
-  //   paper    #FBF8F3  → card que envuelve la tirilla
-  //   ivory    #FFFDF9  → no usado aquí (queda como acento ligero)
+  //   paper    #FBF8F3  → card que envuelve TODO el contenido,
+  //                       incluida la tirilla (sin sub-recuadro
+  //                       blanco — se ve como una sola superficie
+  //                       limpia, no anidada).
   //   ink      #1A1613  → tipografía y CTA
-  //   hairline #E5DED1  → bordes finos en el card
-  //   La tirilla queda en blanco puro (#FFFFFF) con borde ink-thin
-  //   para que se vea como un papel térmico real recortado sobre la
-  //   superficie paper, no como otro card más.
+  //   hairline #E5DED1  → separadores muy finos donde hace falta
   //
   // `color-scheme: light only` + `supported-color-schemes: light only`
-  // bloquean la inversión auto que hace Gmail/Outlook en dark mode —
-  // si no, ennegrecen el fondo blanco de la tirilla y se rompe el look.
+  // bloquean la inversión auto que hace Gmail/Outlook en dark mode.
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -196,9 +203,10 @@ function renderHtml(args: {
 <title>${escapeHtml(`Comprobante ${numberStr} — ${brandName}`)}</title>
 <style>
   :root { color-scheme: light only; supported-color-schemes: light only; }
-  /* Algunos clientes (Gmail dark) ignoran inline bg en tablas;
-     este selector específico fuerza el blanco en la tirilla. */
-  .mp-receipt { background:#FFFFFF !important; }
+  /* La tirilla hereda el bg del card para que no se vea anidada;
+     este selector específico lo refuerza contra clientes que
+     ignoran inline bg en tablas. */
+  .mp-receipt { background:#FBF8F3 !important; }
 </style>
 </head>
 <body style="margin:0;padding:0;background:#F5F1EA;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#1A1613;">
@@ -231,19 +239,24 @@ function renderHtml(args: {
           </td>
         </tr>
 
-        <!-- Resumen visual: total destacado -->
+        <!-- Resumen visual: total destacado.
+             Columnas alineadas TOP, ambas con misma estructura
+             (label uppercase mono + valor serif/mono). Evita el
+             cramping que pasaba antes con 3 líneas apiladas a la
+             derecha contra el total a la izquierda. -->
         <tr>
           <td style="padding:18px 36px 6px 36px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5DED1;border-bottom:1px solid #E5DED1;">
               <tr>
-                <td style="padding:18px 0;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">Total pagado</div>
-                  <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:36px;color:#1A1613;line-height:1;">${fmtCOP(snapshot.totalCents)}</div>
+                <td valign="top" style="padding:18px 0;">
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">Total pagado</div>
+                  <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:36px;color:#1A1613;line-height:1;white-space:nowrap;">${fmtCOP(snapshot.totalCents)}</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(fechaStr)}</div>
                 </td>
-                <td align="right" style="padding:18px 0;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(snapshot.tableLabel)}</div>
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#1A1613;">${escapeHtml(snapshot.shortCode)}</div>
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:2px;">${escapeHtml(fechaStr)}</div>
+                <td valign="top" align="right" style="padding:18px 0;">
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">Mesa</div>
+                  <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:22px;color:#1A1613;line-height:1.1;">${escapeHtml(snapshot.tableLabel)}</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(snapshot.shortCode)}</div>
                 </td>
               </tr>
             </table>
@@ -256,7 +269,7 @@ function renderHtml(args: {
             <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 10px 0;">
               Tu tirilla
             </div>
-            <table class="mp-receipt" role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#FFFFFF" style="width:100%;max-width:380px;background:#FFFFFF;border:1px solid #1A1613;box-shadow:0 1px 0 rgba(26,22,19,0.08);">
+            <table class="mp-receipt" role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#FBF8F3" style="width:100%;max-width:380px;background:#FBF8F3;">
               <tr>
                 <td style="padding:18px 16px;">
                   <!-- Logo + razón social -->

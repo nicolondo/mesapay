@@ -37,7 +37,14 @@ export default async function ServePage() {
       where: {
         order: {
           restaurantId,
-          status: { notIn: ["paid", "cancelled"] },
+          // IMPORTANTE: incluimos órdenes pagas. Si el cliente paga
+          // antes de que le sirvan TODO (caso común — paga apenas se
+          // sentó o pidió la cuenta antes de que la cocina terminara),
+          // los items siguen kitchenState=ready + servedAt=null y el
+          // mesero TIENE que entregarlos. Antes excluíamos "paid" y
+          // se perdían del Salón. Sólo excluimos "cancelled" — ahí sí
+          // el food se tira, no se entrega.
+          status: { not: "cancelled" },
           ...tableFilter,
         },
         items: {

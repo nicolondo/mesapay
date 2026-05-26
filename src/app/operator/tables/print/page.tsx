@@ -1,7 +1,13 @@
+import { Fragment } from "react";
 import { db } from "@/lib/db";
 import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { PrintButton } from "./PrintButton";
+
+// Cuántas tarjetas por fila. Con A4 + 10mm @page margin = 190mm
+// útiles. 5 cards × 30mm + 4 gaps × 4mm = 166mm — cabe holgado y
+// deja ~24mm para los tickmarks de corte en los bordes.
+const COLS_PER_ROW = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -135,12 +141,42 @@ export default async function PrintTablesPage({
           height: 100%;
           display: block;
         }
-        .qr-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, 30mm);
-          gap: 4mm;
-          justify-content: start;
+        /* Layout en columna: alterna cut-guides con filas de cards.
+           El cut-guide actúa de gap visual entre filas Y de marca de
+           corte simultáneamente. */
+        .qr-page {
+          display: flex;
+          flex-direction: column;
         }
+        .qr-row {
+          display: flex;
+          gap: 4mm;
+          justify-content: flex-start;
+        }
+        /* Cut guide — banda de 4mm de alto que separa cada fila. En
+           el centro vertical de la banda dibujamos un tick negro
+           pegado al borde izquierdo y otro al borde derecho de la
+           hoja. La guillotina alinea el filo con ambos ticks (y como
+           el ojo conecta los dos puntos en una línea recta, no hace
+           falta dibujar la línea completa que cruzaría las cards).
+           5mm de ancho es suficiente para verlo y alinearlo a ojo. */
+        .cut-guide {
+          height: 4mm;
+          position: relative;
+          width: 100%;
+        }
+        .cut-guide::before,
+        .cut-guide::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 5mm;
+          height: 0.2mm;
+          background: #1c1c1c;
+        }
+        .cut-guide::before { left: 0; }
+        .cut-guide::after { right: 0; }
       `}</style>
 
       <div className="p-6 bg-white text-ink print:p-0">
@@ -165,18 +201,39 @@ export default async function PrintTablesPage({
           </div>
         </div>
 
-        <div className="qr-grid max-w-5xl mx-auto print:max-w-none">
-          {qrs.map((q) => (
-            <div key={q.id} className="qr-card">
-              <div className="qr-label">{labelOf(q.number)}</div>
-              <div
-                className="qr-svg-wrap"
-                dangerouslySetInnerHTML={{ __html: q.svg }}
-              />
-            </div>
+        {/* Chunkamos los QRs en filas de COLS_PER_ROW. Entre cada fila
+            (y al principio y al final) renderizamos un cut-guide con
+            tickmarks en los bordes para guillotina horizontal. */}
+        <div className="qr-page max-w-5xl mx-auto print:max-w-none">
+          <div className="cut-guide" aria-hidden />
+          {chunk(qrs, COLS_PER_ROW).map((row, idx) => (
+            <Fragment key={idx}>
+              <div className="qr-row">
+                {row.map((q) => (
+                  <div key={q.id} className="qr-card">
+                    <div className="qr-label">{labelOf(q.number)}</div>
+                    <div
+                      className="qr-svg-wrap"
+                      dangerouslySetInnerHTML={{ __html: q.svg }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="cut-guide" aria-hidden />
+            </Fragment>
           ))}
         </div>
       </div>
     </>
   );
+}
+
+/** Splittea un array en grupos de tamaño N. Para chunkar los QRs
+ * en filas explícitas que aceptan cut-guides intercalados. */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
 }

@@ -5,9 +5,9 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { PrintButton } from "./PrintButton";
 
 // Cuántas tarjetas por fila. Con A4 + 10mm @page margin = 190mm
-// útiles. 5 cards × 30mm + 4 gaps × 4mm = 166mm — cabe holgado y
-// deja ~24mm para los tickmarks de corte en los bordes.
-const COLS_PER_ROW = 5;
+// útiles. Cards flush sin gap: 6 × 30mm = 180mm — cabe con 10mm
+// de aire para los tickmarks de corte en los bordes.
+const COLS_PER_ROW = 6;
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +81,11 @@ export default async function PrintTablesPage({
 
   // Label de cada tarjeta — counter/pickup tienen casos especiales,
   // mesa normal es "Mesa N".
+  // MAYÚSCULA porque va abajo del QR como rótulo discreto.
   const labelOf = (n: number) => {
-    if (n === -1) return "Recogida";
-    if (tenant.serviceMode === "counter") return "Mostrador";
-    return `Mesa ${n}`;
+    if (n === -1) return "RECOGIDA";
+    if (tenant.serviceMode === "counter") return "MOSTRADOR";
+    return `MESA ${n}`;
   };
 
   return (
@@ -101,37 +102,37 @@ export default async function PrintTablesPage({
           .no-print { display: none !important; }
           .qr-card { break-inside: avoid; }
         }
+        /* Cards FLUSH — sin gap. Para evitar bordes dobles entre
+           cards adyacentes, cada card sólo dibuja right + bottom.
+           El primer card de cada fila agrega left, la primera fila
+           agrega top — clases qr-card-first-col / qr-row-first
+           manejan esos casos. Sin border-radius porque cards flush
+           no pueden tener esquinas redondeadas (chocarían entre sí). */
         .qr-card {
           width: 30mm;
           height: 30mm;
-          border: 0.2mm solid #999;
-          /* Esquinas redondeadas tipo sticker / tag físico. 1.73mm
-             es un radio suave que se nota pero no se come el área
-             útil del QR. */
-          border-radius: 1.73mm;
-          padding: 1.5mm;
+          border-right: 0.2mm solid #999;
+          border-bottom: 0.2mm solid #999;
+          padding: 0.8mm;
           display: flex;
           flex-direction: column;
           align-items: center;
-          /* Sin "Escanea" abajo, el contenido (label + QR) queda
-             centrado verticalmente — mejor balance visual que
-             space-between con sólo 2 items. */
-          justify-content: center;
-          gap: 1.2mm;
+          justify-content: space-between;
           background: #ffffff;
-          /* En pantalla queremos verlos centrados y limpios pero a
-             escala real. mm es unidad física — Chrome lo respeta. */
+          box-sizing: border-box;
         }
-        .qr-label {
-          font-size: 2.6mm;
-          line-height: 1;
-          font-weight: 500;
-          letter-spacing: -0.02em;
-          color: #1c1c1c;
+        .qr-row-first .qr-card {
+          border-top: 0.2mm solid #999;
         }
+        .qr-card-first-col {
+          border-left: 0.2mm solid #999;
+        }
+        /* QR grande — con label compacta al pie, dejamos al QR todo
+           el espacio: 30mm - 0.8mm*2 padding - 2.6mm label - 0.5mm
+           gap visual ≈ 25mm. */
         .qr-svg-wrap {
-          width: 22mm;
-          height: 22mm;
+          width: 25mm;
+          height: 25mm;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -141,42 +142,55 @@ export default async function PrintTablesPage({
           height: 100%;
           display: block;
         }
-        /* Layout en columna: alterna cut-guides con filas de cards.
-           El cut-guide actúa de gap visual entre filas Y de marca de
-           corte simultáneamente. */
+        /* Label al pie. Mayúscula + tracking ancho para que se lea
+           como un rótulo, no como un título. Compacta — 2.4mm de
+           alto. */
+        .qr-label {
+          font-size: 2.4mm;
+          line-height: 1;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          color: #1c1c1c;
+        }
         .qr-page {
           display: flex;
           flex-direction: column;
         }
         .qr-row {
           display: flex;
-          gap: 4mm;
+          gap: 0;
           justify-content: flex-start;
         }
-        /* Cut guide — banda de 4mm de alto que separa cada fila. En
-           el centro vertical de la banda dibujamos un tick negro
-           pegado al borde izquierdo y otro al borde derecho de la
-           hoja. La guillotina alinea el filo con ambos ticks (y como
-           el ojo conecta los dos puntos en una línea recta, no hace
-           falta dibujar la línea completa que cruzaría las cards).
-           5mm de ancho es suficiente para verlo y alinearlo a ojo. */
+        /* Cut guides — SOLO en print. En pantalla los escondemos
+           con display:none. Cuando imprimes aparecen como tickmarks
+           negros pegados a los bordes izquierdo y derecho de la
+           hoja, EN LA MISMA LÍNEA Y de los bordes horizontales
+           entre filas. La guillotina alinea su filo con los dos
+           ticks. Height 0 → no empuja el layout; sólo el tickmark
+           queda visible sobre el border line. */
         .cut-guide {
-          height: 4mm;
-          position: relative;
-          width: 100%;
+          display: none;
         }
-        .cut-guide::before,
-        .cut-guide::after {
-          content: '';
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 5mm;
-          height: 0.2mm;
-          background: #1c1c1c;
+        @media print {
+          .cut-guide {
+            display: block;
+            height: 0;
+            position: relative;
+            width: 100%;
+          }
+          .cut-guide::before,
+          .cut-guide::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 5mm;
+            height: 0.2mm;
+            background: #1c1c1c;
+            transform: translateY(-50%);
+          }
+          .cut-guide::before { left: 0; }
+          .cut-guide::after { right: 0; }
         }
-        .cut-guide::before { left: 0; }
-        .cut-guide::after { right: 0; }
       `}</style>
 
       <div className="p-6 bg-white text-ink print:p-0">
@@ -184,9 +198,10 @@ export default async function PrintTablesPage({
           <div>
             <div className="font-display text-3xl">QRs para imprimir</div>
             <p className="text-sm text-op-muted mt-1">
-              Tarjetas de <strong>30×30mm</strong> en hoja A4 — entran
-              ~50 por hoja. Imprime, corta por las líneas y coloca un
-              QR en cada mesa.
+              Tarjetas de <strong>30×30mm</strong> en hoja A4 — caben
+              hasta <strong>54 por hoja</strong>. Las guías de corte
+              en los bordes (sólo visibles al imprimir) facilitan
+              alinear la guillotina.
             </p>
           </div>
           <PrintButton />
@@ -201,21 +216,34 @@ export default async function PrintTablesPage({
           </div>
         </div>
 
-        {/* Chunkamos los QRs en filas de COLS_PER_ROW. Entre cada fila
-            (y al principio y al final) renderizamos un cut-guide con
-            tickmarks en los bordes para guillotina horizontal. */}
+        {/* Chunkamos los QRs en filas de COLS_PER_ROW. Cards flush
+            sin gap: cada border entre cards es UN solo trazo
+            (compartido). Cut-guides (sólo print) ponen tickmarks
+            en los bordes izq/der EN LA MISMA LÍNEA Y de los
+            bordes horizontales entre filas, así la guillotina
+            corta justo encima del trazo común. */}
         <div className="qr-page max-w-5xl mx-auto print:max-w-none">
           <div className="cut-guide" aria-hidden />
           {chunk(qrs, COLS_PER_ROW).map((row, idx) => (
             <Fragment key={idx}>
-              <div className="qr-row">
-                {row.map((q) => (
-                  <div key={q.id} className="qr-card">
-                    <div className="qr-label">{labelOf(q.number)}</div>
+              <div
+                className={
+                  "qr-row " + (idx === 0 ? "qr-row-first" : "")
+                }
+              >
+                {row.map((q, j) => (
+                  <div
+                    key={q.id}
+                    className={
+                      "qr-card " +
+                      (j === 0 ? "qr-card-first-col" : "")
+                    }
+                  >
                     <div
                       className="qr-svg-wrap"
                       dangerouslySetInnerHTML={{ __html: q.svg }}
                     />
+                    <div className="qr-label">{labelOf(q.number)}</div>
                   </div>
                 ))}
               </div>

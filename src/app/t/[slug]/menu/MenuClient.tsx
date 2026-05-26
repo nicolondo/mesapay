@@ -76,11 +76,6 @@ type ActiveOrder = {
   status: string;
   itemCount: number;
   roundCount: number;
-  // Flag para mostrar el FAB de llamar mesero como "ya llamado" en
-  // vez de "llamar". Lo recibe del server (page.tsx fetch del
-  // order); cuando el cliente hace tap localmente, optimistic
-  // overlay lo refleja sin esperar refresh.
-  needsWaiter?: boolean;
   items: { id: string; name: string; qty: number; priceCents: number }[];
 };
 
@@ -185,6 +180,8 @@ function fuzzyNormalize(s: string): string {
 export function MenuClient({
   tenant,
   tableId,
+  tableQrToken,
+  initialWaiterCalled = false,
   locationLabel,
   menus = [],
   menuTags = [],
@@ -199,6 +196,15 @@ export function MenuClient({
 }: {
   tenant: Tenant;
   tableId: string;
+  // QR token de la mesa — necesario para el endpoint by-table del
+  // FAB "Llamar mesero" (funciona con o sin orden activa). Opcional
+  // para back-compat con consumers que no lo pasan (ej: /p/[slug]
+  // pickup, mesero/pedir cuando todavía no se ha resuelto la mesa);
+  // si falta, el FAB no se renderea.
+  tableQrToken?: string;
+  // Estado inicial del FAB — true si ya hay llamada pendiente (sea
+  // a nivel de orden o de mesa) cuando se cargó la página.
+  initialWaiterCalled?: boolean;
   locationLabel: string;
   // Top-level menus (Carta, Vinos, etc.). Optional / single-element
   // means no tab strip is rendered. Server always sends at least one
@@ -869,14 +875,16 @@ export function MenuClient({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <LayoutSwitcher layout={layout} onChange={changeLayout} />
-              {/* Llamar al mesero — solo si hay orden activa (caso pre-orden
-                  requeriria schema change para Table.waiterCalledAt). El
-                  FAB es compact (w-9 h-9) para no robar espacio al header. */}
-              {activeOrder && !isPickup && (
+              {/* Llamar al mesero — siempre visible cuando es modo
+                  mesa (sin pickup). El endpoint by-table maneja
+                  ambos casos: si hay orden activa marca needsWaiter
+                  ahí; si no, marca Table.waiterCalledAt. FAB compact
+                  (w-9 h-9) para no robar espacio al header. */}
+              {!isPickup && tableQrToken && (
                 <CallWaiterFab
                   tenantSlug={tenant.slug}
-                  orderId={activeOrder.id}
-                  initialNeedsWaiter={activeOrder.needsWaiter === true}
+                  qrToken={tableQrToken}
+                  initialCalled={initialWaiterCalled}
                 />
               )}
               {activeOrder && (

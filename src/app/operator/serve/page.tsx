@@ -30,6 +30,7 @@ export default async function ServePage() {
     cashPending,
     terminalPending,
     waiterCalls,
+    tableWaiterCalls,
     cancelledPending,
     devices,
   ] = await Promise.all([
@@ -101,6 +102,31 @@ export default async function ServePage() {
       include: { table: true },
       orderBy: { waiterCalledAt: "asc" },
     }),
+    // Llamadas PRE-orden (cliente escaneó QR pero no pidió todavía).
+    // Pending = waiterCalledAt != null && (ack null || ack < called).
+    // Aplica el mesero-scope igual que las otras señales del Salón.
+    db.table.findMany({
+      where: {
+        restaurantId,
+        waiterCalledAt: { not: null },
+        OR: [
+          { waiterAckedAt: null },
+          // Prisma no soporta column-vs-column comparison directo;
+          // hacemos el filtro fino abajo en JS.
+        ],
+        ...(scope.scoped
+          ? { number: { in: scope.tableNumbers ?? [] } }
+          : {}),
+      },
+      select: {
+        id: true,
+        number: true,
+        label: true,
+        waiterCalledAt: true,
+        waiterAckedAt: true,
+      },
+      orderBy: { waiterCalledAt: "asc" },
+    }),
     // Cancelled rounds where the waiter still has to go tell the customer.
     db.round.findMany({
       where: {
@@ -168,12 +194,39 @@ export default async function ServePage() {
           tableNumber: p.order.table.number,
         },
       }))}
-      waiterCalls={waiterCalls.map((o) => ({
-        id: o.id,
-        shortCode: o.shortCode,
-        tableNumber: o.table.number,
-        calledAt: (o.waiterCalledAt ?? o.updatedAt).toISOString(),
-      }))}
+      waiterCalls={[
+        ...waiterCalls.map((o) => ({
+          id: o.id,
+          // Per-order calls keep their shortCode. Table-level no
+          // tienen una orden detrás, sólo identificación de la mesa.
+          shortCode: o.shortCode,
+          tableNumber: o.table.number,
+          calledAt: (o.waiterCalledAt ?? o.updatedAt).toISOString(),
+          scope: "order" as const,
+        })),
+        // Filtro en JS: pending = called && (ack < called). Mantener
+        // mismas reglas que el endpoint /ack. La query ya devolvió
+        // sólo rows con waiterAckedAt = null por el OR; los que
+        // tienen ack viejo los descartamos acá.
+        ...tableWaiterCalls
+          .filter(
+            (t) =>
+              t.waiterCalledAt &&
+              (!t.waiterAckedAt ||
+                t.waiterAckedAt.getTime() <
+                  (t.waiterCalledAt as Date).getTime()),
+          )
+          .map((t) => ({
+            // Usamos "table:<id>" como discriminador para que el
+            // ack handler sepa que tiene que pegarle al endpoint
+            // de tables, no al de orders.
+            id: `table:${t.id}`,
+            shortCode: t.label ?? `Mesa ${t.number}`,
+            tableNumber: t.number,
+            calledAt: (t.waiterCalledAt as Date).toISOString(),
+            scope: "table" as const,
+          })),
+      ]}
       cancelledPending={cancelledPending.map((r) => ({
         id: r.id,
         seq: r.seq,

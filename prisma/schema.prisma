@@ -372,10 +372,23 @@ model Table {
   qrToken      String     @unique
   createdAt    DateTime   @default(now())
 
+  // Llamadas al mesero PRE-orden — cuando un cliente escanea el QR
+  // y aprieta "Llamar mesero" sin haber pedido nada todavía no hay
+  // Order donde colgar la flag. Persistimos a nivel de Table para
+  // que el Salón los surface igual.
+  //
+  // Pending = waiterCalledAt != null && (waiterAckedAt == null ||
+  // waiterAckedAt < waiterCalledAt). Cuando el mesero hace ack se
+  // setea waiterAckedAt = now, sin borrar waiterCalledAt — así el
+  // historial queda y un re-call del cliente vuelve a marcar pending.
+  waiterCalledAt DateTime?
+  waiterAckedAt  DateTime?
+
   orders Order[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
+  @@index([restaurantId, waiterCalledAt])
 }
 
 enum CategoryKind {

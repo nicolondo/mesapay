@@ -114,6 +114,17 @@ export default async function MenuPage({
         logoUrl: tenant.logoUrl,
       }}
       tableId={table.id}
+      tableQrToken={table.qrToken}
+      // Llamada al mesero "ya pendiente" para hidratar el FAB:
+      // (a) si hay orden activa con needsWaiter, o
+      // (b) si la mesa misma tiene waiterCalledAt > waiterAckedAt.
+      initialWaiterCalled={
+        (activeOrder?.needsWaiter ?? false) ||
+        (table.waiterCalledAt != null &&
+          (!table.waiterAckedAt ||
+            table.waiterAckedAt.getTime() <
+              table.waiterCalledAt.getTime()))
+      }
       locationLabel={
         tenant.serviceMode === "counter"
           ? "Mostrador"
@@ -158,10 +169,6 @@ export default async function MenuPage({
               status: activeOrder.status,
               itemCount: activeOrder.items.reduce((s, i) => s + i.qty, 0),
               roundCount: activeOrder.rounds.length,
-              // needsWaiter alimenta el FAB de llamar mesero — si
-              // ya está llamado el FAB se renderea como "vamos en
-              // camino" en vez del estado idle.
-              needsWaiter: activeOrder.needsWaiter,
               items: activeOrder.items.map((i) => ({
                 id: i.id,
                 name: i.nameSnapshot,

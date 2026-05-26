@@ -23,12 +23,17 @@ import { useRouter } from "next/navigation";
  */
 export function CallWaiterFab({
   tenantSlug,
-  orderId,
-  initialNeedsWaiter,
+  qrToken,
+  initialCalled,
 }: {
   tenantSlug: string;
-  orderId: string;
-  initialNeedsWaiter: boolean;
+  // QR token de la mesa — el endpoint by-table maneja ambos casos
+  // (con o sin orden activa) internamente.
+  qrToken: string;
+  // True si ya hay una llamada pendiente cuando se cargó la página.
+  // Viene del server: order.needsWaiter cuando hay orden activa,
+  // o table.waiterCalledAt > waiterAckedAt cuando no.
+  initialCalled: boolean;
 }) {
   const router = useRouter();
   const [optimisticCalled, setOptimisticCalled] = useState(false);
@@ -36,15 +41,16 @@ export function CallWaiterFab({
   const [err, setErr] = useState<string | null>(null);
   const [, startTx] = useTransition();
 
-  const called = initialNeedsWaiter || optimisticCalled;
+  const called = initialCalled || optimisticCalled;
 
-  // Cuando el server confirma needsWaiter=false (el mesero hizo ack),
-  // resetear el optimistic flag para volver a permitir nuevos llamados.
+  // Cuando el server confirma que ya no hay llamada pendiente (el
+  // mesero hizo ack), resetear el optimistic flag para volver a
+  // permitir nuevos llamados.
   useEffect(() => {
-    if (!initialNeedsWaiter && optimisticCalled) {
+    if (!initialCalled && optimisticCalled) {
       setOptimisticCalled(false);
     }
-  }, [initialNeedsWaiter, optimisticCalled]);
+  }, [initialCalled, optimisticCalled]);
 
   async function call() {
     if (called || busy) return;
@@ -55,7 +61,7 @@ export function CallWaiterFab({
       navigator.vibrate?.([40, 30, 40]);
     } catch {}
     const res = await fetch(
-      `/api/tenant/${tenantSlug}/orders/${orderId}/call-waiter`,
+      `/api/tenant/${tenantSlug}/tables/${qrToken}/call-waiter`,
       { method: "POST" },
     );
     setBusy(false);

@@ -53,10 +53,15 @@ type CashPending = {
 };
 
 type WaiterCall = {
+  // `order`: legacy/active-order call (id = orderId).
+  // `table`: pre-orden call (id = "table:<tableId>" para discriminar
+  // el ack — el handler ackWaiter extrae el tableId y pega al
+  // endpoint correspondiente).
   id: string;
   shortCode: string;
   tableNumber: number;
   calledAt: string;
+  scope?: "order" | "table";
 };
 
 type CancelledPending = {
@@ -230,9 +235,15 @@ export function ServeBoard({
 
   const settling = cashPending.find((c) => c.id === settlingId) ?? null;
 
-  async function ackWaiter(orderId: string) {
-    setAckingId(orderId);
-    await fetch(`/api/operator/orders/${orderId}/ack-waiter`, { method: "POST" });
+  async function ackWaiter(callId: string) {
+    setAckingId(callId);
+    // callId puede ser "<orderId>" o "table:<tableId>" — discriminamos
+    // para pegarle al endpoint correcto.
+    const isTable = callId.startsWith("table:");
+    const url = isTable
+      ? `/api/operator/tables/${callId.slice("table:".length)}/ack-waiter`
+      : `/api/operator/orders/${callId}/ack-waiter`;
+    await fetch(url, { method: "POST" });
     setAckingId(null);
     startTx(() => router.refresh());
   }

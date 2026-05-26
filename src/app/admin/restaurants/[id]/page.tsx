@@ -23,6 +23,7 @@ import {
 import { UsersPanel } from "./UsersPanel";
 import { RestaurantNameEditor } from "./RestaurantNameEditor";
 import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
+import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function RestaurantDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog] =
+  const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog, allGroups, currentLegalEntity] =
     await Promise.all([
       db.restaurant.findUnique({ where: { id } }),
       db.user.findMany({
@@ -81,6 +82,27 @@ export default async function RestaurantDetail({
         take: 12,
       }),
       getPlanCatalog(),
+      // Todos los grupos para el dropdown del GroupAssignPanel.
+      // Es una lista chica (decenas como mucho) y la cacheamos
+      // implícitamente porque el page es force-dynamic.
+      db.group.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, slug: true },
+      }),
+      // Resolvemos el legalEntity actual (si tiene) por separado
+      // porque depende del rest cargado. Necesario para avisar al
+      // admin que un cambio de grupo desvinculará la razón social.
+      (async () => {
+        const r = await db.restaurant.findUnique({
+          where: { id },
+          select: { legalEntityId: true },
+        });
+        if (!r?.legalEntityId) return null;
+        return db.legalEntity.findUnique({
+          where: { id: r.legalEntityId },
+          select: { name: true },
+        });
+      })(),
     ]);
 
   if (!rest) notFound();
@@ -271,6 +293,13 @@ export default async function RestaurantDetail({
       <PaymentMethodsPanel
         restaurantId={id}
         initialEnabled={resolveEnabledPaymentMethods(rest.enabledPaymentMethods)}
+      />
+
+      <GroupAssignPanel
+        restaurantId={id}
+        initialGroupId={rest.groupId}
+        groups={allGroups}
+        currentLegalEntityName={currentLegalEntity?.name ?? null}
       />
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">

@@ -15,7 +15,11 @@ export default async function StaffPoliciesPage() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { tipPolicy: true, shiftPolicy: true },
+    select: {
+      tipPolicy: true,
+      shiftPolicy: true,
+      walkoutDangerMinutes: true,
+    },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
 
@@ -27,16 +31,17 @@ export default async function StaffPoliciesPage() {
       >
         ← Configuración
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">Propinas y turnos</div>
+      <div className="font-display text-3xl mt-2 mb-1">Políticas operativas</div>
       <p className="text-sm text-op-muted mb-6">
-        Define cómo se reparten las propinas entre el staff y cómo se
-        cuentan los turnos de cada mesero. Estos ajustes afectan los
-        reportes y lo que cada mesero ve en su vista personal.
+        Define cómo se reparten las propinas, cómo se cuentan los
+        turnos y cuándo el sistema considera que una mesa está en
+        riesgo de irse sin pagar.
       </p>
 
       <StaffPoliciesClient
         initialTipPolicy={resolveTipPolicy(tenant.tipPolicy)}
         initialShiftPolicy={resolveShiftPolicy(tenant.shiftPolicy)}
+        initialWalkoutDangerMinutes={tenant.walkoutDangerMinutes ?? 20}
       />
     </div>
   );

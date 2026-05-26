@@ -29,6 +29,16 @@ model Restaurant {
   // un umbral distinto aunque haya pasado < 1d.
   lastReminderKind   String?
 
+  // Umbral en minutos para el cálculo de walkout-risk en la vista
+  // Mesas. Default 20 = una mesa con todos los items entregados y
+  // sin pagar pasa a "danger" después de 20min. Watch/warn se
+  // derivan como fracciones (25%/50%). Para requests pendientes
+  // (cobro pedido, mesero llamado) el umbral efectivo es la
+  // mitad — son señales más urgentes. Configurable por comercio
+  // porque depende del tipo: fine-dining tolera sobremesa larga,
+  // casual-fast no.
+  walkoutDangerMinutes Int @default(20)
+
   serviceMode         ServiceMode @default(table)
   pickupEnabled       Boolean     @default(false)
   pickupHours         Json?

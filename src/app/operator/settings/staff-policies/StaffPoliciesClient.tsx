@@ -6,27 +6,49 @@ import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
 export function StaffPoliciesClient({
   initialTipPolicy,
   initialShiftPolicy,
+  initialWalkoutDangerMinutes,
 }: {
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
+  initialWalkoutDangerMinutes: number;
 }) {
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
   const [shiftPolicy, setShiftPolicy] = useState<ShiftPolicy>(initialShiftPolicy);
+  const [walkoutDanger, setWalkoutDanger] = useState<number>(
+    initialWalkoutDangerMinutes,
+  );
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
 
   const dirty =
-    tipPolicy !== initialTipPolicy || shiftPolicy !== initialShiftPolicy;
+    tipPolicy !== initialTipPolicy ||
+    shiftPolicy !== initialShiftPolicy ||
+    walkoutDanger !== initialWalkoutDangerMinutes;
 
   async function save() {
+    if (
+      !Number.isFinite(walkoutDanger) ||
+      walkoutDanger < 1 ||
+      walkoutDanger > 180
+    ) {
+      setMsg({
+        kind: "error",
+        text: "Umbral de walkout debe estar entre 1 y 180 minutos.",
+      });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     const r = await fetch("/api/operator/settings/staff-policies", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tipPolicy, shiftPolicy }),
+      body: JSON.stringify({
+        tipPolicy,
+        shiftPolicy,
+        walkoutDangerMinutes: walkoutDanger,
+      }),
     });
     setBusy(false);
     if (!r.ok) {
@@ -90,6 +112,68 @@ export function StaffPoliciesClient({
         />
       </section>
 
+      {/* Walkout-risk */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          Walkout-risk
+        </div>
+        <h2 className="font-display text-lg mb-1">
+          ¿Cuándo una mesa está en riesgo de irse sin pagar?
+        </h2>
+        <p className="text-xs text-op-muted mb-3">
+          La vista Mesas colorea cada mesa según el tiempo sin pagar
+          desde que entregaste todos los platos (o desde que
+          pidieron cobro y nadie atendió). Subí el número en
+          restaurantes de sobremesa larga; bajalo en rotación rápida.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              Riesgo alto (rojo) después de
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              step={1}
+              value={walkoutDanger}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setWalkoutDanger(Number.isFinite(v) ? v : 20);
+              }}
+              className="h-9 w-20 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular text-center focus:outline-none focus:border-terracotta"
+            />
+            <span className="text-sm text-op-muted">min</span>
+          </label>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
+          <RiskPreview
+            label="Atento"
+            mins={Math.round(walkoutDanger * 0.25)}
+            dotClass="bg-[#C98A2E]/70"
+            text="text-op-text"
+          />
+          <RiskPreview
+            label="Atención"
+            mins={Math.round(walkoutDanger * 0.5)}
+            dotClass="bg-[#C98A2E]"
+            text="text-[#7F5A1F]"
+          />
+          <RiskPreview
+            label="Riesgo alto"
+            mins={walkoutDanger}
+            dotClass="bg-[#C9302C] animate-pulse"
+            text="text-[#C9302C]"
+            extraBold
+          />
+        </div>
+        <p className="text-[10px] text-op-muted mt-3">
+          Para pedidos de cobro o llamadas a mesero sin atender, los
+          umbrales son la mitad (más urgente). Una mesa cocinando
+          todavía nunca está en riesgo.
+        </p>
+      </section>
+
       <div className="flex items-center justify-end gap-3 pt-1">
         {msg && (
           <span
@@ -108,6 +192,38 @@ export function StaffPoliciesClient({
         >
           {busy ? "Guardando…" : "Guardar"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function RiskPreview({
+  label,
+  mins,
+  dotClass,
+  text,
+  extraBold,
+}: {
+  label: string;
+  mins: number;
+  dotClass: string;
+  text: string;
+  extraBold?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-op-border bg-op-bg px-2 py-2 text-center">
+      <div className="flex items-center justify-center gap-1.5 mb-0.5">
+        <span className={"inline-block w-2 h-2 rounded-full " + dotClass} />
+        <span className="font-mono text-[9px] tracking-wider uppercase text-op-muted">
+          {label}
+        </span>
+      </div>
+      <div
+        className={
+          "font-mono tabular " + text + " " + (extraBold ? "font-bold" : "")
+        }
+      >
+        {mins}m
       </div>
     </div>
   );

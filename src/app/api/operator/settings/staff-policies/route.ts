@@ -4,10 +4,14 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { TIP_POLICIES, SHIFT_POLICIES } from "@/lib/staffPolicies";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 const putBody = z.object({
   tipPolicy: z.enum(TIP_POLICIES).optional(),
   shiftPolicy: z.enum(SHIFT_POLICIES).optional(),
+  // Umbral en minutos para walkout-risk en Mesas. Acepta 1-180 —
+  // <1 sería absurdo, >180 (3h) sería ignorar el feature. Default 20.
+  walkoutDangerMinutes: z.number().int().min(1).max(180).optional(),
 });
 
 /**
@@ -41,6 +45,16 @@ export async function PUT(req: Request) {
     );
   }
 
+  // Snapshot del estado antes para el audit log.
+  const before = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: {
+      tipPolicy: true,
+      shiftPolicy: true,
+      walkoutDangerMinutes: true,
+    },
+  });
+
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
@@ -50,7 +64,18 @@ export async function PUT(req: Request) {
       ...(parsed.data.shiftPolicy !== undefined && {
         shiftPolicy: parsed.data.shiftPolicy,
       }),
+      ...(parsed.data.walkoutDangerMinutes !== undefined && {
+        walkoutDangerMinutes: parsed.data.walkoutDangerMinutes,
+      }),
     },
+  });
+
+  await recordAuditEvent({
+    kind: "restaurant.staff_policies.update",
+    restaurantId,
+    target: { type: "restaurant", id: restaurantId },
+    summary: "Editó políticas de staff",
+    diff: { before: before ?? {}, after: parsed.data },
   });
 
   return NextResponse.json({ ok: true });

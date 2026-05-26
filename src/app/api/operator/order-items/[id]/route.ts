@@ -236,47 +236,55 @@ export async function PATCH(
       await tx.round.update({ where: { id: item.roundId }, data: roundData });
     }
 
-    if (parsed.data.served !== undefined && item.roundId) {
-      // Bubble served-state up to order. CRÍTICO: solo contamos
-      // items vivos (no cancelados). Antes el cálculo incluía items
-      // cancelados (con servedAt=null), lo que dejaba el round
-      // pegado en "ready" cuando el mesero servía el último plato
-      // vivo tras cancelar otro — kitchen lo seguía mostrando aun
-      // sin trabajo pendiente.
-      const siblings = await tx.orderItem.findMany({
-        where: { roundId: item.roundId, cancelledAt: null },
-        select: { id: true, servedAt: true },
-      });
-      const allServed = siblings.every((i) =>
-        i.id === item.id ? parsed.data.served : !!i.servedAt,
-      );
-      await tx.round.update({
-        where: { id: item.roundId },
-        data: { status: allServed ? "served" : undefined },
-      });
+    // Roll-up de round/order.status se mueve AFUERA del tx (abajo).
+    // Adentro del tx, la query de siblings ve un snapshot anterior;
+    // si dos PATCH paralelas corren para items distintos del mismo
+    // round, ambas leen al otro todavía con servedAt=null y dejan
+    // el round en 'ready' aunque las dos commit los items como
+    // servidos. Hacer el roll-up con fresh DB state al final
+    // elimina esa race.
+  });
 
-      if (allServed) {
-        const rounds = await tx.round.findMany({
-          where: { orderId: item.order.id },
-          select: { id: true, status: true },
-        });
-        const allRoundsServed = rounds.every((r) =>
-          r.id === item.roundId ? true : r.status === "served",
-        );
-        if (allRoundsServed && item.order.status !== "paid") {
-          await tx.order.update({
-            where: { id: item.order.id },
-            data: { status: "served", servedAt: now },
-          });
-        }
-      } else if (!parsed.data.served && item.order.status === "served") {
-        await tx.order.update({
+  // Recompute roll-ups DESPUÉS de que el item-update commiteó. Lee
+  // estado fresh (no snapshot transaccional), así dos batches
+  // paralelos terminan ambos calculando bien la transición.
+  if (parsed.data.served !== undefined && item.roundId) {
+    const freshSiblings = await db.orderItem.findMany({
+      where: { roundId: item.roundId, cancelledAt: null },
+      select: { id: true, servedAt: true },
+    });
+    const allServed =
+      freshSiblings.length > 0 &&
+      freshSiblings.every((i) => !!i.servedAt);
+    if (allServed) {
+      await db.round.update({
+        where: { id: item.roundId },
+        data: { status: "served" },
+      });
+      // Order entera servida si TODOS los rounds (no cancelados)
+      // están servidos.
+      const freshRounds = await db.round.findMany({
+        where: { orderId: item.order.id },
+        select: { id: true, status: true },
+      });
+      const allRoundsServed = freshRounds.every(
+        (r) => r.status === "served" || r.status === "cancelled",
+      );
+      if (allRoundsServed && item.order.status !== "paid") {
+        await db.order.update({
           where: { id: item.order.id },
-          data: { status: "ready", servedAt: null },
+          data: { status: "served", servedAt: new Date() },
         });
       }
+    } else if (!parsed.data.served && item.order.status === "served") {
+      // Re-servido a false en un item que estaba marcando la order
+      // como served → rollback de la order a "ready".
+      await db.order.update({
+        where: { id: item.order.id },
+        data: { status: "ready", servedAt: null },
+      });
     }
-  });
+  }
 
   publishOrderEvent(item.order.restaurantId, {
     type: becameRoundReady ? "order.ready" : "order.updated",

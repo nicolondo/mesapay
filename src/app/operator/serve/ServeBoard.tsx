@@ -164,15 +164,20 @@ export function ServeBoard({
       for (const i of pending) next.add(i.id);
       return next;
     });
-    await Promise.all(
-      pending.map((i) =>
-        fetch(`/api/operator/order-items/${i.id}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ served: true }),
-        }),
-      ),
-    );
+    // Secuencial, no Promise.all. La PATCH server-side abre una
+    // transacción que lee siblings para decidir si el round entero
+    // queda "served". Si dos PATCHes corren en paralelo, ambas leen
+    // los siblings de la otra todavía con servedAt=null, ambas
+    // calculan allServed=false, y el round queda zombie en "ready"
+    // aunque los dos items quedan marcados servidos. Serializar
+    // garantiza que la última PATCH ve a las anteriores ya commited.
+    for (const i of pending) {
+      await fetch(`/api/operator/order-items/${i.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ served: true }),
+      });
+    }
     startTx(() => router.refresh());
   }
 

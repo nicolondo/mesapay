@@ -321,7 +321,7 @@ function RecentlyPaidTile({
       </div>
       <span
         aria-hidden
-        className="absolute bottom-1.5 right-1.5 inline-block w-1.5 h-1.5 rounded-full bg-ok"
+        className="absolute bottom-2.5 right-2.5 inline-block w-2 h-2 rounded-full bg-ok"
       />
     </div>
   );
@@ -395,11 +395,13 @@ function ActiveTile({
         )}
 
         {/* Overlay: dot en la esquina inferior derecha — fuera del
-            flujo del flex centrado para no romper el balance. */}
+            flujo del flex centrado para no romper el balance. Inset
+            de 10px para no chocar contra el curve del rounded-xl
+            (que es 12px). */}
         <span
           aria-hidden
           className={
-            "absolute bottom-1.5 right-1.5 inline-block w-1.5 h-1.5 rounded-full " +
+            "absolute bottom-2.5 right-2.5 inline-block w-2 h-2 rounded-full " +
             tokens.dot +
             (pulse ? " animate-pulse" : "")
           }

@@ -18,6 +18,14 @@ export default async function AdminGroupsPage() {
         _count: {
           select: { restaurants: true, members: true, legalEntities: true },
         },
+        // Cada grupo trae sus restaurantes (id+nombre+slug) para
+        // listarlos inline en la card — antes sólo se veía el conteo
+        // "N restaurantes" y había que entrar a /detalle para saber
+        // cuáles eran. Esto es info chica y reduce el roundtrip.
+        restaurants: {
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, slug: true },
+        },
       },
     }),
     // Restaurantes sin grupo — candidatos para agregar al crear/asignar.
@@ -87,6 +95,27 @@ export default async function AdminGroupsPage() {
                     <span>·</span>
                     <span>Alta {fmtBogotaDateTime(g.createdAt).date}</span>
                   </div>
+                  {/* Chips con los restaurantes del grupo — cada uno
+                      linkea a su ficha. Si el grupo está vacío
+                      omitimos la fila para no agregar ruido visual. */}
+                  {g.restaurants.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {g.restaurants.map((r) => (
+                        <Link
+                          key={r.id}
+                          href={`/admin/restaurants/${r.id}`}
+                          className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-op-bg border border-op-border text-[11px] hover:border-ink/40 hover:bg-ink/5"
+                        >
+                          <span className="truncate max-w-[180px]">
+                            {r.name}
+                          </span>
+                          <span className="font-mono text-[9px] text-op-muted">
+                            /{r.slug}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <Link
                   href={`/admin/groups/${g.id}`}

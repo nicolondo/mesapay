@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
@@ -106,6 +106,48 @@ export function TableDetailSheet({
     if (controlled) onOpenChange?.(next);
     else setInternalOpen(next);
   };
+
+  // Back-button integration: cuando abrimos el sheet pusheamos una
+  // entry al history del browser. Si el usuario aprieta back (o
+  // swipe-back en iOS / hardware back en Android), popstate dispara
+  // y cerramos el sheet en vez de navegar fuera de la página.
+  //
+  // Si el sheet se cierra por otro medio (✕, tap backdrop, cancelar
+  // orden), el effect cleanup llama history.back() para retirar la
+  // entry que pusheamos — así el back-button del usuario no queda
+  // "consumiendo" un step de más cuando navega después.
+  //
+  // El `closingFromPopRef` evita el loop: cuando el cierre vino DEL
+  // back-button, no hay que llamar back() de nuevo.
+  const setOpenRef = useRef(setOpen);
+  setOpenRef.current = setOpen;
+  const closingFromPopRef = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    if (typeof window === "undefined") return;
+    const marker = `mp-sheet-${orderId}-${Date.now()}`;
+    window.history.pushState({ mesapaySheet: marker }, "");
+    closingFromPopRef.current = false;
+    const onPop = () => {
+      closingFromPopRef.current = true;
+      setOpenRef.current(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // Si cerramos por otro medio (no back-button), retiramos la
+      // entry del history. Sólo si todavía está en el top del stack
+      // — defensa contra navegaciones cruzadas.
+      if (
+        !closingFromPopRef.current &&
+        (window.history.state as { mesapaySheet?: string } | null)
+          ?.mesapaySheet === marker
+      ) {
+        window.history.back();
+      }
+    };
+  }, [open, orderId]);
+
   const [rounds, setRounds] = useState<Round[]>(initialRounds);
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),

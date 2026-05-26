@@ -115,6 +115,9 @@ export function AdminMobileMenu({
               <DrawerLink href="/admin/restaurants" pathname={pathname}>
                 Restaurantes
               </DrawerLink>
+              <DrawerLink href="/admin/groups" pathname={pathname}>
+                Grupos
+              </DrawerLink>
               <DrawerLink href="/admin/plans" pathname={pathname}>
                 Planes
               </DrawerLink>

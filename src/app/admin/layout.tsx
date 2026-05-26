@@ -60,6 +60,7 @@ export default async function AdminLayout({
             <nav className="hidden md:flex gap-1">
               <NavLink href="/admin">Resumen</NavLink>
               <NavLink href="/admin/restaurants">Restaurantes</NavLink>
+              <NavLink href="/admin/groups">Grupos</NavLink>
               <NavLink href="/admin/plans">Planes</NavLink>
               <NavLink href="/admin/audit">Audit</NavLink>
             </nav>

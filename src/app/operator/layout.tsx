@@ -150,7 +150,7 @@ export default async function OperatorLayout({
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
       {impersonating && (
-        <div className="bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
+        <div className="print:hidden bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
           <div className="min-w-0 flex items-center gap-3 flex-wrap">
             <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
               {isGroupAdmin ? "Grupo" : "Impersonando"}
@@ -174,13 +174,13 @@ export default async function OperatorLayout({
         </div>
       )}
       {membership === "vencido" && (
-        <div className="bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm">
+        <div className="print:hidden bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm">
           <strong>Mensualidad vencida.</strong> Regulariza el pago para evitar
           la suspensión del acceso.
         </div>
       )}
       {membership === "por_vencer" && (
-        <div className="bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
+        <div className="print:hidden bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
           Tu mensualidad vence pronto
           {tenant?.periodEndsAt
             ? ` (${new Date(tenant.periodEndsAt).toLocaleDateString("es-CO")})`
@@ -243,7 +243,7 @@ export default async function OperatorLayout({
           </form>
         );
         return (
-          <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">
+          <header className="print:hidden border-b border-op-border bg-op-surface sticky top-0 z-10">
             <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">
               <div className="flex items-center gap-4 md:gap-6 min-w-0">
                 <div className="shrink-0 min-w-0">

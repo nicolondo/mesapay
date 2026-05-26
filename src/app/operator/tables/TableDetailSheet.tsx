@@ -167,7 +167,13 @@ export function TableDetailSheet({
   const [, startTx] = useTransition();
 
   async function cancelOrder() {
-    if (!window.confirm("¿Cancelar esta orden? No se podrá revertir.")) return;
+    if (
+      !window.confirm(
+        "¿Cancelar la cuenta completa? Sólo funciona si cocina no ha empezado todavía. Si ya cocinaron algo, cancelá/no cobres plato por plato con motivo.",
+      )
+    ) {
+      return;
+    }
     setCancelOrderBusy(true);
     const res = await fetch(`/api/operator/orders/${orderId}`, {
       method: "PATCH",
@@ -176,7 +182,15 @@ export function TableDetailSheet({
     });
     setCancelOrderBusy(false);
     if (!res.ok) {
-      window.alert("No se pudo cancelar la orden.");
+      // El backend rechaza si cocina ya empezó — surface el motivo
+      // específico en vez de un alert genérico.
+      const body = await res.json().catch(() => null);
+      const msg =
+        body?.message ??
+        (body?.error === "kitchen_started"
+          ? "Cocina ya empezó algún plato. Cancelá plato por plato."
+          : "No se pudo cancelar la orden.");
+      window.alert(msg);
       return;
     }
     setOpen(false);
@@ -360,8 +374,23 @@ export function TableDetailSheet({
                 orderStatus !== "paid" &&
                 orderStatus !== "cancelled" &&
                 !!tenantSlug;
+              // Cancelar cuenta entera SOLO si NINGÚN ítem ha
+              // pasado de "placed". Si cocina ya empezó algún
+              // plato hay desperdicio sin tracking — el mesero
+              // debe cancelar/no cobrar plato por plato con motivo.
+              // El backend también enforce'a esto.
+              const allItemsStillPlaced = rounds
+                .filter((r) => r.status !== "cancelled")
+                .flatMap((r) => r.items)
+                .every((i) => i.kitchenStatus === "placed");
+              const hasAnyLiveItem = rounds
+                .filter((r) => r.status !== "cancelled")
+                .some((r) => r.items.length > 0);
               const canCancelOrder =
-                orderStatus === "placed" || orderStatus === "in_kitchen";
+                hasAnyLiveItem &&
+                allItemsStillPlaced &&
+                orderStatus !== "paid" &&
+                orderStatus !== "cancelled";
               const canAdd =
                 isMeseroView || (tenantSlug && qrToken);
               const canMove = freeTables.length > 0;

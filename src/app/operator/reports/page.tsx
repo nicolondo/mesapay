@@ -273,6 +273,25 @@ export default async function ReportsPage({
         />
       </div>
 
+      {/* Atajo a sub-reportes — el más usado por el admin es el de
+          no-cobrados (cancelaciones + comps por mesero/plato/motivo). */}
+      <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+            Sub-reportes
+          </div>
+          <div className="text-sm mt-0.5">
+            Platos no cobrados (cancelaciones + comps)
+          </div>
+        </div>
+        <Link
+          href="/operator/reports/no-cobrados"
+          className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
+        >
+          Abrir →
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="bg-op-surface border border-op-border rounded-2xl p-5">
           <div className="flex items-baseline justify-between mb-3">

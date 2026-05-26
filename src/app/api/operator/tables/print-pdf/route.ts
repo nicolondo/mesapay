@@ -36,7 +36,7 @@ const CARD_MM = 30;
 const QR_MM = 25;
 const COLS_PER_ROW = 5;
 const CARD_RADIUS_MM = 1.3;
-const BORDER_W_MM = 0.1;
+const BORDER_W_MM = 0.25;
 const LABEL_HEIGHT_MM = 2.4;
 
 export async function GET(req: Request) {
@@ -112,6 +112,12 @@ export async function GET(req: Request) {
   // Helper para dibujar el borde redondeado de una card. pdf-lib no
   // tiene drawRoundedRect nativo así que componemos con líneas +
   // cuartos de círculo (cubic-bezier). Aproximación estándar: c=0.5523.
+  //
+  // OJO: drawSvgPath usa coordenadas en SVG-space (origen default
+  // (0, page.height), Y crece HACIA ABAJO). Antes pasaba coords PDF
+  // (Y-up) y los bordes se dibujaban fuera de la página. Aquí todo
+  // se construye en SVG-space directamente: yTop es la distancia
+  // desde el top de la hoja, yBot = yTop + h.
   function drawRoundedRect(
     page: ReturnType<typeof pdf.addPage>,
     xMm: number,
@@ -121,22 +127,22 @@ export async function GET(req: Request) {
     rMm: number,
   ) {
     const x = mm(xMm);
-    const yTop = yFromTopMm(yTopMm);
+    const yTop = mm(yTopMm);
     const w = mm(wMm);
     const h = mm(hMm);
     const r = mm(rMm);
-    const yBot = yTop - h;
+    const yBot = yTop + h;
     const c = 0.5522847498 * r;
     const path = [
       `M ${x + r} ${yTop}`,
       `L ${x + w - r} ${yTop}`,
-      `C ${x + w - r + c} ${yTop} ${x + w} ${yTop - r + c} ${x + w} ${yTop - r}`,
-      `L ${x + w} ${yBot + r}`,
-      `C ${x + w} ${yBot + r - c} ${x + w - r + c} ${yBot} ${x + w - r} ${yBot}`,
+      `C ${x + w - r + c} ${yTop} ${x + w} ${yTop + r - c} ${x + w} ${yTop + r}`,
+      `L ${x + w} ${yBot - r}`,
+      `C ${x + w} ${yBot - r + c} ${x + w - r + c} ${yBot} ${x + w - r} ${yBot}`,
       `L ${x + r} ${yBot}`,
-      `C ${x + r - c} ${yBot} ${x} ${yBot + r - c} ${x} ${yBot + r}`,
-      `L ${x} ${yTop - r}`,
-      `C ${x} ${yTop - r + c} ${x + r - c} ${yTop} ${x + r} ${yTop}`,
+      `C ${x + r - c} ${yBot} ${x} ${yBot - r + c} ${x} ${yBot - r}`,
+      `L ${x} ${yTop + r}`,
+      `C ${x} ${yTop + r - c} ${x + r - c} ${yTop} ${x + r} ${yTop}`,
       "Z",
     ].join(" ");
     page.drawSvgPath(path, {

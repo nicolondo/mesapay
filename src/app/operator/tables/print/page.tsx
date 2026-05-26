@@ -90,39 +90,37 @@ export default async function PrintTablesPage({
   return (
     <>
       <style>{`
-        /* IMPRESIÓN A ESCALA REAL — clave para que las cards salgan
+        /* IMPRESIÓN A ESCALA REAL — para que las cards salgan
            exactamente 30×30mm en papel A4:
-             1. @page margin = 0. Sin margen forzado por el CSS, el
-                navegador no tiene que "fit to printable area" si el
-                driver tiene un margen físico mínimo. La hoja es
-                210×297mm tal cual.
-             2. Un contenedor .print-sheet con dimensiones EXACTAS
-                210×297mm de ancho/alto. Padding interno de 5mm —
-                dentro de la zona segura imprimible de cualquier
-                printer moderno (la mayoría tienen 3-6mm de margen
-                físico forzado).
-             3. box-sizing: border-box para que el padding esté
-                dentro del bbox de 210×297, no afuera.
-           Resultado: el navegador entrega al driver una hoja del
-           mismo tamaño que el papel — no necesita escalar nada.
-           Si el operador desactiva "Fit to page" en el diálogo
-           (o lo deja en Default), las medidas salen 1:1. */
-        @page { size: 210mm 297mm; margin: 0; }
+             1. @page con margin 8mm — gana al "Default" del browser
+                (típicamente ~10mm), y queda por encima del margen
+                físico mínimo de cualquier impresora (3-6mm). Esto
+                evita que el driver tenga que escalar para "ajustar
+                a área imprimible".
+             2. Área imprimible = 210 - 16 = 194mm de ancho.
+             3. NO declaramos un wrapper con width:210mm. El
+                contenido fluye natural en su ancho real:
+                6 cards × 30mm = 180mm. Eso entra en 194mm con
+                14mm de aire — sin overflow, sin scaling.
+           El error anterior era el .print-sheet con width:210mm.
+           Chrome no podía meter 210mm de "sheet" en 194mm de
+           printable y escalaba todo 92.4% (= 28mm en vez de 30). */
+        @page { size: 210mm 297mm; margin: 8mm; }
         @media print {
           html, body {
             background: #ffffff !important;
             margin: 0;
             padding: 0;
-            width: 210mm;
           }
           .no-print { display: none !important; }
           .qr-card { break-inside: avoid; }
           .print-sheet {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 5mm;
-            box-sizing: border-box;
-            margin: 0;
+            /* En print, el wrapper no fuerza ancho — el contenido
+               fluye natural y el @page margin maneja los bordes. */
+            padding: 0 !important;
+            margin: 0 !important;
+            width: auto !important;
+            min-height: 0 !important;
           }
         }
         /* Cards FLUSH — sin gap. Para evitar bordes dobles entre

@@ -303,7 +303,7 @@ function RecentlyPaidTile({
     Math.floor((Date.now() - new Date(tile.paidAt).getTime()) / 60000),
   );
   return (
-    <div className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 p-2 flex flex-col items-center justify-center text-center">
+    <div className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 p-2 flex flex-col items-center justify-center text-center relative">
       <div className="font-display text-base leading-none">
         {counterMode ? "Mostr." : `M${tile.number}`}
       </div>
@@ -315,6 +315,10 @@ function RecentlyPaidTile({
       <div className="text-[10px] text-[#1E5339] font-medium mt-1">
         ✓ {minsAgo === 0 ? "ahora" : `${minsAgo}m`}
       </div>
+      <span
+        aria-hidden
+        className="absolute bottom-1.5 right-1.5 inline-block w-1.5 h-1.5 rounded-full bg-ok"
+      />
     </div>
   );
 }
@@ -345,65 +349,67 @@ function ActiveTile({
     ? "Mostrador"
     : `Mesa ${tile.number}${tile.label ? ` · ${tile.label}` : ""}`;
   const pulse = tile.risk.level === "danger";
+  // Combinamos age + items en una sola linea compacta. Si nada
+  // que mostrar, dejamos en blanco para que el layout no salte.
+  const metaLine =
+    (tile.risk.agingMinutes > 0 ? `${tile.risk.agingMinutes}m` : "") +
+    (tile.risk.agingMinutes > 0 && tile.order.itemCount > 0 ? " · " : "") +
+    (tile.order.itemCount > 0 ? `${tile.order.itemCount}i` : "");
   return (
     <>
       <button
         type="button"
         onClick={() => onOpenChange(true)}
         className={
-          "aspect-[4/3] rounded-xl border p-2 text-left flex flex-col transition-colors relative " +
+          "aspect-[4/3] rounded-xl border p-2 flex flex-col items-center justify-center text-center transition-colors relative " +
           tokens.bg +
           " " +
           tokens.border +
           " hover:brightness-95"
         }
       >
-        <div className="flex items-start justify-between gap-1">
-          <div className="font-display text-base leading-none">
-            {counterMode ? "Mostr." : `M${tile.number}`}
-          </div>
-          {tile.order.needsWaiter && (
-            <span
-              aria-hidden
-              title="Llamado de mesero pendiente"
-              className="text-[10px]"
-            >
-              🔔
-            </span>
-          )}
+        <div className="font-display text-base leading-none">
+          {counterMode ? "Mostr." : `M${tile.number}`}
         </div>
         {tile.label && (
-          <div className="font-mono text-[9px] text-op-muted truncate">
+          <div className="font-mono text-[9px] text-op-muted truncate w-full mt-0.5">
             {tile.label}
           </div>
         )}
         <div
           className={
-            "mt-auto font-mono text-[12px] tabular leading-tight " +
+            "font-mono text-[12px] tabular leading-tight mt-1 " +
             tokens.textAccent
           }
         >
           {fmtCOP(tile.order.outstandingCents)}
         </div>
-        <div className="flex items-center justify-between mt-0.5">
-          <span className="font-mono text-[9px] text-op-muted">
-            {tile.risk.agingMinutes > 0 ? `${tile.risk.agingMinutes}m` : ""}
-            {tile.risk.agingMinutes > 0 && tile.order.itemCount > 0
-              ? " · "
-              : ""}
-            {tile.order.itemCount > 0
-              ? `${tile.order.itemCount}i`
-              : ""}
-          </span>
+        {metaLine && (
+          <div className="font-mono text-[9px] text-op-muted mt-0.5">
+            {metaLine}
+          </div>
+        )}
+
+        {/* Overlay: dot en la esquina inferior derecha — fuera del
+            flujo del flex centrado para no romper el balance. */}
+        <span
+          aria-hidden
+          className={
+            "absolute bottom-1.5 right-1.5 inline-block w-1.5 h-1.5 rounded-full " +
+            tokens.dot +
+            (pulse ? " animate-pulse" : "")
+          }
+        />
+        {/* Overlay: icono de llamada mesero arriba derecha. */}
+        {tile.order.needsWaiter && (
           <span
             aria-hidden
-            className={
-              "inline-block w-1.5 h-1.5 rounded-full " +
-              tokens.dot +
-              (pulse ? " animate-pulse" : "")
-            }
-          />
-        </div>
+            title="Llamado de mesero pendiente"
+            className="absolute top-1 right-1.5 text-[10px]"
+          >
+            🔔
+          </span>
+        )}
       </button>
 
       {/* Sheet de detalle en modo controlled. Sólo se monta cuando

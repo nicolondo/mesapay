@@ -170,10 +170,16 @@ export function tileTokensForRisk(level: RiskLevel): {
       };
     case "none":
     default:
+      // Activa sin riesgo: bg sutil pero VISIBLEMENTE distinto del
+      // libre (bg-op-surface). Un wash de ink al 5% sobre la
+      // superficie da una sombra calida que dice "alguien esta
+      // sentado aca" sin levantar alarma. Border ink/30 refuerza
+      // el contorno por si el bg no se ve bien en pantallas con
+      // poco contraste.
       return {
-        bg: "bg-op-surface",
-        border: "border-op-border",
-        dot: "bg-op-border-2",
+        bg: "bg-ink/[0.05]",
+        border: "border-ink/20",
+        dot: "bg-ink/50",
         textAccent: "text-op-text",
       };
   }

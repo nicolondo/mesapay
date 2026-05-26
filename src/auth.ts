@@ -18,11 +18,17 @@ declare module "next-auth" {
       name?: string | null;
       role: Role;
       restaurantId?: string | null;
+      // Para role=group_admin: el grupo al que pertenece. Le permite
+      // ver /group con los restaurantes de SU grupo + impersonar
+      // cualquiera de ellos via IMPERSONATE_COOKIE (validado en
+      // lib/activeRestaurant.ts).
+      groupId?: string | null;
     };
   }
   interface User {
     role: Role;
     restaurantId?: string | null;
+    groupId?: string | null;
   }
 }
 
@@ -30,6 +36,7 @@ declare module "@auth/core/jwt" {
   interface JWT {
     role: Role;
     restaurantId?: string | null;
+    groupId?: string | null;
     userId: string;
   }
 }
@@ -59,6 +66,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name ?? undefined,
           role: user.role,
           restaurantId: user.restaurantId,
+          groupId: user.groupId,
         };
       },
     }),
@@ -69,6 +77,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.userId = user.id as string;
         token.role = (user as { role: Role }).role;
         token.restaurantId = (user as { restaurantId?: string | null }).restaurantId ?? null;
+        token.groupId = (user as { groupId?: string | null }).groupId ?? null;
       }
       return token;
     },
@@ -77,6 +86,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.userId;
         session.user.role = token.role;
         session.user.restaurantId = token.restaurantId ?? null;
+        session.user.groupId = token.groupId ?? null;
       }
       return session;
     },

@@ -38,8 +38,17 @@ export type InvoiceSnapshot = {
 };
 
 export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): string {
-  if (snapshot.invoicePrefix) return `${snapshot.invoicePrefix}-${n}`;
-  return String(n);
+  // Zero-pad según los dígitos del límite superior de la resolución
+  // DIAN. Si la resolución va de 1 a 5000, el ancho es 4 → "0050"
+  // en vez de "50". Convención común para tirillas POS en Colombia.
+  // Si no hay dianResolutionTo, no padeamos (back-compat con
+  // facturas viejas que se emitieron sin resolución configurada).
+  const width = snapshot.dianResolutionTo
+    ? String(snapshot.dianResolutionTo).length
+    : 0;
+  const numStr = width > 0 ? String(n).padStart(width, "0") : String(n);
+  if (snapshot.invoicePrefix) return `${snapshot.invoicePrefix}-${numStr}`;
+  return numStr;
 }
 
 /**

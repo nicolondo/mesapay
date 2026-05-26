@@ -13,6 +13,10 @@ type Identidad = {
   dianResolutionTo: number | null;
   dianResolutionDate: string | null; // YYYY-MM-DD
   invoicePrefix: string | null;
+  // Próximo consecutivo a emitir. Default 1; el operador puede
+  // ajustar si ya venía emitiendo en otra plataforma o quiere
+  // arrancar desde dianResolutionFrom.
+  invoiceNextNumber: number;
 };
 
 export function IdentidadClient({ initial }: { initial: Identidad }) {
@@ -240,6 +244,37 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
             maxLength={10}
             className={inputCls + " uppercase"}
           />
+        </Field>
+        <Field
+          label="Próximo consecutivo a emitir"
+          hint="Si ya venías emitiendo en otra plataforma o quieres arrancar desde el inicio de la resolución, ajustá este número."
+        >
+          <input
+            type="number"
+            min={1}
+            value={v.invoiceNextNumber}
+            onChange={(e) =>
+              set(
+                "invoiceNextNumber",
+                e.target.value ? Math.max(1, Number(e.target.value)) : 1,
+              )
+            }
+            className={inputCls}
+          />
+          {/* Sugerencia: si está en 1 (default) y hay rango DIAN
+              configurado, ofrecer arrancar desde el límite inferior
+              del rango. */}
+          {v.invoiceNextNumber === 1 &&
+            v.dianResolutionFrom != null &&
+            v.dianResolutionFrom > 1 && (
+              <button
+                type="button"
+                onClick={() => set("invoiceNextNumber", v.dianResolutionFrom!)}
+                className="mt-1 text-[10px] text-terracotta underline"
+              >
+                Arrancar desde {v.dianResolutionFrom} (inicio de tu resolución)
+              </button>
+            )}
         </Field>
       </section>
 

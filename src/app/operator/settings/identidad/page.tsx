@@ -22,6 +22,7 @@ export default async function IdentidadPage() {
       dianResolutionTo: true,
       dianResolutionDate: true,
       invoicePrefix: true,
+      invoiceNextNumber: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
@@ -55,6 +56,7 @@ export default async function IdentidadPage() {
             ? tenant.dianResolutionDate.toISOString().slice(0, 10)
             : null,
           invoicePrefix: tenant.invoicePrefix,
+          invoiceNextNumber: tenant.invoiceNextNumber,
         }}
       />
     </div>

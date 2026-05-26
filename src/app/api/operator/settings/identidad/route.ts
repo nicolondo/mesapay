@@ -24,6 +24,12 @@ const putBody = z.object({
     .nullable()
     .optional(), // ISO yyyy-mm-dd
   invoicePrefix: z.string().trim().toUpperCase().max(10).nullable().optional(),
+  // Próximo consecutivo a emitir. El operador lo setea cuando ya
+  // venía emitiendo en otra plataforma y necesita continuar desde
+  // un número específico (ej. dianResolutionFrom + N facturas ya
+  // emitidas externamente). Si lo bajan por error, no validamos
+  // contra ya-emitidos en MESAPAY — confiamos en el operador.
+  invoiceNextNumber: z.number().int().min(1).max(99_999_999).optional(),
 });
 
 /**
@@ -85,6 +91,9 @@ export async function PUT(req: Request) {
       }),
       ...(d.invoicePrefix !== undefined && {
         invoicePrefix: d.invoicePrefix || null,
+      }),
+      ...(d.invoiceNextNumber !== undefined && {
+        invoiceNextNumber: d.invoiceNextNumber,
       }),
     },
   });

@@ -147,6 +147,7 @@ model Restaurant {
   terminalDevices     TerminalDevice[]
   kushkiWebhookEvents KushkiWebhookEvent[]
   invoiceRequests     InvoiceRequest[]
+  simpleInvoices      SimpleInvoice[]
   shifts              Shift[]
 
   @@index([slug])
@@ -465,6 +466,7 @@ model Order {
   rounds          Round[]
   ratings         DishRating[]
   invoiceRequests InvoiceRequest[]
+  simpleInvoice   SimpleInvoice?
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -852,6 +854,44 @@ enum InvoiceRequestStatus {
 // still has to push it through their own invoicing software (Siigo,
 // Alegra, etc.). We just store the data and track which ones have been
 // emitted so nothing falls through the cracks.
+// "Factura simple" — tirilla tipo POS enviada por correo al cliente
+// que no requiere factura con razón social / NIT específico, solo
+// el comprobante con campos DIAN. Distinto a InvoiceRequest (la
+// formal, donde se capturan datos para que el operador la emita
+// en su software contable).
+//
+// Se auto-genera y auto-envía al confirmar pago: el cliente escribe
+// su email post-payment, asignamos consecutivo de
+// Restaurant.invoiceNextNumber (atomic increment), guardamos la
+// row + mandamos correo con link a /factura/[id]. Si el envío de
+// email falla quedamos con la row + emailedAt=null para reintento
+// manual.
+model SimpleInvoice {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderId      String     @unique
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  email          String
+  // Consecutivo asignado al momento de emitir. Para DIAN se concatena
+  // con Restaurant.invoicePrefix al renderear (ej: POS-42).
+  invoiceNumber  Int
+  // Snapshot completo de la identidad legal + DIAN del comercio al
+  // momento de emitir. Si el operador cambia los datos después, la
+  // factura ya emitida conserva el contexto histórico.
+  snapshot       Json
+  // Total al momento de emitir (food + tip), en cents. Snapshot
+  // contra cambios futuros en la orden.
+  totalCents     Int
+  emailedAt      DateTime?
+  emailError     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+}
+
 model InvoiceRequest {
   id           String     @id @default(cuid())
   restaurantId String

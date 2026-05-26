@@ -39,6 +39,8 @@ export function InvoiceRequestPanel({
   existing: ExistingSummary | null;
 }) {
   const [open, setOpen] = useState(false);
+  // Sheet para la "tirilla simple" — flujo independiente del formal.
+  const [simpleOpen, setSimpleOpen] = useState(false);
 
   if (existing?.status === "generated") {
     return (
@@ -99,24 +101,29 @@ export function InvoiceRequestPanel({
   return (
     <>
       <div className="rounded-2xl border border-hairline bg-paper p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="font-display text-xl">
-              ¿Necesitas factura electrónica?
-            </div>
-            <p className="text-sm text-muted mt-1">
-              Si la quieres a nombre de empresa o con tu cédula, déjanos tus
-              datos. El restaurante te la emite y te la envía al correo.
-            </p>
-          </div>
+        <div className="font-display text-xl">
+          ¿Necesitas comprobante?
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="mt-4 w-full h-12 rounded-full bg-ink text-bone font-medium"
-        >
-          Sí, quiero factura electrónica
-        </button>
+        <p className="text-sm text-muted mt-1">
+          Una tirilla simple solo te pide el correo. Si necesitas una
+          factura a nombre de empresa o con cédula, pídela aparte.
+        </p>
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            onClick={() => setSimpleOpen(true)}
+            className="w-full h-12 rounded-full bg-ink text-bone font-medium"
+          >
+            Mandar tirilla a mi correo
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
+          >
+            Factura electrónica a mi nombre o empresa
+          </button>
+        </div>
       </div>
       {open && (
         <InvoiceFormSheet
@@ -126,7 +133,145 @@ export function InvoiceRequestPanel({
           onClose={() => setOpen(false)}
         />
       )}
+      {simpleOpen && (
+        <SimpleInvoiceSheet
+          tenantSlug={tenantSlug}
+          orderId={orderId}
+          onClose={() => setSimpleOpen(false)}
+        />
+      )}
     </>
+  );
+}
+
+// "Factura simple" — solo email, auto-envío. Distinto del flow
+// formal (InvoiceFormSheet) que pide nombre/NIT/dirección.
+function SimpleInvoiceSheet({
+  tenantSlug,
+  orderId,
+  onClose,
+}: {
+  tenantSlug: string;
+  orderId: string;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<{
+    invoiceUrl: string;
+    email: string;
+  } | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr("Email inválido");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const r = await fetch(
+      `/api/tenant/${tenantSlug}/orders/${orderId}/simple-invoice`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      },
+    );
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(j.message ?? j.error ?? "No pudimos generar tu tirilla");
+      return;
+    }
+    const j = (await r.json()) as { invoiceUrl: string };
+    setDone({ invoiceUrl: j.invoiceUrl, email });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              Tirilla simple
+            </div>
+            <h2 className="font-display text-2xl mt-1">
+              {done ? "Listo, te la enviamos" : "Tu comprobante"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        {done ? (
+          <>
+            <p className="text-sm text-ink/80">
+              La enviamos a <strong>{done.email}</strong>. Si no llega en unos
+              minutos revisa tu carpeta de spam.
+            </p>
+            <a
+              href={done.invoiceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
+            >
+              Ver e imprimir comprobante
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full h-10 rounded-2xl border border-hairline text-sm"
+            >
+              Cerrar
+            </button>
+          </>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <p className="text-sm text-muted">
+              Solo necesitamos tu correo. Te enviamos la tirilla con todos los
+              datos del comercio y los platos que pediste.
+            </p>
+            <label className="block">
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
+                Correo
+              </div>
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@correo.com"
+                className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+              />
+            </label>
+            {err && <div className="text-xs text-danger">{err}</div>}
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
+            >
+              {busy ? "Generando…" : "Enviar tirilla"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 

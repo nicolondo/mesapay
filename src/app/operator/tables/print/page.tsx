@@ -99,11 +99,19 @@ export default async function PrintTablesPage({
           width: 30mm;
           height: 30mm;
           border: 0.2mm solid #999;
+          /* Esquinas redondeadas tipo sticker / tag físico. 1.73mm
+             es un radio suave que se nota pero no se come el área
+             útil del QR. */
+          border-radius: 1.73mm;
           padding: 1.5mm;
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: space-between;
+          /* Sin "Escanea" abajo, el contenido (label + QR) queda
+             centrado verticalmente — mejor balance visual que
+             space-between con sólo 2 items. */
+          justify-content: center;
+          gap: 1.2mm;
           background: #ffffff;
           /* En pantalla queremos verlos centrados y limpios pero a
              escala real. mm es unidad física — Chrome lo respeta. */
@@ -126,13 +134,6 @@ export default async function PrintTablesPage({
           width: 100%;
           height: 100%;
           display: block;
-        }
-        .qr-bottom {
-          font-size: 1.6mm;
-          line-height: 1;
-          color: #555;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
         }
         .qr-grid {
           display: grid;
@@ -172,7 +173,6 @@ export default async function PrintTablesPage({
                 className="qr-svg-wrap"
                 dangerouslySetInnerHTML={{ __html: q.svg }}
               />
-              <div className="qr-bottom">Escanea</div>
             </div>
           ))}
         </div>

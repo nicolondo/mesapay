@@ -110,8 +110,8 @@ export default async function PrintTablesPage({
         .qr-card {
           width: 30mm;
           height: 30mm;
-          border-right: 0.2mm solid #999;
-          border-bottom: 0.2mm solid #999;
+          border-right: 0.1mm solid #999;
+          border-bottom: 0.1mm solid #999;
           padding: 0.8mm;
           display: flex;
           flex-direction: column;
@@ -121,10 +121,10 @@ export default async function PrintTablesPage({
           box-sizing: border-box;
         }
         .qr-row-first .qr-card {
-          border-top: 0.2mm solid #999;
+          border-top: 0.1mm solid #999;
         }
         .qr-card-first-col {
-          border-left: 0.2mm solid #999;
+          border-left: 0.1mm solid #999;
         }
         /* QR grande — con label compacta al pie, dejamos al QR todo
            el espacio: 30mm - 0.8mm*2 padding - 2.6mm label - 0.5mm

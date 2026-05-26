@@ -36,16 +36,29 @@ type Round = {
  * page pero estaba comprimida en counts; acá pedimos a un endpoint
  * lightweight que devuelve los items expandidos cuando el sheet abre.
  */
+type FreeTable = {
+  id: string;
+  number: number;
+  label: string | null;
+};
+
 export function TableDetailSheet({
   orderId,
   shortCode,
   tableLabel,
+  tableNumber,
   initialRounds,
+  freeTables,
 }: {
   orderId: string;
   shortCode: string;
   tableLabel: string;
+  tableNumber: number;
   initialRounds: Round[];
+  // Mesas libres del restaurante (sin orden abierta) para el sheet
+  // de "Mover a otra mesa". Server pre-llena. Si no hay ninguna
+  // (todas ocupadas) se esconde el botón.
+  freeTables: FreeTable[];
 }) {
   const [open, setOpen] = useState(false);
   const [rounds, setRounds] = useState<Round[]>(initialRounds);
@@ -57,6 +70,8 @@ export function TableDetailSheet({
     itemId: string;
     name: string;
   } | null>(null);
+  const [showMoveSheet, setShowMoveSheet] = useState(false);
+  const [moveErr, setMoveErr] = useState<string | null>(null);
 
   // Refresca el detalle cada 15s mientras está abierto — los estados
   // de cocina cambian y queremos que el mesero vea ETA actualizada
@@ -75,6 +90,24 @@ export function TableDetailSheet({
     const h = setInterval(tick, 15_000);
     return () => clearInterval(h);
   }, [open, orderId]);
+
+  async function moveOrderToTable(targetTableId: string) {
+    setMoveErr(null);
+    const r = await fetch(`/api/operator/orders/${orderId}/move`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetTableId }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setMoveErr(j.message ?? j.error ?? "No pudimos mover la cuenta");
+      return;
+    }
+    // El SSE de order.updated va a refrescar ambas tarjetas. Cerramos
+    // todo lo abierto y dejamos que la grid se redibuje.
+    setShowMoveSheet(false);
+    setOpen(false);
+  }
 
   async function cancelItem(itemId: string, reason: string) {
     const r = await fetch(`/api/operator/order-items/${itemId}`, {
@@ -167,6 +200,22 @@ export function TableDetailSheet({
                 ✕
               </button>
             </div>
+
+            {/* "Mover a otra mesa" — solo cuando hay mesas libres a
+                donde mover. Si todas están ocupadas, esconder el
+                botón evita un sheet vacío que confunde. */}
+            {freeTables.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMoveErr(null);
+                  setShowMoveSheet(true);
+                }}
+                className="w-full h-10 rounded-full border border-hairline bg-paper text-ink text-xs font-mono tracking-wider uppercase hover:bg-op-bg"
+              >
+                Mover a otra mesa
+              </button>
+            )}
 
             {visibleRounds.length === 0 && (
               <div className="text-sm text-op-muted">
@@ -310,7 +359,100 @@ export function TableDetailSheet({
           onConfirm={(reason) => cancelItem(cancelTarget.itemId, reason)}
         />
       )}
+
+      {showMoveSheet && (
+        <MoveTableSheet
+          sourceTableNumber={tableNumber}
+          freeTables={freeTables}
+          err={moveErr}
+          onClose={() => setShowMoveSheet(false)}
+          onPick={(tid) => moveOrderToTable(tid)}
+        />
+      )}
     </>
+  );
+}
+
+function MoveTableSheet({
+  sourceTableNumber,
+  freeTables,
+  err,
+  onClose,
+  onPick,
+}: {
+  sourceTableNumber: number;
+  freeTables: FreeTable[];
+  err: string | null;
+  onClose: () => void;
+  onPick: (targetTableId: string) => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  async function pick(id: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onPick(id);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              Mover de Mesa {sourceTableNumber}
+            </div>
+            <h2 className="font-display text-2xl mt-1">Elige mesa destino</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="text-xs text-muted">
+          Solo se listan mesas libres. Si la mesa destino tiene cuenta
+          abierta, ciérrala antes de mover.
+        </p>
+
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2">
+          {freeTables.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => pick(t.id)}
+              disabled={busy}
+              className="h-14 rounded-xl bg-op-surface border border-hairline hover:border-ink/40 disabled:opacity-50 flex flex-col items-center justify-center"
+              title={t.label ?? undefined}
+            >
+              <div className="font-display text-lg tabular leading-none">
+                {t.number}
+              </div>
+              {t.label && (
+                <div className="text-[10px] text-op-muted mt-0.5 truncate max-w-full px-1">
+                  {t.label}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {err && <div className="text-xs text-danger">{err}</div>}
+      </div>
+    </div>
   );
 }
 

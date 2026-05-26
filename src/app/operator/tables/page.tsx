@@ -124,6 +124,13 @@ export default async function TablesPage() {
     ? allTables.filter((t) => t.number !== -1).slice(0, 1)
     : allTables.filter((t) => t.number !== -1);
 
+  // Mesas libres = sin orden abierta. Sirve para el "Mover a otra
+  // mesa" del detail sheet. Excluimos la pickup pseudo-table (-1)
+  // y respetamos el scope del mesero (su sección o todas).
+  const freeTables = tables
+    .filter((t) => t.orders.length === 0)
+    .map((t) => ({ id: t.id, number: t.number, label: t.label }));
+
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
@@ -301,6 +308,8 @@ export default async function TablesPage() {
                       tableLabel={
                         counterMode ? "Mostrador" : `Mesa ${t.number}`
                       }
+                      tableNumber={t.number}
+                      freeTables={freeTables.filter((ft) => ft.id !== t.id)}
                       initialRounds={order.rounds.map((r) => ({
                         id: r.id,
                         seq: r.seq,

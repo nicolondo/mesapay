@@ -7,6 +7,7 @@ type Identidad = {
   legalName: string | null;
   taxId: string | null;
   legalAddress: string | null;
+  legalCity: string | null;
   legalPhone: string | null;
   dianResolution: string | null;
   dianResolutionFrom: number | null;
@@ -159,7 +160,16 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
             type="text"
             value={v.legalAddress ?? ""}
             onChange={(e) => set("legalAddress", e.target.value || null)}
-            placeholder="Cra 11 # 85-32, Bogotá"
+            placeholder="Cra 11 # 85-32"
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Ciudad">
+          <input
+            type="text"
+            value={v.legalCity ?? ""}
+            onChange={(e) => set("legalCity", e.target.value || null)}
+            placeholder="Bogotá"
             className={inputCls}
           />
         </Field>

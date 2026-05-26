@@ -90,6 +90,7 @@ model Restaurant {
   legalName     String? // Razón social
   taxId         String? // NIT (solo dígitos; el DV se calcula al render)
   legalAddress  String?
+  legalCity     String?
   legalPhone    String?
 
   // Resolución DIAN — texto descriptivo del acto administrativo

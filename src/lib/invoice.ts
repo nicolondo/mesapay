@@ -16,6 +16,9 @@ export type InvoiceSnapshot = {
   legalName: string | null;
   taxId: string | null;
   legalAddress: string | null;
+  // Ciudad agregada en sprint 7 — facturas anteriores no la tienen
+  // en el snapshot. Opcional acá; el renderer lo trata defensivamente.
+  legalCity?: string | null;
   legalPhone: string | null;
   dianResolution: string | null;
   dianResolutionFrom: number | null;

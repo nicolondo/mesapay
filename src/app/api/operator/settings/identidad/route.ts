@@ -15,6 +15,7 @@ const putBody = z.object({
     .nullable()
     .optional(),
   legalAddress: z.string().trim().max(200).nullable().optional(),
+  legalCity: z.string().trim().max(100).nullable().optional(),
   legalPhone: z.string().trim().max(60).nullable().optional(),
   dianResolution: z.string().trim().max(200).nullable().optional(),
   dianResolutionFrom: z.number().int().nonnegative().max(99_999_999).nullable().optional(),
@@ -74,6 +75,7 @@ export async function PUT(req: Request) {
       ...(d.legalAddress !== undefined && {
         legalAddress: d.legalAddress || null,
       }),
+      ...(d.legalCity !== undefined && { legalCity: d.legalCity || null }),
       ...(d.legalPhone !== undefined && { legalPhone: d.legalPhone || null }),
       ...(d.dianResolution !== undefined && {
         dianResolution: d.dianResolution || null,

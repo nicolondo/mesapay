@@ -92,9 +92,15 @@ export default async function FacturaPage({
                 <br />
               </>
             )}
+            {snap.legalCity && (
+              <>
+                {snap.legalCity}
+                <br />
+              </>
+            )}
             {snap.legalPhone && (
               <>
-                {snap.legalPhone}
+                Tel: {snap.legalPhone}
                 <br />
               </>
             )}
@@ -160,7 +166,7 @@ export default async function FacturaPage({
           <div className="footer">
             {snap.dianResolution && (
               <>
-                {snap.dianResolution}
+                Resolución DIAN: {snap.dianResolution}
                 <br />
               </>
             )}

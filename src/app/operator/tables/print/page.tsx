@@ -216,34 +216,7 @@ export default async function PrintTablesPage({
               borde compartido: un solo corte por línea.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Descargar PDF — escape hatch cuando el print de HTML no
-                respeta mm (típico con drivers o sticky settings del
-                navegador). El PDF tiene dimensiones físicas baked-in:
-                al imprimirlo al 100% sale clavado 30×30mm. */}
-            <a
-              href={pickupOnly ? "/api/operator/tables/print-pdf?pickup=1" : "/api/operator/tables/print-pdf"}
-              className="h-10 px-5 rounded-full border border-op-border bg-op-surface text-op-text text-sm font-medium inline-flex items-center gap-2"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              PDF (30mm exacto)
-            </a>
-            <PrintButton />
-          </div>
+          <PrintButton />
         </div>
 
 

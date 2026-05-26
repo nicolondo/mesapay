@@ -105,13 +105,15 @@ export default async function PrintTablesPage({
            cards adyacentes, cada card sólo dibuja right + bottom.
            El primer card de cada fila agrega left, la primera fila
            agrega top — clases qr-card-first-col / qr-row-first
-           manejan esos casos. Sin border-radius porque cards flush
-           no pueden tener esquinas redondeadas (chocarían entre sí). */
+           manejan esos casos. border-radius 0.73mm da una pizca de
+           curva a cada card; con borders compartidos las curvas
+           crean un patrón sutil tipo "tile" en las intersecciones. */
         .qr-card {
           width: 30mm;
           height: 30mm;
           border-right: 0.1mm solid #999;
           border-bottom: 0.1mm solid #999;
+          border-radius: 0.73mm;
           padding: 0.8mm;
           display: flex;
           flex-direction: column;

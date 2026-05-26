@@ -36,6 +36,10 @@ export type AuditKind =
   | "user.create"
   | "user.update"
   | "user.delete"
+  // Orden + items (cancel / comp / walkout)
+  | "order.cancel"
+  | "order_item.cancel"
+  | "order_item.comp"
   // Catch-all para events nuevos no listados (no rompe el type pero
   // empuja a registrar el kind correcto). Usar con moderación.
   | (string & {});
@@ -56,6 +60,9 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "user.create": "Creó usuario",
   "user.update": "Editó usuario",
   "user.delete": "Borró usuario",
+  "order.cancel": "Canceló orden",
+  "order_item.cancel": "Canceló plato",
+  "order_item.comp": "No cobró plato",
 };
 
 export function labelForKind(kind: string): string {

@@ -648,9 +648,20 @@ model OrderItem {
   // kitchen/bar board, del Salón y del breakdown del cobro. El
   // motivo es free-text (con presets en la UI). El email es para
   // auditoría — quién canceló.
+  //
+  // `cancellationKind` distingue el caso semántico:
+  //   "cancel" — cocina no llegó a tocar el plato (o se va a tirar,
+  //              poco común). Sin cobro porque nunca se entregó.
+  //   "comp"   — cocina lo hizo, se sirvió, pero no se cobra:
+  //              queja del cliente (frío, mal preparado, no le gustó),
+  //              cortesía, o walkout (se fue sin pagar).
+  // La diferencia importa para el reporte admin — un comp consume
+  // ingredientes/tiempo de cocina, un cancel no. Filas viejas con
+  // cancellationKind=null se tratan como "cancel" por back-compat.
   cancelledAt        DateTime?
   cancellationReason String?
   cancelledByEmail   String?
+  cancellationKind   String?
 
   rating DishRating?
 

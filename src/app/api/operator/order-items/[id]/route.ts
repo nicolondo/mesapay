@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 const schema = z
   .object({
@@ -15,13 +16,21 @@ const schema = z
     // No hay forma de "des-apurar" — una vez marcado queda hasta que
     // el item se mueve a ready (el badge desaparece naturalmente).
     expedite: z.literal(true).optional(),
-    // Cancelar este item específico (distinto a cancelar la ronda).
-    // Cuando el cliente pide "saca el lomito pero deja los demás",
-    // el mesero usa esto desde el detail sheet. Recompute del
-    // subtotal corre en la misma transacción.
+    // Cancelar / no cobrar este item específico (distinto a
+    // cancelar la ronda). Cuando el cliente pide "saca el lomito
+    // pero deja los demás" o "este lomito llegó frío, no me lo
+    // cobres", el mesero usa esto desde el detail sheet. Recompute
+    // del subtotal corre en la misma transacción.
+    //
+    // `kind` distingue:
+    //   "cancel" (default) — sólo si el item NO ha sido servido.
+    //   "comp"             — permitido en cualquier estado, incluso
+    //                        servido (caso queja / cortesía /
+    //                        walkout — la comida ya se entregó).
     cancel: z
       .object({
         reason: z.string().trim().min(3).max(240),
+        kind: z.enum(["cancel", "comp"]).optional().default("cancel"),
       })
       .optional(),
   })
@@ -76,14 +85,24 @@ export async function PATCH(
 
   let becameRoundReady = false;
 
-  await db.$transaction(async (tx) => {
+  try {
+    await db.$transaction(async (tx) => {
     const now = new Date();
 
     if (parsed.data.cancel) {
-      // Cancelación del item. Idempotente: si ya estaba cancelado no
-      // re-pisamos timestamps ni recalculamos. Si no, marcamos y
-      // re-derivamos el subtotal de la orden a partir de los items
-      // vivos restantes (excluye este recién cancelado por el WHERE).
+      const kind = parsed.data.cancel.kind ?? "cancel";
+      // Gate: kind="cancel" sólo si NO ha sido servido. Para items
+      // ya servidos hay que usar kind="comp" (semánticamente
+      // distinto — la comida se entregó). El frontend rotúla el
+      // botón distinto según estado.
+      if (kind === "cancel" && item.servedAt) {
+        throw new Error("CANCEL_AFTER_SERVED");
+      }
+      // Cancelación / comp del item. Idempotente: si ya estaba
+      // cancelado no re-pisamos timestamps ni recalculamos. Si no,
+      // marcamos y re-derivamos el subtotal de la orden a partir
+      // de los items vivos restantes (excluye este recién cancelado
+      // por el WHERE).
       if (!item.cancelledAt) {
         await tx.orderItem.update({
           where: { id: item.id },
@@ -91,6 +110,7 @@ export async function PATCH(
             cancelledAt: now,
             cancellationReason: parsed.data.cancel.reason,
             cancelledByEmail: session.user.email,
+            cancellationKind: kind,
           },
         });
         // Re-derivar subtotal — el item recién cancelado ya tiene
@@ -243,7 +263,44 @@ export async function PATCH(
     // el round en 'ready' aunque las dos commit los items como
     // servidos. Hacer el roll-up con fresh DB state al final
     // elimina esa race.
-  });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "CANCEL_AFTER_SERVED") {
+      return NextResponse.json(
+        {
+          error: "cancel_after_served",
+          message:
+            "Este plato ya fue entregado. Para no cobrarlo (queja / cortesía / cliente se fue), usá 'No cobrar plato'.",
+        },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
+
+  // Audit event para el cancel/comp — sólo si efectivamente
+  // cancelamos (parsed.data.cancel && el item no estaba ya cancelado
+  // antes del tx).
+  if (parsed.data.cancel && !item.cancelledAt) {
+    const kind = parsed.data.cancel.kind ?? "cancel";
+    await recordAuditEvent({
+      kind: kind === "comp" ? "order_item.comp" : "order_item.cancel",
+      restaurantId: item.order.restaurantId,
+      target: { type: "order_item", id: item.id },
+      summary:
+        kind === "comp"
+          ? `No cobró ${item.qty}× ${item.nameSnapshot} — ${parsed.data.cancel.reason}`
+          : `Canceló ${item.qty}× ${item.nameSnapshot} — ${parsed.data.cancel.reason}`,
+      diff: {
+        before: {
+          kitchenStatus: item.kitchenStatus,
+          servedAt: item.servedAt,
+          priceCents: item.priceCentsSnapshot * item.qty,
+        },
+        after: { cancelledAt: new Date().toISOString(), kind },
+      },
+    });
+  }
 
   // Recompute roll-ups DESPUÉS de que el item-update commiteó. Lee
   // estado fresh (no snapshot transaccional), así dos batches

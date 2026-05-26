@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
 import { OperatorMobileMenu } from "./OperatorMobileMenu";
+import { GroupSwitcher } from "./GroupSwitcher";
 
 export default async function OperatorLayout({
   children,
@@ -14,17 +15,50 @@ export default async function OperatorLayout({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/operator");
-  if (session.user.role !== "operator" && session.user.role !== "platform_admin") {
+  // group_admin entra acá cuando está impersonando un restaurante
+  // de su grupo (validación de scope ya en getActiveContext).
+  if (
+    session.user.role !== "operator" &&
+    session.user.role !== "platform_admin" &&
+    session.user.role !== "group_admin"
+  ) {
     redirect("/");
   }
 
   const ctx = await getActiveContext();
   const restaurantId = ctx?.restaurantId ?? null;
   const impersonating = ctx?.impersonating ?? false;
+  const isGroupAdmin = session.user.role === "group_admin";
+  const isPlatformAdmin = session.user.role === "platform_admin";
 
-  // Platform admin without impersonation set → nudge them to pick a restaurant.
-  if (session.user.role === "platform_admin" && !restaurantId) {
+  // Platform admin without impersonation → /admin/restaurants para
+  // elegir. Group admin sin impersonar → /group para elegir.
+  if (isPlatformAdmin && !restaurantId) {
     redirect("/admin/restaurants");
+  }
+  if (isGroupAdmin && !restaurantId) {
+    redirect("/group");
+  }
+
+  // Para el switcher del header — restaurantes hermanos del mismo
+  // grupo. Sólo se carga cuando el usuario está impersonando desde
+  // contexto de grupo (group_admin o platform_admin sobre un local
+  // grupado).
+  let siblingRestaurants: { id: string; name: string }[] = [];
+  let groupId: string | null = null;
+  if (impersonating && restaurantId) {
+    const r = await db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { groupId: true },
+    });
+    groupId = r?.groupId ?? null;
+    if (groupId) {
+      siblingRestaurants = await db.restaurant.findMany({
+        where: { groupId, id: { not: restaurantId } },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+    }
   }
 
   const tenant = restaurantId
@@ -73,22 +107,68 @@ export default async function OperatorLayout({
     "use server";
     const jar = await cookies();
     jar.delete(IMPERSONATE_COOKIE);
-    redirect("/admin/restaurants");
+    // platform_admin vuelve al admin shell; group_admin vuelve a
+    // su landing de grupo.
+    const s = await auth();
+    redirect(s?.user?.role === "group_admin" ? "/group" : "/admin/restaurants");
+  }
+
+  // Server action que el switcher del header usa para saltar a otro
+  // restaurante del mismo grupo. Re-setea la cookie y refresca.
+  async function switchToSibling(formData: FormData) {
+    "use server";
+    const targetId = String(formData.get("restaurantId") ?? "");
+    if (!targetId) return;
+    const s = await auth();
+    if (!s?.user) return;
+    // Sólo group_admin y platform_admin pueden cambiar de
+    // restaurante via switcher.
+    if (
+      s.user.role !== "group_admin" &&
+      s.user.role !== "platform_admin"
+    ) {
+      return;
+    }
+    // Si es group_admin, validar que el target sea de su grupo.
+    if (s.user.role === "group_admin") {
+      const target = await db.restaurant.findUnique({
+        where: { id: targetId },
+        select: { groupId: true },
+      });
+      if (!target || target.groupId !== s.user.groupId) return;
+    }
+    const jar = await cookies();
+    jar.set(IMPERSONATE_COOKIE, targetId, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+    redirect("/operator");
   }
 
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
       {impersonating && (
-        <div className="bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm">
-          <div className="min-w-0">
-            <span className="font-mono text-[10px] tracking-wider uppercase opacity-80 mr-2">
-              Impersonando
+        <div className="bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
+          <div className="min-w-0 flex items-center gap-3 flex-wrap">
+            <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
+              {isGroupAdmin ? "Grupo" : "Impersonando"}
             </span>
-            Viendo como operador de <strong>{tenant?.name ?? "…"}</strong>
+            <span className="truncate">
+              {isGroupAdmin ? "Viendo" : "Viendo como operador de"}{" "}
+              <strong>{tenant?.name ?? "…"}</strong>
+            </span>
+            {/* Switcher entre restaurantes del grupo — sólo cuando hay
+                hermanos. Auto-submitea con onChange (client component). */}
+            <GroupSwitcher
+              siblings={siblingRestaurants}
+              action={switchToSibling}
+            />
           </div>
           <form action={stopImpersonating} className="shrink-0">
             <button className="font-mono text-[10px] tracking-wider uppercase underline">
-              Dejar de impersonar
+              {isGroupAdmin ? "Volver al grupo" : "Dejar de impersonar"}
             </button>
           </form>
         </div>

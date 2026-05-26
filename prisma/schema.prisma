@@ -181,6 +181,29 @@ enum MembershipMethod {
   wompi
 }
 
+/// Catálogo de planes editable desde /admin/plans. Una fila por
+/// cada valor del enum `Plan`. La columna `tier` es la PK lógica
+/// (unique) — el admin no puede crear/borrar tiers (eso requeriría
+/// migrar el enum), pero sí editar nombre, descripción, precio
+/// sugerido, features y visibilidad. La self-seed corre la primera
+/// vez que se lee el catálogo (src/lib/planCatalog.ts).
+model PlanConfig {
+  id                String   @id @default(cuid())
+  tier              Plan     @unique
+  name              String
+  description       String?
+  defaultPriceCents Int      @default(0)
+  // String[] de bullets; se serializa como Json para flexibilidad.
+  features          Json     @default("[]")
+  // Si false, no aparece como opción al elegir plan para un
+  // restaurante nuevo. Los restaurantes existentes en ese plan
+  // siguen funcionando.
+  visible           Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model MembershipPayment {
   id              String           @id @default(cuid())
   restaurantId    String

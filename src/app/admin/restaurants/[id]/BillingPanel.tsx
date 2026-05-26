@@ -6,7 +6,15 @@ import { fmtCOP } from "@/lib/format";
 
 type Plan = "trial" | "basic" | "pro";
 
-const PLAN_OPTIONS: { value: Plan; label: string; suggestedPriceCents: number }[] = [
+type PlanOption = {
+  value: Plan;
+  label: string;
+  suggestedPriceCents: number;
+};
+
+// Defaults usados como fallback si el caller no pasa planOptions —
+// preserva el comportamiento histórico antes del catálogo editable.
+const DEFAULT_PLAN_OPTIONS: PlanOption[] = [
   { value: "trial", label: "Prueba", suggestedPriceCents: 0 },
   { value: "basic", label: "Básico", suggestedPriceCents: 20_000_000 },
   { value: "pro", label: "Pro", suggestedPriceCents: 40_000_000 },
@@ -16,11 +24,16 @@ export function PlanEditor({
   restaurantId,
   plan,
   monthlyPriceCents,
+  planOptions,
 }: {
   restaurantId: string;
   plan: Plan;
   monthlyPriceCents: number;
+  // Opcional para back-compat. Cuando se pasa (caso normal en
+  // /admin/restaurants/[id]), refleja el catálogo /admin/plans.
+  planOptions?: PlanOption[];
 }) {
+  const PLAN_OPTIONS = planOptions ?? DEFAULT_PLAN_OPTIONS;
   const router = useRouter();
   const [selected, setSelected] = useState<Plan>(plan);
   const [priceCop, setPriceCop] = useState(String(Math.round(monthlyPriceCents / 100)));

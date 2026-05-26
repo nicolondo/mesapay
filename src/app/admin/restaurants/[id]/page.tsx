@@ -11,6 +11,7 @@ import {
   deriveMembershipStatus,
   type MembershipStatus,
 } from "@/lib/membership";
+import { getPlanCatalog } from "@/lib/planCatalog";
 import {
   PickupSchedulePanel,
   PickupToggle,
@@ -32,11 +33,6 @@ const METHOD_LABEL: Record<string, string> = {
   wompi: "Wompi",
 };
 
-const PLAN_LABEL: Record<string, string> = {
-  trial: "Prueba",
-  basic: "Básico",
-  pro: "Pro",
-};
 
 export default async function RestaurantDetail({
   params,
@@ -44,7 +40,7 @@ export default async function RestaurantDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [rest, operators, counts, lastOrder, firstOrder, payments] =
+  const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog] =
     await Promise.all([
       db.restaurant.findUnique({ where: { id } }),
       db.user.findMany({
@@ -84,9 +80,15 @@ export default async function RestaurantDetail({
         orderBy: { createdAt: "desc" },
         take: 12,
       }),
+      getPlanCatalog(),
     ]);
 
   if (!rest) notFound();
+
+  // Label del plan actual sale del catálogo editable (fallback al
+  // tier crudo si por alguna razón no está en el catálogo).
+  const currentPlanLabel =
+    planCatalog.find((p) => p.tier === rest.plan)?.name ?? rest.plan;
 
   const paidCount = await db.order.count({
     where: { restaurantId: id, status: "paid" },
@@ -161,7 +163,7 @@ export default async function RestaurantDetail({
                 Plan y facturación
               </div>
               <div className="font-display text-2xl mt-1">
-                {PLAN_LABEL[rest.plan]}{" "}
+                {currentPlanLabel}{" "}
                 <span className="text-op-muted text-base font-sans">
                   ·{" "}
                   {rest.monthlyPriceCents > 0
@@ -180,6 +182,19 @@ export default async function RestaurantDetail({
             restaurantId={id}
             plan={rest.plan}
             monthlyPriceCents={rest.monthlyPriceCents}
+            // Pasamos el catálogo editable para que el selector
+            // refleje nombres + precios sugeridos actualizados sin
+            // tener que duplicar la lista en cliente.
+            planOptions={planCatalog
+              // Mostramos el plan actual aunque esté marcado
+              // invisible, para no romper la edición de comercios
+              // legacy que quedaron en un plan deprecated.
+              .filter((p) => p.visible || p.tier === rest.plan)
+              .map((p) => ({
+                value: p.tier,
+                label: p.name,
+                suggestedPriceCents: p.defaultPriceCents,
+              }))}
           />
 
           <div className="mt-5 grid grid-cols-2 gap-3">

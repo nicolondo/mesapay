@@ -191,6 +191,8 @@ export function MesasGrid({
                 setOpenTileId(next ? tile.id : null)
               }
               freeTables={freeTables.filter((ft) => ft.id !== tile.id)}
+              tenantSlug={tenantSlug}
+              isMeseroView={isMeseroView}
             />
           );
         })}
@@ -327,12 +329,16 @@ function ActiveTile({
   open,
   onOpenChange,
   freeTables,
+  tenantSlug,
+  isMeseroView,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
   open: boolean;
   onOpenChange: (next: boolean) => void;
   freeTables: FreeTable[];
+  tenantSlug: string;
+  isMeseroView: boolean;
 }) {
   const tokens = tileTokensForRisk(tile.risk.level);
   const tableLabel = counterMode
@@ -408,11 +414,18 @@ function ActiveTile({
           shortCode={tile.order.shortCode}
           tableLabel={tableLabel}
           tableNumber={tile.number}
+          tableId={tile.id}
           freeTables={freeTables}
           initialRounds={tile.order.rounds}
           open={open}
           onOpenChange={onOpenChange}
           hideTrigger
+          orderStatus={tile.order.status}
+          outstandingCents={tile.order.outstandingCents}
+          subtotalCents={tile.order.subtotalCents}
+          tenantSlug={tenantSlug}
+          qrToken={tile.qrToken}
+          isMeseroView={isMeseroView}
         />
       )}
     </>

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { fmtCOP } from "@/lib/format";
+import { TableActions } from "./TableActions";
 
 type ItemDetail = {
   id: string;
@@ -47,16 +50,26 @@ export function TableDetailSheet({
   shortCode,
   tableLabel,
   tableNumber,
+  tableId,
   initialRounds,
   freeTables,
   open: externalOpen,
   onOpenChange,
   hideTrigger,
+  orderStatus,
+  outstandingCents,
+  subtotalCents,
+  tenantSlug,
+  qrToken,
+  isMeseroView,
 }: {
   orderId: string;
   shortCode: string;
   tableLabel: string;
   tableNumber: number;
+  // Mesa donde vive la orden — sirve para el botón "Agregar platos"
+  // en modo mesero (ruta interna /mesero/pedir/[id]).
+  tableId: string;
   initialRounds: Round[];
   // Mesas libres del restaurante (sin orden abierta) para el sheet
   // de "Mover a otra mesa". Server pre-llena. Si no hay ninguna
@@ -72,6 +85,19 @@ export function TableDetailSheet({
   // tap en el tile), pasamos `hideTrigger` para esconder el link
   // interno "Ver detalle del pedido →".
   hideTrigger?: boolean;
+  // Estado de la orden + monto pendiente. Necesarios para mostrar
+  // el botón "Cobrar la cuenta" (sólo si outstanding > 0) y para el
+  // botón "Cancelar" (sólo si placed/in_kitchen). Cuando no se
+  // pasan (back-compat con triggers viejos), el sheet no muestra
+  // estas acciones.
+  orderStatus?: string;
+  outstandingCents?: number;
+  subtotalCents?: number;
+  // Para el botón "Cobrar la cuenta" + el link de agregar platos
+  // en modo operator/admin (abre tab nueva del menú público).
+  tenantSlug?: string;
+  qrToken?: string;
+  isMeseroView?: boolean;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const controlled = externalOpen !== undefined;
@@ -222,7 +248,70 @@ export function TableDetailSheet({
               </button>
             </div>
 
-            {/* "Mover a otra mesa" — solo cuando hay mesas libres a
+            {/* Resumen del cobro + acciones principales. "Agregar
+                platos" siempre visible (acción frecuente); "Cobrar
+                la cuenta" sólo si queda algo por cobrar; "Cancelar"
+                sólo si la cocina no ha plateado. */}
+            {(subtotalCents != null || outstandingCents != null) && (
+              <div className="rounded-xl border border-hairline bg-op-bg p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+                    {outstandingCents && outstandingCents > 0
+                      ? "Pendiente"
+                      : "Cuenta total"}
+                  </div>
+                  <div className="font-display text-2xl tabular leading-tight">
+                    {fmtCOP(
+                      outstandingCents != null
+                        ? outstandingCents
+                        : subtotalCents ?? 0,
+                    )}
+                  </div>
+                  {outstandingCents != null &&
+                    outstandingCents > 0 &&
+                    subtotalCents != null &&
+                    subtotalCents !== outstandingCents && (
+                      <div className="font-mono text-[10px] text-op-muted mt-0.5">
+                        de {fmtCOP(subtotalCents)}
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {/* Botón principal: agregar platos. Mesero queda en el
+                PWA scope (/mesero/pedir/[id]); operator/admin abre
+                tab nueva. Lo mostramos siempre que tengamos los
+                datos para construir la URL. */}
+            {(isMeseroView || (tenantSlug && qrToken)) && (
+              <Link
+                href={
+                  isMeseroView
+                    ? `/mesero/pedir/${tableId}`
+                    : `/t/${tenantSlug}/menu?table=${qrToken}&op=1`
+                }
+                {...(isMeseroView
+                  ? {}
+                  : { target: "_blank", rel: "noreferrer" })}
+                className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-ink/90"
+              >
+                <span aria-hidden className="text-base leading-none">+</span>
+                <span>Agregar platos</span>
+              </Link>
+            )}
+
+            {/* Cobrar la cuenta + Cancelar — reusa TableActions para
+                no duplicar la lógica de cuándo mostrar cada botón. */}
+            {tenantSlug && orderStatus != null && outstandingCents != null && (
+              <TableActions
+                orderId={orderId}
+                tenantSlug={tenantSlug}
+                status={orderStatus}
+                outstandingCents={outstandingCents}
+              />
+            )}
+
+            {/* "Mover a otra mesa" — sólo cuando hay mesas libres a
                 donde mover. Si todas están ocupadas, esconder el
                 botón evita un sheet vacío que confunde. */}
             {freeTables.length > 0 && (

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
-import { TableActions } from "./TableActions";
 
 type ItemDetail = {
   id: string;
@@ -117,6 +117,29 @@ export function TableDetailSheet({
   } | null>(null);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [moveErr, setMoveErr] = useState<string | null>(null);
+  // Cancelar la orden completa — sólo aplica cuando la cocina no
+  // ha plateado nada (status placed/in_kitchen). Una vez cancelada
+  // cerramos el sheet y refrescamos.
+  const [cancelOrderBusy, setCancelOrderBusy] = useState(false);
+  const router = useRouter();
+  const [, startTx] = useTransition();
+
+  async function cancelOrder() {
+    if (!window.confirm("¿Cancelar esta orden? No se podrá revertir.")) return;
+    setCancelOrderBusy(true);
+    const res = await fetch(`/api/operator/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "cancelled" }),
+    });
+    setCancelOrderBusy(false);
+    if (!res.ok) {
+      window.alert("No se pudo cancelar la orden.");
+      return;
+    }
+    setOpen(false);
+    startTx(() => router.refresh());
+  }
 
   // Refresca el detalle cada 15s mientras está abierto — los estados
   // de cocina cambian y queremos que el mesero vea ETA actualizada
@@ -279,53 +302,84 @@ export function TableDetailSheet({
               </div>
             )}
 
-            {/* Botón principal: agregar platos. Mesero queda en el
-                PWA scope (/mesero/pedir/[id]); operator/admin abre
-                tab nueva. Lo mostramos siempre que tengamos los
-                datos para construir la URL. */}
-            {(isMeseroView || (tenantSlug && qrToken)) && (
-              <Link
-                href={
-                  isMeseroView
-                    ? `/mesero/pedir/${tableId}`
-                    : `/t/${tenantSlug}/menu?table=${qrToken}&op=1`
-                }
-                {...(isMeseroView
-                  ? {}
-                  : { target: "_blank", rel: "noreferrer" })}
-                className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-ink/90"
-              >
-                <span aria-hidden className="text-base leading-none">+</span>
-                <span>Agregar platos</span>
-              </Link>
-            )}
-
-            {/* Cobrar la cuenta + Cancelar — reusa TableActions para
-                no duplicar la lógica de cuándo mostrar cada botón. */}
-            {tenantSlug && orderStatus != null && outstandingCents != null && (
-              <TableActions
-                orderId={orderId}
-                tenantSlug={tenantSlug}
-                status={orderStatus}
-                outstandingCents={outstandingCents}
-              />
-            )}
-
-            {/* "Mover a otra mesa" — sólo cuando hay mesas libres a
-                donde mover. Si todas están ocupadas, esconder el
-                botón evita un sheet vacío que confunde. */}
-            {freeTables.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMoveErr(null);
-                  setShowMoveSheet(true);
-                }}
-                className="w-full h-10 rounded-full border border-hairline bg-paper text-ink text-xs font-mono tracking-wider uppercase hover:bg-op-bg"
-              >
-                Mover a otra mesa
-              </button>
-            )}
+            {/* Acciones: todas full-width, h-11, rounded-full. Ritmo
+                visual uniforme. Ink para la primaria (Agregar),
+                terracotta para Cobrar (acción de plata, distinta
+                de la primaria), outline para Mover, outline-danger
+                para Cancelar. Sólo se muestran cuando hace sentido:
+                  - Agregar: siempre que podamos armar la URL
+                  - Cobrar: outstanding > 0 + orden no paga/cancelada
+                  - Mover: hay mesas libres a donde mover
+                  - Cancelar: cocina todavía no plateó (placed/in_kitchen) */}
+            {(() => {
+              const canCharge =
+                outstandingCents != null &&
+                outstandingCents > 0 &&
+                orderStatus !== "paid" &&
+                orderStatus !== "cancelled" &&
+                !!tenantSlug;
+              const canCancelOrder =
+                orderStatus === "placed" || orderStatus === "in_kitchen";
+              const canAdd =
+                isMeseroView || (tenantSlug && qrToken);
+              const canMove = freeTables.length > 0;
+              if (!canAdd && !canCharge && !canMove && !canCancelOrder)
+                return null;
+              return (
+                <div className="space-y-2">
+                  {canAdd && (
+                    <Link
+                      href={
+                        isMeseroView
+                          ? `/mesero/pedir/${tableId}`
+                          : `/t/${tenantSlug}/menu?table=${qrToken}&op=1`
+                      }
+                      {...(isMeseroView
+                        ? {}
+                        : { target: "_blank", rel: "noreferrer" })}
+                      className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-ink/90"
+                    >
+                      <span aria-hidden className="text-base leading-none">+</span>
+                      <span>Agregar platos</span>
+                    </Link>
+                  )}
+                  {canCharge && (
+                    <a
+                      href={`/t/${tenantSlug}/pay/${orderId}?op=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                    >
+                      Cobrar la cuenta
+                    </a>
+                  )}
+                  {canMove && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMoveErr(null);
+                        setShowMoveSheet(true);
+                      }}
+                      className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium hover:bg-op-bg"
+                    >
+                      Mover a otra mesa
+                    </button>
+                  )}
+                  {canCancelOrder && (
+                    <button
+                      type="button"
+                      onClick={cancelOrder}
+                      disabled={cancelOrderBusy}
+                      className="w-full h-11 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
+                    >
+                      {cancelOrderBusy
+                        ? "Cancelando…"
+                        : "Cancelar la cuenta"}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {visibleRounds.length === 0 && (
               <div className="text-sm text-op-muted">

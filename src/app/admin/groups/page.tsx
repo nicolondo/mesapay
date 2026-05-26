@@ -90,7 +90,7 @@ export default async function AdminGroupsPage() {
                 </div>
                 <Link
                   href={`/admin/groups/${g.id}`}
-                  className="h-8 px-3 rounded-full border border-op-border text-xs font-medium hover:bg-op-bg shrink-0"
+                  className="inline-flex items-center justify-center h-8 px-3 rounded-full border border-op-border text-xs font-medium hover:bg-op-bg shrink-0"
                 >
                   Detalle →
                 </Link>

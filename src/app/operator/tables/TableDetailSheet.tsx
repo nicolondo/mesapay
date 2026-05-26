@@ -152,10 +152,14 @@ export function TableDetailSheet({
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),
   );
-  // Item id pending cancel — abre el sub-sheet de motivo.
+  // Item id pending cancel/comp — abre el sub-sheet de motivo.
+  // `kind` decide el copy (Cancelar vs No cobrar) y los presets de
+  // motivo. Se infiere del estado del item (servedAt o no) cuando se
+  // abre el sheet.
   const [cancelTarget, setCancelTarget] = useState<{
     itemId: string;
     name: string;
+    kind: "cancel" | "comp";
   } | null>(null);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [moveErr, setMoveErr] = useState<string | null>(null);
@@ -233,14 +237,24 @@ export function TableDetailSheet({
     setOpen(false);
   }
 
-  async function cancelItem(itemId: string, reason: string) {
+  async function cancelItem(
+    itemId: string,
+    reason: string,
+    kind: "cancel" | "comp",
+  ) {
     const r = await fetch(`/api/operator/order-items/${itemId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cancel: { reason } }),
+      body: JSON.stringify({ cancel: { reason, kind } }),
     });
     if (!r.ok) {
-      alert("No pudimos cancelar el plato. Intenta de nuevo.");
+      const body = await r.json().catch(() => null);
+      const msg =
+        body?.message ??
+        (kind === "comp"
+          ? "No pudimos no-cobrar el plato. Intenta de nuevo."
+          : "No pudimos cancelar el plato. Intenta de nuevo.");
+      alert(msg);
       return;
     }
     // Quitar el item localmente para feedback inmediato. El poll
@@ -541,18 +555,43 @@ export function TableDetailSheet({
                                 tiempo) — no desde la app del mesero.
                                 Ready / servido tampoco se cancelan
                                 desde acá. */}
-                            {!it.servedAt && it.kitchenStatus === "placed" && (
+                            {/* Cancelar vs No cobrar — el botón
+                                depende del estado del plato:
+                                  - !servedAt → "Cancelar" (kind=cancel).
+                                    El cliente nunca lo recibió.
+                                  - servedAt → "No cobrar" (kind=comp).
+                                    El cliente lo recibió (queja, frío,
+                                    cortesía, walkout).
+                                Ambos sacan del subtotal pero el reporte
+                                admin filtra por kind para distinguir
+                                desperdicio vs queja. */}
+                            {!it.servedAt ? (
                               <button
                                 type="button"
                                 onClick={() =>
                                   setCancelTarget({
                                     itemId: it.id,
                                     name: it.name,
+                                    kind: "cancel",
                                   })
                                 }
                                 className="font-mono text-[10px] tracking-wider uppercase text-danger hover:bg-danger/10 px-2 py-1 rounded-full"
                               >
                                 Cancelar
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCancelTarget({
+                                    itemId: it.id,
+                                    name: it.name,
+                                    kind: "comp",
+                                  })
+                                }
+                                className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full"
+                              >
+                                No cobrar
                               </button>
                             )}
                             {it.expediteRequestedAt ? (
@@ -590,8 +629,11 @@ export function TableDetailSheet({
       {cancelTarget && (
         <CancelItemSheet
           itemName={cancelTarget.name}
+          kind={cancelTarget.kind}
           onClose={() => setCancelTarget(null)}
-          onConfirm={(reason) => cancelItem(cancelTarget.itemId, reason)}
+          onConfirm={(reason) =>
+            cancelItem(cancelTarget.itemId, reason, cancelTarget.kind)
+          }
         />
       )}
 
@@ -691,6 +733,8 @@ function MoveTableSheet({
   );
 }
 
+// Presets de motivo segun kind. Tap a un preset llena el textarea —
+// el mesero puede editarlo o tipear libre.
 const CANCEL_PRESETS = [
   "Cliente cambió de opinión",
   "Demora excesiva",
@@ -698,12 +742,23 @@ const CANCEL_PRESETS = [
   "Ingrediente faltante",
 ];
 
+const COMP_PRESETS = [
+  "No le gustó al cliente",
+  "Plato frío / mal preparado",
+  "Plato equivocado",
+  "Cortesía",
+  "Cliente se fue sin pagar",
+];
+
 function CancelItemSheet({
   itemName,
+  kind,
   onClose,
   onConfirm,
 }: {
   itemName: string;
+  // Decide el copy del sheet + presets + color del CTA + audit kind.
+  kind: "cancel" | "comp";
   onClose: () => void;
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
@@ -711,6 +766,18 @@ function CancelItemSheet({
   const [busy, setBusy] = useState(false);
   const trimmed = reason.trim();
   const canSubmit = trimmed.length >= 3 && !busy;
+
+  const isComp = kind === "comp";
+  const title = isComp ? "No cobrar plato" : "Cancelar plato";
+  const subtitle = isComp
+    ? "El plato sale del subtotal pero queda registrado como entregado. Aparece en el reporte de no-cobrados con el motivo."
+    : "Sale del pedido, del kitchen board y del subtotal. Esta acción no se puede deshacer — si era un error, tendrá que volver a pedirse.";
+  const presets = isComp ? COMP_PRESETS : CANCEL_PRESETS;
+  const ctaIdle = isComp ? "No cobrar plato" : "Cancelar plato";
+  const ctaBusy = isComp ? "Guardando…" : "Cancelando…";
+  const ctaClass = isComp
+    ? "bg-terracotta text-bone"
+    : "bg-danger text-bone";
 
   async function submit() {
     if (!canSubmit) return;
@@ -734,7 +801,7 @@ function CancelItemSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-              Cancelar plato
+              {title}
             </div>
             <h2 className="font-display text-2xl mt-1">{itemName}</h2>
           </div>
@@ -749,18 +816,14 @@ function CancelItemSheet({
           </button>
         </div>
 
-        <p className="text-xs text-muted">
-          Sale del pedido, del kitchen board y del subtotal. Esta acción
-          no se puede deshacer — si era un error, tendrá que volver a
-          pedirse.
-        </p>
+        <p className="text-xs text-muted">{subtitle}</p>
 
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
             Motivo
           </div>
           <div className="flex flex-wrap gap-2 mb-2">
-            {CANCEL_PRESETS.map((p) => (
+            {presets.map((p) => (
               <button
                 key={p}
                 type="button"
@@ -789,9 +852,12 @@ function CancelItemSheet({
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full h-12 rounded-2xl bg-danger text-bone text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          className={
+            "w-full h-12 rounded-2xl text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed " +
+            ctaClass
+          }
         >
-          {busy ? "Cancelando…" : "Cancelar plato"}
+          {busy ? ctaBusy : ctaIdle}
         </button>
       </div>
     </div>

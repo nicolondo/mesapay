@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import { AddRestaurantToGroup } from "./AddRestaurantToGroup";
 
 export const dynamic = "force-dynamic";
 
@@ -21,55 +22,64 @@ export default async function GroupDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const group = await db.group.findUnique({
-    where: { id },
-    include: {
-      restaurants: {
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          plan: true,
-          createdAt: true,
+  const [group, ungroupedCandidates] = await Promise.all([
+    db.group.findUnique({
+      where: { id },
+      include: {
+        restaurants: {
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            plan: true,
+            createdAt: true,
+          },
+        },
+        members: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
+        },
+        legalEntities: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            name: true,
+            taxId: true,
+            dianResolution: true,
+            invoicePrefix: true,
+            _count: { select: { restaurants: true } },
+          },
         },
       },
-      members: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          createdAt: true,
-        },
-      },
-      legalEntities: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          name: true,
-          taxId: true,
-          dianResolution: true,
-          invoicePrefix: true,
-          _count: { select: { restaurants: true } },
-        },
-      },
-    },
-  });
+    }),
+    // Restaurantes sin grupo — candidatos para asignar a éste.
+    db.restaurant.findMany({
+      where: { groupId: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, slug: true },
+    }),
+  ]);
 
   if (!group) notFound();
 
   // Server action: impersonar cualquier restaurante del grupo desde
-  // el admin platform. Mismo flujo que /admin/restaurants/[id], sólo
-  // que aquí lo lanzamos por restaurante hijo.
-  async function impersonateRestaurant(formData: FormData) {
+  // el admin platform. Mismo flujo que /admin/restaurants/[id]. Usa
+  // .bind() para inyectar restaurantId — la variante con FormData +
+  // hidden input no estaba navegando consistentemente al ejecutarse
+  // por motivos del runtime de Next.
+  async function impersonateRestaurant(restaurantId: string) {
     "use server";
     const session = await auth();
     if (!session?.user || session.user.role !== "platform_admin") {
       redirect("/admin");
     }
-    const restaurantId = String(formData.get("restaurantId") ?? "");
     if (!restaurantId) redirect(`/admin/groups/${id}`);
     const jar = await cookies();
     jar.set(IMPERSONATE_COOKIE, restaurantId, {
@@ -111,14 +121,15 @@ export default async function GroupDetailPage({
         <Stat label="Razones sociales" value={group.legalEntities.length} />
       </div>
 
-      {/* Restaurantes — con botón impersonar por cada uno */}
+      {/* Restaurantes — con botón impersonar por cada uno + form
+          al pie para sumar más al grupo */}
       <section className="rounded-2xl border border-op-border bg-op-surface overflow-hidden mb-6">
         <div className="px-5 py-3 border-b border-op-border font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
           Restaurantes
         </div>
         {group.restaurants.length === 0 ? (
           <div className="p-6 text-sm text-op-muted text-center">
-            Sin restaurantes asignados aún.
+            Sin restaurantes asignados aún. Agrega uno desde el form al pie.
           </div>
         ) : (
           <ul className="divide-y divide-op-border">
@@ -150,12 +161,7 @@ export default async function GroupDetailPage({
                   >
                     Ficha
                   </Link>
-                  <form action={impersonateRestaurant}>
-                    <input
-                      type="hidden"
-                      name="restaurantId"
-                      value={r.id}
-                    />
+                  <form action={impersonateRestaurant.bind(null, r.id)}>
                     <button
                       type="submit"
                       className="inline-flex items-center justify-center h-8 px-3 rounded-full bg-ink text-bone text-xs font-medium"
@@ -168,6 +174,19 @@ export default async function GroupDetailPage({
             ))}
           </ul>
         )}
+        {/* Footer del card: form para sumar más restaurantes al
+            grupo después de creado. Sólo se listan los sin grupo
+            como candidatos; para mover uno desde otro grupo hay
+            que editar su ficha (GroupAssignPanel). */}
+        <div className="p-4 border-t border-op-border bg-op-bg/30">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+            Agregar restaurante al grupo
+          </div>
+          <AddRestaurantToGroup
+            groupId={group.id}
+            candidates={ungroupedCandidates}
+          />
+        </div>
       </section>
 
       {/* Miembros del grupo (group_admins típicamente, pero soporta

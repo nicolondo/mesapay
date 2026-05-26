@@ -135,7 +135,7 @@ export default async function PrintTablesPage({
           height: 30mm;
           border-right: 0.1mm solid #999;
           border-bottom: 0.1mm solid #999;
-          border-radius: 0.73mm;
+          border-radius: 1.3mm;
           padding: 0.8mm;
           display: flex;
           flex-direction: column;

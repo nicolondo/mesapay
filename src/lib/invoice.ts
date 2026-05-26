@@ -173,19 +173,40 @@ function renderHtml(args: {
         : `https://mesapay.co${snapshot.logoUrl}`
       : "https://mesapay.co/icons/icon-192.png";
 
+  // Paleta MESAPAY (mismos tokens que globals.css):
+  //   bone     #F5F1EA  → fondo exterior del email
+  //   paper    #FBF8F3  → card que envuelve la tirilla
+  //   ivory    #FFFDF9  → no usado aquí (queda como acento ligero)
+  //   ink      #1A1613  → tipografía y CTA
+  //   hairline #E5DED1  → bordes finos en el card
+  //   La tirilla queda en blanco puro (#FFFFFF) con borde ink-thin
+  //   para que se vea como un papel térmico real recortado sobre la
+  //   superficie paper, no como otro card más.
+  //
+  // `color-scheme: light only` + `supported-color-schemes: light only`
+  // bloquean la inversión auto que hace Gmail/Outlook en dark mode —
+  // si no, ennegrecen el fondo blanco de la tirilla y se rompe el look.
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
 <title>${escapeHtml(`Comprobante ${numberStr} — ${brandName}`)}</title>
+<style>
+  :root { color-scheme: light only; supported-color-schemes: light only; }
+  /* Algunos clientes (Gmail dark) ignoran inline bg en tablas;
+     este selector específico fuerza el blanco en la tirilla. */
+  .mp-receipt { background:#FFFFFF !important; }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#1A1613;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAF7F2;padding:32px 12px;">
+<body style="margin:0;padding:0;background:#F5F1EA;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#1A1613;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F1EA;padding:32px 12px;">
   <tr>
     <td align="center">
       <!-- Outer card -->
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#FFFBF3;border:1px solid #EAE1D0;border-radius:18px;overflow:hidden;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#FBF8F3;border:1px solid #E5DED1;border-radius:18px;overflow:hidden;">
 
         <!-- Header MESAPAY style -->
         <tr>
@@ -213,7 +234,7 @@ function renderHtml(args: {
         <!-- Resumen visual: total destacado -->
         <tr>
           <td style="padding:18px 36px 6px 36px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #EAE1D0;border-bottom:1px solid #EAE1D0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5DED1;border-bottom:1px solid #E5DED1;">
               <tr>
                 <td style="padding:18px 0;">
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">Total pagado</div>
@@ -235,7 +256,7 @@ function renderHtml(args: {
             <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 10px 0;">
               Tu tirilla
             </div>
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:380px;background:#FFFFFF;border:1px solid #EAE1D0;">
+            <table class="mp-receipt" role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#FFFFFF" style="width:100%;max-width:380px;background:#FFFFFF;border:1px solid #1A1613;box-shadow:0 1px 0 rgba(26,22,19,0.08);">
               <tr>
                 <td style="padding:18px 16px;">
                   <!-- Logo + razón social -->
@@ -344,7 +365,7 @@ function renderHtml(args: {
               ¿Necesitas imprimirla? Abre el comprobante en tu navegador para
               mandarla a tu impresora térmica o de papel.
             </p>
-            <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:500;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;letter-spacing:0.01em;">
+            <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background:#1A1613;color:#F5F1EA;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:500;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;letter-spacing:0.01em;">
               Abrir e imprimir comprobante
             </a>
           </td>
@@ -352,7 +373,7 @@ function renderHtml(args: {
 
         <!-- Footer -->
         <tr>
-          <td style="padding:24px 36px 28px 36px;border-top:1px solid #EAE1D0;margin-top:12px;">
+          <td style="padding:24px 36px 28px 36px;border-top:1px solid #E5DED1;margin-top:12px;">
             <p style="font-size:12px;color:#8B7B65;line-height:1.5;margin:0;text-align:center;">
               Si tienes dudas con tu cuenta, escríbele directamente a
               <strong style="color:#1A1613;">${escapeHtml(brandName)}</strong>.

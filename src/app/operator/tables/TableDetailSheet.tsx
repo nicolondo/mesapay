@@ -49,6 +49,9 @@ export function TableDetailSheet({
   tableNumber,
   initialRounds,
   freeTables,
+  open: externalOpen,
+  onOpenChange,
+  hideTrigger,
 }: {
   orderId: string;
   shortCode: string;
@@ -59,8 +62,24 @@ export function TableDetailSheet({
   // de "Mover a otra mesa". Server pre-llena. Si no hay ninguna
   // (todas ocupadas) se esconde el botón.
   freeTables: FreeTable[];
+  // Modo controlled: si el padre pasa `open` + `onOpenChange`, el
+  // sheet sigue el estado externo. Útil para que la grilla compacta
+  // de Mesas dispare el sheet al tap del tile. Si no se pasan,
+  // funciona como antes (renderea su propio botón trigger).
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
+  // Opcional: cuando el padre maneja el trigger por afuera (ej:
+  // tap en el tile), pasamos `hideTrigger` para esconder el link
+  // interno "Ver detalle del pedido →".
+  hideTrigger?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const controlled = externalOpen !== undefined;
+  const open = controlled ? externalOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlled) onOpenChange?.(next);
+    else setInternalOpen(next);
+  };
   const [rounds, setRounds] = useState<Round[]>(initialRounds);
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),
@@ -167,13 +186,15 @@ export function TableDetailSheet({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-2 w-full text-xs text-op-muted hover:text-op-text underline-offset-2 hover:underline text-left"
-      >
-        Ver detalle del pedido →
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 w-full text-xs text-op-muted hover:text-op-text underline-offset-2 hover:underline text-left"
+        >
+          Ver detalle del pedido →
+        </button>
+      )}
 
       {open && (
         <div

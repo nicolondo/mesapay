@@ -391,7 +391,15 @@ export default async function ReportsPage({
 
       {recentClosed.length > 0 && (
         <div className="bg-op-surface border border-op-border rounded-2xl p-5 mt-4">
-          <div className="font-display text-xl mb-3">Cierres recientes</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-display text-xl">Cierres recientes</div>
+            <Link
+              href="/operator/shifts"
+              className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+            >
+              Ver todos →
+            </Link>
+          </div>
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead>
@@ -402,6 +410,7 @@ export default async function ReportsPage({
                   <Th align="right">Esperado</Th>
                   <Th align="right">Contado</Th>
                   <Th align="right">Diferencia</Th>
+                  <Th />
                 </tr>
               </thead>
               <tbody>
@@ -447,6 +456,14 @@ export default async function ReportsPage({
                         {diff === 0
                           ? "—"
                           : (diff > 0 ? "+" : "−") + fmtCOP(Math.abs(diff))}
+                      </Td>
+                      <Td align="right">
+                        <Link
+                          href={`/operator/shifts/${s.id}`}
+                          className="font-mono text-[11px] text-terracotta hover:underline whitespace-nowrap"
+                        >
+                          Abrir →
+                        </Link>
                       </Td>
                     </tr>
                   );

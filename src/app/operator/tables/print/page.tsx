@@ -90,14 +90,18 @@ export default async function PrintTablesPage({
   return (
     <>
       <style>{`
-        /* @page controla margen físico de la hoja al imprimir. 10mm
-           da espacio para que ninguna tarjeta quede comida por el
-           drum del impresora pero deja área útil generosa. */
-        @page { size: A4; margin: 10mm; }
+        /* @page con dimensiones explícitas (210x297mm = A4) y margen
+           mínimo. Algunos drivers de impresora enforce'an un margin
+           físico de ~6mm y si el @page del CSS es más generoso, el
+           navegador termina shrinkeando todo para "ajustar a área
+           imprimible". 5mm queda dentro del límite seguro de casi
+           cualquier impresora moderna y previene el scaling
+           automático que rompe las medidas físicas. */
+        @page { size: 210mm 297mm; margin: 5mm; }
         @media print {
           /* Background blanco forzado — algunos navegadores meten
              un fondo gris al imprimir sin esta declaración. */
-          html, body { background: #ffffff !important; }
+          html, body { background: #ffffff !important; margin: 0; padding: 0; }
           .no-print { display: none !important; }
           .qr-card { break-inside: avoid; }
         }
@@ -175,6 +179,67 @@ export default async function PrintTablesPage({
             </p>
           </div>
           <PrintButton />
+        </div>
+
+        {/* Aviso de configuración del diálogo de impresión. Si el
+            operador no setea Scale=100%, el navegador shrinkea el
+            contenido y las cards salen ~26mm en vez de 30. Mensaje
+            sólo visible en pantalla — no se imprime. */}
+        <div className="no-print max-w-5xl mx-auto mb-4 rounded-xl border border-[#C98A2E]/40 bg-[#C98A2E]/8 p-3 flex items-start gap-2">
+          <span aria-hidden className="text-base leading-none">⚠️</span>
+          <div className="text-xs text-op-text">
+            <strong>Para que las tarjetas midan exactamente 30×30mm:</strong>{" "}
+            en el diálogo de impresión asegurate que{" "}
+            <strong>Scale (Escala) = 100%</strong> (NO "Fit to printable area"
+            ni "Ajustar a la página"). El navegador por defecto a veces
+            shrinkea ~13% para "encajar" todo, y las tarjetas salen ~26mm.
+            Si tu impresora tiene margen mínimo mayor a 5mm, también puede afectar.
+          </div>
+        </div>
+
+        {/* Regla de calibración — sólo se imprime. Línea horizontal
+            de 50mm con marcas cada 10mm. Después de imprimir, medila
+            con regla física: si mide 50mm exacto, las cards salen
+            30mm. Si mide menos, el navegador shrinkea (revisar
+            Scale del diálogo). */}
+        <div className="hidden print:block" style={{ marginBottom: "3mm" }}>
+          <div style={{ position: "relative", height: "3mm", width: "50mm" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: "50%",
+                height: "0.15mm",
+                background: "#999",
+              }}
+            />
+            {[0, 10, 20, 30, 40, 50].map((mm) => (
+              <div
+                key={mm}
+                style={{
+                  position: "absolute",
+                  left: `${mm}mm`,
+                  top: 0,
+                  height: "3mm",
+                  width: "0.15mm",
+                  background: "#999",
+                }}
+              />
+            ))}
+            <div
+              style={{
+                position: "absolute",
+                left: "52mm",
+                top: 0,
+                fontSize: "2mm",
+                color: "#666",
+                lineHeight: 1,
+              }}
+            >
+              ← Esta línea debe medir 50mm
+            </div>
+          </div>
         </div>
 
         {/* Header de hoja: nombre del restaurante (sólo se imprime

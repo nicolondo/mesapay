@@ -5,7 +5,7 @@ import { getMeseroScope } from "@/lib/meseroScope";
 import { NewTableForm } from "./NewTableForm";
 import { LiveRefresh } from "../LiveRefresh";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import { computeWalkoutRisk } from "@/lib/walkoutRisk";
+import { computeWalkoutRisk, computeVisualState } from "@/lib/walkoutRisk";
 import { MesasGrid, type TileData } from "./MesasGrid";
 
 export const dynamic = "force-dynamic";
@@ -196,6 +196,28 @@ export default async function TablesPage() {
       now,
     );
 
+    // Estado discreto de la mesa para coloring. Computa AHORA, con
+    // todas las señales en mano (orden + cocina + payments + risk).
+    const liveItems = order.items.filter((i) => i.cancelledAt == null);
+    const hasReadyItems = liveItems.some(
+      (i) => i.kitchenStatus === "ready" && i.servedAt == null,
+    );
+    const hasCookingItems = liveItems.some(
+      (i) =>
+        (i.kitchenStatus === "placed" || i.kitchenStatus === "in_kitchen") &&
+        i.servedAt == null,
+    );
+    const hasPendingRequest =
+      pendingForRisk.length > 0 || (order.needsWaiter === true);
+    const visualState = computeVisualState({
+      hasActiveOrder: true,
+      recentlyPaid: false,
+      hasPendingRequest,
+      hasReadyItems,
+      hasCookingItems,
+      riskLevel: risk.level,
+    });
+
     const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
 
     return {
@@ -204,6 +226,7 @@ export default async function TablesPage() {
       label: t.label,
       qrToken: t.qrToken,
       state: "active",
+      visualState,
       risk: {
         level: risk.level,
         agingMinutes: risk.agingMinutes,

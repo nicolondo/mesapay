@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import {
-  tileTokensForRisk,
+  tileTokensForState,
   type RiskLevel,
+  type TableVisualState,
 } from "@/lib/walkoutRisk";
 import { TableDetailSheet } from "./TableDetailSheet";
 
@@ -45,6 +46,9 @@ export type TileData =
       label: string | null;
       qrToken: string;
       state: "active";
+      // Estado discreto que drivea el color del tile (cooking,
+      // ready_to_serve, eating, needs_payment, danger, etc).
+      visualState: TableVisualState;
       order: ActiveOrder;
       risk: {
         level: RiskLevel;
@@ -344,11 +348,11 @@ function ActiveTile({
   tenantSlug: string;
   isMeseroView: boolean;
 }) {
-  const tokens = tileTokensForRisk(tile.risk.level);
+  const tokens = tileTokensForState(tile.visualState);
   const tableLabel = counterMode
     ? "Mostrador"
     : `Mesa ${tile.number}${tile.label ? ` · ${tile.label}` : ""}`;
-  const pulse = tile.risk.level === "danger";
+  const pulse = tokens.pulse;
   // Combinamos age + items en una sola linea compacta. Si nada
   // que mostrar, dejamos en blanco para que el layout no salte.
   const metaLine =

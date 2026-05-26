@@ -138,6 +138,78 @@ export function computeWalkoutRisk(
   };
 }
 
+/**
+ * Estado visual discreto de una mesa, derivado del estado de la
+ * orden + walkoutRisk. Es lo que el mesero "lee" de un vistazo en
+ * el tile. No confundir con OrderStatus (placed/in_kitchen/...) —
+ * esto es UI-driven y absorbe varias señales en un solo valor.
+ *
+ * Orden de precedencia (primer match gana, ver computeVisualState):
+ *   1. free / recently_paid (sin orden activa)
+ *   2. danger (walkout danger override)
+ *   3. needs_payment_urgent / needs_payment (cash/terminal/waiter pending)
+ *   4. ready_to_serve (items listos no servidos)
+ *   5. eating_at_risk (todo servido + walkout warn)
+ *   6. cooking (items en cocina)
+ *   7. eating (todo servido sin urgencia)
+ */
+export type TableVisualState =
+  | "free"
+  | "recently_paid"
+  | "cooking"
+  | "ready_to_serve"
+  | "eating"
+  | "eating_at_risk"
+  | "needs_payment"
+  | "needs_payment_urgent"
+  | "danger";
+
+export type VisualStateInput = {
+  hasActiveOrder: boolean;
+  recentlyPaid: boolean;
+  // Si hay Payment.pending (cash/terminal request) o needsWaiter.
+  // El walkout-risk uses these to compute risk level, pero acá
+  // queremos saber si la flag está activa para mostrar terracotta.
+  hasPendingRequest: boolean;
+  // Some item kitchenStatus=ready + servedAt=null + !cancelled
+  hasReadyItems: boolean;
+  // Some item kitchenStatus in (placed, in_kitchen) + !cancelled
+  hasCookingItems: boolean;
+  // Resultado del walkout-risk para escalar el state
+  riskLevel: RiskLevel;
+};
+
+export function computeVisualState(
+  input: VisualStateInput,
+): TableVisualState {
+  if (!input.hasActiveOrder) {
+    return input.recentlyPaid ? "recently_paid" : "free";
+  }
+
+  // Walkout danger sobre-escribe TODO. Es la señal más urgente.
+  if (input.riskLevel === "danger") return "danger";
+
+  // Pedido explícito de cobro / mesero — terracotta. Si el request
+  // ya escaló a "warn" en el walkout, marcamos urgente (+pulse).
+  if (input.hasPendingRequest) {
+    return input.riskLevel === "warn"
+      ? "needs_payment_urgent"
+      : "needs_payment";
+  }
+
+  // Comida lista pero no servida — acción del mesero. Amber fuerte.
+  // Si además llegó a "warn" se nota igualmente porque ya es amber.
+  if (input.hasReadyItems) return "ready_to_serve";
+
+  // Falta cocinar — amber claro, sin acción urgente del mesero.
+  if (input.hasCookingItems) return "cooking";
+
+  // Todo servido, outstanding > 0. Pueden estar comiendo o ya
+  // terminaron. Si el walkout dice "warn", subimos a "eating_at_risk".
+  if (input.riskLevel === "warn") return "eating_at_risk";
+  return "eating";
+}
+
 /** Helper de tipografía para el tile (rojo/amber/etc). */
 export function tileTokensForRisk(level: RiskLevel): {
   bg: string;
@@ -181,6 +253,105 @@ export function tileTokensForRisk(level: RiskLevel): {
         border: "border-ink/20",
         dot: "bg-ink/50",
         textAccent: "text-op-text",
+      };
+  }
+}
+
+/**
+ * Mapper de TableVisualState → clases tailwind. Lo consume el tile
+ * de Mesas para colorear bg/border/dot/accent. Si `pulse=true`, el
+ * dot debe animarse — la decisión de animar el dot vive acá (no en
+ * el componente) para que el config sea declarativo.
+ */
+export function tileTokensForState(state: TableVisualState): {
+  bg: string;
+  border: string;
+  dot: string;
+  textAccent: string;
+  pulse: boolean;
+} {
+  switch (state) {
+    case "free":
+      return {
+        bg: "bg-op-surface",
+        border: "border-op-border",
+        dot: "bg-op-border-2",
+        textAccent: "text-op-text",
+        pulse: false,
+      };
+    case "recently_paid":
+      return {
+        bg: "bg-ok/10",
+        border: "border-ok/35",
+        dot: "bg-ok",
+        textAccent: "text-[#1E5339]",
+        pulse: false,
+      };
+    case "cooking":
+      // Amber claro — "cocina trabajando, no hay nada que hacer".
+      return {
+        bg: "bg-[#C98A2E]/8",
+        border: "border-[#C98A2E]/30",
+        dot: "bg-[#C98A2E]/70",
+        textAccent: "text-op-text",
+        pulse: false,
+      };
+    case "ready_to_serve":
+      // Amber fuerte — ¡acción! comida lista para entregar.
+      return {
+        bg: "bg-[#C98A2E]/18",
+        border: "border-[#C98A2E]/55",
+        dot: "bg-[#C98A2E]",
+        textAccent: "text-[#7F5A1F]",
+        pulse: false,
+      };
+    case "eating":
+      // Ink suave — mesa ocupada sin acción urgente. Diferente del
+      // "free" pero sin alarma.
+      return {
+        bg: "bg-ink/[0.05]",
+        border: "border-ink/20",
+        dot: "bg-ink/50",
+        textAccent: "text-op-text",
+        pulse: false,
+      };
+    case "eating_at_risk":
+      // Walkout warn — los clientes terminaron de comer y llevan
+      // un rato sin pagar. Amber medio para llamar la atención
+      // sin todavía gritar.
+      return {
+        bg: "bg-[#C98A2E]/14",
+        border: "border-[#C98A2E]/45",
+        dot: "bg-[#C98A2E]",
+        textAccent: "text-[#7F5A1F]",
+        pulse: false,
+      };
+    case "needs_payment":
+      // Terracotta — el cliente pidió cobrar (cash/datafono/mesero).
+      return {
+        bg: "bg-terracotta/12",
+        border: "border-terracotta/40",
+        dot: "bg-terracotta",
+        textAccent: "text-terracotta",
+        pulse: false,
+      };
+    case "needs_payment_urgent":
+      // Cobro pedido + tiempo. Pulsa para forzar la mirada.
+      return {
+        bg: "bg-terracotta/20",
+        border: "border-terracotta/60",
+        dot: "bg-terracotta",
+        textAccent: "text-terracotta",
+        pulse: true,
+      };
+    case "danger":
+      // Walkout danger — rojo + pulse. La situación más urgente.
+      return {
+        bg: "bg-[#C9302C]/12",
+        border: "border-[#C9302C]/45",
+        dot: "bg-[#C9302C]",
+        textAccent: "text-[#C9302C]",
+        pulse: true,
       };
   }
 }

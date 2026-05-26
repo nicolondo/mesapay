@@ -76,6 +76,37 @@ model Restaurant {
   barPrintEnabled     Boolean @default(false)
   printPaperWidthMm   Int     @default(80)
 
+  // === Identidad legal + branding del comercio ============================
+  //
+  // Datos que aparecen en facturas, tirillas y al ser un comercio
+  // formal. Todos opcionales por back-compat; cuando faltan, las
+  // facturas simples no se pueden emitir (validamos a nivel de la
+  // ruta de emisión).
+  //
+  // logoUrl — PNG o SVG subido vía /api/operator/uploads. Se muestra
+  // en el menú del cliente, en facturas y donde la app necesite
+  // identidad de marca. Cuando es null, todo cae al logo MESAPAY.
+  logoUrl       String?
+  legalName     String? // Razón social
+  taxId         String? // NIT (solo dígitos; el DV se calcula al render)
+  legalAddress  String?
+  legalPhone    String?
+
+  // Resolución DIAN — texto descriptivo del acto administrativo
+  // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
+  // la fecha quedan como campos separados para mostrarlos en formato
+  // estandard en la tirilla.
+  dianResolution     String?
+  dianResolutionFrom Int?
+  dianResolutionTo   Int?
+  dianResolutionDate DateTime?
+  // Prefijo de los números (ej "POS", "FE"). Concatena con el
+  // consecutivo al renderear.
+  invoicePrefix      String?
+  // Contador del próximo consecutivo a asignar. Incrementa
+  // atómicamente cuando se emite una factura simple.
+  invoiceNextNumber  Int     @default(1)
+
   // === Políticas del staff ================================================
   //
   // Configurables por el comercio desde /operator/settings/staff-policies.

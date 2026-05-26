@@ -25,6 +25,10 @@ export default async function SettingsPage() {
       menuTags: true,
       tipPolicy: true,
       shiftPolicy: true,
+      logoUrl: true,
+      legalName: true,
+      taxId: true,
+      dianResolution: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
@@ -69,6 +73,25 @@ export default async function SettingsPage() {
       </p>
 
       <div className="space-y-3">
+        <SettingCard
+          href="/operator/settings/identidad"
+          title="Identidad del comercio"
+          subtitle="Logo, razón social, NIT, resolución DIAN"
+          badge={
+            tenant.logoUrl && tenant.legalName && tenant.taxId
+              ? "Completo"
+              : tenant.logoUrl || tenant.legalName
+                ? "Parcial"
+                : "Sin configurar"
+          }
+          tint={
+            tenant.logoUrl && tenant.legalName && tenant.taxId
+              ? "bg-ok/15 text-ok"
+              : tenant.logoUrl || tenant.legalName
+                ? "bg-[#C98A2E]/20 text-[#8F6828]"
+                : "bg-paper text-op-muted"
+          }
+        />
         <SettingCard
           href="/operator/settings/usuarios"
           title="Usuarios"

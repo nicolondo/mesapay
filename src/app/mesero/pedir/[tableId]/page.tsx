@@ -130,6 +130,7 @@ export default async function MeseroPedirPage({
         name: tenant.name,
         tagline: tenant.tagline,
         serviceMode: tenant.serviceMode,
+        logoUrl: tenant.logoUrl,
       }}
       tableId={table.id}
       locationLabel={

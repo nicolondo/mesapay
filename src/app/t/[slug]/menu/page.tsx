@@ -111,6 +111,7 @@ export default async function MenuPage({
         name: tenant.name,
         tagline: tenant.tagline,
         serviceMode: tenant.serviceMode,
+        logoUrl: tenant.logoUrl,
       }}
       tableId={table.id}
       locationLabel={

@@ -19,6 +19,9 @@ type Tenant = {
   name: string;
   tagline: string | null;
   serviceMode: "table" | "counter";
+  // Logo del comercio para el header del menú. Null cae al logo
+  // MESAPAY (resuelto via /lib/branding.ts).
+  logoUrl?: string | null;
 };
 type Category = { id: string; slug: string; label: string; menuId: string };
 type MenuTab = {
@@ -837,13 +840,26 @@ export function MenuClient({
       >
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
-                {locationLabel} · {tenant.name}
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Logo del comercio. Fallback al logo MESAPAY si no
+                  subieron uno (resolveLogoSrc encapsula la lógica). */}
+              <img
+                src={
+                  tenant.logoUrl && tenant.logoUrl.trim()
+                    ? tenant.logoUrl
+                    : "/icons/icon-192.png"
+                }
+                alt={tenant.name}
+                className="w-10 h-10 rounded-lg object-contain bg-paper border border-hairline shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
+                  {locationLabel} · {tenant.name}
+                </div>
+                <h1 className="font-display text-3xl tracking-[-0.015em]">
+                  La carta
+                </h1>
               </div>
-              <h1 className="font-display text-3xl tracking-[-0.015em]">
-                La carta
-              </h1>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <LayoutSwitcher layout={layout} onChange={changeLayout} />

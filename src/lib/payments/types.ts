@@ -121,6 +121,9 @@ export type PseInitRequest = {
     docNumber: string;
     personType: PsePersonType;
   };
+  /** Código del banco que el diner eligió. Lo pasamos a Kushki para
+   * que abra directamente la página del banco sin un paso extra. */
+  bankCode: string;
   /** Descripción que aparece en el extracto bancario del pagador. */
   paymentDescription?: string;
   /** URL absoluta a la que Kushki redirige cuando termina. */

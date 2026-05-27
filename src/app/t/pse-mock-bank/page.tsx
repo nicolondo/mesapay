@@ -1,5 +1,20 @@
 import { redirect } from "next/navigation";
 
+// Lista hardcoded para mostrar el nombre del banco en la pantalla.
+// Coincide con MOCK_PSE_BANKS en kushki/mock.ts.
+const BANK_NAMES: Record<string, string> = {
+  "1007": "Bancolombia",
+  "1051": "Davivienda",
+  "1013": "BBVA Colombia",
+  "1019": "Scotiabank Colpatria",
+  "1023": "Banco de Occidente",
+  "1001": "Banco de Bogotá",
+  "1062": "Banco Falabella",
+  "1058": "Banco AV Villas",
+  "1066": "Banco Cooperativo Coopcentral",
+  "1283": "Nequi",
+};
+
 /**
  * Página mock que simula la web de un banco PSE. Llamada cuando estamos
  * en KUSHKI_MODE=mock — recibe los params que armó el mock provider y

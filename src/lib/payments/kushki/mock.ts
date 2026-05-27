@@ -178,6 +178,7 @@ export class MockKushkiProvider implements PaymentProvider {
     const redirectUrl = new URL("/t/pse-mock-bank", "https://placeholder");
     redirectUrl.searchParams.set("ref", providerRef);
     redirectUrl.searchParams.set("amount", String(req.amount.amountCents));
+    redirectUrl.searchParams.set("bank", req.bankCode);
     redirectUrl.searchParams.set("return", req.callbackUrl);
     // Path relativo; el caller absolutiza con su origin.
     return {

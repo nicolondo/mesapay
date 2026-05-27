@@ -186,6 +186,7 @@ export class LiveKushkiProvider implements PaymentProvider {
         documentNumber: req.buyer.docNumber,
         email: req.buyer.email,
         currency: req.amount.currency,
+        bankId: req.bankCode,
         ...(req.paymentDescription
           ? { paymentDescription: req.paymentDescription }
           : {}),

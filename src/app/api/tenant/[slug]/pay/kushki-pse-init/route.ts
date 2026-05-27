@@ -28,13 +28,14 @@ import { validateNewPaymentAmount } from "@/lib/orderTotals";
  * otras rieles diner-side).
  */
 
-// Kushki PSE no exige firstName/lastName en el init (los recibe del
-// banco después del login). Sólo email + doc + tipo de persona. El
-// banco lo elige el usuario en la página hosted de Kushki.
+// Kushki PSE: email + doc + tipo de persona + banco. El banco lo
+// elige el diner en nuestro sheet para que Kushki abra directamente
+// la página del banco sin un paso extra de "elegí tu banco".
 const schema = z.object({
   orderId: z.string().min(1),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),
+  bankCode: z.string().trim().min(1),
   buyer: z.object({
     email: z.string().trim().email(),
     docType: z.enum(["CC", "CE", "NIT", "PA", "TI"]).default("CC"),
@@ -185,6 +186,7 @@ export async function POST(
         currency: "COP",
       },
       buyer: parsed.data.buyer,
+      bankCode: parsed.data.bankCode,
       paymentDescription: `Pago ${tenant.name} · orden ${order.id.slice(0, 6)}`,
       callbackUrl: returnUrl,
       metadata: {

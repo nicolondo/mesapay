@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 export type PaymentMethodSlug =
   | "kushki_card_terminal"
   | "kushki_apple_pay"
+  | "external_terminal"
   | "cash";
 
 export type PaymentMethodConfig = {
@@ -25,9 +26,15 @@ export type PaymentMethodConfig = {
 export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
   {
     slug: "kushki_card_terminal",
-    label: "Tarjeta con datáfono",
+    label: "Tarjeta con datáfono (Kushki)",
     description:
-      "Cobro por datáfono Smart POS — el mesero acerca el equipo a la mesa.",
+      "Cobro por datáfono Smart POS de Kushki — el mesero acerca el equipo a la mesa.",
+  },
+  {
+    slug: "external_terminal",
+    label: "Tarjeta con datáfono del comercio",
+    description:
+      "El comercio cobra con su propio datáfono (Bancolombia, Davivienda, etc.). El mesero confirma el cobro en /salón.",
   },
   {
     slug: "kushki_apple_pay",

@@ -23,6 +23,7 @@ type PayItem = {
 type MethodKind =
   | "kushki_apple_pay"
   | "kushki_card_terminal"
+  | "external_terminal"
   | "demo_cash";
 
 export function PayClient({
@@ -64,7 +65,12 @@ export function PayClient({
   // Per-restaurant payment method toggles. Slugs of methods the admin
   // enabled in /admin/restaurants/[id]. Buttons are filtered against
   // this list so disabled methods never render.
-  enabledMethods: ("kushki_card_terminal" | "kushki_apple_pay" | "cash")[];
+  enabledMethods: (
+    | "kushki_card_terminal"
+    | "kushki_apple_pay"
+    | "external_terminal"
+    | "cash"
+  )[];
   // Operator's assigned Smart POS (set in /operator/settings/datafonos).
   // When operatorMode is true and this is non-null, "Cobrar con
   // datáfono" pushes the charge straight to this device instead of
@@ -253,6 +259,48 @@ export function PayClient({
         operatorMode
           ? staffServeHref
           : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`,
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Datáfono propio del comercio — el comercio cobra con su POS
+   * físico externo (Bancolombia, etc.), MESAPAY sólo registra el
+   * cobro. Mismo patrón que cash: crea pending, mesero confirma
+   * en Salón.
+   */
+  async function payWithExternalTerminal() {
+    if (amountCents <= 0) return;
+    setBusy("external_terminal");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenantSlug}/pay/external-terminal-request`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            orderId,
+            amountCents: amountSubtotal,
+            tipCents: amountTip,
+          }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.paymentId) {
+        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
+        return;
+      }
+      // Mismo destino que el flujo de terminal de Kushki: el cliente
+      // ve la pantalla "esperando" hasta que el mesero confirma desde
+      // Salón. Bandera external=1 para que la pantalla diga "datáfono
+      // del comercio" en vez de "Smart POS".
+      router.push(
+        operatorMode
+          ? staffServeHref
+          : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`,
       );
     } finally {
       setBusy(null);
@@ -622,6 +670,16 @@ export function PayClient({
             disabled={busy !== null || amountCents <= 0}
             busy={busy === "kushki_card_terminal"}
             onClick={payWithTerminal}
+            amountCents={amountCents}
+            operatorMode={operatorMode}
+          />
+        )}
+        {enabledMethods.includes("external_terminal") && (
+          <PayButton
+            kind="external_terminal"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "external_terminal"}
+            onClick={payWithExternalTerminal}
             amountCents={amountCents}
             operatorMode={operatorMode}
           />
@@ -1234,6 +1292,7 @@ function PayButton({
   kind:
     | "apple"
     | "terminal"
+    | "external_terminal"
     | "cash"
     | "demo_terminal";
   disabled: boolean;
@@ -1268,7 +1327,7 @@ type ButtonMeta = { label: string; icon: string; className: string };
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
 // frame the action correctly.
 const BUTTON_META_DINER: Record<
-  "apple" | "terminal" | "cash" | "demo_terminal",
+  "apple" | "terminal" | "external_terminal" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: {
@@ -1280,6 +1339,11 @@ const BUTTON_META_DINER: Record<
     label: "Tarjeta con datáfono",
     icon: "💳",
     className: "bg-terracotta text-paper",
+  },
+  external_terminal: {
+    label: "Tarjeta (datáfono del comercio)",
+    icon: "💳",
+    className: "bg-paper text-ink border border-hairline",
   },
   cash: {
     label: "Efectivo (llamar al mesero)",
@@ -1297,7 +1361,7 @@ const BUTTON_META_DINER: Record<
 // They aren't "calling the mesero" or "asking for the datáfono" —
 // they're recording how the diner is paying right now.
 const BUTTON_META_OP: Record<
-  "apple" | "terminal" | "cash" | "demo_terminal",
+  "apple" | "terminal" | "external_terminal" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
@@ -1305,6 +1369,11 @@ const BUTTON_META_OP: Record<
     label: "Cobrar con datáfono",
     icon: "💳",
     className: "bg-terracotta text-paper",
+  },
+  external_terminal: {
+    label: "Cobrar con datáfono del comercio",
+    icon: "💳",
+    className: "bg-paper text-ink border border-hairline",
   },
   cash: {
     label: "Recibir en efectivo",

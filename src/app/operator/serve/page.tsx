@@ -79,9 +79,11 @@ export default async function ServePage() {
     }),
     // Datáfono requests waiting for the operator/cashier to push the
     // amount to the actual terminal. Same urgency as cash requests.
+    // Incluye tanto Kushki Smart POS como datáfono externo del
+    // comercio — el card distingue por payment.method al renderizar.
     db.payment.findMany({
       where: {
-        method: "kushki_card_terminal",
+        method: { in: ["kushki_card_terminal", "external_terminal"] },
         status: "pending",
         order: {
           restaurantId,
@@ -247,6 +249,7 @@ export default async function ServePage() {
       }))}
       terminalPending={terminalPending.map((p) => ({
         id: p.id,
+        method: p.method as "kushki_card_terminal" | "external_terminal",
         amountCents: p.amountCents,
         tipCents: p.tipCents,
         createdAt: p.createdAt.toISOString(),

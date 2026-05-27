@@ -338,5 +338,6 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   wompi_nequi: "Nequi",
   kushki_apple_pay: "Apple Pay",
   kushki_google_pay: "Google Pay",
-  kushki_card_terminal: "Datáfono",
+  kushki_card_terminal: "Datáfono (Kushki)",
+  external_terminal: "Datáfono propio",
 };

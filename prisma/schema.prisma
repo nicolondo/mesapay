@@ -791,6 +791,12 @@ enum PaymentMethod {
   kushki_apple_pay
   kushki_google_pay
   kushki_card_terminal
+  // Datáfono propio del comercio (Bancolombia, Davivienda, etc.) — el
+  // mesero acerca su POS físico externo y cobra ahí. MESAPAY sólo
+  // registra que el cobro ocurrió (settlement manual desde Salón).
+  // Útil para comercios que aún no migran a Kushki o que tienen un
+  // contrato de adquiriente preexistente que prefieren mantener.
+  external_terminal
 }
 
 enum PaymentStatus {

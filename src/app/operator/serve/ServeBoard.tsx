@@ -81,6 +81,12 @@ type CancelledPending = {
 
 type TerminalPending = {
   id: string;
+  // Distingue Smart POS Kushki (push cloud) vs datáfono externo del
+  // comercio (cobro manual desde POS físico propio). Cambia la UX
+  // del card: Kushki tiene botón "Enviar al datáfono", externo
+  // tiene botones "Aprobado / Rechazado" porque el mesero ya cobró
+  // físicamente y sólo reporta el resultado.
+  method: "kushki_card_terminal" | "external_terminal";
   amountCents: number;
   tipCents: number;
   createdAt: string;
@@ -587,6 +593,7 @@ function TerminalPendingCard({
 }) {
   const [err, setErr] = useState<string | null>(null);
   const total = pending.amountCents + pending.tipCents;
+  const isExternal = pending.method === "external_terminal";
   const title =
     serviceMode === "counter"
       ? `Orden ${pending.order.shortCode}`
@@ -615,6 +622,31 @@ function TerminalPendingCard({
     onCharged();
   }
 
+  /**
+   * Settle de external_terminal: el mesero ya cobró con su POS
+   * propio y reporta el resultado. No hay push a ningún hardware,
+   * es sólo marcar approved o declined en MESAPAY.
+   */
+  async function settleExternal(action: "approve" | "decline") {
+    onBusyChange(pending.id);
+    setErr(null);
+    const res = await fetch(
+      `/api/operator/payments/${pending.id}/settle-external-terminal`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      },
+    );
+    onBusyChange(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "No pudimos marcar el cobro.");
+      return;
+    }
+    onCharged();
+  }
+
   return (
     <li className="rounded-2xl border-2 border-terracotta bg-terracotta/10 p-4 flex flex-col">
       <div className="flex items-center justify-between gap-2">
@@ -625,6 +657,11 @@ function TerminalPendingCard({
           {timeAgoStr(pending.createdAt)}
         </span>
       </div>
+      {isExternal && (
+        <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted mt-1">
+          Datáfono propio del comercio
+        </div>
+      )}
       <div className="mt-2 flex items-baseline justify-between">
         <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
           Cobrar
@@ -639,17 +676,40 @@ function TerminalPendingCard({
         </div>
       )}
       <div className="text-[11px] text-op-muted mt-2">
-        Lleva el datáfono a la mesa y presiona "Cobrar".
+        {isExternal
+          ? "Pasa la tarjeta por tu datáfono y reporta el resultado."
+          : 'Lleva el datáfono a la mesa y presiona "Cobrar".'}
       </div>
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
-      <button
-        type="button"
-        onClick={charge}
-        disabled={busy}
-        className="mt-3 h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
-      >
-        {busy ? "Enviando al datáfono…" : `Cobrar ${fmtCOP(total)}`}
-      </button>
+      {isExternal ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => settleExternal("decline")}
+            disabled={busy}
+            className="h-10 rounded-full border border-op-border bg-paper text-ink text-sm disabled:opacity-60"
+          >
+            Rechazado
+          </button>
+          <button
+            type="button"
+            onClick={() => settleExternal("approve")}
+            disabled={busy}
+            className="h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
+          >
+            {busy ? "…" : "Aprobado"}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={charge}
+          disabled={busy}
+          className="mt-3 h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
+        >
+          {busy ? "Enviando al datáfono…" : `Cobrar ${fmtCOP(total)}`}
+        </button>
+      )}
     </li>
   );
 }

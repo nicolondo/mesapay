@@ -217,7 +217,11 @@ export function PayClient({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           orderId,
-          amountCents: amountSubtotal,
+          // amountCents = TOTAL (food + tip). El backend deriva food
+          // restando tipCents — si mandáramos food acá, el cap y el
+          // recompute le restarían el tip de nuevo y el order quedaría
+          // con "FALTA $X" igual al tip.
+          amountCents,
           tipCents: amountTip,
         }),
       });
@@ -289,7 +293,9 @@ export function PayClient({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             orderId,
-            amountCents: amountSubtotal,
+            // amountCents = TOTAL (food + tip). Ver comentario en
+            // payWithTerminal sobre por qué no mandamos food acá.
+            amountCents,
             tipCents: amountTip,
           }),
         },
@@ -340,7 +346,9 @@ export function PayClient({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             orderId,
-            amountCents: amountSubtotal,
+            // amountCents = TOTAL (food + tip). Ver comentario en
+            // payWithTerminal sobre por qué no mandamos food acá.
+            amountCents,
             tipCents: amountTip,
             bankCode: args.bankCode,
             buyer: {

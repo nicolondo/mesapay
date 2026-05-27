@@ -161,6 +161,16 @@ export async function POST(
       userMessage = "Tarjeta inválida.";
     } else if (detail.includes('"code":"023"') || detail.includes("(023)")) {
       userMessage = "Tarjeta bloqueada.";
+    } else if (detail.includes('"code":"577"')) {
+      // Token ya usado. Pasa cuando un charge anterior consumió el
+      // token (con éxito o no) y el cliente intenta cobrarlo de nuevo.
+      // Le pedimos al diner que cierre y reabra el form para forzar
+      // una tokenización fresca.
+      userMessage =
+        "El intento anterior expiró. Cerrá esta ventana y volvé a ingresar los datos.";
+    } else if (detail.includes('"code":"K040"')) {
+      userMessage =
+        "Credenciales del comercio no configuradas correctamente. Avisá al restaurante.";
     } else if (detail.includes("K220")) {
       userMessage = "Error procesando el cobro — reintentá.";
     }

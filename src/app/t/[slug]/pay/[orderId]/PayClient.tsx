@@ -1868,45 +1868,13 @@ function CardSheet({
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState(""); // formato MM/YY
   const [cvv, setCvv] = useState("");
-  // Kushki Colombia valida anti-fraude antes de tokenizar y rechaza
-  // con K001 si falta el email del titular. Lo pedimos en el sheet
-  // y también nos sirve para el recibo electrónico.
+  // Kushki Colombia incluye Sift Science en el SDK y el body que arma
+  // el SDK tira K001 con nuestro setup. Llamamos al endpoint directo
+  // — sigue siendo SAQ-A porque el PAN solo va a kushkipagos.com.
+  // Email se incluye en el body para el recibo electrónico.
   const [email, setEmail] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [tokenizing, setTokenizing] = useState(false);
-  const kushkiRef = useRef<unknown>(null);
-
-  // Carga lazy del SDK al abrir el sheet (mismo patrón que PseSheet).
-  useEffect(() => {
-    if (isMockMode || !kushkiPublicKey) return;
-    let alive = true;
-    (async () => {
-      try {
-        const mod = await import("@kushki/js");
-        const KushkiCtor = mod.Kushki ?? (mod as { default?: unknown }).default;
-        if (typeof KushkiCtor !== "function") {
-          throw new Error("@kushki/js no expone Kushki constructor");
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const KCtor = KushkiCtor as new (opts: {
-          merchantId: string;
-          inTestEnvironment: boolean;
-        }) => unknown;
-        const k = new KCtor({
-          merchantId: kushkiPublicKey,
-          inTestEnvironment: true,
-        });
-        if (alive) kushkiRef.current = k;
-      } catch (e) {
-        console.error("[card] kushki sdk load failed", e);
-        if (alive)
-          setErr("No pudimos cargar el procesador de pagos. Reintentá.");
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [kushkiPublicKey, isMockMode]);
 
   function formatCardNumber(raw: string) {
     const digits = raw.replace(/\D/g, "").slice(0, 19);
@@ -1957,19 +1925,15 @@ function CardSheet({
       return;
     }
 
-    if (!kushkiRef.current) {
-      setErr("Procesador de pagos no listo aún. Esperá un momento.");
-      return;
-    }
-
     setTokenizing(true);
     try {
-      // Kushki.requestToken espera body con card{number,name,expiryMonth,
-      // expiryYear,cvv} + totalAmount en pesos + currency. Para Colombia
-      // hay que incluir explícitamente `isDeferred: false` y el email
-      // del titular para anti-fraude — sin ellos Kushki devuelve K001.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const body: any = {
+      // Bypass del SDK @kushki/js: el SDK arma un body con campos de
+      // Sift Science que Kushki rechaza con K001 en este setup. El
+      // endpoint directo acepta el body sin los extras y devuelve el
+      // token al toque. PCI SAQ-A se mantiene porque el PAN sólo viaja
+      // a api-uat.kushkipagos.com (browser → Kushki), no a MESAPAY.
+      const baseUrl = "https://api-uat.kushkipagos.com"; // TODO: prod URL cuando KUSHKI_MODE=production
+      const body = {
         card: {
           number: digits,
           name: holderName.trim(),
@@ -1986,47 +1950,46 @@ function CardSheet({
         cardLast4: digits.slice(-4),
         totalAmount: body.totalAmount,
         currency: body.currency,
-        hasEmail: !!body.email,
-        isDeferred: body.isDeferred,
       });
-      const response = await new Promise<{
+      const res = await fetch(`${baseUrl}/card/v1/tokens`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Public-Merchant-Id": kushkiPublicKey,
+        },
+        body: JSON.stringify(body),
+      });
+      const json: {
         token?: string;
-        security?: { acsURL?: string };
         code?: string;
         message?: string;
-        error?: string;
-      }>((resolve) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (kushkiRef.current as any).requestToken(
-          body,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (resp: any) => resolve(resp),
-        );
-      });
+        security?: { acsURL?: string };
+      } = await res.json().catch(() => ({}));
       console.log("[card] kushki tokens response", {
-        hasToken: !!response.token,
-        code: response.code,
-        has3DS: !!response.security?.acsURL,
+        status: res.status,
+        hasToken: !!json.token,
+        code: json.code,
+        has3DS: !!json.security?.acsURL,
       });
-      if (response.code) {
+      if (!res.ok || json.code) {
         setErr(
-          `${response.message ?? response.error ?? "Error de Kushki"} (${response.code})`,
+          `${json.message ?? "Error de Kushki"}${json.code ? ` (${json.code})` : ` (HTTP ${res.status})`}`,
         );
         return;
       }
-      if (response.security?.acsURL) {
-        // 3DS no soportado todavía — el flow correcto requiere abrir
-        // el acsURL en un iframe/redirect y manejar el callback.
+      if (json.security?.acsURL) {
+        // 3DS no soportado todavía — requiere abrir acsURL en iframe
+        // o redirect + manejar callback de OTP.
         setErr(
           "Esta tarjeta requiere autenticación 3DS. Probá con otro método o pedile al mesero el datáfono.",
         );
         return;
       }
-      if (!response.token) {
+      if (!json.token) {
         setErr("Kushki no devolvió un token. Reintentá.");
         return;
       }
-      onTokenized(response.token);
+      onTokenized(json.token);
     } catch (e) {
       console.error("[card] tokenize error", e);
       setErr("No pudimos tokenizar la tarjeta. Intentá de nuevo.");

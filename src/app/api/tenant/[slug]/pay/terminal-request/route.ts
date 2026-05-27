@@ -43,11 +43,17 @@ export async function POST(
   }
 
   // Cap before queuing the datáfono push — same outstanding check we
-  // use for the other rails. A pending kushki_card_terminal payment
-  // also counts toward "claimed" money so we won't push two
-  // simultaneous datáfono requests for the same outstanding amount.
+  // use for the other rails. Excluímos pendings previos del MISMO
+  // método (kushki_card_terminal) del conteo porque vamos a barrerlos
+  // dentro de la transacción al crear el nuevo pending. Sin esto, un
+  // diner que retoca el botón quedaría bloqueado por su propio
+  // pending stale ("Quedan $X pendientes — intenta con monto menor").
+  // Otros métodos pendientes (efectivo, external_terminal, etc.) sí
+  // siguen contando — esos no los tocamos.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
+    excludePendingMethods: ["kushki_card_terminal"],
+  });
   if (!cap.ok) {
     return NextResponse.json(
       {
@@ -76,6 +82,21 @@ export async function POST(
       : null;
 
   const payment = await db.$transaction(async (tx) => {
+    // Sweep de pendings stale del mismo método para esta orden.
+    // Caso típico: diner tocó "Tarjeta con datáfono", no se
+    // completó (cerró el sheet, perdió señal, etc.), y vuelve a
+    // tocarlo. El pending viejo queda colgado bloqueando outstanding;
+    // lo marcamos declined antes de crear el nuevo. El cap arriba
+    // ya excluye este método del conteo así que la operación es
+    // consistente.
+    await tx.payment.updateMany({
+      where: {
+        orderId: order.id,
+        method: "kushki_card_terminal",
+        status: "pending",
+      },
+      data: { status: "declined" },
+    });
     const p = await tx.payment.create({
       data: {
         orderId: order.id,

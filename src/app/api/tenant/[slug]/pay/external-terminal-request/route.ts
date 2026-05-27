@@ -49,11 +49,16 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Cap antes de crear el pending — un pending de datáfono externo
-  // también claima outstanding para evitar que se acumulen 2 cobros
-  // por el mismo monto si el cliente toca el botón dos veces.
+  // Cap antes de crear el pending. Excluímos pendings previos del
+  // mismo método (external_terminal) del conteo porque vamos a
+  // barrerlos en la transacción de abajo — sino un diner que retoca
+  // el botón quedaría bloqueado por su propio pending stale.
+  // Otros pendings (efectivo, kushki, etc.) siguen contando — esos
+  // no los tocamos.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
+    excludePendingMethods: ["external_terminal"],
+  });
   if (!cap.ok) {
     return NextResponse.json(
       {
@@ -80,6 +85,19 @@ export async function POST(
       : null;
 
   const payment = await db.$transaction(async (tx) => {
+    // Sweep de pendings stale del mismo método. Caso típico: diner
+    // tocó "Tarjeta (datáfono del comercio)", no se completó, vuelve
+    // a tocarlo. El pending viejo queda colgado bloqueando outstanding
+    // — lo declinamos antes de crear el nuevo. El cap arriba ya
+    // excluyó este método del conteo así que es consistente.
+    await tx.payment.updateMany({
+      where: {
+        orderId: order.id,
+        method: "external_terminal",
+        status: "pending",
+      },
+      data: { status: "declined" },
+    });
     const p = await tx.payment.create({
       data: {
         orderId: order.id,

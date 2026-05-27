@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PaymentMethod } from "@prisma/client";
 import { db } from "./db";
 
 /**
@@ -78,13 +78,19 @@ export type PaymentValidation =
 export async function validateNewPaymentAmount(
   orderId: string,
   newFoodCents: number,
-  // When the OPERATOR is the one settling cash (settleNow path), they
-  // own the canonical view of the drawer — any old pending demo_cash
-  // for this order is a stale "llamar al mesero" intent that the
-  // operator is about to override / clean up in the same transaction.
-  // Counting it here would block the legitimate cobro with
-  // amount_exceeds_outstanding even though everything checks out.
-  opts: { excludePending?: boolean } = {},
+  // Opciones de exclusión cuando el caller va a barrer pendings
+  // viejos en la misma transacción (sino el cap rechazaría el cobro
+  // legítimo porque el pending stale reclama outstanding).
+  //
+  //   excludePending=true → ignora TODOS los pendings (caso cash
+  //     settleNow: el operator sweepa todos los demo_cash en la tx)
+  //   excludePendingMethods=[...] → ignora pendings sólo de esos
+  //     métodos (caso terminal: el diner retoca el botón, queremos
+  //     sweep de pendings del MISMO método sin tocar otros)
+  opts: {
+    excludePending?: boolean;
+    excludePendingMethods?: PaymentMethod[];
+  } = {},
 ): Promise<PaymentValidation> {
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -99,16 +105,32 @@ export async function validateNewPaymentAmount(
   // By default count approved AND pending(cash) payments — a pending
   // demo_cash payment is money the diner has already "claimed" they
   // will hand to the mesero. Letting another payment slip in on top
-  // would double-collect when the cash arrives. The opts.excludePending
-  // flag lifts that constraint for the operator settle path (see above).
-  const statusIn: ("approved" | "pending")[] = opts.excludePending
-    ? ["approved"]
-    : ["approved", "pending"];
-  const claims = await db.payment.findMany({
-    where: {
+  // would double-collect when the cash arrives. excludePending lifts
+  // that constraint completamente; excludePendingMethods lo hace por
+  // método (más fino para flows que sólo sweepan su propio método).
+  const where: Prisma.PaymentWhereInput = (() => {
+    if (opts.excludePending) {
+      return { orderId, status: "approved" };
+    }
+    if (opts.excludePendingMethods?.length) {
+      return {
+        orderId,
+        OR: [
+          { status: "approved" },
+          {
+            status: "pending",
+            method: { notIn: opts.excludePendingMethods },
+          },
+        ],
+      };
+    }
+    return {
       orderId,
-      status: { in: statusIn },
-    },
+      status: { in: ["approved", "pending"] },
+    };
+  })();
+  const claims = await db.payment.findMany({
+    where,
     select: { amountCents: true, tipCents: true },
   });
   const totals = computeOrderTotals(order.subtotalCents, claims);

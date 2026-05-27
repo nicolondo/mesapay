@@ -118,18 +118,17 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   /**
-   * Lista de bancos PSE. Endpoint `GET transfer-subscriptions/v1/bankList`
-   * con header `Public-Merchant-Id`. Devuelve `[{ code, name }]`.
+   * Lista de bancos PSE. Endpoint canónico del Kushki.js SDK:
+   *   GET /transfer/v1/bankList
+   *   auth: Public-Merchant-Id (clave pública del sub-merchant)
    *
-   * Para PSE simple (no recurrente), Kushki muestra el bank picker en
-   * su página hosted después del init — no es estrictamente necesario
-   * usar esta lista. La dejamos por si en el futuro queremos mostrar
-   * un dropdown "preview" antes de redirigir.
+   * (No confundir con /transfer-subscriptions/v1/bankList — ese es
+   * para suscripciones PSE recurrentes, lista distinta.)
    */
   async listPseBanks(publicKey: string): Promise<PseBank[]> {
     const resp = await kushkiFetch<
       Array<{ code?: string; id?: string; name: string }>
-    >("/transfer-subscriptions/v1/bankList", {
+    >("/transfer/v1/bankList", {
       method: "GET",
       auth: { kind: "submerchant_public", publicKey },
     });
@@ -141,23 +140,30 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   /**
-   * Inicia una transacción PSE.
+   * Inicia una transacción PSE. Endpoint canónico del Kushki.js SDK:
+   *   POST /transfer/v1/tokens
+   *   auth: Public-Merchant-Id (clave pública, igual que card tokens)
    *
-   * Endpoint: `POST /transfer/v1/init`
-   * Auth: header `Private-Merchant-Id` con la private key del sub-merchant
-   * Body schema (basado en Kushki Android SDK Transfer.kt + docs):
-   *   {
-   *     amount: { subtotalIva, subtotalIva0, iva },
-   *     callbackUrl,            // URL absoluta a la que Kushki redirige al terminar
-   *     userType,               // "0" natural | "1" jurídica
-   *     documentType,           // "CC" | "CE" | "NIT" | "PA"
-   *     documentNumber,
-   *     email,
-   *     currency,               // "COP"
-   *     paymentDescription      // opcional, aparece en extracto bancario
-   *   }
-   * Respuesta esperada: { token, redirectUrl } o similar — armamos
-   * la URL del banco con el token si Kushki no la devuelve directa.
+   * Body (verificado contra TransferService + Transfer.kt):
+   *   amount: { subtotalIva, subtotalIva0, iva }
+   *   callbackUrl                ← URL absoluta a la que vuelve el diner
+   *   userType                   ← "0" natural | "1" jurídica
+   *   documentType               ← "CC" | "CE" | "NIT" | "PA"
+   *   documentNumber
+   *   email
+   *   currency                   ← "COP"
+   *   bankId                     ← código del banco elegido
+   *   paymentDescription         ← opcional, aparece en extracto
+   *
+   * Respuesta esperada (Transaction model):
+   *   token         ← identifica el transfer
+   *   secureId      ← opcional
+   *   secureService ← opcional ("transfer" típicamente)
+   *   security      ← objeto con acsURL (la URL del banco) cuando aplica
+   *   url / redirectUrl ← campo directo cuando viene
+   *
+   * En PSE el `acsURL` (o equivalente) es la URL del banco a donde
+   * mandamos al diner para que autentique con su login bancario.
    */
   async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
     const amount = req.amount.amountCents / 100;
@@ -190,47 +196,62 @@ export class LiveKushkiProvider implements PaymentProvider {
 
     let resp: Record<string, unknown>;
     try {
-      resp = await kushkiFetch<Record<string, unknown>>("/transfer/v1/init", {
-        method: "POST",
-        auth: { kind: "submerchant", privateKey: req.merchantId },
-        body,
-      });
+      resp = await kushkiFetch<Record<string, unknown>>(
+        "/transfer/v1/tokens",
+        {
+          method: "POST",
+          // PSE usa auth pública (igual que tokenización de tarjetas).
+          // req.merchantId carga la PUBLIC key del sub-merchant para
+          // este flow (ver pse-init route).
+          auth: { kind: "submerchant_public", publicKey: req.merchantId },
+          body,
+        },
+      );
     } catch (err) {
-      console.error("[kushki/pse] init FAILED", err);
+      console.error("[kushki/pse] tokens FAILED", err);
       throw err;
     }
 
-    console.log("[kushki/pse] init response", JSON.stringify(resp).slice(0, 500));
+    console.log(
+      "[kushki/pse] tokens response",
+      JSON.stringify(resp).slice(0, 800),
+    );
 
-    // Kushki puede devolver el redirect en distintos nombres según el
-    // producto (PSE clásico vs Avanza vs Transfer-Async). Probamos las
-    // claves más comunes en orden de probabilidad.
+    // Buscamos el token y la URL del banco en los campos típicos del
+    // Transaction model. `security.acsURL` es lo más probable, pero
+    // distintos productos PSE usan distintos nombres.
     const token =
       (typeof resp.token === "string" && resp.token) ||
       (typeof resp.transactionToken === "string" && resp.transactionToken) ||
-      (typeof resp.transferId === "string" && resp.transferId) ||
       "";
 
+    const security =
+      resp.security && typeof resp.security === "object"
+        ? (resp.security as Record<string, unknown>)
+        : null;
+
     const explicitRedirect =
-      (typeof resp.redirectUrl === "string" && resp.redirectUrl) ||
       (typeof resp.url === "string" && resp.url) ||
+      (typeof resp.redirectUrl === "string" && resp.redirectUrl) ||
       (typeof resp.pseUrl === "string" && resp.pseUrl) ||
       (typeof resp.bankUrl === "string" && resp.bankUrl) ||
+      (security && typeof security.acsURL === "string" && security.acsURL) ||
+      (security && typeof security.acsUrl === "string" && security.acsUrl) ||
       "";
 
     if (!explicitRedirect && !token) {
-      // Kushki no devolvió ni token ni URL — algo está muy mal.
       console.error("[kushki/pse] no redirect+token in response", resp);
       throw new Error(
-        "Kushki PSE init devolvió respuesta sin token ni redirectUrl. " +
+        "Kushki PSE tokens devolvió respuesta sin token ni URL. " +
           "Ver logs para shape exacto.",
       );
     }
 
     const redirectUrl =
       explicitRedirect ||
-      // Fallback con el patrón hosted estándar de Kushki PSE. Si el
-      // path real es otro lo ajustamos cuando lo veamos en los logs.
+      // Sin redirect explícito caemos a la página hosted de Kushki PSE
+      // con el token. Si el path real es otro lo ajustamos cuando lo
+      // veamos en los logs.
       `${getKushkiModeSync() === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
 
     return {

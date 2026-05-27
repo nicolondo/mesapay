@@ -109,7 +109,11 @@ export type PsePersonType = "natural" | "juridica";
 export type PseDocType = "CC" | "CE" | "NIT" | "PA" | "TI";
 
 export type PseInitRequest = {
-  /** Private merchant key del sub-merchant (auth Private-Merchant-Id). */
+  /** Public merchant key del sub-merchant (auth Public-Merchant-Id).
+   * PSE en Kushki usa tokenization que va por la clave pública, no
+   * la privada — mismo patrón que card tokens. La privada solo se
+   * usa después para charges/captures que MESAPAY no toca (Kushki
+   * mueve el dinero directamente vía PSE). */
   merchantId: string;
   amount: Money;
   /** Datos del pagador — requeridos por PSE/ASOBANCARIA. Email + doc

@@ -158,12 +158,15 @@ export async function POST(
     return p;
   });
 
-  // 2. Llamar al provider con la private key del sub-merchant.
-  const privateKey = await getRestaurantPrivateKey(tenant.id);
-  if (!privateKey) {
-    // En mock mode el provider acepta cualquier merchantId; en
-    // sandbox/prod necesitamos la private key real. Si no la tenemos
-    // marcamos el payment como declined y devolvemos error.
+  // 2. PSE en Kushki usa la PUBLIC key del sub-merchant (igual que
+  //    tokenización de tarjetas). La private key se usa solo para
+  //    charges/captures que Kushki hace internamente. Si el comercio
+  //    no tiene public key cargada en su ficha, no podemos iniciar.
+  //    En mock mode aceptamos cualquier string como key.
+  const publicKey =
+    tenant.kushkiPublicKey ??
+    ((await getRestaurantPrivateKey(tenant.id)) ? "mock_public_key" : null);
+  if (!publicKey) {
     await db.payment.update({
       where: { id: payment.id },
       data: { status: "declined" },
@@ -178,9 +181,9 @@ export async function POST(
 
   try {
     const result = await getPaymentProvider().initiatePse({
-      // En live mode, el client de Kushki usa `merchantId` como la
-      // private key del sub-merchant (auth header Private-Merchant-Id).
-      merchantId: privateKey,
+      // El provider live usa este field como PUBLIC merchant key.
+      // El mock lo ignora (cualquier string sirve).
+      merchantId: publicKey,
       amount: {
         amountCents: parsed.data.amountCents,
         currency: "COP",

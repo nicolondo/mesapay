@@ -907,6 +907,9 @@ export function PayClient({
       {cardSheetOpen && (
         <CardSheet
           amountCents={amountCents}
+          tipCents={amountTip}
+          tenantSlug={tenantSlug}
+          orderId={orderId}
           busy={busy === "kushki_card"}
           kushkiPublicKey={kushkiPublicKey}
           isMockMode={isMockMode}
@@ -1851,6 +1854,9 @@ function PresetBill({
  */
 function CardSheet({
   amountCents,
+  tipCents,
+  tenantSlug,
+  orderId,
   busy,
   kushkiPublicKey,
   isMockMode,
@@ -1858,6 +1864,9 @@ function CardSheet({
   onTokenized,
 }: {
   amountCents: number;
+  tipCents: number;
+  tenantSlug: string;
+  orderId: string;
   busy: boolean;
   kushkiPublicKey: string | null;
   isMockMode: boolean;
@@ -1933,6 +1942,12 @@ function CardSheet({
       // token al toque. PCI SAQ-A se mantiene porque el PAN sólo viaja
       // a api-uat.kushkipagos.com (browser → Kushki), no a MESAPAY.
       const baseUrl = "https://api-uat.kushkipagos.com"; // TODO: prod URL cuando KUSHKI_MODE=production
+
+      // 3DS: pedimos `authValidation: "url"` para que Kushki devuelva
+      // la URL del banco cuando la tarjeta lo requiera. callbackUrl
+      // tiene que ser absoluta — el banco redirige al diner ahí con
+      // ?success=...&token=... después del OTP.
+      const callbackUrl = `${window.location.origin}/t/${tenantSlug}/pay/${orderId}/3ds-return`;
       const body = {
         card: {
           number: digits,
@@ -1945,11 +1960,14 @@ function CardSheet({
         currency: "COP",
         isDeferred: false,
         email: email.trim().toLowerCase(),
+        authValidation: "url",
+        callbackUrl,
       };
       console.log("[card] tokenize body shape", {
         cardLast4: digits.slice(-4),
         totalAmount: body.totalAmount,
         currency: body.currency,
+        callbackUrl,
       });
       const res = await fetch(`${baseUrl}/card/v1/tokens`, {
         method: "POST",
@@ -1961,15 +1979,17 @@ function CardSheet({
       });
       const json: {
         token?: string;
+        url?: string; // 3DS challenge URL del banco
+        secureService?: string;
+        secureId?: string;
         code?: string;
         message?: string;
-        security?: { acsURL?: string };
       } = await res.json().catch(() => ({}));
       console.log("[card] kushki tokens response", {
         status: res.status,
         hasToken: !!json.token,
         code: json.code,
-        has3DS: !!json.security?.acsURL,
+        has3DS: !!json.url,
       });
       if (!res.ok || json.code) {
         setErr(
@@ -1977,18 +1997,30 @@ function CardSheet({
         );
         return;
       }
-      if (json.security?.acsURL) {
-        // 3DS no soportado todavía — requiere abrir acsURL en iframe
-        // o redirect + manejar callback de OTP.
-        setErr(
-          "Esta tarjeta requiere autenticación 3DS. Probá con otro método o pedile al mesero el datáfono.",
-        );
-        return;
-      }
       if (!json.token) {
         setErr("Kushki no devolvió un token. Reintentá.");
         return;
       }
+
+      // 3DS required → stash amount+tip en localStorage y redirect
+      // al banco. La página /3ds-return lo recupera para hacer el
+      // charge una vez que el banco valide el OTP.
+      if (json.url) {
+        try {
+          localStorage.setItem(
+            `mesapay:3ds:${orderId}`,
+            JSON.stringify({ amountCents, tipCents }),
+          );
+        } catch (e) {
+          console.error("[card] localStorage stash failed", e);
+        }
+        // Hard navigation al banco — el sheet ya no va a estar visible
+        // cuando el diner vuelva, así que no nos importa cleanup state.
+        window.location.href = json.url;
+        return;
+      }
+
+      // No 3DS → token listo para charge inmediato.
       onTokenized(json.token);
     } catch (e) {
       console.error("[card] tokenize error", e);

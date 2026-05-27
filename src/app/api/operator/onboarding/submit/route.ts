@@ -111,7 +111,7 @@ export async function POST(req: Request) {
   });
 
   try {
-    const provider = getPaymentProvider();
+    const provider = await getPaymentProvider();
     const result = await provider.submitOnboarding({
       legalName: parsed.data.legalName,
       taxId: parsed.data.taxId,

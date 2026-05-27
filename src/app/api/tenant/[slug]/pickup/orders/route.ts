@@ -163,7 +163,8 @@ export async function POST(
       );
     }
     try {
-      const charge = await getPaymentProvider().chargeWithToken({
+      const provider = await getPaymentProvider();
+      const charge = await provider.chargeWithToken({
         merchantId: privateKey,
         amount: { amountCents: subtotalCents, currency: "COP" },
         token: parsed.data.token,

@@ -38,7 +38,8 @@ export async function GET() {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
   try {
-    const balance = await getPaymentProvider().getBalance(privateKey);
+    const provider = await getPaymentProvider();
+    const balance = await provider.getBalance(privateKey);
     return NextResponse.json({
       availableCents: balance.availableCents,
       pendingCents: balance.pendingCents,

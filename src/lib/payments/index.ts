@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { decrypt, encrypt } from "../crypto";
-import { getKushkiModeSync } from "../platformConfig";
+import { getKushkiMode, getKushkiModeSync } from "../platformConfig";
 import { LiveKushkiProvider } from "./kushki/live";
 import { MockKushkiProvider } from "./kushki/mock";
 import type { PaymentProvider } from "./types";
@@ -14,11 +14,30 @@ import type { PaymentProvider } from "./types";
 let cached: PaymentProvider | null = null;
 let cachedMode: string | null = null;
 
-export function getPaymentProvider(): PaymentProvider {
-  // Cache key incluye el modo actual: si el admin cambia mock↔sandbox
-  // queremos que la próxima request use el provider nuevo, no el
-  // cacheado del modo anterior. cachedMode trackea contra qué se
-  // construyó cached.
+/**
+ * Async: lee el modo desde DB (warmeando el cache si está stale) y
+ * devuelve el provider que corresponde. Preferida en todas las routes
+ * porque garantiza que el admin que cambió a sandbox desde /admin se
+ * refleja inmediatamente sin esperar a que otro async path warmee el
+ * caché global de platformConfig.
+ */
+export async function getPaymentProvider(): Promise<PaymentProvider> {
+  const mode = await getKushkiMode();
+  if (cached && cachedMode === mode) return cached;
+  const provider: PaymentProvider =
+    mode === "mock" ? new MockKushkiProvider() : new LiveKushkiProvider();
+  cached = provider;
+  cachedMode = mode;
+  return provider;
+}
+
+/**
+ * Sync: devuelve el provider basado en el caché actual de modo. Sólo
+ * para paths que no pueden volverse async (e.g. handlers internos
+ * profundos). El caché puede estar stale por hasta 60s comparado con
+ * lo que dice DB — usar la versión async en routes nuevas.
+ */
+export function getPaymentProviderSync(): PaymentProvider {
   const mode = getKushkiModeSync();
   if (cached && cachedMode === mode) return cached;
   const provider: PaymentProvider =

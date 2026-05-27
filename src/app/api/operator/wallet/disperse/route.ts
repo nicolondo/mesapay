@@ -44,7 +44,8 @@ export async function POST(req: Request) {
   const bankInfo = tenant.bankInfo as unknown as BankInfo;
 
   try {
-    const result = await getPaymentProvider().disburse({
+    const provider = await getPaymentProvider();
+    const result = await provider.disburse({
       merchantId: privateKey,
       amount: { amountCents: parsed.data.amountCents, currency: "COP" },
       bankInfo,

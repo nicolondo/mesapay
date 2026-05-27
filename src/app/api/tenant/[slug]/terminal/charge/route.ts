@@ -103,7 +103,8 @@ export async function POST(
 
   let push;
   try {
-    push = await getPaymentProvider().pushToTerminal({
+    const provider = await getPaymentProvider();
+    push = await provider.pushToTerminal({
       merchantId: privateKey,
       deviceId: parsed.data.deviceId,
       amount: {

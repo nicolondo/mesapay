@@ -339,7 +339,8 @@ export async function POST(
   const returnUrl = `${origin}/t/${slug}/pay/${order.id}/pse-return?pid=${payment.id}`;
 
   try {
-    const result = await getPaymentProvider().initiatePse({
+    const provider = await getPaymentProvider();
+    const result = await provider.initiatePse({
       merchantId: publicKey,
       amount: {
         amountCents: parsed.data.amountCents,

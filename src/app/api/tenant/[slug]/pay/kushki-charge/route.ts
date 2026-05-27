@@ -106,7 +106,7 @@ export async function POST(
     },
   });
 
-  const provider = getPaymentProvider();
+  const provider = await getPaymentProvider();
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) {
     await db.payment.update({

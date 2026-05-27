@@ -50,7 +50,8 @@ export async function GET(
   try {
     // Mock acepta cualquier string como publicKey. Live exige uno real.
     const publicKey = tenant.kushkiPublicKey ?? "mock_public_key";
-    const banks = await getPaymentProvider().listPseBanks(publicKey);
+    const provider = await getPaymentProvider();
+    const banks = await provider.listPseBanks(publicKey);
     cached = { fetchedAt: now, banks };
     return NextResponse.json({ banks });
   } catch (err) {

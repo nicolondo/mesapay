@@ -8,7 +8,91 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
+import { getKushkiModeSync } from "@/lib/platformConfig";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
+
+/**
+ * POST /transfer/v1/init de Kushki (server-side, con private key).
+ * El browser ya tokenizó con Kushki.js usando la public key; acá
+ * completamos el flow para obtener la URL del banco.
+ *
+ * Body shape (docs.kushki.com/co/en/transfer-payments/accept-a-payment):
+ *   {
+ *     token, amount: { subtotalIva, subtotalIva0, iva },
+ *     contactDetails: { fullName, email, address?, phoneNumber? },
+ *     metadata: { ... }
+ *   }
+ *
+ * Kushki devuelve { redirectUrl } al que mandamos al diner.
+ */
+async function chargeTransferInit(args: {
+  token: string;
+  amountPesos: number;
+  buyer: {
+    email: string;
+    docType: string;
+    docNumber: string;
+    personType: string;
+  };
+  metadata: { orderId: string; paymentId: string };
+  privateKey: string;
+}): Promise<{
+  redirectUrl?: string;
+  url?: string;
+  security?: { acsURL?: string };
+  [k: string]: unknown;
+}> {
+  const mode = getKushkiModeSync();
+  const baseUrl =
+    mode === "production"
+      ? "https://api.kushkipagos.com"
+      : "https://api-uat.kushkipagos.com";
+
+  const body = {
+    token: args.token,
+    amount: {
+      subtotalIva: 0,
+      subtotalIva0: args.amountPesos,
+      iva: 0,
+    },
+    // contactDetails es requerido en PSE v1 según T016 que estábamos
+    // recibiendo. fullName lo derivamos del email porque no lo
+    // pedimos en el sheet; phoneNumber lo dejamos vacío (Kushki acepta).
+    contactDetails: {
+      fullName: args.buyer.email.split("@")[0] || "Cliente",
+      email: args.buyer.email,
+      documentType: args.buyer.docType,
+      documentNumber: args.buyer.docNumber,
+    },
+    metadata: {
+      orderId: args.metadata.orderId,
+      paymentId: args.metadata.paymentId,
+    },
+  };
+
+  console.log("[pse-init] calling /transfer/v1/init", {
+    url: `${baseUrl}/transfer/v1/init`,
+    body,
+  });
+
+  const res = await fetch(`${baseUrl}/transfer/v1/init`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Private-Merchant-Id": args.privateKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  console.log("[pse-init] /transfer/v1/init response", {
+    status: res.status,
+    body: text.slice(0, 500),
+  });
+  if (!res.ok) {
+    throw new Error(`kushki ${res.status} on /transfer/v1/init: ${text.slice(0, 300)}`);
+  }
+  return text ? JSON.parse(text) : {};
+}
 
 /**
  * PSE init — crea un Payment pending, llama a Kushki PSE init, y
@@ -169,21 +253,72 @@ export async function POST(
     return p;
   });
 
-  // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod), recibimos
-  //    {token, redirectUrl}. El redirectUrl es el `security.acsURL` que
-  //    devuelve POST /transfer/v1/tokens — esa MISMA llamada incluye el
-  //    URL del banco; no hay un segundo POST a /transfer/v1/init en este
-  //    flow (eso es para tarjetas 3DS, no para PSE). Solo registramos el
-  //    token como providerRef para reconciliar luego con el webhook.
-  if (parsed.data.token && parsed.data.redirectUrl) {
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { providerRef: parsed.data.token },
-    });
-    return NextResponse.json({
-      paymentId: payment.id,
-      redirectUrl: parsed.data.redirectUrl,
-    });
+  // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod), llamamos
+  //    a /transfer/v1/init server-side con la private key + el token
+  //    para obtener la URL del banco. Kushki PSE v1 NO devuelve la URL
+  //    en la respuesta de tokenización — solo el token.
+  if (parsed.data.token) {
+    const privateKey = await getRestaurantPrivateKey(tenant.id);
+    if (!privateKey) {
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { status: "declined" },
+      });
+      return NextResponse.json(
+        {
+          error: "missing_credentials",
+          message:
+            "Falta la private key del sub-merchant para completar PSE.",
+        },
+        { status: 500 },
+      );
+    }
+    try {
+      const initResp = await chargeTransferInit({
+        token: parsed.data.token,
+        amountPesos: parsed.data.amountCents / 100,
+        buyer: parsed.data.buyer,
+        metadata: { orderId: order.id, paymentId: payment.id },
+        privateKey,
+      });
+      const redirectUrl =
+        (typeof initResp.redirectUrl === "string" && initResp.redirectUrl) ||
+        (typeof initResp.url === "string" && initResp.url) ||
+        initResp.security?.acsURL ||
+        "";
+      if (!redirectUrl) {
+        throw new Error(
+          "Kushki init sin redirectUrl: " +
+            JSON.stringify(initResp).slice(0, 200),
+        );
+      }
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { providerRef: parsed.data.token },
+      });
+      return NextResponse.json({
+        paymentId: payment.id,
+        redirectUrl,
+      });
+    } catch (err) {
+      console.error("[pse-init] transfer init FAILED", err);
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { status: "declined" },
+      });
+      const detail =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message).slice(0, 300)
+          : "Error desconocido";
+      return NextResponse.json(
+        {
+          error: "init_failed",
+          message: "No pudimos iniciar la transferencia con Kushki.",
+          detail,
+        },
+        { status: 502 },
+      );
+    }
   }
 
   // 3. Mock path: el backend tokeniza con el provider mock.

@@ -1239,17 +1239,10 @@ function PseSheet({
         return;
       }
 
-      // El SDK ya nos devuelve la URL del banco (acsURL) junto al token
-      // en la misma llamada — no hay un segundo POST a /transfer/v1/init.
-      // La pasamos al backend para que la guarde y se la devuelva al
-      // cliente como redirectUrl.
-      const acsURL = response.security?.acsURL;
-      if (!acsURL) {
-        setErr(
-          "Kushki tokenizó pero no devolvió la URL del banco. Reintentá.",
-        );
-        return;
-      }
+      // El SDK Kushki para PSE Colombia v1.0 NO devuelve `acsURL` en la
+      // respuesta de tokenización — solo el token. El segundo POST a
+      // /transfer/v1/init (server-side, con la private key) es el que
+      // devuelve la URL del banco. Le pasamos el token al backend.
       onPay({
         bankCode,
         email: email.trim().toLowerCase(),
@@ -1257,7 +1250,6 @@ function PseSheet({
         docNumber: docNumber.trim(),
         personType,
         token,
-        redirectUrl: acsURL,
       });
     } catch (e) {
       console.error("[pse] tokenize error", e);

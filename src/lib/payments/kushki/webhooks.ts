@@ -7,9 +7,13 @@ import { env } from "../../env";
  * the digest in a header (we accept either `Kushki-Signature` or
  * `X-Kushki-Signature` to cover doc variations).
  *
- * In mock mode signature verification is a no-op so dev flows work without
- * a configured secret. Production/sandbox MUST have KUSHKI_WEBHOOK_SECRET
- * set or this throws.
+ * Política por modo:
+ *   - mock: bypass total (dev local + mocks)
+ *   - sandbox sin secret: bypass con warning en logs — útil cuando
+ *     Kushki nos da credenciales de sub-merchant antes de mandarnos
+ *     el webhook signing secret. NO usar en prod
+ *   - sandbox con secret: verifica firma estrictamente
+ *   - production: secret OBLIGATORIO, rechaza todo lo demás
  */
 export function verifyKushkiSignature(
   rawBody: string,
@@ -18,6 +22,15 @@ export function verifyKushkiSignature(
   if (env.KUSHKI_MODE === "mock") return { ok: true };
   const secret = env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) {
+    if (env.KUSHKI_MODE === "sandbox") {
+      // Permisivo en sandbox para destrabar testing antes de tener el
+      // webhook secret. Log explícito para que no pase desapercibido
+      // si alguien se olvida de setearlo después.
+      console.warn(
+        "[kushki/webhooks] sandbox mode without KUSHKI_WEBHOOK_SECRET — accepting webhook without verification. Set the secret before going to production.",
+      );
+      return { ok: true };
+    }
     return { ok: false, reason: "KUSHKI_WEBHOOK_SECRET not configured" };
   }
   const provided =

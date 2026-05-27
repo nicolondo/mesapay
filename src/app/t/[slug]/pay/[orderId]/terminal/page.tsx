@@ -24,7 +24,17 @@ export default async function TerminalPendingPage({
     ? await db.payment.findUnique({ where: { id: pid } })
     : null;
   if (!payment || payment.orderId !== order.id) notFound();
-  if (payment.method !== "kushki_card_terminal") notFound();
+  // Aceptamos ambos métodos de datáfono: el cloud-pushed de Kushki
+  // (kushki_card_terminal) y el datáfono propio del comercio
+  // (external_terminal). El waiting screen es el mismo en ambos —
+  // sólo cambia quién settlea (Kushki webhook vs mesero manualmente
+  // desde Salón).
+  if (
+    payment.method !== "kushki_card_terminal" &&
+    payment.method !== "external_terminal"
+  ) {
+    notFound();
+  }
 
   return (
     <TerminalWait

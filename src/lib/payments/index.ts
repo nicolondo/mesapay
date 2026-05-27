@@ -15,8 +15,12 @@ let cached: PaymentProvider | null = null;
 
 export function getPaymentProvider(): PaymentProvider {
   if (cached) return cached;
-  cached = env.KUSHKI_MODE === "mock" ? new MockKushkiProvider() : new LiveKushkiProvider();
-  return cached;
+  const provider: PaymentProvider =
+    env.KUSHKI_MODE === "mock"
+      ? new MockKushkiProvider()
+      : new LiveKushkiProvider();
+  cached = provider;
+  return provider;
 }
 
 /**

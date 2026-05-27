@@ -23,11 +23,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  // Sólo verificamos que el tenant exista para no exponer el endpoint
-  // sin contexto. No usamos el merchantId — la lista es global.
+  // Necesitamos el publicKey del sub-merchant porque el bank list
+  // endpoint de Kushki usa header Public-Merchant-Id.
   const tenant = await db.restaurant.findUnique({
     where: { slug },
-    select: { id: true, kushkiOnboardingStatus: true },
+    select: {
+      id: true,
+      kushkiPublicKey: true,
+      kushkiOnboardingStatus: true,
+    },
   });
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
@@ -44,7 +48,9 @@ export async function GET(
     return NextResponse.json({ banks: cached.banks });
   }
   try {
-    const banks = await getPaymentProvider().listPseBanks();
+    // Mock acepta cualquier string como publicKey. Live exige uno real.
+    const publicKey = tenant.kushkiPublicKey ?? "mock_public_key";
+    const banks = await getPaymentProvider().listPseBanks(publicKey);
     cached = { fetchedAt: now, banks };
     return NextResponse.json({ banks });
   } catch (err) {

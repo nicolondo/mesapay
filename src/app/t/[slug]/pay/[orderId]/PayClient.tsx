@@ -311,15 +311,11 @@ export function PayClient({
   }
 
   /**
-   * PSE — el diner ya seleccionó banco + ingresó datos en el sheet.
-   * Llamamos al init endpoint, recibimos la URL del banco, y
-   * redirigimos. El resultado final llega por webhook (`pse.approved`
-   * o `pse.declined`) y el cliente lo ve en `/pse-return`.
+   * PSE — Kushki muestra el bank picker en su página hosted, así que
+   * sólo necesitamos email + doc + tipo persona. Después del init,
+   * redirigimos al hosted PSE. Resultado final por webhook.
    */
   async function payWithPse(args: {
-    bankCode: string;
-    firstName: string;
-    lastName: string;
     email: string;
     docType: "CC" | "CE" | "NIT" | "PA" | "TI";
     docNumber: string;
@@ -338,10 +334,7 @@ export function PayClient({
             orderId,
             amountCents: amountSubtotal,
             tipCents: amountTip,
-            bankCode: args.bankCode,
             buyer: {
-              firstName: args.firstName,
-              lastName: args.lastName,
               email: args.email,
               docType: args.docType,
               docNumber: args.docNumber,
@@ -355,8 +348,8 @@ export function PayClient({
         setErr(j.message ?? j.error ?? "No pudimos iniciar PSE.");
         return;
       }
-      // Redirigimos al banco. El cliente vuelve a /pse-return cuando
-      // termina (sea aprobado o rechazado por el banco).
+      // Redirigimos a Kushki PSE hosted. El cliente vuelve a
+      // /pse-return cuando termina.
       window.location.href = j.redirectUrl;
     } finally {
       setBusy(null);
@@ -995,14 +988,15 @@ function CashTenderSheet({
  * change."
  */
 /**
- * Sheet del flow PSE. El diner selecciona su banco de una lista que
- * traemos de Kushki, llena sus datos (PSE es regulado y exige nombre,
- * email, doc), y al confirmar lo mandamos al endpoint init que devuelve
- * la URL del banco. La validación inline previa al submit evita errores
- * del lado server porque PSE rechaza si falta cualquier campo.
+ * Sheet del flow PSE. Kushki muestra el bank picker en su página
+ * hosted después del init, así que sólo recolectamos email + doc.
+ * Validación inline previa al submit para mejor UX.
+ *
+ * tenantSlug se mantiene por si en el futuro queremos mostrar la
+ * lista de bancos como preview (Kushki la expone vía
+ * /transfer-subscriptions/v1/bankList).
  */
 function PseSheet({
-  tenantSlug,
   amountCents,
   busy,
   onClose,
@@ -1013,20 +1007,12 @@ function PseSheet({
   busy: boolean;
   onClose: () => void;
   onPay: (args: {
-    bankCode: string;
-    firstName: string;
-    lastName: string;
     email: string;
     docType: "CC" | "CE" | "NIT" | "PA" | "TI";
     docNumber: string;
     personType: "natural" | "juridica";
   }) => void;
 }) {
-  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
-  const [banksLoading, setBanksLoading] = useState(true);
-  const [bankCode, setBankCode] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA" | "TI">(
     "CC",
@@ -1037,34 +1023,7 @@ function PseSheet({
   );
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      setBanksLoading(true);
-      try {
-        const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
-        const j = await res.json();
-        if (res.ok && Array.isArray(j.banks)) {
-          setBanks(j.banks);
-        } else {
-          setErr(j.message ?? "No pudimos cargar la lista de bancos.");
-        }
-      } catch {
-        setErr("No pudimos cargar la lista de bancos.");
-      } finally {
-        setBanksLoading(false);
-      }
-    })();
-  }, [tenantSlug]);
-
   function submit() {
-    if (!bankCode) {
-      setErr("Elegí tu banco.");
-      return;
-    }
-    if (!firstName.trim() || !lastName.trim()) {
-      setErr("Nombre y apellido son obligatorios.");
-      return;
-    }
     if (!email.trim() || !email.includes("@")) {
       setErr("Email inválido.");
       return;
@@ -1075,9 +1034,6 @@ function PseSheet({
     }
     setErr(null);
     onPay({
-      bankCode,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
       email: email.trim().toLowerCase(),
       docType,
       docNumber: docNumber.trim(),
@@ -1109,45 +1065,9 @@ function PseSheet({
           </button>
         </div>
 
-        <label className="block mb-3">
-          <div className="text-[11px] text-op-muted mb-1">Banco</div>
-          <select
-            value={bankCode}
-            onChange={(e) => setBankCode(e.target.value)}
-            disabled={banksLoading}
-            className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
-          >
-            <option value="">
-              {banksLoading ? "Cargando bancos…" : "Elegí tu banco"}
-            </option>
-            {banks.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <label className="block">
-            <div className="text-[11px] text-op-muted mb-1">Nombre</div>
-            <input
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              maxLength={60}
-              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
-            />
-          </label>
-          <label className="block">
-            <div className="text-[11px] text-op-muted mb-1">Apellido</div>
-            <input
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              maxLength={60}
-              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
-            />
-          </label>
-        </div>
+        <p className="text-xs text-op-muted mb-4">
+          En el siguiente paso elegís tu banco y autorizás la transferencia.
+        </p>
 
         <label className="block mb-3">
           <div className="text-[11px] text-op-muted mb-1">Email</div>
@@ -1155,6 +1075,7 @@ function PseSheet({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@email.com"
             className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
           />
         </label>
@@ -1224,15 +1145,16 @@ function PseSheet({
         <button
           type="button"
           onClick={submit}
-          disabled={busy || banksLoading || !bankCode}
+          disabled={busy}
           className="w-full h-12 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
         >
           {busy
             ? "Conectando con el banco…"
-            : `Ir al banco · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
+            : `Continuar a PSE · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
         </button>
         <p className="text-[11px] text-op-muted text-center mt-2">
-          Te llevaremos a tu banco para autorizar la transferencia.
+          Te llevaremos a la pasarela PSE de Kushki para elegir banco y
+          autorizar.
         </p>
       </div>
     </div>

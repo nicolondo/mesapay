@@ -14,6 +14,7 @@ import type {
   DispersionRequest,
   DispersionResult,
 } from "../types";
+import { env } from "../../env";
 import { kushkiFetch } from "./client";
 import {
   SubmerchantCreateResponseSchema,
@@ -117,21 +118,21 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   /**
-   * Lista de bancos PSE. Kushki la expone para que la UI pueda
-   * renderizar el dropdown. La firma asumida es:
-   *   GET /pse/v1/banks  (auth: submerchant public)
-   * → [{ id, name }]
-   * Si Kushki usa otro path, ajustar acá. La respuesta la normalizamos
-   * a { code, name } para que el resto del código sea independiente.
+   * Lista de bancos PSE. Endpoint `GET transfer-subscriptions/v1/bankList`
+   * con header `Public-Merchant-Id`. Devuelve `[{ code, name }]`.
+   *
+   * Para PSE simple (no recurrente), Kushki muestra el bank picker en
+   * su página hosted después del init — no es estrictamente necesario
+   * usar esta lista. La dejamos por si en el futuro queremos mostrar
+   * un dropdown "preview" antes de redirigir.
    */
-  async listPseBanks(): Promise<PseBank[]> {
-    // TODO(kushki-docs): confirmar path exacto + auth (puede ser
-    // partner-level o público). Por ahora asumimos submerchant-public
-    // pero con merchantId placeholder porque la lista es global.
-    const resp = await kushkiFetch<Array<{ code?: string; id?: string; name: string }>>(
-      "/pse/v1/banks",
-      { method: "GET", auth: { kind: "partner" } },
-    );
+  async listPseBanks(publicKey: string): Promise<PseBank[]> {
+    const resp = await kushkiFetch<
+      Array<{ code?: string; id?: string; name: string }>
+    >("/transfer-subscriptions/v1/bankList", {
+      method: "GET",
+      auth: { kind: "submerchant_public", publicKey },
+    });
     const arr = Array.isArray(resp) ? resp : [];
     return arr.map((b) => ({
       code: String(b.code ?? b.id ?? ""),
@@ -140,45 +141,72 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   /**
-   * Inicia una transacción PSE. El user es redirigido al banco con
-   * la URL que retornamos. El estado final llega por webhook
-   * (`pse.approved` / `pse.declined`) que actualiza el Payment.
+   * Inicia una transacción PSE.
    *
-   * Firma asumida (estándar Kushki PSE):
-   *   POST /pse/v1/init
-   *   auth: submerchant private
-   *   body: { totalAmount, currency, callbackUrl, buyer{}, bankId }
-   *   → { redirectUrl, ticketNumber }
+   * Endpoint: `POST /transfer/v1/init`
+   * Auth: header `Private-Merchant-Id` con la private key del sub-merchant
+   * Body schema (basado en Kushki Android SDK Transfer.kt + docs):
+   *   {
+   *     amount: { subtotalIva, subtotalIva0, iva },
+   *     callbackUrl,            // URL absoluta a la que Kushki redirige al terminar
+   *     userType,               // "0" natural | "1" jurídica
+   *     documentType,           // "CC" | "CE" | "NIT" | "PA"
+   *     documentNumber,
+   *     email,
+   *     currency,               // "COP"
+   *     paymentDescription      // opcional, aparece en extracto bancario
+   *   }
+   * Respuesta esperada: { token, redirectUrl } o similar — armamos
+   * la URL del banco con el token si Kushki no la devuelve directa.
    */
   async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
-    // TODO(kushki-docs): validar shape exacto del request/response.
+    // PSE en COP no tiene IVA aplicable a productos servicios para
+    // el flujo de tokenización — Kushki recibe el monto bruto como
+    // subtotalIva0 (productos exentos) e iva=0. Si el comercio tiene
+    // IVA discriminado, se ajusta acá; por ahora aceptamos el cobro
+    // como subtotal exento.
+    const amount = req.amount.amountCents / 100;
     const resp = await kushkiFetch<{
-      redirectUrl: string;
-      ticketNumber?: string;
+      token?: string;
+      redirectUrl?: string;
+      url?: string;
       transactionToken?: string;
-    }>("/pse/v1/init", {
+    }>("/transfer/v1/init", {
       method: "POST",
       auth: { kind: "submerchant", privateKey: req.merchantId },
       body: {
-        totalAmount: req.amount.amountCents / 100,
-        currency: req.amount.currency,
-        callbackUrl: req.returnUrl,
-        bankId: req.bankCode,
-        buyer: {
-          name: req.buyer.firstName,
-          lastName: req.buyer.lastName,
-          email: req.buyer.email,
-          documentType: req.buyer.docType,
-          documentNumber: req.buyer.docNumber,
-          // PSE: "0" = natural, "1" = jurídica
-          personType: req.buyer.personType === "juridica" ? "1" : "0",
+        amount: {
+          subtotalIva: 0,
+          subtotalIva0: amount,
+          iva: 0,
         },
-        metadata: req.metadata,
+        callbackUrl: req.callbackUrl,
+        userType: req.buyer.personType === "juridica" ? "1" : "0",
+        documentType: req.buyer.docType,
+        documentNumber: req.buyer.docNumber,
+        email: req.buyer.email,
+        currency: req.amount.currency,
+        ...(req.paymentDescription
+          ? { paymentDescription: req.paymentDescription }
+          : {}),
       },
     });
+
+    // Kushki devuelve un `token` y opcionalmente una `redirectUrl`. Si
+    // sólo devuelve token, armamos la URL del flujo PSE hosted con el
+    // patrón estándar de Kushki — Kushki muestra el bank picker ahí.
+    const token = resp.token ?? resp.transactionToken ?? "";
+    const explicitRedirect = resp.redirectUrl ?? resp.url ?? "";
+    const redirectUrl =
+      explicitRedirect ||
+      // Fallback al patrón hosted estándar. Si Kushki cambia el path
+      // basta editarlo acá. En el wire log del onboarding partner se
+      // confirma este path; mientras tanto lo dejamos como pattern.
+      `${env.KUSHKI_MODE === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
+
     return {
-      providerRef: resp.ticketNumber ?? resp.transactionToken ?? "",
-      redirectUrl: resp.redirectUrl,
+      providerRef: token,
+      redirectUrl,
       status: "pending",
     };
   }

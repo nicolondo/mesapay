@@ -26,14 +26,14 @@ import { validateNewPaymentAmount } from "@/lib/orderTotals";
  * otras rieles diner-side).
  */
 
+// Kushki PSE no exige firstName/lastName en el init (los recibe del
+// banco después del login). Sólo email + doc + tipo de persona. El
+// banco lo elige el usuario en la página hosted de Kushki.
 const schema = z.object({
   orderId: z.string().min(1),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),
-  bankCode: z.string().min(1),
   buyer: z.object({
-    firstName: z.string().trim().min(1).max(60),
-    lastName: z.string().trim().min(1).max(60),
     email: z.string().trim().email(),
     docType: z.enum(["CC", "CE", "NIT", "PA", "TI"]).default("CC"),
     docNumber: z.string().trim().min(4).max(20),
@@ -155,16 +155,15 @@ export async function POST(
   try {
     const result = await getPaymentProvider().initiatePse({
       // En live mode, el client de Kushki usa `merchantId` como la
-      // private key del sub-merchant (auth header). En mock no
-      // importa. Ver kushki/live.ts línea ~120.
+      // private key del sub-merchant (auth header Private-Merchant-Id).
       merchantId: privateKey,
       amount: {
         amountCents: parsed.data.amountCents,
         currency: "COP",
       },
       buyer: parsed.data.buyer,
-      bankCode: parsed.data.bankCode,
-      returnUrl,
+      paymentDescription: `Pago ${tenant.name} · orden ${order.id.slice(0, 6)}`,
+      callbackUrl: returnUrl,
       metadata: {
         orderId: order.id,
         paymentId: payment.id,

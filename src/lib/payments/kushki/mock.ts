@@ -156,37 +156,30 @@ export class MockKushkiProvider implements PaymentProvider {
    * Lista hardcoded de bancos PSE colombianos populares — suficiente
    * para que la UI tenga un dropdown realista en dev/QA.
    */
-  async listPseBanks(): Promise<PseBank[]> {
+  // Firma de listPseBanks no requiere publicKey en mock — la
+  // mantenemos para matchear el interface pero ignoramos el arg.
+  async listPseBanks(_publicKey: string): Promise<PseBank[]> {
+    void _publicKey;
     return MOCK_PSE_BANKS.slice();
   }
 
   /**
-   * Mock PSE init: emite una redirectUrl a una página local que simula
-   * el banco. Esa página acepta "approve" / "decline" como query y
-   * dispara el webhook simulado al volver. Permite probar todo el
-   * loop sin pegarle a un banco real.
+   * Mock PSE init: simula el flujo de Kushki retornando una redirectUrl
+   * a una página local que hace de banco. Esa página decide aprobar /
+   * rechazar (90% approved) después de 2s, dispara el webhook simulado
+   * y redirige de vuelta al callbackUrl. Permite probar el loop sin
+   * pegarle a un banco real.
    */
   async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
     await sleep(300 + Math.random() * 300);
     const providerRef = `mock_pse_${randomUUID().slice(0, 8)}`;
-    // El parámetro decide=auto hace que la página de mock decida
-    // automáticamente (90% approved) después de 2s y haga el redirect
-    // de vuelta a returnUrl con el resultado. Lo guardamos en la
-    // session de pendings del merchant para que el webhook simulado
-    // pueda resolverlo.
     const m = ensureMerchant(req.merchantId);
     m.pendingPseRequests.set(providerRef, { req, createdAt: Date.now() });
     const redirectUrl = new URL("/t/__pse-mock-bank", "https://placeholder");
-    // Construimos un return query: el handler del banco mock va a
-    // re-armar el callbackUrl con su propio status.
     redirectUrl.searchParams.set("ref", providerRef);
-    redirectUrl.searchParams.set("bank", req.bankCode);
     redirectUrl.searchParams.set("amount", String(req.amount.amountCents));
-    redirectUrl.searchParams.set("return", req.returnUrl);
-    // El runtime real reemplaza el host con la URL del request; acá
-    // sólo armamos el path relativo. PseInitResult.redirectUrl
-    // espera URL absoluta, así que el caller lo absolutiza con su
-    // hostname antes de redirigir.
+    redirectUrl.searchParams.set("return", req.callbackUrl);
+    // Path relativo; el caller absolutiza con su origin.
     return {
       providerRef,
       redirectUrl: redirectUrl.pathname + redirectUrl.search,

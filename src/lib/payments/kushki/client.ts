@@ -38,9 +38,18 @@ export class KushkiHttpError extends Error {
 type FetchOpts = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
-  // Use the partner key (master) for sub-merchant management, or a specific
-  // sub-merchant private key for per-merchant operations like charges.
-  auth: { kind: "partner" } | { kind: "submerchant"; privateKey: string };
+  // Auth schemes que Kushki acepta:
+  //   - partner: header Private-Merchant-Id con la master key del partner
+  //   - submerchant: header Private-Merchant-Id con la private key del local
+  //     (uso típico: charges, push a datáfono, wallet, dispersiones)
+  //   - submerchant_public: header Public-Merchant-Id con la public key del
+  //     local (uso: endpoints de TOKENIZACIÓN — transfer/v1/tokens para PSE,
+  //     card/v1/tokens para tarjetas, etc. Kushki separa porque el browser
+  //     SDK puede invocarlos sin exponer la private key.)
+  auth:
+    | { kind: "partner" }
+    | { kind: "submerchant"; privateKey: string }
+    | { kind: "submerchant_public"; publicKey: string };
   /** When provided, response is validated through this zod schema. */
   schema?: ZodType<unknown>;
   retries?: number;
@@ -56,8 +65,10 @@ export async function kushkiFetch<T>(
   };
   if (opts.auth.kind === "partner") {
     headers["Private-Merchant-Id"] = requireKushkiKey();
-  } else {
+  } else if (opts.auth.kind === "submerchant") {
     headers["Private-Merchant-Id"] = opts.auth.privateKey;
+  } else {
+    headers["Public-Merchant-Id"] = opts.auth.publicKey;
   }
 
   const init: RequestInit = {

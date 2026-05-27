@@ -109,21 +109,22 @@ export type PsePersonType = "natural" | "juridica";
 export type PseDocType = "CC" | "CE" | "NIT" | "PA" | "TI";
 
 export type PseInitRequest = {
+  /** Private merchant key del sub-merchant (auth Private-Merchant-Id). */
   merchantId: string;
   amount: Money;
-  /** Datos del pagador — requeridos por PSE/ASOBANCARIA. */
+  /** Datos del pagador — requeridos por PSE/ASOBANCARIA. Email + doc
+   * son los obligatorios; nombre y apellido los muestra Kushki en su
+   * página hosted recolectándolos del banco, no los recibimos acá. */
   buyer: {
-    firstName: string;
-    lastName: string;
     email: string;
     docType: PseDocType;
     docNumber: string;
     personType: PsePersonType;
   };
-  /** Código del banco que el usuario eligió de listPseBanks(). */
-  bankCode: string;
-  /** URL absoluta a la que el banco redirige al user cuando termina. */
-  returnUrl: string;
+  /** Descripción que aparece en el extracto bancario del pagador. */
+  paymentDescription?: string;
+  /** URL absoluta a la que Kushki redirige cuando termina. */
+  callbackUrl: string;
   metadata: {
     orderId: string;
     paymentId: string;
@@ -199,7 +200,7 @@ export interface PaymentProvider {
   chargeWithToken(req: ChargeRequest): Promise<ChargeResult>;
 
   // PSE (redirect-based bank transfer)
-  listPseBanks(): Promise<PseBank[]>;
+  listPseBanks(publicKey: string): Promise<PseBank[]>;
   initiatePse(req: PseInitRequest): Promise<PseInitResult>;
 
   // Smart-POS terminal cloud push

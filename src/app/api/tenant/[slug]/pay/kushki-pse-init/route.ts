@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -105,7 +106,24 @@ export async function POST(
       : null;
 
   // Origin para construir el callbackUrl absoluto que Kushki necesita.
-  const origin = new URL(req.url).origin;
+  // Detrás de nginx/proxy, req.url es la URL interna (localhost:3300),
+  // no la que ve el cliente. Preferimos APP_PUBLIC_BASE_URL (canónica)
+  // → headers x-forwarded-host/proto que nginx forwardea → fallback a
+  // req.url para dev local sin proxy.
+  const origin = (() => {
+    if (env.APP_PUBLIC_BASE_URL) {
+      return env.APP_PUBLIC_BASE_URL.replace(/\/$/, "");
+    }
+    const xfHost = req.headers.get("x-forwarded-host");
+    const xfProto = req.headers.get("x-forwarded-proto") ?? "https";
+    if (xfHost) return `${xfProto}://${xfHost}`;
+    const host = req.headers.get("host");
+    if (host) {
+      const proto = host.includes("localhost") ? "http" : "https";
+      return `${proto}://${host}`;
+    }
+    return new URL(req.url).origin;
+  })();
 
   // 1. Crear pending Payment + sweep otros pendings (mismo patrón
   //    que cash / terminal). El providerRef se completa después con

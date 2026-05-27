@@ -45,6 +45,7 @@ export function PayClient({
   enabledMethods,
   assignedDeviceId,
   assignedDeviceLabel,
+  declinedFlag = false,
   operatorMode = false,
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
@@ -79,6 +80,8 @@ export function PayClient({
   // bouncing through Salón to pick one.
   assignedDeviceId?: string | null;
   assignedDeviceLabel?: string | null;
+  /** Si true, mostramos banner "Pago rechazado, elegí otro método". */
+  declinedFlag?: boolean;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to staffHomeHref/staffServeHref once
@@ -511,6 +514,27 @@ export function PayClient({
             mobile sin sacrificar la opción cuando un grupo dice "mitad
             y mitad". El default es Todo; al tocar el link aparecen los
             dos botones para escoger. */}
+      {/* Banner de error cuando el diner viene de un cobro rechazado.
+          Se descarta automáticamente cuando intenta otro método (los
+          handlers limpian err en el setBusy) o cuando toca el botón
+          de cerrar. Sale de la URL en la primera interacción. */}
+      {declinedFlag && !err && (
+        <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/5 p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-danger/15 text-danger flex items-center justify-center shrink-0 font-display">
+            ✕
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-base text-danger">
+              Tu pago no fue aprobado
+            </div>
+            <p className="text-xs text-muted mt-1">
+              Probá con otro método de abajo, o pedile al mesero que vuelva
+              a pasar la tarjeta.
+            </p>
+          </div>
+        </div>
+      )}
+
       {!isCounter && !operatorMode && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">

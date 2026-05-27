@@ -12,7 +12,7 @@ export default async function PayPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
-  searchParams: Promise<{ op?: string }>;
+  searchParams: Promise<{ op?: string; declined?: string }>;
 }) {
   const { slug, orderId } = await params;
   const sp = await searchParams;
@@ -102,6 +102,10 @@ export default async function PayPage({
       enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}
+      // Banner que se muestra al volver de un cobro rechazado por
+      // datáfono o PSE — sirve para que el diner entienda por qué
+      // volvió al checkout y elija otro método.
+      declinedFlag={sp.declined === "1"}
     />
   );
 }

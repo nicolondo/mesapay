@@ -41,6 +41,21 @@ export function TerminalWait({
       }, 1200);
       return () => clearTimeout(t);
     }
+    // Si declina, volvemos al checkout con un flag para mostrar
+    // banner de error. Mejor UX que dejar al diner en una pantalla
+    // sin salida — desde el checkout pueden reintentar con otro
+    // método inmediatamente. Damos un beat (1.5s) para que vean el
+    // X antes del redirect.
+    if (
+      (status === "declined" || status === "refunded") &&
+      !redirected.current
+    ) {
+      redirected.current = true;
+      const t = setTimeout(() => {
+        router.push(`/t/${tenantSlug}/pay/${orderId}?declined=1`);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
   }, [status, router, tenantSlug, orderId, paymentId]);
 
   useEffect(() => {
@@ -84,15 +99,20 @@ export function TerminalWait({
   }
 
   if (status === "declined" || status === "refunded") {
+    // Pantalla transitoria — el useEffect redirige a checkout en
+    // 1.5s con ?declined=1 para que el cliente pueda reintentar
+    // con otro método.
     return (
       <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
         <div className="text-center max-w-sm">
-          <h1 className="font-display text-3xl tracking-[-0.015em]">
+          <div className="w-14 h-14 rounded-full bg-danger/20 text-danger mx-auto flex items-center justify-center font-display text-3xl">
+            ✕
+          </div>
+          <h1 className="font-display text-3xl tracking-[-0.015em] mt-4">
             Pago rechazado
           </h1>
-          <p className="text-muted mt-2">
-            La tarjeta no fue aprobada. Avísale al mesero para intentar de
-            nuevo o pagar con otro medio.
+          <p className="text-muted mt-2 text-sm">
+            Te llevamos de vuelta al checkout para que elijas otro método…
           </p>
         </div>
       </main>

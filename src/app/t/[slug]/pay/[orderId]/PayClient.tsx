@@ -1868,6 +1868,10 @@ function CardSheet({
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState(""); // formato MM/YY
   const [cvv, setCvv] = useState("");
+  // Kushki Colombia valida anti-fraude antes de tokenizar y rechaza
+  // con K001 si falta el email del titular. Lo pedimos en el sheet
+  // y también nos sirve para el recibo electrónico.
+  const [email, setEmail] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [tokenizing, setTokenizing] = useState(false);
   const kushkiRef = useRef<unknown>(null);
@@ -1940,6 +1944,10 @@ function CardSheet({
       setErr("CVV inválido.");
       return;
     }
+    if (!email.trim() || !email.includes("@")) {
+      setErr("Email inválido — Kushki lo requiere para anti-fraude.");
+      return;
+    }
 
     // Mock path: no SDK call — el mock provider acepta cualquier token.
     if (isMockMode || !kushkiPublicKey) {
@@ -1957,7 +1965,9 @@ function CardSheet({
     setTokenizing(true);
     try {
       // Kushki.requestToken espera body con card{number,name,expiryMonth,
-      // expiryYear,cvv} + totalAmount en pesos + currency.
+      // expiryYear,cvv} + totalAmount en pesos + currency. Para Colombia
+      // hay que incluir explícitamente `isDeferred: false` y el email
+      // del titular para anti-fraude — sin ellos Kushki devuelve K001.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: any = {
         card: {
@@ -1969,7 +1979,16 @@ function CardSheet({
         },
         totalAmount: amountCents / 100,
         currency: "COP",
+        isDeferred: false,
+        email: email.trim().toLowerCase(),
       };
+      console.log("[card] tokenize body shape", {
+        cardLast4: digits.slice(-4),
+        totalAmount: body.totalAmount,
+        currency: body.currency,
+        hasEmail: !!body.email,
+        isDeferred: body.isDeferred,
+      });
       const response = await new Promise<{
         token?: string;
         security?: { acsURL?: string };
@@ -2070,6 +2089,20 @@ function CardSheet({
               placeholder="Como aparece en la tarjeta"
               value={holderName}
               onChange={(e) => setHolderName(e.target.value)}
+              className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 text-sm focus:outline-none focus:border-ink"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Email
+            </span>
+            <input
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 text-sm focus:outline-none focus:border-ink"
             />
           </label>

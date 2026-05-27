@@ -107,7 +107,9 @@ export async function POST(
       merchantId: privateKey,
       deviceId: parsed.data.deviceId,
       amount: {
-        amountCents: payment.amountCents + payment.tipCents,
+        // payment.amountCents YA incluye la propina (TOTAL). Sumar
+        // tipCents otra vez cobraba doble propina en el datáfono real.
+        amountCents: payment.amountCents,
         currency: "COP",
       },
       metadata: {

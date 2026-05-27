@@ -47,7 +47,9 @@ export default async function TerminalPendingPage({
       }
       orderId={order.id}
       paymentId={payment.id}
-      amountCents={payment.amountCents + payment.tipCents}
+      // payment.amountCents ya es el TOTAL (food + tip) — no hay que
+      // sumar tipCents de nuevo o se duplica la propina en pantalla.
+      amountCents={payment.amountCents}
       initialStatus={payment.status}
     />
   );

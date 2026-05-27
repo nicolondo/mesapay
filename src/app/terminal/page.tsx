@@ -164,14 +164,16 @@ export default async function TerminalPage() {
         cashTenderCents: p.cashTenderCents,
         createdAt: p.createdAt.toISOString(),
       })),
+      // amountCents YA es el TOTAL (food + tip). Sumarlo de nuevo
+      // duplica la propina en la pantalla del datáfono.
       pendingTerminalAmountCents: pendingTerminal
-        ? pendingTerminal.amountCents + pendingTerminal.tipCents
+        ? pendingTerminal.amountCents
         : null,
       pendingTerminalRequestedAt: pendingTerminal
         ? pendingTerminal.createdAt.toISOString()
         : null,
       pendingCashAmountCents: pendingCash
-        ? pendingCash.amountCents + pendingCash.tipCents
+        ? pendingCash.amountCents
         : null,
       pendingCashRequestedAt: pendingCash
         ? pendingCash.createdAt.toISOString()

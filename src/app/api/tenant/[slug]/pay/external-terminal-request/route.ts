@@ -119,7 +119,9 @@ export async function POST(
     type: "order.terminal_requested",
     orderId: order.id,
     paymentId: payment.id,
-    amountCents: parsed.data.amountCents + parsed.data.tipCents,
+    // amountCents YA es el TOTAL (food + tip) — sumar tipCents otra
+    // vez duplicaba la propina en push/SSE.
+    amountCents: parsed.data.amountCents,
   });
 
   // Push al mesero de la mesa.
@@ -132,7 +134,7 @@ export async function POST(
       : null;
     if (!table || table.number < 0) return;
     const where = table.label ?? `Mesa ${table.number}`;
-    const totalCop = (parsed.data.amountCents + parsed.data.tipCents) / 100;
+    const totalCop = parsed.data.amountCents / 100;
     await sendPushToMeserosForTable(tenant.id, table.number, {
       title: `${where} pidió datáfono`,
       body: `Cobro con tarjeta · ${totalCop.toLocaleString("es-CO")} COP`,

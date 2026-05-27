@@ -592,7 +592,8 @@ function TerminalPendingCard({
   onBusyChange: (id: string | null) => void;
 }) {
   const [err, setErr] = useState<string | null>(null);
-  const total = pending.amountCents + pending.tipCents;
+  // pending.amountCents YA es el TOTAL (food + tip).
+  const total = pending.amountCents;
   const isExternal = pending.method === "external_terminal";
   const title =
     serviceMode === "counter"

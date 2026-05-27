@@ -47,7 +47,8 @@ export default async function PseReturnPage({
     redirect(`/t/${slug}/pay/${orderId}`);
   }
 
-  const total = payment.amountCents + payment.tipCents;
+  // payment.amountCents YA es el TOTAL (food + tip).
+  const total = payment.amountCents;
   const fmt = (cents: number) =>
     "$" + (cents / 100).toLocaleString("es-CO");
 

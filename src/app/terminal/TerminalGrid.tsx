@@ -427,7 +427,9 @@ function DetailSheet({
                     Pagos pendientes
                   </div>
                   {table.pendingPayments.map((p) => {
-                    const total = p.amountCents + p.tipCents;
+                    // p.amountCents YA incluye la propina (convención
+                    // Payment.amountCents = TOTAL). No sumar tipCents.
+                    const total = p.amountCents;
                     const isTerminal = p.method === "kushki_card_terminal";
                     const isCash = p.method === "demo_cash";
                     return (

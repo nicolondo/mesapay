@@ -8,7 +8,54 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
+import { getKushkiModeSync } from "@/lib/platformConfig";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
+
+/**
+ * Llama a POST /transfer/v1/init de Kushki (server-side) con la
+ * private key del sub-merchant. Le pasamos el token que el browser
+ * obtuvo de Kushki.js y Kushki devuelve la URL del banco a la que
+ * redirigir al diner.
+ *
+ * Doc: api-docs.kushkipagos.com/docs/online-payments/transfer-in/operations/create-a-transfer-v-1-init
+ */
+async function chargeTransferInit(args: {
+  token: string;
+  amount: number;
+  privateKey: string;
+}): Promise<{
+  redirectUrl?: string;
+  url?: string;
+  security?: { acsURL?: string };
+  [k: string]: unknown;
+}> {
+  const mode = getKushkiModeSync();
+  const baseUrl =
+    mode === "production"
+      ? "https://api.kushkipagos.com"
+      : "https://api-uat.kushkipagos.com";
+
+  const res = await fetch(`${baseUrl}/transfer/v1/init`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Private-Merchant-Id": args.privateKey,
+    },
+    body: JSON.stringify({
+      token: args.token,
+      amount: {
+        subtotalIva: 0,
+        subtotalIva0: args.amount,
+        iva: 0,
+      },
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`kushki ${res.status} on /transfer/v1/init: ${text.slice(0, 300)}`);
+  }
+  return text ? JSON.parse(text) : {};
+}
 
 /**
  * PSE init — crea un Payment pending, llama a Kushki PSE init, y
@@ -169,18 +216,71 @@ export async function POST(
     return p;
   });
 
-  // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod), sólo
-  //    registramos el Payment con el token. El redirect lo armó el
-  //    SDK con security.acsURL del response real de Kushki.
-  if (parsed.data.token && parsed.data.redirectUrl) {
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { providerRef: parsed.data.token },
-    });
-    return NextResponse.json({
-      paymentId: payment.id,
-      redirectUrl: parsed.data.redirectUrl,
-    });
+  // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod),
+  //    completamos el flow llamando a /transfer/v1/init con la
+  //    PRIVATE merchant key + el token. Esa llamada devuelve la URL
+  //    del banco (Kushki la oculta del SDK browser-side por seguridad).
+  if (parsed.data.token) {
+    const privateKey = await getRestaurantPrivateKey(tenant.id);
+    if (!privateKey) {
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { status: "declined" },
+      });
+      return NextResponse.json(
+        {
+          error: "missing_credentials",
+          message:
+            "Falta la private key del sub-merchant para completar PSE.",
+        },
+        { status: 500 },
+      );
+    }
+    try {
+      const initResp = await chargeTransferInit({
+        token: parsed.data.token,
+        amount: parsed.data.amountCents / 100,
+        privateKey,
+      });
+      console.log("[pse-init] transfer init response", initResp);
+      const redirectUrl =
+        initResp.redirectUrl ||
+        initResp.url ||
+        initResp.security?.acsURL ||
+        "";
+      if (!redirectUrl) {
+        throw new Error(
+          "Kushki init devolvió respuesta sin redirectUrl: " +
+            JSON.stringify(initResp).slice(0, 200),
+        );
+      }
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { providerRef: parsed.data.token },
+      });
+      return NextResponse.json({
+        paymentId: payment.id,
+        redirectUrl,
+      });
+    } catch (err) {
+      console.error("[pse-init] transfer init FAILED", err);
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { status: "declined" },
+      });
+      const detail =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message).slice(0, 300)
+          : "Error desconocido";
+      return NextResponse.json(
+        {
+          error: "init_failed",
+          message: "No pudimos iniciar la transferencia con Kushki.",
+          detail,
+        },
+        { status: 502 },
+      );
+    }
   }
 
   // 3. Mock path: el backend tokeniza con el provider mock.

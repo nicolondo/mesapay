@@ -1232,14 +1232,16 @@ function PseSheet({
         return;
       }
       const token = response.token;
-      const redirectUrl = response.security?.acsURL;
-      if (!token || !redirectUrl) {
+      if (!token) {
         setErr(
-          "Kushki no devolvió URL del banco. Probá con otro banco o método.",
+          "Kushki no devolvió un token. Probá con otro banco o método.",
         );
         return;
       }
 
+      // El backend completa el flow llamando a /transfer/v1/init con
+      // la private key + el token, y nos devuelve la URL del banco.
+      // No mandamos redirectUrl desde acá — la armamos server-side.
       onPay({
         bankCode,
         email: email.trim().toLowerCase(),
@@ -1247,7 +1249,6 @@ function PseSheet({
         docNumber: docNumber.trim(),
         personType,
         token,
-        redirectUrl,
       });
     } catch (e) {
       console.error("[pse] tokenize error", e);

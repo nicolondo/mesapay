@@ -144,8 +144,32 @@ export async function POST(
       paymentId: pendingPayment.id,
       reason: err instanceof Error ? err.message : "provider_error",
     });
+    // Surface the underlying Kushki error so el diner (y devs viendo
+    // consola) entienden qué pasó. Para errores estándar como CVV
+    // inválido / fondos insuficientes la mensaje cruda de Kushki es
+    // más útil que "charge_failed" genérico.
+    const detail =
+      err instanceof Error ? err.message.slice(0, 300) : "provider_error";
+    console.error("[kushki-charge] FAILED", { detail });
+    // Parse common Kushki codes para mensaje user-friendly.
+    let userMessage = "El pago falló. Probá con otra tarjeta o método.";
+    if (detail.includes('"code":"022"') || detail.includes("(022)")) {
+      userMessage = "Tarjeta declinada — CVV inválido.";
+    } else if (detail.includes('"code":"021"') || detail.includes("(021)")) {
+      userMessage = "Tarjeta declinada — fondos insuficientes.";
+    } else if (detail.includes('"code":"017"') || detail.includes("(017)")) {
+      userMessage = "Tarjeta inválida.";
+    } else if (detail.includes('"code":"023"') || detail.includes("(023)")) {
+      userMessage = "Tarjeta bloqueada.";
+    } else if (detail.includes("K220")) {
+      userMessage = "Error procesando el cobro — reintentá.";
+    }
     return NextResponse.json(
-      { error: "charge_failed" },
+      {
+        error: "charge_failed",
+        message: userMessage,
+        detail,
+      },
       { status: 502 },
     );
   }

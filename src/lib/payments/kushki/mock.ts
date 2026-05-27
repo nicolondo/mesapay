@@ -175,7 +175,7 @@ export class MockKushkiProvider implements PaymentProvider {
     const providerRef = `mock_pse_${randomUUID().slice(0, 8)}`;
     const m = ensureMerchant(req.merchantId);
     m.pendingPseRequests.set(providerRef, { req, createdAt: Date.now() });
-    const redirectUrl = new URL("/t/__pse-mock-bank", "https://placeholder");
+    const redirectUrl = new URL("/t/pse-mock-bank", "https://placeholder");
     redirectUrl.searchParams.set("ref", providerRef);
     redirectUrl.searchParams.set("amount", String(req.amount.amountCents));
     redirectUrl.searchParams.set("return", req.callbackUrl);

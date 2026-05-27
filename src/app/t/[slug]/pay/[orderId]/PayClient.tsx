@@ -802,16 +802,18 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
-        {kushkiReady && enabledMethods.includes("kushki_card") && (
-          <PayButton
-            kind="card"
-            disabled={busy !== null || amountCents <= 0}
-            busy={busy === "kushki_card"}
-            onClick={() => setCardSheetOpen(true)}
-            amountCents={amountCents}
-            operatorMode={operatorMode}
-          />
-        )}
+        {kushkiReady &&
+          enabledMethods.includes("kushki_card") &&
+          !operatorMode && (
+            <PayButton
+              kind="card"
+              disabled={busy !== null || amountCents <= 0}
+              busy={busy === "kushki_card"}
+              onClick={() => setCardSheetOpen(true)}
+              amountCents={amountCents}
+              operatorMode={operatorMode}
+            />
+          )}
         {enabledMethods.includes("external_terminal") && (
           <PayButton
             kind="external_terminal"

@@ -37,6 +37,21 @@ export class KushkiHttpError extends Error {
   }
 }
 
+/**
+ * Cuando Kushki responde 2xx pero el body no matchea el schema zod
+ * que esperábamos. NO se retry-ea — el response es determinista y
+ * reintentar con el mismo token genera 577 "token reusado".
+ */
+export class KushkiSchemaError extends Error {
+  constructor(
+    public url: string,
+    public reason: string,
+    public body: string,
+  ) {
+    super(`kushki ${url} schema mismatch (${reason}): ${body.slice(0, 200)}`);
+  }
+}
+
 type FetchOpts = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
@@ -98,9 +113,10 @@ export async function kushkiFetch<T>(
       if (opts.schema) {
         const result = opts.schema.safeParse(parsed);
         if (!result.success) {
-          throw new Error(
-            `kushki ${url} response did not match schema: ${result.error.issues[0]?.message}`,
-          );
+          // KushkiSchemaError es determinista — no reintentar, sino
+          // estaríamos reusando el mismo token contra un endpoint que
+          // YA respondió exitoso. Eso genera el bug 577 (token reusado).
+          throw new KushkiSchemaError(url, result.error.issues[0]?.message ?? "schema mismatch", text);
         }
         return result.data as T;
       }
@@ -108,6 +124,7 @@ export async function kushkiFetch<T>(
     } catch (err) {
       lastErr = err;
       if (err instanceof KushkiHttpError && err.status < 500) throw err;
+      if (err instanceof KushkiSchemaError) throw err;
       if (attempt === maxAttempts) throw err;
       await sleep(250 * 2 ** (attempt - 1));
     }

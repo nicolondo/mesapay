@@ -104,14 +104,20 @@ export class LiveKushkiProvider implements PaymentProvider {
       },
       schema: ChargeResponseSchema,
     });
+    // Si Kushki devolvió 2xx (kushkiFetch ya validó) y el body trae
+    // ticketNumber+transactionReference pero NO trae `status` explícito,
+    // tratamos como aprobado — es la respuesta normal de /card/v1/charges
+    // en Colombia para charges exitosos. Los declines vienen con 4xx
+    // que ya tiraron throw antes.
+    const mapped: ChargeResult["status"] =
+      resp.status === "DECLINED"
+        ? "declined"
+        : resp.status === "INITIALIZED"
+          ? "pending"
+          : "approved"; // APPROVAL o status ausente
     return {
       providerRef: resp.transactionReference,
-      status:
-        resp.status === "APPROVAL"
-          ? "approved"
-          : resp.status === "DECLINED"
-            ? "declined"
-            : "pending",
+      status: mapped,
       message: resp.responseText,
       raw: resp,
     };

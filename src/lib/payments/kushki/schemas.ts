@@ -31,13 +31,20 @@ export type SubmerchantCreateResponse = z.infer<
   typeof SubmerchantCreateResponseSchema
 >;
 
+// Schema permisivo: Kushki Colombia en sandbox solo devuelve
+// {ticketNumber, transactionReference} en charges exitosos via
+// /card/v1/charges — los campos `status`/`amount` que aparecen en
+// otros docs NO vienen en este flow. Si los exigimos como required
+// (como hacíamos antes), zod falla validación → kushkiFetch retry-ea
+// con el MISMO token → segundo charge devuelve 577 "token ya usado"
+// porque Kushki ya lo consumió en la primer llamada exitosa.
 export const ChargeResponseSchema = z.object({
   ticketNumber: z.string(),
   transactionReference: z.string(),
   approvalCode: z.string().optional(),
-  status: z.enum(["APPROVAL", "DECLINED", "INITIALIZED"]),
+  status: z.enum(["APPROVAL", "DECLINED", "INITIALIZED"]).optional(),
   responseText: z.string().optional(),
-  amount: z.number(),
+  amount: z.number().optional(),
 });
 export type ChargeResponse = z.infer<typeof ChargeResponseSchema>;
 

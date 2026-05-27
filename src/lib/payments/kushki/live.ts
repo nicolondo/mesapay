@@ -160,53 +160,81 @@ export class LiveKushkiProvider implements PaymentProvider {
    * la URL del banco con el token si Kushki no la devuelve directa.
    */
   async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
-    // PSE en COP no tiene IVA aplicable a productos servicios para
-    // el flujo de tokenización — Kushki recibe el monto bruto como
-    // subtotalIva0 (productos exentos) e iva=0. Si el comercio tiene
-    // IVA discriminado, se ajusta acá; por ahora aceptamos el cobro
-    // como subtotal exento.
     const amount = req.amount.amountCents / 100;
-    const resp = await kushkiFetch<{
-      token?: string;
-      redirectUrl?: string;
-      url?: string;
-      transactionToken?: string;
-    }>("/transfer/v1/init", {
-      method: "POST",
-      auth: { kind: "submerchant", privateKey: req.merchantId },
-      body: {
-        amount: {
-          subtotalIva: 0,
-          subtotalIva0: amount,
-          iva: 0,
-        },
-        callbackUrl: req.callbackUrl,
-        userType: req.buyer.personType === "juridica" ? "1" : "0",
-        documentType: req.buyer.docType,
-        documentNumber: req.buyer.docNumber,
-        email: req.buyer.email,
-        currency: req.amount.currency,
-        bankId: req.bankCode,
-        ...(req.paymentDescription
-          ? { paymentDescription: req.paymentDescription }
-          : {}),
+    const body = {
+      amount: {
+        subtotalIva: 0,
+        subtotalIva0: amount,
+        iva: 0,
       },
+      callbackUrl: req.callbackUrl,
+      userType: req.buyer.personType === "juridica" ? "1" : "0",
+      documentType: req.buyer.docType,
+      documentNumber: req.buyer.docNumber,
+      email: req.buyer.email,
+      currency: req.amount.currency,
+      bankId: req.bankCode,
+      ...(req.paymentDescription
+        ? { paymentDescription: req.paymentDescription }
+        : {}),
+    };
+
+    // Logging defensivo: la API real de PSE no está 100% documentada
+    // todavía, así que dejamos rastro del request y la respuesta para
+    // ajustar mappings si Kushki devuelve algo distinto a lo asumido.
+    console.log("[kushki/pse] init request", {
+      bankId: req.bankCode,
+      amount,
+      doc: req.buyer.docType + req.buyer.docNumber,
     });
 
-    // Kushki devuelve un `token` y opcionalmente una `redirectUrl`. Si
-    // sólo devuelve token, armamos la URL del flujo PSE hosted con el
-    // patrón estándar de Kushki — Kushki muestra el bank picker ahí.
-    const token = resp.token ?? resp.transactionToken ?? "";
-    const explicitRedirect = resp.redirectUrl ?? resp.url ?? "";
+    let resp: Record<string, unknown>;
+    try {
+      resp = await kushkiFetch<Record<string, unknown>>("/transfer/v1/init", {
+        method: "POST",
+        auth: { kind: "submerchant", privateKey: req.merchantId },
+        body,
+      });
+    } catch (err) {
+      console.error("[kushki/pse] init FAILED", err);
+      throw err;
+    }
+
+    console.log("[kushki/pse] init response", JSON.stringify(resp).slice(0, 500));
+
+    // Kushki puede devolver el redirect en distintos nombres según el
+    // producto (PSE clásico vs Avanza vs Transfer-Async). Probamos las
+    // claves más comunes en orden de probabilidad.
+    const token =
+      (typeof resp.token === "string" && resp.token) ||
+      (typeof resp.transactionToken === "string" && resp.transactionToken) ||
+      (typeof resp.transferId === "string" && resp.transferId) ||
+      "";
+
+    const explicitRedirect =
+      (typeof resp.redirectUrl === "string" && resp.redirectUrl) ||
+      (typeof resp.url === "string" && resp.url) ||
+      (typeof resp.pseUrl === "string" && resp.pseUrl) ||
+      (typeof resp.bankUrl === "string" && resp.bankUrl) ||
+      "";
+
+    if (!explicitRedirect && !token) {
+      // Kushki no devolvió ni token ni URL — algo está muy mal.
+      console.error("[kushki/pse] no redirect+token in response", resp);
+      throw new Error(
+        "Kushki PSE init devolvió respuesta sin token ni redirectUrl. " +
+          "Ver logs para shape exacto.",
+      );
+    }
+
     const redirectUrl =
       explicitRedirect ||
-      // Fallback al patrón hosted estándar. Si Kushki cambia el path
-      // basta editarlo acá. En el wire log del onboarding partner se
-      // confirma este path; mientras tanto lo dejamos como pattern.
+      // Fallback con el patrón hosted estándar de Kushki PSE. Si el
+      // path real es otro lo ajustamos cuando lo veamos en los logs.
       `${getKushkiModeSync() === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
 
     return {
-      providerRef: token,
+      providerRef: token || explicitRedirect.slice(-40),
       redirectUrl,
       status: "pending",
     };

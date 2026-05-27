@@ -350,7 +350,13 @@ export function PayClient({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.redirectUrl) {
-        setErr(j.message ?? j.error ?? "No pudimos iniciar PSE.");
+        // Si Kushki devolvió detalle del error, lo concatenamos al
+        // mensaje principal — sirve para debug rápido sin pedirle al
+        // diner que copie de DevTools.
+        const detail = typeof j.detail === "string" ? ` (${j.detail})` : "";
+        setErr(
+          (j.message ?? j.error ?? "No pudimos iniciar PSE.") + detail,
+        );
         return;
       }
       // Redirigimos a Kushki PSE hosted. El cliente vuelve a

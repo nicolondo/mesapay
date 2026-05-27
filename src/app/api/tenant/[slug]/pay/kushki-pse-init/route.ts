@@ -212,13 +212,23 @@ export async function POST(
       redirectUrl: absoluteRedirect,
     });
   } catch (err) {
-    console.error("[pse-init]", err);
+    console.error("[pse-init] provider failed", err);
     await db.payment.update({
       where: { id: payment.id },
       data: { status: "declined" },
     });
+    // Surface the underlying error message so we can debug. Para
+    // Kushki nuestros KushkiHttpError tienen body con el mensaje.
+    const detail =
+      err && typeof err === "object" && "message" in err
+        ? String((err as { message: unknown }).message).slice(0, 300)
+        : "Error desconocido";
     return NextResponse.json(
-      { error: "provider_error", message: "No pudimos iniciar PSE." },
+      {
+        error: "provider_error",
+        message: "No pudimos iniciar PSE.",
+        detail,
+      },
       { status: 502 },
     );
   }

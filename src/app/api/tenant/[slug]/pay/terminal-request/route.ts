@@ -42,17 +42,20 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Cap before queuing the datáfono push — same outstanding check we
-  // use for the other rails. Excluímos pendings previos del MISMO
-  // método (kushki_card_terminal) del conteo porque vamos a barrerlos
-  // dentro de la transacción al crear el nuevo pending. Sin esto, un
-  // diner que retoca el botón quedaría bloqueado por su propio
-  // pending stale ("Quedan $X pendientes — intenta con monto menor").
-  // Otros métodos pendientes (efectivo, external_terminal, etc.) sí
-  // siguen contando — esos no los tocamos.
+  // Cap before queuing the datáfono push. Excluímos TODOS los
+  // pendings (excludePending=true) porque vamos a barrerlos dentro
+  // de la transacción al crear el nuevo. Diseño: "última intención
+  // del diner gana" — si tocó efectivo y luego cambió a datáfono,
+  // el cash pending se cancela y el datáfono toma el lugar.
+  //
+  // Trade-off conocido: en escenarios de split-bill simultáneo
+  // (raro), el segundo diner podría cancelar el pending del
+  // primero. Resolverlo correctamente requiere tracking de identidad
+  // por diner (cookie/session), que no tenemos hoy. Para el caso
+  // 99% (single payer cambia de método) este sweep es lo correcto.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePendingMethods: ["kushki_card_terminal"],
+    excludePending: true,
   });
   if (!cap.ok) {
     return NextResponse.json(
@@ -82,17 +85,19 @@ export async function POST(
       : null;
 
   const payment = await db.$transaction(async (tx) => {
-    // Sweep de pendings stale del mismo método para esta orden.
-    // Caso típico: diner tocó "Tarjeta con datáfono", no se
-    // completó (cerró el sheet, perdió señal, etc.), y vuelve a
-    // tocarlo. El pending viejo queda colgado bloqueando outstanding;
-    // lo marcamos declined antes de crear el nuevo. El cap arriba
-    // ya excluye este método del conteo así que la operación es
-    // consistente.
+    // Sweep de TODOS los pendings de esta orden, no solo del mismo
+    // método. Casos típicos:
+    //   - Diner tocó "Tarjeta con datáfono", no completó, vuelve a
+    //     tocarlo → sweep del datáfono pending viejo
+    //   - Diner tocó "Efectivo" y cambia a "Tarjeta con datáfono" →
+    //     sweep del cash pending para liberar outstanding
+    //   - Diner tocó "Datáfono del comercio" y cambia a Kushki →
+    //     sweep del external_terminal pending
+    // El cap arriba ya usa excludePending=true para que esta
+    // operación sea consistente.
     await tx.payment.updateMany({
       where: {
         orderId: order.id,
-        method: "kushki_card_terminal",
         status: "pending",
       },
       data: { status: "declined" },

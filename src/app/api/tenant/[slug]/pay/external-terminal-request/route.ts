@@ -49,15 +49,14 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Cap antes de crear el pending. Excluímos pendings previos del
-  // mismo método (external_terminal) del conteo porque vamos a
-  // barrerlos en la transacción de abajo — sino un diner que retoca
-  // el botón quedaría bloqueado por su propio pending stale.
-  // Otros pendings (efectivo, kushki, etc.) siguen contando — esos
-  // no los tocamos.
+  // Cap antes de crear el pending. Excluímos TODOS los pendings
+  // (excludePending=true) porque vamos a barrerlos en la tx —
+  // "última intención del diner gana", igual que en terminal-request
+  // de Kushki. Maneja "cliente cambia de efectivo a datáfono propio"
+  // y otros switches de método.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePendingMethods: ["external_terminal"],
+    excludePending: true,
   });
   if (!cap.ok) {
     return NextResponse.json(
@@ -85,15 +84,13 @@ export async function POST(
       : null;
 
   const payment = await db.$transaction(async (tx) => {
-    // Sweep de pendings stale del mismo método. Caso típico: diner
-    // tocó "Tarjeta (datáfono del comercio)", no se completó, vuelve
-    // a tocarlo. El pending viejo queda colgado bloqueando outstanding
-    // — lo declinamos antes de crear el nuevo. El cap arriba ya
-    // excluyó este método del conteo así que es consistente.
+    // Sweep de TODOS los pendings de esta orden, no solo del mismo
+    // método. Maneja switches "efectivo → external_terminal",
+    // "Kushki → external_terminal", etc. El cap arriba usa
+    // excludePending=true para que la operación sea consistente.
     await tx.payment.updateMany({
       where: {
         orderId: order.id,
-        method: "external_terminal",
         status: "pending",
       },
       data: { status: "declined" },

@@ -67,8 +67,16 @@ export async function POST(
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const willOperatorSettle =
     parsed.data.settleNow === true && parsed.data.method === "demo_cash";
+  // Para demo_cash (diner-side) también excluimos todos los pendings
+  // del cap porque vamos a barrerlos cuando creamos el cash pending.
+  // Maneja el caso "diner tocó datáfono, no se completó, ahora cambia
+  // a efectivo" — sino el datáfono pending queda claimando outstanding
+  // y la cash request es rechazada. Misma lógica que en
+  // terminal-request: última intención del diner gana.
+  const willSweepCash =
+    parsed.data.method === "demo_cash" && !willOperatorSettle;
   const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePending: willOperatorSettle,
+    excludePending: willOperatorSettle || willSweepCash,
   });
   if (!cap.ok) {
     return NextResponse.json(
@@ -202,6 +210,18 @@ export async function POST(
     }
 
     const payment = await db.$transaction(async (tx) => {
+      // Sweep de TODOS los pendings de esta orden antes de crear el
+      // cash pending nuevo. Maneja "diner cambia de datáfono /
+      // datáfono externo → efectivo". El cap arriba ya usa
+      // excludePending=true en este path para que sea consistente.
+      // Caso simétrico al sweep que hacen los terminal endpoints.
+      await tx.payment.updateMany({
+        where: {
+          orderId: order.id,
+          status: "pending",
+        },
+        data: { status: "declined" },
+      });
       const p = await tx.payment.create({
         data: {
           orderId: order.id,

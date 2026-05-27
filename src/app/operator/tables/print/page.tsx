@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { PrintButton } from "./PrintButton";
+import { CopyLinkList } from "./CopyLinkList";
 
 // Cuántas tarjetas por fila. A4 = 210mm. Con margenes de Chrome
 // generosos (a veces el "Default" del navegador es ~10-20mm cada
@@ -219,6 +220,19 @@ export default async function PrintTablesPage({
           <PrintButton />
         </div>
 
+
+        {/* Lista de links — solo en pantalla, no en print. El operador
+            puede copiar el URL de cada mesa para mandarlo por chat o
+            pegarlo en otro lado sin tener que imprimir el QR físico. */}
+        <div className="no-print max-w-5xl mx-auto mb-5">
+          <CopyLinkList
+            items={qrs.map((q) => ({
+              id: q.id,
+              label: labelOf(q.number),
+              url: q.url,
+            }))}
+          />
+        </div>
 
         {/* Header de hoja: nombre del restaurante (sólo se imprime
             una vez arriba). En cards de 30mm no entra el nombre por

@@ -1,6 +1,6 @@
-import { env } from "../env";
 import { db } from "../db";
 import { decrypt, encrypt } from "../crypto";
+import { getKushkiModeSync } from "../platformConfig";
 import { LiveKushkiProvider } from "./kushki/live";
 import { MockKushkiProvider } from "./kushki/mock";
 import type { PaymentProvider } from "./types";
@@ -12,14 +12,19 @@ import type { PaymentProvider } from "./types";
  */
 
 let cached: PaymentProvider | null = null;
+let cachedMode: string | null = null;
 
 export function getPaymentProvider(): PaymentProvider {
-  if (cached) return cached;
+  // Cache key incluye el modo actual: si el admin cambia mock↔sandbox
+  // queremos que la próxima request use el provider nuevo, no el
+  // cacheado del modo anterior. cachedMode trackea contra qué se
+  // construyó cached.
+  const mode = getKushkiModeSync();
+  if (cached && cachedMode === mode) return cached;
   const provider: PaymentProvider =
-    env.KUSHKI_MODE === "mock"
-      ? new MockKushkiProvider()
-      : new LiveKushkiProvider();
+    mode === "mock" ? new MockKushkiProvider() : new LiveKushkiProvider();
   cached = provider;
+  cachedMode = mode;
   return provider;
 }
 
@@ -42,14 +47,14 @@ export async function getRestaurantPrivateKey(
     select: { kushkiPrivateKeyEnc: true, kushkiMerchantId: true, kushkiOnboardingStatus: true },
   });
   if (!r?.kushkiPrivateKeyEnc) {
-    return env.KUSHKI_MODE === "mock" ? "mock_private_key" : null;
+    return getKushkiModeSync() === "mock" ? "mock_private_key" : null;
   }
   // Decrypt failure in mock should also degrade to placeholder — happens if
   // the master key changed and the stored ciphertext can't be read back.
   try {
     return decrypt(r.kushkiPrivateKeyEnc);
   } catch {
-    if (env.KUSHKI_MODE === "mock") return "mock_private_key";
+    if (getKushkiModeSync() === "mock") return "mock_private_key";
     throw new Error("could not decrypt stored private key");
   }
 }

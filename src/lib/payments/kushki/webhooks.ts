@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { env } from "../../env";
+import { getKushkiModeSync } from "../../platformConfig";
 
 /**
  * Verify a Kushki webhook delivery. Kushki signs each webhook with an
@@ -19,10 +20,11 @@ export function verifyKushkiSignature(
   rawBody: string,
   headers: Headers,
 ): { ok: true } | { ok: false; reason: string } {
-  if (env.KUSHKI_MODE === "mock") return { ok: true };
+  const mode = getKushkiModeSync();
+  if (mode === "mock") return { ok: true };
   const secret = env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) {
-    if (env.KUSHKI_MODE === "sandbox") {
+    if (mode === "sandbox") {
       // Permisivo en sandbox para destrabar testing antes de tener el
       // webhook secret. Log explícito para que no pase desapercibido
       // si alguien se olvida de setearlo después.

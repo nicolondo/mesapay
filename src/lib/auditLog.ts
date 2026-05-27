@@ -27,6 +27,8 @@ export type AuditKind =
   | "membership.pickup.hours.update"
   // Catálogo de planes (plataforma)
   | "plan_catalog.update"
+  // Configuración global de la plataforma
+  | "platform.kushki_mode.update"
   // Identidad / config del comercio (operador o admin override)
   | "restaurant.name.update"
   | "restaurant.identity.update"
@@ -59,6 +61,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "membership.pickup.toggle": "Cambió pedido anticipado",
   "membership.pickup.hours.update": "Cambió horario de pickup",
   "plan_catalog.update": "Editó plan",
+  "platform.kushki_mode.update": "Cambió modo Kushki",
   "restaurant.name.update": "Cambió nombre del comercio",
   "restaurant.identity.update": "Editó identidad",
   "restaurant.payment_methods.update": "Editó medios de pago",

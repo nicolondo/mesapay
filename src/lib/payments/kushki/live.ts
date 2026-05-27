@@ -14,7 +14,7 @@ import type {
   DispersionRequest,
   DispersionResult,
 } from "../types";
-import { env } from "../../env";
+import { getKushkiModeSync } from "../../platformConfig";
 import { kushkiFetch } from "./client";
 import {
   SubmerchantCreateResponseSchema,
@@ -202,7 +202,7 @@ export class LiveKushkiProvider implements PaymentProvider {
       // Fallback al patrón hosted estándar. Si Kushki cambia el path
       // basta editarlo acá. En el wire log del onboarding partner se
       // confirma este path; mientras tanto lo dejamos como pattern.
-      `${env.KUSHKI_MODE === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
+      `${getKushkiModeSync() === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
 
     return {
       providerRef: token,

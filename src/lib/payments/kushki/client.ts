@@ -1,4 +1,5 @@
-import { env, requireKushkiKey } from "../../env";
+import { requireKushkiKey } from "../../env";
+import { getKushkiModeSync } from "../../platformConfig";
 import type { ZodType } from "zod";
 
 /**
@@ -19,10 +20,11 @@ const BASE_URL = {
 } as const;
 
 function baseUrl(): string {
-  if (env.KUSHKI_MODE === "mock") {
+  const mode = getKushkiModeSync();
+  if (mode === "mock") {
     throw new Error("kushkiFetch must not be called in mock mode");
   }
-  return BASE_URL[env.KUSHKI_MODE];
+  return BASE_URL[mode];
 }
 
 export class KushkiHttpError extends Error {

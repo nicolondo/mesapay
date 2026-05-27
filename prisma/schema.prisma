@@ -303,6 +303,20 @@ model PlanConfig {
   updatedAt         DateTime @updatedAt
 }
 
+/// Singleton de configuración global de la plataforma. Hoy sólo tiene
+/// el modo Kushki (mock/sandbox/production) editable desde admin sin
+/// necesidad de redeploy, pero está pensado para crecer (otros
+/// toggles plataforma-wide). La fila usa id="singleton" como pk.
+model PlatformConfig {
+  id          String   @id @default("singleton")
+  /// "mock" | "sandbox" | "production". Usamos String en vez de enum
+  /// para permitir modos futuros sin schema migration. Si el valor
+  /// no matchea ninguno conocido, el helper cae a env.KUSHKI_MODE.
+  kushkiMode  String   @default("mock")
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}
+
 /// Audit log de acciones administrativas. Lo escriben los endpoints
 /// que mutan estado sensible — cambio de plan, suspensión, registro
 /// de pago manual, edición del catálogo de planes, edición de

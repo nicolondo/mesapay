@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { env } from "@/lib/env";
+import { getKushkiMode } from "@/lib/platformConfig";
 import {
   formatNextOpening,
   pickupStatus,
@@ -153,7 +153,7 @@ export default async function PickupPage({
           !!tenant.kushkiMerchantId &&
           tenant.kushkiOnboardingStatus === "active",
         kushkiPublicKey: tenant.kushkiPublicKey,
-        isMockMode: env.KUSHKI_MODE === "mock",
+        isMockMode: (await getKushkiMode()) === "mock",
       }}
     />
   );

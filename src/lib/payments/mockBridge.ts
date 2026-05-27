@@ -1,7 +1,7 @@
 import { subscribeMockWebhook } from "./kushki/mock";
 import { processKushkiWebhook } from "./webhookHandler";
 import { randomUUID } from "crypto";
-import { env } from "../env";
+import { getKushkiModeSync } from "../platformConfig";
 
 /**
  * In mock mode the Kushki "webhook" never reaches our HTTP endpoint because
@@ -17,7 +17,7 @@ let installed = false;
 
 export function ensureMockBridge(): void {
   if (installed) return;
-  if (env.KUSHKI_MODE !== "mock") return;
+  if (getKushkiModeSync() !== "mock") return;
   installed = true;
   subscribeMockWebhook((e) => {
     if (

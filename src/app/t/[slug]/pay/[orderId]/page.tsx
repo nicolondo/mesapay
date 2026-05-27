@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { env } from "@/lib/env";
+import { getKushkiMode } from "@/lib/platformConfig";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
@@ -98,7 +98,7 @@ export default async function PayPage({
       serviceMode={tenant.serviceMode}
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
-      isMockMode={env.KUSHKI_MODE === "mock"}
+      isMockMode={(await getKushkiMode()) === "mock"}
       enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}

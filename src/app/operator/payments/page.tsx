@@ -101,6 +101,7 @@ function methodLabel(m: string) {
     // entre cómodo en la columna sin partir la fila.
     kushki_apple_pay: "Apple Pay",
     kushki_google_pay: "Google Pay",
+    kushki_card: "Tarjeta",
     kushki_card_terminal: "K_Terminal",
     external_terminal: "Datáfono propio",
     kushki_pse: "PSE",

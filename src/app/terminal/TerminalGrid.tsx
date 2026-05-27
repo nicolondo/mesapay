@@ -738,8 +738,14 @@ function humanMethod(m: string): string {
   switch (m) {
     case "kushki_apple_pay":
       return "Apple Pay";
+    case "kushki_card":
+      return "Tarjeta";
     case "kushki_card_terminal":
       return "Tarjeta · datáfono";
+    case "external_terminal":
+      return "Tarjeta · datáfono propio";
+    case "kushki_pse":
+      return "PSE";
     case "demo_cash":
       return "Efectivo";
     case "demo_card":

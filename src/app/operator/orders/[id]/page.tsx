@@ -411,6 +411,16 @@ function methodLabel(m: string) {
       return "PSE · Wompi";
     case "wompi_nequi":
       return "Nequi · Wompi";
+    case "kushki_apple_pay":
+      return "Apple Pay";
+    case "kushki_card":
+      return "Tarjeta";
+    case "kushki_card_terminal":
+      return "Tarjeta · datáfono";
+    case "external_terminal":
+      return "Tarjeta · datáfono propio";
+    case "kushki_pse":
+      return "PSE";
     default:
       return m;
   }

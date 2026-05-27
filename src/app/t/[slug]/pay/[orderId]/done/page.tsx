@@ -7,6 +7,9 @@ import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 
 export const dynamic = "force-dynamic";
 
+// Labels diner-facing — copia corta y limpia, sin marcas (Kushki) ni
+// jerga interna. Si agregás un nuevo PaymentMethod, sumalo acá o se
+// muestra el slug crudo.
 const METHOD_LABEL: Record<string, string> = {
   demo_card: "Tarjeta",
   demo_cash: "Efectivo",
@@ -14,6 +17,11 @@ const METHOD_LABEL: Record<string, string> = {
   wompi_card: "Tarjeta",
   wompi_nequi: "Nequi",
   wompi_pse: "PSE",
+  kushki_apple_pay: "Apple Pay",
+  kushki_card: "Tarjeta",
+  kushki_card_terminal: "Tarjeta · datáfono",
+  external_terminal: "Tarjeta · datáfono",
+  kushki_pse: "PSE",
 };
 
 function methodLabel(m: string) {

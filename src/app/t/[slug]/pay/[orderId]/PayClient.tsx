@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
@@ -324,6 +324,10 @@ export function PayClient({
     docType: "CC" | "CE" | "NIT" | "PA" | "TI";
     docNumber: string;
     personType: "natural" | "juridica";
+    // Token y redirectUrl vienen llenos cuando el sheet ya tokenizó
+    // contra Kushki.js (sandbox/prod). En mock mode el backend tokeniza.
+    token?: string;
+    redirectUrl?: string;
   }) {
     if (amountCents <= 0) return;
     setBusy("kushki_pse");
@@ -345,6 +349,9 @@ export function PayClient({
               docNumber: args.docNumber,
               personType: args.personType,
             },
+            // Forward del token/redirect si Kushki.js ya tokenizó.
+            ...(args.token ? { token: args.token } : {}),
+            ...(args.redirectUrl ? { redirectUrl: args.redirectUrl } : {}),
           }),
         },
       );
@@ -841,6 +848,8 @@ export function PayClient({
           tenantSlug={tenantSlug}
           amountCents={amountCents}
           busy={busy === "kushki_pse"}
+          kushkiPublicKey={kushkiPublicKey}
+          isMockMode={isMockMode}
           onClose={() => setPseSheetOpen(false)}
           onPay={(args) => {
             setPseSheetOpen(false);
@@ -1020,28 +1029,44 @@ function CashTenderSheet({
  * change."
  */
 /**
- * Sheet del flow PSE. El diner elige su banco + ingresa email + doc.
- * El bankCode se manda al init para que Kushki abra directamente la
- * página del banco elegido sin un paso extra de selección.
- * Validación inline previa al submit para mejor UX.
+ * Sheet del flow PSE. En sandbox/producción usa Kushki.js para
+ * tokenizar en el browser — el SDK maneja Sift Science (anti-fraud)
+ * y devuelve `security.acsURL` que es la URL real del banco. En mock
+ * mode usa nuestro endpoint backend que simula el flow.
+ *
+ * Estructura del flow:
+ *   1. requestBankList(callback) → lista de bancos via Kushki API
+ *   2. user selecciona banco + ingresa email + doc
+ *   3. requestTransferToken(body, callback) → token + acsURL
+ *   4. POST a /kushki-pse-init para registrar el Payment
+ *   5. window.location = redirectUrl (página del banco real)
  */
 function PseSheet({
   tenantSlug,
   amountCents,
   busy,
+  kushkiPublicKey,
+  isMockMode,
   onClose,
   onPay,
 }: {
   tenantSlug: string;
   amountCents: number;
   busy: boolean;
+  kushkiPublicKey: string | null;
+  isMockMode: boolean;
   onClose: () => void;
+  // En mock mode el sheet llama a onPay con buyer data → backend tokeniza.
+  // En live mode el sheet tokeniza solo y llama a onPay con el token ya
+  // listo + el redirectUrl para que el caller cree el Payment.
   onPay: (args: {
     bankCode: string;
     email: string;
     docType: "CC" | "CE" | "NIT" | "PA" | "TI";
     docNumber: string;
     personType: "natural" | "juridica";
+    token?: string;
+    redirectUrl?: string;
   }) => void;
 }) {
   const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
@@ -1056,20 +1081,66 @@ function PseSheet({
     "natural",
   );
   const [err, setErr] = useState<string | null>(null);
+  const [tokenizing, setTokenizing] = useState(false);
+  // ref al Kushki SDK instanciado — se carga lazy al abrir el sheet.
+  const kushkiRef = useRef<unknown>(null);
 
+  // Carga inicial de la lista de bancos. En live mode usa Kushki.js
+  // (que el SDK enruta a /transfer/v1/bankList internamente con el
+  // Sift Science sessionId correcto). En mock mode usa nuestro
+  // endpoint /pse-banks.
   useEffect(() => {
     let alive = true;
     (async () => {
       setBanksLoading(true);
       try {
-        const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
-        const j = await res.json();
-        if (alive && res.ok && Array.isArray(j.banks)) {
-          setBanks(j.banks);
-        } else if (alive) {
-          setErr(j.message ?? "No pudimos cargar la lista de bancos.");
+        if (isMockMode || !kushkiPublicKey) {
+          // Mock path: backend
+          const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
+          const j = await res.json();
+          if (alive && res.ok && Array.isArray(j.banks)) setBanks(j.banks);
+          else if (alive)
+            setErr(j.message ?? "No pudimos cargar la lista de bancos.");
+        } else {
+          // Live: importamos el SDK dinámicamente para no inflar el
+          // bundle SSR. inversify/reflect-metadata requieren window.
+          const mod = await import("@kushki/js");
+          const KushkiCtor = mod.Kushki ?? (mod as { default?: unknown }).default;
+          if (typeof KushkiCtor !== "function") {
+            throw new Error("@kushki/js no expone Kushki constructor");
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const KCtor = KushkiCtor as new (opts: { merchantId: string; inTestEnvironment: boolean }) => any;
+          const k = new KCtor({
+            merchantId: kushkiPublicKey,
+            inTestEnvironment: true, // sandbox; en producción cambia
+          });
+          kushkiRef.current = k;
+          // requestBankList recibe un callback que se llama con la
+          // lista o un error.
+          await new Promise<void>((resolve) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (k as any).requestBankList((response: any) => {
+              if (response && Array.isArray(response)) {
+                if (alive)
+                  setBanks(
+                    response.map((b: { code?: string; id?: string; name: string }) => ({
+                      code: String(b.code ?? b.id ?? ""),
+                      name: b.name,
+                    })),
+                  );
+              } else if (response && response.code && alive) {
+                setErr(
+                  response.message ??
+                    `Error cargando bancos (${response.code})`,
+                );
+              }
+              resolve();
+            });
+          });
         }
-      } catch {
+      } catch (e) {
+        console.error("[pse] bank list error", e);
         if (alive) setErr("No pudimos cargar la lista de bancos.");
       } finally {
         if (alive) setBanksLoading(false);
@@ -1078,9 +1149,9 @@ function PseSheet({
     return () => {
       alive = false;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, isMockMode, kushkiPublicKey]);
 
-  function submit() {
+  async function submit() {
     if (!bankCode) {
       setErr("Elegí tu banco.");
       return;
@@ -1094,13 +1165,104 @@ function PseSheet({
       return;
     }
     setErr(null);
-    onPay({
-      bankCode,
-      email: email.trim().toLowerCase(),
-      docType,
-      docNumber: docNumber.trim(),
-      personType,
-    });
+
+    // Mock path: delegamos al backend.
+    if (isMockMode || !kushkiPublicKey || !kushkiRef.current) {
+      onPay({
+        bankCode,
+        email: email.trim().toLowerCase(),
+        docType,
+        docNumber: docNumber.trim(),
+        personType,
+      });
+      return;
+    }
+
+    // Live path: tokenizamos en el browser. El SDK maneja la auth
+    // pública + Sift Science + GET /merchant/settings + POST tokens.
+    // Devuelve TokenResponse con `token` y `security.acsURL`.
+    setTokenizing(true);
+    try {
+      // El callbackUrl debe ser ABSOLUTO y apuntar a nuestro /pse-return.
+      // El SDK no la usa internamente pero Kushki la requiere para que
+      // el banco sepa adónde regresar al diner.
+      const callbackUrl = `${window.location.origin}/t/${tenantSlug}/pay/${getOrderIdFromPath()}/pse-return`;
+
+      // Mapeo de doc → schema de Kushki Colombia.
+      const docTypeForKushki: "CC" | "CE" | "NIT" | "TI" | "PP" =
+        docType === "PA" ? "PP" : docType;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: any = {
+        amount: {
+          subtotalIva: 0,
+          subtotalIva0: amountCents / 100,
+          iva: 0,
+        },
+        callbackUrl,
+        userType: personType === "juridica" ? "1" : "0",
+        documentNumber: docNumber.trim(),
+        documentType: docTypeForKushki,
+        email: email.trim().toLowerCase(),
+        currency: "COP",
+        bankId: bankCode,
+      };
+
+      const response = await new Promise<{
+        token?: string;
+        security?: { acsURL?: string };
+        code?: string;
+        message?: string;
+        error?: string;
+      }>((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kushkiRef.current as any).requestTransferToken(
+          body,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (resp: any) => resolve(resp),
+        );
+      });
+
+      console.log("[pse] kushki tokens response", response);
+
+      if (response.code) {
+        setErr(
+          `${response.message ?? response.error ?? "Error de Kushki"} (${response.code})`,
+        );
+        return;
+      }
+      const token = response.token;
+      const redirectUrl = response.security?.acsURL;
+      if (!token || !redirectUrl) {
+        setErr(
+          "Kushki no devolvió URL del banco. Probá con otro banco o método.",
+        );
+        return;
+      }
+
+      onPay({
+        bankCode,
+        email: email.trim().toLowerCase(),
+        docType,
+        docNumber: docNumber.trim(),
+        personType,
+        token,
+        redirectUrl,
+      });
+    } catch (e) {
+      console.error("[pse] tokenize error", e);
+      setErr("No pudimos tokenizar con Kushki. Probá de nuevo.");
+    } finally {
+      setTokenizing(false);
+    }
+  }
+
+  // Helper: extraer orderId de la URL actual. PseSheet no recibe el
+  // orderId como prop pero está en el path /t/[slug]/pay/[orderId].
+  function getOrderIdFromPath(): string {
+    const parts = window.location.pathname.split("/");
+    const i = parts.indexOf("pay");
+    return i >= 0 ? parts[i + 1] : "";
   }
 
   return (
@@ -1227,12 +1389,14 @@ function PseSheet({
         <button
           type="button"
           onClick={submit}
-          disabled={busy || banksLoading || !bankCode}
+          disabled={busy || tokenizing || banksLoading || !bankCode}
           className="w-full h-12 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
         >
-          {busy
-            ? "Conectando con el banco…"
-            : `Ir al banco · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
+          {tokenizing
+            ? "Tokenizando…"
+            : busy
+              ? "Conectando con el banco…"
+              : `Ir al banco · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
         </button>
         <p className="text-[11px] text-op-muted text-center mt-2">
           Pago seguro vía PSE. Te abrimos la página de tu banco para

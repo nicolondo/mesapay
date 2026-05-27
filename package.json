@@ -19,6 +19,7 @@
     "@anthropic-ai/sdk": "^0.98.0",
     "@auth/core": "^0.41.2",
     "@auth/prisma-adapter": "^2.11.2",
+    "@kushki/js": "^1.40.5",
     "@prisma/client": "^6.19.3",
     "@types/qrcode": "^1.5.6",
     "@types/web-push": "^3.6.4",

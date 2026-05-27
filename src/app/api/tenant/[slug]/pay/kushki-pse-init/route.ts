@@ -28,9 +28,15 @@ import { validateNewPaymentAmount } from "@/lib/orderTotals";
  * otras rieles diner-side).
  */
 
-// Kushki PSE: email + doc + tipo de persona + banco. El banco lo
-// elige el diner en nuestro sheet para que Kushki abra directamente
-// la página del banco sin un paso extra de "elegí tu banco".
+// PSE init/registro. Dos modos:
+//   - Mock (mode=mock): browser POSTea sólo buyer+bankCode. Backend
+//     usa el provider mock para tokenizar y devolver redirectUrl.
+//   - Sandbox/Producción (mode=sandbox|production): browser ya
+//     tokenizó con Kushki.js (que maneja Sift Science correctamente)
+//     y POSTea {token, redirectUrl}. Backend sólo registra el Payment
+//     y devuelve confirmación.
+//
+// Distinguimos por la presencia del campo `token` en el body.
 const schema = z.object({
   orderId: z.string().min(1),
   amountCents: z.number().int().min(100),
@@ -42,6 +48,11 @@ const schema = z.object({
     docNumber: z.string().trim().min(4).max(20),
     personType: z.enum(["natural", "juridica"]).default("natural"),
   }),
+  // Si el browser ya tokenizó con Kushki.js, pasa el token + redirect.
+  // En mock mode estos campos no se envían y el backend tokeniza vía
+  // el provider mock.
+  token: z.string().trim().min(1).optional(),
+  redirectUrl: z.string().trim().url().optional(),
 });
 
 export async function POST(
@@ -158,11 +169,21 @@ export async function POST(
     return p;
   });
 
-  // 2. PSE en Kushki usa la PUBLIC key del sub-merchant (igual que
-  //    tokenización de tarjetas). La private key se usa solo para
-  //    charges/captures que Kushki hace internamente. Si el comercio
-  //    no tiene public key cargada en su ficha, no podemos iniciar.
-  //    En mock mode aceptamos cualquier string como key.
+  // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod), sólo
+  //    registramos el Payment con el token. El redirect lo armó el
+  //    SDK con security.acsURL del response real de Kushki.
+  if (parsed.data.token && parsed.data.redirectUrl) {
+    await db.payment.update({
+      where: { id: payment.id },
+      data: { providerRef: parsed.data.token },
+    });
+    return NextResponse.json({
+      paymentId: payment.id,
+      redirectUrl: parsed.data.redirectUrl,
+    });
+  }
+
+  // 3. Mock path: el backend tokeniza con el provider mock.
   const publicKey =
     tenant.kushkiPublicKey ??
     ((await getRestaurantPrivateKey(tenant.id)) ? "mock_public_key" : null);
@@ -181,8 +202,6 @@ export async function POST(
 
   try {
     const result = await getPaymentProvider().initiatePse({
-      // El provider live usa este field como PUBLIC merchant key.
-      // El mock lo ignora (cualquier string sirve).
       merchantId: publicKey,
       amount: {
         amountCents: parsed.data.amountCents,
@@ -198,14 +217,11 @@ export async function POST(
       },
     });
 
-    // Guardamos el ticket / providerRef para reconciliación
     await db.payment.update({
       where: { id: payment.id },
       data: { providerRef: result.providerRef },
     });
 
-    // Si la redirectUrl es relativa (mock), absolutizamos con el
-    // origin actual. En live siempre viene absoluta.
     const absoluteRedirect = result.redirectUrl.startsWith("http")
       ? result.redirectUrl
       : `${origin}${result.redirectUrl}`;

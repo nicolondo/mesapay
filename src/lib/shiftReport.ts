@@ -340,4 +340,5 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   kushki_google_pay: "Google Pay",
   kushki_card_terminal: "Datáfono (Kushki)",
   external_terminal: "Datáfono propio",
+  kushki_pse: "PSE",
 };

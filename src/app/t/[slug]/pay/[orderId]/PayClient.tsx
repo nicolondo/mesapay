@@ -23,6 +23,7 @@ type PayItem = {
 type MethodKind =
   | "kushki_apple_pay"
   | "kushki_card_terminal"
+  | "kushki_pse"
   | "external_terminal"
   | "demo_cash";
 
@@ -68,6 +69,7 @@ export function PayClient({
   enabledMethods: (
     | "kushki_card_terminal"
     | "kushki_apple_pay"
+    | "kushki_pse"
     | "external_terminal"
     | "cash"
   )[];
@@ -102,6 +104,7 @@ export function PayClient({
   const [splitCount, setSplitCount] = useState<number>(2);
   const [hasApplePay, setHasApplePay] = useState(false);
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
+  const [pseSheetOpen, setPseSheetOpen] = useState(false);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -302,6 +305,59 @@ export function PayClient({
           ? staffServeHref
           : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`,
       );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * PSE — el diner ya seleccionó banco + ingresó datos en el sheet.
+   * Llamamos al init endpoint, recibimos la URL del banco, y
+   * redirigimos. El resultado final llega por webhook (`pse.approved`
+   * o `pse.declined`) y el cliente lo ve en `/pse-return`.
+   */
+  async function payWithPse(args: {
+    bankCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    docType: "CC" | "CE" | "NIT" | "PA" | "TI";
+    docNumber: string;
+    personType: "natural" | "juridica";
+  }) {
+    if (amountCents <= 0) return;
+    setBusy("kushki_pse");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenantSlug}/pay/kushki-pse-init`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            orderId,
+            amountCents: amountSubtotal,
+            tipCents: amountTip,
+            bankCode: args.bankCode,
+            buyer: {
+              firstName: args.firstName,
+              lastName: args.lastName,
+              email: args.email,
+              docType: args.docType,
+              docNumber: args.docNumber,
+              personType: args.personType,
+            },
+          }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.redirectUrl) {
+        setErr(j.message ?? j.error ?? "No pudimos iniciar PSE.");
+        return;
+      }
+      // Redirigimos al banco. El cliente vuelve a /pse-return cuando
+      // termina (sea aprobado o rechazado por el banco).
+      window.location.href = j.redirectUrl;
     } finally {
       setBusy(null);
     }
@@ -684,6 +740,18 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
+        {kushkiReady &&
+          enabledMethods.includes("kushki_pse") &&
+          !operatorMode && (
+            <PayButton
+              kind="pse"
+              disabled={busy !== null || amountCents <= 0}
+              busy={busy === "kushki_pse"}
+              onClick={() => setPseSheetOpen(true)}
+              amountCents={amountCents}
+              operatorMode={operatorMode}
+            />
+          )}
         {enabledMethods.includes("cash") && (
           <PayButton
             kind="cash"
@@ -740,6 +808,18 @@ export function PayClient({
           onConfirm={({ tenderCents, changeGivenCents }) => {
             setCashTenderOpen(false);
             payWithCash(tenderCents, changeGivenCents);
+          }}
+        />
+      )}
+      {pseSheetOpen && (
+        <PseSheet
+          tenantSlug={tenantSlug}
+          amountCents={amountCents}
+          busy={busy === "kushki_pse"}
+          onClose={() => setPseSheetOpen(false)}
+          onPay={(args) => {
+            setPseSheetOpen(false);
+            payWithPse(args);
           }}
         />
       )}
@@ -914,6 +994,251 @@ function CashTenderSheet({
  * on "tell the waiter how much you'll pay so they bring the right
  * change."
  */
+/**
+ * Sheet del flow PSE. El diner selecciona su banco de una lista que
+ * traemos de Kushki, llena sus datos (PSE es regulado y exige nombre,
+ * email, doc), y al confirmar lo mandamos al endpoint init que devuelve
+ * la URL del banco. La validación inline previa al submit evita errores
+ * del lado server porque PSE rechaza si falta cualquier campo.
+ */
+function PseSheet({
+  tenantSlug,
+  amountCents,
+  busy,
+  onClose,
+  onPay,
+}: {
+  tenantSlug: string;
+  amountCents: number;
+  busy: boolean;
+  onClose: () => void;
+  onPay: (args: {
+    bankCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    docType: "CC" | "CE" | "NIT" | "PA" | "TI";
+    docNumber: string;
+    personType: "natural" | "juridica";
+  }) => void;
+}) {
+  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
+  const [banksLoading, setBanksLoading] = useState(true);
+  const [bankCode, setBankCode] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA" | "TI">(
+    "CC",
+  );
+  const [docNumber, setDocNumber] = useState("");
+  const [personType, setPersonType] = useState<"natural" | "juridica">(
+    "natural",
+  );
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setBanksLoading(true);
+      try {
+        const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
+        const j = await res.json();
+        if (res.ok && Array.isArray(j.banks)) {
+          setBanks(j.banks);
+        } else {
+          setErr(j.message ?? "No pudimos cargar la lista de bancos.");
+        }
+      } catch {
+        setErr("No pudimos cargar la lista de bancos.");
+      } finally {
+        setBanksLoading(false);
+      }
+    })();
+  }, [tenantSlug]);
+
+  function submit() {
+    if (!bankCode) {
+      setErr("Elegí tu banco.");
+      return;
+    }
+    if (!firstName.trim() || !lastName.trim()) {
+      setErr("Nombre y apellido son obligatorios.");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setErr("Email inválido.");
+      return;
+    }
+    if (!docNumber.trim()) {
+      setErr("Número de documento obligatorio.");
+      return;
+    }
+    setErr(null);
+    onPay({
+      bankCode,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim().toLowerCase(),
+      docType,
+      docNumber: docNumber.trim(),
+      personType,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center">
+      <div className="bg-paper w-full md:max-w-md md:rounded-2xl rounded-t-2xl p-5 max-h-[90vh] overflow-auto">
+        <div className="flex items-baseline justify-between mb-4">
+          <div>
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              PSE · Transferencia bancaria
+            </div>
+            <div className="font-display text-xl">
+              Pagar{" "}
+              <span className="tabular">
+                ${(amountCents / 100).toLocaleString("es-CO")}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <label className="block mb-3">
+          <div className="text-[11px] text-op-muted mb-1">Banco</div>
+          <select
+            value={bankCode}
+            onChange={(e) => setBankCode(e.target.value)}
+            disabled={banksLoading}
+            className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+          >
+            <option value="">
+              {banksLoading ? "Cargando bancos…" : "Elegí tu banco"}
+            </option>
+            {banks.map((b) => (
+              <option key={b.code} value={b.code}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <label className="block">
+            <div className="text-[11px] text-op-muted mb-1">Nombre</div>
+            <input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={60}
+              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+            />
+          </label>
+          <label className="block">
+            <div className="text-[11px] text-op-muted mb-1">Apellido</div>
+            <input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={60}
+              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+            />
+          </label>
+        </div>
+
+        <label className="block mb-3">
+          <div className="text-[11px] text-op-muted mb-1">Email</div>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+          />
+        </label>
+
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <label className="block col-span-1">
+            <div className="text-[11px] text-op-muted mb-1">Tipo doc</div>
+            <select
+              value={docType}
+              onChange={(e) =>
+                setDocType(e.target.value as typeof docType)
+              }
+              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+            >
+              <option value="CC">CC</option>
+              <option value="CE">CE</option>
+              <option value="NIT">NIT</option>
+              <option value="PA">PA</option>
+              <option value="TI">TI</option>
+            </select>
+          </label>
+          <label className="block col-span-2">
+            <div className="text-[11px] text-op-muted mb-1">Número</div>
+            <input
+              inputMode="numeric"
+              value={docNumber}
+              onChange={(e) => setDocNumber(e.target.value)}
+              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+            />
+          </label>
+        </div>
+
+        <label className="block mb-4">
+          <div className="text-[11px] text-op-muted mb-1">Tipo de persona</div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPersonType("natural")}
+              className={
+                "flex-1 h-10 rounded-lg border text-sm " +
+                (personType === "natural"
+                  ? "border-ink bg-ink text-bone"
+                  : "border-hairline bg-paper text-ink")
+              }
+            >
+              Natural
+            </button>
+            <button
+              type="button"
+              onClick={() => setPersonType("juridica")}
+              className={
+                "flex-1 h-10 rounded-lg border text-sm " +
+                (personType === "juridica"
+                  ? "border-ink bg-ink text-bone"
+                  : "border-hairline bg-paper text-ink")
+              }
+            >
+              Jurídica
+            </button>
+          </div>
+        </label>
+
+        {err && (
+          <div className="text-xs text-danger mb-3">{err}</div>
+        )}
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || banksLoading || !bankCode}
+          className="w-full h-12 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
+        >
+          {busy
+            ? "Conectando con el banco…"
+            : `Ir al banco · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
+        </button>
+        <p className="text-[11px] text-op-muted text-center mt-2">
+          Te llevaremos a tu banco para autorizar la transferencia.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function OperatorCashSheet({
   amountCents,
   busy,
@@ -1293,6 +1618,7 @@ function PayButton({
     | "apple"
     | "terminal"
     | "external_terminal"
+    | "pse"
     | "cash"
     | "demo_terminal";
   disabled: boolean;
@@ -1327,7 +1653,7 @@ type ButtonMeta = { label: string; icon: string; className: string };
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
 // frame the action correctly.
 const BUTTON_META_DINER: Record<
-  "apple" | "terminal" | "external_terminal" | "cash" | "demo_terminal",
+  "apple" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: {
@@ -1343,6 +1669,11 @@ const BUTTON_META_DINER: Record<
   external_terminal: {
     label: "Tarjeta (datáfono del comercio)",
     icon: "💳",
+    className: "bg-paper text-ink border border-hairline",
+  },
+  pse: {
+    label: "PSE (transferencia bancaria)",
+    icon: "🏦",
     className: "bg-paper text-ink border border-hairline",
   },
   cash: {
@@ -1361,7 +1692,7 @@ const BUTTON_META_DINER: Record<
 // They aren't "calling the mesero" or "asking for the datáfono" —
 // they're recording how the diner is paying right now.
 const BUTTON_META_OP: Record<
-  "apple" | "terminal" | "external_terminal" | "cash" | "demo_terminal",
+  "apple" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
@@ -1375,6 +1706,7 @@ const BUTTON_META_OP: Record<
     icon: "💳",
     className: "bg-paper text-ink border border-hairline",
   },
+  pse: BUTTON_META_DINER.pse, // never shown in op mode, kept for type safety
   cash: {
     label: "Recibir en efectivo",
     icon: "💵",

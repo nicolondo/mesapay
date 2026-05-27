@@ -5,6 +5,9 @@ import type {
   MerchantSummary,
   ChargeRequest,
   ChargeResult,
+  PseBank,
+  PseInitRequest,
+  PseInitResult,
   TerminalPushRequest,
   TerminalPushResult,
   WalletBalance,
@@ -34,6 +37,10 @@ type MockMerchant = {
     string,
     { req: TerminalPushRequest; resolveAt: number }
   >;
+  pendingPseRequests: Map<
+    string,
+    { req: PseInitRequest; createdAt: number }
+  >;
 };
 
 const merchants = new Map<string, MockMerchant>();
@@ -49,11 +56,26 @@ function ensureMerchant(merchantId: string): MockMerchant {
       balanceCents: 0,
       movements: [],
       pendingTerminalRequests: new Map(),
+      pendingPseRequests: new Map(),
     };
     merchants.set(merchantId, m);
   }
   return m;
 }
+
+/** Top bancos colombianos para PSE — mismo set que devuelve Kushki. */
+const MOCK_PSE_BANKS: PseBank[] = [
+  { code: "1007", name: "Bancolombia" },
+  { code: "1051", name: "Davivienda" },
+  { code: "1013", name: "BBVA Colombia" },
+  { code: "1019", name: "Scotiabank Colpatria" },
+  { code: "1023", name: "Banco de Occidente" },
+  { code: "1001", name: "Banco de Bogotá" },
+  { code: "1062", name: "Banco Falabella" },
+  { code: "1058", name: "Banco AV Villas" },
+  { code: "1066", name: "Banco Cooperativo Coopcentral" },
+  { code: "1283", name: "Nequi" },
+];
 
 function recordMovement(m: MockMerchant, mov: Omit<WalletMovement, "balanceAfterCents">) {
   m.balanceCents += mov.kind === "credit" ? mov.amountCents : -mov.amountCents;
@@ -78,6 +100,7 @@ export class MockKushkiProvider implements PaymentProvider {
       balanceCents: 0,
       movements: [],
       pendingTerminalRequests: new Map(),
+      pendingPseRequests: new Map(),
     };
     merchants.set(merchantId, m);
     // Reference the submission to keep linters happy; in a richer mock we
@@ -126,6 +149,48 @@ export class MockKushkiProvider implements PaymentProvider {
       status: "declined",
       message: "Rechazada por el banco (mock)",
       raw: { mock: true, reason: "insufficient_funds" },
+    };
+  }
+
+  /**
+   * Lista hardcoded de bancos PSE colombianos populares — suficiente
+   * para que la UI tenga un dropdown realista en dev/QA.
+   */
+  async listPseBanks(): Promise<PseBank[]> {
+    return MOCK_PSE_BANKS.slice();
+  }
+
+  /**
+   * Mock PSE init: emite una redirectUrl a una página local que simula
+   * el banco. Esa página acepta "approve" / "decline" como query y
+   * dispara el webhook simulado al volver. Permite probar todo el
+   * loop sin pegarle a un banco real.
+   */
+  async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
+    await sleep(300 + Math.random() * 300);
+    const providerRef = `mock_pse_${randomUUID().slice(0, 8)}`;
+    // El parámetro decide=auto hace que la página de mock decida
+    // automáticamente (90% approved) después de 2s y haga el redirect
+    // de vuelta a returnUrl con el resultado. Lo guardamos en la
+    // session de pendings del merchant para que el webhook simulado
+    // pueda resolverlo.
+    const m = ensureMerchant(req.merchantId);
+    m.pendingPseRequests.set(providerRef, { req, createdAt: Date.now() });
+    const redirectUrl = new URL("/t/__pse-mock-bank", "https://placeholder");
+    // Construimos un return query: el handler del banco mock va a
+    // re-armar el callbackUrl con su propio status.
+    redirectUrl.searchParams.set("ref", providerRef);
+    redirectUrl.searchParams.set("bank", req.bankCode);
+    redirectUrl.searchParams.set("amount", String(req.amount.amountCents));
+    redirectUrl.searchParams.set("return", req.returnUrl);
+    // El runtime real reemplaza el host con la URL del request; acá
+    // sólo armamos el path relativo. PseInitResult.redirectUrl
+    // espera URL absoluta, así que el caller lo absolutiza con su
+    // hostname antes de redirigir.
+    return {
+      providerRef,
+      redirectUrl: redirectUrl.pathname + redirectUrl.search,
+      status: "pending",
     };
   }
 
@@ -237,7 +302,53 @@ type MockWebhookEvent =
       orderId: string;
       paymentId: string;
     }
+  | {
+      type: "pse.approved" | "pse.declined";
+      providerRef: string;
+      merchantId: string;
+      amountCents: number;
+      orderId: string;
+      paymentId: string;
+    }
   | { type: "merchant.activated"; merchantId: string };
+
+/**
+ * Disparado por la página mock del banco PSE cuando el "usuario" termina
+ * de autenticarse. Resuelve el pending del merchant, registra movimiento
+ * si approved, y notifica al webhook bus para que el handler real procese
+ * el Payment.
+ */
+export async function resolveMockPse(
+  providerRef: string,
+  outcome: "approved" | "declined",
+): Promise<{ ok: boolean }> {
+  // Buscamos el pending en cualquier merchant. La cantidad de merchants
+  // mock siempre es chica.
+  for (const m of merchants.values()) {
+    const pending = m.pendingPseRequests.get(providerRef);
+    if (!pending) continue;
+    m.pendingPseRequests.delete(providerRef);
+    if (outcome === "approved") {
+      recordMovement(m, {
+        externalRef: providerRef,
+        kind: "credit",
+        amountCents: pending.req.amount.amountCents,
+        description: `PSE orden ${pending.req.metadata.orderId.slice(0, 6)}`,
+        occurredAt: new Date(),
+      });
+    }
+    await notifyMockWebhook({
+      type: outcome === "approved" ? "pse.approved" : "pse.declined",
+      providerRef,
+      merchantId: m.merchantId,
+      amountCents: pending.req.amount.amountCents,
+      orderId: pending.req.metadata.orderId,
+      paymentId: pending.req.metadata.paymentId,
+    });
+    return { ok: true };
+  }
+  return { ok: false };
+}
 
 type Listener = (e: MockWebhookEvent) => void;
 const listeners = new Set<Listener>();

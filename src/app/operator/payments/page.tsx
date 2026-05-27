@@ -103,6 +103,7 @@ function methodLabel(m: string) {
     kushki_google_pay: "Google Pay",
     kushki_card_terminal: "K_Terminal",
     external_terminal: "Datáfono propio",
+    kushki_pse: "PSE",
   };
   return map[m] ?? m;
 }

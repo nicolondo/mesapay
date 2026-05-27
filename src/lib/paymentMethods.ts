@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 export type PaymentMethodSlug =
   | "kushki_card_terminal"
   | "kushki_apple_pay"
+  | "kushki_pse"
   | "external_terminal"
   | "cash";
 
@@ -41,6 +42,12 @@ export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
     label: "Apple Pay",
     description:
       "El diner paga desde su iPhone con Face ID. Solo cuando Kushki está activo.",
+  },
+  {
+    slug: "kushki_pse",
+    label: "PSE (transferencia bancaria)",
+    description:
+      "El diner elige su banco, va a la web del banco a autenticarse y vuelve. Resultado por webhook.",
   },
   {
     slug: "cash",

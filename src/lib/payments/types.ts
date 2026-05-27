@@ -92,6 +92,52 @@ export type ChargeResult = {
   raw: unknown;
 };
 
+/**
+ * PSE (Pagos Seguros en Línea) — flow estándar colombiano. El user
+ * elige su banco, el provider devuelve una URL a la página de
+ * autenticación del banco, el banco redirige de vuelta a nuestra app
+ * cuando termina, y un webhook confirma el resultado final.
+ */
+export type PseBank = {
+  /** Código numérico del banco (ej. "1007" Bancolombia). */
+  code: string;
+  /** Nombre comercial visible al usuario. */
+  name: string;
+};
+
+export type PsePersonType = "natural" | "juridica";
+export type PseDocType = "CC" | "CE" | "NIT" | "PA" | "TI";
+
+export type PseInitRequest = {
+  merchantId: string;
+  amount: Money;
+  /** Datos del pagador — requeridos por PSE/ASOBANCARIA. */
+  buyer: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    docType: PseDocType;
+    docNumber: string;
+    personType: PsePersonType;
+  };
+  /** Código del banco que el usuario eligió de listPseBanks(). */
+  bankCode: string;
+  /** URL absoluta a la que el banco redirige al user cuando termina. */
+  returnUrl: string;
+  metadata: {
+    orderId: string;
+    paymentId: string;
+  };
+};
+
+export type PseInitResult = {
+  providerRef: string;
+  /** URL del banco a la que mandamos al user con un redirect 302. */
+  redirectUrl: string;
+  /** Siempre "pending" — el estado final viene por webhook. */
+  status: "pending";
+};
+
 export type TerminalPushRequest = {
   merchantId: string;
   deviceId: string;
@@ -151,6 +197,10 @@ export interface PaymentProvider {
 
   // Charges (Apple Pay token today; provider stays generic for the future).
   chargeWithToken(req: ChargeRequest): Promise<ChargeResult>;
+
+  // PSE (redirect-based bank transfer)
+  listPseBanks(): Promise<PseBank[]>;
+  initiatePse(req: PseInitRequest): Promise<PseInitResult>;
 
   // Smart-POS terminal cloud push
   pushToTerminal(req: TerminalPushRequest): Promise<TerminalPushResult>;

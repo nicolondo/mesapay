@@ -17,6 +17,8 @@ export type KushkiWebhookKind =
   | "charge.declined"
   | "terminal.approved"
   | "terminal.declined"
+  | "pse.approved"
+  | "pse.declined"
   | "dispersion.completed"
   | "dispersion.failed"
   | "merchant.activated"
@@ -82,10 +84,12 @@ async function dispatch(payload: KushkiWebhookPayload): Promise<void> {
   switch (payload.type) {
     case "charge.approved":
     case "terminal.approved":
+    case "pse.approved":
       await handleApproved(payload);
       return;
     case "charge.declined":
     case "terminal.declined":
+    case "pse.declined":
       await handleDeclined(payload);
       return;
     case "dispersion.completed":

@@ -797,6 +797,10 @@ enum PaymentMethod {
   // Útil para comercios que aún no migran a Kushki o que tienen un
   // contrato de adquiriente preexistente que prefieren mantener.
   external_terminal
+  // PSE (Pagos Seguros en Línea) vía Kushki — el cliente se va a la
+  // web de su banco, autentica, hace la transferencia, y vuelve.
+  // Asíncrono: el resultado final llega por webhook.
+  kushki_pse
 }
 
 enum PaymentStatus {

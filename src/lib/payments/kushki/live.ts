@@ -4,6 +4,9 @@ import type {
   MerchantSummary,
   ChargeRequest,
   ChargeResult,
+  PseBank,
+  PseInitRequest,
+  PseInitResult,
   TerminalPushRequest,
   TerminalPushResult,
   WalletBalance,
@@ -110,6 +113,73 @@ export class LiveKushkiProvider implements PaymentProvider {
             : "pending",
       message: resp.responseText,
       raw: resp,
+    };
+  }
+
+  /**
+   * Lista de bancos PSE. Kushki la expone para que la UI pueda
+   * renderizar el dropdown. La firma asumida es:
+   *   GET /pse/v1/banks  (auth: submerchant public)
+   * → [{ id, name }]
+   * Si Kushki usa otro path, ajustar acá. La respuesta la normalizamos
+   * a { code, name } para que el resto del código sea independiente.
+   */
+  async listPseBanks(): Promise<PseBank[]> {
+    // TODO(kushki-docs): confirmar path exacto + auth (puede ser
+    // partner-level o público). Por ahora asumimos submerchant-public
+    // pero con merchantId placeholder porque la lista es global.
+    const resp = await kushkiFetch<Array<{ code?: string; id?: string; name: string }>>(
+      "/pse/v1/banks",
+      { method: "GET", auth: { kind: "partner" } },
+    );
+    const arr = Array.isArray(resp) ? resp : [];
+    return arr.map((b) => ({
+      code: String(b.code ?? b.id ?? ""),
+      name: b.name,
+    }));
+  }
+
+  /**
+   * Inicia una transacción PSE. El user es redirigido al banco con
+   * la URL que retornamos. El estado final llega por webhook
+   * (`pse.approved` / `pse.declined`) que actualiza el Payment.
+   *
+   * Firma asumida (estándar Kushki PSE):
+   *   POST /pse/v1/init
+   *   auth: submerchant private
+   *   body: { totalAmount, currency, callbackUrl, buyer{}, bankId }
+   *   → { redirectUrl, ticketNumber }
+   */
+  async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
+    // TODO(kushki-docs): validar shape exacto del request/response.
+    const resp = await kushkiFetch<{
+      redirectUrl: string;
+      ticketNumber?: string;
+      transactionToken?: string;
+    }>("/pse/v1/init", {
+      method: "POST",
+      auth: { kind: "submerchant", privateKey: req.merchantId },
+      body: {
+        totalAmount: req.amount.amountCents / 100,
+        currency: req.amount.currency,
+        callbackUrl: req.returnUrl,
+        bankId: req.bankCode,
+        buyer: {
+          name: req.buyer.firstName,
+          lastName: req.buyer.lastName,
+          email: req.buyer.email,
+          documentType: req.buyer.docType,
+          documentNumber: req.buyer.docNumber,
+          // PSE: "0" = natural, "1" = jurídica
+          personType: req.buyer.personType === "juridica" ? "1" : "0",
+        },
+        metadata: req.metadata,
+      },
+    });
+    return {
+      providerRef: resp.ticketNumber ?? resp.transactionToken ?? "",
+      redirectUrl: resp.redirectUrl,
+      status: "pending",
     };
   }
 

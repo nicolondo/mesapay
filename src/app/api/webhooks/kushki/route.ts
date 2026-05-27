@@ -53,6 +53,8 @@ const KNOWN_KINDS: KushkiWebhookKind[] = [
   "charge.declined",
   "terminal.approved",
   "terminal.declined",
+  "pse.approved",
+  "pse.declined",
   "dispersion.completed",
   "dispersion.failed",
   "merchant.activated",

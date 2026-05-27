@@ -7,6 +7,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 
 /**
@@ -46,6 +47,10 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  // En mock mode, instalamos el bridge que enchufa el bus de webhooks
+  // simulados al handler real. Es idempotente — solo se instala la
+  // primera vez por proceso.
+  ensureMockBridge();
   const { slug } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) {

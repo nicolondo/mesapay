@@ -51,6 +51,12 @@ export default async function PseMockBankPage({
         ? "approved"
         : "declined";
 
+  // Antes de resolver, aseguramos que el bridge esté instalado en
+  // este proceso — sino el evento simulado no tiene listener que lo
+  // procese y el Payment queda colgado en pending.
+  const { ensureMockBridge } = await import("@/lib/payments/mockBridge");
+  ensureMockBridge();
+
   // Resolver el pending en el mock provider — esto dispara el webhook
   // simulado que el handler real procesa.
   const { resolveMockPse } = await import("@/lib/payments/kushki/mock");

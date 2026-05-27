@@ -22,7 +22,9 @@ export function ensureMockBridge(): void {
   subscribeMockWebhook((e) => {
     if (
       e.type === "terminal.approved" ||
-      e.type === "terminal.declined"
+      e.type === "terminal.declined" ||
+      e.type === "pse.approved" ||
+      e.type === "pse.declined"
     ) {
       void processKushkiWebhook({
         eventId: `mock-${randomUUID()}`,

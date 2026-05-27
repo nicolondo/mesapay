@@ -22,6 +22,7 @@ type PayItem = {
 
 type MethodKind =
   | "kushki_apple_pay"
+  | "kushki_card"
   | "kushki_card_terminal"
   | "kushki_pse"
   | "external_terminal"
@@ -69,6 +70,7 @@ export function PayClient({
   // this list so disabled methods never render.
   enabledMethods: (
     | "kushki_card_terminal"
+    | "kushki_card"
     | "kushki_apple_pay"
     | "kushki_pse"
     | "external_terminal"
@@ -108,6 +110,7 @@ export function PayClient({
   const [hasApplePay, setHasApplePay] = useState(false);
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
+  const [cardSheetOpen, setCardSheetOpen] = useState(false);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -176,34 +179,60 @@ export function PayClient({
         setErr("Apple Pay aún no está activado para este restaurante.");
         return;
       }
-
-      const res = await fetch(`/api/tenant/${tenantSlug}/pay/kushki-charge`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          method,
-          token,
-          amountCents,
-          tipCents: amountTip,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErr(j.message ?? j.error ?? "El pago falló.");
-        return;
-      }
-      if (j.approved && j.paymentId) {
-        router.push(
-          operatorMode
-            ? staffServeHref
-            : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
-        );
-      } else {
-        setErr(j.message ?? "Pago rechazado. Intenta con otra tarjeta o medio.");
-      }
+      await sendKushkiTokenCharge(method, token);
     } finally {
       setBusy(null);
+    }
+  }
+
+  /**
+   * Tarjeta de crédito/débito tipeada en MESAPAY. El CardSheet ya
+   * tokenizó vía Kushki.js — acá solo mandamos el token al backend
+   * para que haga el charge con la private key. Datos de la tarjeta
+   * (PAN/CVV) NUNCA pasan por nuestro server, mantienen SAQ-A.
+   */
+  async function payWithCardToken(token: string) {
+    if (amountCents <= 0) return;
+    setBusy("kushki_card");
+    setErr(null);
+    try {
+      await sendKushkiTokenCharge("kushki_card", token);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Shared backend roundtrip para los dos métodos token-based
+  // (Apple Pay + tarjeta directa). El backend route /pay/kushki-charge
+  // ya está parametrizado por method.
+  async function sendKushkiTokenCharge(
+    method: "kushki_apple_pay" | "kushki_card",
+    token: string,
+  ) {
+    const res = await fetch(`/api/tenant/${tenantSlug}/pay/kushki-charge`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId,
+        method,
+        token,
+        amountCents,
+        tipCents: amountTip,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(j.message ?? j.error ?? "El pago falló.");
+      return;
+    }
+    if (j.approved && j.paymentId) {
+      router.push(
+        operatorMode
+          ? staffServeHref
+          : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
+      );
+    } else {
+      setErr(j.message ?? "Pago rechazado. Intenta con otra tarjeta o medio.");
     }
   }
 
@@ -770,6 +799,16 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
+        {kushkiReady && enabledMethods.includes("kushki_card") && (
+          <PayButton
+            kind="card"
+            disabled={busy !== null || amountCents <= 0}
+            busy={busy === "kushki_card"}
+            onClick={() => setCardSheetOpen(true)}
+            amountCents={amountCents}
+            operatorMode={operatorMode}
+          />
+        )}
         {enabledMethods.includes("external_terminal") && (
           <PayButton
             kind="external_terminal"
@@ -862,6 +901,19 @@ export function PayClient({
           onPay={(args) => {
             setPseSheetOpen(false);
             payWithPse(args);
+          }}
+        />
+      )}
+      {cardSheetOpen && (
+        <CardSheet
+          amountCents={amountCents}
+          busy={busy === "kushki_card"}
+          kushkiPublicKey={kushkiPublicKey}
+          isMockMode={isMockMode}
+          onClose={() => setCardSheetOpen(false)}
+          onTokenized={(token) => {
+            setCardSheetOpen(false);
+            payWithCardToken(token);
           }}
         />
       )}
@@ -1784,6 +1836,303 @@ function PresetBill({
   );
 }
 
+/**
+ * Card sheet — diner ingresa datos de tarjeta y los tokenizamos en el
+ * browser con Kushki.js. El PAN/CVV NUNCA pasan por nuestro server
+ * (PCI SAQ-A). Devolvemos solo el token al caller via onTokenized.
+ *
+ * Mock mode: si KUSHKI_MODE=mock o el tenant no tiene public key,
+ * generamos un token fake para que el mock provider lo acepte (mismo
+ * patrón que PseSheet).
+ *
+ * 3DS NOT supported aún — si el banco lo requiere, Kushki devuelve
+ * security.acsURL y acá lo expondríamos como redirect. Para MVP
+ * dejamos las tarjetas no-3DS y el banco rechaza el resto.
+ */
+function CardSheet({
+  amountCents,
+  busy,
+  kushkiPublicKey,
+  isMockMode,
+  onClose,
+  onTokenized,
+}: {
+  amountCents: number;
+  busy: boolean;
+  kushkiPublicKey: string | null;
+  isMockMode: boolean;
+  onClose: () => void;
+  onTokenized: (token: string) => void;
+}) {
+  const [number, setNumber] = useState("");
+  const [holderName, setHolderName] = useState("");
+  const [expiry, setExpiry] = useState(""); // formato MM/YY
+  const [cvv, setCvv] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [tokenizing, setTokenizing] = useState(false);
+  const kushkiRef = useRef<unknown>(null);
+
+  // Carga lazy del SDK al abrir el sheet (mismo patrón que PseSheet).
+  useEffect(() => {
+    if (isMockMode || !kushkiPublicKey) return;
+    let alive = true;
+    (async () => {
+      try {
+        const mod = await import("@kushki/js");
+        const KushkiCtor = mod.Kushki ?? (mod as { default?: unknown }).default;
+        if (typeof KushkiCtor !== "function") {
+          throw new Error("@kushki/js no expone Kushki constructor");
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const KCtor = KushkiCtor as new (opts: {
+          merchantId: string;
+          inTestEnvironment: boolean;
+        }) => unknown;
+        const k = new KCtor({
+          merchantId: kushkiPublicKey,
+          inTestEnvironment: true,
+        });
+        if (alive) kushkiRef.current = k;
+      } catch (e) {
+        console.error("[card] kushki sdk load failed", e);
+        if (alive)
+          setErr("No pudimos cargar el procesador de pagos. Reintentá.");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [kushkiPublicKey, isMockMode]);
+
+  function formatCardNumber(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 19);
+    return digits.replace(/(.{4})/g, "$1 ").trim();
+  }
+  function formatExpiry(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 4);
+    if (digits.length < 3) return digits;
+    return digits.slice(0, 2) + "/" + digits.slice(2);
+  }
+
+  async function submit() {
+    setErr(null);
+    const digits = number.replace(/\s/g, "");
+    if (digits.length < 13 || digits.length > 19) {
+      setErr("Número de tarjeta inválido.");
+      return;
+    }
+    if (!holderName.trim() || holderName.trim().length < 3) {
+      setErr("Ingresá el nombre como aparece en la tarjeta.");
+      return;
+    }
+    const expiryMatch = /^(\d{2})\/(\d{2})$/.exec(expiry);
+    if (!expiryMatch) {
+      setErr("Vencimiento en formato MM/YY.");
+      return;
+    }
+    const expMonth = expiryMatch[1];
+    const expYear = expiryMatch[2];
+    if (Number(expMonth) < 1 || Number(expMonth) > 12) {
+      setErr("Mes de vencimiento inválido.");
+      return;
+    }
+    if (!cvv.match(/^\d{3,4}$/)) {
+      setErr("CVV inválido.");
+      return;
+    }
+
+    // Mock path: no SDK call — el mock provider acepta cualquier token.
+    if (isMockMode || !kushkiPublicKey) {
+      onTokenized(
+        `mock-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      );
+      return;
+    }
+
+    if (!kushkiRef.current) {
+      setErr("Procesador de pagos no listo aún. Esperá un momento.");
+      return;
+    }
+
+    setTokenizing(true);
+    try {
+      // Kushki.requestToken espera body con card{number,name,expiryMonth,
+      // expiryYear,cvv} + totalAmount en pesos + currency.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: any = {
+        card: {
+          number: digits,
+          name: holderName.trim(),
+          expiryMonth: expMonth,
+          expiryYear: expYear,
+          cvv,
+        },
+        totalAmount: amountCents / 100,
+        currency: "COP",
+      };
+      const response = await new Promise<{
+        token?: string;
+        security?: { acsURL?: string };
+        code?: string;
+        message?: string;
+        error?: string;
+      }>((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kushkiRef.current as any).requestToken(
+          body,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (resp: any) => resolve(resp),
+        );
+      });
+      console.log("[card] kushki tokens response", {
+        hasToken: !!response.token,
+        code: response.code,
+        has3DS: !!response.security?.acsURL,
+      });
+      if (response.code) {
+        setErr(
+          `${response.message ?? response.error ?? "Error de Kushki"} (${response.code})`,
+        );
+        return;
+      }
+      if (response.security?.acsURL) {
+        // 3DS no soportado todavía — el flow correcto requiere abrir
+        // el acsURL en un iframe/redirect y manejar el callback.
+        setErr(
+          "Esta tarjeta requiere autenticación 3DS. Probá con otro método o pedile al mesero el datáfono.",
+        );
+        return;
+      }
+      if (!response.token) {
+        setErr("Kushki no devolvió un token. Reintentá.");
+        return;
+      }
+      onTokenized(response.token);
+    } catch (e) {
+      console.error("[card] tokenize error", e);
+      setErr("No pudimos tokenizar la tarjeta. Intentá de nuevo.");
+    } finally {
+      setTokenizing(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-ink/40"
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-md bg-paper rounded-t-3xl sm:rounded-3xl p-6 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+            Tarjeta · crédito o débito
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-muted hover:text-ink"
+          >
+            Cerrar
+          </button>
+        </div>
+        <div className="mt-1">
+          <div className="font-display text-2xl">Pagar {fmtCOP(amountCents)}</div>
+          <p className="text-xs text-muted mt-1">
+            Ingresá los datos de tu tarjeta. La información va directo a
+            Kushki — no se guarda en MESAPAY.
+          </p>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Número de tarjeta
+            </span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder="1234 5678 9012 3456"
+              value={number}
+              onChange={(e) => setNumber(formatCardNumber(e.target.value))}
+              className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 font-mono tabular text-sm focus:outline-none focus:border-ink"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              Nombre en la tarjeta
+            </span>
+            <input
+              type="text"
+              autoComplete="cc-name"
+              placeholder="Como aparece en la tarjeta"
+              value={holderName}
+              onChange={(e) => setHolderName(e.target.value)}
+              className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 text-sm focus:outline-none focus:border-ink"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                Vencimiento
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="cc-exp"
+                placeholder="MM/YY"
+                value={expiry}
+                onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 font-mono tabular text-sm focus:outline-none focus:border-ink"
+              />
+            </label>
+            <label className="block">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                CVV
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="cc-csc"
+                placeholder="123"
+                value={cvv}
+                onChange={(e) =>
+                  setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 font-mono tabular text-sm focus:outline-none focus:border-ink"
+              />
+            </label>
+          </div>
+        </div>
+
+        {err && (
+          <div className="mt-4 text-sm text-danger bg-danger/5 border border-danger/30 rounded-lg px-3 py-2">
+            {err}
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={busy || tokenizing}
+          onClick={submit}
+          className="mt-5 w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
+        >
+          {tokenizing
+            ? "Validando tarjeta…"
+            : busy
+              ? "Procesando pago…"
+              : `Pagar ${fmtCOP(amountCents)}`}
+        </button>
+        <p className="mt-3 text-[10px] text-muted text-center">
+          Pago procesado por Kushki. PCI SAQ-A.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PayButton({
   kind,
   disabled,
@@ -1794,6 +2143,7 @@ function PayButton({
 }: {
   kind:
     | "apple"
+    | "card"
     | "terminal"
     | "external_terminal"
     | "pse"
@@ -1831,12 +2181,17 @@ type ButtonMeta = { label: string; icon: string; className: string };
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
 // frame the action correctly.
 const BUTTON_META_DINER: Record<
-  "apple" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: {
     label: "Apple Pay",
     icon: "",
+    className: "bg-ink text-bone",
+  },
+  card: {
+    label: "Tarjeta de crédito o débito",
+    icon: "💳",
     className: "bg-ink text-bone",
   },
   terminal: {
@@ -1870,10 +2225,15 @@ const BUTTON_META_DINER: Record<
 // They aren't "calling the mesero" or "asking for the datáfono" —
 // they're recording how the diner is paying right now.
 const BUTTON_META_OP: Record<
-  "apple" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
   ButtonMeta
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
+  card: {
+    label: "Cobrar con tarjeta",
+    icon: "💳",
+    className: "bg-ink text-bone",
+  },
   terminal: {
     label: "Cobrar con datáfono",
     icon: "💳",

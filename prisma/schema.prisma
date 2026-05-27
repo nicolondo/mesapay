@@ -815,6 +815,12 @@ enum PaymentMethod {
   // web de su banco, autentica, hace la transferencia, y vuelve.
   // Asíncrono: el resultado final llega por webhook.
   kushki_pse
+  // Tarjeta de crédito/débito ingresada en MESAPAY directamente. El
+  // browser tokeniza con Kushki.js (datos NO pasan por nuestro server,
+  // PCI scope queda en SAQ-A) y el backend hace el charge usando la
+  // private key del sub-merchant. Sincrónico: respuesta approved/declined
+  // viene en la misma llamada.
+  kushki_card
 }
 
 enum PaymentStatus {

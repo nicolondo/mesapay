@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 
 export type PaymentMethodSlug =
   | "kushki_card_terminal"
+  | "kushki_card"
   | "kushki_apple_pay"
   | "kushki_pse"
   | "external_terminal"
@@ -30,6 +31,12 @@ export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
     label: "Tarjeta con datáfono (Kushki)",
     description:
       "Cobro por datáfono Smart POS de Kushki — el mesero acerca el equipo a la mesa.",
+  },
+  {
+    slug: "kushki_card",
+    label: "Tarjeta de crédito o débito",
+    description:
+      "El diner ingresa los datos de su tarjeta en MESAPAY (tokenización en browser vía Kushki — los datos no tocan nuestro server).",
   },
   {
     slug: "external_terminal",

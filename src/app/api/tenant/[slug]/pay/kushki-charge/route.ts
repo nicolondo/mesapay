@@ -14,30 +14,33 @@ import {
 } from "@/lib/payments";
 
 /**
- * Apple Pay charge through Kushki.
+ * Token-based charge through Kushki. Maneja DOS variantes:
  *
- * Frontend flow:
+ *   - kushki_apple_pay: token viene del Apple Pay sheet (wallet).
+ *   - kushki_card: token viene de Kushki.js tokenizando datos de
+ *     tarjeta que el diner ingresó en el form de MESAPAY. Los datos
+ *     de la tarjeta NUNCA tocan nuestro server — el browser los manda
+ *     directo a Kushki que devuelve un token opaco.
+ *
+ * Frontend flow (ambas variantes):
  *   1. Get tenant.kushkiPublicKey from page props.
- *   2. Kushki JS SDK opens the Apple Pay sheet, returns a token.
+ *   2. Browser obtiene token (Apple Pay sheet O Kushki.js requestToken).
  *   3. POST { orderId, method, token, amountCents, tipCents } here.
  *   4. We charge via provider.chargeWithToken using the sub-merchant key.
  *   5. On approval, Payment becomes approved and the order recomputes.
  *
- * Google Pay isn't offered through Kushki Colombia, so the wallet path
- * is Apple-only. The method enum is restricted to kushki_apple_pay
- * below to make that explicit.
+ * Google Pay isn't offered through Kushki Colombia, así que la opción
+ * wallet sigue siendo solo Apple. La carta directa cubre el resto.
  *
- * In KUSHKI_MODE=mock the token can be any non-empty string — the mock
- * provider doesn't validate it, just returns approved/declined based on a
- * coin flip. That keeps the wizard testable end-to-end without real wallet
- * credentials.
+ * In KUSHKI_MODE=mock el token puede ser cualquier string non-empty —
+ * el mock provider no valida, solo devuelve approved/declined random.
  */
 
 const schema = z.object({
   orderId: z.string().min(1),
-  // Apple Pay is the only wallet method through this route — Kushki
-  // Colombia doesn't offer Google Pay.
-  method: z.enum(["kushki_apple_pay"]),
+  // kushki_apple_pay = wallet (token del Apple Pay sheet)
+  // kushki_card     = tarjeta tipeada en MESAPAY (token de Kushki.js)
+  method: z.enum(["kushki_apple_pay", "kushki_card"]),
   token: z.string().min(1).max(2000),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),

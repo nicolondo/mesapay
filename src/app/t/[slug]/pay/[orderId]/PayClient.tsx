@@ -221,16 +221,11 @@ export function PayClient({
       }),
     });
     const j = await res.json().catch(() => ({}));
-    console.log("[kushki-charge] response", {
-      status: res.status,
-      body: j,
-    });
+    // Log completo (incluye detail crudo de Kushki) sólo en console
+    // para debug. En la UI mostramos solo el mensaje amigable.
+    console.log("[kushki-charge] response", { status: res.status, body: j });
     if (!res.ok) {
-      // Concatenamos el detail crudo de Kushki si vino, para que sea
-      // visible en pantalla durante debug. En prod podríamos quitar el
-      // detail para no exponer códigos internos al diner final.
-      const detail = typeof j.detail === "string" ? ` (${j.detail.slice(0, 200)})` : "";
-      setErr((j.message ?? j.error ?? "El pago falló.") + detail);
+      setErr(j.message ?? j.error ?? "El pago falló.");
       return;
     }
     if (j.approved && j.paymentId) {

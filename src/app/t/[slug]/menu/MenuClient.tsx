@@ -769,30 +769,43 @@ export function MenuClient({
       return;
     }
     setSubmitting(true);
-    const res = await fetch(`/api/tenant/${tenant.slug}/orders`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        tableId,
-        orderId: activeOrder?.id,
-        guestName,
-        // Only meaningful on the first round — subsequent rounds inherit
-        // whatever the order was created with.
-        servingMode: activeOrder ? undefined : servingMode,
-        items: cart.map((l) => ({
-          menuItemId: l.menuItemId,
-          qty: l.qty,
-          selections: l.selections,
-          notes: l.notes,
-        })),
-      }),
-    });
-    setSubmitting(false);
-    if (!res.ok) {
-      alert("No pudimos enviar el pedido. Intenta de nuevo.");
+    // try/finally para que setSubmitting(false) siempre corra — sin
+    // esto, una network error / deploy en curso / cualquier throw
+    // dejaba el botón eternamente en "Enviando…".
+    let orderId: string | null = null;
+    try {
+      const res = await fetch(`/api/tenant/${tenant.slug}/orders`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tableId,
+          orderId: activeOrder?.id,
+          guestName,
+          // Only meaningful on the first round — subsequent rounds inherit
+          // whatever the order was created with.
+          servingMode: activeOrder ? undefined : servingMode,
+          items: cart.map((l) => ({
+            menuItemId: l.menuItemId,
+            qty: l.qty,
+            selections: l.selections,
+            notes: l.notes,
+          })),
+        }),
+      });
+      if (!res.ok) {
+        alert("No pudimos enviar el pedido. Intenta de nuevo.");
+        return;
+      }
+      const json = await res.json();
+      orderId = json.orderId;
+    } catch (err) {
+      console.error("[sendToKitchen]", err);
+      alert("No pudimos enviar el pedido. Revisa tu conexión.");
       return;
+    } finally {
+      setSubmitting(false);
     }
-    const { orderId } = await res.json();
+    if (!orderId) return;
     try {
       localStorage.removeItem(cartKey);
     } catch {}

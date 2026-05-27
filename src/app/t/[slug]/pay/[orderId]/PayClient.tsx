@@ -2021,10 +2021,6 @@ function CardSheet({
         </div>
         <div className="mt-1">
           <div className="font-display text-2xl">Pagar {fmtCOP(amountCents)}</div>
-          <p className="text-xs text-muted mt-1">
-            Ingresá los datos de tu tarjeta. La información va directo a
-            Kushki — no se guarda en MESAPAY.
-          </p>
         </div>
 
         <div className="mt-5 space-y-3">
@@ -2121,9 +2117,6 @@ function CardSheet({
               ? "Procesando pago…"
               : `Pagar ${fmtCOP(amountCents)}`}
         </button>
-        <p className="mt-3 text-[10px] text-muted text-center">
-          Pago procesado por Kushki. PCI SAQ-A.
-        </p>
       </div>
     </div>
   );

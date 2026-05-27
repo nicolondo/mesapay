@@ -15,25 +15,30 @@ import { getKushkiModeSync } from "../../platformConfig";
  *     el webhook signing secret. NO usar en prod
  *   - sandbox con secret: verifica firma estrictamente
  *   - production: secret OBLIGATORIO, rechaza todo lo demás
+ *
+ * Si `restaurantSecret` viene seteado lo usamos primero — es el secret
+ * por-sub-merchant que el admin configuró en /admin. Si no, caemos al
+ * `KUSHKI_WEBHOOK_SECRET` global del .env (configurado a nivel partner).
  */
 export function verifyKushkiSignature(
   rawBody: string,
   headers: Headers,
+  restaurantSecret?: string | null,
 ): { ok: true } | { ok: false; reason: string } {
   const mode = getKushkiModeSync();
   if (mode === "mock") return { ok: true };
-  const secret = env.KUSHKI_WEBHOOK_SECRET;
+  const secret = restaurantSecret ?? env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) {
     if (mode === "sandbox") {
       // Permisivo en sandbox para destrabar testing antes de tener el
       // webhook secret. Log explícito para que no pase desapercibido
       // si alguien se olvida de setearlo después.
       console.warn(
-        "[kushki/webhooks] sandbox mode without KUSHKI_WEBHOOK_SECRET — accepting webhook without verification. Set the secret before going to production.",
+        "[kushki/webhooks] sandbox mode without webhook secret (per-restaurant or env) — accepting webhook without verification. Set the secret before going to production.",
       );
       return { ok: true };
     }
-    return { ok: false, reason: "KUSHKI_WEBHOOK_SECRET not configured" };
+    return { ok: false, reason: "webhook secret not configured" };
   }
   const provided =
     headers.get("kushki-signature") ?? headers.get("x-kushki-signature");

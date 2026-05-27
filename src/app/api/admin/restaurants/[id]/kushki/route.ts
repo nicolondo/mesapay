@@ -12,6 +12,10 @@ const schema = z.object({
   // the stored key is untouched (so admins can update other fields without
   // re-entering the secret).
   privateKey: z.string().trim().max(500).nullable().optional(),
+  // Webhook signing secret — Kushki firma cada webhook con HMAC-SHA256
+  // usando este secreto. Misma política que la private key: cifrada
+  // at-rest, write-only en el form, "" explícito limpia el valor.
+  webhookSecret: z.string().trim().max(500).nullable().optional(),
   onboardingStatus: z.enum([
     "not_started",
     "docs_uploaded",
@@ -74,6 +78,30 @@ export async function PATCH(
     } else {
       try {
         data.kushkiPrivateKeyEnc = encrypt(parsed.data.privateKey);
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error: "encrypt_failed",
+            detail:
+              err instanceof Error
+                ? err.message.split("\n")[0]
+                : "missing MESAPAY_SECRET_KEY",
+          },
+          { status: 500 },
+        );
+      }
+    }
+  }
+  // Misma lógica para el webhook secret.
+  if (
+    parsed.data.webhookSecret !== undefined &&
+    parsed.data.webhookSecret !== null
+  ) {
+    if (parsed.data.webhookSecret.length === 0) {
+      data.kushkiWebhookSecretEnc = null;
+    } else {
+      try {
+        data.kushkiWebhookSecretEnc = encrypt(parsed.data.webhookSecret);
       } catch (err) {
         return NextResponse.json(
           {

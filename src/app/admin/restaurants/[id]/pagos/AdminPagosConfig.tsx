@@ -39,6 +39,7 @@ export function AdminPagosConfig({
     onboardingStatus: Status;
     notes: string;
     hasPrivateKey: boolean;
+    hasWebhookSecret: boolean;
   };
 }) {
   const router = useRouter();
@@ -46,6 +47,7 @@ export function AdminPagosConfig({
   const [merchantId, setMerchantId] = useState(initial.merchantId);
   const [publicKey, setPublicKey] = useState(initial.publicKey);
   const [privateKey, setPrivateKey] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
   const [onboardingStatus, setOnboardingStatus] = useState<Status>(
     initial.onboardingStatus,
   );
@@ -67,6 +69,7 @@ export function AdminPagosConfig({
     // Only send privateKey if the admin typed something. An empty string
     // here means "clear the stored key"; undefined means "leave it alone".
     if (privateKey.length > 0) body.privateKey = privateKey;
+    if (webhookSecret.length > 0) body.webhookSecret = webhookSecret;
 
     const res = await fetch(
       `/api/admin/restaurants/${restaurantId}/kushki`,
@@ -84,7 +87,34 @@ export function AdminPagosConfig({
     }
     setMsg({ kind: "ok", text: "Guardado." });
     setPrivateKey(""); // never keep it in the form after save
+    setWebhookSecret("");
     startTx(() => router.refresh());
+  }
+
+  async function clearWebhookSecret() {
+    if (
+      !confirm(
+        "¿Borrar el webhook signing secret? Los webhooks de este comercio van a usar el secret global del partner.",
+      )
+    )
+      return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/restaurants/${restaurantId}/kushki`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        merchantId: merchantId.trim() || null,
+        publicKey: publicKey.trim() || null,
+        webhookSecret: "",
+        onboardingStatus,
+        notes: notes.trim() || null,
+      }),
+    });
+    setBusy(false);
+    if (res.ok) {
+      setMsg({ kind: "ok", text: "Webhook secret borrado." });
+      startTx(() => router.refresh());
+    }
   }
 
   async function clearPrivateKey() {
@@ -143,6 +173,39 @@ export function AdminPagosConfig({
               className="mt-1 text-[11px] text-danger hover:underline"
             >
               Borrar llave privada
+            </button>
+          )}
+        </div>
+        <div className="md:col-span-2">
+          <Field
+            label={
+              initial.hasWebhookSecret
+                ? "Webhook signing secret (deja vacío para no cambiar)"
+                : "Webhook signing secret"
+            }
+            value={webhookSecret}
+            onChange={setWebhookSecret}
+            type="password"
+            mono
+            placeholder={
+              initial.hasWebhookSecret
+                ? "•••••••• (cifrado en DB)"
+                : "Si está vacío, se usa el secret global del partner"
+            }
+          />
+          <p className="mt-1 text-[11px] text-op-muted">
+            HMAC-SHA256. Lo configurás en el dashboard del comercio en
+            Kushki. Si lo dejás vacío, MESAPAY verifica los webhooks con
+            el secret global del partner (variable de entorno).
+          </p>
+          {initial.hasWebhookSecret && (
+            <button
+              type="button"
+              onClick={clearWebhookSecret}
+              disabled={busy}
+              className="mt-1 text-[11px] text-danger hover:underline"
+            >
+              Borrar webhook secret
             </button>
           )}
         </div>

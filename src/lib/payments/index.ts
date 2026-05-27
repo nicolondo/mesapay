@@ -60,6 +60,29 @@ export async function getRestaurantPrivateKey(
 }
 
 /**
+ * Desencripta el webhook signing secret del comercio. Devuelve null si
+ * el comercio no tiene secret configurado — el caller debe fallback al
+ * KUSHKI_WEBHOOK_SECRET global (env) o rechazar el webhook según política.
+ */
+export async function getRestaurantWebhookSecret(
+  restaurantId: string,
+): Promise<string | null> {
+  const r = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { kushkiWebhookSecretEnc: true },
+  });
+  if (!r?.kushkiWebhookSecretEnc) return null;
+  try {
+    return decrypt(r.kushkiWebhookSecretEnc);
+  } catch {
+    // No degradamos a "mock_secret" porque verificar firma con un
+    // secret incorrecto da false-negative — preferimos rechazar el
+    // webhook y dejar el error visible.
+    return null;
+  }
+}
+
+/**
  * Persist a sub-merchant's credentials returned by the provider after
  * onboarding. Splits into the (non-secret) merchantId/publicKey and the
  * encrypted private key.

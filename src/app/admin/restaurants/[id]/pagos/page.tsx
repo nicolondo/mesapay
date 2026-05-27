@@ -129,6 +129,7 @@ export default async function AdminPagosPage({
             onboardingStatus: rest.kushkiOnboardingStatus,
             notes: rest.kushkiOnboardingNotes ?? "",
             hasPrivateKey: !!rest.kushkiPrivateKeyEnc,
+            hasWebhookSecret: !!rest.kushkiWebhookSecretEnc,
           }}
         />
       </section>

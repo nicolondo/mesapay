@@ -1,32 +1,35 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import {
   processKushkiWebhook,
   type KushkiWebhookKind,
 } from "@/lib/payments/webhookHandler";
 import { verifyKushkiSignature } from "@/lib/payments/kushki/webhooks";
+import { getRestaurantWebhookSecret } from "@/lib/payments";
 
 /**
  * Kushki webhook receiver.
  *
- * Verifies the HMAC signature, then hands off to the shared processor
- * (src/lib/payments/webhookHandler.ts). The handler is idempotent so
- * Kushki's retries are safe.
+ * Flow:
+ *   1. Parse JSON (sin trust — sólo para routing)
+ *   2. Resolver restaurantId (directo del payload o vía paymentId/orderId)
+ *   3. Cargar el webhook secret del comercio (fallback al env global)
+ *   4. Verificar firma HMAC
+ *   5. Procesar evento
  *
- * Mock mode bypasses signature verification — the mock provider calls into
- * processKushkiWebhook directly via subscribeMockWebhook (wired from the
- * server entrypoint that needs terminal callbacks).
+ * Por qué parseamos antes de verificar: necesitamos saber qué secret
+ * usar. Un atacante puede mandar payload con restaurantId arbitrario,
+ * pero la firma fallará porque no conoce el secret de ese restaurante.
+ *
+ * Mock mode bypasses signature verification — el provider mock llama a
+ * processKushkiWebhook directamente vía subscribeMockWebhook.
  */
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  const verify = verifyKushkiSignature(raw, req.headers);
-  if (!verify.ok) {
-    return NextResponse.json(
-      { error: "invalid_signature", reason: verify.reason },
-      { status: 401 },
-    );
-  }
 
+  // Parse defensivo antes de verificar — necesitamos saber a qué
+  // restaurante pertenece el evento para resolver su secret.
   let payload: unknown;
   try {
     payload = JSON.parse(raw);
@@ -35,6 +38,37 @@ export async function POST(req: Request) {
   }
   if (!isPayload(payload)) {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
+
+  // Resolver el restaurantId. Distintos eventos traen distintos
+  // identificadores (charge eventos → paymentId, merchant eventos →
+  // restaurantId directo, etc.).
+  let restaurantId: string | null = payload.restaurantId ?? null;
+  if (!restaurantId && payload.paymentId) {
+    const p = await db.payment.findUnique({
+      where: { id: payload.paymentId },
+      select: { order: { select: { restaurantId: true } } },
+    });
+    restaurantId = p?.order.restaurantId ?? null;
+  }
+  if (!restaurantId && payload.orderId) {
+    const o = await db.order.findUnique({
+      where: { id: payload.orderId },
+      select: { restaurantId: true },
+    });
+    restaurantId = o?.restaurantId ?? null;
+  }
+
+  const restaurantSecret = restaurantId
+    ? await getRestaurantWebhookSecret(restaurantId)
+    : null;
+
+  const verify = verifyKushkiSignature(raw, req.headers, restaurantSecret);
+  if (!verify.ok) {
+    return NextResponse.json(
+      { error: "invalid_signature", reason: verify.reason },
+      { status: 401 },
+    );
   }
 
   const result = await processKushkiWebhook(payload);

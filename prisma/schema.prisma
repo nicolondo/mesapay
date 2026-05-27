@@ -69,14 +69,18 @@ model Restaurant {
   pickupMaxEtaMinutes Int?        @default(45)
 
   // Kushki sub-merchant credentials. publicKey is safe to expose to the
-  // browser SDK; privateKeyEnc is AES-GCM ciphertext (src/lib/crypto.ts).
-  kushkiMerchantId       String?
-  kushkiPublicKey        String?
-  kushkiPrivateKeyEnc    String?
-  kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
-  kushkiOnboardingNotes  String?
-  kushkiSubmittedAt      DateTime?
-  kushkiActivatedAt      DateTime?
+  // browser SDK; privateKeyEnc + webhookSecretEnc son AES-GCM ciphertext
+  // (src/lib/crypto.ts). El webhook secret es el que Kushki usa para
+  // firmar las llamadas HMAC al endpoint /api/webhooks/kushki — cada
+  // sub-merchant puede tener su propio secreto en producción.
+  kushkiMerchantId        String?
+  kushkiPublicKey         String?
+  kushkiPrivateKeyEnc     String?
+  kushkiWebhookSecretEnc  String?
+  kushkiOnboardingStatus  KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes   String?
+  kushkiSubmittedAt       DateTime?
+  kushkiActivatedAt       DateTime?
 
   // Bank info — populated by AI OCR of the bank certification then verified
   // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).

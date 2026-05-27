@@ -97,6 +97,12 @@ function methodLabel(m: string) {
     wompi_card: "Tarjeta",
     wompi_pse: "PSE",
     wompi_nequi: "Nequi",
+    // Kushki + datáfono externo del comercio. Abreviado para que
+    // entre cómodo en la columna sin partir la fila.
+    kushki_apple_pay: "Apple Pay",
+    kushki_google_pay: "Google Pay",
+    kushki_card_terminal: "K_Terminal",
+    external_terminal: "Datáfono propio",
   };
   return map[m] ?? m;
 }

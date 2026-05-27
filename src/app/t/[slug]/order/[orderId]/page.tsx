@@ -353,20 +353,30 @@ export default async function OrderView({
           </div>
           <div className="font-display text-3xl">{fmtCOP(order.subtotalCents)}</div>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
-            className="h-11 px-5 rounded-full border border-hairline inline-flex items-center text-sm font-medium"
-          >
-            Añadir más
-          </Link>
-          <Link
-            href={`/t/${slug}/pay/${order.id}`}
-            className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
-          >
-            Pagar
-          </Link>
-        </div>
+        {/* Acciones solo cuando la cuenta sigue abierta. Una orden ya
+            paid / cancelled no tiene nada más para cobrar ni para
+            añadir — el cliente llegó acá desde "Ver pedido completo"
+            del done page para mirar la cuenta, no para volver a pagar. */}
+        {order.status !== "paid" && order.status !== "cancelled" ? (
+          <div className="flex gap-2">
+            <Link
+              href={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
+              className="h-11 px-5 rounded-full border border-hairline inline-flex items-center text-sm font-medium"
+            >
+              Añadir más
+            </Link>
+            <Link
+              href={`/t/${slug}/pay/${order.id}`}
+              className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
+            >
+              Pagar
+            </Link>
+          </div>
+        ) : (
+          <span className="h-11 px-4 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] inline-flex items-center text-sm font-medium">
+            {order.status === "paid" ? "✓ Pagado" : "Cancelado"}
+          </span>
+        )}
       </div>
     </main>
   );

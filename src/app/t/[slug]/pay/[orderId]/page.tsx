@@ -4,8 +4,12 @@ import { getKushkiMode } from "@/lib/platformConfig";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import {
+  resolveEnabledPaymentMethods,
+  type PaymentMethodSlug,
+} from "@/lib/paymentMethods";
 import { getAssignedDevice } from "@/lib/meseroDevice";
+import { getPaymentProvider } from "@/lib/payments";
 
 export default async function PayPage({
   params,
@@ -63,6 +67,27 @@ export default async function PayPage({
       ? await getAssignedDevice(session.user.id, tenant.id)
       : null;
 
+  // Pre-fetch de la lista de bancos PSE server-side. El backend ya
+  // cachea 1h in-memory, así que después del primer request del
+  // proceso esto es esencialmente gratis. Al embebberlo en las props
+  // del PayClient, cuando el diner abre el sheet la lista aparece
+  // instantánea — eliminamos un roundtrip HTTP fetch desde el browser.
+  const enabledMethods = resolveEnabledPaymentMethods(
+    tenant.enabledPaymentMethods,
+  );
+  const pseBanks: Array<{ code: string; name: string }> = await (async () => {
+    if (!enabledMethods.includes("kushki_pse" as PaymentMethodSlug)) return [];
+    if (!kushkiReady) return [];
+    try {
+      const publicKey = tenant.kushkiPublicKey ?? "mock_public_key";
+      const provider = await getPaymentProvider();
+      return await provider.listPseBanks(publicKey);
+    } catch (err) {
+      console.error("[pay/page] pse banks prefetch failed", err);
+      return []; // fallback: el client-side hace su propio fetch
+    }
+  })();
+
   // Mesero usa su propia PWA con bottom nav (Salón/Cobros/Mesas) y
   // está bloqueado por el guard de /operator/*. Operator y platform_admin
   // vuelven a las pantallas del backoffice.
@@ -99,7 +124,8 @@ export default async function PayPage({
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
       kushkiMode={await getKushkiMode()}
-      enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
+      enabledMethods={enabledMethods}
+      pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}
       // Banner que se muestra al volver de un cobro rechazado por

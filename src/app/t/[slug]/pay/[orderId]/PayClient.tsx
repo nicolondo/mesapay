@@ -45,6 +45,7 @@ export function PayClient({
   kushkiPublicKey,
   kushkiMode,
   enabledMethods,
+  pseBanks,
   assignedDeviceId,
   assignedDeviceLabel,
   declinedFlag = false,
@@ -82,6 +83,12 @@ export function PayClient({
     | "external_terminal"
     | "cash"
   )[];
+  // Lista de bancos PSE pre-fetcheada server-side desde Kushki (cache
+  // 1h en el backend). Si el SSR pudo, llega populada y el PseSheet
+  // la usa directo sin hacer ningún fetch al abrirse → dropdown
+  // instantáneo. Si vino vacía (kushki_pse no habilitado, error, etc.)
+  // el PseSheet hace fallback al endpoint /pse-banks como antes.
+  pseBanks: Array<{ code: string; name: string }>;
   // Operator's assigned Smart POS (set in /operator/settings/datafonos).
   // When operatorMode is true and this is non-null, "Cobrar con
   // datáfono" pushes the charge straight to this device instead of
@@ -946,6 +953,7 @@ export function PayClient({
           busy={busy === "kushki_pse"}
           kushkiPublicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
+          initialBanks={pseBanks}
           onClose={() => setPseSheetOpen(false)}
           onPay={(args) => {
             setPseSheetOpen(false);
@@ -1159,6 +1167,7 @@ function PseSheet({
   busy,
   kushkiPublicKey,
   kushkiMode,
+  initialBanks,
   onClose,
   onPay,
 }: {
@@ -1167,6 +1176,7 @@ function PseSheet({
   busy: boolean;
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  initialBanks: Array<{ code: string; name: string }>;
   onClose: () => void;
   // En mock mode el sheet llama a onPay con buyer data → backend tokeniza.
   // En live mode el sheet tokeniza solo y llama a onPay con el token ya
@@ -1181,8 +1191,16 @@ function PseSheet({
     redirectUrl?: string;
   }) => void;
 }) {
-  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
-  const [banksLoading, setBanksLoading] = useState(true);
+  // Si las props traen bancos pre-fetcheados (SSR), arrancamos con la
+  // lista poblada y skipeamos el loading — el dropdown se ve
+  // instantáneo. Si vinieron vacíos (kushki_pse desactivado o el
+  // SSR falló), caemos al fetch del browser como antes.
+  const [banks, setBanks] = useState<{ code: string; name: string }[]>(
+    initialBanks ?? [],
+  );
+  const [banksLoading, setBanksLoading] = useState(
+    (initialBanks ?? []).length === 0,
+  );
   const [bankCode, setBankCode] = useState("");
   const [email, setEmail] = useState("");
   const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA" | "TI">(
@@ -1198,12 +1216,11 @@ function PseSheet({
   const kushkiRef = useRef<unknown>(null);
   const isMockMode = kushkiMode === "mock";
 
-  // Carga la lista de bancos desde nuestro backend en ambos modos.
-  // El backend tiene cache in-memory de 1h y resuelve mock vs live
-  // server-side — el cliente nunca espera al SDK pesado de Kushki.
-  // El SDK lo cargamos LAZY en submit() solo cuando el user le da a
-  // "Ir al banco" (que es cuando el costo del bundle se justifica).
+  // Fallback fetch: solo si las props no traían bancos. Mismo path
+  // que antes — el backend tiene cache in-memory de 1h. El SDK pesado
+  // se carga LAZY en submit() cuando el user le da a "Ir al banco".
   useEffect(() => {
+    if (banks.length > 0) return; // ya vienen del SSR
     let alive = true;
     (async () => {
       setBanksLoading(true);
@@ -1394,21 +1411,28 @@ function PseSheet({
 
         <label className="block mb-3">
           <div className="text-[11px] text-op-muted mb-1">Banco</div>
-          <select
-            value={bankCode}
-            onChange={(e) => setBankCode(e.target.value)}
-            disabled={banksLoading}
-            className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
-          >
-            <option value="">
-              {banksLoading ? "Cargando bancos…" : "Elegí tu banco"}
-            </option>
-            {banks.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          {banksLoading ? (
+            // Skeleton shimmer mientras carga la lista. Da feedback
+            // visual claro de que algo está pasando sin mostrar texto
+            // explícito ("Cargando..." cansa cuando se repite).
+            <div
+              className="w-full h-11 rounded-lg bg-hairline animate-pulse"
+              aria-label="Cargando lista de bancos"
+            />
+          ) : (
+            <select
+              value={bankCode}
+              onChange={(e) => setBankCode(e.target.value)}
+              className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
+            >
+              <option value="">Elegí tu banco</option>
+              {banks.map((b) => (
+                <option key={b.code} value={b.code}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
 
         <label className="block mb-3">

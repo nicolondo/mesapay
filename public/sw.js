@@ -1,13 +1,19 @@
-/* MESAPAY service worker — primarily for Web Push.
+/* MESAPAY service worker.
  *
- * Not a full PWA caching strategy yet (no offline shell, no asset
- * precache). The only reason we ship a SW is because Web Push REQUIRES
- * one to register a subscription and to deliver notifications even
- * when the page isn't open.
+ * Responsabilidades:
+ *   1. Web Push — recibir notificaciones server-sent y mostrarlas.
+ *      (Único motivo original por el que armamos este SW.)
+ *   2. Cache de chunks estáticos de Next.js (cache-first sobre
+ *      /_next/static/) — los chunks tienen hash en el nombre, así
+ *      que cachearlos fuerte no genera staleness. El bundle pesado
+ *      de @kushki/js (~500KB) carga instantáneo en visitas posteriores.
  *
- * Lifecycle: skipWaiting + clients.claim so freshly-deployed versions
- * take over immediately without a hard refresh.
+ * Lifecycle: skipWaiting + clients.claim para que cada deploy nuevo
+ * tome control sin requerir hard refresh. La policy de cleanup borra
+ * caches viejos en cada activate.
  */
+
+const STATIC_CACHE = "mesapay-static-v1";
 
 self.addEventListener("install", (event) => {
   // Activate this version as soon as it's installed. With each new
@@ -17,8 +23,54 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  // Take control of pages that were open with the previous SW.
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      // Borrar caches huérfanos de versiones anteriores del SW.
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)),
+      );
+      // Take control of pages that were open with the previous SW.
+      await self.clients.claim();
+    })(),
+  );
+});
+
+/**
+ * Cache-first para chunks immutables de Next. Todo lo demás (HTML,
+ * /api/*, etc.) pasa por la red sin tocar — no queremos cachear datos
+ * vivos ni la shell de las páginas.
+ */
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  let url;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
+  if (!url.pathname.startsWith("/_next/static/")) return;
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      const cached = await cache.match(req);
+      if (cached) return cached;
+      try {
+        const res = await fetch(req);
+        // Solo cacheamos respuestas exitosas — un 404 transitorio no
+        // debería contaminar el cache.
+        if (res.ok) cache.put(req, res.clone());
+        return res;
+      } catch (err) {
+        // Fallo de red: si por algún motivo tenemos algo en cache,
+        // lo devolvemos. Si no, propaga el error original.
+        if (cached) return cached;
+        throw err;
+      }
+    })(),
+  );
 });
 
 /**

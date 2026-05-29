@@ -55,9 +55,20 @@ export function ApplePayButton({
     const win = window as unknown as {
       ApplePaySession?: { canMakePayments?: () => boolean };
     };
-    const ok = !!win.ApplePaySession?.canMakePayments?.();
-    setSupported(ok);
-  }, []);
+    const hasSession = !!win.ApplePaySession;
+    const canMake = hasSession
+      ? !!win.ApplePaySession?.canMakePayments?.()
+      : false;
+    // Log de diagnóstico — visible en DevTools del diner durante
+    // setup. Removible cuando confirmemos que funciona en prod.
+    console.log("[apple-pay] browser check", {
+      hasApplePaySession: hasSession,
+      canMakePayments: canMake,
+      kushkiMode,
+      hasPublicKey: !!publicKey,
+    });
+    setSupported(canMake);
+  }, [kushkiMode, publicKey]);
 
   // Cargar el SDK + iniciar el botón cuando el browser sea
   // compatible y tengamos la public key del comercio.
@@ -90,6 +101,7 @@ export function ApplePayButton({
           { style: "black", type: "pay", locale: "es-ES" },
           () => {
             // onInit — botón renderizado en el container
+            console.log("[apple-pay] initApplePayButton: ready");
             if (alive) setReady(true);
           },
           () => {
@@ -98,11 +110,16 @@ export function ApplePayButton({
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (e: any) => {
-            console.error("[apple-pay] init error", e);
-            if (!alive) return;
             // E020 = Apple Pay no disponible (browser o dominio sin
-            // validar); E019 = SDK no cargó. Cualquier error → no
-            // mostramos el botón.
+            // validar contra Kushki Console); E019 = SDK no cargó.
+            // Log explícito para que el operador entienda qué falta
+            // chequear (lo más común: dominio no registrado en
+            // Kushki Console). Cualquier error → no mostramos el botón.
+            console.warn(
+              "[apple-pay] init error — botón oculto. Revisar que el dominio esté validado en Kushki Console.",
+              e,
+            );
+            if (!alive) return;
             setReady(false);
             setSupported(false);
           },

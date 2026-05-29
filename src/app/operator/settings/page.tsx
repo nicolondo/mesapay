@@ -226,6 +226,15 @@ export default async function SettingsPage() {
             tint="bg-paper text-op-muted"
           />
         )}
+        {tenant.reservationsEnabled && (
+          <SettingCard
+            href="/operator/settings/salon"
+            title="Mapa del salón"
+            subtitle="Acomodá tus mesas como están en el local. El cliente lo ve al reservar."
+            badge="Diseñar"
+            tint="bg-paper text-op-muted"
+          />
+        )}
       </div>
     </div>
   );

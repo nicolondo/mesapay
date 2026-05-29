@@ -39,10 +39,10 @@ model Restaurant {
   //                           se introduce ya para tener el flag.
   menuMode String @default("independent")
 
-  plan              Plan      @default(trial)
-  monthlyPriceCents Int       @default(0)
-  periodEndsAt      DateTime?
-  suspended         Boolean   @default(false)
+  plan               Plan      @default(trial)
+  monthlyPriceCents  Int       @default(0)
+  periodEndsAt       DateTime?
+  suspended          Boolean   @default(false)
   // Última vez que el cron envió un recordatorio de vencimiento.
   // Lo usa /api/cron/membership-reminders para no spamear — solo
   // re-envía si pasó >= 1 día desde el último o si cambió de
@@ -73,14 +73,14 @@ model Restaurant {
   // (src/lib/crypto.ts). El webhook secret es el que Kushki usa para
   // firmar las llamadas HMAC al endpoint /api/webhooks/kushki — cada
   // sub-merchant puede tener su propio secreto en producción.
-  kushkiMerchantId        String?
-  kushkiPublicKey         String?
-  kushkiPrivateKeyEnc     String?
-  kushkiWebhookSecretEnc  String?
-  kushkiOnboardingStatus  KushkiOnboardingStatus @default(not_started)
-  kushkiOnboardingNotes   String?
-  kushkiSubmittedAt       DateTime?
-  kushkiActivatedAt       DateTime?
+  kushkiMerchantId       String?
+  kushkiPublicKey        String?
+  kushkiPrivateKeyEnc    String?
+  kushkiWebhookSecretEnc String?
+  kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes  String?
+  kushkiSubmittedAt      DateTime?
+  kushkiActivatedAt      DateTime?
 
   // Bank info — populated by AI OCR of the bank certification then verified
   // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).
@@ -100,6 +100,18 @@ model Restaurant {
   // habilitados (back-compat para comercios existentes). Una lista
   // vacía explícita = ninguno permitido (raro pero válido).
   enabledPaymentMethods Json?
+
+  // ─── Reservas ───────────────────────────────────────────────────
+  // Toggle global del feature por comercio. Default false porque
+  // los restaurantes existentes no la tienen configurada y queremos
+  // que activen explícitamente desde /operator/settings/reservas
+  // (que aparece sólo cuando el módulo está prendido).
+  reservationsEnabled Boolean       @default(false)
+  // Config JSON con turnos por día, duración del slot, auto-confirm,
+  // anticipación mínima, etc. Shape: ReservationConfig (ver
+  // src/lib/reservations.ts). Null = usar defaults del helper.
+  reservationConfig   Json?
+  reservations        Reservation[]
 
   // Does this restaurant have a dedicated bartender / barista (separate
   // person from cooks)? Controls whether items routed to station=bar get
@@ -133,12 +145,12 @@ model Restaurant {
   // logoUrl — PNG o SVG subido vía /api/operator/uploads. Se muestra
   // en el menú del cliente, en facturas y donde la app necesite
   // identidad de marca. Cuando es null, todo cae al logo MESAPAY.
-  logoUrl       String?
-  legalName     String? // Razón social
-  taxId         String? // NIT (solo dígitos; el DV se calcula al render)
-  legalAddress  String?
-  legalCity     String?
-  legalPhone    String?
+  logoUrl      String?
+  legalName    String? // Razón social
+  taxId        String? // NIT (solo dígitos; el DV se calcula al render)
+  legalAddress String?
+  legalCity    String?
+  legalPhone   String?
 
   // Resolución DIAN — texto descriptivo del acto administrativo
   // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
@@ -153,7 +165,7 @@ model Restaurant {
   invoicePrefix      String?
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
-  invoiceNextNumber  Int     @default(1)
+  invoiceNextNumber  Int       @default(1)
 
   // === Políticas del staff ================================================
   //
@@ -334,28 +346,28 @@ model PlatformConfig {
 /// renderea en la lista). `diff` opcional guarda before/after para
 /// inspección detallada.
 model AuditEvent {
-  id            String      @id @default(cuid())
-  occurredAt    DateTime    @default(now())
+  id           String      @id @default(cuid())
+  occurredAt   DateTime    @default(now())
   // Quién hizo el cambio. userId puede ser null si la acción fue
   // disparada por un cron del sistema; email se denormaliza para
   // que el historial siga siendo legible aunque el usuario se borre
   // después.
-  actorUserId   String?
-  actorEmail    String
+  actorUserId  String?
+  actorEmail   String
   actorRole    String
   // Scope: comercio afectado o null para acciones a nivel plataforma.
-  restaurantId  String?
-  restaurant    Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   // Qué se cambió. kind es un slug estable (ej: "plan.update",
   // "membership.payment", "restaurant.suspend") para filtrar.
-  kind          String
-  targetType    String?
-  targetId      String?
+  kind         String
+  targetType   String?
+  targetId     String?
   // Texto listo para mostrar en la lista — "Cambió plan a Pro y
   // mensualidad a $400.000". El renderer no necesita interpretar.
-  summary       String
+  summary      String
   // Opcional: snapshot del estado antes/después para inspección.
-  diff          Json?
+  diff         Json?
 
   @@index([restaurantId, occurredAt])
   @@index([kind, occurredAt])
@@ -493,11 +505,92 @@ model Table {
   waiterCalledAt DateTime?
   waiterAckedAt  DateTime?
 
-  orders Order[]
+  // ─── Reservas ───────────────────────────────────────────────────
+  // Atributos por mesa que usa el módulo de reservas. Todos
+  // opcionales con defaults sensatos para que las mesas existentes
+  // (creadas antes del feature) no se rompan ni queden inconsistentes.
+  //
+  // capacity: cantidad de comensales que entran. Default 4 — operador
+  // ajusta por mesa desde /operator/settings/mesas.
+  // minConsumptionCents: consumo mínimo informativo que se muestra
+  // al diner al reservar y al imprimir la cuenta. null = sin mínimo.
+  // shape: cómo se renderiza en el floor plan. Bar es horizontal.
+  // reservable: si la mesa acepta reservas (algunas son walk-in only).
+  // floorPlanX/Y: coords en la grilla del editor visual (Fase 4).
+  // null/null = mesa todavía no posicionada.
+  capacity            Int        @default(4)
+  minConsumptionCents Int?
+  shape               TableShape @default(square)
+  reservable          Boolean    @default(true)
+  floorPlanX          Int?
+  floorPlanY          Int?
+
+  orders       Order[]
+  reservations Reservation[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
   @@index([restaurantId, waiterCalledAt])
+}
+
+enum TableShape {
+  square
+  round
+  bar
+}
+
+// Reservas: el diner aparta una mesa para un slot (definido por la
+// config del restaurante: turnos × duración). Una reserva tiene un
+// confirmationCode único — sirve para que el diner cancele/modifique
+// sin necesidad de login. El operador maneja el ciclo de vida desde
+// /operator/reservas.
+//
+// startsAt/endsAt absolutos en UTC; el slot exacto se reconstruye al
+// renderizar con la zona horaria del restaurante.
+model Reservation {
+  id               String            @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId          String
+  table            Table             @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  customerName     String
+  customerEmail    String
+  customerPhone    String?
+  partySize        Int
+  startsAt         DateTime
+  endsAt           DateTime
+  status           ReservationStatus @default(pending)
+  source           ReservationSource @default(direct)
+  notes            String?
+  // Se le manda al diner por email — link a la página de cancelación.
+  // Mínimo 12 chars random para evitar enumeración.
+  confirmationCode String            @unique
+  // Lo setea el webhook que confirma / cancela / marca no-show. Mantenido
+  // como JSON liviano para que un operador pueda escribir notas internas
+  // sin migración (ej. "llamó por teléfono, pidió mesa cerca de ventana").
+  internalLog      Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([restaurantId, startsAt])
+  @@index([tableId, startsAt])
+  @@index([confirmationCode])
+}
+
+enum ReservationStatus {
+  pending // nueva, esperando confirmación si auto-confirm = false
+  confirmed // confirmada (auto o manual por operador)
+  seated // el grupo llegó y se sentó
+  completed // terminaron y se fueron
+  cancelled // diner u operador la canceló antes
+  no_show // no se presentaron
+}
+
+enum ReservationSource {
+  direct // sitio nuestro (link directo)
+  google_maps // deep link desde Google Business Profile
+  whatsapp // WA Business (futuro)
+  phone // operador la cargó manualmente
 }
 
 enum CategoryKind {
@@ -1108,19 +1201,19 @@ model SimpleInvoice {
   orderId      String     @unique
   order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  email          String
+  email         String
   // Consecutivo asignado al momento de emitir. Para DIAN se concatena
   // con Restaurant.invoicePrefix al renderear (ej: POS-42).
-  invoiceNumber  Int
+  invoiceNumber Int
   // Snapshot completo de la identidad legal + DIAN del comercio al
   // momento de emitir. Si el operador cambia los datos después, la
   // factura ya emitida conserva el contexto histórico.
-  snapshot       Json
+  snapshot      Json
   // Total al momento de emitir (food + tip), en cents. Snapshot
   // contra cambios futuros en la orden.
-  totalCents     Int
-  emailedAt      DateTime?
-  emailError     String?
+  totalCents    Int
+  emailedAt     DateTime?
+  emailError    String?
 
   createdAt DateTime @default(now())
 

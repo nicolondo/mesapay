@@ -124,6 +124,9 @@ export function AdminMobileMenu({
               <DrawerLink href="/admin/audit" pathname={pathname}>
                 Audit log
               </DrawerLink>
+              <DrawerLink href="/admin/configuracion" pathname={pathname}>
+                Configuración
+              </DrawerLink>
               <DrawerLink href="/operator" pathname={pathname}>
                 ← Volver a Operador
               </DrawerLink>

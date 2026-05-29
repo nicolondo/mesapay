@@ -2,8 +2,6 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
-import { getKushkiMode } from "@/lib/platformConfig";
-import { KushkiModeSwitcher } from "./KushkiModeSwitcher";
 import {
   deriveMembershipStatus,
   STATUS_LABEL,
@@ -53,7 +51,6 @@ export default async function AdminDashboard() {
     newRestaurantsThisMonth,
     recentRestaurants,
     recentEvents,
-    kushkiMode,
   ] = await Promise.all([
     // Todos los comercios para calcular MRR + status en JS — son
     // pocos (decenas), así que evitamos múltiples groupBy.
@@ -114,7 +111,6 @@ export default async function AdminDashboard() {
       },
     }),
     listAuditEvents({ limit: 8 }),
-    getKushkiMode(),
   ]);
 
   // Status de cada comercio + agrupación.
@@ -239,12 +235,6 @@ export default async function AdminDashboard() {
         Métricas en vivo de MESAPAY. Las cifras del mes se calculan
         desde el primer día del mes actual hasta ahora.
       </p>
-
-      {/* Kushki mode switcher — afecta a TODA la plataforma. Se renderea
-          temprano para que el admin lo vea al entrar. */}
-      <div className="mb-6">
-        <KushkiModeSwitcher initialMode={kushkiMode} />
-      </div>
 
       {/* KPIs principales */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

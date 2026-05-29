@@ -1,19 +1,21 @@
-/* MESAPAY service worker.
+/* MESAPAY service worker — SOLO Web Push.
  *
- * Responsabilidades:
- *   1. Web Push — recibir notificaciones server-sent y mostrarlas.
- *      (Único motivo original por el que armamos este SW.)
- *   2. Cache de chunks estáticos de Next.js (cache-first sobre
- *      /_next/static/) — los chunks tienen hash en el nombre, así
- *      que cachearlos fuerte no genera staleness. El bundle pesado
- *      de @kushki/js (~500KB) carga instantáneo en visitas posteriores.
+ * IMPORTANTE: este SW NO intercepta fetch ni cachea assets. Lo
+ * intentamos (cache-first sobre /_next/static/ para acelerar 2das
+ * visitas) pero rompía a usuarios recurrentes: tras un deploy, el SW
+ * servía chunks viejos mientras el HTML/RSC payload eran del build
+ * nuevo → "Failed to fetch RSC payload" + la sesión authjs fallaba.
+ * El síntoma clásico: incógnito funcionaba (sin SW), ventana normal no.
  *
- * Lifecycle: skipWaiting + clients.claim para que cada deploy nuevo
- * tome control sin requerir hard refresh. La policy de cleanup borra
- * caches viejos en cada activate.
+ * Si en el futuro queremos cachear estáticos, hay que hacerlo con una
+ * key versionada por build-id (no por URL) y network-first para
+ * navegación — no vale la pena el riesgo por ahora.
+ *
+ * Lifecycle: skipWaiting + clients.claim para que esta versión tome
+ * control de inmediato y, crucialmente, el activate de abajo PURGA
+ * cualquier cache que la versión anterior haya dejado — así los
+ * clientes con el cache malo se recuperan solos al actualizar el SW.
  */
-
-const STATIC_CACHE = "mesapay-static-v1";
 
 self.addEventListener("install", (event) => {
   // Activate this version as soon as it's installed. With each new
@@ -25,53 +27,18 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      // Borrar caches huérfanos de versiones anteriores del SW.
+      // Purga TODOS los caches — incluido el "mesapay-static-v1" que
+      // dejó la versión anterior del SW. Esto es lo que recupera a los
+      // usuarios que quedaron con chunks stale tras el deploy.
       const keys = await caches.keys();
-      await Promise.all(
-        keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)),
-      );
+      await Promise.all(keys.map((k) => caches.delete(k)));
       // Take control of pages that were open with the previous SW.
       await self.clients.claim();
     })(),
   );
 });
 
-/**
- * Cache-first para chunks immutables de Next. Todo lo demás (HTML,
- * /api/*, etc.) pasa por la red sin tocar — no queremos cachear datos
- * vivos ni la shell de las páginas.
- */
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  if (req.method !== "GET") return;
-  let url;
-  try {
-    url = new URL(req.url);
-  } catch {
-    return;
-  }
-  if (url.origin !== self.location.origin) return;
-  if (!url.pathname.startsWith("/_next/static/")) return;
-  event.respondWith(
-    (async () => {
-      const cache = await caches.open(STATIC_CACHE);
-      const cached = await cache.match(req);
-      if (cached) return cached;
-      try {
-        const res = await fetch(req);
-        // Solo cacheamos respuestas exitosas — un 404 transitorio no
-        // debería contaminar el cache.
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-      } catch (err) {
-        // Fallo de red: si por algún motivo tenemos algo en cache,
-        // lo devolvemos. Si no, propaga el error original.
-        if (cached) return cached;
-        throw err;
-      }
-    })(),
-  );
-});
+// (Sin handler de fetch — todo va a la red normalmente.)
 
 /**
  * Push event. Server-sent payload looks like:

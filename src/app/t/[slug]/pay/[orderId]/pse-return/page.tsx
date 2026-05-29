@@ -27,21 +27,36 @@ export default async function PseReturnPage({
   const { slug, orderId } = await params;
   const { pid, status: statusHint } = await searchParams;
 
-  if (!pid) {
-    redirect(`/t/${slug}/pay/${orderId}`);
-  }
-
-  const payment = await db.payment.findUnique({
-    where: { id: pid },
-    select: {
-      id: true,
-      status: true,
-      method: true,
-      amountCents: true,
-      tipCents: true,
-      orderId: true,
-    },
-  });
+  // En el flujo live el callbackUrl se setea en el browser durante la
+  // tokenización (cuando todavía no existe el Payment en DB), así que
+  // no podemos incluir ?pid=. Fallback: si no viene pid, buscamos el
+  // Payment kushki_pse más reciente de esta orden — debería haber
+  // exactamente uno en estado pending/approved/declined creado por
+  // el último click a PSE.
+  const payment = pid
+    ? await db.payment.findUnique({
+        where: { id: pid },
+        select: {
+          id: true,
+          status: true,
+          method: true,
+          amountCents: true,
+          tipCents: true,
+          orderId: true,
+        },
+      })
+    : await db.payment.findFirst({
+        where: { orderId, method: "kushki_pse" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          method: true,
+          amountCents: true,
+          tipCents: true,
+          orderId: true,
+        },
+      });
 
   if (!payment || payment.orderId !== orderId) {
     redirect(`/t/${slug}/pay/${orderId}`);

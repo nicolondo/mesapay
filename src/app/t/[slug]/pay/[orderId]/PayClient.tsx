@@ -1153,59 +1153,22 @@ function PseSheet({
   // ref al Kushki SDK instanciado — se carga lazy al abrir el sheet.
   const kushkiRef = useRef<unknown>(null);
 
-  // Carga inicial de la lista de bancos. En live mode usa Kushki.js
-  // (que el SDK enruta a /transfer/v1/bankList internamente con el
-  // Sift Science sessionId correcto). En mock mode usa nuestro
-  // endpoint /pse-banks.
+  // Carga la lista de bancos desde nuestro backend en ambos modos.
+  // El backend tiene cache in-memory de 1h y resuelve mock vs live
+  // server-side — el cliente nunca espera al SDK pesado de Kushki.
+  // El SDK lo cargamos LAZY en submit() solo cuando el user le da a
+  // "Ir al banco" (que es cuando el costo del bundle se justifica).
   useEffect(() => {
     let alive = true;
     (async () => {
       setBanksLoading(true);
       try {
-        if (isMockMode || !kushkiPublicKey) {
-          // Mock path: backend
-          const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
-          const j = await res.json();
-          if (alive && res.ok && Array.isArray(j.banks)) setBanks(j.banks);
-          else if (alive)
-            setErr(j.message ?? "No pudimos cargar la lista de bancos.");
-        } else {
-          // Live: importamos el SDK dinámicamente para no inflar el
-          // bundle SSR. inversify/reflect-metadata requieren window.
-          const mod = await import("@kushki/js");
-          const KushkiCtor = mod.Kushki ?? (mod as { default?: unknown }).default;
-          if (typeof KushkiCtor !== "function") {
-            throw new Error("@kushki/js no expone Kushki constructor");
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const KCtor = KushkiCtor as new (opts: { merchantId: string; inTestEnvironment: boolean }) => any;
-          const k = new KCtor({
-            merchantId: kushkiPublicKey,
-            inTestEnvironment: true, // sandbox; en producción cambia
-          });
-          kushkiRef.current = k;
-          // requestBankList recibe un callback que se llama con la
-          // lista o un error.
-          await new Promise<void>((resolve) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (k as any).requestBankList((response: any) => {
-              if (response && Array.isArray(response)) {
-                if (alive)
-                  setBanks(
-                    response.map((b: { code?: string; id?: string; name: string }) => ({
-                      code: String(b.code ?? b.id ?? ""),
-                      name: b.name,
-                    })),
-                  );
-              } else if (response && response.code && alive) {
-                setErr(
-                  response.message ??
-                    `Error cargando bancos (${response.code})`,
-                );
-              }
-              resolve();
-            });
-          });
+        const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
+        const j = await res.json();
+        if (alive && res.ok && Array.isArray(j.banks)) {
+          setBanks(j.banks);
+        } else if (alive) {
+          setErr(j.message ?? "No pudimos cargar la lista de bancos.");
         }
       } catch (e) {
         console.error("[pse] bank list error", e);
@@ -1234,8 +1197,8 @@ function PseSheet({
     }
     setErr(null);
 
-    // Mock path: delegamos al backend.
-    if (isMockMode || !kushkiPublicKey || !kushkiRef.current) {
+    // Mock path: delegamos al backend (no necesita SDK).
+    if (isMockMode || !kushkiPublicKey) {
       onPay({
         bankCode,
         email: email.trim().toLowerCase(),
@@ -1246,11 +1209,29 @@ function PseSheet({
       return;
     }
 
-    // Live path: tokenizamos en el browser. El SDK maneja la auth
-    // pública + Sift Science + GET /merchant/settings + POST tokens.
-    // Devuelve TokenResponse con `token` y `security.acsURL`.
+    // Live path: tokenizamos en el browser. Cargamos el SDK LAZY acá
+    // (sólo al hacer click en Pay) — antes lo cargábamos al abrir el
+    // sheet y el bundle pesado generaba un "Cargando bancos..." de
+    // 3-5 seg innecesario.
     setTokenizing(true);
     try {
+      if (!kushkiRef.current) {
+        const mod = await import("@kushki/js");
+        const KushkiCtor =
+          mod.Kushki ?? (mod as { default?: unknown }).default;
+        if (typeof KushkiCtor !== "function") {
+          throw new Error("@kushki/js no expone Kushki constructor");
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const KCtor = KushkiCtor as new (opts: {
+          merchantId: string;
+          inTestEnvironment: boolean;
+        }) => unknown;
+        kushkiRef.current = new KCtor({
+          merchantId: kushkiPublicKey,
+          inTestEnvironment: true, // sandbox; en producción cambia
+        });
+      }
       // El callbackUrl debe ser ABSOLUTO y apuntar a nuestro /pse-return.
       // El SDK no la usa internamente pero Kushki la requiere para que
       // el banco sepa adónde regresar al diner.

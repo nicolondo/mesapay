@@ -130,6 +130,21 @@ export function PayClient({
     setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
   }, []);
 
+  // Pre-cargar el SDK de Kushki en background. Pesa ~500KB y se usa
+  // cuando el diner abre el sheet de PSE o tarjeta, o cuando arranca
+  // el flow de Apple Pay. Si lo dejamos para ese momento, suma 1-3s
+  // de espera adicional. Acá la importación arranca apenas se monta
+  // la página de pago — para cuando el diner llena el form y le da
+  // a "Ir al banco" / "Pagar", el bundle ya está en cache del module
+  // loader (`await import()` resuelve sincrónico). Sólo cargamos en
+  // sandbox/prod — en mock mode no se usa el SDK.
+  useEffect(() => {
+    if (kushkiMode === "mock") return;
+    import("@kushki/js").catch((e) =>
+      console.warn("[kushki] precarga del SDK falló", e),
+    );
+  }, [kushkiMode]);
+
   const guestTotals = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of items) {

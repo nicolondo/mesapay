@@ -29,9 +29,19 @@ export default async function SettingsPage() {
       legalName: true,
       taxId: true,
       dianResolution: true,
+      reservationsEnabled: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+
+  // Reservas próximas (confirmadas/pendientes futuras) para el badge.
+  const upcomingReservations = await db.reservation.count({
+    where: {
+      restaurantId,
+      startsAt: { gte: new Date() },
+      status: { in: ["pending", "confirmed"] },
+    },
+  });
 
   const status = humanStatus(tenant.kushkiOnboardingStatus);
   const tipPol = resolveTipPolicy(tenant.tipPolicy);
@@ -186,6 +196,23 @@ export default async function SettingsPage() {
           }
           tint={
             tenant.hasBar || stationsCount > 0
+              ? "bg-ok/15 text-ok"
+              : "bg-paper text-op-muted"
+          }
+        />
+        <SettingCard
+          href="/operator/settings/reservas"
+          title="Reservas"
+          subtitle="Recibí reservas de mesa desde un link. Turnos, duración y confirmación."
+          badge={
+            tenant.reservationsEnabled
+              ? upcomingReservations > 0
+                ? `Activo · ${upcomingReservations} próxima${upcomingReservations === 1 ? "" : "s"}`
+                : "Activo"
+              : "Desactivado"
+          }
+          tint={
+            tenant.reservationsEnabled
               ? "bg-ok/15 text-ok"
               : "bg-paper text-op-muted"
           }

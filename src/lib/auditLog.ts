@@ -66,6 +66,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.identity.update": "Editó identidad",
   "restaurant.payment_methods.update": "Editó medios de pago",
   "restaurant.staff_policies.update": "Editó políticas de staff",
+  "restaurant.reservations.update": "Editó configuración de reservas",
   "user.create": "Creó usuario",
   "user.update": "Editó usuario",
   "user.delete": "Borró usuario",

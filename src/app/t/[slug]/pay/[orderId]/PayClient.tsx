@@ -404,6 +404,7 @@ export function PayClient({
     if (amountCents <= 0) return;
     setBusy("kushki_pse");
     setErr(null);
+    const t0 = performance.now();
     try {
       const res = await fetch(
         `/api/tenant/${tenantSlug}/pay/kushki-pse-init`,
@@ -428,6 +429,9 @@ export function PayClient({
             ...(args.redirectUrl ? { redirectUrl: args.redirectUrl } : {}),
           }),
         },
+      );
+      console.log(
+        `[pse-timing] backend /kushki-pse-init: ${Math.round(performance.now() - t0)}ms`,
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.redirectUrl) {
@@ -1276,9 +1280,16 @@ function PseSheet({
     // sheet y el bundle pesado generaba un "Cargando bancos..." de
     // 3-5 seg innecesario.
     setTokenizing(true);
+    // Timing logs — útil para identificar cuál paso del flow es el
+    // cuello de botella en cada test. Removible una vez que sepamos
+    // dónde optimizar.
+    const t0 = performance.now();
+    const ts = (label: string) =>
+      console.log(`[pse-timing] ${label}: ${Math.round(performance.now() - t0)}ms`);
     try {
       if (!kushkiRef.current) {
         const mod = await import("@kushki/js");
+        ts("SDK import");
         const KushkiCtor =
           mod.Kushki ?? (mod as { default?: unknown }).default;
         if (typeof KushkiCtor !== "function") {
@@ -1295,6 +1306,9 @@ function PseSheet({
           // El modo lo controla el admin desde /admin/configuracion.
           inTestEnvironment: kushkiMode !== "production",
         });
+        ts("SDK init");
+      } else {
+        ts("SDK ya cacheado");
       }
       // El callbackUrl debe ser ABSOLUTO y apuntar a nuestro /pse-return.
       // El SDK no la usa internamente pero Kushki la requiere para que
@@ -1335,6 +1349,7 @@ function PseSheet({
           (resp: any) => resolve(resp),
         );
       });
+      ts("requestTransferToken (incl Sift + merchant settings + tokens)");
 
       console.log("[pse] kushki tokens response", response);
 

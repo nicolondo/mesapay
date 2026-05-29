@@ -70,9 +70,9 @@ async function chargeTransferInit(args: {
     },
   };
 
+  const t0 = Date.now();
   console.log("[pse-init] calling /transfer/v1/init", {
     url: `${baseUrl}/transfer/v1/init`,
-    body,
   });
 
   const res = await fetch(`${baseUrl}/transfer/v1/init`, {
@@ -84,10 +84,9 @@ async function chargeTransferInit(args: {
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  console.log("[pse-init] /transfer/v1/init response", {
-    status: res.status,
-    body: text.slice(0, 500),
-  });
+  console.log(
+    `[pse-init] /transfer/v1/init response status=${res.status} en ${Date.now() - t0}ms`,
+  );
   if (!res.ok) {
     throw new Error(`kushki ${res.status} on /transfer/v1/init: ${text.slice(0, 300)}`);
   }

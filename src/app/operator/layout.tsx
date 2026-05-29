@@ -199,6 +199,9 @@ export default async function OperatorLayout({
             ? [{ href: "/operator/bar", label: "Bar" }]
             : []),
           { href: "/operator/serve", label: "Salón" },
+          ...(tenant?.reservationsEnabled
+            ? [{ href: "/operator/reservas", label: "Reservas" }]
+            : []),
           { href: "/operator/payments", label: "Cobros" },
           { href: "/operator/orders", label: "Órdenes" },
           { href: "/operator/menu", label: "Menú" },

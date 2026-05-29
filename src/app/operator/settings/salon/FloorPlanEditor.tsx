@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   type FloorPlan,
@@ -48,6 +48,20 @@ type Sel =
   | { type: "marker"; id: string }
   | null;
 
+/** Arrastre de una mesa en curso (mouse o touch). */
+type DragState = {
+  tableId: string;
+  /** Posición actual del puntero (viewport). */
+  px: number;
+  py: number;
+  startX: number;
+  startY: number;
+  /** Pasó el umbral → es un drag real, no un tap. */
+  moved: boolean;
+  /** Celda sobre la que está el puntero (o null si fuera de la grilla). */
+  over: { x: number; y: number } | null;
+};
+
 function newId(prefix: string): string {
   try {
     if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -81,6 +95,13 @@ export function FloorPlanEditor({
   // Qué kind usa el botón "+ Zona" / "+ Ícono".
   const [zoneKind, setZoneKind] = useState<ZoneKind>("interior");
   const [markerKind, setMarkerKind] = useState<MarkerKind>("entrada");
+
+  // Drag & drop de mesas.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  // Suprime el click sintético que sigue a un pointerup de drag para que
+  // no deseleccione/dispare onCellTap por accidente.
+  const dragEndedRef = useRef(false);
 
   const placed = tables.filter((t) => t.x != null && t.y != null);
   const unplaced = tables.filter((t) => t.x == null || t.y == null);
@@ -117,25 +138,105 @@ export function FloorPlanEditor({
     return placed.find((t) => t.x === x && t.y === y);
   }
 
+  /**
+   * Mueve una mesa a la celda (x,y). Si ya hay otra ahí, hacen swap (la
+   * que estaba va a la posición anterior de la que se mueve — o a la
+   * bandeja si venía sin ubicar). Calcula todo desde el estado actual
+   * dentro del updater para no leer `placed` stale durante un drag.
+   */
+  function moveTableTo(id: string, x: number, y: number) {
+    setTables((ts) => {
+      const moving = ts.find((t) => t.id === id);
+      const taken = ts.find((t) => t.id !== id && t.x === x && t.y === y);
+      return ts.map((t) => {
+        if (t.id === id) return { ...t, x, y };
+        if (taken && t.id === taken.id)
+          return { ...t, x: moving?.x ?? null, y: moving?.y ?? null };
+        return t;
+      });
+    });
+    markDirty();
+  }
+
+  /** Mapea un punto del puntero (viewport) a una celda de la grilla. */
+  function cellFromPoint(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    const r = gridRef.current?.getBoundingClientRect();
+    if (!r) return null;
+    const lx = clientX - r.left;
+    const ly = clientY - r.top;
+    if (lx < 0 || ly < 0 || lx >= r.width || ly >= r.height) return null;
+    const x = Math.floor(lx / cellPx);
+    const y = Math.floor(ly / cellPx);
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return null;
+    return { x, y };
+  }
+
+  // ── Drag & drop de mesas ──────────────────────────────────────────
+  function startTableDrag(e: React.PointerEvent, id: string) {
+    // Si estamos en modo "tocá una celda" (pending) dejamos ese flujo.
+    if (pending) return;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* no soportado — el drag igual funciona con listeners del elemento */
+    }
+    setDrag({
+      tableId: id,
+      px: e.clientX,
+      py: e.clientY,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      over: null,
+    });
+  }
+  function onTableDragMove(e: React.PointerEvent) {
+    if (!drag) return;
+    const moved =
+      drag.moved || Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 6;
+    setDrag({
+      ...drag,
+      px: e.clientX,
+      py: e.clientY,
+      moved,
+      over: moved ? cellFromPoint(e.clientX, e.clientY) : drag.over,
+    });
+  }
+  function endTableDrag(e: React.PointerEvent) {
+    if (!drag) return;
+    const d = drag;
+    setDrag(null);
+    if (d.moved) {
+      const cell = cellFromPoint(e.clientX, e.clientY);
+      if (cell) {
+        moveTableTo(d.tableId, cell.x, cell.y);
+        setSel({ type: "table", id: d.tableId });
+      }
+      // Si soltó fuera de la grilla, la mesa queda donde estaba.
+    } else {
+      // Fue un tap, no un arrastre.
+      const t = tables.find((tt) => tt.id === d.tableId);
+      setSel({ type: "table", id: d.tableId });
+      // Una mesa de la bandeja (sin ubicar) arma el modo "tocá una celda".
+      if (t && t.x == null) setPending({ kind: "placeTable", id: d.tableId });
+    }
+    // Suprimir el click sintético que sigue.
+    dragEndedRef.current = true;
+    setTimeout(() => {
+      dragEndedRef.current = false;
+    }, 0);
+  }
+
   // ── Resolución de un toque en celda (x,y) ──────────────────────────
   function onCellTap(x: number, y: number) {
     if (pending) {
       switch (pending.kind) {
         case "placeTable": {
-          const id = pending.id;
-          const taken = occupant(x, y);
-          const moving = tables.find((t) => t.id === id);
-          setTables((ts) =>
-            ts.map((t) => {
-              if (t.id === id) return { ...t, x, y };
-              if (taken && t.id === taken.id) {
-                // swap: la mesa que estaba acá va a donde estaba la otra.
-                return { ...t, x: moving?.x ?? null, y: moving?.y ?? null };
-              }
-              return t;
-            }),
-          );
-          setSel({ type: "table", id });
+          moveTableTo(pending.id, x, y);
+          setSel({ type: "table", id: pending.id });
           break;
         }
         case "moveZone": {
@@ -654,9 +755,12 @@ export function FloorPlanEditor({
       {/* Lienzo */}
       <div className="rounded-2xl border border-op-border bg-op-bg p-2 overflow-auto max-h-[68vh]">
         <div
+          ref={gridRef}
           className="relative mx-auto"
           style={{ width: gridW, height: gridH }}
           onClick={() => {
+            // El click sintético tras soltar un drag no debe deseleccionar.
+            if (dragEndedRef.current) return;
             // Click en el contenedor (fuera de celdas/elementos) deselecciona.
             if (!pending) setSel(null);
           }}
@@ -701,19 +805,23 @@ export function FloorPlanEditor({
             {Array.from({ length: cols * rows }).map((_, i) => {
               const x = i % cols;
               const y = Math.floor(i / cols);
+              const isOver = drag?.over?.x === x && drag?.over?.y === y;
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (dragEndedRef.current) return;
                     onCellTap(x, y);
                   }}
                   className={
                     "border border-dashed " +
-                    (pending
-                      ? "border-op-border/50 hover:border-terracotta hover:bg-terracotta/10"
-                      : "border-op-border/25")
+                    (isOver
+                      ? "border-terracotta bg-terracotta/20"
+                      : pending
+                        ? "border-op-border/50 hover:border-terracotta hover:bg-terracotta/10"
+                        : "border-op-border/25")
                   }
                 />
               );
@@ -758,30 +866,38 @@ export function FloorPlanEditor({
             );
           })}
 
-          {/* Capa 4: mesas (clickeables) */}
+          {/* Capa 4: mesas (clickeables + arrastrables) */}
           {placed.map((t) => {
             const isSel = sel?.type === "table" && sel.id === t.id;
+            const isDragging = drag?.tableId === t.id && drag.moved;
             return (
               <button
                 key={t.id}
                 type="button"
+                onPointerDown={(e) => startTableDrag(e, t.id)}
+                onPointerMove={onTableDragMove}
+                onPointerUp={endTableDrag}
                 onClick={(e) => {
+                  // El drag/tap se maneja por punteros. El click sólo sirve
+                  // para resolver una acción pendiente (modo "tocá una celda").
                   e.stopPropagation();
-                  handleTableClick(t);
+                  if (pending) handleTableClick(t);
                 }}
                 className={
-                  "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
+                  "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors touch-none select-none " +
                   shapeClass(t.shape) +
                   " " +
                   (isSel
                     ? "bg-ink text-bone border-ink z-10"
-                    : "bg-op-surface text-op-text border-op-border")
+                    : "bg-op-surface text-op-text border-op-border") +
+                  (pending ? " cursor-pointer" : " cursor-grab active:cursor-grabbing")
                 }
                 style={{
                   left: (t.x as number) * cellPx + 3,
                   top: (t.y as number) * cellPx + 3,
                   width: cellPx - 6,
                   height: cellPx - 6,
+                  opacity: isDragging ? 0.3 : 1,
                 }}
               >
                 <span className="font-display text-xs">
@@ -794,23 +910,48 @@ export function FloorPlanEditor({
         </div>
       </div>
 
+      {/* Fantasma que sigue al dedo/cursor mientras se arrastra una mesa */}
+      {drag?.moved &&
+        (() => {
+          const t = tables.find((x) => x.id === drag.tableId);
+          if (!t) return null;
+          return (
+            <div
+              className={
+                "fixed z-50 pointer-events-none flex flex-col items-center justify-center text-[10px] font-medium leading-none border bg-ink text-bone shadow-lg " +
+                shapeClass(t.shape)
+              }
+              style={{
+                left: drag.px,
+                top: drag.py,
+                width: cellPx - 6,
+                height: cellPx - 6,
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <span className="font-display text-xs">
+                {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+              </span>
+            </div>
+          );
+        })()}
+
       {/* Bandeja de mesas sin ubicar */}
       {unplaced.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-            Sin ubicar — tocá una y después una celda
+            Sin ubicar — arrastrá al mapa, o tocá una y después una celda
           </div>
           <div className="flex flex-wrap gap-2">
             {unplaced.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => {
-                  setSel({ type: "table", id: t.id });
-                  setPending({ kind: "placeTable", id: t.id });
-                }}
+                onPointerDown={(e) => startTableDrag(e, t.id)}
+                onPointerMove={onTableDragMove}
+                onPointerUp={endTableDrag}
                 className={
-                  "h-11 px-4 rounded-xl border text-sm font-medium " +
+                  "h-11 px-4 rounded-xl border text-sm font-medium touch-none select-none cursor-grab active:cursor-grabbing " +
                   (pending?.kind === "placeTable" && pending.id === t.id
                     ? "bg-ink text-bone border-ink"
                     : "bg-op-surface border-op-border text-op-text")
@@ -887,7 +1028,8 @@ export function FloorPlanEditor({
       )}
 
       <p className="mt-4 text-[11px] text-op-muted">
-        Tip: la forma de la mesa (cuadrada / redonda / barra) es solo visual.
+        Tip: arrastrá las mesas para acomodarlas (o tocá y luego una celda).
+        La forma de la mesa (cuadrada / redonda / barra) es solo visual.
         La capacidad y el consumo mínimo se editan en{" "}
         <a
           href="/operator/settings/mesas"

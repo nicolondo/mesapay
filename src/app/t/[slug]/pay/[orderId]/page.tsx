@@ -98,7 +98,7 @@ export default async function PayPage({
       serviceMode={tenant.serviceMode}
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
-      isMockMode={(await getKushkiMode()) === "mock"}
+      kushkiMode={await getKushkiMode()}
       enabledMethods={resolveEnabledPaymentMethods(tenant.enabledPaymentMethods)}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}

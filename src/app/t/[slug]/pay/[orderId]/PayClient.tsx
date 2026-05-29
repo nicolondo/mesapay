@@ -43,7 +43,7 @@ export function PayClient({
   serviceMode,
   kushkiReady,
   kushkiPublicKey,
-  isMockMode,
+  kushkiMode,
   enabledMethods,
   assignedDeviceId,
   assignedDeviceLabel,
@@ -65,7 +65,12 @@ export function PayClient({
   serviceMode: "table" | "counter";
   kushkiReady: boolean;
   kushkiPublicKey: string | null;
-  isMockMode: boolean;
+  // Modo Kushki resuelto server-side desde /admin/configuracion.
+  // Cada componente que habla con Kushki (CardSheet, PseSheet,
+  // ApplePayButton) lo usa para switchear inTestEnvironment + URL
+  // base — sin esto teníamos sandbox hardcodeado en el browser y
+  // cambiar el modo desde admin no surtía efecto del lado cliente.
+  kushkiMode: "mock" | "sandbox" | "production";
   // Per-restaurant payment method toggles. Slugs of methods the admin
   // enabled in /admin/restaurants/[id]. Buttons are filtered against
   // this list so disabled methods never render.
@@ -102,6 +107,11 @@ export function PayClient({
   // cuenta makes no sense and would let someone walk off with the food
   // half-paid. Force "Todo" and hide the mode picker.
   const isCounter = serviceMode === "counter";
+  // Derivado del modo Kushki. isMockMode es el toggle de mayor uso
+  // (caemos a fake tokens / hardcoded bank list en mock), mientras
+  // los componentes que hablan con Kushki necesitan el modo completo
+  // para switchear inTestEnvironment / base URL.
+  const isMockMode = kushkiMode === "mock";
   const router = useRouter();
   const [tipPct, setTipPct] = useState<number>(10);
   const [busy, setBusy] = useState<MethodKind | null>(null);
@@ -792,6 +802,7 @@ export function PayClient({
               {!isMockMode && kushkiPublicKey && (
                 <ApplePayButton
                   publicKey={kushkiPublicKey}
+                  kushkiMode={kushkiMode}
                   amountCents={amountCents}
                   displayName={tenantName}
                   busy={busy === "kushki_apple_pay"}
@@ -919,7 +930,7 @@ export function PayClient({
           amountCents={amountCents}
           busy={busy === "kushki_pse"}
           kushkiPublicKey={kushkiPublicKey}
-          isMockMode={isMockMode}
+          kushkiMode={kushkiMode}
           onClose={() => setPseSheetOpen(false)}
           onPay={(args) => {
             setPseSheetOpen(false);
@@ -935,7 +946,7 @@ export function PayClient({
           orderId={orderId}
           busy={busy === "kushki_card"}
           kushkiPublicKey={kushkiPublicKey}
-          isMockMode={isMockMode}
+          kushkiMode={kushkiMode}
           onClose={() => setCardSheetOpen(false)}
           onTokenized={(token) => {
             setCardSheetOpen(false);
@@ -1132,7 +1143,7 @@ function PseSheet({
   amountCents,
   busy,
   kushkiPublicKey,
-  isMockMode,
+  kushkiMode,
   onClose,
   onPay,
 }: {
@@ -1140,7 +1151,7 @@ function PseSheet({
   amountCents: number;
   busy: boolean;
   kushkiPublicKey: string | null;
-  isMockMode: boolean;
+  kushkiMode: "mock" | "sandbox" | "production";
   onClose: () => void;
   // En mock mode el sheet llama a onPay con buyer data → backend tokeniza.
   // En live mode el sheet tokeniza solo y llama a onPay con el token ya
@@ -1170,6 +1181,7 @@ function PseSheet({
   const [tokenizing, setTokenizing] = useState(false);
   // ref al Kushki SDK instanciado — se carga lazy al abrir el sheet.
   const kushkiRef = useRef<unknown>(null);
+  const isMockMode = kushkiMode === "mock";
 
   // Carga la lista de bancos desde nuestro backend en ambos modos.
   // El backend tiene cache in-memory de 1h y resuelve mock vs live
@@ -1247,7 +1259,9 @@ function PseSheet({
         }) => unknown;
         kushkiRef.current = new KCtor({
           merchantId: kushkiPublicKey,
-          inTestEnvironment: true, // sandbox; en producción cambia
+          // Kushki SDK convention: true = UAT sandbox, false = prod.
+          // El modo lo controla el admin desde /admin/configuracion.
+          inTestEnvironment: kushkiMode !== "production",
         });
       }
       // El callbackUrl debe ser ABSOLUTO y apuntar a nuestro /pse-return.
@@ -1863,7 +1877,7 @@ function CardSheet({
   orderId,
   busy,
   kushkiPublicKey,
-  isMockMode,
+  kushkiMode,
   onClose,
   onTokenized,
 }: {
@@ -1873,7 +1887,7 @@ function CardSheet({
   orderId: string;
   busy: boolean;
   kushkiPublicKey: string | null;
-  isMockMode: boolean;
+  kushkiMode: "mock" | "sandbox" | "production";
   onClose: () => void;
   onTokenized: (token: string) => void;
 }) {
@@ -1888,6 +1902,7 @@ function CardSheet({
   const [email, setEmail] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [tokenizing, setTokenizing] = useState(false);
+  const isMockMode = kushkiMode === "mock";
 
   function formatCardNumber(raw: string) {
     const digits = raw.replace(/\D/g, "").slice(0, 19);
@@ -1944,8 +1959,11 @@ function CardSheet({
       // Sift Science que Kushki rechaza con K001 en este setup. El
       // endpoint directo acepta el body sin los extras y devuelve el
       // token al toque. PCI SAQ-A se mantiene porque el PAN sólo viaja
-      // a api-uat.kushkipagos.com (browser → Kushki), no a MESAPAY.
-      const baseUrl = "https://api-uat.kushkipagos.com"; // TODO: prod URL cuando KUSHKI_MODE=production
+      // a kushkipagos.com (browser → Kushki), no a MESAPAY.
+      const baseUrl =
+        kushkiMode === "production"
+          ? "https://api.kushkipagos.com"
+          : "https://api-uat.kushkipagos.com";
 
       // 3DS: pedimos `authValidation: "url"` para que Kushki devuelva
       // la URL del banco cuando la tarjeta lo requiera. callbackUrl

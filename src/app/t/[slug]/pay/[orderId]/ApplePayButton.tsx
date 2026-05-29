@@ -29,12 +29,14 @@ import { useEffect, useRef, useState } from "react";
  */
 export function ApplePayButton({
   publicKey,
+  kushkiMode,
   amountCents,
   displayName,
   busy,
   onTokenized,
 }: {
   publicKey: string;
+  kushkiMode: "mock" | "sandbox" | "production";
   amountCents: number;
   displayName: string;
   busy: boolean;
@@ -77,7 +79,9 @@ export function ApplePayButton({
         }) => unknown;
         const k = new KCtor({
           merchantId: publicKey,
-          inTestEnvironment: true, // TODO: pasar mode → switchear en producción
+          // Kushki SDK convention: true = UAT sandbox, false = prod.
+          // Lo controla el admin desde /admin/configuracion.
+          inTestEnvironment: kushkiMode !== "production",
         });
         if (!alive) return;
         kushkiRef.current = k;
@@ -112,7 +116,7 @@ export function ApplePayButton({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported, publicKey]);
+  }, [supported, publicKey, kushkiMode]);
 
   function requestToken() {
     if (!kushkiRef.current) return;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { ApplePayButton } from "./ApplePayButton";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
@@ -161,28 +162,29 @@ export function PayClient({
   const amountTip = Math.round((amountSubtotal * tipPct) / 100);
   const amountCents = amountSubtotal + amountTip;
 
-  async function payWithKushkiToken(method: "kushki_apple_pay") {
+  /**
+   * Apple Pay — el token real viene del SDK de Kushki vía
+   * <ApplePayButton/> (que muestra el sheet nativo de Apple). Acá
+   * sólo recibimos el token ya válido y lo cobramos. En mock mode
+   * (sin SDK) generamos un token fake.
+   */
+  async function payWithApplePayToken(token: string) {
     if (amountCents <= 0) return;
-    setBusy(method);
+    setBusy("kushki_apple_pay");
     setErr(null);
     try {
-      // TODO: when Kushki credentials arrive, replace this with the JS SDK
-      // tokenisation flow (Kushki.requestToken or similar). For now we ship
-      // a placeholder token; the mock provider accepts anything, and the
-      // live provider will reject — gating us until we wire the SDK.
-      const token =
-        kushkiPublicKey && !isMockMode
-          ? // Live: we'd grab a real token via the SDK. Bail with a friendly error.
-            ""
-          : `mock-token-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      if (!token) {
-        setErr("Apple Pay aún no está activado para este restaurante.");
-        return;
-      }
-      await sendKushkiTokenCharge(method, token);
+      await sendKushkiTokenCharge("kushki_apple_pay", token);
     } finally {
       setBusy(null);
     }
+  }
+
+  // Mock fallback: cuando KUSHKI_MODE=mock no hay SDK que tokenice.
+  // Generamos un token fake que el mock provider acepta para que el
+  // wizard de dev se pueda probar end-to-end.
+  async function payWithApplePayMock() {
+    const token = `mock-applepay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await payWithApplePayToken(token);
   }
 
   /**
@@ -778,19 +780,35 @@ export function PayClient({
         {/* Apple Pay requires the diner's own iPhone — the waiter can't
             tap their own watch / Touch ID for someone else's card. So
             in waiter mode we hide it entirely; the operator collects
-            via datáfono or efectivo. */}
+            via datáfono o efectivo. En live mode usamos el componente
+            ApplePayButton que renderiza el botón nativo de Apple vía
+            el SDK de Kushki. En mock mode caemos al PayButton custom
+            con token fake para que el wizard se pueda probar sin
+            credenciales reales. */}
         {kushkiReady &&
-          hasApplePay &&
           !operatorMode &&
           enabledMethods.includes("kushki_apple_pay") && (
-            <PayButton
-              kind="apple"
-              disabled={busy !== null || amountCents <= 0}
-              busy={busy === "kushki_apple_pay"}
-              onClick={() => payWithKushkiToken("kushki_apple_pay")}
-              amountCents={amountCents}
-              operatorMode={operatorMode}
-            />
+            <>
+              {!isMockMode && kushkiPublicKey && (
+                <ApplePayButton
+                  publicKey={kushkiPublicKey}
+                  amountCents={amountCents}
+                  displayName={tenantName}
+                  busy={busy === "kushki_apple_pay"}
+                  onTokenized={payWithApplePayToken}
+                />
+              )}
+              {(isMockMode || !kushkiPublicKey) && hasApplePay && (
+                <PayButton
+                  kind="apple"
+                  disabled={busy !== null || amountCents <= 0}
+                  busy={busy === "kushki_apple_pay"}
+                  onClick={payWithApplePayMock}
+                  amountCents={amountCents}
+                  operatorMode={operatorMode}
+                />
+              )}
+            </>
           )}
         {kushkiReady && enabledMethods.includes("kushki_card_terminal") && (
           <PayButton

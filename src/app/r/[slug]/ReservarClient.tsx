@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  type FloorPlan,
+  DEFAULT_FLOOR_PLAN,
+  ZONE_KINDS,
+  MARKER_KINDS,
+  markerLabel,
+} from "@/lib/floorPlan";
 
 type AvailTable = {
   id: string;
@@ -25,8 +32,6 @@ type FloorTable = {
   x: number;
   y: number;
 };
-
-const FLOOR_COLS = 10;
 
 const fmtCOP = (cents: number) =>
   "$" + (cents / 100).toLocaleString("es-CO");
@@ -77,6 +82,7 @@ export function ReservarClient({
   const [partySize, setPartySize] = useState(2);
   const [slots, setSlots] = useState<AvailSlot[]>([]);
   const [floorTables, setFloorTables] = useState<FloorTable[]>([]);
+  const [floorPlan, setFloorPlan] = useState<FloorPlan>(DEFAULT_FLOOR_PLAN);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<AvailSlot | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -109,6 +115,9 @@ export function ReservarClient({
           // Sólo slots con al menos una mesa libre.
           setSlots(j.slots.filter((s: AvailSlot) => s.tables.length > 0));
           setFloorTables(Array.isArray(j.floorTables) ? j.floorTables : []);
+          if (j.floorPlan && typeof j.floorPlan === "object") {
+            setFloorPlan(j.floorPlan as FloorPlan);
+          }
         } else if (alive) {
           setSlots([]);
           setFloorTables([]);
@@ -322,6 +331,7 @@ export function ReservarClient({
               </div>
               <FloorPlanPicker
                 floorTables={floorTables}
+                floorPlan={floorPlan}
                 freeIds={new Set(selectedSlot.tables.map((t) => t.id))}
                 selectedTableId={selectedTableId}
                 onPick={setSelectedTableId}
@@ -466,80 +476,167 @@ export function ReservarClient({
 }
 
 /**
- * Mapa del salón read-only para que el diner elija mesa visualmente.
- * Dibuja la grilla 10-col con las mesas en sus coords. Las mesas
- * libres y que entran al grupo (id en freeIds) van en verde y son
- * tappables; el resto (ocupadas o que no entran) van en gris,
- * deshabilitadas. La seleccionada se resalta en ink.
+ * Mapa del salón read-only para que el diner elija mesa visualmente y
+ * se ubique en el local. Dibuja: zonas (jardín, terraza…), íconos
+ * (entrada, baños…) y las mesas en sus coords. Las mesas libres que
+ * entran al grupo (id en freeIds) van en verde y son tappables; el
+ * resto en gris. La seleccionada se resalta en ink.
+ *
+ * El tamaño de celda (cellPx) se calcula del ancho real del contenedor
+ * para que el plano llene la pantalla del diner sin scroll horizontal.
  */
 function FloorPlanPicker({
   floorTables,
+  floorPlan,
   freeIds,
   selectedTableId,
   onPick,
 }: {
   floorTables: FloorTable[];
+  floorPlan: FloorPlan;
   freeIds: Set<string>;
   selectedTableId: string | null;
   onPick: (id: string) => void;
 }) {
-  const rows = Math.max(
-    6,
-    floorTables.reduce((m, t) => Math.max(m, t.y), 0) + 2,
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [boxW, setBoxW] = useState(0);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    // clientWidth incluye el padding p-2 (≈16px) → lo descontamos.
+    const update = () => setBoxW(Math.max(0, el.clientWidth - 16));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Ampliar la grilla si hay datos viejos por fuera de cols/rows guardados.
+  const cols = Math.max(
+    floorPlan.cols,
+    floorTables.reduce((m, t) => Math.max(m, t.x + 1), 0),
+    ...floorPlan.zones.map((z) => z.x + z.w),
+    ...floorPlan.markers.map((m) => m.x + 1),
   );
+  const rows = Math.max(
+    floorPlan.rows,
+    floorTables.reduce((m, t) => Math.max(m, t.y + 1), 0),
+    ...floorPlan.zones.map((z) => z.y + z.h),
+    ...floorPlan.markers.map((m) => m.y + 1),
+  );
+
+  const cellPx =
+    boxW > 0 ? Math.min(64, Math.max(22, Math.floor(boxW / cols))) : 40;
+  const gridW = cols * cellPx;
+  const gridH = rows * cellPx;
+
   return (
-    <div className="rounded-2xl border border-hairline bg-paper p-2 overflow-x-auto">
-      <div
-        className="relative mx-auto"
-        style={{ width: "100%", maxWidth: 520, aspectRatio: `${FLOOR_COLS} / ${rows}` }}
-      >
-        <div
-          className="absolute inset-0 grid"
-          style={{
-            gridTemplateColumns: `repeat(${FLOOR_COLS}, 1fr)`,
-            gridTemplateRows: `repeat(${rows}, 1fr)`,
-            gap: 4,
-          }}
-        >
-          {Array.from({ length: FLOOR_COLS * rows }).map((_, i) => {
-            const x = i % FLOOR_COLS;
-            const y = Math.floor(i / FLOOR_COLS);
-            const t = floorTables.find((ft) => ft.x === x && ft.y === y);
-            if (!t) return <div key={i} />;
-            const free = freeIds.has(t.id);
-            const selected = selectedTableId === t.id;
-            const radius =
-              t.shape === "round" ? "rounded-full" : "rounded-md";
-            return (
-              <button
-                key={i}
-                type="button"
-                disabled={!free}
-                onClick={() => free && onPick(t.id)}
-                title={
-                  free
-                    ? `${t.label ?? `Mesa ${t.number}`} · hasta ${t.capacity}`
-                    : "No disponible"
-                }
-                className={
-                  "w-full h-full flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
-                  radius +
-                  " " +
-                  (selected
-                    ? "bg-ink text-bone border-ink"
-                    : free
-                      ? "bg-[#2E6B4C]/15 text-[#1E5339] border-[#2E6B4C]/40 hover:bg-[#2E6B4C]/25"
-                      : "bg-hairline text-muted border-transparent cursor-not-allowed")
-                }
+    <div
+      ref={wrapRef}
+      className="rounded-2xl border border-hairline bg-paper p-2 overflow-auto"
+    >
+      <div className="relative mx-auto" style={{ width: gridW, height: gridH }}>
+        {/* Zonas (fondo) */}
+        {floorPlan.zones.map((z) => {
+          const c = ZONE_KINDS[z.kind];
+          return (
+            <div
+              key={z.id}
+              className="absolute rounded-lg"
+              style={{
+                left: z.x * cellPx + 2,
+                top: z.y * cellPx + 2,
+                width: z.w * cellPx - 4,
+                height: z.h * cellPx - 4,
+                background: c.fill,
+                border: `1.5px dashed ${c.stroke}`,
+              }}
+            >
+              <span
+                className="absolute top-1 left-1.5 text-[9px] font-semibold leading-none px-1 py-0.5 rounded"
+                style={{ color: c.text, background: "rgba(255,255,255,0.6)" }}
               >
-                <span className="font-display text-xs">
-                  {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+                {z.label}
+              </span>
+            </div>
+          );
+        })}
+
+        {/* Íconos (entrada, baños…) */}
+        {floorPlan.markers.map((m) => {
+          const k = MARKER_KINDS[m.kind];
+          const isEntrance = m.kind === "entrada";
+          return (
+            <div
+              key={m.id}
+              className="absolute flex flex-col items-center justify-center rounded-lg"
+              style={{
+                left: m.x * cellPx + 2,
+                top: m.y * cellPx + 2,
+                width: cellPx - 4,
+                height: cellPx - 4,
+                background: isEntrance
+                  ? "rgba(193,73,46,0.14)"
+                  : "rgba(0,0,0,0.05)",
+                border: isEntrance
+                  ? "1.5px solid rgba(193,73,46,0.55)"
+                  : "1px solid rgba(0,0,0,0.12)",
+              }}
+              title={markerLabel(m)}
+            >
+              <span style={{ fontSize: Math.min(20, cellPx * 0.5) }}>
+                {k.icon}
+              </span>
+              {cellPx >= 40 && (
+                <span className="text-[8px] leading-none text-muted mt-0.5 truncate max-w-full px-0.5">
+                  {markerLabel(m)}
                 </span>
-                <span className="opacity-60 text-[9px]">{t.capacity}p</span>
-              </button>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Mesas (frente) */}
+        {floorTables.map((t) => {
+          const free = freeIds.has(t.id);
+          const selected = selectedTableId === t.id;
+          const radius = t.shape === "round" ? "rounded-full" : "rounded-md";
+          return (
+            <button
+              key={t.id}
+              type="button"
+              disabled={!free}
+              onClick={() => free && onPick(t.id)}
+              title={
+                free
+                  ? `${t.label ?? `Mesa ${t.number}`} · hasta ${t.capacity}`
+                  : "No disponible"
+              }
+              className={
+                "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
+                radius +
+                " " +
+                (selected
+                  ? "bg-ink text-bone border-ink z-10"
+                  : free
+                    ? "bg-[#2E6B4C]/15 text-[#1E5339] border-[#2E6B4C]/40 hover:bg-[#2E6B4C]/25"
+                    : "bg-hairline text-muted border-transparent cursor-not-allowed")
+              }
+              style={{
+                left: t.x * cellPx + 3,
+                top: t.y * cellPx + 3,
+                width: cellPx - 6,
+                height: cellPx - 6,
+              }}
+            >
+              <span className="font-display text-xs">
+                {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+              </span>
+              <span className="opacity-60 text-[9px]">{t.capacity}p</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

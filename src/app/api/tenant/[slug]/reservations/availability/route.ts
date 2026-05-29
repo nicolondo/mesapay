@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
   }
 
-  const { slots, floorTables } = await getAvailability({
+  const { slots, floorTables, floorPlan } = await getAvailability({
     restaurantId: tenant.id,
     dateLocal: date,
     partySize,
@@ -51,5 +51,7 @@ export async function GET(
     // Mapa del salón (mesas con coords). Vacío si el operador no
     // diseñó el plano — el front cae al picker de lista.
     floorTables,
+    // Grilla + zonas + markers (entrada, etc.) para dibujar contexto.
+    floorPlan,
   });
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { resolveFloorPlan } from "@/lib/floorPlan";
 import { FloorPlanEditor, type EditorTable } from "./FloorPlanEditor";
 
 export const dynamic = "force-dynamic";
@@ -9,19 +10,27 @@ export default async function SalonEditorPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
 
-  const tables = await db.table.findMany({
-    where: { restaurantId, number: { gte: 0 } },
-    orderBy: { number: "asc" },
-    select: {
-      id: true,
-      number: true,
-      label: true,
-      capacity: true,
-      shape: true,
-      floorPlanX: true,
-      floorPlanY: true,
-    },
-  });
+  const [tables, restaurant] = await Promise.all([
+    db.table.findMany({
+      where: { restaurantId, number: { gte: 0 } },
+      orderBy: { number: "asc" },
+      select: {
+        id: true,
+        number: true,
+        label: true,
+        capacity: true,
+        shape: true,
+        floorPlanX: true,
+        floorPlanY: true,
+      },
+    }),
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { floorPlan: true },
+    }),
+  ]);
+
+  const floorPlan = resolveFloorPlan(restaurant?.floorPlan);
 
   const rows: EditorTable[] = tables.map((t) => ({
     id: t.id,
@@ -43,9 +52,9 @@ export default async function SalonEditorPage() {
       </Link>
       <div className="font-display text-3xl mt-2 mb-1">Mapa del salón</div>
       <p className="text-sm text-op-muted mb-6">
-        Acomodá tus mesas como están en el local. El cliente verá este
-        mapa al reservar y podrá elegir su mesa. Tocá una mesa, después
-        tocá dónde va.
+        Dibujá tu salón como es en la vida real: ubicá las mesas, marcá la
+        entrada y pintá zonas (jardín, terraza, interior…). El cliente verá
+        este mapa al reservar y podrá elegir su mesa con contexto.
       </p>
 
       {rows.length === 0 ? (
@@ -57,7 +66,7 @@ export default async function SalonEditorPage() {
           .
         </div>
       ) : (
-        <FloorPlanEditor initialTables={rows} />
+        <FloorPlanEditor initialTables={rows} initialFloorPlan={floorPlan} />
       )}
     </div>
   );

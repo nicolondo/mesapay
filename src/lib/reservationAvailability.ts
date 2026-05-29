@@ -21,6 +21,7 @@ import {
   type ReservationConfig,
   type Weekday,
 } from "./reservations";
+import { resolveFloorPlan, type FloorPlan } from "./floorPlan";
 
 export type AvailableTable = {
   id: string;
@@ -83,13 +84,20 @@ export async function getAvailability(args: {
    *  independiente del partySize: incluye todas, el front marca cuáles
    *  son seleccionables comparando contra slot.tables. */
   floorTables: FloorTable[];
+  /** Grilla + zonas + markers del salón (para que el diner se ubique). */
+  floorPlan: FloorPlan;
 }> {
   const now = args.now ?? new Date();
   const r = await db.restaurant.findUnique({
     where: { id: args.restaurantId },
-    select: { reservationsEnabled: true, reservationConfig: true },
+    select: {
+      reservationsEnabled: true,
+      reservationConfig: true,
+      floorPlan: true,
+    },
   });
   const config = resolveReservationConfig(r?.reservationConfig);
+  const floorPlan = resolveFloorPlan(r?.floorPlan);
 
   // Todas las mesas reservables ubicadas en el plano — para dibujar el
   // mapa. Independiente del partySize y de si el día tiene turnos.
@@ -125,13 +133,13 @@ export async function getAvailability(args: {
   }));
 
   if (!r?.reservationsEnabled) {
-    return { config, slots: [], floorTables };
+    return { config, slots: [], floorTables, floorPlan };
   }
 
   const weekday = weekdayForLocalDate(args.dateLocal);
   const daySlots = slotsForDay(config, weekday);
   if (daySlots.length === 0) {
-    return { config, slots: [], floorTables };
+    return { config, slots: [], floorTables, floorPlan };
   }
 
   // Mesas candidatas: reservables + capacidad suficiente.
@@ -152,7 +160,7 @@ export async function getAvailability(args: {
     orderBy: { number: "asc" },
   });
   if (tables.length === 0) {
-    return { config, slots: [], floorTables };
+    return { config, slots: [], floorTables, floorPlan };
   }
 
   // Reservas activas que tocan ese día. Tomamos un rango generoso
@@ -208,5 +216,5 @@ export async function getAvailability(args: {
     });
   }
 
-  return { config, slots, floorTables };
+  return { config, slots, floorTables, floorPlan };
 }

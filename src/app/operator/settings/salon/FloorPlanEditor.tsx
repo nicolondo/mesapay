@@ -2,6 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  type FloorPlan,
+  type Zone,
+  type Marker,
+  type ZoneKind,
+  type MarkerKind,
+  ZONE_KINDS,
+  ZONE_KIND_LIST,
+  MARKER_KINDS,
+  MARKER_KIND_LIST,
+  markerLabel,
+  FLOOR_MIN_COLS,
+  FLOOR_MAX_COLS,
+  FLOOR_MIN_ROWS,
+  FLOOR_MAX_ROWS,
+} from "@/lib/floorPlan";
 
 export type EditorTable = {
   id: string;
@@ -13,62 +29,184 @@ export type EditorTable = {
   y: number | null;
 };
 
-// Grilla fija de 10 columnas. Las filas crecen según dónde el operador
-// pone mesas (mínimo 6). Coordenadas enteras (col, row) desde 0.
-const COLS = 10;
-const MIN_ROWS = 6;
+const ZOOM_MIN = 26;
+const ZOOM_MAX = 64;
+const ZOOM_STEP = 6;
+const DEFAULT_ZOOM = 42;
+
+/** Acción que el próximo toque en una celda va a resolver. */
+type Pending =
+  | { kind: "placeTable"; id: string }
+  | { kind: "moveZone"; id: string }
+  | { kind: "moveMarker"; id: string }
+  | { kind: "addZone"; zoneKind: ZoneKind }
+  | { kind: "addMarker"; markerKind: MarkerKind };
+
+type Sel =
+  | { type: "table"; id: string }
+  | { type: "zone"; id: string }
+  | { type: "marker"; id: string }
+  | null;
+
+function newId(prefix: string): string {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return prefix + crypto.randomUUID().slice(0, 8);
+    }
+  } catch {
+    /* fallthrough */
+  }
+  return prefix + Math.random().toString(36).slice(2, 10);
+}
 
 export function FloorPlanEditor({
   initialTables,
+  initialFloorPlan,
 }: {
   initialTables: EditorTable[];
+  initialFloorPlan: FloorPlan;
 }) {
   const router = useRouter();
   const [tables, setTables] = useState<EditorTable[]>(initialTables);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cols, setCols] = useState(initialFloorPlan.cols);
+  const [rows, setRows] = useState(initialFloorPlan.rows);
+  const [zones, setZones] = useState<Zone[]>(initialFloorPlan.zones);
+  const [markers, setMarkers] = useState<Marker[]>(initialFloorPlan.markers);
+  const [cellPx, setCellPx] = useState(DEFAULT_ZOOM);
+  const [sel, setSel] = useState<Sel>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Qué kind usa el botón "+ Zona" / "+ Ícono".
+  const [zoneKind, setZoneKind] = useState<ZoneKind>("interior");
+  const [markerKind, setMarkerKind] = useState<MarkerKind>("entrada");
 
   const placed = tables.filter((t) => t.x != null && t.y != null);
   const unplaced = tables.filter((t) => t.x == null || t.y == null);
 
-  // Filas necesarias: la fila más baja ocupada + 1 de buffer, mínimo MIN_ROWS.
-  const rows = useMemo(() => {
-    const maxY = placed.reduce((m, t) => Math.max(m, t.y ?? 0), 0);
-    return Math.max(MIN_ROWS, maxY + 2);
-  }, [placed]);
+  // Mínimos de la grilla: no podés encogerla por debajo de lo que ya
+  // está ocupado (mesas, zonas que terminan en x+w, markers).
+  const { minCols, minRows } = useMemo(() => {
+    let maxX = -1;
+    let maxY = -1;
+    for (const t of placed) {
+      maxX = Math.max(maxX, t.x as number);
+      maxY = Math.max(maxY, t.y as number);
+    }
+    for (const z of zones) {
+      maxX = Math.max(maxX, z.x + z.w - 1);
+      maxY = Math.max(maxY, z.y + z.h - 1);
+    }
+    for (const m of markers) {
+      maxX = Math.max(maxX, m.x);
+      maxY = Math.max(maxY, m.y);
+    }
+    return {
+      minCols: Math.max(FLOOR_MIN_COLS, maxX + 1),
+      minRows: Math.max(FLOOR_MIN_ROWS, maxY + 1),
+    };
+  }, [placed, zones, markers]);
 
-  const selected = tables.find((t) => t.id === selectedId) ?? null;
+  function markDirty() {
+    setDirty(true);
+    setMsg(null);
+  }
 
   function occupant(x: number, y: number): EditorTable | undefined {
     return placed.find((t) => t.x === x && t.y === y);
   }
 
-  function placeSelectedAt(x: number, y: number) {
-    if (!selected) return;
-    const taken = occupant(x, y);
-    setTables((ts) =>
-      ts.map((t) => {
-        if (t.id === selected.id) return { ...t, x, y };
-        // Si la celda estaba ocupada por otra, las intercambiamos:
-        // la otra va a donde estaba la seleccionada (o a la bandeja).
-        if (taken && t.id === taken.id) {
-          return { ...t, x: selected.x, y: selected.y };
+  // ── Resolución de un toque en celda (x,y) ──────────────────────────
+  function onCellTap(x: number, y: number) {
+    if (pending) {
+      switch (pending.kind) {
+        case "placeTable": {
+          const id = pending.id;
+          const taken = occupant(x, y);
+          const moving = tables.find((t) => t.id === id);
+          setTables((ts) =>
+            ts.map((t) => {
+              if (t.id === id) return { ...t, x, y };
+              if (taken && t.id === taken.id) {
+                // swap: la mesa que estaba acá va a donde estaba la otra.
+                return { ...t, x: moving?.x ?? null, y: moving?.y ?? null };
+              }
+              return t;
+            }),
+          );
+          setSel({ type: "table", id });
+          break;
         }
-        return t;
-      }),
-    );
-    setDirty(true);
+        case "moveZone": {
+          setZones((zs) =>
+            zs.map((z) =>
+              z.id === pending.id
+                ? {
+                    ...z,
+                    x: Math.min(x, cols - z.w),
+                    y: Math.min(y, rows - z.h),
+                  }
+                : z,
+            ),
+          );
+          break;
+        }
+        case "moveMarker": {
+          setMarkers((ms) =>
+            ms.map((m) => (m.id === pending.id ? { ...m, x, y } : m)),
+          );
+          break;
+        }
+        case "addZone": {
+          const w = Math.min(2, cols - x);
+          const h = Math.min(2, rows - y);
+          const id = newId("z");
+          setZones((zs) => [
+            ...zs,
+            {
+              id,
+              kind: pending.zoneKind,
+              label: ZONE_KINDS[pending.zoneKind].label,
+              x,
+              y,
+              w,
+              h,
+            },
+          ]);
+          setSel({ type: "zone", id });
+          break;
+        }
+        case "addMarker": {
+          const id = newId("m");
+          setMarkers((ms) => [
+            ...ms,
+            { id, kind: pending.markerKind, label: null, x, y },
+          ]);
+          setSel({ type: "marker", id });
+          break;
+        }
+      }
+      setPending(null);
+      markDirty();
+      return;
+    }
+
+    // Sin acción pendiente: seleccionar la mesa de esa celda, o limpiar.
+    const occ = occupant(x, y);
+    if (occ) setSel({ type: "table", id: occ.id });
+    else setSel(null);
   }
 
-  function removeFromPlan(id: string) {
-    setTables((ts) =>
-      ts.map((t) => (t.id === id ? { ...t, x: null, y: null } : t)),
-    );
-    setDirty(true);
+  function handleTableClick(t: EditorTable) {
+    if (pending) {
+      onCellTap(t.x as number, t.y as number);
+      return;
+    }
+    setSel({ type: "table", id: t.id });
   }
 
+  // ── Acciones de elementos ──────────────────────────────────────────
   function cycleShape(id: string) {
     const order: EditorTable["shape"][] = ["square", "round", "bar"];
     setTables((ts) =>
@@ -78,20 +216,84 @@ export function FloorPlanEditor({
           : t,
       ),
     );
-    setDirty(true);
+    markDirty();
+  }
+  function removeTableFromPlan(id: string) {
+    setTables((ts) =>
+      ts.map((t) => (t.id === id ? { ...t, x: null, y: null } : t)),
+    );
+    setSel(null);
+    markDirty();
+  }
+  function resizeZone(id: string, dw: number, dh: number) {
+    setZones((zs) =>
+      zs.map((z) => {
+        if (z.id !== id) return z;
+        const w = Math.max(1, Math.min(z.w + dw, cols - z.x));
+        const h = Math.max(1, Math.min(z.h + dh, rows - z.y));
+        return { ...z, w, h };
+      }),
+    );
+    markDirty();
+  }
+  function setZoneKindOf(id: string, kind: ZoneKind) {
+    setZones((zs) =>
+      zs.map((z) =>
+        z.id === id
+          ? {
+              ...z,
+              kind,
+              // Si el label era el default del kind anterior, lo actualizamos.
+              label:
+                z.label === ZONE_KINDS[z.kind].label
+                  ? ZONE_KINDS[kind].label
+                  : z.label,
+            }
+          : z,
+      ),
+    );
+    markDirty();
+  }
+  function setZoneLabelOf(id: string, label: string) {
+    setZones((zs) => zs.map((z) => (z.id === id ? { ...z, label } : z)));
+    markDirty();
+  }
+  function deleteZone(id: string) {
+    setZones((zs) => zs.filter((z) => z.id !== id));
+    setSel(null);
+    markDirty();
+  }
+  function setMarkerKindOf(id: string, kind: MarkerKind) {
+    setMarkers((ms) => ms.map((m) => (m.id === id ? { ...m, kind } : m)));
+    markDirty();
+  }
+  function setMarkerLabelOf(id: string, label: string) {
+    setMarkers((ms) =>
+      ms.map((m) =>
+        m.id === id ? { ...m, label: label.trim() ? label : null } : m,
+      ),
+    );
+    markDirty();
+  }
+  function deleteMarker(id: string) {
+    setMarkers((ms) => ms.filter((m) => m.id !== id));
+    setSel(null);
+    markDirty();
   }
 
   function autoArrange() {
-    // Acomoda TODAS las mesas en filas de COLS por orden de número.
     setTables((ts) => {
       const sorted = [...ts].sort((a, b) => a.number - b.number);
       return sorted.map((t, i) => ({
         ...t,
-        x: i % COLS,
-        y: Math.floor(i / COLS),
+        x: i % cols,
+        y: Math.floor(i / cols),
       }));
     });
-    setDirty(true);
+    // Asegurar filas suficientes.
+    setRows((r) => Math.max(r, Math.ceil(tables.length / cols) + 1));
+    setSel(null);
+    markDirty();
   }
 
   async function save() {
@@ -107,6 +309,7 @@ export function FloorPlanEditor({
           y: t.y,
           shape: t.shape,
         })),
+        floorPlan: { cols, rows, zones, markers },
       }),
     });
     setSaving(false);
@@ -119,16 +322,40 @@ export function FloorPlanEditor({
     router.refresh();
   }
 
+  const selZone =
+    sel?.type === "zone" ? zones.find((z) => z.id === sel.id) ?? null : null;
+  const selMarker =
+    sel?.type === "marker"
+      ? markers.find((m) => m.id === sel.id) ?? null
+      : null;
+  const selTable =
+    sel?.type === "table" ? tables.find((t) => t.id === sel.id) ?? null : null;
+
+  const gridW = cols * cellPx;
+  const gridH = rows * cellPx;
+
+  const pendingHint = pending
+    ? pending.kind === "placeTable"
+      ? "Tocá una celda para ubicar la mesa"
+      : pending.kind === "moveZone"
+        ? "Tocá la celda donde va la esquina superior izquierda de la zona"
+        : pending.kind === "moveMarker"
+          ? "Tocá la celda donde va el ícono"
+          : pending.kind === "addZone"
+            ? `Tocá una celda para crear la zona "${ZONE_KINDS[pending.zoneKind].label}"`
+            : `Tocá una celda para poner "${MARKER_KINDS[pending.markerKind].label}"`
+    : null;
+
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* Toolbar superior */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <button
           type="button"
           onClick={autoArrange}
           className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-xs font-medium text-op-muted hover:text-op-text"
         >
-          Auto-acomodar
+          Auto-acomodar mesas
         </button>
         <div className="flex-1" />
         {msg && <span className="text-xs text-ok">{msg}</span>}
@@ -142,103 +369,428 @@ export function FloorPlanEditor({
         </button>
       </div>
 
-      {selected && (
-        <div className="mb-3 rounded-xl border border-op-border bg-op-surface px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
-          <span>
-            Seleccionada: <strong>{selected.label ?? `Mesa ${selected.number}`}</strong>
-            {selected.x != null
-              ? " · tocá una celda para moverla"
-              : " · tocá una celda para colocarla"}
-          </span>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => cycleShape(selected.id)}
-              className="h-8 px-3 rounded-full border border-op-border text-xs"
-            >
-              Forma: {shapeLabel(selected.shape)}
-            </button>
-            {selected.x != null && (
+      {/* Controles de grilla: tamaño + zoom */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3 text-sm">
+        <Stepper
+          label="Columnas"
+          value={cols}
+          onDec={() => {
+            setCols((c) => Math.max(minCols, c - 1));
+            markDirty();
+          }}
+          onInc={() => {
+            setCols((c) => Math.min(FLOOR_MAX_COLS, c + 1));
+            markDirty();
+          }}
+          canDec={cols > minCols}
+          canInc={cols < FLOOR_MAX_COLS}
+        />
+        <Stepper
+          label="Filas"
+          value={rows}
+          onDec={() => {
+            setRows((r) => Math.max(minRows, r - 1));
+            markDirty();
+          }}
+          onInc={() => {
+            setRows((r) => Math.min(FLOOR_MAX_ROWS, r + 1));
+            markDirty();
+          }}
+          canDec={rows > minRows}
+          canInc={rows < FLOOR_MAX_ROWS}
+        />
+        <label className="flex items-center gap-2 text-op-muted">
+          <span className="text-xs">Zoom</span>
+          <input
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={ZOOM_STEP}
+            value={cellPx}
+            onChange={(e) => setCellPx(Number(e.target.value))}
+            className="w-28 accent-terracotta"
+          />
+        </label>
+      </div>
+
+      {/* Paleta: agregar al plano */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => {
+            setSel(null);
+            setPending({ kind: "addMarker", markerKind: "entrada" });
+          }}
+          className={
+            "h-9 px-3 rounded-full border text-xs font-medium " +
+            (pending?.kind === "addMarker" && pending.markerKind === "entrada"
+              ? "border-terracotta bg-terracotta/10 text-terracotta"
+              : "border-op-border bg-op-surface text-op-text")
+          }
+        >
+          🚪 + Entrada
+        </button>
+
+        <div className="inline-flex items-center rounded-full border border-op-border bg-op-surface overflow-hidden">
+          <select
+            value={zoneKind}
+            onChange={(e) => setZoneKind(e.target.value as ZoneKind)}
+            className="h-9 pl-3 pr-1 bg-transparent text-xs outline-none"
+          >
+            {ZONE_KIND_LIST.map((k) => (
+              <option key={k} value={k}>
+                {ZONE_KINDS[k].label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSel(null);
+              setPending({ kind: "addZone", zoneKind });
+            }}
+            className={
+              "h-9 px-3 text-xs font-medium border-l border-op-border " +
+              (pending?.kind === "addZone"
+                ? "bg-terracotta/10 text-terracotta"
+                : "text-op-text")
+            }
+          >
+            + Zona
+          </button>
+        </div>
+
+        <div className="inline-flex items-center rounded-full border border-op-border bg-op-surface overflow-hidden">
+          <select
+            value={markerKind}
+            onChange={(e) => setMarkerKind(e.target.value as MarkerKind)}
+            className="h-9 pl-3 pr-1 bg-transparent text-xs outline-none"
+          >
+            {MARKER_KIND_LIST.map((k) => (
+              <option key={k} value={k}>
+                {MARKER_KINDS[k].icon} {MARKER_KINDS[k].label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSel(null);
+              setPending({ kind: "addMarker", markerKind });
+            }}
+            className={
+              "h-9 px-3 text-xs font-medium border-l border-op-border " +
+              (pending?.kind === "addMarker" && pending.markerKind !== "entrada"
+                ? "bg-terracotta/10 text-terracotta"
+                : "text-op-text")
+            }
+          >
+            + Ícono
+          </button>
+        </div>
+
+        {pending && (
+          <button
+            type="button"
+            onClick={() => setPending(null)}
+            className="h-9 px-3 rounded-full border border-op-border text-xs text-op-muted"
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
+
+      {pendingHint && (
+        <div className="mb-3 rounded-xl border border-terracotta/40 bg-terracotta/10 px-4 py-2 text-sm text-terracotta">
+          {pendingHint}
+        </div>
+      )}
+
+      {/* Panel del elemento seleccionado */}
+      {selTable && (
+        <SelPanel title={selTable.label ?? `Mesa ${selTable.number}`}>
+          <button
+            type="button"
+            onClick={() => cycleShape(selTable.id)}
+            className="h-8 px-3 rounded-full border border-op-border text-xs"
+          >
+            Forma: {shapeLabel(selTable.shape)}
+          </button>
+          {selTable.x != null && (
+            <>
               <button
                 type="button"
-                onClick={() => removeFromPlan(selected.id)}
+                onClick={() => setPending({ kind: "placeTable", id: selTable.id })}
+                className="h-8 px-3 rounded-full border border-op-border text-xs"
+              >
+                Mover
+              </button>
+              <button
+                type="button"
+                onClick={() => removeTableFromPlan(selTable.id)}
                 className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
               >
                 Sacar del plano
               </button>
-            )}
-          </div>
-        </div>
+            </>
+          )}
+        </SelPanel>
       )}
 
-      {/* Grilla */}
-      <div className="rounded-2xl border border-op-border bg-op-bg p-2 overflow-x-auto">
+      {selZone && (
+        <SelPanel title={`Zona: ${selZone.label}`}>
+          <select
+            value={selZone.kind}
+            onChange={(e) => setZoneKindOf(selZone.id, e.target.value as ZoneKind)}
+            className="h-8 rounded-full border border-op-border bg-op-surface text-xs px-2"
+          >
+            {ZONE_KIND_LIST.map((k) => (
+              <option key={k} value={k}>
+                {ZONE_KINDS[k].label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={selZone.label}
+            maxLength={40}
+            onChange={(e) => setZoneLabelOf(selZone.id, e.target.value)}
+            className="h-8 w-32 rounded-full border border-op-border bg-op-surface text-xs px-3"
+            placeholder="Nombre"
+          />
+          <span className="inline-flex items-center gap-1 text-xs text-op-muted">
+            Ancho
+            <button
+              type="button"
+              onClick={() => resizeZone(selZone.id, -1, 0)}
+              className="w-6 h-6 rounded-full border border-op-border"
+            >
+              −
+            </button>
+            <span className="tabular w-4 text-center">{selZone.w}</span>
+            <button
+              type="button"
+              onClick={() => resizeZone(selZone.id, 1, 0)}
+              className="w-6 h-6 rounded-full border border-op-border"
+            >
+              +
+            </button>
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs text-op-muted">
+            Alto
+            <button
+              type="button"
+              onClick={() => resizeZone(selZone.id, 0, -1)}
+              className="w-6 h-6 rounded-full border border-op-border"
+            >
+              −
+            </button>
+            <span className="tabular w-4 text-center">{selZone.h}</span>
+            <button
+              type="button"
+              onClick={() => resizeZone(selZone.id, 0, 1)}
+              className="w-6 h-6 rounded-full border border-op-border"
+            >
+              +
+            </button>
+          </span>
+          <button
+            type="button"
+            onClick={() => setPending({ kind: "moveZone", id: selZone.id })}
+            className="h-8 px-3 rounded-full border border-op-border text-xs"
+          >
+            Mover
+          </button>
+          <button
+            type="button"
+            onClick={() => deleteZone(selZone.id)}
+            className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
+          >
+            Borrar
+          </button>
+        </SelPanel>
+      )}
+
+      {selMarker && (
+        <SelPanel title={`Ícono: ${markerLabel(selMarker)}`}>
+          <select
+            value={selMarker.kind}
+            onChange={(e) =>
+              setMarkerKindOf(selMarker.id, e.target.value as MarkerKind)
+            }
+            className="h-8 rounded-full border border-op-border bg-op-surface text-xs px-2"
+          >
+            {MARKER_KIND_LIST.map((k) => (
+              <option key={k} value={k}>
+                {MARKER_KINDS[k].icon} {MARKER_KINDS[k].label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={selMarker.label ?? ""}
+            maxLength={40}
+            onChange={(e) => setMarkerLabelOf(selMarker.id, e.target.value)}
+            className="h-8 w-32 rounded-full border border-op-border bg-op-surface text-xs px-3"
+            placeholder={MARKER_KINDS[selMarker.kind].label}
+          />
+          <button
+            type="button"
+            onClick={() => setPending({ kind: "moveMarker", id: selMarker.id })}
+            className="h-8 px-3 rounded-full border border-op-border text-xs"
+          >
+            Mover
+          </button>
+          <button
+            type="button"
+            onClick={() => deleteMarker(selMarker.id)}
+            className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
+          >
+            Borrar
+          </button>
+        </SelPanel>
+      )}
+
+      {/* Lienzo */}
+      <div className="rounded-2xl border border-op-border bg-op-bg p-2 overflow-auto max-h-[68vh]">
         <div
           className="relative mx-auto"
-          style={{
-            width: "100%",
-            maxWidth: 640,
-            aspectRatio: `${COLS} / ${rows}`,
+          style={{ width: gridW, height: gridH }}
+          onClick={() => {
+            // Click en el contenedor (fuera de celdas/elementos) deselecciona.
+            if (!pending) setSel(null);
           }}
         >
-          {/* Celdas */}
+          {/* Capa 1: zonas (visual, no captura toques) */}
+          {zones.map((z) => {
+            const c = ZONE_KINDS[z.kind];
+            const isSel = sel?.type === "zone" && sel.id === z.id;
+            return (
+              <div
+                key={z.id}
+                className="absolute rounded-lg"
+                style={{
+                  left: z.x * cellPx + 2,
+                  top: z.y * cellPx + 2,
+                  width: z.w * cellPx - 4,
+                  height: z.h * cellPx - 4,
+                  background: c.fill,
+                  border: `${isSel ? 2 : 1.5}px ${isSel ? "solid" : "dashed"} ${c.stroke}`,
+                  pointerEvents: "none",
+                  boxShadow: isSel ? `0 0 0 2px ${c.stroke}` : undefined,
+                }}
+              >
+                <span
+                  className="absolute top-1 left-1.5 text-[10px] font-semibold leading-none px-1 py-0.5 rounded"
+                  style={{ color: c.text, background: "rgba(255,255,255,0.55)" }}
+                >
+                  {z.label}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* Capa 2: grilla de toque (captura clicks de celdas vacías) */}
           <div
             className="absolute inset-0 grid"
             style={{
-              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-              gridTemplateRows: `repeat(${rows}, 1fr)`,
-              gap: 4,
+              gridTemplateColumns: `repeat(${cols}, ${cellPx}px)`,
+              gridTemplateRows: `repeat(${rows}, ${cellPx}px)`,
             }}
           >
-            {Array.from({ length: COLS * rows }).map((_, i) => {
-              const x = i % COLS;
-              const y = Math.floor(i / COLS);
-              const occ = occupant(x, y);
+            {Array.from({ length: cols * rows }).map((_, i) => {
+              const x = i % cols;
+              const y = Math.floor(i / cols);
               return (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => {
-                    if (selected) {
-                      placeSelectedAt(x, y);
-                      return;
-                    }
-                    if (occ) setSelectedId(occ.id);
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCellTap(x, y);
                   }}
                   className={
-                    "rounded-md border transition-colors " +
-                    (occ
-                      ? "border-transparent"
-                      : selected
-                        ? "border-dashed border-op-border/60 hover:border-terracotta hover:bg-terracotta/5"
-                        : "border-dashed border-op-border/40")
+                    "border border-dashed " +
+                    (pending
+                      ? "border-op-border/50 hover:border-terracotta hover:bg-terracotta/10"
+                      : "border-op-border/25")
                   }
-                >
-                  {occ && (
-                    <span
-                      className={
-                        "w-full h-full flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 " +
-                        (selectedId === occ.id
-                          ? "bg-ink text-bone"
-                          : "bg-op-surface text-op-text border border-op-border") +
-                        " " +
-                        shapeClass(occ.shape)
-                      }
-                    >
-                      <span className="font-display text-xs">
-                        {occ.label && occ.label.length <= 4
-                          ? occ.label
-                          : `M${occ.number}`}
-                      </span>
-                      <span className="opacity-60 text-[9px]">
-                        {occ.capacity}p
-                      </span>
-                    </span>
-                  )}
-                </button>
+                />
               );
             })}
           </div>
+
+          {/* Capa 3: markers (visual) */}
+          {markers.map((m) => {
+            const k = MARKER_KINDS[m.kind];
+            const isSel = sel?.type === "marker" && sel.id === m.id;
+            const isEntrance = m.kind === "entrada";
+            return (
+              <div
+                key={m.id}
+                className="absolute flex flex-col items-center justify-center rounded-lg"
+                style={{
+                  left: m.x * cellPx + 2,
+                  top: m.y * cellPx + 2,
+                  width: cellPx - 4,
+                  height: cellPx - 4,
+                  pointerEvents: "none",
+                  background: isEntrance
+                    ? "rgba(193,73,46,0.14)"
+                    : "rgba(0,0,0,0.05)",
+                  border: isSel
+                    ? "2px solid var(--terracotta, #c1492e)"
+                    : isEntrance
+                      ? "1.5px solid rgba(193,73,46,0.55)"
+                      : "1px solid rgba(0,0,0,0.15)",
+                }}
+                title={markerLabel(m)}
+              >
+                <span style={{ fontSize: Math.min(20, cellPx * 0.5) }}>
+                  {k.icon}
+                </span>
+                {cellPx >= 38 && (
+                  <span className="text-[8px] leading-none text-op-muted mt-0.5 truncate max-w-full px-0.5">
+                    {markerLabel(m)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Capa 4: mesas (clickeables) */}
+          {placed.map((t) => {
+            const isSel = sel?.type === "table" && sel.id === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTableClick(t);
+                }}
+                className={
+                  "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
+                  shapeClass(t.shape) +
+                  " " +
+                  (isSel
+                    ? "bg-ink text-bone border-ink z-10"
+                    : "bg-op-surface text-op-text border-op-border")
+                }
+                style={{
+                  left: (t.x as number) * cellPx + 3,
+                  top: (t.y as number) * cellPx + 3,
+                  width: cellPx - 6,
+                  height: cellPx - 6,
+                }}
+              >
+                <span className="font-display text-xs">
+                  {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+                </span>
+                <span className="opacity-60 text-[9px]">{t.capacity}p</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -253,10 +805,13 @@ export function FloorPlanEditor({
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setSelectedId(t.id)}
+                onClick={() => {
+                  setSel({ type: "table", id: t.id });
+                  setPending({ kind: "placeTable", id: t.id });
+                }}
                 className={
                   "h-11 px-4 rounded-xl border text-sm font-medium " +
-                  (selectedId === t.id
+                  (pending?.kind === "placeTable" && pending.id === t.id
                     ? "bg-ink text-bone border-ink"
                     : "bg-op-surface border-op-border text-op-text")
                 }
@@ -269,9 +824,71 @@ export function FloorPlanEditor({
         </div>
       )}
 
+      {/* Lista de zonas/íconos para seleccionar y editar */}
+      {(zones.length > 0 || markers.length > 0) && (
+        <div className="mt-4">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+            Zonas e íconos — tocá para editar
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {zones.map((z) => {
+              const c = ZONE_KINDS[z.kind];
+              const isSel = sel?.type === "zone" && sel.id === z.id;
+              return (
+                <button
+                  key={z.id}
+                  type="button"
+                  onClick={() => {
+                    setPending(null);
+                    setSel({ type: "zone", id: z.id });
+                  }}
+                  className={
+                    "h-8 px-3 rounded-full border text-xs font-medium inline-flex items-center gap-1.5 " +
+                    (isSel ? "ring-2 ring-offset-1" : "")
+                  }
+                  style={{
+                    background: c.fill,
+                    borderColor: c.stroke,
+                    color: c.text,
+                  }}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-sm"
+                    style={{ background: c.stroke }}
+                  />
+                  {z.label}
+                </button>
+              );
+            })}
+            {markers.map((m) => {
+              const isSel = sel?.type === "marker" && sel.id === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setPending(null);
+                    setSel({ type: "marker", id: m.id });
+                  }}
+                  className={
+                    "h-8 px-3 rounded-full border text-xs font-medium inline-flex items-center gap-1.5 " +
+                    (isSel
+                      ? "border-terracotta bg-terracotta/10 text-terracotta"
+                      : "border-op-border bg-op-surface text-op-text")
+                  }
+                >
+                  <span>{MARKER_KINDS[m.kind].icon}</span>
+                  {markerLabel(m)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="mt-4 text-[11px] text-op-muted">
-        Tip: la forma (cuadrada / redonda / barra) es solo visual, para
-        que el mapa se parezca a tu salón. La capacidad se edita en{" "}
+        Tip: la forma de la mesa (cuadrada / redonda / barra) es solo visual.
+        La capacidad y el consumo mínimo se editan en{" "}
         <a
           href="/operator/settings/mesas"
           className="text-terracotta hover:underline"
@@ -281,6 +898,64 @@ export function FloorPlanEditor({
         .
       </p>
     </div>
+  );
+}
+
+function SelPanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 rounded-xl border border-op-border bg-op-surface px-4 py-2.5 flex items-center justify-between gap-3 text-sm flex-wrap">
+      <span className="shrink-0">
+        Seleccionado: <strong>{title}</strong>
+      </span>
+      <div className="flex items-center gap-2 flex-wrap">{children}</div>
+    </div>
+  );
+}
+
+function Stepper({
+  label,
+  value,
+  onDec,
+  onInc,
+  canDec,
+  canInc,
+}: {
+  label: string;
+  value: number;
+  onDec: () => void;
+  onInc: () => void;
+  canDec: boolean;
+  canInc: boolean;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-op-muted">
+      <span className="text-xs">{label}</span>
+      <button
+        type="button"
+        onClick={onDec}
+        disabled={!canDec}
+        className="w-7 h-7 rounded-full border border-op-border disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="tabular w-5 text-center text-op-text font-medium">
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={onInc}
+        disabled={!canInc}
+        className="w-7 h-7 rounded-full border border-op-border disabled:opacity-30"
+      >
+        +
+      </button>
+    </span>
   );
 }
 

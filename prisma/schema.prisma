@@ -111,6 +111,11 @@ model Restaurant {
   // anticipación mínima, etc. Shape: ReservationConfig (ver
   // src/lib/reservations.ts). Null = usar defaults del helper.
   reservationConfig   Json?
+  // Plano del salón: grilla (cols/rows) + zonas (jardín, terraza,
+  // interior…) + markers (entrada, baños, barra…). Las posiciones de
+  // las mesas siguen en Table.floorPlanX/Y. Shape: FloorPlan (ver
+  // src/lib/floorPlan.ts). Null = grilla por defecto sin zonas.
+  floorPlan           Json?
   reservations        Reservation[]
 
   // Does this restaurant have a dedicated bartender / barista (separate

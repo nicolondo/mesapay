@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type Status = "pending" | "approved" | "declined" | "refunded";
 
@@ -39,30 +40,36 @@ export function CashWait({
     }
   }, [status, router, tenantSlug, orderId]);
 
+  const aliveRef = useRef(true);
   useEffect(() => {
-    let alive = true;
-
-    async function refetch() {
-      try {
-        const r = await fetch(`/api/tenant/${tenantSlug}/payment/${paymentId}`);
-        if (!r.ok) return;
-        const j = (await r.json()) as { status: Status };
-        if (alive) setStatus(j.status);
-      } catch {}
-    }
-
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    es.addEventListener("message", () => {
-      refetch();
-    });
-
-    const poll = setInterval(refetch, 5000);
-
+    aliveRef.current = true;
     return () => {
-      alive = false;
-      es.close();
-      clearInterval(poll);
+      aliveRef.current = false;
     };
+  }, []);
+
+  async function refetch() {
+    try {
+      const r = await fetch(`/api/tenant/${tenantSlug}/payment/${paymentId}`);
+      if (!r.ok) return;
+      const j = (await r.json()) as { status: Status };
+      if (aliveRef.current) setStatus(j.status);
+    } catch {}
+  }
+
+  // SSE visibility-aware + refetch al reconectar. El poll de abajo es el
+  // respaldo si el cliente bloquea el teléfono (pestaña oculta → SSE
+  // cerrado): al desbloquear, onResume hace el refetch inmediato.
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) => es.addEventListener("message", () => refetch()),
+    () => refetch(),
+  );
+
+  useEffect(() => {
+    const poll = setInterval(() => refetch(), 5000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug, paymentId]);
 
   if (status === "approved") {

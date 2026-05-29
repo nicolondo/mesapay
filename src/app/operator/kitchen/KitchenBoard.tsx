@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
@@ -95,17 +96,17 @@ export function KitchenBoard({
   // the open state.
   const [cancellingKey, setCancellingKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    es.addEventListener("message", () => {
-      startTx(() => {
-        setPendingServed(new Set());
-        setPendingKitchen(new Map());
-        router.refresh();
-      });
+  const refreshBoard = () =>
+    startTx(() => {
+      setPendingServed(new Set());
+      setPendingKitchen(new Map());
+      router.refresh();
     });
-    return () => es.close();
-  }, [tenantSlug, router]);
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) => es.addEventListener("message", refreshBoard),
+    refreshBoard,
+  );
 
   async function advanceItems(itemIds: string[], to: KitchenStatus) {
     if (itemIds.length === 0) return;

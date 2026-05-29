@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 /**
  * Refreshes the done page whenever the shared order changes. Used by both
@@ -17,32 +17,29 @@ export function DoneLive({
 }) {
   const router = useRouter();
 
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    const onMsg = (ev: MessageEvent) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.orderId !== orderId) return;
-        if (
-          data.type === "order.ready" ||
-          data.type === "order.updated" ||
-          data.type === "order.paid"
-        ) {
-          router.refresh();
-          try {
-            navigator.vibrate?.([140, 70, 140]);
-          } catch {}
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) =>
+      es.addEventListener("message", (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.orderId !== orderId) return;
+          if (
+            data.type === "order.ready" ||
+            data.type === "order.updated" ||
+            data.type === "order.paid"
+          ) {
+            router.refresh();
+            try {
+              navigator.vibrate?.([140, 70, 140]);
+            } catch {}
+          }
+        } catch {
+          // ignore malformed events
         }
-      } catch {
-        // ignore malformed events
-      }
-    };
-    es.addEventListener("message", onMsg);
-    return () => {
-      es.removeEventListener("message", onMsg);
-      es.close();
-    };
-  }, [orderId, tenantSlug, router]);
+      }),
+    () => router.refresh(),
+  );
 
   return null;
 }

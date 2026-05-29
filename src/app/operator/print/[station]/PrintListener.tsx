@@ -64,39 +64,59 @@ export function PrintListener({
 
   useEffect(() => {
     if (!stationEnabled) return;
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    es.addEventListener("open", () => setConnected(true));
-    es.addEventListener("error", () => setConnected(false));
-    es.addEventListener("message", (msg) => {
-      try {
-        const data = JSON.parse(msg.data);
-        if (data?.type !== "ticket.printable") return;
-        if (data.station !== station) return;
-        // Sub-station filter: when this printer is bound to a specific
-        // sub, only fire on matching events. When this printer is the
-        // "all bar" view (no sub configured here), fire on everything.
-        if (
-          barSubStation !== null &&
-          data.barSubStation !== barSubStation
-        )
-          return;
-        const dedupeKey = `${data.roundId}-${station}-${data.barSubStation ?? ""}`;
-        if (recentlyPrintedRef.current.has(dedupeKey)) return;
-        recentlyPrintedRef.current.add(dedupeKey);
-        // Forget the dedupe key after a few seconds — long enough to
-        // swallow SSE duplicates, short enough that reordering a kitchen
-        // ticket later still prints.
-        setTimeout(
-          () => recentlyPrintedRef.current.delete(dedupeKey),
-          15_000,
-        );
-        printTicket(data.roundId, data.barSubStation);
-      } catch {
-        /* ignore malformed events */
-      }
-    });
-    return () => {
+
+    // Visibility-aware: el EventSource sólo vive con la pestaña visible.
+    // Sobre HTTP/1.1 (cap ~6 conexiones/dominio) un SSE en background
+    // consume un socket para siempre y cuelga al resto de la app.
+    let es: EventSource | null = null;
+
+    function open() {
+      if (es) return;
+      es = new EventSource(`/api/tenant/${tenantSlug}/events`);
+      es.addEventListener("open", () => setConnected(true));
+      es.addEventListener("error", () => setConnected(false));
+      es.addEventListener("message", (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          if (data?.type !== "ticket.printable") return;
+          if (data.station !== station) return;
+          // Sub-station filter: when this printer is bound to a specific
+          // sub, only fire on matching events. When this printer is the
+          // "all bar" view (no sub configured here), fire on everything.
+          if (barSubStation !== null && data.barSubStation !== barSubStation)
+            return;
+          const dedupeKey = `${data.roundId}-${station}-${data.barSubStation ?? ""}`;
+          if (recentlyPrintedRef.current.has(dedupeKey)) return;
+          recentlyPrintedRef.current.add(dedupeKey);
+          // Forget the dedupe key after a few seconds — long enough to
+          // swallow SSE duplicates, short enough that reordering a kitchen
+          // ticket later still prints.
+          setTimeout(
+            () => recentlyPrintedRef.current.delete(dedupeKey),
+            15_000,
+          );
+          printTicket(data.roundId, data.barSubStation);
+        } catch {
+          /* ignore malformed events */
+        }
+      });
+    }
+    function close() {
+      if (!es) return;
       es.close();
+      es = null;
+      setConnected(false);
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") open();
+      else close();
+    }
+
+    if (document.visibilityState === "visible") open();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug, station, barSubStation, stationEnabled]);

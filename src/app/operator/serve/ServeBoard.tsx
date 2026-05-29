@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
@@ -122,48 +123,51 @@ export function ServeBoard({
   const [settlingId, setSettlingId] = useState<string | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    es.addEventListener("message", (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.type === "order.ready") {
-          try {
-            navigator.vibrate?.([120, 60, 120]);
-          } catch {}
-        }
-        if (data.type === "order.cash_requested") {
-          try {
-            navigator.vibrate?.([80, 40, 80, 40, 80]);
-          } catch {}
-        }
-        if (data.type === "order.waiter_called") {
-          try {
-            navigator.vibrate?.([160, 60, 160]);
-          } catch {}
-        }
-        if (data.type === "order.round_cancelled") {
-          // Distinct buzz pattern so the waiter feels "go tell the table"
-          // even without looking at the screen.
-          try {
-            navigator.vibrate?.([200, 80, 200, 80, 200]);
-          } catch {}
-        }
-        if (data.type === "order.terminal_requested") {
-          // Same urgency as a cash request — the cashier/operator needs
-          // to grab the datáfono and head to the table.
-          try {
-            navigator.vibrate?.([150, 50, 150, 50, 150]);
-          } catch {}
-        }
-      } catch {}
-      startTx(() => {
-        setPendingServed(new Set());
-        router.refresh();
-      });
+  const refreshBoard = () =>
+    startTx(() => {
+      setPendingServed(new Set());
+      router.refresh();
     });
-    return () => es.close();
-  }, [tenantSlug, router]);
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) =>
+      es.addEventListener("message", (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === "order.ready") {
+            try {
+              navigator.vibrate?.([120, 60, 120]);
+            } catch {}
+          }
+          if (data.type === "order.cash_requested") {
+            try {
+              navigator.vibrate?.([80, 40, 80, 40, 80]);
+            } catch {}
+          }
+          if (data.type === "order.waiter_called") {
+            try {
+              navigator.vibrate?.([160, 60, 160]);
+            } catch {}
+          }
+          if (data.type === "order.round_cancelled") {
+            // Distinct buzz pattern so the waiter feels "go tell the table"
+            // even without looking at the screen.
+            try {
+              navigator.vibrate?.([200, 80, 200, 80, 200]);
+            } catch {}
+          }
+          if (data.type === "order.terminal_requested") {
+            // Same urgency as a cash request — the cashier/operator needs
+            // to grab the datáfono and head to the table.
+            try {
+              navigator.vibrate?.([150, 50, 150, 50, 150]);
+            } catch {}
+          }
+        } catch {}
+        refreshBoard();
+      }),
+    refreshBoard,
+  );
 
   async function serveItems(items: Item[]) {
     const pending = items.filter(

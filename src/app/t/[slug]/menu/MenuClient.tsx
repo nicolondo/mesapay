@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import {
   COUNTRIES,
   DEFAULT_COUNTRY_CODE,
@@ -419,14 +420,14 @@ export function MenuClient({
   }
 
   // Live-refresh the "pedido abierto en esta mesa" banner when another
-  // diner at the same table sends or updates a round.
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenant.slug}/events`);
-    es.addEventListener("message", () => {
-      router.refresh();
-    });
-    return () => es.close();
-  }, [tenant.slug, router]);
+  // diner at the same table sends or updates a round. Visibility-aware:
+  // los diners dejan la carta abierta en segundo plano por largos ratos;
+  // cerrar el SSE mientras está oculta libera el socket (HTTP/1.1 cap).
+  useVisibleEventSource(
+    `/api/tenant/${tenant.slug}/events`,
+    (es) => es.addEventListener("message", () => router.refresh()),
+    () => router.refresh(),
+  );
 
   // Scroll-spy: as the user scrolls through the menu, highlight the chip
   // that matches the section they're currently reading. We find the

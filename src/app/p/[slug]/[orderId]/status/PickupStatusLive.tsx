@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export function PickupStatusLive({
   orderId,
@@ -36,28 +37,25 @@ export function PickupStatusLive({
 
   // Live updates: when the kitchen flips the round to ready, refresh so the
   // server-rendered state reflects it.
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    const onMsg = (ev: MessageEvent) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.orderId !== orderId) return;
-        if (data.type === "order.ready" || data.type === "order.updated") {
-          router.refresh();
-          try {
-            navigator.vibrate?.([140, 70, 140]);
-          } catch {}
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) =>
+      es.addEventListener("message", (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.orderId !== orderId) return;
+          if (data.type === "order.ready" || data.type === "order.updated") {
+            router.refresh();
+            try {
+              navigator.vibrate?.([140, 70, 140]);
+            } catch {}
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
-    };
-    es.addEventListener("message", onMsg);
-    return () => {
-      es.removeEventListener("message", onMsg);
-      es.close();
-    };
-  }, [orderId, tenantSlug, router]);
+      }),
+    () => router.refresh(),
+  );
 
   if (isServed) {
     return (

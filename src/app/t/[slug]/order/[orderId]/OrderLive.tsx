@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export function OrderLive({
   orderId,
@@ -30,34 +31,38 @@ export function OrderLive({
     } catch {}
   }
 
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    const onMessage = (ev: MessageEvent) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.orderId !== orderId) return;
-        if (data.type === "order.ready") {
-          flash("¡Algo está listo!", "Pronto llega a tu mesa.", "ready");
-        } else if (data.type === "order.paid") {
-          flash("Pago recibido", "¡Gracias por comer con nosotros!", "paid");
-        } else if (data.type === "order.waiter_ack") {
-          flash("Mesero en camino", "Acabamos de recibir tu llamada.", "waiter");
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) =>
+      es.addEventListener("message", (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.orderId !== orderId) return;
+          if (data.type === "order.ready") {
+            flash("¡Algo está listo!", "Pronto llega a tu mesa.", "ready");
+          } else if (data.type === "order.paid") {
+            flash("Pago recibido", "¡Gracias por comer con nosotros!", "paid");
+          } else if (data.type === "order.waiter_ack") {
+            flash(
+              "Mesero en camino",
+              "Acabamos de recibir tu llamada.",
+              "waiter",
+            );
+          }
+          router.refresh();
+        } catch {
+          // ignore
         }
-        router.refresh();
-      } catch {
-        // ignore
-      }
-    };
-    es.addEventListener("message", onMessage);
-    es.onerror = () => {
-      // Browser auto-reconnects.
-    };
+      }),
+    () => router.refresh(),
+  );
+
+  // Limpieza del timer del toast al desmontar.
+  useEffect(() => {
     return () => {
-      es.removeEventListener("message", onMessage);
-      es.close();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [orderId, tenantSlug, router]);
+  }, []);
 
   return (
     <>

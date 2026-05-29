@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtCOP } from "@/lib/format";
+import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export type TableState =
   | "free"
@@ -80,22 +81,21 @@ export function TerminalGrid({
 
   // Live-refresh via SSE. The grid lives or dies on this — once a payment
   // settles via webhook, we want the colour + amount to change without the
-  // operator hitting reload.
-  useEffect(() => {
-    const es = new EventSource(`/api/tenant/${tenantSlug}/events`);
-    let last = 0;
-    const onMsg = () => {
-      const now = Date.now();
-      if (now - last < 600) return;
-      last = now;
-      startTx(() => router.refresh());
-    };
-    es.addEventListener("message", onMsg);
-    return () => {
-      es.removeEventListener("message", onMsg);
-      es.close();
-    };
-  }, [tenantSlug, router]);
+  // operator hitting reload. Visibility-aware: libera el socket cuando la
+  // pestaña queda en segundo plano (HTTP/1.1 cap de ~6 conexiones).
+  const lastRef = useRef(0);
+  const refresh = () => startTx(() => router.refresh());
+  useVisibleEventSource(
+    `/api/tenant/${tenantSlug}/events`,
+    (es) =>
+      es.addEventListener("message", () => {
+        const now = Date.now();
+        if (now - lastRef.current < 600) return;
+        lastRef.current = now;
+        refresh();
+      }),
+    refresh,
+  );
 
   // Stats strip at the top — quick scan of the floor.
   const stats = useMemo(() => {

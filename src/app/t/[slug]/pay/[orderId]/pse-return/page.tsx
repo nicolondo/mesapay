@@ -1,6 +1,81 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { getRestaurantPrivateKey } from "@/lib/payments";
+import { getKushkiMode } from "@/lib/platformConfig";
+import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { publishOrderEvent } from "@/lib/events";
+
+/**
+ * Si todavía estamos en pending y tenemos un token en la URL (lo
+ * agrega Kushki al redirigir), consultamos /transfer/v1/status/<token>
+ * directamente para resolver el estado sin depender del webhook.
+ * Útil en sandbox (webhook poco confiable) y como fallback en prod.
+ *
+ * Devuelve true si actualizó el Payment (caller debe re-leerlo).
+ */
+async function reconcileViaStatusApi(args: {
+  token: string;
+  paymentId: string;
+  restaurantId: string;
+  orderId: string;
+}): Promise<boolean> {
+  const privateKey = await getRestaurantPrivateKey(args.restaurantId);
+  if (!privateKey) return false;
+  const mode = await getKushkiMode();
+  if (mode === "mock") return false;
+  const baseUrl =
+    mode === "production"
+      ? "https://api.kushkipagos.com"
+      : "https://api-uat.kushkipagos.com";
+  try {
+    const res = await fetch(
+      `${baseUrl}/transfer/v1/status/${encodeURIComponent(args.token)}`,
+      {
+        method: "GET",
+        headers: { "Private-Merchant-Id": privateKey },
+        cache: "no-store",
+      },
+    );
+    if (!res.ok) return false;
+    const json = (await res.json()) as {
+      status?: string;
+      responseCode?: string;
+      transactionReference?: string;
+      responseText?: string;
+    };
+    const status = json.status;
+    if (status !== "approvedTransaction" && status !== "declinedTransaction") {
+      return false;
+    }
+    const isApproved = status === "approvedTransaction";
+    const result = await db.$transaction(async (tx) => {
+      const updated = await tx.payment.update({
+        where: { id: args.paymentId },
+        data: {
+          status: isApproved ? "approved" : "declined",
+          providerRef: json.transactionReference ?? args.token,
+          settledAt: isApproved ? new Date() : undefined,
+        },
+      });
+      if (!isApproved) return { payment: updated, fullyPaid: false };
+      const totals = await recomputeOrderTotalsInTx(tx, args.orderId);
+      if (totals.fullyPaid) {
+        await activateOpenRounds(tx, args.orderId);
+      }
+      return { payment: updated, fullyPaid: totals.fullyPaid };
+    });
+    publishOrderEvent(args.restaurantId, {
+      type: isApproved && result.fullyPaid ? "order.paid" : "order.updated",
+      orderId: args.orderId,
+    });
+    return true;
+  } catch (err) {
+    console.error("[pse-return] status check failed", err);
+    return false;
+  }
+}
 
 /**
  * Página a la que el banco (o la página mock) redirige al cliente
@@ -22,10 +97,10 @@ export default async function PseReturnPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
-  searchParams: Promise<{ pid?: string; status?: string }>;
+  searchParams: Promise<{ pid?: string; status?: string; token?: string }>;
 }) {
   const { slug, orderId } = await params;
-  const { pid, status: statusHint } = await searchParams;
+  const { pid, status: statusHint, token } = await searchParams;
 
   // En el flujo live el callbackUrl se setea en el browser durante la
   // tokenización (cuando todavía no existe el Payment en DB), así que
@@ -62,17 +137,45 @@ export default async function PseReturnPage({
     redirect(`/t/${slug}/pay/${orderId}`);
   }
 
+  // Si el Payment sigue pending y Kushki nos dejó un token en la URL
+  // (lo agrega al hacer el redirect post-banco), consultamos su API
+  // de status directamente. Útil en sandbox (donde el webhook no
+  // siempre llega) y como fallback en prod si el webhook se atrasa.
+  let currentStatus: typeof payment.status = payment.status;
+  if (currentStatus === "pending" && token) {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      select: { restaurantId: true },
+    });
+    if (order) {
+      const updated = await reconcileViaStatusApi({
+        token,
+        paymentId: payment.id,
+        restaurantId: order.restaurantId,
+        orderId,
+      });
+      if (updated) {
+        const refreshed = await db.payment.findUnique({
+          where: { id: payment.id },
+          select: { status: true },
+        });
+        if (refreshed) currentStatus = refreshed.status;
+      }
+    }
+  }
+
   // payment.amountCents YA es el TOTAL (food + tip).
   const total = payment.amountCents;
   const fmt = (cents: number) =>
     "$" + (cents / 100).toLocaleString("es-CO");
 
-  // Estado canónico: la DB. El statusHint del query string es solo el
-  // hint del banco, sirve como mensaje preliminar si el webhook
-  // todavía no procesó.
-  const isApproved = payment.status === "approved";
-  const isDeclined = payment.status === "declined";
-  const isPending = payment.status === "pending";
+  // Estado canónico: la DB (ya posiblemente actualizada por el
+  // reconcile de arriba). El statusHint del query string es solo el
+  // hint del banco, sirve como mensaje preliminar si todo lo demás
+  // falló.
+  const isApproved = currentStatus === "approved";
+  const isDeclined = currentStatus === "declined";
+  const isPending = currentStatus === "pending";
 
   return (
     <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6">

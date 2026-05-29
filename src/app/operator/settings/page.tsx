@@ -217,6 +217,15 @@ export default async function SettingsPage() {
               : "bg-paper text-op-muted"
           }
         />
+        {tenant.reservationsEnabled && (
+          <SettingCard
+            href="/operator/settings/mesas"
+            title="Mesas: capacidad y consumo"
+            subtitle="Cuántos entran y consumo mínimo por mesa. Usado al reservar."
+            badge="Configurar"
+            tint="bg-paper text-op-muted"
+          />
+        )}
       </div>
     </div>
   );

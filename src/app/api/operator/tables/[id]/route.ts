@@ -6,6 +6,19 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const patchSchema = z.object({
   label: z.string().trim().max(40).nullable().optional(),
+  // Atributos de reserva — los edita el operador desde la gestión de
+  // mesas. Todos opcionales: un PATCH puede tocar sólo el label, sólo
+  // la capacidad, etc. minConsumptionCents null limpia el mínimo.
+  capacity: z.number().int().min(1).max(40).optional(),
+  minConsumptionCents: z
+    .number()
+    .int()
+    .min(0)
+    .max(100_000_000)
+    .nullable()
+    .optional(),
+  reservable: z.boolean().optional(),
+  shape: z.enum(["square", "round", "bar"]).optional(),
 });
 
 async function guard(id: string, opts: { allowMesero?: boolean } = {}) {
@@ -43,10 +56,31 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
+
+  // Los atributos de reserva (capacidad, consumo mínimo, etc.) son
+  // config del local — solo operator/admin. El mesero solo puede
+  // tocar el label (etiquetar una mesa). Si un mesero manda esos
+  // campos, los ignoramos silenciosamente.
+  const role = (await auth())?.user?.role;
+  const canEditReservationAttrs =
+    role === "operator" || role === "platform_admin";
+
   await db.table.update({
     where: { id },
     data: {
       label: parsed.data.label === undefined ? undefined : parsed.data.label,
+      ...(canEditReservationAttrs && {
+        ...(parsed.data.capacity !== undefined && {
+          capacity: parsed.data.capacity,
+        }),
+        ...(parsed.data.minConsumptionCents !== undefined && {
+          minConsumptionCents: parsed.data.minConsumptionCents,
+        }),
+        ...(parsed.data.reservable !== undefined && {
+          reservable: parsed.data.reservable,
+        }),
+        ...(parsed.data.shape !== undefined && { shape: parsed.data.shape }),
+      }),
     },
   });
   return NextResponse.json({ ok: true });

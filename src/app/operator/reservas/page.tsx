@@ -4,6 +4,13 @@ import { ReservasBoard, type ReservationRow } from "./ReservasBoard";
 
 export const dynamic = "force-dynamic";
 
+const SOURCE_LABEL: Record<string, string> = {
+  direct: "Link directo",
+  google_maps: "Google Maps",
+  whatsapp: "WhatsApp",
+  phone: "Teléfono",
+};
+
 export default async function OperatorReservasPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
@@ -63,6 +70,24 @@ export default async function OperatorReservasPage() {
     confirmationCode: r.confirmationCode,
   }));
 
+  // Reservas por fuente en los últimos 30 días — métrica para medir
+  // de dónde vienen (especialmente cuánto trae Google Maps). Solo
+  // cuenta las que no se cancelaron.
+  const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const bySource = await db.reservation.groupBy({
+    by: ["source"],
+    where: {
+      restaurantId,
+      createdAt: { gte: thirtyAgo },
+      status: { not: "cancelled" },
+    },
+    _count: { _all: true },
+  });
+  const sourceStats = bySource.map((s) => ({
+    source: s.source,
+    count: s._count._all,
+  }));
+
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
@@ -74,9 +99,26 @@ export default async function OperatorReservasPage() {
           Configurar →
         </a>
       </div>
-      <p className="text-sm text-op-muted mb-6">
+      <p className="text-sm text-op-muted mb-4">
         Próximas reservas y las de hoy. Confirmá, marcá llegada o no-show.
       </p>
+
+      {sourceStats.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          <span className="text-[11px] text-op-muted self-center">
+            Últimos 30 días:
+          </span>
+          {sourceStats.map((s) => (
+            <span
+              key={s.source}
+              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-op-surface border border-op-border text-xs"
+            >
+              {SOURCE_LABEL[s.source] ?? s.source}
+              <strong className="font-mono">{s.count}</strong>
+            </span>
+          ))}
+        </div>
+      )}
 
       <ReservasBoard initialRows={rows} />
     </div>

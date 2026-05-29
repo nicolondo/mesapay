@@ -132,12 +132,85 @@ export function ReservasConfigClient({
               </button>
             </div>
             <p className="text-[11px] text-op-muted mt-1.5">
-              Compartilo o ponelo como sitio web en tu perfil de Google
-              Maps para recibir reservas desde ahí.
+              Compartilo por WhatsApp, redes o en tu sitio web.
             </p>
           </div>
         )}
       </div>
+
+      {/* Conectar con Google Maps */}
+      {enabled && (
+        <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg" aria-hidden>
+              📍
+            </span>
+            <div className="font-display text-lg">Recibir reservas desde Google Maps</div>
+          </div>
+          <p className="text-xs text-op-muted mb-4">
+            Poné tu link de reservas en tu perfil de Google para que la
+            gente que te busca en Maps pueda reservar directo. Usá este
+            link especial — las reservas que lleguen por ahí quedan
+            marcadas como “Google Maps” para que midas cuántas trae.
+          </p>
+
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
+            Link para Google
+          </div>
+          <div className="flex items-center gap-2 mb-4">
+            <code className="flex-1 min-w-0 truncate text-xs bg-op-bg rounded-lg px-3 py-2 border border-op-border">
+              {reserveUrl}?source=google
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(`${reserveUrl}?source=google`)
+                  .catch(() => {});
+                setMsg({ kind: "ok", text: "Link de Google copiado." });
+              }}
+              className="shrink-0 h-9 px-3 rounded-full bg-ink text-bone text-xs font-medium"
+            >
+              Copiar
+            </button>
+          </div>
+
+          <div className="rounded-xl bg-op-bg border border-op-border p-4">
+            <div className="text-xs font-medium mb-2">
+              Cómo agregarlo (5 minutos):
+            </div>
+            <ol className="text-xs text-op-muted space-y-1.5 list-decimal pl-4">
+              <li>
+                Entrá a tu{" "}
+                <a
+                  href="https://business.google.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-terracotta hover:underline"
+                >
+                  Perfil de Empresa de Google
+                </a>{" "}
+                (el que controla tu ficha en Maps).
+              </li>
+              <li>Abrí tu negocio → <strong>Editar perfil</strong>.</li>
+              <li>
+                En <strong>Reservas</strong> (o “Enlaces”), pegá el link
+                de arriba como tu sistema de reservas.
+              </li>
+              <li>
+                Si no ves la opción de Reservas, pegalo en el campo de{" "}
+                <strong>Sitio web</strong> o como un enlace destacado.
+              </li>
+              <li>Guardá. Listo — el botón “Reservar” en Maps lleva acá.</li>
+            </ol>
+            <p className="text-[11px] text-op-muted mt-3">
+              Nota: la reserva nativa dentro de Google (sin salir de Maps)
+              requiere ser partner aprobado de “Reserve with Google” — un
+              trámite aparte. Este link cubre el 90% del valor desde ya.
+            </p>
+          </div>
+        </div>
+      )}
 
       {enabled && (
         <>

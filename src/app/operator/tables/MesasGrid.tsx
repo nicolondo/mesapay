@@ -182,7 +182,15 @@ export function MesasGrid({
             );
           }
           if (tile.state === "recently_paid") {
-            return <RecentlyPaidTile key={tile.id} tile={tile} counterMode={counterMode} />;
+            return (
+              <RecentlyPaidTile
+                key={tile.id}
+                tile={tile}
+                counterMode={counterMode}
+                isMeseroView={isMeseroView}
+                tenantSlug={tenantSlug}
+              />
+            );
           }
           // active
           return (
@@ -293,21 +301,39 @@ function FreeTile({
 
 /**
  * Tile recién pagada — muestra dot verde + tiempo desde el pago.
- * No-op al tap por ahora (info histórica, no requiere acción).
+ * Tap arranca un pedido nuevo (la mesa ya está físicamente libre y
+ * un grupo nuevo puede llegar enseguida — mismo target que FreeTile).
  */
 function RecentlyPaidTile({
   tile,
   counterMode,
+  isMeseroView,
+  tenantSlug,
 }: {
   tile: Extract<TileData, { state: "recently_paid" }>;
   counterMode: boolean;
+  isMeseroView: boolean;
+  tenantSlug: string;
 }) {
   const minsAgo = Math.max(
     0,
     Math.floor((Date.now() - new Date(tile.paidAt).getTime()) / 60000),
   );
+  // Mismo href + target que FreeTile — la mesa está libre para
+  // recibir un grupo nuevo, sólo que recordamos el pago previo como
+  // info al operador.
+  const href = isMeseroView
+    ? `/mesero/pedir/${tile.id}`
+    : `/t/${tenantSlug}/menu?table=${tile.qrToken}&op=1`;
+  const targetProps = isMeseroView
+    ? {}
+    : { target: "_blank" as const, rel: "noreferrer" };
   return (
-    <div className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 p-2 flex flex-col items-center justify-center text-center relative">
+    <Link
+      href={href}
+      {...targetProps}
+      className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 hover:bg-ok/15 p-2 flex flex-col items-center justify-center text-center relative transition-colors"
+    >
       <div className="font-display text-base leading-none">
         {counterMode ? "Mostr." : `M${tile.number}`}
       </div>
@@ -323,7 +349,7 @@ function RecentlyPaidTile({
         aria-hidden
         className="absolute bottom-2.5 right-2.5 inline-block w-2 h-2 rounded-full bg-ok"
       />
-    </div>
+    </Link>
   );
 }
 

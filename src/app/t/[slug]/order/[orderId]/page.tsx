@@ -39,6 +39,18 @@ export default async function OrderView({
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
 
+  // Último Payment aprobado de la orden — lo usamos para linkear al
+  // /done page donde están los botones de tirilla / factura. Cuando
+  // hay múltiples pagos (split), el más reciente sirve como ancla.
+  const lastApprovedPayment =
+    order.status === "paid"
+      ? await db.payment.findFirst({
+          where: { orderId: order.id, status: "approved" },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        })
+      : null;
+
   const cancelledRounds = order.rounds.filter((r) => r.status === "cancelled");
   // Recent cancellations get a prominent banner. We treat the most recent
   // ones as "new" so the customer sees the apology even if they were
@@ -378,6 +390,31 @@ export default async function OrderView({
           </span>
         )}
       </div>
+
+      {/* Comprobante — link explícito al /done que tiene los botones de
+          tirilla por email + factura electrónica. Mostramos sólo en
+          orden pagada y con al menos un Payment aprobado de referencia
+          (en split bills usamos el más reciente como ancla — sirve para
+          que la página /done pueda mostrar el resumen del último cobro
+          mientras los botones aplican a la orden completa). */}
+      {order.status === "paid" && lastApprovedPayment && (
+        <div className="mt-5 rounded-2xl border border-hairline bg-paper p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-display text-lg leading-tight">
+              ¿Necesitás comprobante?
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              Mandate la tirilla por correo o pedí factura electrónica.
+            </p>
+          </div>
+          <Link
+            href={`/t/${slug}/pay/${order.id}/done?pid=${lastApprovedPayment.id}`}
+            className="shrink-0 h-10 px-4 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
+          >
+            Ver opciones
+          </Link>
+        </div>
+      )}
     </main>
   );
 }

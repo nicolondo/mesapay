@@ -15,6 +15,18 @@ type AvailSlot = {
   endsAt: string;
   tables: AvailTable[];
 };
+type FloorTable = {
+  id: string;
+  number: number;
+  label: string | null;
+  capacity: number;
+  minConsumptionCents: number | null;
+  shape: "square" | "round" | "bar";
+  x: number;
+  y: number;
+};
+
+const FLOOR_COLS = 10;
 
 const fmtCOP = (cents: number) =>
   "$" + (cents / 100).toLocaleString("es-CO");
@@ -64,6 +76,7 @@ export function ReservarClient({
   const [date, setDate] = useState(todayLocal());
   const [partySize, setPartySize] = useState(2);
   const [slots, setSlots] = useState<AvailSlot[]>([]);
+  const [floorTables, setFloorTables] = useState<FloorTable[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<AvailSlot | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -95,11 +108,16 @@ export function ReservarClient({
         if (alive && res.ok && Array.isArray(j.slots)) {
           // Sólo slots con al menos una mesa libre.
           setSlots(j.slots.filter((s: AvailSlot) => s.tables.length > 0));
+          setFloorTables(Array.isArray(j.floorTables) ? j.floorTables : []);
         } else if (alive) {
           setSlots([]);
+          setFloorTables([]);
         }
       } catch {
-        if (alive) setSlots([]);
+        if (alive) {
+          setSlots([]);
+          setFloorTables([]);
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -291,48 +309,80 @@ export function ReservarClient({
           )}
         </div>
 
-        {/* Paso 3: mesa (si el slot tiene varias) */}
-        {selectedSlot && selectedSlot.tables.length > 1 && (
-          <div className="mb-4">
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-              Elegí tu mesa
+        {/* Paso 3: elegir mesa. Si el operador diseñó el mapa del
+            salón (floorTables con coords), mostramos el plano visual;
+            si no, caemos al picker de lista. Solo cuando el slot
+            ofrece más de una opción. */}
+        {selectedSlot &&
+          selectedSlot.tables.length > 1 &&
+          floorTables.length > 0 && (
+            <div className="mb-4">
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+                Elegí tu mesa en el mapa
+              </div>
+              <FloorPlanPicker
+                floorTables={floorTables}
+                freeIds={new Set(selectedSlot.tables.map((t) => t.id))}
+                selectedTableId={selectedTableId}
+                onPick={setSelectedTableId}
+              />
+              <div className="flex items-center gap-4 mt-2 text-[11px] text-muted">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-3 h-3 rounded bg-[#2E6B4C]/20 border border-[#2E6B4C]/40 inline-block" />
+                  Disponible
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-3 h-3 rounded bg-hairline inline-block" />
+                  Ocupada / no disponible
+                </span>
+              </div>
             </div>
-            <div className="space-y-2">
-              {selectedSlot.tables.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSelectedTableId(t.id)}
-                  className={
-                    "w-full rounded-xl border px-4 py-3 flex items-center justify-between text-left " +
-                    (selectedTableId === t.id
-                      ? "bg-ink text-bone border-ink"
-                      : "bg-paper border-hairline text-ink hover:border-ink")
-                  }
-                >
-                  <div>
-                    <div className="font-medium text-sm">
-                      {t.label ?? `Mesa ${t.number}`}
+          )}
+
+        {/* Fallback: picker de lista cuando no hay mapa diseñado. */}
+        {selectedSlot &&
+          selectedSlot.tables.length > 1 &&
+          floorTables.length === 0 && (
+            <div className="mb-4">
+              <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+                Elegí tu mesa
+              </div>
+              <div className="space-y-2">
+                {selectedSlot.tables.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTableId(t.id)}
+                    className={
+                      "w-full rounded-xl border px-4 py-3 flex items-center justify-between text-left " +
+                      (selectedTableId === t.id
+                        ? "bg-ink text-bone border-ink"
+                        : "bg-paper border-hairline text-ink hover:border-ink")
+                    }
+                  >
+                    <div>
+                      <div className="font-medium text-sm">
+                        {t.label ?? `Mesa ${t.number}`}
+                      </div>
+                      <div
+                        className={
+                          "text-[11px] " +
+                          (selectedTableId === t.id
+                            ? "opacity-70"
+                            : "text-muted")
+                        }
+                      >
+                        Hasta {t.capacity} personas
+                        {t.minConsumptionCents
+                          ? ` · consumo mínimo ${fmtCOP(t.minConsumptionCents)}`
+                          : ""}
+                      </div>
                     </div>
-                    <div
-                      className={
-                        "text-[11px] " +
-                        (selectedTableId === t.id
-                          ? "opacity-70"
-                          : "text-muted")
-                      }
-                    >
-                      Hasta {t.capacity} personas
-                      {t.minConsumptionCents
-                        ? ` · consumo mínimo ${fmtCOP(t.minConsumptionCents)}`
-                        : ""}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Consumo mínimo informativo de la mesa elegida (cuando hay 1 sola) */}
         {selectedSlot &&
@@ -412,5 +462,85 @@ export function ReservarClient({
         )}
       </div>
     </main>
+  );
+}
+
+/**
+ * Mapa del salón read-only para que el diner elija mesa visualmente.
+ * Dibuja la grilla 10-col con las mesas en sus coords. Las mesas
+ * libres y que entran al grupo (id en freeIds) van en verde y son
+ * tappables; el resto (ocupadas o que no entran) van en gris,
+ * deshabilitadas. La seleccionada se resalta en ink.
+ */
+function FloorPlanPicker({
+  floorTables,
+  freeIds,
+  selectedTableId,
+  onPick,
+}: {
+  floorTables: FloorTable[];
+  freeIds: Set<string>;
+  selectedTableId: string | null;
+  onPick: (id: string) => void;
+}) {
+  const rows = Math.max(
+    6,
+    floorTables.reduce((m, t) => Math.max(m, t.y), 0) + 2,
+  );
+  return (
+    <div className="rounded-2xl border border-hairline bg-paper p-2 overflow-x-auto">
+      <div
+        className="relative mx-auto"
+        style={{ width: "100%", maxWidth: 520, aspectRatio: `${FLOOR_COLS} / ${rows}` }}
+      >
+        <div
+          className="absolute inset-0 grid"
+          style={{
+            gridTemplateColumns: `repeat(${FLOOR_COLS}, 1fr)`,
+            gridTemplateRows: `repeat(${rows}, 1fr)`,
+            gap: 4,
+          }}
+        >
+          {Array.from({ length: FLOOR_COLS * rows }).map((_, i) => {
+            const x = i % FLOOR_COLS;
+            const y = Math.floor(i / FLOOR_COLS);
+            const t = floorTables.find((ft) => ft.x === x && ft.y === y);
+            if (!t) return <div key={i} />;
+            const free = freeIds.has(t.id);
+            const selected = selectedTableId === t.id;
+            const radius =
+              t.shape === "round" ? "rounded-full" : "rounded-md";
+            return (
+              <button
+                key={i}
+                type="button"
+                disabled={!free}
+                onClick={() => free && onPick(t.id)}
+                title={
+                  free
+                    ? `${t.label ?? `Mesa ${t.number}`} · hasta ${t.capacity}`
+                    : "No disponible"
+                }
+                className={
+                  "w-full h-full flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
+                  radius +
+                  " " +
+                  (selected
+                    ? "bg-ink text-bone border-ink"
+                    : free
+                      ? "bg-[#2E6B4C]/15 text-[#1E5339] border-[#2E6B4C]/40 hover:bg-[#2E6B4C]/25"
+                      : "bg-hairline text-muted border-transparent cursor-not-allowed")
+                }
+              >
+                <span className="font-display text-xs">
+                  {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+                </span>
+                <span className="opacity-60 text-[9px]">{t.capacity}p</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -30,6 +30,18 @@ export type AvailableTable = {
   minConsumptionCents: number | null;
 };
 
+/** Mesa con posición en el plano — para dibujar el mapa diner-side. */
+export type FloorTable = {
+  id: string;
+  number: number;
+  label: string | null;
+  capacity: number;
+  minConsumptionCents: number | null;
+  shape: "square" | "round" | "bar";
+  x: number;
+  y: number;
+};
+
 export type AvailableSlot = {
   /** "HH:MM" hora local de inicio. */
   label: string;
@@ -66,6 +78,11 @@ export async function getAvailability(args: {
 }): Promise<{
   config: ReservationConfig;
   slots: AvailableSlot[];
+  /** Todas las mesas reservables ubicadas en el plano (con coords).
+   *  Se usa para dibujar el mapa del salón en el lado del diner. Es
+   *  independiente del partySize: incluye todas, el front marca cuáles
+   *  son seleccionables comparando contra slot.tables. */
+  floorTables: FloorTable[];
 }> {
   const now = args.now ?? new Date();
   const r = await db.restaurant.findUnique({
@@ -73,14 +90,48 @@ export async function getAvailability(args: {
     select: { reservationsEnabled: true, reservationConfig: true },
   });
   const config = resolveReservationConfig(r?.reservationConfig);
+
+  // Todas las mesas reservables ubicadas en el plano — para dibujar el
+  // mapa. Independiente del partySize y de si el día tiene turnos.
+  const placed = await db.table.findMany({
+    where: {
+      restaurantId: args.restaurantId,
+      reservable: true,
+      number: { gte: 0 },
+      floorPlanX: { not: null },
+      floorPlanY: { not: null },
+    },
+    select: {
+      id: true,
+      number: true,
+      label: true,
+      capacity: true,
+      minConsumptionCents: true,
+      shape: true,
+      floorPlanX: true,
+      floorPlanY: true,
+    },
+    orderBy: { number: "asc" },
+  });
+  const floorTables: FloorTable[] = placed.map((t) => ({
+    id: t.id,
+    number: t.number,
+    label: t.label,
+    capacity: t.capacity,
+    minConsumptionCents: t.minConsumptionCents,
+    shape: t.shape,
+    x: t.floorPlanX as number,
+    y: t.floorPlanY as number,
+  }));
+
   if (!r?.reservationsEnabled) {
-    return { config, slots: [] };
+    return { config, slots: [], floorTables };
   }
 
   const weekday = weekdayForLocalDate(args.dateLocal);
   const daySlots = slotsForDay(config, weekday);
   if (daySlots.length === 0) {
-    return { config, slots: [] };
+    return { config, slots: [], floorTables };
   }
 
   // Mesas candidatas: reservables + capacidad suficiente.
@@ -101,7 +152,7 @@ export async function getAvailability(args: {
     orderBy: { number: "asc" },
   });
   if (tables.length === 0) {
-    return { config, slots: [] };
+    return { config, slots: [], floorTables };
   }
 
   // Reservas activas que tocan ese día. Tomamos un rango generoso
@@ -157,5 +208,5 @@ export async function getAvailability(args: {
     });
   }
 
-  return { config, slots };
+  return { config, slots, floorTables };
 }

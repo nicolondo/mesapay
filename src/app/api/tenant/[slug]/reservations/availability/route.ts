@@ -29,14 +29,12 @@ export async function GET(
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
   }
 
-  const { slots } = await getAvailability({
+  const { slots, floorTables } = await getAvailability({
     restaurantId: tenant.id,
     dateLocal: date,
     partySize,
   });
 
-  // Serializamos sólo lo que el front necesita — no exponemos coords
-  // ni más metadata de las mesas.
   return NextResponse.json({
     slots: slots.map((s) => ({
       label: s.label,
@@ -50,5 +48,8 @@ export async function GET(
         minConsumptionCents: t.minConsumptionCents,
       })),
     })),
+    // Mapa del salón (mesas con coords). Vacío si el operador no
+    // diseñó el plano — el front cae al picker de lista.
+    floorTables,
   });
 }

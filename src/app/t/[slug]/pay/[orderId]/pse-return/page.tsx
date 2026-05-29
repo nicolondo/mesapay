@@ -169,11 +169,16 @@ export default async function PseReturnPage({
   const fmt = (cents: number) =>
     "$" + (cents / 100).toLocaleString("es-CO");
 
-  // Estado canónico: la DB (ya posiblemente actualizada por el
-  // reconcile de arriba). El statusHint del query string es solo el
-  // hint del banco, sirve como mensaje preliminar si todo lo demás
-  // falló.
-  const isApproved = currentStatus === "approved";
+  // Approved → mandamos al diner directo al /done. Esa es la página
+  // canónica post-pago con los botones de factura electrónica /
+  // tirilla por email. Renderear nuestro propio "Pago aprobado" sería
+  // un paso extra inútil que el diner cierra antes de ver las
+  // opciones de comprobante.
+  if (currentStatus === "approved") {
+    redirect(`/t/${slug}/pay/${orderId}/done?pid=${payment.id}`);
+  }
+
+  // Acá sólo llegamos en pending o declined.
   const isDeclined = currentStatus === "declined";
   const isPending = currentStatus === "pending";
 
@@ -183,26 +188,6 @@ export default async function PseReturnPage({
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
           PSE · Transferencia bancaria
         </div>
-        {isApproved && (
-          <>
-            <div className="text-5xl mb-3">✓</div>
-            <h1 className="font-display text-2xl mb-2">
-              Pago aprobado
-            </h1>
-            <p className="text-sm text-op-muted mb-1">
-              Cobramos {fmt(total)} a tu cuenta bancaria.
-            </p>
-            <p className="text-xs text-op-muted mb-6">
-              Ya quedó registrado. ¡Gracias!
-            </p>
-            <Link
-              href={`/t/${slug}/pay/${orderId}`}
-              className="inline-flex items-center justify-center h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
-            >
-              Volver a la cuenta
-            </Link>
-          </>
-        )}
         {isDeclined && (
           <>
             <div className="text-5xl mb-3">✕</div>

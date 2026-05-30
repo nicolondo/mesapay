@@ -79,9 +79,14 @@ export type ChargeRequest = {
   // type stays generic so we can plug in other wallets later).
   token: string;
   metadata: {
-    orderId: string;
-    paymentId: string;
+    // Cobros de orden traen orderId+paymentId; el depósito de reserva
+    // trae reservationId (todavía no hay orden). Todos opcionales: el
+    // provider sólo los reenvía a Kushki como referencia.
+    orderId?: string;
+    paymentId?: string;
     tableId?: string;
+    reservationId?: string;
+    kind?: string;
   };
 };
 

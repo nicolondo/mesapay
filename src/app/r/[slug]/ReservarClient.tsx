@@ -15,6 +15,7 @@ type AvailTable = {
   label: string | null;
   capacity: number;
   minConsumptionCents: number | null;
+  reservationDepositCents: number | null;
 };
 type AvailSlot = {
   label: string;
@@ -68,6 +69,8 @@ export function ReservarClient({
   maxAdvanceDays,
   policyNote,
   source,
+  kushkiPublicKey,
+  kushkiMode,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -77,6 +80,8 @@ export function ReservarClient({
   maxAdvanceDays: number;
   policyNote: string | null;
   source: "direct" | "google_maps";
+  kushkiPublicKey: string | null;
+  kushkiMode: "mock" | "sandbox" | "production";
 }) {
   const [date, setDate] = useState(todayLocal());
   const [partySize, setPartySize] = useState(2);
@@ -96,6 +101,12 @@ export function ReservarClient({
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ code: string } | null>(null);
+  // Cuando la mesa exige depósito, la reserva queda apartada y pasamos
+  // a cobrar el depósito antes de confirmar.
+  const [depositStep, setDepositStep] = useState<{
+    code: string;
+    depositCents: number;
+  } | null>(null);
 
   const maxDate = addDays(todayLocal(), maxAdvanceDays);
 
@@ -168,7 +179,12 @@ export function ReservarClient({
         setErr(j.message ?? j.error ?? "No pudimos crear la reserva.");
         return;
       }
-      setDone({ code: j.confirmationCode });
+      // Mesa con depósito → cobramos antes de confirmar. Si no, listo.
+      if (j.requiresDeposit && j.depositCents > 0) {
+        setDepositStep({ code: j.confirmationCode, depositCents: j.depositCents });
+      } else {
+        setDone({ code: j.confirmationCode });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -208,6 +224,47 @@ export function ReservarClient({
           >
             Ver o cancelar mi reserva →
           </a>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Cobro del depósito ────────────────────────────────────────
+  if (depositStep) {
+    return (
+      <main className="min-h-dvh bg-bone text-ink flex flex-col items-center justify-center px-6 py-12">
+        <div className="max-w-sm w-full">
+          <div className="text-center mb-5">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-1">
+              {tenantName}
+            </div>
+            <h1 className="font-display text-3xl">Apartá tu mesa</h1>
+            <p className="text-sm text-muted mt-2">
+              {prettyDate(date)} · {selectedSlot?.label} · {partySize}{" "}
+              {partySize === 1 ? "persona" : "personas"}
+            </p>
+            <p className="text-sm text-ink mt-3">
+              Esta mesa pide un depósito de{" "}
+              <strong>{fmtCOP(depositStep.depositCents)}</strong> para
+              confirmar. Se descuenta de tu cuenta cuando llegues.
+            </p>
+          </div>
+          <DepositPay
+            tenantSlug={tenantSlug}
+            code={depositStep.code}
+            depositCents={depositStep.depositCents}
+            kushkiPublicKey={kushkiPublicKey}
+            kushkiMode={kushkiMode}
+            onApproved={() => {
+              const code = depositStep.code;
+              setDepositStep(null);
+              setDone({ code });
+            }}
+          />
+          <p className="text-[11px] text-muted text-center mt-4">
+            Tenés unos minutos para completar el pago antes de que la mesa se
+            libere. Si no se presentan, el depósito no se devuelve.
+          </p>
         </div>
       </main>
     );
@@ -386,6 +443,9 @@ export function ReservarClient({
                         {t.minConsumptionCents
                           ? ` · consumo mínimo ${fmtCOP(t.minConsumptionCents)}`
                           : ""}
+                        {t.reservationDepositCents
+                          ? ` · depósito ${fmtCOP(t.reservationDepositCents)}`
+                          : ""}
                       </div>
                     </div>
                   </button>
@@ -394,21 +454,37 @@ export function ReservarClient({
             </div>
           )}
 
-        {/* Consumo mínimo informativo de la mesa elegida (cuando hay 1 sola) */}
+        {/* Consumo mínimo / depósito informativo de la mesa elegida */}
         {selectedSlot &&
           selectedTableId &&
           (() => {
             const t = selectedSlot.tables.find(
               (x) => x.id === selectedTableId,
             );
-            if (!t?.minConsumptionCents) return null;
+            if (!t) return null;
+            if (!t.minConsumptionCents && !t.reservationDepositCents)
+              return null;
             return (
-              <div className="mb-4 text-xs text-muted bg-paper border border-hairline rounded-xl px-4 py-3">
-                Esta mesa tiene un consumo mínimo de{" "}
-                <strong className="text-ink">
-                  {fmtCOP(t.minConsumptionCents)}
-                </strong>
-                .
+              <div className="mb-4 text-xs text-muted bg-paper border border-hairline rounded-xl px-4 py-3 space-y-1">
+                {t.minConsumptionCents ? (
+                  <div>
+                    Consumo mínimo:{" "}
+                    <strong className="text-ink">
+                      {fmtCOP(t.minConsumptionCents)}
+                    </strong>
+                    .
+                  </div>
+                ) : null}
+                {t.reservationDepositCents ? (
+                  <div>
+                    Pide un depósito de{" "}
+                    <strong className="text-ink">
+                      {fmtCOP(t.reservationDepositCents)}
+                    </strong>{" "}
+                    para apartar — se descuenta de tu cuenta al llegar (no se
+                    devuelve si no se presentan).
+                  </div>
+                ) : null}
               </div>
             );
           })()}
@@ -464,9 +540,16 @@ export function ReservarClient({
               onClick={submit}
               className="w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
             >
-              {submitting
-                ? "Reservando…"
-                : `Reservar · ${prettyDate(date)} ${selectedSlot.label}`}
+              {(() => {
+                const t = selectedSlot.tables.find(
+                  (x) => x.id === selectedTableId,
+                );
+                const needsDeposit = !!t?.reservationDepositCents;
+                if (submitting) return "Reservando…";
+                if (needsDeposit)
+                  return `Continuar · depósito ${fmtCOP(t!.reservationDepositCents!)}`;
+                return `Reservar · ${prettyDate(date)} ${selectedSlot.label}`;
+              })()}
             </button>
           </div>
         )}
@@ -638,6 +721,235 @@ function FloorPlanPicker({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Form de tarjeta para cobrar el depósito de la reserva. Tokeniza
+ * directo contra Kushki (mismo patrón que el checkout de mesa — el PAN
+ * sólo viaja a kushkipagos.com, SAQ-A) y luego pega a la ruta del
+ * depósito. Sin 3DS por ahora (las tarjetas sandbox aprobadas no lo
+ * requieren); si Kushki lo pidiera, declina y el diner reintenta.
+ */
+function DepositPay({
+  tenantSlug,
+  code,
+  depositCents,
+  kushkiPublicKey,
+  kushkiMode,
+  onApproved,
+}: {
+  tenantSlug: string;
+  code: string;
+  depositCents: number;
+  kushkiPublicKey: string | null;
+  kushkiMode: "mock" | "sandbox" | "production";
+  onApproved: () => void;
+}) {
+  const [number, setNumber] = useState("");
+  const [holderName, setHolderName] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const isMock = kushkiMode === "mock";
+
+  function formatCardNumber(raw: string) {
+    return raw
+      .replace(/\D/g, "")
+      .slice(0, 19)
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
+  }
+  function formatExpiry(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 4);
+    if (digits.length < 3) return digits;
+    return digits.slice(0, 2) + "/" + digits.slice(2);
+  }
+
+  async function pay() {
+    setErr(null);
+    const digits = number.replace(/\s/g, "");
+    if (digits.length < 13 || digits.length > 19) {
+      setErr("Número de tarjeta inválido.");
+      return;
+    }
+    if (holderName.trim().length < 3) {
+      setErr("Ingresá el nombre como aparece en la tarjeta.");
+      return;
+    }
+    const m = /^(\d{2})\/(\d{2})$/.exec(expiry);
+    if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) {
+      setErr("Vencimiento en formato MM/YY.");
+      return;
+    }
+    if (!cvv.match(/^\d{3,4}$/)) {
+      setErr("CVV inválido.");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setErr("Email inválido — Kushki lo requiere.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      let token: string;
+      if (isMock || !kushkiPublicKey) {
+        token = `mock-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      } else {
+        const baseUrl =
+          kushkiMode === "production"
+            ? "https://api.kushkipagos.com"
+            : "https://api-uat.kushkipagos.com";
+        const res = await fetch(`${baseUrl}/card/v1/tokens`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Public-Merchant-Id": kushkiPublicKey,
+          },
+          body: JSON.stringify({
+            card: {
+              number: digits,
+              name: holderName.trim(),
+              expiryMonth: m[1],
+              expiryYear: m[2],
+              cvv,
+            },
+            totalAmount: depositCents / 100,
+            currency: "COP",
+            isDeferred: false,
+            email: email.trim().toLowerCase(),
+          }),
+        });
+        const json: { token?: string; code?: string; message?: string } =
+          await res.json().catch(() => ({}));
+        if (!res.ok || json.code || !json.token) {
+          setErr(
+            `${json.message ?? "Error de Kushki"}${json.code ? ` (${json.code})` : ""}`,
+          );
+          setBusy(false);
+          return;
+        }
+        token = json.token;
+      }
+
+      const chargeRes = await fetch(
+        `/api/tenant/${tenantSlug}/reservations/${code}/deposit`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token }),
+        },
+      );
+      const cj = await chargeRes.json().catch(() => ({}));
+      if (!chargeRes.ok) {
+        setErr(cj.message ?? "No pudimos cobrar el depósito.");
+        setBusy(false);
+        return;
+      }
+      if (!cj.approved) {
+        setErr(cj.message ?? "Pago rechazado. Probá con otra tarjeta.");
+        setBusy(false);
+        return;
+      }
+      onApproved();
+    } catch (e) {
+      console.error("[deposit] error", e);
+      setErr("No pudimos procesar el pago. Intentá de nuevo.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-3">
+      <label className="block">
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+          Número de tarjeta
+        </span>
+        <input
+          inputMode="numeric"
+          autoComplete="cc-number"
+          value={number}
+          onChange={(e) => setNumber(formatCardNumber(e.target.value))}
+          placeholder="1234 5678 9012 3456"
+          className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
+        />
+      </label>
+      <label className="block">
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+          Nombre en la tarjeta
+        </span>
+        <input
+          autoComplete="cc-name"
+          value={holderName}
+          onChange={(e) => setHolderName(e.target.value)}
+          placeholder="Como aparece en la tarjeta"
+          className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Vencimiento
+          </span>
+          <input
+            inputMode="numeric"
+            autoComplete="cc-exp"
+            value={expiry}
+            onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+            placeholder="MM/YY"
+            className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            CVV
+          </span>
+          <input
+            inputMode="numeric"
+            autoComplete="cc-csc"
+            value={cvv}
+            onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="123"
+            className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+          Email
+        </span>
+        <input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="tu@email.com"
+          className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
+        />
+      </label>
+
+      {err && (
+        <div className="text-sm text-danger bg-danger/5 border border-danger/30 rounded-lg px-3 py-2">
+          {err}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={pay}
+        className="w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
+      >
+        {busy ? "Procesando…" : `Pagar depósito · ${fmtCOP(depositCents)}`}
+      </button>
+      <p className="text-[10px] text-muted text-center">
+        Pago seguro procesado por Kushki. Tus datos no se guardan en MESAPAY.
+      </p>
     </div>
   );
 }

@@ -33,9 +33,15 @@ export async function sendReservationConfirmation(args: {
   confirmationCode: string;
   autoConfirmed: boolean;
   manageUrl: string;
+  /** Si la reserva tenía depósito y se pagó, su monto en centavos. */
+  depositPaidCents?: number;
 }): Promise<boolean> {
   const when = prettyBogota(args.startsAt);
   const personas = `${args.partySize} ${args.partySize === 1 ? "persona" : "personas"}`;
+  const depositPesos =
+    args.depositPaidCents && args.depositPaidCents > 0
+      ? "$" + Math.round(args.depositPaidCents / 100).toLocaleString("es-CO")
+      : null;
   const statusLine = args.autoConfirmed
     ? "Tu reserva está <strong>confirmada</strong>."
     : "Recibimos tu solicitud. El restaurante la <strong>confirmará pronto</strong> y te avisaremos.";
@@ -60,7 +66,17 @@ export async function sendReservationConfirmation(args: {
         <tr><td style="color:#8A8275;padding:4px 0">Personas</td><td style="text-align:right;font-weight:500">${personas}</td></tr>
         <tr><td style="color:#8A8275;padding:4px 0">Mesa</td><td style="text-align:right;font-weight:500">${escapeHtml(args.tableLabel)}</td></tr>
         <tr><td style="color:#8A8275;padding:8px 0 0">Código</td><td style="text-align:right;font-weight:600;font-size:16px;padding-top:8px">${args.confirmationCode}</td></tr>
+        ${
+          depositPesos
+            ? `<tr><td style="color:#8A8275;padding:8px 0 0">Depósito pagado</td><td style="text-align:right;font-weight:600;padding-top:8px">${depositPesos}</td></tr>`
+            : ""
+        }
       </table>
+      ${
+        depositPesos
+          ? `<p style="font-size:12px;color:#5C5446;margin:12px 0 0">Tu depósito de <strong>${depositPesos}</strong> se descuenta de la cuenta cuando llegues.</p>`
+          : ""
+      }
     </div>
     <a href="${args.manageUrl}" style="display:block;text-align:center;background:#1C1C1C;color:#F5F1E8;text-decoration:none;padding:14px;border-radius:999px;font-size:14px;font-weight:500">
       Ver o cancelar mi reserva

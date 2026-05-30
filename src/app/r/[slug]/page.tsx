@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { resolveReservationConfig } from "@/lib/reservations";
+import { getKushkiMode } from "@/lib/platformConfig";
 import { ReservarClient } from "./ReservarClient";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export default async function ReservarPage({
       reservationsEnabled: true,
       reservationConfig: true,
       legalCity: true,
+      kushkiPublicKey: true,
     },
   });
   if (!tenant) return notFound();
@@ -65,6 +67,8 @@ export default async function ReservarPage({
       maxAdvanceDays={config.maxAdvanceDays}
       policyNote={config.policyNote ?? null}
       source={source === "google" ? "google_maps" : "direct"}
+      kushkiPublicKey={tenant.kushkiPublicKey}
+      kushkiMode={await getKushkiMode()}
     />
   );
 }

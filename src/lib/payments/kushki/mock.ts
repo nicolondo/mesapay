@@ -134,7 +134,9 @@ export class MockKushkiProvider implements PaymentProvider {
         externalRef: providerRef,
         kind: "credit",
         amountCents: req.amount.amountCents,
-        description: `Cobro orden ${req.metadata.orderId.slice(0, 6)}`,
+        description: req.metadata.reservationId
+          ? `Depósito reserva ${req.metadata.reservationId.slice(0, 6)}`
+          : `Cobro orden ${(req.metadata.orderId ?? "").slice(0, 6)}`,
         occurredAt: new Date(),
       });
       return {

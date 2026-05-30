@@ -5,8 +5,17 @@ import {
   resolveReservationConfig,
   generateConfirmationCode,
 } from "@/lib/reservations";
+import {
+  resolveEnabledPaymentMethods,
+  resolveDepositMethods,
+} from "@/lib/paymentMethods";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
 import { publishOrderEvent } from "@/lib/events";
+
+/** Minutos que la reserva aparta la mesa mientras paga el depósito. */
+const DEPOSIT_HOLD_MINUTES = 15;
+/** Medios de depósito ya implementados (PSE/Apple Pay: próximamente). */
+const DEPOSIT_IMPLEMENTED = ["kushki_card"] as const;
 
 /**
  * Crea una reserva. Público (lo llama /r/[slug]).
@@ -46,6 +55,9 @@ export async function POST(
       reservationConfig: true,
       legalCity: true,
       logoUrl: true,
+      kushkiMerchantId: true,
+      enabledPaymentMethods: true,
+      reservationDepositMethods: true,
     },
   });
   if (!tenant) {
@@ -90,6 +102,7 @@ export async function POST(
       capacity: true,
       number: true,
       label: true,
+      reservationDepositCents: true,
     },
   });
   if (
@@ -110,16 +123,35 @@ export async function POST(
     );
   }
 
+  // ¿Esta mesa exige depósito? Sólo si hay monto, hay medios online ya
+  // implementados configurados, y el comercio puede cobrar (Kushki).
+  const enabledMethods = resolveEnabledPaymentMethods(
+    tenant.enabledPaymentMethods,
+  );
+  const depositMethods = resolveDepositMethods(
+    tenant.reservationDepositMethods,
+    enabledMethods,
+  ).filter((m) => (DEPOSIT_IMPLEMENTED as readonly string[]).includes(m));
+  const depositCents = table.reservationDepositCents ?? 0;
+  const requiresDeposit =
+    depositCents > 0 && depositMethods.length > 0 && !!tenant.kushkiMerchantId;
+
   // Anti doble-booking: rechazamos si ya hay una reserva activa que
   // solape la ventana de esta mesa. La unicidad real la garantiza este
   // check dentro de la transacción de creación.
   const reservation = await db.$transaction(async (tx) => {
+    // Bloquean: confirmed/seated siempre; pending sólo si su hold no
+    // venció (un hold de depósito caducado liberó la mesa).
     const clash = await tx.reservation.findFirst({
       where: {
         tableId: table.id,
-        status: { in: ["pending", "confirmed", "seated"] },
         startsAt: { lt: endsAt },
         endsAt: { gt: startsAt },
+        OR: [
+          { status: { in: ["confirmed", "seated"] } },
+          { status: "pending", holdExpiresAt: null },
+          { status: "pending", holdExpiresAt: { gt: new Date() } },
+        ],
       },
       select: { id: true },
     });
@@ -148,10 +180,23 @@ export async function POST(
         partySize: parsed.data.partySize,
         startsAt,
         endsAt,
-        status: config.autoConfirm ? "confirmed" : "pending",
+        // Con depósito: queda pending+hold hasta que paguen. Sin depósito:
+        // confirmed o pending según autoConfirm (comportamiento de siempre).
+        status: requiresDeposit
+          ? "pending"
+          : config.autoConfirm
+            ? "confirmed"
+            : "pending",
         source: parsed.data.source,
         notes: parsed.data.notes,
         confirmationCode: code,
+        ...(requiresDeposit && {
+          depositStatus: "pending" as const,
+          depositCents,
+          holdExpiresAt: new Date(
+            Date.now() + DEPOSIT_HOLD_MINUTES * 60 * 1000,
+          ),
+        }),
       },
     });
   }).catch((err) => {
@@ -175,23 +220,30 @@ export async function POST(
     orderId: `reservation:${reservation.id}`,
   });
 
-  // Email de confirmación best-effort — no bloquea la respuesta.
-  sendReservationConfirmation({
-    to: reservation.customerEmail,
-    customerName: reservation.customerName,
-    restaurantName: tenant.name,
-    restaurantCity: tenant.legalCity,
-    tableLabel: table.label ?? `Mesa ${table.number}`,
-    partySize: reservation.partySize,
-    startsAt: reservation.startsAt,
-    confirmationCode: reservation.confirmationCode,
-    autoConfirmed: config.autoConfirm,
-    manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
-  }).catch((err) => console.error("[reservation] email failed", err));
+  // Con depósito NO mandamos email todavía — esperamos a que paguen
+  // (lo manda la ruta del depósito al aprobar). Sin depósito, confirmación
+  // best-effort de una vez.
+  if (!requiresDeposit) {
+    sendReservationConfirmation({
+      to: reservation.customerEmail,
+      customerName: reservation.customerName,
+      restaurantName: tenant.name,
+      restaurantCity: tenant.legalCity,
+      tableLabel: table.label ?? `Mesa ${table.number}`,
+      partySize: reservation.partySize,
+      startsAt: reservation.startsAt,
+      confirmationCode: reservation.confirmationCode,
+      autoConfirmed: config.autoConfirm,
+      manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
+    }).catch((err) => console.error("[reservation] email failed", err));
+  }
 
   return NextResponse.json({
     ok: true,
     confirmationCode: reservation.confirmationCode,
     status: reservation.status,
+    requiresDeposit,
+    depositCents: requiresDeposit ? depositCents : 0,
+    depositMethods: requiresDeposit ? depositMethods : [],
   });
 }

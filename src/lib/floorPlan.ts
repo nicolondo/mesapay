@@ -39,15 +39,20 @@ export type MarkerKind =
   | "escaleras"
   | "cocina";
 
-/** Rectángulo etiquetado dibujado DETRÁS de las mesas. */
+/** Una celda de la grilla. */
+export type Cell = { x: number; y: number };
+
+/**
+ * Área etiquetada dibujada DETRÁS de las mesas. Es un conjunto de
+ * celdas (puede ser irregular, no sólo rectángulos) — el operador
+ * arrastra para agregar un bloque y toca celdas sueltas para
+ * agregar/quitar y demarcar la forma exacta del salón.
+ */
 export type Zone = {
   id: string;
   kind: ZoneKind;
   label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+  cells: Cell[];
 };
 
 /** Punto de interés de 1 celda (entrada, baños, etc.). */
@@ -119,7 +124,7 @@ export const ZONE_KINDS: Record<
     text: "#246b65",
   },
   custom: {
-    label: "Zona",
+    label: "Personalizada",
     fill: "rgba(107,114,128,0.13)",
     stroke: "rgba(107,114,128,0.45)",
     text: "#4b5563",
@@ -197,17 +202,42 @@ export function resolveFloorPlan(stored: unknown): FloorPlan {
       if (!raw || typeof raw !== "object") return;
       const z = raw as Record<string, unknown>;
       if (!isZoneKind(z.kind)) return;
-      const x = clampInt(z.x, 0, cols - 1, 0);
-      const y = clampInt(z.y, 0, rows - 1, 0);
-      // Ancho/alto mínimo 1, y que no se salgan de la grilla.
-      const w = clampInt(z.w, 1, cols - x, 1);
-      const h = clampInt(z.h, 1, rows - y, 1);
+
+      // Celdas: formato nuevo (cells[]) o legacy rectángulo (x,y,w,h).
+      const cells: Cell[] = [];
+      if (Array.isArray(z.cells)) {
+        const seen = new Set<string>();
+        for (const c of z.cells) {
+          if (!c || typeof c !== "object") continue;
+          const cc = c as Record<string, unknown>;
+          if (typeof cc.x !== "number" || typeof cc.y !== "number") continue;
+          const cx = Math.round(cc.x);
+          const cy = Math.round(cc.y);
+          if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) continue;
+          const key = `${cx},${cy}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          cells.push({ x: cx, y: cy });
+          if (cells.length >= 400) break;
+        }
+      } else {
+        // Legacy: rectángulo → expandir a celdas (migración transparente).
+        const x = clampInt(z.x, 0, cols - 1, 0);
+        const y = clampInt(z.y, 0, rows - 1, 0);
+        const w = clampInt(z.w, 1, cols - x, 1);
+        const h = clampInt(z.h, 1, rows - y, 1);
+        for (let dy = 0; dy < h; dy++) {
+          for (let dx = 0; dx < w; dx++) cells.push({ x: x + dx, y: y + dy });
+        }
+      }
+      if (cells.length === 0) return; // zona vacía → descartar
+
       const label =
         typeof z.label === "string" && z.label.trim()
           ? z.label.trim().slice(0, 40)
           : ZONE_KINDS[z.kind].label;
       const id = typeof z.id === "string" && z.id ? z.id : `z${i}`;
-      zones.push({ id, kind: z.kind, label, x, y, w, h });
+      zones.push({ id, kind: z.kind, label, cells });
     });
   }
 
@@ -234,4 +264,21 @@ export function resolveFloorPlan(stored: unknown): FloorPlan {
 /** Label visible de un marker (custom o el del kind). */
 export function markerLabel(m: Marker): string {
   return m.label ?? MARKER_KINDS[m.kind].label;
+}
+
+/** Clave estable de una celda para Sets/membership. */
+export function cellKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+/**
+ * Celda "ancla" de una zona (la más arriba-izquierda) para colocar la
+ * etiqueta. Devuelve null si la zona no tiene celdas.
+ */
+export function zoneAnchorCell(cells: Cell[]): Cell | null {
+  let best: Cell | null = null;
+  for (const c of cells) {
+    if (!best || c.y < best.y || (c.y === best.y && c.x < best.x)) best = c;
+  }
+  return best;
 }

@@ -7,6 +7,8 @@ import {
   ZONE_KINDS,
   MARKER_KINDS,
   markerLabel,
+  cellKey,
+  zoneAnchorCell,
 } from "@/lib/floorPlan";
 
 type AvailTable = {
@@ -596,16 +598,24 @@ function FloorPlanPicker({
   }, []);
 
   // Ampliar la grilla si hay datos viejos por fuera de cols/rows guardados.
+  const zoneMaxX = Math.max(
+    -1,
+    ...floorPlan.zones.flatMap((z) => z.cells.map((c) => c.x)),
+  );
+  const zoneMaxY = Math.max(
+    -1,
+    ...floorPlan.zones.flatMap((z) => z.cells.map((c) => c.y)),
+  );
   const cols = Math.max(
     floorPlan.cols,
     floorTables.reduce((m, t) => Math.max(m, t.x + 1), 0),
-    ...floorPlan.zones.map((z) => z.x + z.w),
+    zoneMaxX + 1,
     ...floorPlan.markers.map((m) => m.x + 1),
   );
   const rows = Math.max(
     floorPlan.rows,
     floorTables.reduce((m, t) => Math.max(m, t.y + 1), 0),
-    ...floorPlan.zones.map((z) => z.y + z.h),
+    zoneMaxY + 1,
     ...floorPlan.markers.map((m) => m.y + 1),
   );
 
@@ -620,28 +630,55 @@ function FloorPlanPicker({
       className="rounded-2xl border border-hairline bg-paper p-2 overflow-auto"
     >
       <div className="relative mx-auto" style={{ width: gridW, height: gridH }}>
-        {/* Zonas (fondo) */}
+        {/* Zonas (fondo) — celdas con borde sólo en los bordes externos. */}
         {floorPlan.zones.map((z) => {
           const c = ZONE_KINDS[z.kind];
+          const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
+          const anchor = zoneAnchorCell(z.cells);
+          const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
           return (
-            <div
-              key={z.id}
-              className="absolute rounded-lg"
-              style={{
-                left: z.x * cellPx + 2,
-                top: z.y * cellPx + 2,
-                width: z.w * cellPx - 4,
-                height: z.h * cellPx - 4,
-                background: c.fill,
-                border: `1.5px dashed ${c.stroke}`,
-              }}
-            >
-              <span
-                className="absolute top-1 left-1.5 text-[9px] font-semibold leading-none px-1 py-0.5 rounded"
-                style={{ color: c.text, background: "rgba(255,255,255,0.6)" }}
-              >
-                {z.label}
-              </span>
+            <div key={z.id} className="absolute inset-0 pointer-events-none">
+              {z.cells.map((cell) => {
+                const isAnchor =
+                  anchor && cell.x === anchor.x && cell.y === anchor.y;
+                return (
+                  <div
+                    key={cellKey(cell.x, cell.y)}
+                    className="absolute"
+                    style={{
+                      left: cell.x * cellPx,
+                      top: cell.y * cellPx,
+                      width: cellPx,
+                      height: cellPx,
+                      background: c.fill,
+                      borderTop: !has(cell.x, cell.y - 1)
+                        ? `1.5px dashed ${c.stroke}`
+                        : undefined,
+                      borderBottom: !has(cell.x, cell.y + 1)
+                        ? `1.5px dashed ${c.stroke}`
+                        : undefined,
+                      borderLeft: !has(cell.x - 1, cell.y)
+                        ? `1.5px dashed ${c.stroke}`
+                        : undefined,
+                      borderRight: !has(cell.x + 1, cell.y)
+                        ? `1.5px dashed ${c.stroke}`
+                        : undefined,
+                    }}
+                  >
+                    {isAnchor && (
+                      <span
+                        className="absolute top-0.5 left-0.5 text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
+                        style={{
+                          color: c.text,
+                          background: "rgba(255,255,255,0.6)",
+                        }}
+                      >
+                        {z.label}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })}

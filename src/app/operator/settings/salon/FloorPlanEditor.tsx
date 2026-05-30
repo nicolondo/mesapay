@@ -13,6 +13,8 @@ import {
   MARKER_KINDS,
   MARKER_KIND_LIST,
   markerLabel,
+  cellKey,
+  zoneAnchorCell,
   FLOOR_MIN_COLS,
   FLOOR_MAX_COLS,
   FLOOR_MIN_ROWS,
@@ -124,8 +126,10 @@ export function FloorPlanEditor({
       maxY = Math.max(maxY, t.y as number);
     }
     for (const z of zones) {
-      maxX = Math.max(maxX, z.x + z.w - 1);
-      maxY = Math.max(maxY, z.y + z.h - 1);
+      for (const c of z.cells) {
+        maxX = Math.max(maxX, c.x);
+        maxY = Math.max(maxY, c.y);
+      }
     }
     for (const m of markers) {
       maxX = Math.max(maxX, m.x);
@@ -238,7 +242,9 @@ export function FloorPlanEditor({
     }, 0);
   }
 
-  // ── Dibujo de zona arrastrando sobre varias celdas ────────────────
+  // ── Pintar/editar celdas de zona ──────────────────────────────────
+  // Arrastrar = agrega un bloque (rectángulo) de celdas; tocar una celda
+  // suelta = la agrega o la quita (para formas irregulares).
   function startZoneDraw(e: React.PointerEvent, x: number, y: number) {
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -257,30 +263,102 @@ export function FloorPlanEditor({
   }
   function endZoneDraw() {
     const zd = zoneDraw;
-    const pk = pending;
     setZoneDraw(null);
-    if (!zd || pk?.kind !== "addZone") return;
-    const x = Math.min(zd.sx, zd.cx);
-    const y = Math.min(zd.sy, zd.cy);
-    let w = Math.abs(zd.cx - zd.sx) + 1;
-    let h = Math.abs(zd.cy - zd.sy) + 1;
-    // Un toque simple (1×1) crea una zona de 2×2 por defecto.
-    if (w === 1 && h === 1) {
-      w = Math.min(2, cols - x);
-      h = Math.min(2, rows - y);
+    if (!zd) return;
+    const x0 = Math.min(zd.sx, zd.cx);
+    const y0 = Math.min(zd.sy, zd.cy);
+    const x1 = Math.max(zd.sx, zd.cx);
+    const y1 = Math.max(zd.sy, zd.cy);
+    const isTap = x0 === x1 && y0 === y1;
+    const rect: { x: number; y: number }[] = [];
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) rect.push({ x: xx, y: yy });
     }
-    const id = newId("z");
-    setZones((zs) => [
-      ...zs,
-      { id, kind: pk.zoneKind, label: ZONE_KINDS[pk.zoneKind].label, x, y, w, h },
-    ]);
-    setSel({ type: "zone", id });
-    setPending(null);
-    markDirty();
+
+    if (pending?.kind === "addZone") {
+      // Crear zona nueva con el bloque (o 1 celda si fue un toque).
+      const id = newId("z");
+      const zk = pending.zoneKind;
+      setZones((zs) => [
+        ...zs,
+        { id, kind: zk, label: ZONE_KINDS[zk].label, cells: rect },
+      ]);
+      setSel({ type: "zone", id });
+      setPending(null);
+      markDirty();
+    } else if (sel?.type === "zone") {
+      // Editar la zona seleccionada: tap = toggle una celda, arrastre =
+      // agregar el bloque.
+      if (isTap) toggleZoneCell(sel.id, x0, y0);
+      else addCellsToZone(sel.id, rect);
+    }
     dragEndedRef.current = true;
     setTimeout(() => {
       dragEndedRef.current = false;
     }, 0);
+  }
+
+  function toggleZoneCell(zoneId: string, x: number, y: number) {
+    setZones((zs) =>
+      zs.map((z) => {
+        if (z.id !== zoneId) return z;
+        const k = cellKey(x, y);
+        const has = z.cells.some((c) => cellKey(c.x, c.y) === k);
+        if (has) {
+          if (z.cells.length <= 1) return z; // no dejar la zona vacía
+          return {
+            ...z,
+            cells: z.cells.filter((c) => cellKey(c.x, c.y) !== k),
+          };
+        }
+        return { ...z, cells: [...z.cells, { x, y }] };
+      }),
+    );
+    markDirty();
+  }
+  function addCellsToZone(zoneId: string, cells: { x: number; y: number }[]) {
+    setZones((zs) =>
+      zs.map((z) => {
+        if (z.id !== zoneId) return z;
+        const have = new Set(z.cells.map((c) => cellKey(c.x, c.y)));
+        const merged = [...z.cells];
+        for (const c of cells) {
+          const k = cellKey(c.x, c.y);
+          if (!have.has(k)) {
+            have.add(k);
+            merged.push(c);
+          }
+        }
+        return { ...z, cells: merged };
+      }),
+    );
+    markDirty();
+  }
+  function moveZoneTo(zoneId: string, x: number, y: number) {
+    // Traslada toda la zona para que su celda ancla quede en (x,y),
+    // clampeando para no salir de la grilla.
+    setZones((zs) =>
+      zs.map((z) => {
+        if (z.id !== zoneId) return z;
+        const anchor = zoneAnchorCell(z.cells);
+        if (!anchor) return z;
+        let dx = x - anchor.x;
+        let dy = y - anchor.y;
+        const minX = Math.min(...z.cells.map((c) => c.x));
+        const minY = Math.min(...z.cells.map((c) => c.y));
+        const maxX = Math.max(...z.cells.map((c) => c.x));
+        const maxY = Math.max(...z.cells.map((c) => c.y));
+        if (minX + dx < 0) dx = -minX;
+        if (minY + dy < 0) dy = -minY;
+        if (maxX + dx > cols - 1) dx = cols - 1 - maxX;
+        if (maxY + dy > rows - 1) dy = rows - 1 - maxY;
+        return {
+          ...z,
+          cells: z.cells.map((c) => ({ x: c.x + dx, y: c.y + dy })),
+        };
+      }),
+    );
+    markDirty();
   }
 
   // ── Resolución de un toque en celda (x,y) ──────────────────────────
@@ -293,17 +371,7 @@ export function FloorPlanEditor({
           break;
         }
         case "moveZone": {
-          setZones((zs) =>
-            zs.map((z) =>
-              z.id === pending.id
-                ? {
-                    ...z,
-                    x: Math.min(x, cols - z.w),
-                    y: Math.min(y, rows - z.h),
-                  }
-                : z,
-            ),
-          );
+          moveZoneTo(pending.id, x, y);
           break;
         }
         case "moveMarker": {
@@ -313,20 +381,11 @@ export function FloorPlanEditor({
           break;
         }
         case "addZone": {
-          const w = Math.min(2, cols - x);
-          const h = Math.min(2, rows - y);
           const id = newId("z");
+          const zk = pending.zoneKind;
           setZones((zs) => [
             ...zs,
-            {
-              id,
-              kind: pending.zoneKind,
-              label: ZONE_KINDS[pending.zoneKind].label,
-              x,
-              y,
-              w,
-              h,
-            },
+            { id, kind: zk, label: ZONE_KINDS[zk].label, cells: [{ x, y }] },
           ]);
           setSel({ type: "zone", id });
           break;
@@ -346,7 +405,12 @@ export function FloorPlanEditor({
       return;
     }
 
-    // Sin acción pendiente: seleccionar la mesa de esa celda, o limpiar.
+    // Sin pending: si hay una zona seleccionada, tocar una celda la
+    // edita (agrega/quita). Si no, seleccionar la mesa o limpiar.
+    if (sel?.type === "zone") {
+      toggleZoneCell(sel.id, x, y);
+      return;
+    }
     const occ = occupant(x, y);
     if (occ) setSel({ type: "table", id: occ.id });
     else setSel(null);
@@ -377,17 +441,6 @@ export function FloorPlanEditor({
       ts.map((t) => (t.id === id ? { ...t, x: null, y: null } : t)),
     );
     setSel(null);
-    markDirty();
-  }
-  function resizeZone(id: string, dw: number, dh: number) {
-    setZones((zs) =>
-      zs.map((z) => {
-        if (z.id !== id) return z;
-        const w = Math.max(1, Math.min(z.w + dw, cols - z.x));
-        const h = Math.max(1, Math.min(z.h + dh, rows - z.y));
-        return { ...z, w, h };
-      }),
-    );
     markDirty();
   }
   function setZoneKindOf(id: string, kind: ZoneKind) {
@@ -712,42 +765,6 @@ export function FloorPlanEditor({
             className="h-8 w-32 rounded-full border border-op-border bg-op-surface text-xs px-3"
             placeholder="Nombre"
           />
-          <span className="inline-flex items-center gap-1 text-xs text-op-muted">
-            Ancho
-            <button
-              type="button"
-              onClick={() => resizeZone(selZone.id, -1, 0)}
-              className="w-6 h-6 rounded-full border border-op-border"
-            >
-              −
-            </button>
-            <span className="tabular w-4 text-center">{selZone.w}</span>
-            <button
-              type="button"
-              onClick={() => resizeZone(selZone.id, 1, 0)}
-              className="w-6 h-6 rounded-full border border-op-border"
-            >
-              +
-            </button>
-          </span>
-          <span className="inline-flex items-center gap-1 text-xs text-op-muted">
-            Alto
-            <button
-              type="button"
-              onClick={() => resizeZone(selZone.id, 0, -1)}
-              className="w-6 h-6 rounded-full border border-op-border"
-            >
-              −
-            </button>
-            <span className="tabular w-4 text-center">{selZone.h}</span>
-            <button
-              type="button"
-              onClick={() => resizeZone(selZone.id, 0, 1)}
-              className="w-6 h-6 rounded-full border border-op-border"
-            >
-              +
-            </button>
-          </span>
           <button
             type="button"
             onClick={() => setPending({ kind: "moveZone", id: selZone.id })}
@@ -762,6 +779,17 @@ export function FloorPlanEditor({
           >
             Borrar
           </button>
+          <button
+            type="button"
+            onClick={() => setSel(null)}
+            className="h-8 px-3 rounded-full bg-ink text-bone text-xs font-medium"
+          >
+            Listo
+          </button>
+          <span className="w-full text-[11px] text-op-muted mt-1">
+            Tocá celdas para agregar o quitar; arrastrá para pintar un bloque.
+            La zona puede tener forma irregular.
+          </span>
         </SelPanel>
       )}
 
@@ -818,31 +846,60 @@ export function FloorPlanEditor({
             if (!pending) setSel(null);
           }}
         >
-          {/* Capa 1: zonas (visual, no captura toques) */}
+          {/* Capa 1: zonas (celdas, forma posiblemente irregular; visual).
+              Cada celda dibuja borde sólo en los lados que dan al exterior
+              de la zona → contorno limpio sin líneas internas. */}
           {zones.map((z) => {
             const c = ZONE_KINDS[z.kind];
             const isSel = sel?.type === "zone" && sel.id === z.id;
+            const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
+            const anchor = zoneAnchorCell(z.cells);
+            const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
+            const bw = isSel ? 2 : 1.5;
+            const style = isSel ? "solid" : "dashed";
             return (
-              <div
-                key={z.id}
-                className="absolute rounded-lg"
-                style={{
-                  left: z.x * cellPx + 2,
-                  top: z.y * cellPx + 2,
-                  width: z.w * cellPx - 4,
-                  height: z.h * cellPx - 4,
-                  background: c.fill,
-                  border: `${isSel ? 2 : 1.5}px ${isSel ? "solid" : "dashed"} ${c.stroke}`,
-                  pointerEvents: "none",
-                  boxShadow: isSel ? `0 0 0 2px ${c.stroke}` : undefined,
-                }}
-              >
-                <span
-                  className="absolute top-1 left-1.5 text-[10px] font-semibold leading-none px-1 py-0.5 rounded"
-                  style={{ color: c.text, background: "rgba(255,255,255,0.55)" }}
-                >
-                  {z.label}
-                </span>
+              <div key={z.id} className="absolute inset-0 pointer-events-none">
+                {z.cells.map((cell) => {
+                  const isAnchor =
+                    anchor && cell.x === anchor.x && cell.y === anchor.y;
+                  return (
+                    <div
+                      key={cellKey(cell.x, cell.y)}
+                      className="absolute"
+                      style={{
+                        left: cell.x * cellPx,
+                        top: cell.y * cellPx,
+                        width: cellPx,
+                        height: cellPx,
+                        background: c.fill,
+                        borderTop: !has(cell.x, cell.y - 1)
+                          ? `${bw}px ${style} ${c.stroke}`
+                          : undefined,
+                        borderBottom: !has(cell.x, cell.y + 1)
+                          ? `${bw}px ${style} ${c.stroke}`
+                          : undefined,
+                        borderLeft: !has(cell.x - 1, cell.y)
+                          ? `${bw}px ${style} ${c.stroke}`
+                          : undefined,
+                        borderRight: !has(cell.x + 1, cell.y)
+                          ? `${bw}px ${style} ${c.stroke}`
+                          : undefined,
+                      }}
+                    >
+                      {isAnchor && (
+                        <span
+                          className="absolute top-0.5 left-0.5 text-[10px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
+                          style={{
+                            color: c.text,
+                            background: "rgba(255,255,255,0.65)",
+                          }}
+                        >
+                          {z.label}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
@@ -859,13 +916,17 @@ export function FloorPlanEditor({
               const x = i % cols;
               const y = Math.floor(i / cols);
               const isOver = drag?.over?.x === x && drag?.over?.y === y;
-              const drawingZone = pending?.kind === "addZone";
+              // Modo edición de zona: creando una nueva (addZone) o con una
+              // zona seleccionada (toca para agregar/quitar, arrastra para
+              // pintar un bloque).
+              const zoneEditActive =
+                pending?.kind === "addZone" || sel?.type === "zone";
               return (
                 <button
                   key={i}
                   type="button"
                   onPointerDown={(e) => {
-                    if (drawingZone) {
+                    if (zoneEditActive) {
                       e.stopPropagation();
                       startZoneDraw(e, x, y);
                     }
@@ -881,13 +942,13 @@ export function FloorPlanEditor({
                     if (dragEndedRef.current) return;
                     onCellTap(x, y);
                   }}
-                  // Evitar scroll de la página mientras se dibuja una zona.
-                  style={drawingZone ? { touchAction: "none" } : undefined}
+                  // Evitar scroll de la página mientras se pinta una zona.
+                  style={zoneEditActive ? { touchAction: "none" } : undefined}
                   className={
                     "border border-dashed " +
                     (isOver
                       ? "border-terracotta bg-terracotta/20"
-                      : pending
+                      : pending || zoneEditActive
                         ? "border-op-border/50 hover:border-terracotta hover:bg-terracotta/10"
                         : "border-op-border/25")
                   }
@@ -896,15 +957,19 @@ export function FloorPlanEditor({
             })}
           </div>
 
-          {/* Vista previa de la zona que se está dibujando al arrastrar */}
+          {/* Vista previa del bloque que se está arrastrando (crear o
+              agregar a la zona seleccionada). */}
           {zoneDraw &&
-            pending?.kind === "addZone" &&
             (() => {
               const zx = Math.min(zoneDraw.sx, zoneDraw.cx);
               const zy = Math.min(zoneDraw.sy, zoneDraw.cy);
               const zw = Math.abs(zoneDraw.cx - zoneDraw.sx) + 1;
               const zh = Math.abs(zoneDraw.cy - zoneDraw.sy) + 1;
-              const c = ZONE_KINDS[pending.zoneKind];
+              const kind =
+                pending?.kind === "addZone"
+                  ? pending.zoneKind
+                  : (selZone?.kind ?? "custom");
+              const c = ZONE_KINDS[kind];
               return (
                 <div
                   className="absolute rounded-lg pointer-events-none z-20"
@@ -990,10 +1055,13 @@ export function FloorPlanEditor({
                   width: cellPx - 6,
                   height: cellPx - 6,
                   opacity: isDragging ? 0.3 : 1,
-                  // Mientras se dibuja una zona, las mesas no bloquean el
-                  // arrastre: el puntero pasa a las celdas de abajo.
+                  // Editando una zona (creando o con una seleccionada), las
+                  // mesas no bloquean: el puntero pasa a las celdas de abajo
+                  // para poder pintar/togglear celdas bajo una mesa.
                   pointerEvents:
-                    pending?.kind === "addZone" ? "none" : undefined,
+                    pending?.kind === "addZone" || sel?.type === "zone"
+                      ? "none"
+                      : undefined,
                 }}
               >
                 <span className="font-display text-xs">

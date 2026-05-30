@@ -33,10 +33,16 @@ const zoneSchema = z.object({
     "custom",
   ]),
   label: z.string().max(40).optional().default(""),
-  x: z.number().int().min(0).max(50),
-  y: z.number().int().min(0).max(50),
-  w: z.number().int().min(1).max(50),
-  h: z.number().int().min(1).max(50),
+  // Conjunto de celdas (zona posiblemente irregular).
+  cells: z
+    .array(
+      z.object({
+        x: z.number().int().min(0).max(50),
+        y: z.number().int().min(0).max(50),
+      }),
+    )
+    .min(1)
+    .max(400),
 });
 const markerSchema = z.object({
   id: z.string().min(1).max(40),

@@ -296,30 +296,22 @@ export function zoneAnchorCell(
 }
 
 /**
- * Dónde poner la etiqueta de una zona para que no tape una mesa.
- * Busca entre las celdas del BORDE SUPERIOR (las que tienen el lado de
- * arriba hacia afuera) la más arriba-izquierda que esté LIBRE (sin mesa,
- * según `blocked`). Si encontró una libre → `onFree:true` (la etiqueta se
- * apoya sobre esa raya). Si todas están ocupadas → `onFree:false` (el
- * caller la sube por encima de la raya, en el margen reservado).
+ * Dónde poner la etiqueta de una zona. Se ancla en la esquina superior
+ * izquierda de la zona. `onFree` indica si esa esquina está libre (sin
+ * mesa, según `blocked`):
+ *   - onFree=true  → el label va ADENTRO de la zona (esquina sup-izq).
+ *   - onFree=false → hay una mesa tapando: el caller lo pone AFUERA,
+ *     por encima de la raya superior.
  */
 export function zoneLabelAnchor(
   cells: Cell[],
   blocked?: Set<string>,
 ): { x: number; y: number; onFree: boolean } {
-  const set = new Set(cells.map((c) => cellKey(c.x, c.y)));
-  const topEdge = cells.filter((c) => !set.has(cellKey(c.x, c.y - 1)));
   const better = (a: Cell | null, b: Cell) =>
     !a || b.y < a.y || (b.y === a.y && b.x < a.x);
-  let free: Cell | null = null;
-  let any: Cell | null = null;
-  for (const c of topEdge) {
-    if (better(any, c)) any = c;
-    if (!blocked || !blocked.has(cellKey(c.x, c.y))) {
-      if (better(free, c)) free = c;
-    }
-  }
-  if (free) return { x: free.x, y: free.y, onFree: true };
-  const f = any ?? cells[0] ?? { x: 0, y: 0 };
-  return { x: f.x, y: f.y, onFree: false };
+  let corner: Cell | null = null;
+  for (const c of cells) if (better(corner, c)) corner = c;
+  const cc = corner ?? { x: 0, y: 0 };
+  const free = !blocked || !blocked.has(cellKey(cc.x, cc.y));
+  return { x: cc.x, y: cc.y, onFree: free };
 }

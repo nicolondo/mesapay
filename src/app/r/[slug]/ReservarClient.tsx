@@ -764,16 +764,14 @@ function FloorPlanPicker({
           );
           const a = zoneLabelAnchor(z.cells, occupied);
           const transform = a.onFree
-            ? a.y === 0
-              ? "translate(-50%, 2px)"
-              : "translate(-50%, -50%)"
-            : "translate(-50%, -100%)";
+            ? "translate(2px, 2px)"
+            : "translate(2px, calc(-100% - 1px))";
           return (
             <div
               key={z.id + ":label"}
               className="absolute z-30 pointer-events-none text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
               style={{
-                left: (a.x + 0.5) * cellPx,
+                left: a.x * cellPx,
                 top: a.y * cellPx,
                 transform,
                 color: c.text,

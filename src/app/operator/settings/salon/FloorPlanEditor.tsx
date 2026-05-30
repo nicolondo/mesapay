@@ -1080,15 +1080,13 @@ export function FloorPlanEditor({
           {zones.map((z) => {
             const c = ZONE_KINDS[z.kind];
             const a = zoneLabelAnchor(z.cells, occupiedCellKeys);
-            const left = (a.x + 0.5) * cellPx;
+            const left = a.x * cellPx;
             const top = a.y * cellPx;
-            // onFree → sobre la raya de una celda libre (mitad/mitad), o
-            // adentro si toca el tope. Sin celda libre → arriba de la raya.
+            // Esquina libre → label ADENTRO (arriba-izquierda de la zona).
+            // Esquina con mesa → label AFUERA, por encima de la raya.
             const transform = a.onFree
-              ? a.y === 0
-                ? "translate(-50%, 2px)"
-                : "translate(-50%, -50%)"
-              : "translate(-50%, -100%)";
+              ? "translate(2px, 2px)"
+              : "translate(2px, calc(-100% - 1px))";
             return (
               <div
                 key={z.id + ":label"}

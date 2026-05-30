@@ -74,6 +74,7 @@ export function ReservarClient({
   source,
   kushkiPublicKey,
   kushkiMode,
+  pseBanks,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -85,6 +86,7 @@ export function ReservarClient({
   source: "direct" | "google_maps";
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  pseBanks: { code: string; name: string }[];
 }) {
   const [date, setDate] = useState(todayLocal());
   const [partySize, setPartySize] = useState(2);
@@ -264,6 +266,7 @@ export function ReservarClient({
             methods={depositStep.methods}
             kushkiPublicKey={kushkiPublicKey}
             kushkiMode={kushkiMode}
+            pseBanks={pseBanks}
             onApproved={() => {
               const code = depositStep.code;
               setDepositStep(null);
@@ -814,6 +817,7 @@ function DepositPay({
   methods,
   kushkiPublicKey,
   kushkiMode,
+  pseBanks,
   onApproved,
 }: {
   tenantSlug: string;
@@ -822,6 +826,7 @@ function DepositPay({
   methods: string[];
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  pseBanks: { code: string; name: string }[];
   onApproved: () => void;
 }) {
   // Apple Pay sólo se ofrece si el navegador realmente lo soporta
@@ -891,6 +896,7 @@ function DepositPay({
           depositCents={depositCents}
           kushkiPublicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
+          initialBanks={pseBanks}
         />
         {backBtn}
       </>
@@ -993,7 +999,7 @@ function DepositCard({
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido — Kushki lo requiere.");
+      setErr("Email inválido.");
       return;
     }
 
@@ -1031,7 +1037,7 @@ function DepositCard({
           await res.json().catch(() => ({}));
         if (!res.ok || json.code || !json.token) {
           setErr(
-            `${json.message ?? "Error de Kushki"}${json.code ? ` (${json.code})` : ""}`,
+            `${json.message ?? "No pudimos procesar el pago"}${json.code ? ` (${json.code})` : ""}`,
           );
           setBusy(false);
           return;
@@ -1151,7 +1157,7 @@ function DepositCard({
         {busy ? "Procesando…" : `Pagar depósito · ${fmtCOP(depositCents)}`}
       </button>
       <p className="text-[10px] text-muted text-center">
-        Pago seguro procesado por Kushki. Tus datos no se guardan en MESAPAY.
+        Pago seguro. Tus datos de tarjeta no se guardan en MESAPAY.
       </p>
     </div>
   );
@@ -1224,7 +1230,7 @@ function DepositApplePay({
         </div>
       )}
       <p className="text-[10px] text-muted text-center mt-3">
-        Disponible en Safari (iPhone / Mac). Pago seguro por Kushki.
+        Disponible en Safari (iPhone / Mac).
       </p>
     </div>
   );
@@ -1241,15 +1247,23 @@ function DepositPse({
   depositCents,
   kushkiPublicKey,
   kushkiMode,
+  initialBanks,
 }: {
   tenantSlug: string;
   code: string;
   depositCents: number;
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  initialBanks: { code: string; name: string }[];
 }) {
-  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
-  const [banksLoading, setBanksLoading] = useState(true);
+  // Bancos pre-cargados desde el server (SSR) → dropdown instantáneo.
+  // Si vinieron vacíos, caemos al fetch del browser (cache 1h).
+  const [banks, setBanks] = useState<{ code: string; name: string }[]>(
+    initialBanks ?? [],
+  );
+  const [banksLoading, setBanksLoading] = useState(
+    (initialBanks ?? []).length === 0,
+  );
   const [bankCode, setBankCode] = useState("");
   const [email, setEmail] = useState("");
   const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA" | "TI">(
@@ -1262,6 +1276,7 @@ function DepositPse({
   const isMock = kushkiMode === "mock";
 
   useEffect(() => {
+    if (banks.length > 0) return; // ya vinieron del SSR
     let alive = true;
     (async () => {
       setBanksLoading(true);
@@ -1279,6 +1294,7 @@ function DepositPse({
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug]);
 
   async function pay() {
@@ -1368,7 +1384,7 @@ function DepositPse({
       });
       if (response.code || !response.token) {
         setErr(
-          `${response.message ?? response.error ?? "Error de Kushki"}${response.code ? ` (${response.code})` : ""}`,
+          `${response.message ?? response.error ?? "No pudimos procesar el pago"}${response.code ? ` (${response.code})` : ""}`,
         );
         setBusy(false);
         return;
@@ -1480,8 +1496,8 @@ function DepositPse({
         {busy ? "Conectando con tu banco…" : `Pagar con PSE · ${fmtCOP(depositCents)}`}
       </button>
       <p className="text-[10px] text-muted text-center">
-        Te llevamos a tu banco para autorizar la transferencia. Pago seguro por
-        Kushki.
+        Te llevamos a tu banco para autorizar la transferencia de forma
+        segura.
       </p>
     </div>
   );

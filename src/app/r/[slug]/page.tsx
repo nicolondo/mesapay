@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { getKushkiMode } from "@/lib/platformConfig";
+import { getPaymentProvider } from "@/lib/payments";
 import { ReservarClient } from "./ReservarClient";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function ReservarPage({
       reservationConfig: true,
       legalCity: true,
       kushkiPublicKey: true,
+      kushkiOnboardingStatus: true,
     },
   });
   if (!tenant) return notFound();
@@ -57,6 +59,21 @@ export default async function ReservarPage({
 
   const config = resolveReservationConfig(tenant.reservationConfig);
 
+  // Pre-cargamos la lista de bancos PSE en el server (cacheada 1h) para
+  // que el dropdown del depósito por PSE salga instantáneo — sin el
+  // "Cargando bancos…". Mismo patrón que el checkout de pedidos. Sólo
+  // cuando el comercio está onboardeado; best-effort, no bloquea la
+  // página si falla.
+  let pseBanks: { code: string; name: string }[] = [];
+  if (tenant.kushkiOnboardingStatus === "active" && tenant.kushkiPublicKey) {
+    try {
+      const provider = await getPaymentProvider();
+      pseBanks = await provider.listPseBanks(tenant.kushkiPublicKey);
+    } catch (err) {
+      console.error("[reservar] prefetch pse banks", err);
+    }
+  }
+
   return (
     <ReservarClient
       tenantSlug={slug}
@@ -69,6 +86,7 @@ export default async function ReservarPage({
       source={source === "google" ? "google_maps" : "direct"}
       kushkiPublicKey={tenant.kushkiPublicKey}
       kushkiMode={await getKushkiMode()}
+      pseBanks={pseBanks}
     />
   );
 }

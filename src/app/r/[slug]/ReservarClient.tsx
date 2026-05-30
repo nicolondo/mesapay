@@ -824,14 +824,33 @@ function DepositPay({
   kushkiMode: "mock" | "sandbox" | "production";
   onApproved: () => void;
 }) {
-  const available = methods.filter((m) => m in DEPOSIT_METHOD_NAMES);
-  const list = available.length > 0 ? available : ["kushki_card"];
-  const [selected, setSelected] = useState<string>(
-    list.length === 1 ? list[0] : "",
+  // Apple Pay sólo se ofrece si el navegador realmente lo soporta
+  // (Safari en iPhone/Mac). En el resto lo ocultamos del selector para
+  // no mostrar una opción muerta.
+  const [appleOk, setAppleOk] = useState(false);
+  const [selected, setSelected] = useState("");
+  useEffect(() => {
+    try {
+      const w = window as unknown as {
+        ApplePaySession?: { canMakePayments?: () => boolean };
+      };
+      setAppleOk(!!w.ApplePaySession?.canMakePayments?.());
+    } catch {
+      /* sin soporte */
+    }
+  }, []);
+
+  const known = methods.filter((m) => m in DEPOSIT_METHOD_NAMES);
+  const available = known.filter(
+    (m) => m !== "kushki_apple_pay" || appleOk,
   );
+  // Si filtrar dejó la lista vacía (p.ej. sólo Apple Pay y no es Safari),
+  // mostramos igual lo configurado para explicar por qué no se puede.
+  const list = available.length > 0 ? available : known;
+  const effective = selected || (list.length === 1 ? list[0] : "");
 
   // Selector cuando hay más de un medio.
-  if (!selected) {
+  if (!effective) {
     return (
       <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-2">
         <div className="text-sm font-medium text-ink mb-1">
@@ -863,7 +882,7 @@ function DepositPay({
       </button>
     ) : null;
 
-  if (selected === "kushki_pse") {
+  if (effective === "kushki_pse") {
     return (
       <>
         <DepositPse
@@ -878,7 +897,7 @@ function DepositPay({
     );
   }
 
-  if (selected === "kushki_apple_pay") {
+  if (effective === "kushki_apple_pay") {
     return (
       <>
         <DepositApplePay

@@ -708,11 +708,21 @@ function FloorPlanPicker({
               <span style={{ fontSize: Math.min(20, cellPx * 0.5) }}>
                 {k.icon}
               </span>
-              {cellPx >= 40 && (
-                <span className="text-[8px] leading-none text-muted mt-0.5 truncate max-w-full px-0.5">
-                  {markerLabel(m)}
-                </span>
-              )}
+              {/* Nombre siempre visible debajo del ícono (la entrada, sobre
+                  todo, para que el cliente se ubique). */}
+              <span
+                className="absolute left-1/2 -translate-x-1/2 text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap z-10"
+                style={{
+                  top: "100%",
+                  marginTop: 1,
+                  color: isEntrance ? "#8f3420" : "#5b5446",
+                  background: isEntrance
+                    ? "rgba(193,73,46,0.16)"
+                    : "rgba(255,255,255,0.92)",
+                }}
+              >
+                {markerLabel(m)}
+              </span>
             </div>
           );
         })}

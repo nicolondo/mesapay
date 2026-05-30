@@ -1014,11 +1014,22 @@ export function FloorPlanEditor({
                 <span style={{ fontSize: Math.min(20, cellPx * 0.5) }}>
                   {k.icon}
                 </span>
-                {cellPx >= 38 && (
-                  <span className="text-[8px] leading-none text-op-muted mt-0.5 truncate max-w-full px-0.5">
-                    {markerLabel(m)}
-                  </span>
-                )}
+                {/* Etiqueta siempre visible (texto), justo debajo del ícono.
+                    Se desborda horizontal para leerse aunque la celda sea
+                    chica — clave para que la gente entienda "Entrada". */}
+                <span
+                  className="absolute left-1/2 -translate-x-1/2 text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap z-10"
+                  style={{
+                    top: "100%",
+                    marginTop: 1,
+                    color: isEntrance ? "#8f3420" : "#5b5b5b",
+                    background: isEntrance
+                      ? "rgba(193,73,46,0.16)"
+                      : "rgba(255,255,255,0.92)",
+                  }}
+                >
+                  {markerLabel(m)}
+                </span>
               </div>
             );
           })}

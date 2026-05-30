@@ -99,6 +99,14 @@ export function FloorPlanEditor({
   // Drag & drop de mesas.
   const gridRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  // Dibujo de una zona arrastrando sobre varias celdas (modo "+ Zona").
+  // sx/sy = celda donde empezó; cx/cy = celda actual del puntero.
+  const [zoneDraw, setZoneDraw] = useState<{
+    sx: number;
+    sy: number;
+    cx: number;
+    cy: number;
+  } | null>(null);
   // Suprime el click sintético que sigue a un pointerup de drag para que
   // no deseleccione/dispare onCellTap por accidente.
   const dragEndedRef = useRef(false);
@@ -224,6 +232,51 @@ export function FloorPlanEditor({
       if (t && t.x == null) setPending({ kind: "placeTable", id: d.tableId });
     }
     // Suprimir el click sintético que sigue.
+    dragEndedRef.current = true;
+    setTimeout(() => {
+      dragEndedRef.current = false;
+    }, 0);
+  }
+
+  // ── Dibujo de zona arrastrando sobre varias celdas ────────────────
+  function startZoneDraw(e: React.PointerEvent, x: number, y: number) {
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* sin captura — igual funciona con los listeners del elemento */
+    }
+    setZoneDraw({ sx: x, sy: y, cx: x, cy: y });
+  }
+  function moveZoneDraw(e: React.PointerEvent) {
+    setZoneDraw((zd) => {
+      if (!zd) return zd;
+      const c = cellFromPoint(e.clientX, e.clientY);
+      if (!c) return zd;
+      return { ...zd, cx: c.x, cy: c.y };
+    });
+  }
+  function endZoneDraw() {
+    const zd = zoneDraw;
+    const pk = pending;
+    setZoneDraw(null);
+    if (!zd || pk?.kind !== "addZone") return;
+    const x = Math.min(zd.sx, zd.cx);
+    const y = Math.min(zd.sy, zd.cy);
+    let w = Math.abs(zd.cx - zd.sx) + 1;
+    let h = Math.abs(zd.cy - zd.sy) + 1;
+    // Un toque simple (1×1) crea una zona de 2×2 por defecto.
+    if (w === 1 && h === 1) {
+      w = Math.min(2, cols - x);
+      h = Math.min(2, rows - y);
+    }
+    const id = newId("z");
+    setZones((zs) => [
+      ...zs,
+      { id, kind: pk.zoneKind, label: ZONE_KINDS[pk.zoneKind].label, x, y, w, h },
+    ]);
+    setSel({ type: "zone", id });
+    setPending(null);
+    markDirty();
     dragEndedRef.current = true;
     setTimeout(() => {
       dragEndedRef.current = false;
@@ -443,7 +496,7 @@ export function FloorPlanEditor({
         : pending.kind === "moveMarker"
           ? "Tocá la celda donde va el ícono"
           : pending.kind === "addZone"
-            ? `Tocá una celda para crear la zona "${ZONE_KINDS[pending.zoneKind].label}"`
+            ? `Arrastrá sobre las celdas para cubrir la zona "${ZONE_KINDS[pending.zoneKind].label}" (o tocá una)`
             : `Tocá una celda para poner "${MARKER_KINDS[pending.markerKind].label}"`
     : null;
 
@@ -806,15 +859,30 @@ export function FloorPlanEditor({
               const x = i % cols;
               const y = Math.floor(i / cols);
               const isOver = drag?.over?.x === x && drag?.over?.y === y;
+              const drawingZone = pending?.kind === "addZone";
               return (
                 <button
                   key={i}
                   type="button"
+                  onPointerDown={(e) => {
+                    if (drawingZone) {
+                      e.stopPropagation();
+                      startZoneDraw(e, x, y);
+                    }
+                  }}
+                  onPointerMove={(e) => {
+                    if (zoneDraw) moveZoneDraw(e);
+                  }}
+                  onPointerUp={() => {
+                    if (zoneDraw) endZoneDraw();
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (dragEndedRef.current) return;
                     onCellTap(x, y);
                   }}
+                  // Evitar scroll de la página mientras se dibuja una zona.
+                  style={drawingZone ? { touchAction: "none" } : undefined}
                   className={
                     "border border-dashed " +
                     (isOver
@@ -827,6 +895,30 @@ export function FloorPlanEditor({
               );
             })}
           </div>
+
+          {/* Vista previa de la zona que se está dibujando al arrastrar */}
+          {zoneDraw &&
+            pending?.kind === "addZone" &&
+            (() => {
+              const zx = Math.min(zoneDraw.sx, zoneDraw.cx);
+              const zy = Math.min(zoneDraw.sy, zoneDraw.cy);
+              const zw = Math.abs(zoneDraw.cx - zoneDraw.sx) + 1;
+              const zh = Math.abs(zoneDraw.cy - zoneDraw.sy) + 1;
+              const c = ZONE_KINDS[pending.zoneKind];
+              return (
+                <div
+                  className="absolute rounded-lg pointer-events-none z-20"
+                  style={{
+                    left: zx * cellPx + 2,
+                    top: zy * cellPx + 2,
+                    width: zw * cellPx - 4,
+                    height: zh * cellPx - 4,
+                    background: c.fill,
+                    border: `2px solid ${c.stroke}`,
+                  }}
+                />
+              );
+            })()}
 
           {/* Capa 3: markers (visual) */}
           {markers.map((m) => {
@@ -898,6 +990,10 @@ export function FloorPlanEditor({
                   width: cellPx - 6,
                   height: cellPx - 6,
                   opacity: isDragging ? 0.3 : 1,
+                  // Mientras se dibuja una zona, las mesas no bloquean el
+                  // arrastre: el puntero pasa a las celdas de abajo.
+                  pointerEvents:
+                    pending?.kind === "addZone" ? "none" : undefined,
                 }}
               >
                 <span className="font-display text-xs">

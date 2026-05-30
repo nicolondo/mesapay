@@ -287,7 +287,12 @@ export function FloorPlanEditor({
       const zk = pending.zoneKind;
       setZones((zs) => [
         ...zs,
-        { id, kind: zk, label: ZONE_KINDS[zk].label, cells: rect },
+        {
+          id,
+          kind: zk,
+          label: zk === "custom" ? "" : ZONE_KINDS[zk].label,
+          cells: rect,
+        },
       ]);
       setSel({ type: "zone", id });
       setPending(null);
@@ -391,7 +396,12 @@ export function FloorPlanEditor({
           const zk = pending.zoneKind;
           setZones((zs) => [
             ...zs,
-            { id, kind: zk, label: ZONE_KINDS[zk].label, cells: [{ x, y }] },
+            {
+              id,
+              kind: zk,
+              label: zk === "custom" ? "" : ZONE_KINDS[zk].label,
+              cells: [{ x, y }],
+            },
           ]);
           setSel({ type: "zone", id });
           break;
@@ -451,19 +461,20 @@ export function FloorPlanEditor({
   }
   function setZoneKindOf(id: string, kind: ZoneKind) {
     setZones((zs) =>
-      zs.map((z) =>
-        z.id === id
-          ? {
-              ...z,
-              kind,
-              // Si el label era el default del kind anterior, lo actualizamos.
-              label:
-                z.label === ZONE_KINDS[z.kind].label
-                  ? ZONE_KINDS[kind].label
-                  : z.label,
-            }
-          : z,
-      ),
+      zs.map((z) => {
+        if (z.id !== id) return z;
+        // Si el label era el default del tipo anterior (o vacío), lo
+        // actualizamos al del nuevo tipo. Para "Personalizada" dejamos el
+        // label vacío (el operador escribe el nombre, no ponemos texto).
+        const wasDefault =
+          z.label === ZONE_KINDS[z.kind].label || z.label.trim() === "";
+        const nextLabel = wasDefault
+          ? kind === "custom"
+            ? ""
+            : ZONE_KINDS[kind].label
+          : z.label;
+        return { ...z, kind, label: nextLabel };
+      }),
     );
     markDirty();
   }
@@ -751,7 +762,7 @@ export function FloorPlanEditor({
       )}
 
       {selZone && (
-        <SelPanel title={`Zona: ${selZone.label}`}>
+        <SelPanel title={`Zona: ${selZone.label || "(sin nombre)"}`}>
           <select
             value={selZone.kind}
             onChange={(e) => setZoneKindOf(selZone.id, e.target.value as ZoneKind)}
@@ -768,8 +779,12 @@ export function FloorPlanEditor({
             value={selZone.label}
             maxLength={40}
             onChange={(e) => setZoneLabelOf(selZone.id, e.target.value)}
-            className="h-8 w-32 rounded-full border border-op-border bg-op-surface text-xs px-3"
-            placeholder="Nombre"
+            className="h-8 w-40 rounded-full border border-op-border bg-op-surface text-xs px-3"
+            placeholder={
+              selZone.kind === "custom"
+                ? "Escribí el nombre de la zona"
+                : "Nombre"
+            }
           />
           <button
             type="button"
@@ -1078,6 +1093,7 @@ export function FloorPlanEditor({
               tapar mesas; si todas están ocupadas, se ponen arriba de la
               raya (en el margen superior reservado). */}
           {zones.map((z) => {
+            if (!z.label.trim()) return null; // zona sin nombre → sin label
             const c = ZONE_KINDS[z.kind];
             const a = zoneLabelAnchor(z.cells, occupiedCellKeys);
             const left = a.x * cellPx;
@@ -1194,7 +1210,7 @@ export function FloorPlanEditor({
                     className="w-2.5 h-2.5 rounded-sm"
                     style={{ background: c.stroke }}
                   />
-                  {z.label}
+                  {z.label || "Sin nombre"}
                 </button>
               );
             })}

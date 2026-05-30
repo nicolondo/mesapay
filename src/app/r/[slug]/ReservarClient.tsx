@@ -758,6 +758,7 @@ function FloorPlanPicker({
             libre del borde superior (sin mesa); si todas están ocupadas,
             arriba de la raya (en el margen reservado). */}
         {floorPlan.zones.map((z) => {
+          if (!z.label.trim()) return null; // zona sin nombre → sin label
           const c = ZONE_KINDS[z.kind];
           const occupied = new Set(
             floorTables.map((t) => cellKey(t.x, t.y)),

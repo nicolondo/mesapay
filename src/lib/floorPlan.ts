@@ -232,10 +232,13 @@ export function resolveFloorPlan(stored: unknown): FloorPlan {
       }
       if (cells.length === 0) return; // zona vacía → descartar
 
+      // Label: si vino texto, se respeta. Si está vacío, las zonas con
+      // tipo preset (interior, terraza…) usan el nombre del tipo; la
+      // "Personalizada" queda SIN nombre (el operador escribe el suyo).
+      const rawLabel =
+        typeof z.label === "string" ? z.label.trim().slice(0, 40) : "";
       const label =
-        typeof z.label === "string" && z.label.trim()
-          ? z.label.trim().slice(0, 40)
-          : ZONE_KINDS[z.kind].label;
+        rawLabel || (z.kind === "custom" ? "" : ZONE_KINDS[z.kind].label);
       const id = typeof z.id === "string" && z.id ? z.id : `z${i}`;
       zones.push({ id, kind: z.kind, label, cells });
     });

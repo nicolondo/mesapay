@@ -15,6 +15,7 @@ import {
   markerLabel,
   cellKey,
   zoneAnchorCell,
+  zoneLabelAnchor,
   FLOOR_MIN_COLS,
   FLOOR_MAX_COLS,
   FLOOR_MIN_ROWS,
@@ -115,6 +116,11 @@ export function FloorPlanEditor({
 
   const placed = tables.filter((t) => t.x != null && t.y != null);
   const unplaced = tables.filter((t) => t.x == null || t.y == null);
+  // Celdas tapadas por una mesa — para ubicar el label de zona donde no
+  // haya mesa encima.
+  const occupiedCellKeys = new Set(
+    placed.map((t) => cellKey(t.x as number, t.y as number)),
+  );
 
   // Mínimos de la grilla: no podés encogerla por debajo de lo que ya
   // está ocupado (mesas, zonas que terminan en x+w, markers).
@@ -833,8 +839,9 @@ export function FloorPlanEditor({
         </SelPanel>
       )}
 
-      {/* Lienzo */}
-      <div className="rounded-2xl border border-op-border bg-op-bg p-2 overflow-auto max-h-[68vh]">
+      {/* Lienzo — pt-6 reserva espacio arriba para los labels de zona que
+          se apoyan sobre la raya superior cuando no hay celda libre. */}
+      <div className="rounded-2xl border border-op-border bg-op-bg px-2 pb-2 pt-6 overflow-auto max-h-[68vh]">
         <div
           ref={gridRef}
           className="relative mx-auto"
@@ -1066,28 +1073,30 @@ export function FloorPlanEditor({
             );
           })}
 
-          {/* Capa 5: etiquetas de zona — encima de todo y apoyadas sobre la
-              línea superior de la zona, así se leen siempre aunque la zona
-              sea angosta o haya una mesa encima. */}
+          {/* Capa 5: etiquetas de zona — encima de todo. Se anclan sobre
+              una celda LIBRE del borde superior (sin mesa encima) para no
+              tapar mesas; si todas están ocupadas, se ponen arriba de la
+              raya (en el margen superior reservado). */}
           {zones.map((z) => {
             const c = ZONE_KINDS[z.kind];
-            const xs = z.cells.map((cc) => cc.x);
-            const minY = Math.min(...z.cells.map((cc) => cc.y));
-            const centerX = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cellPx;
-            const atTop = minY === 0;
+            const a = zoneLabelAnchor(z.cells, occupiedCellKeys);
+            const left = (a.x + 0.5) * cellPx;
+            const top = a.y * cellPx;
+            // onFree → sobre la raya de una celda libre (mitad/mitad), o
+            // adentro si toca el tope. Sin celda libre → arriba de la raya.
+            const transform = a.onFree
+              ? a.y === 0
+                ? "translate(-50%, 2px)"
+                : "translate(-50%, -50%)"
+              : "translate(-50%, -100%)";
             return (
               <div
                 key={z.id + ":label"}
                 className="absolute z-30 pointer-events-none text-[10px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
                 style={{
-                  left: centerX,
-                  top: minY * cellPx,
-                  // Centrado SOBRE la raya superior (mitad afuera, mitad
-                  // adentro) para no tapar del todo una mesa que esté arriba.
-                  // Si la zona toca el borde de arriba, lo metemos adentro.
-                  transform: atTop
-                    ? "translate(-50%, 2px)"
-                    : "translate(-50%, -50%)",
+                  left,
+                  top,
+                  transform,
                   color: c.text,
                   background: "rgba(255,255,255,0.92)",
                   border: `1px solid ${c.stroke}`,

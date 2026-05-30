@@ -8,6 +8,7 @@ import {
   MARKER_KINDS,
   markerLabel,
   cellKey,
+  zoneLabelAnchor,
 } from "@/lib/floorPlan";
 
 type AvailTable = {
@@ -626,7 +627,7 @@ function FloorPlanPicker({
   return (
     <div
       ref={wrapRef}
-      className="rounded-2xl border border-hairline bg-paper p-2 overflow-auto"
+      className="rounded-2xl border border-hairline bg-paper px-2 pb-2 pt-6 overflow-auto"
     >
       <div className="relative mx-auto" style={{ width: gridW, height: gridH }}>
         {/* Zonas (fondo) — celdas con borde sólo en los bordes externos.
@@ -753,27 +754,28 @@ function FloorPlanPicker({
           );
         })}
 
-        {/* Nombres de zona — capa superior, apoyados sobre la línea de
-            arriba de cada zona para que se lean siempre. */}
+        {/* Nombres de zona — capa superior. Se apoyan sobre una celda
+            libre del borde superior (sin mesa); si todas están ocupadas,
+            arriba de la raya (en el margen reservado). */}
         {floorPlan.zones.map((z) => {
           const c = ZONE_KINDS[z.kind];
-          const xs = z.cells.map((cc) => cc.x);
-          const minY = Math.min(...z.cells.map((cc) => cc.y));
-          const centerX =
-            ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cellPx;
-          const atTop = minY === 0;
+          const occupied = new Set(
+            floorTables.map((t) => cellKey(t.x, t.y)),
+          );
+          const a = zoneLabelAnchor(z.cells, occupied);
+          const transform = a.onFree
+            ? a.y === 0
+              ? "translate(-50%, 2px)"
+              : "translate(-50%, -50%)"
+            : "translate(-50%, -100%)";
           return (
             <div
               key={z.id + ":label"}
               className="absolute z-30 pointer-events-none text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
               style={{
-                left: centerX,
-                top: minY * cellPx,
-                // Centrado sobre la raya superior (mitad afuera/adentro)
-                // para no tapar del todo una mesa que esté arriba.
-                transform: atTop
-                  ? "translate(-50%, 2px)"
-                  : "translate(-50%, -50%)",
+                left: (a.x + 0.5) * cellPx,
+                top: a.y * cellPx,
+                transform,
                 color: c.text,
                 background: "rgba(255,255,255,0.92)",
                 border: `1px solid ${c.stroke}`,

@@ -1082,11 +1082,12 @@ export function FloorPlanEditor({
                 style={{
                   left: centerX,
                   top: minY * cellPx,
-                  // Sobre la línea superior (en la fila de arriba). Si la
-                  // zona toca el borde de arriba, lo metemos apenas adentro.
+                  // Centrado SOBRE la raya superior (mitad afuera, mitad
+                  // adentro) para no tapar del todo una mesa que esté arriba.
+                  // Si la zona toca el borde de arriba, lo metemos adentro.
                   transform: atTop
                     ? "translate(-50%, 2px)"
-                    : "translate(-50%, calc(-100% - 1px))",
+                    : "translate(-50%, -50%)",
                   color: c.text,
                   background: "rgba(255,255,255,0.92)",
                   border: `1px solid ${c.stroke}`,

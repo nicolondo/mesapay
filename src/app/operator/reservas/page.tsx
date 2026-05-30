@@ -68,6 +68,8 @@ export default async function OperatorReservasPage() {
     notes: r.notes,
     tableLabel: r.table.label ?? `Mesa ${r.table.number}`,
     confirmationCode: r.confirmationCode,
+    depositStatus: r.depositStatus,
+    depositCents: r.depositCents,
   }));
 
   // Reservas por fuente en los últimos 30 días — métrica para medir

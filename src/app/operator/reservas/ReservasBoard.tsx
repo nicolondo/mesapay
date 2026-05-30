@@ -15,9 +15,22 @@ export type ReservationRow = {
   notes: string | null;
   tableLabel: string;
   confirmationCode: string;
+  depositStatus: string;
+  depositCents: number | null;
 };
 
 const OFFSET_MS = -5 * 60 * 60 * 1000;
+
+const fmtCOP = (cents: number) =>
+  "$" + Math.round(cents / 100).toLocaleString("es-CO");
+
+const DEPOSIT_META: Record<string, { label: string; tint: string }> = {
+  pending: { label: "Depósito pendiente", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
+  paid: { label: "Depósito pagado", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
+  applied: { label: "Abono aplicado", tint: "bg-op-bg text-op-muted" },
+  forfeited: { label: "Depósito retenido", tint: "bg-danger/15 text-danger" },
+  refunded: { label: "Depósito devuelto", tint: "bg-op-bg text-op-muted" },
+};
 
 function fmtDayTime(iso: string): { day: string; time: string } {
   const d = new Date(iso);
@@ -64,9 +77,11 @@ export function ReservasBoard({
   const [rows, setRows] = useState(initialRows);
   const [filter, setFilter] = useState<FilterKey>("active");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
+    setMsg(null);
     const res = await fetch(`/api/operator/reservations/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -77,6 +92,27 @@ export function ReservasBoard({
       // Optimista — actualizamos local + refresh para reordenar.
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)));
       router.refresh();
+    }
+  }
+
+  async function applyDeposit(id: string) {
+    setBusyId(id);
+    setMsg(null);
+    const res = await fetch(`/api/operator/reservations/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "apply_deposit" }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setBusyId(null);
+    if (res.ok) {
+      setRows((rs) =>
+        rs.map((r) => (r.id === id ? { ...r, depositStatus: "applied" } : r)),
+      );
+      setMsg("Abono acreditado a la cuenta de la mesa.");
+      router.refresh();
+    } else {
+      setMsg(j.message ?? "No pudimos acreditar el abono.");
     }
   }
 
@@ -117,6 +153,12 @@ export function ReservasBoard({
         ))}
       </div>
 
+      {msg && (
+        <div className="mb-3 rounded-xl border border-op-border bg-op-surface px-4 py-2 text-sm text-op-text">
+          {msg}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-10 text-center text-sm text-op-muted">
           No hay reservas {filter === "active" ? "activas" : filter === "today" ? "para hoy" : ""}.
@@ -150,6 +192,20 @@ export function ReservasBoard({
                       >
                         {meta.label}
                       </span>
+                      {r.depositStatus !== "none" &&
+                        r.depositCents != null &&
+                        r.depositCents > 0 && (
+                          <span
+                            className={
+                              "inline-flex items-center h-5 px-2 rounded-full text-[10px] font-medium " +
+                              (DEPOSIT_META[r.depositStatus]?.tint ??
+                                "bg-op-bg text-op-muted")
+                            }
+                          >
+                            {DEPOSIT_META[r.depositStatus]?.label ?? "Depósito"}{" "}
+                            {fmtCOP(r.depositCents)}
+                          </span>
+                        )}
                     </div>
                     <div className="text-sm mt-1">
                       <strong>{r.customerName}</strong> · {r.partySize}{" "}
@@ -204,6 +260,18 @@ export function ReservasBoard({
                       </ActionBtn>
                     </>
                   )}
+                  {r.status === "seated" &&
+                    r.depositStatus === "paid" &&
+                    r.depositCents != null &&
+                    r.depositCents > 0 && (
+                      <ActionBtn
+                        onClick={() => applyDeposit(r.id)}
+                        disabled={busy}
+                        tone="ok"
+                      >
+                        Aplicar abono {fmtCOP(r.depositCents)} a la cuenta
+                      </ActionBtn>
+                    )}
                   {r.status === "seated" && (
                     <ActionBtn
                       onClick={() => setStatus(r.id, "completed")}

@@ -23,6 +23,7 @@ export default async function MesasSettingsPage() {
       label: true,
       capacity: true,
       minConsumptionCents: true,
+      reservationDepositCents: true,
       reservable: true,
       shape: true,
     },
@@ -34,6 +35,7 @@ export default async function MesasSettingsPage() {
     label: t.label,
     capacity: t.capacity,
     minConsumptionCents: t.minConsumptionCents,
+    reservationDepositCents: t.reservationDepositCents,
     reservable: t.reservable,
     shape: t.shape,
   }));
@@ -48,9 +50,11 @@ export default async function MesasSettingsPage() {
       </Link>
       <div className="font-display text-3xl mt-2 mb-1">Mesas</div>
       <p className="text-sm text-op-muted mb-6">
-        Capacidad y consumo mínimo de cada mesa. La capacidad se usa
-        para mostrar las mesas correctas al reservar; el consumo mínimo
-        se muestra al cliente al apartar y en la cuenta.
+        Capacidad, consumo mínimo y depósito de cada mesa. La capacidad se
+        usa para mostrar las mesas correctas al reservar; el consumo mínimo
+        se muestra al cliente. El <strong>depósito</strong> se cobra online
+        al reservar y se abona a la cuenta cuando llegan (no se devuelve si
+        no se presentan). Dejalo en blanco para mesas sin depósito.
         {!tenant?.reservationsEnabled && (
           <>
             {" "}

@@ -19,6 +19,14 @@ const patchSchema = z.object({
     .optional(),
   reservable: z.boolean().optional(),
   shape: z.enum(["square", "round", "bar"]).optional(),
+  // Depósito para reservar la mesa (en centavos). null/0 = sin depósito.
+  reservationDepositCents: z
+    .number()
+    .int()
+    .min(0)
+    .max(100_000_000)
+    .nullable()
+    .optional(),
 });
 
 async function guard(id: string, opts: { allowMesero?: boolean } = {}) {
@@ -80,6 +88,9 @@ export async function PATCH(
           reservable: parsed.data.reservable,
         }),
         ...(parsed.data.shape !== undefined && { shape: parsed.data.shape }),
+        ...(parsed.data.reservationDepositCents !== undefined && {
+          reservationDepositCents: parsed.data.reservationDepositCents,
+        }),
       }),
     },
   });

@@ -116,6 +116,11 @@ model Restaurant {
   // las mesas siguen en Table.floorPlanX/Y. Shape: FloorPlan (ver
   // src/lib/floorPlan.ts). Null = grilla por defecto sin zonas.
   floorPlan           Json?
+  // Qué medios de pago se ofrecen para el DEPÓSITO de reserva. Subconjunto
+  // de los métodos online del comercio (tarjeta/PSE/Apple Pay) — efectivo
+  // y datáfono no sirven para apartar a distancia. Array de slugs (ver
+  // src/lib/paymentMethods.ts). Null = todos los online habilitados.
+  reservationDepositMethods Json?
   reservations        Reservation[]
 
   // Does this restaurant have a dedicated bartender / barista (separate
@@ -529,6 +534,11 @@ model Table {
   reservable          Boolean    @default(true)
   floorPlanX          Int?
   floorPlanY          Int?
+  // Depósito para reservar esta mesa. null/0 = sin depósito. Se cobra
+  // online al reservar (tarjeta/PSE) y se abona a la cuenta al llegar
+  // (no reembolsable si no se presentan). Lo edita el operador en
+  // /operator/settings/mesas.
+  reservationDepositCents Int?
 
   orders       Order[]
   reservations Reservation[]
@@ -574,6 +584,25 @@ model Reservation {
   // como JSON liviano para que un operador pueda escribir notas internas
   // sin migración (ej. "llamó por teléfono, pidió mesa cerca de ventana").
   internalLog      Json?
+
+  // ─── Depósito / abono ───────────────────────────────────────────
+  // depositCents: monto del depósito snapshotteado al reservar (de
+  //   Table.reservationDepositCents). null/0 = no exige depósito.
+  // depositStatus: ver enum DepositStatus.
+  // depositMethod: con qué se pagó el depósito (kushki_card / kushki_pse…).
+  // depositTxId: providerRef de Kushki (para conciliación / refund futuro).
+  // holdExpiresAt: mientras está pending, la reserva aparta la mesa sólo
+  //   hasta este instante; si vence sin pagar, deja de bloquear el slot.
+  // appliedOrderId: orden a la que se acreditó el abono (status=applied).
+  // depositPaymentId: el Payment-crédito que se creó al acreditar.
+  depositCents     Int?
+  depositStatus    DepositStatus     @default(none)
+  depositMethod    PaymentMethod?
+  depositTxId      String?
+  holdExpiresAt    DateTime?
+  appliedOrderId   String?
+  depositPaymentId String?
+
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -923,6 +952,28 @@ enum PaymentMethod {
   // private key del sub-merchant. Sincrónico: respuesta approved/declined
   // viene en la misma llamada.
   kushki_card
+  // Abono de reserva: el cliente pagó un depósito al reservar (vía
+  // Kushki) y al sentarse se acredita a la cuenta como un pago ya
+  // recibido. No es un cobro nuevo en la mesa — es plata que ya entró.
+  reservation_deposit
+}
+
+/**
+ * Estado del depósito de una reserva.
+ *   none      — la mesa no exige depósito.
+ *   pending   — reserva creada, esperando el pago del depósito (hold).
+ *   paid      — depósito cobrado OK; la reserva queda confirmada.
+ *   applied   — el abono ya se acreditó a la cuenta cuando llegaron.
+ *   forfeited — no se presentaron (no-show): el comercio lo retiene.
+ *   refunded  — se devolvió (futuro / casos manuales).
+ */
+enum DepositStatus {
+  none
+  pending
+  paid
+  applied
+  forfeited
+  refunded
 }
 
 enum PaymentStatus {

@@ -46,6 +46,7 @@ export async function GET(
         label: t.label,
         capacity: t.capacity,
         minConsumptionCents: t.minConsumptionCents,
+        reservationDepositCents: t.reservationDepositCents,
       })),
     })),
     // Mapa del salón (mesas con coords). Vacío si el operador no

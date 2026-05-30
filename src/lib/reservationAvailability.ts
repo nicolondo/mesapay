@@ -29,6 +29,7 @@ export type AvailableTable = {
   label: string | null;
   capacity: number;
   minConsumptionCents: number | null;
+  reservationDepositCents: number | null;
 };
 
 /** Mesa con posición en el plano — para dibujar el mapa diner-side. */
@@ -38,6 +39,7 @@ export type FloorTable = {
   label: string | null;
   capacity: number;
   minConsumptionCents: number | null;
+  reservationDepositCents: number | null;
   shape: "square" | "round" | "bar";
   x: number;
   y: number;
@@ -115,6 +117,7 @@ export async function getAvailability(args: {
       label: true,
       capacity: true,
       minConsumptionCents: true,
+      reservationDepositCents: true,
       shape: true,
       floorPlanX: true,
       floorPlanY: true,
@@ -127,6 +130,7 @@ export async function getAvailability(args: {
     label: t.label,
     capacity: t.capacity,
     minConsumptionCents: t.minConsumptionCents,
+    reservationDepositCents: t.reservationDepositCents,
     shape: t.shape,
     x: t.floorPlanX as number,
     y: t.floorPlanY as number,
@@ -156,6 +160,7 @@ export async function getAvailability(args: {
       label: true,
       capacity: true,
       minConsumptionCents: true,
+      reservationDepositCents: true,
     },
     orderBy: { number: "asc" },
   });
@@ -181,7 +186,13 @@ export async function getAvailability(args: {
       startsAt: { lt: dayEndUtc },
       endsAt: { gt: dayStartUtc },
     },
-    select: { tableId: true, startsAt: true, endsAt: true },
+    select: {
+      tableId: true,
+      startsAt: true,
+      endsAt: true,
+      status: true,
+      holdExpiresAt: true,
+    },
   });
 
   // Anticipación mínima + ventana máxima.
@@ -199,12 +210,20 @@ export async function getAvailability(args: {
       continue;
     }
     const freeTables = tables.filter((t) => {
-      const overlap = reservations.some(
-        (res) =>
-          res.tableId === t.id &&
-          res.startsAt < endsAt &&
-          res.endsAt > startsAt,
-      );
+      const overlap = reservations.some((res) => {
+        if (res.tableId !== t.id) return false;
+        if (!(res.startsAt < endsAt && res.endsAt > startsAt)) return false;
+        // Hold de depósito vencido sin pagar (reserva pending cuyo
+        // holdExpiresAt ya pasó) → liberó la mesa, no bloquea.
+        if (
+          res.status === "pending" &&
+          res.holdExpiresAt != null &&
+          res.holdExpiresAt.getTime() < now.getTime()
+        ) {
+          return false;
+        }
+        return true;
+      });
       return !overlap;
     });
     slots.push({

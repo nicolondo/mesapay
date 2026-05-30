@@ -66,6 +66,37 @@ export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
 export const PAYMENT_METHOD_SLUGS = PAYMENT_METHOD_CATALOG.map((m) => m.slug);
 
 /**
+ * Métodos que se pueden cobrar de forma REMOTA (el cliente no está en el
+ * local). Son los únicos válidos para un depósito de reserva: efectivo y
+ * datáfono son presenciales, no sirven para apartar a distancia.
+ */
+export const DEPOSIT_CAPABLE_SLUGS: PaymentMethodSlug[] = [
+  "kushki_card",
+  "kushki_pse",
+  "kushki_apple_pay",
+];
+
+/**
+ * Resuelve qué métodos se ofrecen para el DEPÓSITO de reserva.
+ * Intersección de: (métodos habilitados del comercio) ∩ (online-capaces)
+ * ∩ (selección guardada por el operador). storedDeposit null = todos los
+ * habilitados online (default sensato).
+ */
+export function resolveDepositMethods(
+  storedDeposit: unknown,
+  enabled: PaymentMethodSlug[],
+): PaymentMethodSlug[] {
+  const capable = enabled.filter((s) => DEPOSIT_CAPABLE_SLUGS.includes(s));
+  if (storedDeposit == null || !Array.isArray(storedDeposit)) {
+    return capable;
+  }
+  const chosen = new Set(
+    storedDeposit.filter((x): x is string => typeof x === "string"),
+  );
+  return capable.filter((s) => chosen.has(s));
+}
+
+/**
  * Resolve the JSON blob into a typed slug list. Anything malformed
  * falls back to "all enabled" so the checkout never ends up empty.
  */

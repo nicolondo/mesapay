@@ -8,6 +8,7 @@ export type MesaRow = {
   label: string | null;
   capacity: number;
   minConsumptionCents: number | null;
+  reservationDepositCents: number | null;
   reservable: boolean;
   shape: "square" | "round" | "bar";
 };
@@ -43,10 +44,11 @@ export function MesasAttrsClient({
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
       {/* Header (desktop) */}
-      <div className="hidden md:grid grid-cols-[1fr_90px_140px_90px] gap-3 px-4 py-2 border-b border-op-border text-[10px] font-mono tracking-wider uppercase text-op-muted">
+      <div className="hidden md:grid grid-cols-[1fr_80px_120px_120px_80px] gap-3 px-4 py-2 border-b border-op-border text-[10px] font-mono tracking-wider uppercase text-op-muted">
         <div>Mesa</div>
         <div>Capacidad</div>
         <div>Consumo mín.</div>
+        <div>Depósito</div>
         <div className="text-right">Reservable</div>
       </div>
 
@@ -54,7 +56,7 @@ export function MesasAttrsClient({
         {rows.map((r) => (
           <li
             key={r.id}
-            className="px-4 py-3 grid grid-cols-2 md:grid-cols-[1fr_90px_140px_90px] gap-3 items-center"
+            className="px-4 py-3 grid grid-cols-2 md:grid-cols-[1fr_80px_120px_120px_80px] gap-3 items-center"
           >
             <div className="col-span-2 md:col-span-1 font-medium text-sm">
               {r.label ?? `Mesa ${r.number}`}
@@ -112,6 +114,40 @@ export function MesasAttrsClient({
                   onBlur={() =>
                     patch(r.id, {
                       minConsumptionCents: r.minConsumptionCents,
+                    })
+                  }
+                  className="w-full h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+                />
+              </div>
+            </label>
+
+            {/* Depósito para reservar (en pesos) */}
+            <label className="block">
+              <span className="md:hidden text-[10px] font-mono uppercase text-op-muted">
+                Depósito para reservar
+              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-op-muted text-sm">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  placeholder="—"
+                  value={
+                    r.reservationDepositCents != null
+                      ? Math.round(r.reservationDepositCents / 100)
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const pesos = e.target.value.trim();
+                    setLocal(r.id, {
+                      reservationDepositCents:
+                        pesos === "" ? null : Number(pesos) * 100,
+                    });
+                  }}
+                  onBlur={() =>
+                    patch(r.id, {
+                      reservationDepositCents: r.reservationDepositCents,
                     })
                   }
                   className="w-full h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"

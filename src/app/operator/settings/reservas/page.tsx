@@ -2,6 +2,11 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveReservationConfig } from "@/lib/reservations";
+import {
+  resolveEnabledPaymentMethods,
+  resolveDepositMethods,
+  DEPOSIT_CAPABLE_SLUGS,
+} from "@/lib/paymentMethods";
 import { ReservasConfigClient } from "./ReservasConfigClient";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +21,22 @@ export default async function ReservasSettingsPage() {
       slug: true,
       reservationsEnabled: true,
       reservationConfig: true,
+      enabledPaymentMethods: true,
+      reservationDepositMethods: true,
     },
   });
   if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+
+  const enabledMethods = resolveEnabledPaymentMethods(
+    tenant.enabledPaymentMethods,
+  );
+  const depositCapable = enabledMethods.filter((s) =>
+    DEPOSIT_CAPABLE_SLUGS.includes(s),
+  );
+  const initialDepositMethods = resolveDepositMethods(
+    tenant.reservationDepositMethods,
+    enabledMethods,
+  );
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -39,6 +57,8 @@ export default async function ReservasSettingsPage() {
         tenantSlug={tenant.slug}
         initialEnabled={tenant.reservationsEnabled}
         initialConfig={resolveReservationConfig(tenant.reservationConfig)}
+        depositCapable={depositCapable}
+        initialDepositMethods={initialDepositMethods}
       />
     </div>
   );

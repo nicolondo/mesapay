@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
   ReservationConfig,
   Shift,
   Weekday,
 } from "@/lib/reservations";
+import type { PaymentMethodSlug } from "@/lib/paymentMethods";
+
+const DEPOSIT_METHOD_LABELS: Record<string, string> = {
+  kushki_card: "Tarjeta",
+  kushki_pse: "PSE",
+  kushki_apple_pay: "Apple Pay",
+};
 
 const DAY_LABELS: Record<Weekday, string> = {
   0: "Domingo",
@@ -26,15 +34,30 @@ export function ReservasConfigClient({
   tenantSlug,
   initialEnabled,
   initialConfig,
+  depositCapable,
+  initialDepositMethods,
 }: {
   tenantSlug: string;
   initialEnabled: boolean;
   initialConfig: ReservationConfig;
+  /** Métodos online del comercio que pueden cobrar un depósito. */
+  depositCapable: PaymentMethodSlug[];
+  /** Selección actual (subconjunto de depositCapable). */
+  initialDepositMethods: PaymentMethodSlug[];
 }) {
   const router = useRouter();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [config, setConfig] = useState<ReservationConfig>(initialConfig);
+  const [depositMethods, setDepositMethods] = useState<PaymentMethodSlug[]>(
+    initialDepositMethods,
+  );
   const [busy, setBusy] = useState(false);
+
+  function toggleDepositMethod(slug: PaymentMethodSlug) {
+    setDepositMethods((ms) =>
+      ms.includes(slug) ? ms.filter((m) => m !== slug) : [...ms, slug],
+    );
+  }
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
@@ -85,7 +108,7 @@ export function ReservasConfigClient({
     const res = await fetch("/api/operator/settings/reservations", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabled, config }),
+      body: JSON.stringify({ enabled, config, depositMethods }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -313,6 +336,61 @@ export function ReservasConfigClient({
                 className="mt-1 w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
               />
             </label>
+          </div>
+
+          {/* Depósito para reservar */}
+          <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+            <div className="font-display text-lg mb-1">Depósito para reservar</div>
+            <p className="text-xs text-op-muted mb-4">
+              El monto del depósito se define <strong>por mesa</strong> en{" "}
+              <Link
+                href="/operator/settings/mesas"
+                className="text-terracotta hover:underline"
+              >
+                Mesas
+              </Link>
+              . Acá elegís con qué medios online se cobra al reservar. Se
+              abona a la cuenta cuando llegan; si no se presentan, no se
+              devuelve. Efectivo y datáfono no aplican (el cliente no está
+              en el local al reservar).
+            </p>
+
+            {depositCapable.length === 0 ? (
+              <div className="rounded-xl border border-op-border bg-op-bg p-4 text-xs text-op-muted">
+                Para cobrar depósitos necesitás un medio de pago online
+                activo (Tarjeta, PSE o Apple Pay). Activalos en{" "}
+                <Link
+                  href="/operator/settings/pagos"
+                  className="text-terracotta hover:underline"
+                >
+                  Pagos
+                </Link>
+                .
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {depositCapable.map((slug) => (
+                  <label
+                    key={slug}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-op-border bg-op-bg px-4 py-3 cursor-pointer"
+                  >
+                    <span className="text-sm font-medium">
+                      {DEPOSIT_METHOD_LABELS[slug] ?? slug}
+                    </span>
+                    <Toggle
+                      on={depositMethods.includes(slug)}
+                      onChange={() => toggleDepositMethod(slug)}
+                    />
+                  </label>
+                ))}
+                {depositMethods.length === 0 && (
+                  <p className="text-[11px] text-[#8F6828]">
+                    Sin ningún método marcado no se podrán cobrar depósitos:
+                    las mesas con depósito se reservarán sin cobrarlo.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Turnos por día */}

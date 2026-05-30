@@ -35,6 +35,13 @@ const putBody = z.object({
       policyNote: z.string().max(500).optional(),
     })
     .optional(),
+  // Métodos de pago ofrecidos para el DEPÓSITO de reserva. Subconjunto
+  // de los online del comercio. Se guarda tal cual; resolveDepositMethods
+  // lo intersecta con lo realmente habilitado al leerlo.
+  depositMethods: z
+    .array(z.enum(["kushki_card", "kushki_pse", "kushki_apple_pay"]))
+    .max(3)
+    .optional(),
 });
 
 export async function PUT(req: Request) {
@@ -60,8 +67,11 @@ export async function PUT(req: Request) {
     );
   }
 
-  const data: { reservationsEnabled?: boolean; reservationConfig?: object } =
-    {};
+  const data: {
+    reservationsEnabled?: boolean;
+    reservationConfig?: object;
+    reservationDepositMethods?: string[];
+  } = {};
   if (parsed.data.enabled !== undefined) {
     data.reservationsEnabled = parsed.data.enabled;
   }
@@ -69,6 +79,12 @@ export async function PUT(req: Request) {
     // Normalizamos a través del resolver — descarta turnos inválidos,
     // clampea slotMinutes, etc. Guardamos el resultado canónico.
     data.reservationConfig = resolveReservationConfig(parsed.data.config);
+  }
+  if (parsed.data.depositMethods !== undefined) {
+    // Dedupe; resolveDepositMethods filtra contra lo habilitado al leer.
+    data.reservationDepositMethods = Array.from(
+      new Set(parsed.data.depositMethods),
+    );
   }
 
   if (Object.keys(data).length === 0) {

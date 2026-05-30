@@ -634,7 +634,11 @@ function FloorPlanPicker({
         {floorPlan.zones.map((z) => {
           const c = ZONE_KINDS[z.kind];
           const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
-          const anchor = zoneAnchorCell(z.cells);
+          // No poner el label en una celda tapada por una mesa.
+          const occupied = new Set(
+            floorTables.map((t) => cellKey(t.x, t.y)),
+          );
+          const anchor = zoneAnchorCell(z.cells, occupied);
           const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
           return (
             <div key={z.id} className="absolute inset-0 pointer-events-none">

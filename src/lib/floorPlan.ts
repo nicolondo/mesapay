@@ -272,13 +272,25 @@ export function cellKey(x: number, y: number): string {
 }
 
 /**
- * Celda "ancla" de una zona (la más arriba-izquierda) para colocar la
- * etiqueta. Devuelve null si la zona no tiene celdas.
+ * Celda "ancla" de una zona para colocar la etiqueta. Elige la más
+ * arriba-izquierda, pero prefiere una celda que NO esté tapada por una
+ * mesa (set `blocked` con claves de celda) para que el label no quede
+ * oculto bajo una mesa. Si todas están ocupadas, cae a la esquina.
+ * Devuelve null si la zona no tiene celdas.
  */
-export function zoneAnchorCell(cells: Cell[]): Cell | null {
-  let best: Cell | null = null;
+export function zoneAnchorCell(
+  cells: Cell[],
+  blocked?: Set<string>,
+): Cell | null {
+  const better = (a: Cell | null, b: Cell) =>
+    !a || b.y < a.y || (b.y === a.y && b.x < a.x);
+  let best: Cell | null = null; // mejor celda libre
+  let fallback: Cell | null = null; // mejor celda en general
   for (const c of cells) {
-    if (!best || c.y < best.y || (c.y === best.y && c.x < best.x)) best = c;
+    if (better(fallback, c)) fallback = c;
+    if (!blocked || !blocked.has(cellKey(c.x, c.y))) {
+      if (better(best, c)) best = c;
+    }
   }
-  return best;
+  return best ?? fallback;
 }

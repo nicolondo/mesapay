@@ -115,6 +115,10 @@ export function FloorPlanEditor({
 
   const placed = tables.filter((t) => t.x != null && t.y != null);
   const unplaced = tables.filter((t) => t.x == null || t.y == null);
+  // Celdas tapadas por una mesa — para no poner el label de zona debajo.
+  const occupiedCellKeys = new Set(
+    placed.map((t) => cellKey(t.x as number, t.y as number)),
+  );
 
   // Mínimos de la grilla: no podés encogerla por debajo de lo que ya
   // está ocupado (mesas, zonas que terminan en x+w, markers).
@@ -853,7 +857,7 @@ export function FloorPlanEditor({
             const c = ZONE_KINDS[z.kind];
             const isSel = sel?.type === "zone" && sel.id === z.id;
             const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
-            const anchor = zoneAnchorCell(z.cells);
+            const anchor = zoneAnchorCell(z.cells, occupiedCellKeys);
             const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
             const bw = isSel ? 2 : 1.5;
             const style = isSel ? "solid" : "dashed";

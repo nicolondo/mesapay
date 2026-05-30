@@ -8,7 +8,6 @@ import {
   MARKER_KINDS,
   markerLabel,
   cellKey,
-  zoneAnchorCell,
 } from "@/lib/floorPlan";
 
 type AvailTable = {
@@ -630,21 +629,15 @@ function FloorPlanPicker({
       className="rounded-2xl border border-hairline bg-paper p-2 overflow-auto"
     >
       <div className="relative mx-auto" style={{ width: gridW, height: gridH }}>
-        {/* Zonas (fondo) — celdas con borde sólo en los bordes externos. */}
+        {/* Zonas (fondo) — celdas con borde sólo en los bordes externos.
+            El nombre va en una capa aparte (arriba de todo). */}
         {floorPlan.zones.map((z) => {
           const c = ZONE_KINDS[z.kind];
           const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
-          // No poner el label en una celda tapada por una mesa.
-          const occupied = new Set(
-            floorTables.map((t) => cellKey(t.x, t.y)),
-          );
-          const anchor = zoneAnchorCell(z.cells, occupied);
           const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
           return (
             <div key={z.id} className="absolute inset-0 pointer-events-none">
               {z.cells.map((cell) => {
-                const isAnchor =
-                  anchor && cell.x === anchor.x && cell.y === anchor.y;
                 return (
                   <div
                     key={cellKey(cell.x, cell.y)}
@@ -668,19 +661,7 @@ function FloorPlanPicker({
                         ? `1.5px dashed ${c.stroke}`
                         : undefined,
                     }}
-                  >
-                    {isAnchor && (
-                      <span
-                        className="absolute top-0.5 left-0.5 text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
-                        style={{
-                          color: c.text,
-                          background: "rgba(255,255,255,0.6)",
-                        }}
-                      >
-                        {z.label}
-                      </span>
-                    )}
-                  </div>
+                  />
                 );
               })}
             </div>
@@ -769,6 +750,35 @@ function FloorPlanPicker({
               </span>
               <span className="opacity-60 text-[9px]">{t.capacity}p</span>
             </button>
+          );
+        })}
+
+        {/* Nombres de zona — capa superior, apoyados sobre la línea de
+            arriba de cada zona para que se lean siempre. */}
+        {floorPlan.zones.map((z) => {
+          const c = ZONE_KINDS[z.kind];
+          const xs = z.cells.map((cc) => cc.x);
+          const minY = Math.min(...z.cells.map((cc) => cc.y));
+          const centerX =
+            ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cellPx;
+          const atTop = minY === 0;
+          return (
+            <div
+              key={z.id + ":label"}
+              className="absolute z-30 pointer-events-none text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
+              style={{
+                left: centerX,
+                top: minY * cellPx,
+                transform: atTop
+                  ? "translate(-50%, 2px)"
+                  : "translate(-50%, calc(-100% - 1px))",
+                color: c.text,
+                background: "rgba(255,255,255,0.92)",
+                border: `1px solid ${c.stroke}`,
+              }}
+            >
+              {z.label}
+            </div>
           );
         })}
       </div>

@@ -115,10 +115,6 @@ export function FloorPlanEditor({
 
   const placed = tables.filter((t) => t.x != null && t.y != null);
   const unplaced = tables.filter((t) => t.x == null || t.y == null);
-  // Celdas tapadas por una mesa — para no poner el label de zona debajo.
-  const occupiedCellKeys = new Set(
-    placed.map((t) => cellKey(t.x as number, t.y as number)),
-  );
 
   // Mínimos de la grilla: no podés encogerla por debajo de lo que ya
   // está ocupado (mesas, zonas que terminan en x+w, markers).
@@ -857,53 +853,36 @@ export function FloorPlanEditor({
             const c = ZONE_KINDS[z.kind];
             const isSel = sel?.type === "zone" && sel.id === z.id;
             const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
-            const anchor = zoneAnchorCell(z.cells, occupiedCellKeys);
             const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
             const bw = isSel ? 2 : 1.5;
             const style = isSel ? "solid" : "dashed";
             return (
               <div key={z.id} className="absolute inset-0 pointer-events-none">
-                {z.cells.map((cell) => {
-                  const isAnchor =
-                    anchor && cell.x === anchor.x && cell.y === anchor.y;
-                  return (
-                    <div
-                      key={cellKey(cell.x, cell.y)}
-                      className="absolute"
-                      style={{
-                        left: cell.x * cellPx,
-                        top: cell.y * cellPx,
-                        width: cellPx,
-                        height: cellPx,
-                        background: c.fill,
-                        borderTop: !has(cell.x, cell.y - 1)
-                          ? `${bw}px ${style} ${c.stroke}`
-                          : undefined,
-                        borderBottom: !has(cell.x, cell.y + 1)
-                          ? `${bw}px ${style} ${c.stroke}`
-                          : undefined,
-                        borderLeft: !has(cell.x - 1, cell.y)
-                          ? `${bw}px ${style} ${c.stroke}`
-                          : undefined,
-                        borderRight: !has(cell.x + 1, cell.y)
-                          ? `${bw}px ${style} ${c.stroke}`
-                          : undefined,
-                      }}
-                    >
-                      {isAnchor && (
-                        <span
-                          className="absolute top-0.5 left-0.5 text-[10px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
-                          style={{
-                            color: c.text,
-                            background: "rgba(255,255,255,0.65)",
-                          }}
-                        >
-                          {z.label}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+                {z.cells.map((cell) => (
+                  <div
+                    key={cellKey(cell.x, cell.y)}
+                    className="absolute"
+                    style={{
+                      left: cell.x * cellPx,
+                      top: cell.y * cellPx,
+                      width: cellPx,
+                      height: cellPx,
+                      background: c.fill,
+                      borderTop: !has(cell.x, cell.y - 1)
+                        ? `${bw}px ${style} ${c.stroke}`
+                        : undefined,
+                      borderBottom: !has(cell.x, cell.y + 1)
+                        ? `${bw}px ${style} ${c.stroke}`
+                        : undefined,
+                      borderLeft: !has(cell.x - 1, cell.y)
+                        ? `${bw}px ${style} ${c.stroke}`
+                        : undefined,
+                      borderRight: !has(cell.x + 1, cell.y)
+                        ? `${bw}px ${style} ${c.stroke}`
+                        : undefined,
+                    }}
+                  />
+                ))}
               </div>
             );
           })}
@@ -1084,6 +1063,37 @@ export function FloorPlanEditor({
                 </span>
                 <span className="opacity-60 text-[9px]">{t.capacity}p</span>
               </button>
+            );
+          })}
+
+          {/* Capa 5: etiquetas de zona — encima de todo y apoyadas sobre la
+              línea superior de la zona, así se leen siempre aunque la zona
+              sea angosta o haya una mesa encima. */}
+          {zones.map((z) => {
+            const c = ZONE_KINDS[z.kind];
+            const xs = z.cells.map((cc) => cc.x);
+            const minY = Math.min(...z.cells.map((cc) => cc.y));
+            const centerX = ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cellPx;
+            const atTop = minY === 0;
+            return (
+              <div
+                key={z.id + ":label"}
+                className="absolute z-30 pointer-events-none text-[10px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
+                style={{
+                  left: centerX,
+                  top: minY * cellPx,
+                  // Sobre la línea superior (en la fila de arriba). Si la
+                  // zona toca el borde de arriba, lo metemos apenas adentro.
+                  transform: atTop
+                    ? "translate(-50%, 2px)"
+                    : "translate(-50%, calc(-100% - 1px))",
+                  color: c.text,
+                  background: "rgba(255,255,255,0.92)",
+                  border: `1px solid ${c.stroke}`,
+                }}
+              >
+                {z.label}
+              </div>
             );
           })}
         </div>

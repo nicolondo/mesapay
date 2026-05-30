@@ -369,30 +369,20 @@ export function ReservasConfigClient({
               </div>
             ) : (
               <div className="space-y-2">
-                {depositCapable.map((slug) => {
-                  // Hoy sólo el cobro con Tarjeta está implementado para
-                  // depósitos; PSE/Apple Pay quedan "próximamente".
-                  const ready = slug === "kushki_card";
-                  return (
-                    <label
-                      key={slug}
-                      className="flex items-center justify-between gap-4 rounded-xl border border-op-border bg-op-bg px-4 py-3 cursor-pointer"
-                    >
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        {DEPOSIT_METHOD_LABELS[slug] ?? slug}
-                        {!ready && (
-                          <span className="text-[10px] font-normal px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#8F6828]">
-                            Próximamente
-                          </span>
-                        )}
-                      </span>
-                      <Toggle
-                        on={depositMethods.includes(slug)}
-                        onChange={() => toggleDepositMethod(slug)}
-                      />
-                    </label>
-                  );
-                })}
+                {depositCapable.map((slug) => (
+                  <label
+                    key={slug}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-op-border bg-op-bg px-4 py-3 cursor-pointer"
+                  >
+                    <span className="text-sm font-medium">
+                      {DEPOSIT_METHOD_LABELS[slug] ?? slug}
+                    </span>
+                    <Toggle
+                      on={depositMethods.includes(slug)}
+                      onChange={() => toggleDepositMethod(slug)}
+                    />
+                  </label>
+                ))}
                 {depositMethods.length === 0 && (
                   <p className="text-[11px] text-[#8F6828]">
                     Sin ningún método marcado no se podrán cobrar depósitos:

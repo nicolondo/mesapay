@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
 import {
   type FloorPlan,
   DEFAULT_FLOOR_PLAN,
@@ -108,6 +109,7 @@ export function ReservarClient({
   const [depositStep, setDepositStep] = useState<{
     code: string;
     depositCents: number;
+    methods: string[];
   } | null>(null);
 
   const maxDate = addDays(todayLocal(), maxAdvanceDays);
@@ -183,7 +185,11 @@ export function ReservarClient({
       }
       // Mesa con depósito → cobramos antes de confirmar. Si no, listo.
       if (j.requiresDeposit && j.depositCents > 0) {
-        setDepositStep({ code: j.confirmationCode, depositCents: j.depositCents });
+        setDepositStep({
+          code: j.confirmationCode,
+          depositCents: j.depositCents,
+          methods: Array.isArray(j.depositMethods) ? j.depositMethods : [],
+        });
       } else {
         setDone({ code: j.confirmationCode });
       }
@@ -255,6 +261,7 @@ export function ReservarClient({
             tenantSlug={tenantSlug}
             code={depositStep.code}
             depositCents={depositStep.depositCents}
+            methods={depositStep.methods}
             kushkiPublicKey={kushkiPublicKey}
             kushkiMode={kushkiMode}
             onApproved={() => {
@@ -789,6 +796,119 @@ function FloorPlanPicker({
   );
 }
 
+const DEPOSIT_METHOD_NAMES: Record<string, string> = {
+  kushki_card: "Tarjeta",
+  kushki_pse: "PSE",
+  kushki_apple_pay: "Apple Pay",
+};
+
+/**
+ * Cobro del depósito de una reserva. Es un selector de medio (según los
+ * que el comercio habilitó) que renderiza el sub-flujo correspondiente:
+ * Tarjeta (form), PSE (banco + redirect) o Apple Pay (sheet nativo).
+ */
+function DepositPay({
+  tenantSlug,
+  code,
+  depositCents,
+  methods,
+  kushkiPublicKey,
+  kushkiMode,
+  onApproved,
+}: {
+  tenantSlug: string;
+  code: string;
+  depositCents: number;
+  methods: string[];
+  kushkiPublicKey: string | null;
+  kushkiMode: "mock" | "sandbox" | "production";
+  onApproved: () => void;
+}) {
+  const available = methods.filter((m) => m in DEPOSIT_METHOD_NAMES);
+  const list = available.length > 0 ? available : ["kushki_card"];
+  const [selected, setSelected] = useState<string>(
+    list.length === 1 ? list[0] : "",
+  );
+
+  // Selector cuando hay más de un medio.
+  if (!selected) {
+    return (
+      <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-2">
+        <div className="text-sm font-medium text-ink mb-1">
+          ¿Cómo querés pagar el depósito?
+        </div>
+        {list.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setSelected(m)}
+            className="w-full h-12 rounded-xl border border-hairline bg-bone text-sm font-medium text-ink flex items-center justify-between px-4 hover:border-ink"
+          >
+            <span>{DEPOSIT_METHOD_NAMES[m]}</span>
+            <span className="text-muted">→</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const backBtn =
+    list.length > 1 ? (
+      <button
+        type="button"
+        onClick={() => setSelected("")}
+        className="mt-2 w-full text-center text-xs text-muted hover:text-ink"
+      >
+        ← Elegir otro medio
+      </button>
+    ) : null;
+
+  if (selected === "kushki_pse") {
+    return (
+      <>
+        <DepositPse
+          tenantSlug={tenantSlug}
+          code={code}
+          depositCents={depositCents}
+          kushkiPublicKey={kushkiPublicKey}
+          kushkiMode={kushkiMode}
+        />
+        {backBtn}
+      </>
+    );
+  }
+
+  if (selected === "kushki_apple_pay") {
+    return (
+      <>
+        <DepositApplePay
+          tenantSlug={tenantSlug}
+          code={code}
+          depositCents={depositCents}
+          kushkiPublicKey={kushkiPublicKey}
+          kushkiMode={kushkiMode}
+          onApproved={onApproved}
+        />
+        {backBtn}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <DepositCard
+        tenantSlug={tenantSlug}
+        code={code}
+        depositCents={depositCents}
+        kushkiPublicKey={kushkiPublicKey}
+        kushkiMode={kushkiMode}
+        onApproved={onApproved}
+      />
+      {backBtn}
+    </>
+  );
+}
+
 /**
  * Form de tarjeta para cobrar el depósito de la reserva. Tokeniza
  * directo contra Kushki (mismo patrón que el checkout de mesa — el PAN
@@ -796,7 +916,7 @@ function FloorPlanPicker({
  * depósito. Sin 3DS por ahora (las tarjetas sandbox aprobadas no lo
  * requieren); si Kushki lo pidiera, declina y el diner reintenta.
  */
-function DepositPay({
+function DepositCard({
   tenantSlug,
   code,
   depositCents,
@@ -905,7 +1025,7 @@ function DepositPay({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token, method: "kushki_card" }),
         },
       );
       const cj = await chargeRes.json().catch(() => ({}));
@@ -1013,6 +1133,336 @@ function DepositPay({
       </button>
       <p className="text-[10px] text-muted text-center">
         Pago seguro procesado por Kushki. Tus datos no se guardan en MESAPAY.
+      </p>
+    </div>
+  );
+}
+
+/** Apple Pay para el depósito — reusa el botón nativo del checkout. */
+function DepositApplePay({
+  tenantSlug,
+  code,
+  depositCents,
+  kushkiPublicKey,
+  kushkiMode,
+  onApproved,
+}: {
+  tenantSlug: string;
+  code: string;
+  depositCents: number;
+  kushkiPublicKey: string | null;
+  kushkiMode: "mock" | "sandbox" | "production";
+  onApproved: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function charge(token: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenantSlug}/reservations/${code}/deposit`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token, method: "kushki_apple_pay" }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.approved) {
+        setErr(j.message ?? "No pudimos cobrar el depósito con Apple Pay.");
+        setBusy(false);
+        return;
+      }
+      onApproved();
+    } catch (e) {
+      console.error("[deposit-applepay]", e);
+      setErr("No pudimos procesar Apple Pay.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-paper p-5">
+      {kushkiPublicKey ? (
+        <ApplePayButton
+          publicKey={kushkiPublicKey}
+          kushkiMode={kushkiMode}
+          amountCents={depositCents}
+          displayName="Depósito de reserva"
+          busy={busy}
+          onTokenized={charge}
+        />
+      ) : (
+        <p className="text-sm text-muted text-center">
+          Apple Pay no está disponible para este comercio.
+        </p>
+      )}
+      {err && (
+        <div className="mt-3 text-sm text-danger bg-danger/5 border border-danger/30 rounded-lg px-3 py-2">
+          {err}
+        </div>
+      )}
+      <p className="text-[10px] text-muted text-center mt-3">
+        Disponible en Safari (iPhone / Mac). Pago seguro por Kushki.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * PSE para el depósito. Elegís banco + datos, tokenizamos con Kushki.js
+ * (igual que el checkout de mesa), y el backend hace /transfer/v1/init
+ * para llevarte al banco. Al volver, la página de retorno confirma.
+ */
+function DepositPse({
+  tenantSlug,
+  code,
+  depositCents,
+  kushkiPublicKey,
+  kushkiMode,
+}: {
+  tenantSlug: string;
+  code: string;
+  depositCents: number;
+  kushkiPublicKey: string | null;
+  kushkiMode: "mock" | "sandbox" | "production";
+}) {
+  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
+  const [banksLoading, setBanksLoading] = useState(true);
+  const [bankCode, setBankCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA" | "TI">(
+    "CC",
+  );
+  const [docNumber, setDocNumber] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const kushkiRef = useRef<unknown>(null);
+  const isMock = kushkiMode === "mock";
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setBanksLoading(true);
+      try {
+        const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
+        const j = await res.json();
+        if (alive && res.ok && Array.isArray(j.banks)) setBanks(j.banks);
+        else if (alive) setErr(j.message ?? "No pudimos cargar los bancos.");
+      } catch {
+        if (alive) setErr("No pudimos cargar los bancos.");
+      } finally {
+        if (alive) setBanksLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tenantSlug]);
+
+  async function pay() {
+    if (!isMock && !bankCode) {
+      setErr("Elegí tu banco.");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setErr("Email inválido.");
+      return;
+    }
+    if (!docNumber.trim()) {
+      setErr("Número de documento obligatorio.");
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    const buyer = {
+      email: email.trim().toLowerCase(),
+      docType,
+      docNumber: docNumber.trim(),
+      personType: "natural" as const,
+    };
+
+    try {
+      // Mock / sin SDK: el backend confirma directo y devuelve la URL de
+      // retorno.
+      if (isMock || !kushkiPublicKey) {
+        const res = await fetch(
+          `/api/tenant/${tenantSlug}/reservations/${code}/deposit/pse`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ buyer, bankCode }),
+          },
+        );
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j.redirectUrl) {
+          setErr(j.message ?? "No pudimos iniciar PSE.");
+          setBusy(false);
+          return;
+        }
+        window.location.href = j.redirectUrl;
+        return;
+      }
+
+      // Live: tokenizamos en el browser con Kushki.js.
+      if (!kushkiRef.current) {
+        const mod = await import("@kushki/js");
+        const Ctor = mod.Kushki ?? (mod as { default?: unknown }).default;
+        if (typeof Ctor !== "function") {
+          throw new Error("@kushki/js no expone Kushki");
+        }
+        const K = Ctor as new (o: {
+          merchantId: string;
+          inTestEnvironment: boolean;
+        }) => unknown;
+        kushkiRef.current = new K({
+          merchantId: kushkiPublicKey,
+          inTestEnvironment: kushkiMode !== "production",
+        });
+      }
+      const callbackUrl = `${window.location.origin}/r/${tenantSlug}/reserva/${code}/deposit-return`;
+      const docTypeForKushki = docType === "PA" ? "PP" : docType;
+      const body = {
+        amount: { subtotalIva: 0, subtotalIva0: depositCents / 100, iva: 0 },
+        callbackUrl,
+        userType: "0",
+        documentNumber: docNumber.trim(),
+        documentType: docTypeForKushki,
+        email: buyer.email,
+        currency: "COP",
+        bankId: bankCode,
+      };
+      const response = await new Promise<{
+        token?: string;
+        code?: string;
+        message?: string;
+        error?: string;
+      }>((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kushkiRef.current as any).requestTransferToken(
+          body,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (resp: any) => resolve(resp),
+        );
+      });
+      if (response.code || !response.token) {
+        setErr(
+          `${response.message ?? response.error ?? "Error de Kushki"}${response.code ? ` (${response.code})` : ""}`,
+        );
+        setBusy(false);
+        return;
+      }
+      const res = await fetch(
+        `/api/tenant/${tenantSlug}/reservations/${code}/deposit/pse`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: response.token, buyer, bankCode }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.redirectUrl) {
+        setErr(j.message ?? "No pudimos iniciar la transferencia.");
+        setBusy(false);
+        return;
+      }
+      window.location.href = j.redirectUrl;
+    } catch (e) {
+      console.error("[deposit-pse]", e);
+      setErr("No pudimos iniciar PSE. Intentá de nuevo.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-3">
+      {!isMock && (
+        <label className="block">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Banco
+          </span>
+          <select
+            value={bankCode}
+            onChange={(e) => setBankCode(e.target.value)}
+            disabled={banksLoading}
+            className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
+          >
+            <option value="">
+              {banksLoading ? "Cargando bancos…" : "Elegí tu banco"}
+            </option>
+            {banks.map((b) => (
+              <option key={b.code} value={b.code}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="grid grid-cols-[90px_1fr] gap-2">
+        <label className="block">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Tipo
+          </span>
+          <select
+            value={docType}
+            onChange={(e) =>
+              setDocType(e.target.value as "CC" | "CE" | "NIT" | "PA" | "TI")
+            }
+            className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-2 text-sm focus:outline-none focus:border-ink"
+          >
+            <option value="CC">CC</option>
+            <option value="CE">CE</option>
+            <option value="NIT">NIT</option>
+            <option value="PA">PA</option>
+            <option value="TI">TI</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Documento
+          </span>
+          <input
+            inputMode="numeric"
+            value={docNumber}
+            onChange={(e) => setDocNumber(e.target.value)}
+            placeholder="Número de documento"
+            className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+          Email
+        </span>
+        <input
+          type="email"
+          inputMode="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="tu@email.com"
+          className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
+        />
+      </label>
+
+      {err && (
+        <div className="text-sm text-danger bg-danger/5 border border-danger/30 rounded-lg px-3 py-2">
+          {err}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={busy || banksLoading}
+        onClick={pay}
+        className="w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
+      >
+        {busy ? "Conectando con tu banco…" : `Pagar con PSE · ${fmtCOP(depositCents)}`}
+      </button>
+      <p className="text-[10px] text-muted text-center">
+        Te llevamos a tu banco para autorizar la transferencia. Pago seguro por
+        Kushki.
       </p>
     </div>
   );

@@ -26,7 +26,11 @@ import { sendReservationConfirmation } from "@/lib/reservationEmail";
  *
  * POST { token }
  */
-const schema = z.object({ token: z.string().min(1).max(2000) });
+const schema = z.object({
+  token: z.string().min(1).max(2000),
+  // Sincrónicos con token: tarjeta tipeada o Apple Pay (wallet).
+  method: z.enum(["kushki_card", "kushki_apple_pay"]).default("kushki_card"),
+});
 
 function mapKushkiError(detail: string): string {
   if (detail.includes('"code":"022"') || detail.includes("(022)"))
@@ -168,7 +172,7 @@ export async function POST(
     where: { id: reservation.id },
     data: {
       depositStatus: "paid",
-      depositMethod: "kushki_card",
+      depositMethod: parsed.data.method,
       depositTxId: charge.providerRef,
       status: "confirmed",
       holdExpiresAt: null,

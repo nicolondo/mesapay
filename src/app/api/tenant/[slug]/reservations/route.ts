@@ -14,8 +14,12 @@ import { publishOrderEvent } from "@/lib/events";
 
 /** Minutos que la reserva aparta la mesa mientras paga el depósito. */
 const DEPOSIT_HOLD_MINUTES = 15;
-/** Medios de depósito ya implementados (PSE/Apple Pay: próximamente). */
-const DEPOSIT_IMPLEMENTED = ["kushki_card"] as const;
+/** Medios de depósito ya implementados (cobro al reservar). */
+const DEPOSIT_IMPLEMENTED = [
+  "kushki_card",
+  "kushki_pse",
+  "kushki_apple_pay",
+] as const;
 
 /**
  * Crea una reserva. Público (lo llama /r/[slug]).

@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { getKushkiMode } from "@/lib/platformConfig";
 import { getPaymentProvider } from "@/lib/payments";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { ReservarClient } from "./ReservarClient";
 
 export const dynamic = "force-dynamic";
@@ -43,15 +45,17 @@ export default async function ReservarPage({
   if (!tenant) return notFound();
 
   if (!tenant.reservationsEnabled) {
+    const t = await getTranslations("reservar");
     return (
       <main className="min-h-dvh flex items-center justify-center px-6 bg-bone text-ink">
         <div className="text-center max-w-sm">
-          <div className="font-display text-2xl mb-2">
-            Reservas no disponibles
-          </div>
+          <div className="font-display text-2xl mb-2">{t("closedTitle")}</div>
           <p className="text-sm text-muted">
-            {tenant.name} no está recibiendo reservas en línea por ahora.
+            {t("closedBody", { name: tenant.name })}
           </p>
+          <div className="mt-6 flex justify-center">
+            <LocaleSwitcher />
+          </div>
         </div>
       </main>
     );

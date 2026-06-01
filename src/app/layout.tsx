@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 
@@ -22,11 +24,13 @@ export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Idioma resuelto por next-intl (cookie MESAPAY_LOCALE → Accept-Language → es).
+  const locale = await getLocale();
   return (
-    <html lang="es" className="h-full antialiased">
+    <html lang={locale} className="h-full antialiased">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -78,7 +82,15 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-bone text-ink">
-        <Providers>{children}</Providers>
+        {/*
+          NextIntlClientProvider sin props: hereda locale + mensajes del
+          request config (src/i18n/request.ts) y los reenvía a los Client
+          Components. Envuelve a Providers (SessionProvider) para que
+          useTranslations funcione en toda la app.
+        */}
+        <NextIntlClientProvider>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -1,0 +1,9 @@
+{
+  "common": {
+    "language": "Language"
+  },
+  "reservar": {
+    "closedTitle": "Reservations unavailable",
+    "closedBody": "{name} is not taking online reservations right now."
+  }
+}

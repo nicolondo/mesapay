@@ -1307,3 +1307,35 @@ model InvoiceRequest {
   @@index([restaurantId, status, createdAt])
   @@index([orderId])
 }
+
+/**
+ * Traducciones de CONTENIDO cargado por cada restaurante (no de la UI).
+ *
+ * Los nombres/descripciones de platos, categorías, etiquetas, etc. viven
+ * en español en sus modelos. Esto NO se puede traducir con catálogos
+ * estáticos. Acá guardamos la traducción por (entidad, campo, idioma),
+ * generada on-demand con IA (ver src/lib/translateContent.ts) y cacheada.
+ *
+ * - source: "machine" (IA) | "human" (editada por el operador).
+ * - sourceHash: hash del texto original al momento de traducir; si el
+ *   operador cambia el original, detectamos que la traducción quedó
+ *   obsoleta y la regeneramos.
+ *
+ * Tabla genérica a propósito: agregar un modelo traducible nuevo no
+ * requiere migración, sólo pasar su entityType.
+ */
+model Translation {
+  id         String   @id @default(cuid())
+  entityType String // "MenuItem" | "Category" | "Menu" | "MenuTag" | ...
+  entityId   String
+  field      String // "name" | "description" | "label"
+  locale     String // "en" | "pt" (nunca "es": es el original)
+  value      String
+  source     String   @default("machine")
+  sourceHash String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId, field, locale])
+  @@index([entityType, entityId])
+}

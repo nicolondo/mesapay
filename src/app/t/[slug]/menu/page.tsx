@@ -135,6 +135,10 @@ export default async function MenuPage({
       if (it.description)
         toTranslate.push({ entityType: "MenuItem", entityId: it.id, field: "description", text: it.description });
     }
+    for (const tag of menuTags) {
+      if (tag.label)
+        toTranslate.push({ entityType: "MenuTag", entityId: tag.slug, field: "label", text: tag.label });
+    }
     // request.ts garantiza un locale válido; getLocale() lo tipa como string.
     contentT = await getContentTranslations(locale as Locale, toTranslate);
   }
@@ -151,6 +155,11 @@ export default async function MenuPage({
     description: m.description
       ? tr("Menu", m.id, "description", m.description)
       : m.description,
+  }));
+
+  const localizedMenuTags = menuTags.map((tag) => ({
+    ...tag,
+    label: tr("MenuTag", tag.slug, "label", tag.label),
   }));
 
   return (
@@ -182,7 +191,7 @@ export default async function MenuPage({
           : tMenu("tableLabel", { number: table.number })
       }
       menus={localizedMenus}
-      menuTags={menuTags}
+      menuTags={localizedMenuTags}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,

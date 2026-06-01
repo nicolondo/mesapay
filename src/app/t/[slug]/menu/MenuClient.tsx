@@ -804,7 +804,7 @@ export function MenuClient({
       orderId = json.orderId;
     } catch (err) {
       console.error("[sendToKitchen]", err);
-      alert("No pudimos enviar el pedido. Revisa tu conexión.");
+      alert(tMenu("sendError"));
       return;
     } finally {
       setSubmitting(false);
@@ -850,15 +850,18 @@ export function MenuClient({
         <div className="bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
           <span>
             <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
-              Modo mesero
+              {tMenu("waiterMode")}
             </span>
-            Tomando pedido en <strong>{locationLabel}</strong>
+            {tMenu.rich("takingOrderAt", {
+              location: locationLabel,
+              b: (chunks) => <strong>{chunks}</strong>,
+            })}
           </span>
           <Link
             href="/operator/tables"
             className="font-mono text-[10px] tracking-wider uppercase underline opacity-80"
           >
-            Volver a mesas
+            {tMenu("backToTables")}
           </Link>
         </div>
       )}
@@ -927,10 +930,11 @@ export function MenuClient({
                 <span className="text-ink-3 truncate max-w-[120px]">
                   {guestName ? (
                     <>
-                      Yo soy · <span className="text-ink font-medium">{guestName}</span>
+                      {tMenu("iAm")} ·{" "}
+                      <span className="text-ink font-medium">{guestName}</span>
                     </>
                   ) : (
-                    <span className="text-terracotta">Dinos tu nombre</span>
+                    <span className="text-terracotta">{tMenu("tellUsName")}</span>
                   )}
                 </span>
               </button>
@@ -940,7 +944,7 @@ export function MenuClient({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar en el menú"
+                placeholder={tMenu("searchPlaceholder")}
                 className="w-full h-10 pl-9 pr-9 rounded-full border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
               />
               <svg
@@ -958,7 +962,7 @@ export function MenuClient({
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  aria-label="Borrar búsqueda"
+                  aria-label={tMenu("clearSearch")}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-ink/5 text-ink-3 flex items-center justify-center text-base leading-none hover:bg-ink/10"
                 >
                   ×
@@ -1031,8 +1035,12 @@ export function MenuClient({
       <div className="max-w-2xl w-full mx-auto px-5 mt-4 space-y-10">
         {searching && visibleCount === 0 && (
           <div className="py-16 text-center text-muted text-sm">
-            No encontramos nada para{" "}
-            <span className="text-ink font-medium">“{query}”</span>.
+            {tMenu.rich("noResults", {
+              query,
+              q: (chunks) => (
+                <span className="text-ink font-medium">“{chunks}”</span>
+              ),
+            })}
           </div>
         )}
         {scopedCategories.map((c) => {
@@ -1132,10 +1140,10 @@ export function MenuClient({
               }
             >
               <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate">
-                Pedido · {activeOrder.shortCode}
+                {tMenu("orderLabel")} · {activeOrder.shortCode}
               </div>
               <div className="text-sm font-medium truncate mt-0.5">
-                {activeOrder.itemCount} {activeOrder.itemCount === 1 ? "item" : "items"}
+                {tMenu("itemsCount", { count: activeOrder.itemCount })}
                 {" · "}
                 {fmtCOP(activeOrder.subtotalCents)}
               </div>
@@ -1245,6 +1253,7 @@ function CartBar({
   showServingMode: boolean;
   prepay: boolean;
 }) {
+  const t = useTranslations("menu");
   // O(1) lookup by id so the render loop doesn't scan items per line.
   const itemById = useMemo(() => {
     const m = new Map<string, MenuItem>();
@@ -1264,15 +1273,15 @@ function CartBar({
       >
         <div className="flex-1 min-w-0">
           <div className="font-mono text-[9px] tracking-[0.16em] uppercase opacity-60 truncate">
-            {appendingTo ? `Añadir · ${appendingTo}` : "Tu pedido"}
+            {appendingTo ? t("addToCode", { code: appendingTo }) : t("yourOrder")}
           </div>
           <div className={(split ? "text-sm font-medium" : "font-display text-xl") + " truncate mt-0.5"}>
-            {totalQty} {totalQty === 1 ? "item" : "items"} · {fmtCOP(subtotal)}
+            {t("itemsCount", { count: totalQty })} · {fmtCOP(subtotal)}
           </div>
         </div>
         {!split && (
           <span className="shrink-0 font-medium underline underline-offset-4">
-            Ver pedido
+            {t("viewOrder")}
           </span>
         )}
       </button>
@@ -1289,11 +1298,11 @@ function CartBar({
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-display text-3xl tracking-[-0.015em]">
-                    Tu pedido
+                    {t("yourOrder")}
                   </h3>
                   {appendingTo && (
                     <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mt-1">
-                      Se añadirá al pedido {appendingTo}
+                      {t("willAddToOrder", { code: appendingTo })}
                     </div>
                   )}
                 </div>
@@ -1356,7 +1365,7 @@ function CartBar({
                       onClick={() => onRemove(l.key)}
                       className="text-muted-2 text-xs ml-1"
                     >
-                      Eliminar
+                      {t("removeLine")}
                     </button>
                   </li>
                   );
@@ -1365,7 +1374,7 @@ function CartBar({
               {!appendingTo && showServingMode && (
                 <div className="mt-5">
                   <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-                    ¿Cómo quieres que salga?
+                    {t("servingModeQuestion")}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -1378,9 +1387,9 @@ function CartBar({
                           : "border-hairline bg-ivory")
                       }
                     >
-                      <div className="text-sm font-medium">Lo que vaya saliendo</div>
+                      <div className="text-sm font-medium">{t("asReadyTitle")}</div>
                       <div className="text-[11px] text-muted mt-0.5">
-                        Cada plato llega apenas está listo.
+                        {t("asReadyDesc")}
                       </div>
                     </button>
                     <button
@@ -1393,9 +1402,9 @@ function CartBar({
                           : "border-hairline bg-ivory")
                       }
                     >
-                      <div className="text-sm font-medium">Fuertes juntos</div>
+                      <div className="text-sm font-medium">{t("togetherTitle")}</div>
                       <div className="text-[11px] text-muted mt-0.5">
-                        Entradas y bebidas salen apenas estén listas; los fuertes salen todos juntos.
+                        {t("togetherDesc")}
                       </div>
                     </button>
                   </div>
@@ -1405,7 +1414,7 @@ function CartBar({
             <div className="shrink-0 border-t border-hairline bg-paper px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                  {appendingTo ? "Esta ronda" : "Subtotal"}
+                  {appendingTo ? t("thisRound") : t("subtotal")}
                 </div>
                 <div className="font-display text-2xl">{fmtCOP(subtotal)}</div>
               </div>
@@ -1416,18 +1425,16 @@ function CartBar({
               >
                 {submitting
                   ? prepay
-                    ? "Preparando pago…"
-                    : "Enviando…"
+                    ? t("preparingPayment")
+                    : t("sending")
                   : prepay
-                    ? "Ir a pagar"
+                    ? t("goToPay")
                     : appendingTo
-                      ? "Añadir a cocina"
-                      : "Enviar a cocina"}
+                      ? t("addToKitchen")
+                      : t("sendToKitchen")}
               </button>
               <p className="text-xs text-muted-2 text-center mt-2">
-                {prepay
-                  ? "Tu pedido pasa a la cocina apenas confirmemos el pago."
-                  : "Podrás añadir más platos durante la comida."}
+                {prepay ? t("prepayHint") : t("addMoreHint")}
               </p>
             </div>
           </div>
@@ -1446,6 +1453,7 @@ function ActiveOrderSheet({
   tenantSlug: string;
   onClose: () => void;
 }) {
+  const t = useTranslations("menu");
   return (
     <div
       className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
@@ -1459,7 +1467,7 @@ function ActiveOrderSheet({
           <div className="flex items-start justify-between">
             <div>
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                Pedido de la mesa
+                {t("tableOrder")}
               </div>
               <h3 className="font-display text-3xl tracking-[-0.015em]">
                 {order.shortCode}
@@ -1488,7 +1496,7 @@ function ActiveOrderSheet({
           </ul>
           <div className="mt-5 pt-4 border-t border-hairline flex items-center justify-between">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Subtotal
+              {t("subtotal")}
             </div>
             <div className="font-display text-2xl">
               {fmtCOP(order.subtotalCents)}
@@ -1498,10 +1506,10 @@ function ActiveOrderSheet({
             href={`/t/${tenantSlug}/order/${order.id}`}
             className="mt-5 w-full h-12 rounded-full bg-ink text-bone font-medium inline-flex items-center justify-center"
           >
-            Ir al detalle del pedido
+            {t("orderDetailCta")}
           </Link>
           <p className="text-xs text-muted-2 text-center mt-3">
-            Desde allí puedes ver el estado en vivo y pagar.
+            {t("liveStatusHint")}
           </p>
         </div>
       </div>
@@ -1516,10 +1524,11 @@ function LayoutSwitcher({
   layout: MenuLayout;
   onChange: (l: MenuLayout) => void;
 }) {
+  const t = useTranslations("menu");
   const opts: { id: MenuLayout; label: string; icon: React.ReactNode }[] = [
-    { id: "list", label: "Lista", icon: <IconList /> },
-    { id: "grid", label: "Cuadrícula", icon: <IconGrid /> },
-    { id: "editorial", label: "Editorial", icon: <IconEditorial /> },
+    { id: "list", label: t("layoutList"), icon: <IconList /> },
+    { id: "grid", label: t("layoutGrid"), icon: <IconGrid /> },
+    { id: "editorial", label: t("layoutEditorial"), icon: <IconEditorial /> },
   ];
   return (
     <div className="inline-flex bg-paper border border-hairline rounded-full p-0.5">
@@ -1646,6 +1655,7 @@ function QuickAddButton({
   onAdd: () => void;
   size?: "sm" | "md";
 }) {
+  const t = useTranslations("menu");
   const dim = size === "sm" ? "w-8 h-8" : "w-10 h-10";
   return (
     <button
@@ -1653,7 +1663,7 @@ function QuickAddButton({
         e.stopPropagation();
         onAdd();
       }}
-      aria-label="Añadir al pedido"
+      aria-label={t("addToOrder")}
       className={
         dim +
         " shrink-0 rounded-full bg-ink text-bone flex items-center justify-center text-lg leading-none active:scale-95 transition-transform"
@@ -1675,6 +1685,7 @@ function ItemRowList({
   onOpen: () => void;
   onQuickAdd: () => void;
 }) {
+  const t = useTranslations("menu");
   // id used by the sheet's close handler to scroll back to this exact
   // row, plus a scroll-margin so the sticky header doesn't cover it.
   return (
@@ -1691,7 +1702,7 @@ function ItemRowList({
               ? { backgroundImage: `url(${item.photoUrl})` }
               : undefined
           }
-          aria-label="Ver detalle"
+          aria-label={t("viewDetail")}
         />
         <button onClick={onOpen} className="flex-1 min-w-0 text-left self-start">
           <div className="font-display text-lg leading-tight">{item.name}</div>
@@ -1731,6 +1742,7 @@ function ItemCardGrid({
   onOpen: () => void;
   onQuickAdd: () => void;
 }) {
+  const t = useTranslations("menu");
   return (
     <div id={`menu-item-${item.id}`} className="flex flex-col scroll-mt-28">
       <button
@@ -1743,7 +1755,7 @@ function ItemCardGrid({
       >
         {item.tags.includes("firma") && (
           <div className="absolute top-2 left-2 bg-ink/85 text-paper font-mono text-[9px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded">
-            De la casa
+            {t("houseSpecial")}
           </div>
         )}
       </button>
@@ -1849,6 +1861,7 @@ function ItemSheet({
   onClose: () => void;
   onAdd: (sel: Selections, qty: number, notes?: string) => void;
 }) {
+  const t = useTranslations("menu");
   const [selections, setSelections] = useState<Selections>(() => {
     const d: Selections = {};
     for (const m of item.modifiers ?? []) {
@@ -1961,7 +1974,7 @@ function ItemSheet({
                 type="button"
                 onClick={onPrev}
                 disabled={!hasPrev}
-                aria-label="Plato anterior"
+                aria-label={t("prevDish")}
                 className="w-9 h-9 rounded-full text-ink-3 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cream"
               >
                 ‹
@@ -1970,7 +1983,7 @@ function ItemSheet({
                 type="button"
                 onClick={onNext}
                 disabled={!hasNext}
-                aria-label="Siguiente plato"
+                aria-label={t("nextDish")}
                 className="w-9 h-9 rounded-full text-ink-3 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-cream"
               >
                 ›
@@ -1979,7 +1992,7 @@ function ItemSheet({
             <button
               onClick={onClose}
               className="w-9 h-9 rounded-full border border-hairline text-ink-3 flex items-center justify-center"
-              aria-label="Cerrar"
+              aria-label={t("close")}
             >
               ×
             </button>
@@ -2008,7 +2021,7 @@ function ItemSheet({
                   {m.label}
                 </div>
                 <div className="font-mono text-[10px] tracking-wider uppercase text-muted-2">
-                  {m.type === "checkbox" ? "Varias" : "Una"}
+                  {m.type === "checkbox" ? t("modifierMany") : t("modifierOne")}
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -2047,13 +2060,13 @@ function ItemSheet({
 
           <div className="mt-6">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-              Notas para la cocina
+              {t("kitchenNotes")}
             </div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              placeholder="Alergias, preferencias…"
+              placeholder={t("notesPlaceholder")}
               className="w-full px-3 py-2 rounded-lg border border-hairline bg-ivory text-sm focus:outline-none focus:border-terracotta"
             />
           </div>
@@ -2078,7 +2091,7 @@ function ItemSheet({
               onClick={() => onAdd(selections, qty, notes || undefined)}
               className="flex-1 h-11 rounded-full bg-ink text-bone font-medium"
             >
-              Añadir · {fmtCOP(unitPrice * qty)}
+              {t("addWithPrice", { price: fmtCOP(unitPrice * qty) })}
             </button>
           </div>
         </div>
@@ -2098,6 +2111,7 @@ function GuestNameSheet({
   onSave: (name: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("menu");
   const [value, setValue] = useState(initial);
   const trimmed = value.trim();
   const canSave = trimmed.length > 0;
@@ -2119,13 +2133,13 @@ function GuestNameSheet({
           className="p-6"
         >
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-            En esta mesa
+            {t("atThisTable")}
           </div>
           <h3 className="font-display text-3xl tracking-[-0.015em] mt-1">
-            ¿Cómo te llamamos?
+            {t("whatToCallYou")}
           </h3>
           <p className="text-sm text-ink-3 mt-2 leading-relaxed">
-            Así tus amigos pueden ver qué pediste tú y qué pidieron ellos.
+            {t("nameSubtitle")}
           </p>
           <input
             autoFocus
@@ -2133,7 +2147,7 @@ function GuestNameSheet({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             maxLength={40}
-            placeholder="Tu nombre o apodo"
+            placeholder={t("namePlaceholder")}
             className="mt-5 w-full h-12 px-4 rounded-xl border border-hairline bg-ivory text-base focus:outline-none focus:border-terracotta"
           />
           <div className="mt-5 flex gap-3">
@@ -2143,7 +2157,7 @@ function GuestNameSheet({
                 onClick={onClose}
                 className="h-11 px-5 rounded-full border border-hairline font-medium text-ink-3"
               >
-                Cancelar
+                {t("cancel")}
               </button>
             )}
             <button
@@ -2151,11 +2165,11 @@ function GuestNameSheet({
               disabled={!canSave}
               className="flex-1 h-11 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
             >
-              Guardar
+              {t("save")}
             </button>
           </div>
           <p className="text-xs text-muted-2 mt-3">
-            Solo se muestra a quienes comparten tu mesa. No creamos una cuenta.
+            {t("namePrivacy")}
           </p>
         </form>
       </div>
@@ -2197,6 +2211,7 @@ function PickupCheckoutSheet({
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
+  const t = useTranslations("menu");
   const itemById = useMemo(() => {
     const m = new Map<string, MenuItem>();
     for (const it of menuItems) m.set(it.id, it);
@@ -2262,12 +2277,12 @@ function PickupCheckoutSheet({
 
   async function placeAndPay(method: PickupMethod) {
     if (!name.trim()) {
-      setErr("Necesitamos tu nombre para llamarte.");
+      setErr(t("errNeedName"));
       return;
     }
     const localNumber = phone.replace(/[^\d]/g, "");
     if (localNumber.length < 5) {
-      setErr("Escribe tu número de celular para avisarte cuando esté listo.");
+      setErr(t("errNeedPhone"));
       return;
     }
     setBusy(method);
@@ -2281,7 +2296,7 @@ function PickupCheckoutSheet({
       if (kushkiPublicKey && !isMockMode) {
         // TODO: integrate Kushki JS SDK and tokenize here.
         setBusy(null);
-        setErr("Apple Pay aún no está activado para este restaurante.");
+        setErr(t("errApplePayInactive"));
         return;
       }
       token = `mock-token-${Date.now()}`;
@@ -2311,16 +2326,17 @@ function PickupCheckoutSheet({
       const j = await res.json().catch(() => ({}));
       if (j.error === "saturated") {
         setErr(
-          `Cocina saturada (ETA ${j.etaMinutes ?? "?"} min, tope ${
-            j.maxEtaMinutes ?? "?"
-          } min). Intenta de nuevo en unos minutos.`,
+          t("errSaturated", {
+            eta: j.etaMinutes ?? "?",
+            max: j.maxEtaMinutes ?? "?",
+          }),
         );
       } else if (j.error === "closed") {
-        setErr("Cerramos por ahora. Vuelve en el próximo horario de atención.");
+        setErr(t("errClosed"));
       } else if (j.error === "charge_declined") {
-        setErr(j.message ?? "El pago fue rechazado por el banco.");
+        setErr(j.message ?? t("errDeclined"));
       } else {
-        setErr(j.error ?? "No pudimos procesar tu pedido.");
+        setErr(j.error ?? t("errGeneric"));
       }
       return;
     }
@@ -2335,13 +2351,13 @@ function PickupCheckoutSheet({
     >
       <div className="w-full md:max-w-md bg-bone rounded-t-3xl md:rounded-3xl border border-hairline shadow-xl max-h-[92dvh] overflow-y-auto">
         <div className="p-5 border-b border-hairline flex items-center justify-between">
-          <div className="font-display text-xl">Recogida</div>
+          <div className="font-display text-xl">{t("pickupTitle")}</div>
           <button
             onClick={onClose}
             className="text-muted text-sm"
             disabled={!!busy}
           >
-            Volver
+            {t("back")}
           </button>
         </div>
 
@@ -2355,49 +2371,49 @@ function PickupCheckoutSheet({
             }
           >
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Tiempo estimado de espera
+              {t("etaLabel")}
             </div>
             <div className="font-display text-3xl tabular mt-1">
               {eta.loading ? "…" : `${eta.minutes} min`}
             </div>
             <div className="text-[11px] text-muted mt-1">
               {eta.closed
-                ? "Cerramos por ahora. Vuelve en el próximo horario."
+                ? t("etaClosedShort")
                 : eta.saturated
-                  ? `Cocina saturada${
-                      maxEtaMinutes ? ` (tope ${maxEtaMinutes} min)` : ""
-                    }. No podemos recibir más pedidos en este momento.`
-                  : "Basado en las órdenes que están en cocina ahora."}
+                  ? t("etaSaturatedInfo", {
+                      cap: maxEtaMinutes ? t("etaCap", { min: maxEtaMinutes }) : "",
+                    })
+                  : t("etaNormal")}
             </div>
           </div>
 
           <label className="block">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Tu nombre
+              {t("yourName")}
             </span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
               className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper focus:outline-none focus:border-terracotta"
-              placeholder="Para llamarte cuando esté lista"
+              placeholder={t("pickupNamePlaceholder")}
             />
           </label>
 
           <div className="block">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Celular
+              {t("mobile")}
             </span>
             <div className="mt-1 flex items-stretch gap-2">
               <button
                 type="button"
                 onClick={() => setShowCountry(true)}
                 className="shrink-0 h-11 px-3 rounded-lg border border-hairline bg-paper flex items-center gap-2 text-sm"
-                aria-label="Código de país"
+                aria-label={t("countryCodeAria")}
               >
                 <span className="text-base leading-none">{country.flag}</span>
                 <span className="font-mono tabular">+{country.dial}</span>
-                <span className="text-muted text-xs leading-none">▾</span>
+                <span className="text-muted text-xs leading-none">{"▾"}</span>
               </button>
               <input
                 type="tel"
@@ -2413,7 +2429,7 @@ function PickupCheckoutSheet({
 
           <div className="rounded-xl border border-hairline bg-paper p-3">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-2">
-              Tu pedido
+              {t("yourOrder")}
             </div>
             <ul className="divide-y divide-hairline">
               {cart.map((l) => {
@@ -2452,7 +2468,7 @@ function PickupCheckoutSheet({
             </ul>
             <div className="mt-2 pt-2 border-t border-hairline flex items-baseline justify-between">
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Total
+                {t("total")}
               </span>
               <span className="font-display text-2xl tabular">
                 {fmtCOP(subtotal)}
@@ -2470,8 +2486,8 @@ function PickupCheckoutSheet({
                 className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
               >
                 {busy === "kushki_apple_pay"
-                  ? "Procesando…"
-                  : ` Pay · ${fmtCOP(subtotal)}`}
+                  ? t("processing")
+                  : t("payApple", { price: fmtCOP(subtotal) })}
               </button>
             )}
             {isMockMode && !kushkiReady && (
@@ -2482,23 +2498,23 @@ function PickupCheckoutSheet({
                   className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
                 >
                   {busy === "demo_card"
-                    ? "Procesando…"
-                    : `Demo tarjeta · ${fmtCOP(subtotal)}`}
+                    ? t("processing")
+                    : t("demoCard", { price: fmtCOP(subtotal) })}
                 </button>
                 <button
                   onClick={() => placeAndPay("demo_nequi")}
                   disabled={!!busy || eta.saturated || eta.closed}
                   className="w-full h-12 rounded-full border border-hairline bg-paper text-ink text-sm font-medium disabled:opacity-60"
                 >
-                  {busy === "demo_nequi" ? "Procesando…" : `Demo Nequi`}
+                  {busy === "demo_nequi" ? t("processing") : t("demoNequi")}
                 </button>
                 <div className="text-[11px] text-muted-2 text-center pt-1">
-                  Modo demo. Activa pagos para usar Apple Pay.
+                  {t("demoHint")}
                 </div>
               </>
             )}
             <div className="text-[11px] text-muted text-center mt-1">
-              Tu orden entra a cocina solo cuando el pago aprueba.
+              {t("paymentApprovalHint")}
             </div>
           </div>
         </div>
@@ -2552,6 +2568,7 @@ function CountryPicker({
   onSelect: (c: Country) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("menu");
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const list = q
@@ -2573,12 +2590,12 @@ function CountryPicker({
       >
         <div className="p-4 border-b border-hairline">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-display text-lg">Código de país</div>
+            <div className="font-display text-lg">{t("countryPickerTitle")}</div>
             <button
               type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-full border border-hairline text-ink-3"
-              aria-label="Cerrar"
+              aria-label={t("close")}
             >
               ×
             </button>
@@ -2588,14 +2605,14 @@ function CountryPicker({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar país o código"
+            placeholder={t("countrySearchPlaceholder")}
             className="w-full h-10 px-3 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
           />
         </div>
         <ul className="overflow-y-auto flex-1">
           {list.length === 0 && (
             <li className="py-8 text-center text-sm text-muted">
-              No encontramos ese país.
+              {t("noCountry")}
             </li>
           )}
           {list.map((c) => {

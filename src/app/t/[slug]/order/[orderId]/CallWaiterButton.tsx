@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function CallWaiterButton({
   tenantSlug,
@@ -15,6 +16,7 @@ export function CallWaiterButton({
   initialCalledAtISO: string | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("order");
   const [optimisticCalled, setOptimisticCalled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export function CallWaiterButton({
     setBusy(false);
     if (!res.ok) {
       setOptimisticCalled(false);
-      setErr("No se pudo llamar al mesero.");
+      setErr(t("errCallWaiter"));
       return;
     }
     startTx(() => router.refresh());
@@ -57,7 +59,7 @@ export function CallWaiterButton({
           </span>
           <div className="min-w-0">
             <div className="text-sm font-medium truncate">
-              Mesero en camino
+              {t("waiterOnWay")}
             </div>
             {calledAtISO && (
               <CalledAgo atISO={calledAtISO} />
@@ -78,7 +80,7 @@ export function CallWaiterButton({
         <span className="text-terracotta">
           <BellIcon />
         </span>
-        {busy ? "Llamando…" : "Llamar al mesero"}
+        {busy ? t("calling") : t("callWaiter")}
       </button>
       {err && <div className="mt-1 text-xs text-danger">{err}</div>}
     </div>
@@ -86,18 +88,19 @@ export function CallWaiterButton({
 }
 
 function CalledAgo({ atISO }: { atISO: string }) {
+  const t = useTranslations("order");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
   }, []);
   const secs = Math.max(0, Math.floor((now - new Date(atISO).getTime()) / 1000));
   const label =
     secs < 30
-      ? "Llamado hace un momento"
+      ? t("calledJustNow")
       : secs < 60
-        ? "Llamado hace menos de un minuto"
-        : `Llamado hace ${Math.floor(secs / 60)} min`;
+        ? t("calledLessMin")
+        : t("calledAgoMin", { min: Math.floor(secs / 60) });
   return <div className="text-[11px] text-muted truncate">{label}</div>;
 }
 

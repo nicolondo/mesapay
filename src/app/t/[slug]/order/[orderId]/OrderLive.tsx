@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export function OrderLive({
@@ -14,7 +15,18 @@ export function OrderLive({
   initialStatus: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("order");
   const [status] = useState(initialStatus);
+  const liveLabels: Record<string, string> = {
+    open: t("liveOpen"),
+    placed: t("livePlaced"),
+    in_kitchen: t("liveInKitchen"),
+    ready: t("liveReady"),
+    served: t("liveServed"),
+    paying: t("livePaying"),
+    paid: t("livePaid"),
+    cancelled: t("liveCancelled"),
+  };
   const [toast, setToast] = useState<{ title: string; hint: string; tone: "ready" | "paid" | "waiter" } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -39,15 +51,11 @@ export function OrderLive({
           const data = JSON.parse(ev.data);
           if (data.orderId !== orderId) return;
           if (data.type === "order.ready") {
-            flash("¡Algo está listo!", "Pronto llega a tu mesa.", "ready");
+            flash(t("toastReadyTitle"), t("toastReadyHint"), "ready");
           } else if (data.type === "order.paid") {
-            flash("Pago recibido", "¡Gracias por comer con nosotros!", "paid");
+            flash(t("toastPaidTitle"), t("toastPaidHint"), "paid");
           } else if (data.type === "order.waiter_ack") {
-            flash(
-              "Mesero en camino",
-              "Acabamos de recibir tu llamada.",
-              "waiter",
-            );
+            flash(t("toastWaiterTitle"), t("toastWaiterHint"), "waiter");
           }
           router.refresh();
         } catch {
@@ -67,7 +75,10 @@ export function OrderLive({
   return (
     <>
       <div className="mt-3 text-sm text-muted">
-        Estado en vivo: <span className="text-ink font-medium">{label(status)}</span>
+        {t("liveStatus")}{" "}
+        <span className="text-ink font-medium">
+          {liveLabels[status] ?? status}
+        </span>
       </div>
       {toast && (
         <div
@@ -99,7 +110,7 @@ export function OrderLive({
             <button
               type="button"
               onClick={() => setToast(null)}
-              aria-label="Cerrar"
+              aria-label={t("close")}
               className="shrink-0 text-bone/60 hover:text-bone w-8 h-8 rounded-full inline-flex items-center justify-center text-lg leading-none"
             >
               ×
@@ -128,16 +139,3 @@ function CheckIcon() {
   );
 }
 
-function label(s: string) {
-  const map: Record<string, string> = {
-    open: "Abierto",
-    placed: "Enviado a cocina",
-    in_kitchen: "Preparando",
-    ready: "Listo para servir",
-    served: "Servido",
-    paying: "Cobrando",
-    paid: "Pagado",
-    cancelled: "Cancelado",
-  };
-  return map[s] ?? s;
-}

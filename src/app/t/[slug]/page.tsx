@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 export default async function TenantLanding({
   params,
@@ -21,11 +22,13 @@ export default async function TenantLanding({
     }
   }
 
+  const t = await getTranslations("landing");
+
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-20">
       <div className="w-full max-w-md text-center">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-4">
-          Bienvenido a
+          {t("welcomeTo")}
         </div>
         <h1 className="font-display text-5xl tracking-[-0.02em] leading-[1.05]">
           {tenant.name}
@@ -36,7 +39,7 @@ export default async function TenantLanding({
 
         <div className="mt-10">
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
-            Elige tu mesa
+            {t("chooseTable")}
           </div>
           <div className="grid grid-cols-5 gap-2">
             {tenant.tables.map((t) => (
@@ -49,10 +52,7 @@ export default async function TenantLanding({
               </Link>
             ))}
           </div>
-          <p className="mt-4 text-xs text-muted-2">
-            En la vida real este paso no existe: tu mesa tiene un QR que te lleva
-            directo al menú.
-          </p>
+          <p className="mt-4 text-xs text-muted-2">{t("devTableHint")}</p>
         </div>
 
         <div className="mt-10 pt-6 border-t border-hairline">
@@ -60,7 +60,7 @@ export default async function TenantLanding({
             href={`/operator?r=${slug}`}
             className="font-mono text-[11px] tracking-[0.12em] uppercase text-muted hover:text-terracotta"
           >
-            → Acceso operador
+            → {t("operatorAccess")}
           </Link>
         </div>
       </div>

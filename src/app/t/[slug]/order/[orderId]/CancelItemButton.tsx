@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function CancelItemButton({
   orderItemId,
@@ -13,6 +14,7 @@ export function CancelItemButton({
   itemName: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("order");
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -27,9 +29,9 @@ export function CancelItemButton({
     setBusy(false);
     if (!res.ok) {
       if (res.status === 409) {
-        setErr("La cocina ya lo tomó. No se puede cancelar.");
+        setErr(t("errCancelTaken"));
       } else {
-        setErr("No se pudo cancelar. Intenta de nuevo.");
+        setErr(t("errCancelGeneric"));
       }
       router.refresh();
       return;
@@ -41,7 +43,7 @@ export function CancelItemButton({
     return (
       <div className="flex items-center gap-2">
         <span className="text-[11px] text-muted">
-          ¿Cancelar {itemName}?
+          {t("confirmCancelItem", { item: itemName })}
         </span>
         <button
           type="button"
@@ -49,7 +51,7 @@ export function CancelItemButton({
           disabled={busy}
           className="h-7 px-2.5 rounded-full bg-danger text-paper text-[11px] font-medium disabled:opacity-60"
         >
-          {busy ? "…" : "Sí, cancelar"}
+          {busy ? "…" : t("yesCancel")}
         </button>
         <button
           type="button"
@@ -57,7 +59,7 @@ export function CancelItemButton({
           disabled={busy}
           className="h-7 px-2.5 rounded-full border border-hairline text-[11px] text-ink-3"
         >
-          No
+          {t("no")}
         </button>
       </div>
     );
@@ -70,7 +72,7 @@ export function CancelItemButton({
         onClick={() => setConfirming(true)}
         className="text-[11px] text-muted-2 hover:text-danger underline underline-offset-2"
       >
-        Cancelar
+        {t("cancelAction")}
       </button>
       {err && <span className="text-[11px] text-danger">{err}</span>}
     </div>

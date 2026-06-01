@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export function RatingInline({
   orderItemId,
@@ -13,6 +14,7 @@ export function RatingInline({
   existing: { stars: number; comment: string | null } | null;
   defaultGuestName: string | null;
 }) {
+  const t = useTranslations("order");
   const [stars, setStars] = useState<number>(existing?.stars ?? 0);
   const [comment, setComment] = useState<string>(existing?.comment ?? "");
   const [expanded, setExpanded] = useState(false);
@@ -24,7 +26,7 @@ export function RatingInline({
     return (
       <div className="flex items-center gap-2 text-xs text-muted">
         <Stars stars={stars} size={16} />
-        <span>¡Gracias por tu calificación!</span>
+        <span>{t("ratingThanks")}</span>
       </div>
     );
   }
@@ -51,7 +53,7 @@ export function RatingInline({
         return;
       }
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No se pudo guardar.");
+      setErr(j.error ?? t("errSaveRating"));
       return;
     }
     setSaved(true);
@@ -66,7 +68,7 @@ export function RatingInline({
     <div className="rounded-lg border border-hairline bg-ivory px-3 py-2">
       <div className="flex items-center gap-3">
         <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-muted">
-          ¿Qué te pareció?
+          {t("ratingPrompt")}
         </div>
         <StarInput value={stars} onChange={onStarClick} disabled={busy} />
       </div>
@@ -77,7 +79,7 @@ export function RatingInline({
             onChange={(e) => setComment(e.target.value)}
             maxLength={500}
             rows={2}
-            placeholder="Cuéntanos algo (opcional)"
+            placeholder={t("ratingPlaceholder")}
             className="w-full px-2 py-1.5 rounded border border-hairline bg-paper text-sm"
           />
           {err && <div className="text-danger text-xs mt-1">{err}</div>}
@@ -88,7 +90,7 @@ export function RatingInline({
               disabled={busy || !stars}
               className="h-8 px-4 rounded-full bg-terracotta text-paper text-xs font-medium disabled:opacity-60"
             >
-              {busy ? "Enviando…" : "Enviar"}
+              {busy ? t("sending") : t("send")}
             </button>
           </div>
         </div>
@@ -106,6 +108,7 @@ function StarInput({
   onChange: (n: number) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("order");
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => {
@@ -116,7 +119,7 @@ function StarInput({
             type="button"
             onClick={() => onChange(n)}
             disabled={disabled}
-            aria-label={`${n} estrella${n === 1 ? "" : "s"}`}
+            aria-label={t("starAria", { n })}
             className="p-0.5 active:scale-95 transition-transform disabled:opacity-60"
           >
             <StarIcon filled={filled} />

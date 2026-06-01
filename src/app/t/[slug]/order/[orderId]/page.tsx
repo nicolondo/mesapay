@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { fmtCOP } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { OrderLive } from "./OrderLive";
@@ -83,16 +84,18 @@ export default async function OrderView({
     itemPrepMinutes: r.items.map((i) => i.menuItem.prepMinutes),
   }));
   const etas = computeRoundEtas(etaInputs);
+  const t = await getTranslations("order");
 
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
         {tenant.serviceMode === "counter"
-          ? `Mostrador · ${tenant.name}`
-          : `Mesa ${order.table.number} · ${tenant.name}`}
+          ? t("locationCounter", { name: tenant.name })
+          : t("locationTable", { number: order.table.number, name: tenant.name })}
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
-        Tu pedido <span className="font-mono text-base text-muted">· {order.shortCode}</span>
+        {t("yourOrder")}{" "}
+        <span className="font-mono text-base text-muted">· {order.shortCode}</span>
       </h1>
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />
@@ -105,14 +108,9 @@ export default async function OrderView({
             </div>
             <div className="flex-1">
               <div className="font-display text-lg text-danger">
-                {cancelledLines.length === 1
-                  ? "Un plato de tu pedido fue cancelado"
-                  : `${cancelledLines.length} platos de tu pedido fueron cancelados`}
+                {t("cancelledTitle", { count: cancelledLines.length })}
               </div>
-              <p className="text-sm text-ink-3 mt-1">
-                El mesero pasará por tu mesa para avisarte. No se te va a
-                cobrar lo cancelado.
-              </p>
+              <p className="text-sm text-ink-3 mt-1">{t("cancelledBody")}</p>
               <ul className="mt-3 space-y-1.5">
                 {cancelledLines.map((c, i) => (
                   <li
@@ -126,7 +124,8 @@ export default async function OrderView({
                     </div>
                     {c.reason && (
                       <div className="text-[12px] text-ink-3 mt-0.5">
-                        Motivo: <span className="italic">{c.reason}</span>
+                        {t("reasonLabel")}{" "}
+                        <span className="italic">{c.reason}</span>
                       </div>
                     )}
                   </li>
@@ -168,7 +167,7 @@ export default async function OrderView({
 
       <div className="mt-8">
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-2">
-          Rondas
+          {t("rounds")}
         </div>
         <ul className="space-y-2">
           {order.rounds.map((r) => {
@@ -189,7 +188,7 @@ export default async function OrderView({
               >
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs tracking-wider uppercase text-muted">
-                    Ronda {r.seq}
+                    {t("roundN", { seq: r.seq })}
                   </div>
                   <div className="flex items-center gap-2">
                     {isPending && eta && (
@@ -201,13 +200,13 @@ export default async function OrderView({
                         tint
                       }
                     >
-                      {statusLabel(r.status)}
+                      {statusLabel(r.status, t)}
                     </span>
                   </div>
                 </div>
                 {isCancelled && r.cancellationReason && (
                   <div className="mt-2 text-xs text-danger">
-                    Motivo de cancelación:{" "}
+                    {t("cancelReasonLabel")}{" "}
                     <span className="italic">{r.cancellationReason}</span>
                   </div>
                 )}
@@ -229,12 +228,13 @@ export default async function OrderView({
                               <ItemStatusBadge
                                 kitchenStatus={li.kitchenStatus}
                                 servedAt={li.servedAt}
+                                t={t}
                               />
                             )}
                           </div>
                           {li.guestName && (
                             <div className="text-[11px] text-terracotta mt-0.5">
-                              de {li.guestName}
+                              {t("by")} {li.guestName}
                             </div>
                           )}
                           {(() => {
@@ -304,7 +304,7 @@ export default async function OrderView({
         );
         for (const i of liveItems) {
           const key = i.guestName?.trim() || "__anon__";
-          const label = i.guestName?.trim() || "Sin nombre";
+          const label = i.guestName?.trim() || t("noName");
           const entry =
             groups.get(key) ??
             { name: label, items: [] as typeof order.items, subtotal: 0 };
@@ -317,7 +317,7 @@ export default async function OrderView({
         return (
           <div className="mt-8">
             <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-2">
-              Por persona
+              {t("perPerson")}
             </div>
             <ul className="space-y-2">
               {Array.from(groups.values()).map((g) => (
@@ -361,7 +361,7 @@ export default async function OrderView({
       <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            Subtotal
+            {t("subtotal")}
           </div>
           <div className="font-display text-3xl">{fmtCOP(order.subtotalCents)}</div>
         </div>
@@ -375,18 +375,18 @@ export default async function OrderView({
               href={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
               className="h-11 px-5 rounded-full border border-hairline inline-flex items-center text-sm font-medium"
             >
-              Añadir más
+              {t("addMore")}
             </Link>
             <Link
               href={`/t/${slug}/pay/${order.id}`}
               className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
             >
-              Pagar
+              {t("pay")}
             </Link>
           </div>
         ) : (
           <span className="h-11 px-4 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] inline-flex items-center text-sm font-medium">
-            {order.status === "paid" ? "✓ Pagado" : "Cancelado"}
+            {order.status === "paid" ? t("paidPill") : t("cancelledPill")}
           </span>
         )}
       </div>
@@ -401,17 +401,15 @@ export default async function OrderView({
         <div className="mt-5 rounded-2xl border border-hairline bg-paper p-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="font-display text-lg leading-tight">
-              ¿Necesitás comprobante?
+              {t("needReceipt")}
             </div>
-            <p className="text-xs text-muted mt-0.5">
-              Mandate la tirilla por correo o pedí factura electrónica.
-            </p>
+            <p className="text-xs text-muted mt-0.5">{t("receiptHint")}</p>
           </div>
           <Link
             href={`/t/${slug}/pay/${order.id}/done?pid=${lastApprovedPayment.id}`}
             className="shrink-0 h-10 px-4 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
           >
-            Ver opciones
+            {t("viewOptions")}
           </Link>
         </div>
       )}
@@ -419,16 +417,19 @@ export default async function OrderView({
   );
 }
 
-function statusLabel(s: string) {
+function statusLabel(
+  s: string,
+  t: Awaited<ReturnType<typeof getTranslations>>,
+) {
   switch (s) {
-    case "open": return "Abierto";
-    case "placed": return "Enviado";
-    case "in_kitchen": return "En cocina";
-    case "ready": return "Listo";
-    case "served": return "Servido";
-    case "paying": return "Cobrando";
-    case "paid": return "Pagado";
-    case "cancelled": return "Cancelado";
+    case "open": return t("statusOpen");
+    case "placed": return t("statusPlaced");
+    case "in_kitchen": return t("statusInKitchen");
+    case "ready": return t("statusReady");
+    case "served": return t("statusServed");
+    case "paying": return t("statusPaying");
+    case "paid": return t("statusPaid");
+    case "cancelled": return t("statusCancelled");
     default: return s;
   }
 }
@@ -455,27 +456,29 @@ function statusBadge(s: string) {
 function ItemStatusBadge({
   kitchenStatus,
   servedAt,
+  t,
 }: {
   kitchenStatus: "placed" | "in_kitchen" | "ready";
   servedAt: Date | null;
+  t: Awaited<ReturnType<typeof getTranslations>>;
 }) {
   let label: string;
   let className: string;
   if (servedAt) {
-    label = "Servido";
+    label = t("itemServed");
     // Strongest "done" colour — matches the order's "paid" pill.
     className = "bg-[#2E6B4C]/15 text-[#1E5339]";
   } else if (kitchenStatus === "ready") {
-    label = "Listo para servir";
+    label = t("itemReady");
     // Same green family as Servido but with a dot to signal "not on
     // the table yet". We keep one accent colour for done-ish states so
     // the diner reads them at a glance.
     className = "bg-[#2E6B4C]/10 text-[#1E5339]";
   } else if (kitchenStatus === "in_kitchen") {
-    label = "Preparando";
+    label = t("itemPreparing");
     className = "bg-[#C98A2E]/15 text-[#8F6828]";
   } else {
-    label = "Por preparar";
+    label = t("itemPending");
     className = "bg-paper text-muted border border-hairline";
   }
   return (

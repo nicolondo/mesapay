@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   loadProfiles,
   saveProfile,
@@ -38,6 +39,7 @@ export function InvoiceRequestPanel({
   orderId: string;
   existing: ExistingSummary | null;
 }) {
+  const t = useTranslations("done");
   const [open, setOpen] = useState(false);
   // Sheet para la "tirilla simple" — flujo independiente del formal.
   const [simpleOpen, setSimpleOpen] = useState(false);
@@ -46,11 +48,13 @@ export function InvoiceRequestPanel({
     return (
       <div className="rounded-2xl border border-ok/30 bg-ok/10 p-5">
         <div className="font-display text-lg text-ok">
-          ✓ Factura electrónica generada
+          {"✓"} {t("invGeneratedTitle")}
         </div>
         <p className="text-sm text-ink-3 mt-1">
-          Te la enviaron al correo <strong>{existing.email}</strong>. Si no la
-          encuentras, revisa la carpeta de spam o avísale al restaurante.
+          {t.rich("invGeneratedBody", {
+            email: existing.email,
+            b: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
       </div>
     );
@@ -62,11 +66,13 @@ export function InvoiceRequestPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-display text-lg text-[#7F5A1F]">
-              Solicitud de factura enviada
+              {t("invPendingTitle")}
             </div>
             <p className="text-sm text-ink-3 mt-1">
-              El restaurante la emite manualmente desde su software de
-              facturación y te la envía a <strong>{existing.email}</strong>.
+              {t.rich("invPendingBody", {
+                email: existing.email,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
             <div className="text-xs text-ink-3 mt-3">
               <div>
@@ -83,7 +89,7 @@ export function InvoiceRequestPanel({
             onClick={() => setOpen(true)}
             className="shrink-0 h-9 px-3 rounded-full border border-[#7F5A1F]/40 text-[#7F5A1F] text-xs font-medium hover:bg-[#C98A2E]/10"
           >
-            Corregir datos
+            {t("invCorrectData")}
           </button>
         </div>
         {open && (
@@ -101,27 +107,22 @@ export function InvoiceRequestPanel({
   return (
     <>
       <div className="rounded-2xl border border-hairline bg-paper p-5">
-        <div className="font-display text-xl">
-          ¿Necesitas comprobante?
-        </div>
-        <p className="text-sm text-muted mt-1">
-          Una tirilla simple solo te pide el correo. Si necesitas una
-          factura a nombre de empresa o con cédula, pídela aparte.
-        </p>
+        <div className="font-display text-xl">{t("invNeedReceipt")}</div>
+        <p className="text-sm text-muted mt-1">{t("invReceiptIntro")}</p>
         <div className="mt-4 space-y-2">
           <button
             type="button"
             onClick={() => setSimpleOpen(true)}
             className="w-full h-12 rounded-full bg-ink text-bone font-medium"
           >
-            Mandar tirilla a mi correo
+            {t("invSendEmail")}
           </button>
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
           >
-            Factura electrónica a mi nombre o empresa
+            {t("invToName")}
           </button>
         </div>
       </div>
@@ -155,6 +156,7 @@ function SimpleInvoiceSheet({
   orderId: string;
   onClose: () => void;
 }) {
+  const t = useTranslations("done");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -166,7 +168,7 @@ function SimpleInvoiceSheet({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setErr("Email inválido");
+      setErr(t("invErrEmail"));
       return;
     }
     setBusy(true);
@@ -182,7 +184,7 @@ function SimpleInvoiceSheet({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? "No pudimos generar tu tirilla");
+      setErr(j.message ?? j.error ?? t("invErrGenerate"));
       return;
     }
     const j = (await r.json()) as { invoiceUrl: string };
@@ -201,27 +203,29 @@ function SimpleInvoiceSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-              Tirilla simple
+              {t("invSimpleLabel")}
             </div>
             <h2 className="font-display text-2xl mt-1">
-              {done ? "Listo, te la enviamos" : "Tu comprobante"}
+              {done ? t("invSentTitle") : t("invYourReceipt")}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={t("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
         {done ? (
           <>
             <p className="text-sm text-ink/80">
-              La enviamos a <strong>{done.email}</strong>. Si no llega en unos
-              minutos revisa tu carpeta de spam.
+              {t.rich("invSentBody", {
+                email: done.email,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
             <a
               href={done.invoiceUrl}
@@ -229,25 +233,22 @@ function SimpleInvoiceSheet({
               rel="noreferrer"
               className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
             >
-              Ver e imprimir comprobante
+              {t("invViewPrint")}
             </a>
             <button
               type="button"
               onClick={onClose}
               className="w-full h-10 rounded-2xl border border-hairline text-sm"
             >
-              Cerrar
+              {t("close")}
             </button>
           </>
         ) : (
           <form onSubmit={submit} className="space-y-3">
-            <p className="text-sm text-muted">
-              Solo necesitamos tu correo. Te enviamos la tirilla con todos los
-              datos del comercio y los platos que pediste.
-            </p>
+            <p className="text-sm text-muted">{t("invSimpleIntro")}</p>
             <label className="block">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-                Correo
+                {t("invEmailField")}
               </div>
               <input
                 type="email"
@@ -256,7 +257,7 @@ function SimpleInvoiceSheet({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@correo.com"
+                placeholder={t("invEmailPlaceholder")}
                 className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
               />
             </label>
@@ -266,7 +267,7 @@ function SimpleInvoiceSheet({
               disabled={busy}
               className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
             >
-              {busy ? "Generando…" : "Enviar tirilla"}
+              {busy ? t("invGenerating") : t("invSendReceipt")}
             </button>
           </form>
         )}
@@ -289,6 +290,7 @@ function InvoiceFormSheet({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const t = useTranslations("done");
   const [customerName, setCustomerName] = useState(initial?.customerName ?? "");
   const [docType, setDocType] = useState<DocType>(initial?.docType ?? "CC");
   const [docNumber, setDocNumber] = useState(initial?.docNumber ?? "");
@@ -460,7 +462,7 @@ function InvoiceFormSheet({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(humanError(j));
+      setErr(humanError(j, t));
       return;
     }
     // Remember on this device so the next restaurant gets one-tap fill.
@@ -497,19 +499,18 @@ function InvoiceFormSheet({
         {done ? (
           <div className="p-6 text-center">
             <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl">
-              ✓
+              {"✓"}
             </div>
-            <h2 className="font-display text-2xl mt-4">Datos enviados</h2>
+            <h2 className="font-display text-2xl mt-4">{t("invDoneTitle")}</h2>
             <p className="text-sm text-muted mt-2">
-              El restaurante recibirá tu solicitud y emitirá la factura desde
-              su sistema. Te llegará a {email} en las próximas horas.
+              {t("invDoneBody", { email })}
             </p>
             <button
               type="button"
               onClick={onClose}
               className="mt-6 h-11 px-6 rounded-full bg-ink text-bone text-sm font-medium"
             >
-              Cerrar
+              {t("close")}
             </button>
           </div>
         ) : (
@@ -517,17 +518,17 @@ function InvoiceFormSheet({
             <div className="p-5 border-b border-hairline flex items-start justify-between gap-3">
               <div>
                 <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-                  Datos para factura electrónica
+                  {t("invFormLabel")}
                 </div>
-                <h2 className="font-display text-2xl mt-1">Tus datos</h2>
+                <h2 className="font-display text-2xl mt-1">{t("invYourData")}</h2>
               </div>
               <button
                 onClick={onClose}
                 disabled={busy}
                 className="text-muted text-sm shrink-0"
-                aria-label="Cerrar"
+                aria-label={t("close")}
               >
-                ✕
+                {"✕"}
               </button>
             </div>
             <div className="p-5 space-y-4">
@@ -535,14 +536,14 @@ function InvoiceFormSheet({
                 <div className="rounded-xl border border-hairline bg-ivory p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                      Datos guardados en este dispositivo
+                      {t("invSavedOnDevice")}
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowSaved(false)}
                       className="text-[11px] text-muted hover:text-ink"
                     >
-                      Escribir nuevos →
+                      {t("invWriteNew")}
                     </button>
                   </div>
                   <ul className="space-y-1.5">
@@ -574,23 +575,22 @@ function InvoiceFormSheet({
                           onClick={() => {
                             if (
                               confirm(
-                                `¿Olvidar los datos de ${p.customerName}?`,
+                                t("invForgetConfirm", { name: p.customerName }),
                               )
                             )
                               dropProfile(p.id);
                           }}
                           className="text-[11px] text-muted hover:text-danger shrink-0 px-1"
-                          aria-label="Olvidar"
-                          title="Olvidar estos datos"
+                          aria-label={t("invForget")}
+                          title={t("invForgetTitle")}
                         >
-                          ✕
+                          {"✕"}
                         </button>
                       </li>
                     ))}
                   </ul>
                   <p className="text-[10px] text-muted-2 mt-2">
-                    Solo en este dispositivo. Si borras los datos del
-                    navegador se pierden.
+                    {t("invSavedHint")}
                   </p>
                 </div>
               )}
@@ -600,32 +600,32 @@ function InvoiceFormSheet({
                   onClick={() => setShowSaved(true)}
                   className="text-[12px] text-terracotta hover:underline"
                 >
-                  Usar datos guardados ({profiles.length}) →
+                  {t("invUseSaved", { count: profiles.length })}
                 </button>
               )}
 
               <Field
-                label="Nombre o razón social"
+                label={t("invName")}
                 value={customerName}
                 onChange={setCustomerName}
-                placeholder="Juan Pérez · Restaurante S.A.S"
+                placeholder={t("invNamePlaceholder")}
               />
               <div className="grid grid-cols-3 gap-2">
                 <Select
-                  label="Tipo"
+                  label={t("invType")}
                   value={docType}
                   onChange={(v) => setDocType(v as DocType)}
                   options={[
                     ["CC", "CC"],
                     ["CE", "CE"],
                     ["NIT", "NIT"],
-                    ["PA", "Pasaporte"],
+                    ["PA", t("invPassport")],
                   ]}
                   className="col-span-1"
                 />
                 <Field
                   className="col-span-2"
-                  label="Número de identificación"
+                  label={t("invDocNumber")}
                   value={docNumber}
                   onChange={setDocNumber}
                   type="text"
@@ -633,35 +633,32 @@ function InvoiceFormSheet({
                 />
               </div>
               <Field
-                label="Correo electrónico"
+                label={t("invEmailLabel")}
                 value={email}
                 onChange={setEmail}
                 type="email"
-                placeholder="tu@email.com"
-                hint="Aquí te llega la factura"
+                placeholder={t("invEmailPlaceholder2")}
+                hint={t("invEmailHint")}
               />
               <div>
                 <label className="block">
                   <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                    Dirección
+                    {t("invAddress")}
                   </span>
                   <input
                     ref={addressRef}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Empieza a escribir tu dirección…"
+                    placeholder={t("invAddressPlaceholder")}
                     className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm focus:outline-none focus:border-terracotta"
                   />
                 </label>
-                <p className="text-[11px] text-muted mt-1">
-                  Busca tu dirección y selecciónala — la ciudad y el
-                  departamento se llenan solos.
-                </p>
+                <p className="text-[11px] text-muted mt-1">{t("invAddressHint")}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Ciudad" value={city} onChange={setCity} />
+                <Field label={t("invCity")} value={city} onChange={setCity} />
                 <Field
-                  label="Departamento"
+                  label={t("invDepartment")}
                   value={department}
                   onChange={setDepartment}
                 />
@@ -673,11 +670,10 @@ function InvoiceFormSheet({
                 disabled={!canSubmit}
                 className="w-full h-12 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
               >
-                {busy ? "Enviando…" : "Enviar al restaurante"}
+                {busy ? t("invSending") : t("invSendToRestaurant")}
               </button>
               <p className="text-[11px] text-muted-2 text-center">
-                Tus datos solo se comparten con el restaurante para emitir tu
-                factura.
+                {t("invPrivacy")}
               </p>
             </div>
           </>
@@ -757,17 +753,20 @@ function Select({
   );
 }
 
-function humanError(j: { error?: string }): string {
+function humanError(
+  j: { error?: string },
+  t: ReturnType<typeof useTranslations>,
+): string {
   switch (j.error) {
     case "already_generated":
-      return "Ya se generó una factura para este pedido. Contacta al restaurante para correcciones.";
+      return t("invErrAlreadyGenerated");
     case "order_not_paid":
-      return "El pedido aún no está marcado como pagado.";
+      return t("invErrNotPaid");
     case "order_not_found":
-      return "No encontramos este pedido.";
+      return t("invErrNotFound");
     case "invalid":
-      return "Revisa los datos: alguno está incompleto.";
+      return t("invErrInvalid");
     default:
-      return j.error ?? "No pudimos enviar tu solicitud.";
+      return j.error ?? t("invErrGeneric");
   }
 }

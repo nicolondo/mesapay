@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { DoneLive } from "./DoneLive";
@@ -7,35 +8,37 @@ import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 
 export const dynamic = "force-dynamic";
 
-// Labels diner-facing — copia corta y limpia, sin marcas (Kushki) ni
-// jerga interna. Si agregás un nuevo PaymentMethod, sumalo acá o se
-// muestra el slug crudo.
+type DoneT = Awaited<ReturnType<typeof getTranslations>>;
+
+// Slugs de PaymentMethod → clave del catálogo `done`. Si agregás un
+// método nuevo, sumalo acá o se muestra el slug crudo.
 const METHOD_LABEL: Record<string, string> = {
-  demo_card: "Tarjeta",
-  demo_cash: "Efectivo",
-  demo_nequi: "Nequi",
-  wompi_card: "Tarjeta",
-  wompi_nequi: "Nequi",
-  wompi_pse: "PSE",
-  kushki_apple_pay: "Apple Pay",
-  kushki_card: "Tarjeta",
-  kushki_card_terminal: "Tarjeta · datáfono",
-  external_terminal: "Tarjeta · datáfono",
-  kushki_pse: "PSE",
+  demo_card: "methodCard",
+  demo_cash: "methodCash",
+  demo_nequi: "methodNequi",
+  wompi_card: "methodCard",
+  wompi_nequi: "methodNequi",
+  wompi_pse: "methodPse",
+  kushki_apple_pay: "methodApplePay",
+  kushki_card: "methodCard",
+  kushki_card_terminal: "methodCardTerminal",
+  external_terminal: "methodCardTerminal",
+  kushki_pse: "methodPse",
 };
 
-function methodLabel(m: string) {
-  return METHOD_LABEL[m] ?? m;
+function methodLabel(m: string, t: DoneT) {
+  const key = METHOD_LABEL[m];
+  return key ? t(key) : m;
 }
 
-function fmtRelative(d: Date) {
+function fmtRelative(d: Date, t: DoneT) {
   const diff = Date.now() - d.getTime();
   const s = Math.round(diff / 1000);
-  if (s < 45) return "hace un momento";
+  if (s < 45) return t("relMoment");
   const mins = Math.round(s / 60);
-  if (mins < 60) return `hace ${mins} min`;
+  if (mins < 60) return t("relMin", { min: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 24) return t("relHours", { hours });
   return d.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
@@ -96,6 +99,8 @@ export default async function PayDone({
       }
     : null;
 
+  const t = await getTranslations("done");
+
   // Counter-mode keeps its status tracker: big code + live cook status.
   if (tenant.serviceMode === "counter") {
     const round = order.rounds[0] ?? null;
@@ -109,7 +114,7 @@ export default async function PayDone({
           <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
 
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta">
-            Pedido pagado
+            {t("orderPaid")}
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
             {tenant.name}
@@ -117,43 +122,41 @@ export default async function PayDone({
 
           <div className="mt-6 rounded-2xl border border-hairline bg-paper p-6 text-center">
             <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-              Tu código
+              {t("yourCode")}
             </div>
             <div className="font-display text-6xl leading-none mt-2 tabular">
               {order.shortCode}
             </div>
-            <div className="text-sm text-muted mt-3">
-              Muéstralo al cajero cuando te avisen.
-            </div>
+            <div className="text-sm text-muted mt-3">{t("showCashier")}</div>
           </div>
 
           {isServed ? (
             <div className="mt-6 rounded-2xl bg-ink text-bone p-6 text-center">
               <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/70">
-                Entregado
+                {t("delivered")}
               </div>
               <div className="font-display text-3xl mt-2">
-                Gracias por comer con nosotros
+                {t("thanksDining")}
               </div>
             </div>
           ) : isReady ? (
             <div className="mt-6 rounded-2xl bg-ok text-bone p-8 text-center">
               <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/80">
-                ¡Tu pedido está listo!
+                {t("readyTitle")}
               </div>
               <div className="font-display text-4xl mt-2 leading-[1.05]">
-                Pasa por el mostrador
+                {t("goToCounter")}
               </div>
             </div>
           ) : (
             <div className="mt-6 rounded-2xl bg-paper border border-hairline p-6 text-center">
               <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-                En preparación
+                {t("preparing")}
               </div>
-              <div className="font-display text-3xl mt-2">Estamos preparando</div>
-              <div className="text-sm text-muted mt-3">
-                Te avisamos aquí cuando esté listo.
+              <div className="font-display text-3xl mt-2">
+                {t("preparingTitle")}
               </div>
+              <div className="text-sm text-muted mt-3">{t("preparingHint")}</div>
             </div>
           )}
 
@@ -169,7 +172,7 @@ export default async function PayDone({
 
           <div className="mt-8 rounded-2xl border border-hairline bg-paper p-5">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
-              Tu pedido
+              {t("yourOrder")}
             </div>
             <ul className="divide-y divide-hairline">
               {order.items.map((i) => (
@@ -188,7 +191,7 @@ export default async function PayDone({
             </ul>
             <div className="mt-3 pt-3 border-t border-hairline flex items-baseline justify-between">
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Pagado
+                {t("paid")}
               </span>
               <span className="font-display text-2xl tabular">
                 {fmtCOP(order.totalCents)}
@@ -230,27 +233,32 @@ export default async function PayDone({
         <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
 
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-          Mesa {order.table.number} · {tenant.name} · {order.shortCode}
+          {t("headerTable", {
+            number: order.table.number,
+            name: tenant.name,
+            code: order.shortCode,
+          })}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
-          {fullyPaid ? "Cuenta pagada" : "Pago recibido"}
+          {fullyPaid ? t("billPaid") : t("paymentReceived")}
         </h1>
 
         {/* Current diner's receipt */}
         {myPayment && (
           <div className="mt-6 rounded-2xl border border-ok/30 bg-ok/10 p-5 flex items-center gap-4">
             <div className="w-11 h-11 rounded-full bg-ok/25 text-ok inline-flex items-center justify-center font-display text-2xl check-pop shrink-0">
-              ✓
+              {"✓"}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Tu aporte
+                {t("yourContribution")}
               </div>
               <div className="font-display text-2xl tabular">
                 {fmtCOP(myPayment.amountCents)}
               </div>
               <div className="text-xs text-muted mt-0.5">
-                {methodLabel(myPayment.method)} · {fmtRelative(myPayment.createdAt)}
+                {methodLabel(myPayment.method, t)} ·{" "}
+                {fmtRelative(myPayment.createdAt, t)}
               </div>
             </div>
           </div>
@@ -273,7 +281,7 @@ export default async function PayDone({
         <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
           <div className="flex items-baseline justify-between">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Progreso de la cuenta
+              {t("billProgress")}
             </div>
             <div className="font-mono text-[11px] tabular text-ink">
               {progressPct}%
@@ -291,7 +299,7 @@ export default async function PayDone({
           <div className="mt-4 grid grid-cols-3 gap-3 text-center">
             <div>
               <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Pagado
+                {t("paid")}
               </div>
               <div className="font-display text-xl tabular">
                 {fmtCOP(paidCents)}
@@ -299,7 +307,7 @@ export default async function PayDone({
             </div>
             <div>
               <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Total
+                {t("total")}
               </div>
               <div className="font-display text-xl tabular">
                 {fmtCOP(expectedCents)}
@@ -312,7 +320,7 @@ export default async function PayDone({
                   (fullyPaid ? "text-ok" : "text-terracotta")
                 }
               >
-                {fullyPaid ? "Saldado" : "Falta"}
+                {fullyPaid ? t("settled") : t("owed")}
               </div>
               <div
                 className={
@@ -326,15 +334,12 @@ export default async function PayDone({
           </div>
           {!fullyPaid && (
             <div className="mt-4 pt-4 border-t border-hairline flex items-center justify-between gap-3">
-              <p className="text-xs text-muted">
-                Alguien más en la mesa puede seguir pagando. Esta pantalla se
-                actualiza sola.
-              </p>
+              <p className="text-xs text-muted">{t("keepPayingHint")}</p>
               <Link
                 href={`/t/${slug}/pay/${order.id}`}
                 className="shrink-0 h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium inline-flex items-center"
               >
-                Pagar más
+                {t("payMore")}
               </Link>
             </div>
           )}
@@ -343,10 +348,10 @@ export default async function PayDone({
         {/* Payments ledger */}
         <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
-            Pagos en esta mesa
+            {t("paymentsAtTable")}
           </div>
           {approvedPayments.length === 0 && pendingPayments.length === 0 ? (
-            <p className="text-sm text-muted">Aún no hay pagos registrados.</p>
+            <p className="text-sm text-muted">{t("noPayments")}</p>
           ) : (
             <ul className="divide-y divide-hairline">
               {order.payments.map((p, idx) => {
@@ -368,20 +373,20 @@ export default async function PayDone({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">
-                        {methodLabel(p.method)}
+                        {methodLabel(p.method, t)}
                         {isMine && (
                           <span className="ml-2 font-mono text-[10px] tracking-wider uppercase text-ok">
-                            Tú
+                            {t("you")}
                           </span>
                         )}
                         {isPending && (
                           <span className="ml-2 font-mono text-[10px] tracking-wider uppercase text-[#8F6828]">
-                            Pendiente
+                            {t("pending")}
                           </span>
                         )}
                       </div>
                       <div className="text-[11px] text-muted">
-                        {fmtRelative(p.createdAt)}
+                        {fmtRelative(p.createdAt, t)}
                       </div>
                     </div>
                     <div className="font-mono tabular text-sm">
@@ -397,7 +402,7 @@ export default async function PayDone({
         {/* Order summary */}
         <div className="mt-6 rounded-2xl border border-hairline bg-paper p-5">
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
-            Resumen del pedido
+            {t("orderSummary")}
           </div>
           <ul className="divide-y divide-hairline">
             {order.items.map((i) => (
@@ -411,7 +416,7 @@ export default async function PayDone({
                   </div>
                   {i.guestName && (
                     <div className="text-[11px] text-terracotta mt-0.5">
-                      de {i.guestName}
+                      {t("by")} {i.guestName}
                     </div>
                   )}
                 </div>
@@ -423,7 +428,7 @@ export default async function PayDone({
           </ul>
           <div className="mt-3 pt-3 border-t border-hairline flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Subtotal
+              {t("subtotal")}
             </span>
             <span className="font-display text-xl tabular">
               {fmtCOP(order.subtotalCents)}
@@ -432,7 +437,7 @@ export default async function PayDone({
           {order.tipCents > 0 && (
             <div className="mt-1 flex items-baseline justify-between">
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Propina
+                {t("tip")}
               </span>
               <span className="font-mono tabular text-sm">
                 {fmtCOP(order.tipCents)}
@@ -446,7 +451,7 @@ export default async function PayDone({
             href={`/t/${slug}/order/${order.id}`}
             className="font-mono text-[11px] tracking-wider uppercase text-muted hover:text-terracotta"
           >
-            Ver pedido completo →
+            {t("viewFullOrder")}
           </Link>
         </div>
       </div>

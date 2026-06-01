@@ -28,6 +28,7 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
   "src/app/t/\\[slug\\]/page.tsx",
   "src/app/t/\\[slug\\]/order/\\[orderId\\]/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
 ];
 
 const eslintConfig = defineConfig([

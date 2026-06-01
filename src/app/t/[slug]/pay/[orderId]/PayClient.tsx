@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
@@ -120,6 +121,7 @@ export function PayClient({
   // para switchear inTestEnvironment / base URL.
   const isMockMode = kushkiMode === "mock";
   const router = useRouter();
+  const t = useTranslations("pay");
   const [tipPct, setTipPct] = useState<number>(10);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -259,7 +261,7 @@ export function PayClient({
     // para debug. En la UI mostramos solo el mensaje amigable.
     console.log("[kushki-charge] response", { status: res.status, body: j });
     if (!res.ok) {
-      setErr(j.message ?? j.error ?? "El pago falló.");
+      setErr(j.message ?? j.error ?? t("errPayFailed"));
       return;
     }
     if (j.approved && j.paymentId) {
@@ -269,7 +271,7 @@ export function PayClient({
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
-      setErr(j.message ?? "Pago rechazado. Intenta con otra tarjeta o medio.");
+      setErr(j.message ?? t("errDeclined"));
     }
   }
 
@@ -293,7 +295,7 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
-        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
+        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
         return;
       }
 
@@ -317,7 +319,7 @@ export function PayClient({
         );
         if (!pushRes.ok) {
           const pj = await pushRes.json().catch(() => ({}));
-          setErr(pj.message ?? pj.error ?? "No pudimos enviar el cobro al datáfono.");
+          setErr(pj.message ?? pj.error ?? t("errPushTerminal"));
           return;
         }
         // Land on the operator-side waiting screen instead of /salón
@@ -368,7 +370,7 @@ export function PayClient({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
-        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
+        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
         return;
       }
       // Mismo destino que el flujo de terminal de Kushki: el cliente
@@ -439,9 +441,7 @@ export function PayClient({
         // mensaje principal — sirve para debug rápido sin pedirle al
         // diner que copie de DevTools.
         const detail = typeof j.detail === "string" ? ` (${j.detail})` : "";
-        setErr(
-          (j.message ?? j.error ?? "No pudimos iniciar PSE.") + detail,
-        );
+        setErr((j.message ?? j.error ?? t("errPseInit")) + detail);
         return;
       }
       // Redirigimos a Kushki PSE hosted. El cliente vuelve a
@@ -479,7 +479,7 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.message ?? j.error ?? "No pudimos avisar al mesero.");
+        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
         return;
       }
       if (operatorMode) {
@@ -505,11 +505,11 @@ export function PayClient({
       <main className="flex flex-1 items-center justify-center px-6 py-16">
         <div className="text-center max-w-sm">
           <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl">
-            ✓
+            {"✓"}
           </div>
-          <h1 className="font-display text-3xl mt-4">Pagado</h1>
+          <h1 className="font-display text-3xl mt-4">{t("paidTitle")}</h1>
           <p className="text-muted mt-2">
-            {tenantName} ya recibió tu pago. ¡Gracias!
+            {t("paidBody", { name: tenantName })}
           </p>
         </div>
       </main>
@@ -525,15 +525,18 @@ export function PayClient({
         <div className="-mx-5 -mt-8 mb-5 bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
           <span>
             <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
-              Modo mesero
+              {t("waiterMode")}
             </span>
-            Cobrando <strong>{locationLabel}</strong>
+            {t.rich("chargingAt", {
+              location: locationLabel,
+              b: (chunks) => <strong>{chunks}</strong>,
+            })}
           </span>
           <Link
             href={staffHomeHref}
             className="font-mono text-[10px] tracking-wider uppercase underline opacity-80"
           >
-            Volver a mesas
+            {t("backToTables")}
           </Link>
         </div>
       )}
@@ -546,14 +549,14 @@ export function PayClient({
           className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
         >
           <span aria-hidden>←</span>
-          <span>Volver al pedido</span>
+          <span>{t("backToOrder")}</span>
         </Link>
       )}
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
         {locationLabel} · {tenantName} · {shortCode}
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
-        {operatorMode ? "Cobrar" : "Pagar"}
+        {operatorMode ? t("charge") : t("pay")}
       </h1>
 
       {/* Resumen del pedido — solo en modo mesero. El mesero le pasa
@@ -565,7 +568,7 @@ export function PayClient({
         <section className="mt-5 rounded-2xl border border-hairline bg-paper overflow-hidden">
           <div className="bg-ivory px-4 py-2.5 border-b border-hairline">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Confirma tu pedido
+              {t("confirmOrder")}
             </div>
           </div>
           <ul className="divide-y divide-hairline/60">
@@ -586,7 +589,7 @@ export function PayClient({
           </ul>
           <div className="flex items-baseline justify-between px-4 py-2.5 bg-ivory border-t border-hairline">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Subtotal
+              {t("subtotal")}
             </span>
             <span className="font-display text-lg tabular">
               {fmtCOP(subtotalCents)}
@@ -614,16 +617,13 @@ export function PayClient({
       {declinedFlag && !err && (
         <div className="mt-4 rounded-2xl border border-danger/30 bg-danger/5 p-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-danger/15 text-danger flex items-center justify-center shrink-0 font-display">
-            ✕
+            {"✕"}
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-display text-base text-danger">
-              Tu pago no fue aprobado
+              {t("declinedTitle")}
             </div>
-            <p className="text-xs text-muted mt-1">
-              Probá con otro método de abajo, o pedile al mesero que vuelva
-              a pasar la tarjeta.
-            </p>
+            <p className="text-xs text-muted mt-1">{t("declinedBody")}</p>
           </div>
         </div>
       )}
@@ -631,33 +631,31 @@ export function PayClient({
       {!isCounter && !operatorMode && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            ¿Cómo quieres pagar?
+            {t("howToPay")}
           </div>
           <div className="grid gap-2 grid-cols-3">
             <ModeButton
               active={mode === "full"}
-              label="Todo"
-              hint="La cuenta completa"
+              label={t("modeFull")}
+              hint={t("modeFullHint")}
               onClick={() => setMode("full")}
             />
             <ModeButton
               active={mode === "equal"}
-              label="Partes iguales"
-              hint="Divide por N"
+              label={t("modeEqual")}
+              hint={t("modeEqualHint")}
               onClick={() => setMode("equal")}
             />
             <ModeButton
               active={mode === "mine"}
-              label="Lo mío"
-              hint="Solo lo que pedí"
+              label={t("modeMine")}
+              hint={t("modeMineHint")}
               onClick={() => hasGuests && setMode("mine")}
               disabled={!hasGuests}
             />
           </div>
           {mode === "mine" && !hasGuests && (
-            <div className="mt-2 text-xs text-muted-2">
-              Nadie dejó su nombre en los platos — usa Partes iguales.
-            </div>
+            <div className="mt-2 text-xs text-muted-2">{t("noGuestsHint")}</div>
           )}
         </div>
       )}
@@ -675,16 +673,14 @@ export function PayClient({
             onClick={() => setMode(mode === "full" ? "equal" : "full")}
             className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted underline"
           >
-            {mode === "full"
-              ? "Dividir en partes iguales"
-              : "Volver a cobrar todo"}
+            {mode === "full" ? t("splitToEqual") : t("splitToFull")}
           </button>
         </div>
       )}
 
       {mode === "equal" && (
         <div className="mt-4 flex items-center justify-between bg-paper border border-hairline rounded-xl px-4 py-3">
-          <div className="text-sm">Dividir entre</div>
+          <div className="text-sm">{t("splitBetween")}</div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSplitCount((n) => Math.max(2, n - 1))}
@@ -699,7 +695,7 @@ export function PayClient({
             >
               +
             </button>
-            <span className="text-sm text-muted ml-1">personas</span>
+            <span className="text-sm text-muted ml-1">{t("people")}</span>
           </div>
         </div>
       )}
@@ -707,7 +703,7 @@ export function PayClient({
       {mode === "mine" && hasGuests && (
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            ¿Quién eres?
+            {t("whoAreYou")}
           </div>
           <div className="flex gap-2 flex-wrap">
             {guestTotals.map((g) => {
@@ -740,16 +736,16 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
-        <Row label="Tu cuenta" value={fmtCOP(subtotalCents)} />
+        <Row label={t("rowYourBill")} value={fmtCOP(subtotalCents)} />
         {paidFoodCents > 0 && (
           <>
             <Row
-              label="Pagado en comida"
+              label={t("rowPaidFood")}
               value={"− " + fmtCOP(paidFoodCents)}
               muted
             />
             <Row
-              label="Falta de comida"
+              label={t("rowOwedFood")}
               value={fmtCOP(outstandingSubtotalCents)}
               accent
             />
@@ -763,10 +759,10 @@ export function PayClient({
           <Row
             label={
               operatorMode
-                ? `A cobrar (1 de ${splitCount})`
+                ? t("rowToChargeN", { n: splitCount })
                 : mode === "equal"
-                  ? `Tu parte (1 de ${splitCount})`
-                  : `Lo de ${myGuest || "ti"}`
+                  ? t("rowYourPartN", { n: splitCount })
+                  : t("rowOf", { name: myGuest || t("you") })
             }
             value={fmtCOP(amountSubtotal)}
             accent
@@ -774,7 +770,7 @@ export function PayClient({
         )}
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            {operatorMode ? "Propina" : "Propina sobre tu parte"}
+            {operatorMode ? t("tipOp") : t("tipDiner")}
           </div>
           <div className="flex gap-2 flex-wrap">
             {TIP_OPTIONS.map((p) => (
@@ -788,24 +784,27 @@ export function PayClient({
                     : "bg-ivory border-hairline text-ink")
                 }
               >
-                {p === 0 ? "Sin propina" : `${p}%`}
+                {p === 0 ? t("noTip") : `${p}%`}
               </button>
             ))}
           </div>
           <div className="mt-2 flex justify-between text-sm text-muted">
-            <span>Propina {tipPct}%</span>
+            <span>{t("tipLine", { pct: tipPct })}</span>
             <span className="font-mono tabular">{fmtCOP(amountTip)}</span>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-hairline">
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              {operatorMode ? "A cobrar ahora" : "Total a pagar"}
+              {operatorMode ? t("totalToChargeNow") : t("totalToPay")}
             </span>
             <span className="font-display text-3xl">{fmtCOP(amountCents)}</span>
           </div>
           <div className="mt-1 text-xs text-muted-2">
-            {fmtCOP(amountSubtotal)} + {fmtCOP(amountTip)} propina
+            {t("totalBreakdown", {
+              subtotal: fmtCOP(amountSubtotal),
+              tip: fmtCOP(amountTip),
+            })}
           </div>
         </div>
       </div>
@@ -920,9 +919,7 @@ export function PayClient({
               amountCents={amountCents}
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">
-              {operatorMode
-                ? "Modo demo. En producción cobrarás con datáfono real (activa pagos para el restaurante)."
-                : "Modo demo. En producción solo verás Apple Pay (Safari), datáfono y efectivo (activa pagos para el restaurante)."}
+              {operatorMode ? t("demoHintOp") : t("demoHintDiner")}
             </p>
           </>
         )}
@@ -1010,6 +1007,7 @@ function CashTenderSheet({
   //    the bill itself. Suggesting $100k for a $25k bill is fine; for
   //    a $96k bill it's silly.
   //  - Cap to 3 presets so the sheet stays scannable on a phone.
+  const t = useTranslations("pay");
   const dueCop = Math.ceil(amountCents / 100);
   const REAL_BILLS_COP = [10000, 20000, 50000, 100000];
   const maxReasonableCop = dueCop * 2;
@@ -1047,28 +1045,26 @@ function CashTenderSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-              Pagar en efectivo · {fmtCOP(amountCents)}
+              {t("cashTitle", { amount: fmtCOP(amountCents) })}
             </div>
             <h2 className="font-display text-2xl mt-1">
-              ¿Con cuánto vas a pagar?
+              {t("cashQuestion")}
             </h2>
-            <p className="text-xs text-muted mt-1">
-              Opcional. Así el mesero llega con la devuelta ya contada.
-            </p>
+            <p className="text-xs text-muted mt-1">{t("cashSubtitle")}</p>
           </div>
           <button
             onClick={onClose}
             disabled={busy}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={t("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
         <div className="space-y-2">
           <PresetBill
-            label="Cuenta exacta"
+            label={t("exactBill")}
             tenderCents={amountCents}
             changeCents={0}
             disabled={busy}
@@ -1080,7 +1076,9 @@ function CashTenderSheet({
             return (
               <PresetBill
                 key={cop}
-                label={`Con $${cop.toLocaleString("es-CO")}`}
+                label={t("withAmount", {
+                  amount: "$" + cop.toLocaleString("es-CO"),
+                })}
                 tenderCents={tenderCents}
                 changeCents={tenderChange(tenderCents)}
                 disabled={busy}
@@ -1091,7 +1089,7 @@ function CashTenderSheet({
 
           <div className="rounded-xl border border-hairline bg-paper p-3">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-1">
-              Otro monto
+              {t("otherAmount")}
             </div>
             <div className="flex items-stretch gap-2">
               <span className="self-center text-muted">$</span>
@@ -1111,17 +1109,17 @@ function CashTenderSheet({
                 onClick={() => onPay(customCents)}
                 className="h-11 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
               >
-                Usar
+                {t("use")}
               </button>
             </div>
             {customCop && !customValid && (
               <div className="text-[11px] text-danger mt-1">
-                Menos que la cuenta ({fmtCOP(amountCents)}).
+                {t("lessThanBill", { amount: fmtCOP(amountCents) })}
               </div>
             )}
             {customValid && customCents > amountCents && (
               <div className="text-[11px] text-muted mt-1">
-                Te traen {fmtCOP(customCents - amountCents)} de devuelta.
+                {t("changeBack", { amount: fmtCOP(customCents - amountCents) })}
               </div>
             )}
           </div>
@@ -1133,11 +1131,11 @@ function CashTenderSheet({
           disabled={busy}
           className="w-full h-11 rounded-full border border-hairline text-sm text-ink-3 hover:text-ink disabled:opacity-50"
         >
-          {busy ? "Avisando…" : "Prefiero decirle al mesero →"}
+          {busy ? t("notifying") : t("preferTellWaiter")}
         </button>
 
         <p className="text-[11px] text-muted-2 text-center">
-          Si llegas a pagar con otro billete, dile al mesero cuando llegue.
+          {t("cashFootnote")}
         </p>
       </div>
     </div>
@@ -1199,6 +1197,7 @@ function PseSheet({
   // lista poblada y skipeamos el loading — el dropdown se ve
   // instantáneo. Si vinieron vacíos (kushki_pse desactivado o el
   // SSR falló), caemos al fetch del browser como antes.
+  const t = useTranslations("pay");
   const [banks, setBanks] = useState<{ code: string; name: string }[]>(
     initialBanks ?? [],
   );
@@ -1234,11 +1233,11 @@ function PseSheet({
         if (alive && res.ok && Array.isArray(j.banks)) {
           setBanks(j.banks);
         } else if (alive) {
-          setErr(j.message ?? "No pudimos cargar la lista de bancos.");
+          setErr(j.message ?? t("errBankList"));
         }
       } catch (e) {
         console.error("[pse] bank list error", e);
-        if (alive) setErr("No pudimos cargar la lista de bancos.");
+        if (alive) setErr(t("errBankList"));
       } finally {
         if (alive) setBanksLoading(false);
       }
@@ -1250,15 +1249,15 @@ function PseSheet({
 
   async function submit() {
     if (!bankCode) {
-      setErr("Elegí tu banco.");
+      setErr(t("errChooseBank"));
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido.");
+      setErr(t("errEmail"));
       return;
     }
     if (!docNumber.trim()) {
-      setErr("Número de documento obligatorio.");
+      setErr(t("errDocRequired"));
       return;
     }
     setErr(null);
@@ -1355,15 +1354,13 @@ function PseSheet({
 
       if (response.code) {
         setErr(
-          `${response.message ?? response.error ?? "Error de Kushki"} (${response.code})`,
+          `${response.message ?? response.error ?? t("errPayFailed")} (${response.code})`,
         );
         return;
       }
       const token = response.token;
       if (!token) {
-        setErr(
-          "Kushki no devolvió un token. Probá con otro banco o método.",
-        );
+        setErr(t("errNoTokenPse"));
         return;
       }
 
@@ -1381,7 +1378,7 @@ function PseSheet({
       });
     } catch (e) {
       console.error("[pse] tokenize error", e);
-      setErr("No pudimos tokenizar con Kushki. Probá de nuevo.");
+      setErr(t("errTokenizePse"));
     } finally {
       setTokenizing(false);
     }
@@ -1401,10 +1398,10 @@ function PseSheet({
         <div className="flex items-baseline justify-between mb-4">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              PSE · Transferencia bancaria
+              {t("pseLabel")}
             </div>
             <div className="font-display text-xl">
-              Pagar{" "}
+              {t("pay")}{" "}
               <span className="tabular">
                 ${(amountCents / 100).toLocaleString("es-CO")}
               </span>
@@ -1415,24 +1412,21 @@ function PseSheet({
             onClick={onClose}
             className="text-op-muted text-sm"
           >
-            Cerrar
+            {t("close")}
           </button>
         </div>
 
-        <p className="text-xs text-op-muted mb-4">
-          Elegí tu banco y te llevaremos directo a su pasarela para
-          autorizar la transferencia.
-        </p>
+        <p className="text-xs text-op-muted mb-4">{t("pseIntro")}</p>
 
         <label className="block mb-3">
-          <div className="text-[11px] text-op-muted mb-1">Banco</div>
+          <div className="text-[11px] text-op-muted mb-1">{t("bank")}</div>
           {banksLoading ? (
             // Skeleton shimmer mientras carga la lista. Da feedback
             // visual claro de que algo está pasando sin mostrar texto
             // explícito ("Cargando..." cansa cuando se repite).
             <div
               className="w-full h-11 rounded-lg bg-hairline animate-pulse"
-              aria-label="Cargando lista de bancos"
+              aria-label={t("loadingBanks")}
             />
           ) : (
             <select
@@ -1440,7 +1434,7 @@ function PseSheet({
               onChange={(e) => setBankCode(e.target.value)}
               className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
             >
-              <option value="">Elegí tu banco</option>
+              <option value="">{t("chooseBank")}</option>
               {banks.map((b) => (
                 <option key={b.code} value={b.code}>
                   {b.name}
@@ -1451,19 +1445,19 @@ function PseSheet({
         </label>
 
         <label className="block mb-3">
-          <div className="text-[11px] text-op-muted mb-1">Email</div>
+          <div className="text-[11px] text-op-muted mb-1">{t("email")}</div>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder={t("emailPlaceholder")}
             className="w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-sm"
           />
         </label>
 
         <div className="grid grid-cols-3 gap-3 mb-3">
           <label className="block col-span-1">
-            <div className="text-[11px] text-op-muted mb-1">Tipo doc</div>
+            <div className="text-[11px] text-op-muted mb-1">{t("docTypeLabel")}</div>
             <select
               value={docType}
               onChange={(e) =>
@@ -1479,7 +1473,7 @@ function PseSheet({
             </select>
           </label>
           <label className="block col-span-2">
-            <div className="text-[11px] text-op-muted mb-1">Número</div>
+            <div className="text-[11px] text-op-muted mb-1">{t("docNumberLabel")}</div>
             <input
               inputMode="numeric"
               value={docNumber}
@@ -1490,7 +1484,7 @@ function PseSheet({
         </div>
 
         <label className="block mb-4">
-          <div className="text-[11px] text-op-muted mb-1">Tipo de persona</div>
+          <div className="text-[11px] text-op-muted mb-1">{t("personTypeLabel")}</div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -1502,7 +1496,7 @@ function PseSheet({
                   : "border-hairline bg-paper text-ink")
               }
             >
-              Natural
+              {t("natural")}
             </button>
             <button
               type="button"
@@ -1514,7 +1508,7 @@ function PseSheet({
                   : "border-hairline bg-paper text-ink")
               }
             >
-              Jurídica
+              {t("juridica")}
             </button>
           </div>
         </label>
@@ -1530,14 +1524,15 @@ function PseSheet({
           className="w-full h-12 rounded-full bg-ink text-bone font-medium disabled:opacity-50"
         >
           {tokenizing
-            ? "Tokenizando…"
+            ? t("tokenizing")
             : busy
-              ? "Conectando con el banco…"
-              : `Ir al banco · ${"$" + (amountCents / 100).toLocaleString("es-CO")}`}
+              ? t("connectingBank")
+              : t("goToBank", {
+                  amount: "$" + (amountCents / 100).toLocaleString("es-CO"),
+                })}
         </button>
         <p className="text-[11px] text-op-muted text-center mt-2">
-          Pago seguro vía PSE. Te abrimos la página de tu banco para
-          autorizar.
+          {t("pseFootnote")}
         </p>
       </div>
     </div>
@@ -1555,6 +1550,7 @@ function OperatorCashSheet({
   onClose: () => void;
   onConfirm: (v: { tenderCents: number; changeGivenCents: number }) => void;
 }) {
+  const t = useTranslations("pay");
   const dueCop = Math.ceil(amountCents / 100);
   // Colombia no usa centavos físicos: si una cuenta dividida cae en
   // fracción ($33.605 ÷ 2 = $16.802,50), la matemática del vuelto
@@ -1650,28 +1646,24 @@ function OperatorCashSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-              Cobrar en efectivo · {fmtCOP(dueCents)}
+              {t("cashChargeTitle", { amount: fmtCOP(dueCents) })}
             </div>
-            <h2 className="font-display text-2xl mt-1">Confirma el cobro</h2>
-            <p className="text-xs text-muted mt-1">
-              Anota cuánto te pasó el cliente. Si te dice que te
-              quedes con el vuelto (todo o parte), abajo eliges qué
-              hacer con él.
-            </p>
+            <h2 className="font-display text-2xl mt-1">{t("confirmCharge")}</h2>
+            <p className="text-xs text-muted mt-1">{t("opCashSubtitle")}</p>
           </div>
           <button
             onClick={onClose}
             disabled={busy}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={t("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            ¿Con qué te pagó?
+            {t("paidWithWhat")}
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
@@ -1688,7 +1680,7 @@ function OperatorCashSheet({
                   : "bg-paper border-hairline")
               }
             >
-              Cuenta exacta
+              {t("exactBill")}
             </button>
             {presetsCop.map((bill) => {
               const billCents = bill * 100;
@@ -1716,7 +1708,7 @@ function OperatorCashSheet({
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Recibido del cliente
+              {t("receivedFromClient")}
             </span>
             <input
               type="text"
@@ -1731,7 +1723,7 @@ function OperatorCashSheet({
           </label>
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Devuelta dada
+              {t("changeGivenLabel")}
             </span>
             <input
               type="text"
@@ -1757,7 +1749,7 @@ function OperatorCashSheet({
         {expectedChange > 0 && (
           <div>
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-              ¿Qué hace con los {fmtCOP(expectedChange)} de vuelto?
+              {t("changeQuestion", { amount: fmtCOP(expectedChange) })}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -1772,9 +1764,9 @@ function OperatorCashSheet({
                     : "bg-paper border-hairline text-ink hover:border-ink")
                 }
               >
-                <div className="leading-tight">Le devuelvo</div>
+                <div className="leading-tight">{t("iReturn")}</div>
                 <div className="font-mono text-[10px] opacity-80 mt-0.5">
-                  el vuelto
+                  {t("theChange")}
                 </div>
               </button>
               <button
@@ -1789,9 +1781,9 @@ function OperatorCashSheet({
                     : "bg-paper border-hairline text-ink hover:border-ink")
                 }
               >
-                <div className="leading-tight">Lo deja</div>
+                <div className="leading-tight">{t("keeps")}</div>
                 <div className="font-mono text-[10px] opacity-80 mt-0.5">
-                  de propina
+                  {t("asTip")}
                 </div>
               </button>
             </div>
@@ -1809,37 +1801,41 @@ function OperatorCashSheet({
           }
         >
           {!validTender ? (
-            <span>El cliente debe pasarte al menos {fmtCOP(dueCents)}.</span>
+            <span>{t("mustPayAtLeast", { amount: fmtCOP(dueCents) })}</span>
           ) : !validChange ? (
-            <span>La devuelta no puede ser mayor a lo recibido.</span>
+            <span>{t("changeTooHigh")}</span>
           ) : extraTip < 0 ? (
             // La devuelta es más alta que el vuelto real → mesero pondría
             // plata de su bolsillo. Mostramos el faltante y un atajo para
             // ajustar al vuelto exacto.
             <div className="space-y-2">
               <div>
-                La devuelta es{" "}
-                <strong className="font-mono tabular">
-                  {fmtCOP(-extraTip)}
-                </strong>{" "}
-                mayor de lo que corresponde. El cliente te quedó debiendo
-                esa diferencia.
+                {t.rich("changeExceeds", {
+                  amount: fmtCOP(-extraTip),
+                  b: (chunks) => (
+                    <strong className="font-mono tabular">{chunks}</strong>
+                  ),
+                })}
               </div>
               <button
                 type="button"
                 onClick={refundExactChange}
                 className="font-mono text-[10px] tracking-wider uppercase underline"
               >
-                Corregir al vuelto exacto · {fmtCOP(expectedChange)}
+                {t("correctToExact", { amount: fmtCOP(expectedChange) })}
               </button>
             </div>
           ) : extraTip > 0 ? (
             <span>
-              Propina por vuelto:{" "}
-              <strong className="font-mono tabular">{fmtCOP(extraTip)}</strong>
+              {t.rich("tipFromChange", {
+                amount: fmtCOP(extraTip),
+                b: (chunks) => (
+                  <strong className="font-mono tabular">{chunks}</strong>
+                ),
+              })}
             </span>
           ) : (
-            <span>Sin propina por vuelto.</span>
+            <span>{t("noTipFromChange")}</span>
           )}
         </div>
 
@@ -1852,8 +1848,10 @@ function OperatorCashSheet({
           className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {busy
-            ? "Registrando…"
-            : `Confirmar cobro · ${fmtCOP(dueCents + Math.max(0, extraTip))}`}
+            ? t("registering")
+            : t("confirmChargeBtn", {
+                amount: fmtCOP(dueCents + Math.max(0, extraTip)),
+              })}
         </button>
       </div>
     </div>
@@ -1882,6 +1880,7 @@ function PresetBill({
   primary?: boolean;
   onClick: () => void;
 }) {
+  const t = useTranslations("pay");
   return (
     <button
       type="button"
@@ -1902,8 +1901,8 @@ function PresetBill({
           }
         >
           {changeCents > 0
-            ? `Te traen ${fmtCOP(changeCents)} de devuelta`
-            : "Sin devuelta"}
+            ? t("changeBackShort", { amount: fmtCOP(changeCents) })
+            : t("noChange")}
         </div>
       </div>
       <div className="font-mono tabular text-base">{fmtCOP(tenderCents)}</div>
@@ -1945,6 +1944,7 @@ function CardSheet({
   onClose: () => void;
   onTokenized: (token: string) => void;
 }) {
+  const t = useTranslations("pay");
   const [number, setNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState(""); // formato MM/YY
@@ -1972,30 +1972,30 @@ function CardSheet({
     setErr(null);
     const digits = number.replace(/\s/g, "");
     if (digits.length < 13 || digits.length > 19) {
-      setErr("Número de tarjeta inválido.");
+      setErr(t("errCardNumber"));
       return;
     }
     if (!holderName.trim() || holderName.trim().length < 3) {
-      setErr("Ingresá el nombre como aparece en la tarjeta.");
+      setErr(t("errCardName"));
       return;
     }
     const expiryMatch = /^(\d{2})\/(\d{2})$/.exec(expiry);
     if (!expiryMatch) {
-      setErr("Vencimiento en formato MM/YY.");
+      setErr(t("errExpiry"));
       return;
     }
     const expMonth = expiryMatch[1];
     const expYear = expiryMatch[2];
     if (Number(expMonth) < 1 || Number(expMonth) > 12) {
-      setErr("Mes de vencimiento inválido.");
+      setErr(t("errExpiryMonth"));
       return;
     }
     if (!cvv.match(/^\d{3,4}$/)) {
-      setErr("CVV inválido.");
+      setErr(t("errCvv"));
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido — Kushki lo requiere para anti-fraude.");
+      setErr(t("errCardEmail"));
       return;
     }
 
@@ -2069,12 +2069,12 @@ function CardSheet({
       });
       if (!res.ok || json.code) {
         setErr(
-          `${json.message ?? "Error de Kushki"}${json.code ? ` (${json.code})` : ` (HTTP ${res.status})`}`,
+          `${json.message ?? t("errPayFailed")}${json.code ? ` (${json.code})` : ` (HTTP ${res.status})`}`,
         );
         return;
       }
       if (!json.token) {
-        setErr("Kushki no devolvió un token. Reintentá.");
+        setErr(t("errNoTokenCard"));
         return;
       }
 
@@ -2100,7 +2100,7 @@ function CardSheet({
       onTokenized(json.token);
     } catch (e) {
       console.error("[card] tokenize error", e);
-      setErr("No pudimos tokenizar la tarjeta. Intentá de nuevo.");
+      setErr(t("errTokenizeCard"));
     } finally {
       setTokenizing(false);
     }
@@ -2117,30 +2117,32 @@ function CardSheet({
       >
         <div className="flex items-center justify-between">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-            Tarjeta · crédito o débito
+            {t("cardLabel")}
           </div>
           <button
             type="button"
             onClick={onClose}
             className="text-sm text-muted hover:text-ink"
           >
-            Cerrar
+            {t("close")}
           </button>
         </div>
         <div className="mt-1">
-          <div className="font-display text-2xl">Pagar {fmtCOP(amountCents)}</div>
+          <div className="font-display text-2xl">
+            {t("payAmount", { amount: fmtCOP(amountCents) })}
+          </div>
         </div>
 
         <div className="mt-5 space-y-3">
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Número de tarjeta
+              {t("cardNumber")}
             </span>
             <input
               type="tel"
               inputMode="numeric"
               autoComplete="cc-number"
-              placeholder="1234 5678 9012 3456"
+              placeholder={t("cardNumberPlaceholder")}
               value={number}
               onChange={(e) => setNumber(formatCardNumber(e.target.value))}
               className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 font-mono tabular text-sm focus:outline-none focus:border-ink"
@@ -2148,12 +2150,12 @@ function CardSheet({
           </label>
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Nombre en la tarjeta
+              {t("cardName")}
             </span>
             <input
               type="text"
               autoComplete="cc-name"
-              placeholder="Como aparece en la tarjeta"
+              placeholder={t("cardNamePlaceholder")}
               value={holderName}
               onChange={(e) => setHolderName(e.target.value)}
               className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 text-sm focus:outline-none focus:border-ink"
@@ -2161,13 +2163,13 @@ function CardSheet({
           </label>
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Email
+              {t("email")}
             </span>
             <input
               type="email"
               autoComplete="email"
               inputMode="email"
-              placeholder="tu@email.com"
+              placeholder={t("emailPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 text-sm focus:outline-none focus:border-ink"
@@ -2176,13 +2178,13 @@ function CardSheet({
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                Vencimiento
+                {t("expiry")}
               </span>
               <input
                 type="tel"
                 inputMode="numeric"
                 autoComplete="cc-exp"
-                placeholder="MM/YY"
+                placeholder={t("expiryPlaceholder")}
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                 className="mt-1 w-full h-11 rounded-xl border border-hairline bg-paper px-3 font-mono tabular text-sm focus:outline-none focus:border-ink"
@@ -2190,13 +2192,13 @@ function CardSheet({
             </label>
             <label className="block">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                CVV
+                {t("cvv")}
               </span>
               <input
                 type="tel"
                 inputMode="numeric"
                 autoComplete="cc-csc"
-                placeholder="123"
+                placeholder={t("cvvPlaceholder")}
                 value={cvv}
                 onChange={(e) =>
                   setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
@@ -2220,10 +2222,10 @@ function CardSheet({
           className="mt-5 w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
         >
           {tokenizing
-            ? "Validando tarjeta…"
+            ? t("validatingCard")
             : busy
-              ? "Procesando pago…"
-              : `Pagar ${fmtCOP(amountCents)}`}
+              ? t("processingPayment")
+              : t("payAmount", { amount: fmtCOP(amountCents) })}
         </button>
       </div>
     </div>
@@ -2252,6 +2254,7 @@ function PayButton({
   amountCents: number;
   operatorMode: boolean;
 }) {
+  const t = useTranslations("pay");
   const meta = (operatorMode ? BUTTON_META_OP : BUTTON_META_DINER)[kind];
   return (
     <button
@@ -2266,13 +2269,16 @@ function PayButton({
         {meta.icon}
       </span>
       <span>
-        {busy ? "Procesando…" : `${meta.label} · ${fmtCOP(amountCents)}`}
+        {busy
+          ? t("processing")
+          : `${t(meta.labelKey)} · ${fmtCOP(amountCents)}`}
       </span>
     </button>
   );
 }
 
-type ButtonMeta = { label: string; icon: string; className: string };
+// labelKey es una clave del catálogo `pay` — PayButton la resuelve con t().
+type ButtonMeta = { labelKey: string; icon: string; className: string };
 
 // Copy written for the diner — they're asking the system to do
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
@@ -2282,37 +2288,37 @@ const BUTTON_META_DINER: Record<
   ButtonMeta
 > = {
   apple: {
-    label: "Apple Pay",
+    labelKey: "btnApple",
     icon: "",
     className: "bg-ink text-bone",
   },
   card: {
-    label: "Tarjeta de crédito o débito",
+    labelKey: "btnCard",
     icon: "💳",
     className: "bg-ink text-bone",
   },
   terminal: {
-    label: "Tarjeta con datáfono",
+    labelKey: "btnTerminal",
     icon: "💳",
     className: "bg-terracotta text-paper",
   },
   external_terminal: {
-    label: "Tarjeta (datáfono del comercio)",
+    labelKey: "btnExternalTerminal",
     icon: "💳",
     className: "bg-paper text-ink border border-hairline",
   },
   pse: {
-    label: "PSE (transferencia bancaria)",
+    labelKey: "btnPse",
     icon: "🏦",
     className: "bg-paper text-ink border border-hairline",
   },
   cash: {
-    label: "Efectivo (llamar al mesero)",
+    labelKey: "btnCash",
     icon: "💵",
     className: "bg-paper text-ink border border-hairline",
   },
   demo_terminal: {
-    label: "Demo pedir datáfono",
+    labelKey: "btnDemoTerminal",
     icon: "🧪",
     className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
   },
@@ -2327,28 +2333,28 @@ const BUTTON_META_OP: Record<
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
   card: {
-    label: "Cobrar con tarjeta",
+    labelKey: "opBtnCard",
     icon: "💳",
     className: "bg-ink text-bone",
   },
   terminal: {
-    label: "Cobrar con datáfono",
+    labelKey: "opBtnTerminal",
     icon: "💳",
     className: "bg-terracotta text-paper",
   },
   external_terminal: {
-    label: "Cobrar con datáfono del comercio",
+    labelKey: "opBtnExternalTerminal",
     icon: "💳",
     className: "bg-paper text-ink border border-hairline",
   },
   pse: BUTTON_META_DINER.pse, // never shown in op mode, kept for type safety
   cash: {
-    label: "Recibir en efectivo",
+    labelKey: "opBtnCash",
     icon: "💵",
     className: "bg-paper text-ink border border-hairline",
   },
   demo_terminal: {
-    label: "Demo · Cobrar con datáfono",
+    labelKey: "opBtnDemoTerminal",
     icon: "🧪",
     className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
   },

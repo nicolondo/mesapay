@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
@@ -31,6 +32,7 @@ export function TerminalWait({
   initialStatus: Status;
 }) {
   const router = useRouter();
+  const t = useTranslations("wait");
   const [status, setStatus] = useState<Status>(initialStatus);
   const redirected = useRef(false);
 
@@ -96,14 +98,12 @@ export function TerminalWait({
       <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
         <div className="text-center max-w-sm">
           <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl check-pop">
-            ✓
+            {"✓"}
           </div>
           <h1 className="font-display text-4xl tracking-[-0.015em] mt-5">
-            ¡Pago aprobado!
+            {t("terminalApprovedTitle")}
           </h1>
-          <p className="text-muted mt-3">
-            Gracias por tu compra. Pasamos a la confirmación final.
-          </p>
+          <p className="text-muted mt-3">{t("terminalApprovedBody")}</p>
         </div>
       </main>
     );
@@ -117,14 +117,12 @@ export function TerminalWait({
       <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
         <div className="text-center max-w-sm">
           <div className="w-14 h-14 rounded-full bg-danger/20 text-danger mx-auto flex items-center justify-center font-display text-3xl">
-            ✕
+            {"✕"}
           </div>
           <h1 className="font-display text-3xl tracking-[-0.015em] mt-4">
-            Pago rechazado
+            {t("declinedTitle")}
           </h1>
-          <p className="text-muted mt-2 text-sm">
-            Te llevamos de vuelta al checkout para que elijas otro método…
-          </p>
+          <p className="text-muted mt-2 text-sm">{t("terminalDeclinedBody")}</p>
         </div>
       </main>
     );
@@ -146,33 +144,32 @@ export function TerminalWait({
           {locationLabel} · {tenantName}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-2">
-          El mesero viene con el datáfono
+          {t("terminalWaitTitle")}
         </h1>
         <p className="text-muted mt-3">
-          Vamos a cobrarte{" "}
-          <span className="font-mono tabular text-ink">
-            {fmtCOP(amountCents)}
-          </span>{" "}
-          en el terminal. Solo pasa tu tarjeta cuando llegue.
+          {t.rich("terminalWaitBody", {
+            amount: fmtCOP(amountCents),
+            b: (chunks) => (
+              <span className="font-mono tabular text-ink">{chunks}</span>
+            ),
+          })}
         </p>
 
         <div className="mt-8 bg-paper border border-hairline rounded-2xl p-5 text-left">
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Total a pagar
+              {t("totalToPay")}
             </span>
             <span className="font-display text-3xl">
               {fmtCOP(amountCents)}
             </span>
           </div>
-          <p className="mt-3 text-xs text-muted-2">
-            Esta pantalla se actualiza sola cuando el datáfono confirme.
-          </p>
+          <p className="mt-3 text-xs text-muted-2">{t("terminalWaitHint")}</p>
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-terracotta animate-pulse" />
-          Esperando datáfono…
+          {t("waitingTerminal")}
         </div>
       </div>
     </main>

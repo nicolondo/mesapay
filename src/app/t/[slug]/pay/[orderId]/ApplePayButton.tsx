@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * Botón Apple Pay renderizado por el SDK de Kushki. Flow:
@@ -42,6 +43,7 @@ export function ApplePayButton({
   busy: boolean;
   onTokenized: (token: string) => void;
 }) {
+  const t = useTranslations("wait");
   const [supported, setSupported] = useState<boolean | null>(null);
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -155,9 +157,7 @@ export function ApplePayButton({
           onTokenized(resp.token);
         } else {
           console.error("[apple-pay] token error", resp);
-          setErr(
-            resp?.message ?? "No pudimos completar el pago con Apple Pay.",
-          );
+          setErr(resp?.message ?? t("applePayError"));
         }
       },
       () => {

@@ -29,6 +29,12 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/page.tsx",
   "src/app/t/\\[slug\\]/order/\\[orderId\\]/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/ApplePayButton.tsx",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/cash/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/terminal/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/3ds-return/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pse-return/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/done/DoneLive.tsx",
 ];
 
 const eslintConfig = defineConfig([

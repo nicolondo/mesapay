@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getRestaurantPrivateKey } from "@/lib/payments";
 import { getKushkiMode } from "@/lib/platformConfig";
@@ -181,50 +182,44 @@ export default async function PseReturnPage({
   // Acá sólo llegamos en pending o declined.
   const isDeclined = currentStatus === "declined";
   const isPending = currentStatus === "pending";
+  const t = await getTranslations("wait");
 
   return (
     <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6">
       <div className="max-w-sm w-full text-center">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-          PSE · Transferencia bancaria
+          {t("pseLabel")}
         </div>
         {isDeclined && (
           <>
-            <div className="text-5xl mb-3">✕</div>
-            <h1 className="font-display text-2xl mb-2">
-              Pago rechazado
-            </h1>
+            <div className="text-5xl mb-3">{"✕"}</div>
+            <h1 className="font-display text-2xl mb-2">{t("declinedTitle")}</h1>
             <p className="text-sm text-op-muted mb-6">
               {statusHint === "declined"
-                ? "Tu banco rechazó la transferencia. Podés intentar con otro método o reintentar PSE."
-                : "El pago no se completó. Reintentá con otro método."}
+                ? t("pseDeclinedBankBody")
+                : t("pseDeclinedBody")}
             </p>
             <Link
               href={`/t/${slug}/pay/${orderId}`}
               className="inline-flex items-center justify-center h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
             >
-              Reintentar
+              {t("retry")}
             </Link>
           </>
         )}
         {isPending && (
           <>
-            <div className="text-5xl mb-3 animate-pulse">⏳</div>
-            <h1 className="font-display text-2xl mb-2">Procesando…</h1>
-            <p className="text-sm text-op-muted mb-1">
-              Estamos confirmando el resultado de tu transferencia con tu
-              banco. Puede tardar unos segundos.
-            </p>
-            <p className="text-xs text-op-muted mb-6">
-              Esta página se actualiza automáticamente.
-            </p>
+            <div className="text-5xl mb-3 animate-pulse">{"⏳"}</div>
+            <h1 className="font-display text-2xl mb-2">{t("processing")}</h1>
+            <p className="text-sm text-op-muted mb-1">{t("pseProcessingBody")}</p>
+            <p className="text-xs text-op-muted mb-6">{t("autoRefresh")}</p>
             {/* Auto-refresh cada 3s sin JS. */}
             <meta httpEquiv="refresh" content="3" />
             <Link
               href={`/t/${slug}/pay/${orderId}`}
               className="text-xs text-op-muted underline"
             >
-              Volver al checkout
+              {t("backToCheckout")}
             </Link>
           </>
         )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Lee los query params que dejó Kushki después del challenge bancario
@@ -26,6 +27,7 @@ export function ThreeDsReturnClient({
 }) {
   const router = useRouter();
   const params = useSearchParams();
+  const t = useTranslations("wait");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,14 +67,12 @@ export function ThreeDsReturnClient({
       console.error("[3ds-return] localStorage read failed", e);
     }
     if (amountCents <= 0) {
-      setError(
-        "No pudimos recuperar el monto del pago. Reintentá desde el checkout.",
-      );
+      setError(t("tdsErrNoAmount"));
       // Damos un segundo al user para leer y luego mandamos a checkout.
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         router.replace(`/t/${tenantSlug}/pay/${orderId}?declined=1`);
       }, 2500);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
 
     // Limpiamos el stash inmediatamente — un retry del browser no
@@ -118,11 +118,11 @@ export function ThreeDsReturnClient({
       } catch (e) {
         if (cancelled) return;
         console.error("[3ds-return] charge failed", e);
-        setError("No pudimos completar el cobro. Reintentá.");
-        const t = setTimeout(() => {
+        setError(t("tdsErrCharge"));
+        const timer = setTimeout(() => {
           router.replace(`/t/${tenantSlug}/pay/${orderId}?declined=1`);
         }, 2500);
-        return () => clearTimeout(t);
+        return () => clearTimeout(timer);
       }
     })();
     return () => {
@@ -140,10 +140,10 @@ export function ThreeDsReturnClient({
           />
         </div>
         <div className="font-display text-xl">
-          {error ? "Algo salió mal" : "Verificando tu pago…"}
+          {error ? t("tdsError") : t("tdsVerifying")}
         </div>
         <p className="text-sm text-muted mt-2">
-          {error ?? "Estamos confirmando con tu banco. No cierres esta ventana."}
+          {error ?? t("tdsConfirming")}
         </p>
       </div>
     </main>

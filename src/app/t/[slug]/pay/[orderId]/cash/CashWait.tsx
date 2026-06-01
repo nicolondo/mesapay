@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
@@ -25,6 +26,7 @@ export function CashWait({
   initialStatus: Status;
 }) {
   const router = useRouter();
+  const t = useTranslations("wait");
   const [status, setStatus] = useState<Status>(initialStatus);
   const redirected = useRef(false);
 
@@ -77,14 +79,12 @@ export function CashWait({
       <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
         <div className="text-center max-w-sm">
           <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl check-pop">
-            ✓
+            {"✓"}
           </div>
           <h1 className="font-display text-4xl tracking-[-0.015em] mt-5">
-            ¡Pago recibido!
+            {t("cashApprovedTitle")}
           </h1>
-          <p className="text-muted mt-3">
-            Gracias por visitarnos. Esperamos verte pronto.
-          </p>
+          <p className="text-muted mt-3">{t("cashApprovedBody")}</p>
         </div>
       </main>
     );
@@ -95,12 +95,9 @@ export function CashWait({
       <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
         <div className="text-center max-w-sm">
           <h1 className="font-display text-3xl tracking-[-0.015em]">
-            Pago cancelado
+            {t("cashCancelledTitle")}
           </h1>
-          <p className="text-muted mt-2">
-            Tu solicitud de pago en efectivo fue cancelada. Puedes volver a
-            intentarlo.
-          </p>
+          <p className="text-muted mt-2">{t("cashCancelledBody")}</p>
         </div>
       </main>
     );
@@ -122,33 +119,32 @@ export function CashWait({
           {locationLabel} · {tenantName}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-2">
-          El mesero viene a cobrar
+          {t("cashWaitTitle")}
         </h1>
         <p className="text-muted mt-3">
-          Ya avisamos a tu mesero. Prepara{" "}
-          <span className="font-mono tabular text-ink">
-            {fmtCOP(amountCents)}
-          </span>{" "}
-          y espera un momento en tu mesa.
+          {t.rich("cashWaitBody", {
+            amount: fmtCOP(amountCents),
+            b: (chunks) => (
+              <span className="font-mono tabular text-ink">{chunks}</span>
+            ),
+          })}
         </p>
 
         <div className="mt-8 bg-paper border border-hairline rounded-2xl p-5 text-left">
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Total a pagar
+              {t("totalToPay")}
             </span>
             <span className="font-display text-3xl">
               {fmtCOP(amountCents)}
             </span>
           </div>
-          <p className="mt-3 text-xs text-muted-2">
-            Cuando el mesero confirme el pago, esta pantalla se actualiza sola.
-          </p>
+          <p className="mt-3 text-xs text-muted-2">{t("cashWaitHint")}</p>
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-terracotta animate-pulse" />
-          Esperando cobro…
+          {t("waitingCharge")}
         </div>
       </div>
     </main>

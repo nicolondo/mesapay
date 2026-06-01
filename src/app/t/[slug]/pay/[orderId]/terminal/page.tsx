@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { TerminalWait } from "./TerminalWait";
 
@@ -36,14 +37,16 @@ export default async function TerminalPendingPage({
     notFound();
   }
 
+  const tMenu = await getTranslations("menu");
+
   return (
     <TerminalWait
       tenantSlug={slug}
       tenantName={order.restaurant.name}
       locationLabel={
         order.restaurant.serviceMode === "counter"
-          ? "Mostrador"
-          : `Mesa ${order.table.number}`
+          ? tMenu("counter")
+          : tMenu("tableLabel", { number: order.table.number })
       }
       orderId={order.id}
       paymentId={payment.id}

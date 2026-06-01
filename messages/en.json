@@ -2,6 +2,11 @@
   "common": {
     "language": "Language"
   },
+  "menu": {
+    "title": "Menu",
+    "counter": "Counter",
+    "tableLabel": "Table {number}"
+  },
   "reservar": {
     "closedTitle": "Reservations unavailable",
     "closedBody": "{name} is not taking online reservations right now."

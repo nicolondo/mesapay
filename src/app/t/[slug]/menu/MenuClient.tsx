@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import {
   COUNTRIES,
@@ -248,6 +250,7 @@ export function MenuClient({
   modalBottomReserveRem?: number;
 }) {
   const router = useRouter();
+  const tMenu = useTranslations("menu");
   // Active top-level menu tab. Hidden entirely when there's only one
   // menu (default case). Falls back to first menu id if anything is off.
   const [activeMenuId, setActiveMenuId] = useState<string>(
@@ -883,11 +886,12 @@ export function MenuClient({
                   {locationLabel} · {tenant.name}
                 </div>
                 <h1 className="font-display text-3xl tracking-[-0.015em]">
-                  La carta
+                  {tMenu("title")}
                 </h1>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <LocaleSwitcher className="h-9 rounded-full border border-hairline bg-paper px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted" />
               <LayoutSwitcher layout={layout} onChange={changeLayout} />
               {/* Llamar al mesero — siempre visible cuando es modo
                   mesa (sin pickup). El endpoint by-table maneja

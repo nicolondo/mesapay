@@ -2,6 +2,11 @@
   "common": {
     "language": "Idioma"
   },
+  "menu": {
+    "title": "La carta",
+    "counter": "Mostrador",
+    "tableLabel": "Mesa {number}"
+  },
   "reservar": {
     "closedTitle": "Reservas no disponibles",
     "closedBody": "{name} no está recibiendo reservas en línea por ahora."

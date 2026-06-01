@@ -21,6 +21,7 @@ const MIGRATED = [
   "src/i18n/**/*.{ts,tsx}",
   "src/components/LocaleSwitcher.tsx",
   "src/app/r/[slug]/page.tsx",
+  "src/app/t/[slug]/menu/page.tsx",
 ];
 
 const eslintConfig = defineConfig([

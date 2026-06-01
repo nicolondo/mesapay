@@ -1,9 +1,12 @@
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
+import { getContentTranslations } from "@/lib/translateContent";
+import { defaultLocale, type Locale } from "@/i18n/config";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -102,6 +105,54 @@ export default async function MenuPage({
           },
         });
 
+  // i18n — traducción del CONTENIDO del menú (nombres/descripciones de
+  // platos, categorías, menús) al idioma del comensal. Server-side y
+  // cacheado en la tabla Translation (ver lib/translateContent). En "es"
+  // (default) es no-op; sin ANTHROPIC_API_KEY cae al texto original.
+  const locale = await getLocale();
+  const tMenu = await getTranslations("menu");
+  let contentT = new Map<string, string>();
+  if (locale !== defaultLocale) {
+    const toTranslate: {
+      entityType: string;
+      entityId: string;
+      field: string;
+      text: string;
+    }[] = [];
+    for (const c of tenant.categories) {
+      if (c.label)
+        toTranslate.push({ entityType: "Category", entityId: c.id, field: "label", text: c.label });
+    }
+    for (const m of menus) {
+      if (m.label)
+        toTranslate.push({ entityType: "Menu", entityId: m.id, field: "label", text: m.label });
+      if (m.description)
+        toTranslate.push({ entityType: "Menu", entityId: m.id, field: "description", text: m.description });
+    }
+    for (const it of tenant.menuItems) {
+      if (it.name)
+        toTranslate.push({ entityType: "MenuItem", entityId: it.id, field: "name", text: it.name });
+      if (it.description)
+        toTranslate.push({ entityType: "MenuItem", entityId: it.id, field: "description", text: it.description });
+    }
+    // request.ts garantiza un locale válido; getLocale() lo tipa como string.
+    contentT = await getContentTranslations(locale as Locale, toTranslate);
+  }
+  const tr = (
+    entityType: string,
+    entityId: string,
+    field: string,
+    fallback: string,
+  ) => contentT.get(`${entityType}:${entityId}:${field}`) ?? fallback;
+
+  const localizedMenus = menus.map((m) => ({
+    ...m,
+    label: tr("Menu", m.id, "label", m.label),
+    description: m.description
+      ? tr("Menu", m.id, "description", m.description)
+      : m.description,
+  }));
+
   return (
     <MenuClient
       operatorMode={operatorMode}
@@ -127,15 +178,15 @@ export default async function MenuPage({
       }
       locationLabel={
         tenant.serviceMode === "counter"
-          ? "Mostrador"
-          : `Mesa ${table.number}`
+          ? tMenu("counter")
+          : tMenu("tableLabel", { number: table.number })
       }
-      menus={menus}
+      menus={localizedMenus}
       menuTags={menuTags}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,
-        label: c.label,
+        label: tr("Category", c.id, "label", c.label),
         menuId: c.menuId ?? menus[0]?.id ?? "",
       }))}
       items={tenant.menuItems.map((m) => {
@@ -143,8 +194,10 @@ export default async function MenuPage({
         return {
           id: m.id,
           categoryId: m.categoryId,
-          name: m.name,
-          description: m.description ?? "",
+          name: tr("MenuItem", m.id, "name", m.name),
+          description: m.description
+            ? tr("MenuItem", m.id, "description", m.description)
+            : "",
           priceCents: m.priceCents,
           tags: m.tags,
           photoUrl: m.photoUrl ?? null,

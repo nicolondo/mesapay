@@ -2,6 +2,11 @@
   "common": {
     "language": "Idioma"
   },
+  "menu": {
+    "title": "Cardápio",
+    "counter": "Balcão",
+    "tableLabel": "Mesa {number}"
+  },
   "reservar": {
     "closedTitle": "Reservas indisponíveis",
     "closedBody": "{name} não está aceitando reservas online no momento."

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { sendWelcomeEmail } from "@/lib/mailer";
 
@@ -41,7 +42,10 @@ export async function POST(req: Request) {
     },
   });
 
-  const sent = await sendWelcomeEmail({ email: user.email, name: user.name });
+  const sent = await sendWelcomeEmail(
+    { email: user.email, name: user.name },
+    await getLocale(),
+  );
   if (sent) {
     await db.user.update({
       where: { id: user.id },

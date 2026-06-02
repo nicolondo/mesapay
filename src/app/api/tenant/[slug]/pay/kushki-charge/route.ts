@@ -245,7 +245,7 @@ export async function POST(
   });
 
   if (result.fullyPaid && order.customerId) {
-    welcomeIfFirstTime(order.customerId).catch((err) =>
+    welcomeIfFirstTime(order.customerId, order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
   }

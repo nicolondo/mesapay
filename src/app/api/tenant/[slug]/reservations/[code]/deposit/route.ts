@@ -196,6 +196,7 @@ export async function POST(
     startsAt: reservation.startsAt,
     confirmationCode: reservation.confirmationCode,
     autoConfirmed: true,
+    locale: reservation.locale,
     manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
     depositPaidCents: depositCents,
   }).catch((err) =>

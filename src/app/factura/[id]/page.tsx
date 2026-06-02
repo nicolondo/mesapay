@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
+import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, localeTag } from "@/lib/format";
+import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
   type InvoiceSnapshot,
@@ -24,7 +27,10 @@ export async function generateMetadata({
       snapshot: true,
     },
   });
-  if (!inv) return { title: "Factura — MESAPAY" };
+  if (!inv) {
+    const t = await getTranslations("emailInvoice");
+    return { title: t("metaTitleFallback") };
+  }
   const snap = inv.snapshot as unknown as InvoiceSnapshot;
   const num = formatInvoiceNumber(snap, inv.invoiceNumber);
   const name = snap.legalName ?? snap.restaurantName;
@@ -47,6 +53,8 @@ export default async function FacturaPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations("emailInvoice");
+  const tag = localeTag((await getLocale()) as Locale);
   const inv = await db.simpleInvoice.findUnique({
     where: { id },
     include: { order: { select: { shortCode: true } } },
@@ -66,9 +74,9 @@ export default async function FacturaPage({
       <div className="factura-shell">
         <div className="factura-controls">
           <PrintButton />
-          <a href="/" className="secondary">
-            MESAPAY
-          </a>
+          <Link href="/" className="secondary">
+            {"MESAPAY"}
+          </Link>
         </div>
 
         <article className="receipt">
@@ -83,7 +91,7 @@ export default async function FacturaPage({
           <div className="meta">
             {snap.taxId && (
               <>
-                NIT {snap.taxId}
+                {t("taxId", { id: snap.taxId })}
                 <br />
               </>
             )}
@@ -101,7 +109,7 @@ export default async function FacturaPage({
             )}
             {snap.legalPhone && (
               <>
-                Tel: {snap.legalPhone}
+                {t("phone", { phone: snap.legalPhone })}
                 <br />
               </>
             )}
@@ -110,15 +118,15 @@ export default async function FacturaPage({
           <hr className="dashed" />
 
           <div className="row">
-            <span>Comprobante</span>
+            <span>{t("receiptLabel")}</span>
             <span className="right">
               <strong>{invNumber}</strong>
             </span>
           </div>
           <div className="row">
-            <span>Fecha</span>
+            <span>{t("date")}</span>
             <span className="right">
-              {paidAt.toLocaleString("es-CO", {
+              {paidAt.toLocaleString(tag, {
                 dateStyle: "short",
                 timeStyle: "short",
               })}
@@ -147,17 +155,17 @@ export default async function FacturaPage({
 
           <div className="totals">
             <div className="row">
-              <span>Subtotal</span>
+              <span>{t("subtotal")}</span>
               <span className="right">{fmtCOP(snap.subtotalCents)}</span>
             </div>
             {snap.tipCents > 0 && (
               <div className="row">
-                <span>Propina</span>
+                <span>{t("tip")}</span>
                 <span className="right">{fmtCOP(snap.tipCents)}</span>
               </div>
             )}
             <div className="row grand">
-              <span>TOTAL</span>
+              <span>{t("total")}</span>
               <span className="right">{fmtCOP(snap.totalCents)}</span>
             </div>
           </div>
@@ -167,29 +175,31 @@ export default async function FacturaPage({
           <div className="footer">
             {snap.dianResolution && (
               <>
-                Resolución DIAN: {snap.dianResolution}
+                {t("dianResolution", { res: snap.dianResolution })}
                 <br />
               </>
             )}
             {snap.dianResolutionFrom != null &&
               snap.dianResolutionTo != null && (
                 <>
-                  Numeración del {snap.dianResolutionFrom} al{" "}
-                  {snap.dianResolutionTo}
+                  {t("dianNumbering", {
+                    from: snap.dianResolutionFrom,
+                    to: snap.dianResolutionTo,
+                  })}
                   <br />
                 </>
               )}
             {dianDate && (
               <>
-                Fecha de resolución {dianDate.toLocaleDateString("es-CO")}
+                {t("dianDate", { date: dianDate.toLocaleDateString(tag) })}
                 <br />
               </>
             )}
             <br />
-            ¡Gracias por tu visita!
+            {t("thanks")}
             <br />
             <span style={{ fontSize: "9px", opacity: 0.6 }}>
-              Generado con MESAPAY
+              {t("generatedBy")}
             </span>
           </div>
         </article>

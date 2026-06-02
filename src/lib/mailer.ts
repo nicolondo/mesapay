@@ -2,6 +2,8 @@
 // don't break. Errors are logged but never thrown — an email failure must not
 // abort a signup or a successful payment.
 
+import { getEmailTranslator } from "./emailIntl";
+
 type SendArgs = {
   to: string;
   subject: string;
@@ -47,48 +49,53 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
   }
 }
 
-export function renderWelcomeEmail(name: string | null): { html: string; text: string; subject: string } {
-  const greeting = name ? `Hola ${name}` : "Hola";
-  const subject = "Bienvenido a MESAPAY";
+export async function renderWelcomeEmail(
+  name: string | null,
+  locale?: string | null,
+): Promise<{ html: string; text: string; subject: string }> {
+  const { t, locale: lang } = await getEmailTranslator(locale, "emailWelcome");
+  const greeting = name ? t("greetingNamed", { name }) : t("greeting");
+  const subject = t("subject");
+  const meUrl = "https://mesapay.co/me";
   const text = [
     `${greeting},`,
     "",
-    "Gracias por crear tu cuenta en MESAPAY.",
+    t("intro"),
     "",
-    "Con tu cuenta puedes:",
-    "· Ver el historial de tus cuentas en cualquier restaurante con MESAPAY.",
-    "· Pagar más rápido la próxima vez, sin volver a escribir tus datos.",
-    "· Calificar los platos que probaste.",
+    t("canDoLead"),
+    `· ${t("benefit1")}`,
+    `· ${t("benefit2")}`,
+    `· ${t("benefit3")}`,
     "",
-    "Cuando quieras revisar tus órdenes, entra a https://mesapay.co/me",
+    t("ctaText", { url: meUrl }),
     "",
-    "Buen provecho,",
-    "El equipo MESAPAY",
+    t("signoff"),
+    t("team"),
   ].join("\n");
 
   const html = `<!doctype html>
-<html lang="es"><body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#1A1613;">
+<html lang="${lang}"><body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#1A1613;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF7F2;padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFBF3;border:1px solid #EAE1D0;border-radius:16px;overflow:hidden;">
         <tr><td style="padding:32px 36px 8px 36px;">
           <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#8B7B65;">MESAPAY</div>
-          <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:32px;line-height:1.1;margin:8px 0 16px 0;color:#1A1613;">Bienvenido a MESAPAY</h1>
-          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${greeting},</p>
-          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">Gracias por crear tu cuenta. Ya puedes ordenar y pagar desde la mesa en cualquier restaurante con MESAPAY, sin apps ni filas.</p>
-          <p style="font-size:15px;line-height:1.55;margin:0 0 6px 0;">Con tu cuenta puedes:</p>
+          <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:32px;line-height:1.1;margin:8px 0 16px 0;color:#1A1613;">${escapeHtml(t("title"))}</h1>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(greeting)},</p>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(t("intro"))}</p>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 6px 0;">${escapeHtml(t("canDoLead"))}</p>
           <ul style="font-size:14px;line-height:1.6;padding-left:20px;margin:0 0 20px 0;color:#3A332B;">
-            <li>Ver el historial de tus cuentas.</li>
-            <li>Pagar más rápido sin volver a escribir tus datos.</li>
-            <li>Calificar los platos que probaste.</li>
+            <li>${escapeHtml(t("benefit1"))}</li>
+            <li>${escapeHtml(t("benefit2"))}</li>
+            <li>${escapeHtml(t("benefit3"))}</li>
           </ul>
           <p style="margin:24px 0;">
-            <a href="https://mesapay.co/me" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:500;font-size:14px;">Ver mis órdenes</a>
+            <a href="${meUrl}" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:500;font-size:14px;">${escapeHtml(t("cta"))}</a>
           </p>
-          <p style="font-size:12px;color:#8B7B65;margin:24px 0 0 0;">Buen provecho,<br/>El equipo MESAPAY</p>
+          <p style="font-size:12px;color:#8B7B65;margin:24px 0 0 0;">${escapeHtml(t("signoff"))}<br/>${escapeHtml(t("team"))}</p>
         </td></tr>
       </table>
-      <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#B8A98D;margin-top:18px;">Hecho en Colombia</div>
+      <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#B8A98D;margin-top:18px;">${escapeHtml(t("madeIn"))}</div>
     </td></tr>
   </table>
 </body></html>`;
@@ -96,8 +103,11 @@ export function renderWelcomeEmail(name: string | null): { html: string; text: s
   return { html, text, subject };
 }
 
-export async function sendWelcomeEmail(user: { email: string; name: string | null }): Promise<boolean> {
-  const { html, text, subject } = renderWelcomeEmail(user.name);
+export async function sendWelcomeEmail(
+  user: { email: string; name: string | null },
+  locale?: string | null,
+): Promise<boolean> {
+  const { html, text, subject } = await renderWelcomeEmail(user.name, locale);
   return sendEmail({ to: user.email, subject, html, text });
 }
 
@@ -283,14 +293,20 @@ function escapeHtml(s: string): string {
 // Fire-and-forget: called after a guest's first paid order when we want to
 // welcome them without blocking the payment response. Safe to call multiple
 // times — the welcomedAt guard ensures only one email per user.
-export async function welcomeIfFirstTime(userId: string): Promise<void> {
+export async function welcomeIfFirstTime(
+  userId: string,
+  locale?: string | null,
+): Promise<void> {
   const { db } = await import("./db");
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, name: true, welcomedAt: true, role: true },
   });
   if (!user || user.welcomedAt || user.role !== "customer") return;
-  const sent = await sendWelcomeEmail({ email: user.email, name: user.name });
+  const sent = await sendWelcomeEmail(
+    { email: user.email, name: user.name },
+    locale,
+  );
   if (sent) {
     await db.user.update({
       where: { id: user.id },

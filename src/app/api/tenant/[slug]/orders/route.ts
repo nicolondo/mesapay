@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
@@ -99,6 +100,7 @@ export async function POST(
           status: "open",
           shortCode: shortCode(),
           servingMode,
+          locale: await getLocale(),
         },
       });
     }

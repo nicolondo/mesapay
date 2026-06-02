@@ -213,6 +213,7 @@ function sendDepositEmail(
     partySize: number;
     startsAt: Date;
     confirmationCode: string;
+    locale: string | null;
     table: { number: number; label: string | null };
   },
   depositCents: number,
@@ -227,6 +228,7 @@ function sendDepositEmail(
     startsAt: reservation.startsAt,
     confirmationCode: reservation.confirmationCode,
     autoConfirmed: true,
+    locale: reservation.locale,
     manageUrl: `${appOrigin(req)}/r/${slug}/reserva/${reservation.confirmationCode}`,
     depositPaidCents: depositCents,
   }).catch((e) => console.error("[reservation-deposit-pse] email", e));

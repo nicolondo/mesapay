@@ -156,10 +156,11 @@ export async function POST(
   // falla; el cliente puede pedir reenvío si no llega.
   void (async () => {
     try {
-      const { subject, html, text } = renderInvoiceEmail({
+      const { subject, html, text } = await renderInvoiceEmail({
         snapshot,
         invoiceNumber,
         invoiceUrl: invoiceUrlFor(inv.id),
+        locale: order.locale,
       });
       // Compose un From que muestre el nombre del restaurante para
       // que el cliente reconozca de quién viene en la bandeja de

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { publishOrderEvent } from "@/lib/events";
@@ -219,6 +220,7 @@ export async function POST(
         orderType: "pickup",
         status: "paid",
         shortCode: shortCode(),
+        locale: await getLocale(),
         subtotalCents,
         totalCents: subtotalCents,
         etaMinutes,
@@ -323,7 +325,7 @@ export async function POST(
   // taps "Empezar" at the station (see operator/order-items PATCH).
 
   if (session?.user?.id) {
-    welcomeIfFirstTime(session.user.id).catch((err) =>
+    welcomeIfFirstTime(session.user.id, result.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
   }

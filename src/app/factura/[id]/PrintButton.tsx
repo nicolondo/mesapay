@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 /**
  * Botón cliente para disparar window.print() desde la tirilla
  * pública. Anteriormente usábamos un form con
@@ -8,12 +10,13 @@
  * idiomática.
  */
 export function PrintButton() {
+  const t = useTranslations("emailInvoice");
   return (
     <button
       type="button"
       onClick={() => window.print()}
     >
-      Imprimir
+      {t("print")}
     </button>
   );
 }

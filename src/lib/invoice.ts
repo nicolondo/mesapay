@@ -2,7 +2,10 @@
 // `/factura/[id]` consume el mismo snapshot que aparece en el email
 // para garantizar que ambos vean exactamente la misma versión.
 
-import { fmtCOP } from "./format";
+import { fmtCOP, localeTag } from "./format";
+import { getEmailTranslator } from "./emailIntl";
+
+type Translator = Awaited<ReturnType<typeof getEmailTranslator>>["t"];
 
 /**
  * Snapshot guardado en SimpleInvoice.snapshot al momento de emitir.
@@ -64,26 +67,30 @@ export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): strin
  * no soportan dvh, vw, fr, grid ni flexbox de forma consistente.
  * Receipt-block ~360px ancho (mimics 80mm). Outer 600px.
  */
-export function renderInvoiceEmail(args: {
+export async function renderInvoiceEmail(args: {
   snapshot: InvoiceSnapshot;
   invoiceNumber: number;
   invoiceUrl: string;
-}): { subject: string; html: string; text: string } {
+  /** Idioma del comensal (Order.locale). null ⇒ default (es). */
+  locale?: string | null;
+}): Promise<{ subject: string; html: string; text: string }> {
   const { snapshot, invoiceNumber, invoiceUrl } = args;
+  const { t, locale } = await getEmailTranslator(args.locale, "emailInvoice");
+  const tag = localeTag(locale);
   const numberStr = formatInvoiceNumber(snapshot, invoiceNumber);
   const merchantName =
     snapshot.legalName?.trim() || snapshot.restaurantName;
   const brandName = snapshot.restaurantName;
-  const subject = `Tu comprobante de ${brandName} — ${numberStr}`;
+  const subject = t("subject", { brand: brandName, number: numberStr });
   const paidAt = new Date(snapshot.paidAtIso);
   const dianDate = snapshot.dianResolutionDate
     ? new Date(snapshot.dianResolutionDate)
     : null;
-  // Formato compacto sin "p. m." — el locale es-CO mete espacios
+  // Formato compacto sin "p. m." — los locales con am/pm meten espacios
   // dentro del time que rompen línea en viewports angostos del
   // correo. 24h + middle-dot queda limpio y MESAPAY-style.
   const fechaStr = paidAt
-    .toLocaleString("es-CO", {
+    .toLocaleString(tag, {
       day: "2-digit",
       month: "2-digit",
       year: "2-digit",
@@ -93,19 +100,19 @@ export function renderInvoiceEmail(args: {
     })
     .replace(", ", " · ");
   const dianDateStr = dianDate
-    ? dianDate.toLocaleDateString("es-CO")
+    ? dianDate.toLocaleDateString(tag)
     : null;
 
   // Texto plano fallback — clientes sin HTML support, screen readers.
   const text = [
     `${merchantName}`,
-    snapshot.taxId ? `NIT ${snapshot.taxId}` : "",
+    snapshot.taxId ? t("taxId", { id: snapshot.taxId }) : "",
     snapshot.legalAddress ?? "",
     snapshot.legalCity ?? "",
-    snapshot.legalPhone ? `Tel: ${snapshot.legalPhone}` : "",
+    snapshot.legalPhone ? t("phone", { phone: snapshot.legalPhone }) : "",
     "",
-    `Comprobante ${numberStr}`,
-    `Fecha: ${fechaStr}`,
+    `${t("receiptLabel")} ${numberStr}`,
+    `${t("date")}: ${fechaStr}`,
     `${snapshot.tableLabel}  ${snapshot.shortCode}`,
     "",
     ...snapshot.items.map(
@@ -113,29 +120,34 @@ export function renderInvoiceEmail(args: {
         `${i.qty}× ${i.name}  ${fmtCOP(i.qty * i.priceCents)}`,
     ),
     "",
-    `Subtotal: ${fmtCOP(snapshot.subtotalCents)}`,
+    `${t("subtotal")}: ${fmtCOP(snapshot.subtotalCents)}`,
     snapshot.tipCents > 0
-      ? `Propina: ${fmtCOP(snapshot.tipCents)}`
+      ? `${t("tip")}: ${fmtCOP(snapshot.tipCents)}`
       : "",
-    `TOTAL: ${fmtCOP(snapshot.totalCents)}`,
+    `${t("total")}: ${fmtCOP(snapshot.totalCents)}`,
     "",
     snapshot.dianResolution
-      ? `Resolución DIAN: ${snapshot.dianResolution}`
+      ? t("dianResolution", { res: snapshot.dianResolution })
       : "",
     snapshot.dianResolutionFrom != null && snapshot.dianResolutionTo != null
-      ? `Numeración del ${snapshot.dianResolutionFrom} al ${snapshot.dianResolutionTo}`
+      ? t("dianNumbering", {
+          from: snapshot.dianResolutionFrom,
+          to: snapshot.dianResolutionTo,
+        })
       : "",
-    dianDateStr ? `Fecha de resolución ${dianDateStr}` : "",
+    dianDateStr ? t("dianDate", { date: dianDateStr }) : "",
     "",
-    "Para imprimir tu comprobante con formato POS, ábrelo en tu navegador:",
+    t("printText"),
     invoiceUrl,
     "",
-    "¡Gracias por tu visita!",
+    t("thanks"),
   ]
     .filter((l) => l !== "")
     .join("\n");
 
   const html = renderHtml({
+    t,
+    locale,
     snapshot,
     numberStr,
     merchantName,
@@ -149,6 +161,8 @@ export function renderInvoiceEmail(args: {
 }
 
 function renderHtml(args: {
+  t: Translator;
+  locale: string;
   snapshot: InvoiceSnapshot;
   numberStr: string;
   merchantName: string;
@@ -157,7 +171,7 @@ function renderHtml(args: {
   dianDateStr: string | null;
   invoiceUrl: string;
 }): string {
-  const { snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl } = args;
+  const { t, locale, snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl } = args;
 
   // Items como filas de tabla — más resistente que divs en Outlook.
   const itemRows = snapshot.items
@@ -194,13 +208,13 @@ function renderHtml(args: {
   // `color-scheme: light only` + `supported-color-schemes: light only`
   // bloquean la inversión auto que hace Gmail/Outlook en dark mode.
   return `<!doctype html>
-<html lang="es">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="color-scheme" content="light only" />
 <meta name="supported-color-schemes" content="light only" />
-<title>${escapeHtml(`Comprobante ${numberStr} — ${brandName}`)}</title>
+<title>${escapeHtml(t("docTitle", { number: numberStr, brand: brandName }))}</title>
 <style>
   :root { color-scheme: light only; supported-color-schemes: light only; }
   /* La tirilla hereda el bg del card para que no se vea anidada;
@@ -222,7 +236,7 @@ function renderHtml(args: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#8B7B65;">
-                  Comprobante · ${escapeHtml(numberStr)}
+                  ${escapeHtml(t("receiptLabel"))} · ${escapeHtml(numberStr)}
                 </td>
                 <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#B8A98D;">
                   MESAPAY
@@ -233,8 +247,7 @@ function renderHtml(args: {
               ${escapeHtml(brandName)}
             </h1>
             <p style="font-size:14px;line-height:1.5;color:#3A332B;margin:0 0 4px 0;">
-              Recibimos tu pago — acá está el comprobante. Si necesitas imprimirlo
-              con formato de tirilla, abre el botón al final del correo.
+              ${escapeHtml(t("emailIntro"))}
             </p>
           </td>
         </tr>
@@ -249,12 +262,12 @@ function renderHtml(args: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5DED1;border-bottom:1px solid #E5DED1;">
               <tr>
                 <td valign="top" style="padding:18px 0;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">Total pagado</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">${escapeHtml(t("totalPaid"))}</div>
                   <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:36px;color:#1A1613;line-height:1;white-space:nowrap;">${fmtCOP(snapshot.totalCents)}</div>
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(fechaStr)}</div>
                 </td>
                 <td valign="top" align="right" style="padding:18px 0;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">Mesa</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">${escapeHtml(t("table"))}</div>
                   <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:22px;color:#1A1613;line-height:1.1;">${escapeHtml(snapshot.tableLabel)}</div>
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(snapshot.shortCode)}</div>
                 </td>
@@ -267,7 +280,7 @@ function renderHtml(args: {
         <tr>
           <td style="padding:22px 36px 8px 36px;">
             <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 10px 0;">
-              Tu tirilla
+              ${escapeHtml(t("yourReceipt"))}
             </div>
             <table class="mp-receipt" role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#FBF8F3" style="width:100%;max-width:380px;background:#FBF8F3;">
               <tr>
@@ -286,7 +299,7 @@ function renderHtml(args: {
                     </tr>
                     ${
                       snapshot.taxId
-                        ? `<tr><td align="center" style="padding:1px 0;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;">NIT ${escapeHtml(snapshot.taxId)}</td></tr>`
+                        ? `<tr><td align="center" style="padding:1px 0;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;">${escapeHtml(t("taxId", { id: snapshot.taxId }))}</td></tr>`
                         : ""
                     }
                     ${
@@ -301,7 +314,7 @@ function renderHtml(args: {
                     }
                     ${
                       snapshot.legalPhone
-                        ? `<tr><td align="center" style="padding:1px 0;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;">Tel: ${escapeHtml(snapshot.legalPhone)}</td></tr>`
+                        ? `<tr><td align="center" style="padding:1px 0;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;">${escapeHtml(t("phone", { phone: snapshot.legalPhone }))}</td></tr>`
                         : ""
                     }
                   </table>
@@ -311,11 +324,11 @@ function renderHtml(args: {
                   <!-- Comprobante meta -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">Comprobante</td>
+                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("receiptLabel"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;font-weight:700;">${escapeHtml(numberStr)}</td>
                     </tr>
                     <tr>
-                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">Fecha</td>
+                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("date"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(fechaStr)}</td>
                     </tr>
                     <tr>
@@ -336,16 +349,16 @@ function renderHtml(args: {
                   <!-- Totales -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">Subtotal</td>
+                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("subtotal"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.subtotalCents)}</td>
                     </tr>
                     ${
                       snapshot.tipCents > 0
-                        ? `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">Propina</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.tipCents)}</td></tr>`
+                        ? `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("tip"))}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.tipCents)}</td></tr>`
                         : ""
                     }
                     <tr>
-                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">TOTAL</td>
+                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${escapeHtml(t("total"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${fmtCOP(snapshot.totalCents)}</td>
                     </tr>
                   </table>
@@ -354,16 +367,16 @@ function renderHtml(args: {
 
                   <!-- Footer DIAN -->
                   <div style="text-align:center;font-family:'SF Mono','Menlo',monospace;font-size:10px;color:#000;line-height:1.5;">
-                    ${snapshot.dianResolution ? `Resolución DIAN: ${escapeHtml(snapshot.dianResolution)}<br />` : ""}
+                    ${snapshot.dianResolution ? `${escapeHtml(t("dianResolution", { res: snapshot.dianResolution }))}<br />` : ""}
                     ${
                       snapshot.dianResolutionFrom != null && snapshot.dianResolutionTo != null
-                        ? `Numeración del ${snapshot.dianResolutionFrom} al ${snapshot.dianResolutionTo}<br />`
+                        ? `${escapeHtml(t("dianNumbering", { from: snapshot.dianResolutionFrom, to: snapshot.dianResolutionTo }))}<br />`
                         : ""
                     }
-                    ${dianDateStr ? `Fecha de resolución ${escapeHtml(dianDateStr)}<br />` : ""}
+                    ${dianDateStr ? `${escapeHtml(t("dianDate", { date: dianDateStr }))}<br />` : ""}
                   </div>
                   <div style="text-align:center;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;margin-top:10px;">
-                    ¡Gracias por tu visita!
+                    ${escapeHtml(t("thanks"))}
                   </div>
                 </td>
               </tr>
@@ -375,11 +388,10 @@ function renderHtml(args: {
         <tr>
           <td align="center" style="padding:22px 36px 8px 36px;">
             <p style="font-size:13px;color:#3A332B;line-height:1.5;margin:0 0 14px 0;">
-              ¿Necesitas imprimirla? Abre el comprobante en tu navegador para
-              mandarla a tu impresora térmica o de papel.
+              ${escapeHtml(t("printLead"))}
             </p>
             <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background:#1A1613;color:#F5F1EA;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:500;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;letter-spacing:0.01em;">
-              Abrir e imprimir comprobante
+              ${escapeHtml(t("printCta"))}
             </a>
           </td>
         </tr>
@@ -388,8 +400,7 @@ function renderHtml(args: {
         <tr>
           <td style="padding:24px 36px 28px 36px;border-top:1px solid #E5DED1;margin-top:12px;">
             <p style="font-size:12px;color:#8B7B65;line-height:1.5;margin:0;text-align:center;">
-              Si tienes dudas con tu cuenta, escríbele directamente a
-              <strong style="color:#1A1613;">${escapeHtml(brandName)}</strong>.
+              ${t("footerHelp", { brand: `<strong style="color:#1A1613;">${escapeHtml(brandName)}</strong>` })}
             </p>
           </td>
         </tr>
@@ -397,7 +408,7 @@ function renderHtml(args: {
 
       <!-- Brand footer -->
       <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8A98D;margin-top:16px;">
-        Enviado por MESAPAY · Hecho en Colombia
+        ${escapeHtml(t("sentBy"))}
       </div>
     </td>
   </tr>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/paymentMethods";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
 import { publishOrderEvent } from "@/lib/events";
+import { getLocale } from "next-intl/server";
 
 /** Minutos que la reserva aparta la mesa mientras paga el depósito. */
 const DEPOSIT_HOLD_MINUTES = 15;
@@ -174,6 +175,7 @@ export async function POST(
       code = generateConfirmationCode();
     }
 
+    const locale = await getLocale();
     return tx.reservation.create({
       data: {
         restaurantId: tenant.id,
@@ -184,6 +186,7 @@ export async function POST(
         partySize: parsed.data.partySize,
         startsAt,
         endsAt,
+        locale,
         // Con depósito: queda pending+hold hasta que paguen. Sin depósito:
         // confirmed o pending según autoConfirm (comportamiento de siempre).
         status: requiresDeposit
@@ -238,6 +241,7 @@ export async function POST(
       startsAt: reservation.startsAt,
       confirmationCode: reservation.confirmationCode,
       autoConfirmed: config.autoConfirm,
+      locale: reservation.locale,
       manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
     }).catch((err) => console.error("[reservation] email failed", err));
   }

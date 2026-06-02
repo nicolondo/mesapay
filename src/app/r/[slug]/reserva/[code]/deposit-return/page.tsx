@@ -112,6 +112,7 @@ export default async function DepositReturnPage({
         startsAt: reservation.startsAt,
         confirmationCode: reservation.confirmationCode,
         autoConfirmed: true,
+        locale: reservation.locale,
         manageUrl: `${origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
         depositPaidCents: reservation.depositCents ?? undefined,
       }).catch((e) => console.error("[deposit-return] email", e));

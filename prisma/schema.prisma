@@ -603,6 +603,11 @@ model Reservation {
   appliedOrderId   String?
   depositPaymentId String?
 
+  // Idioma del comensal al reservar (cookie MESAPAY_LOCALE). El email de
+  // confirmación se manda en este idioma aunque lo dispare un webhook de
+  // depósito (sin cookie). null ⇒ default (es). i18n fase 4.
+  locale           String?
+
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -773,6 +778,12 @@ model Order {
   shortCode String      @unique
   diners    Int         @default(1)
   notes     String?
+
+  // Idioma del comensal al crear la orden (cookie MESAPAY_LOCALE). Permite
+  // mandar la factura/bienvenida en su idioma incluso cuando el email lo
+  // dispara el operador (cobro en caja/datáfono) o un webhook futuro, donde
+  // no hay cookie del comensal. null ⇒ default (es). i18n fase 4.
+  locale    String?
 
   subtotalCents Int @default(0)
   tipCents      Int @default(0)

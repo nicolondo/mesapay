@@ -7,6 +7,7 @@ type Device = {
   id: string;
   label: string;
   kushkiDeviceId: string;
+  serialNumber: string | null;
   active: boolean;
   assignedUserId: string | null;
   lastSeenAt: string | null;
@@ -43,16 +44,83 @@ export function DatafonosClient({
   }
 
   return (
-    <ul className="space-y-3">
-      {devices.map((d) => (
-        <DeviceCard
-          key={d.id}
-          device={d}
-          users={users}
-          onPatch={(next) => patch(d.id, next)}
+    <div className="space-y-3">
+      <ul className="space-y-3">
+        {devices.map((d) => (
+          <DeviceCard
+            key={d.id}
+            device={d}
+            users={users}
+            onPatch={(next) => patch(d.id, next)}
+          />
+        ))}
+      </ul>
+      <AddDeviceForm onCreated={(d) => setDevices((prev) => [...prev, d])} />
+    </div>
+  );
+}
+
+function AddDeviceForm({ onCreated }: { onCreated: (d: Device) => void }) {
+  const t = useTranslations("opSettings");
+  const [label, setLabel] = useState("");
+  const [serial, setSerial] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function create() {
+    if (!label.trim()) return;
+    setBusy(true);
+    setErr(null);
+    const res = await fetch("/api/operator/terminal-devices", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: label.trim(), serialNumber: serial.trim() }),
+    });
+    setBusy(false);
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.device) {
+      setErr(t("datafonosAddFailed"));
+      return;
+    }
+    onCreated(j.device as Device);
+    setLabel("");
+    setSerial("");
+  }
+
+  return (
+    <div className="rounded-2xl border border-dashed border-op-border bg-op-surface p-5">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
+        {t("datafonosAddTitle")}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={t("datafonosAddNamePlaceholder")}
+          className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
         />
-      ))}
-    </ul>
+        <input
+          type="text"
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          placeholder={t("datafonosSerialPlaceholder")}
+          className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:border-terracotta"
+        />
+      </div>
+      <p className="text-[11px] text-op-muted mt-2">{t("datafonosSerialHint")}</p>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={create}
+          disabled={busy || !label.trim()}
+          className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+        >
+          {busy ? t("datafonosAdding") : t("datafonosAddBtn")}
+        </button>
+        {err && <span className="text-xs text-danger">{err}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -67,6 +135,7 @@ function DeviceCard({
 }) {
   const t = useTranslations("opSettings");
   const [busy, setBusy] = useState(false);
+  const [serial, setSerial] = useState(device.serialNumber ?? "");
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
@@ -98,9 +167,6 @@ function DeviceCard({
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div className="min-w-0">
           <div className="font-display text-xl truncate">{device.label}</div>
-          <div className="font-mono text-[11px] text-op-muted truncate">
-            {t("datafonosDeviceId", { id: device.kushkiDeviceId })}
-          </div>
           {device.lastSeenAt && (
             <div className="text-[11px] text-op-muted mt-0.5">
               {t("datafonosLastSeen", {
@@ -122,6 +188,30 @@ function DeviceCard({
         >
           {device.active ? t("datafonosActive") : t("datafonosInactive")}
         </button>
+      </div>
+
+      {/* Serial físico del datáfono (Cloud Terminal API). */}
+      <div className="mb-4">
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+          {t("datafonosSerialLabel")}
+        </div>
+        <input
+          type="text"
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          onBlur={() => {
+            const trimmed = serial.trim();
+            if (trimmed !== (device.serialNumber ?? "")) {
+              save({ serialNumber: trimmed || null });
+            }
+          }}
+          placeholder={t("datafonosSerialPlaceholder")}
+          disabled={busy}
+          className="w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:border-terracotta"
+        />
+        <p className="text-[11px] text-op-muted mt-2">
+          {t("datafonosSerialHint")}
+        </p>
       </div>
 
       <div>

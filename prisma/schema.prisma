@@ -1216,8 +1216,13 @@ model TerminalDevice {
   restaurantId   String
   restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   kushkiDeviceId String     @unique
+  // Serial físico del datáfono (Kushki Cloud Terminal API / billpocket).
+  // Es el identificador con el que se le hace push al equipo Ultra vía
+  // POST /push-notifications { serialNumber }. Lo carga el comercio desde
+  // Configuración → Datáfonos. null en devices legacy/mock.
+  serialNumber   String?
   label          String
-  active         Boolean    @default(true)
+  active          Boolean    @default(true)
   lastSeenAt     DateTime?
   assignedUserId String?
   assignedUser   User?      @relation(fields: [assignedUserId], references: [id])

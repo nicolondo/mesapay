@@ -1297,7 +1297,16 @@
     "usuariosSaving": "Salvando…",
     "usuariosSave": "Salvar",
     "usuariosConfirmDelete": "Excluir {name}? Esta ação não pode ser desfeita.",
-    "usuariosDeleteFailed": "Não foi possível excluir"
+    "usuariosDeleteFailed": "Não foi possível excluir",
+    "datafonosSerialLabel": "Serial do datáfono",
+    "datafonosSerialPlaceholder": "Ex: 1850123456",
+    "datafonosSerialHint": "Serial físico do equipamento Ultra — usado para cobrar via cloud.",
+    "datafonosNoSerial": "Sem serial definido",
+    "datafonosAddTitle": "Adicionar datáfono",
+    "datafonosAddNamePlaceholder": "Nome (ex: Caixa 1)",
+    "datafonosAddBtn": "Adicionar",
+    "datafonosAdding": "Adicionando…",
+    "datafonosAddFailed": "Não foi possível adicionar o datáfono."
   },
   "opSalon": {
     "noRestaurant": "Sem restaurante.",

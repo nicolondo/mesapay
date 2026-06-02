@@ -19,6 +19,7 @@ export default async function DatafonosSettingsPage() {
         id: true,
         label: true,
         kushkiDeviceId: true,
+        serialNumber: true,
         active: true,
         assignedUserId: true,
         lastSeenAt: true,
@@ -48,30 +49,28 @@ export default async function DatafonosSettingsPage() {
       </div>
       <p className="text-sm text-op-muted mb-6">{t("datafonosIntro")}</p>
 
-      {devices.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface p-8 text-center text-sm text-op-muted">
+      {devices.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface p-6 text-center text-sm text-op-muted mb-3">
           {t("datafonosEmpty")}
         </div>
-      ) : (
-        <DatafonosClient
-          initial={devices.map((d) => ({
-            id: d.id,
-            label: d.label,
-            kushkiDeviceId: d.kushkiDeviceId,
-            active: d.active,
-            assignedUserId: d.assignedUserId,
-            lastSeenAt: d.lastSeenAt
-              ? d.lastSeenAt.toISOString()
-              : null,
-          }))}
-          users={users.map((u) => ({
-            id: u.id,
-            label: u.name?.trim() || u.email,
-            email: u.email,
-            role: u.role,
-          }))}
-        />
       )}
+      <DatafonosClient
+        initial={devices.map((d) => ({
+          id: d.id,
+          label: d.label,
+          kushkiDeviceId: d.kushkiDeviceId,
+          serialNumber: d.serialNumber,
+          active: d.active,
+          assignedUserId: d.assignedUserId,
+          lastSeenAt: d.lastSeenAt ? d.lastSeenAt.toISOString() : null,
+        }))}
+        users={users.map((u) => ({
+          id: u.id,
+          label: u.name?.trim() || u.email,
+          email: u.email,
+          role: u.role,
+        }))}
+      />
     </div>
   );
 }

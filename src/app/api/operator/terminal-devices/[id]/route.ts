@@ -7,6 +7,14 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 const patchSchema = z.object({
   label: z.string().trim().min(1).max(80).optional(),
   active: z.boolean().optional(),
+  // Serial físico del datáfono (Cloud Terminal API). "" → null.
+  serialNumber: z
+    .string()
+    .trim()
+    .max(64)
+    .nullable()
+    .optional()
+    .transform((v) => (v ? v : v === "" ? null : v)),
   // null = unassign (the device becomes shared / available for anyone
   // to push from Salón). string = assigned to that mesero.
   assignedUserId: z.string().min(1).nullable().optional(),
@@ -71,6 +79,9 @@ export async function PATCH(
     data: {
       ...(parsed.data.label !== undefined && { label: parsed.data.label }),
       ...(parsed.data.active !== undefined && { active: parsed.data.active }),
+      ...(parsed.data.serialNumber !== undefined && {
+        serialNumber: parsed.data.serialNumber,
+      }),
       ...(parsed.data.assignedUserId !== undefined && {
         assignedUserId: parsed.data.assignedUserId,
       }),
@@ -79,6 +90,7 @@ export async function PATCH(
       id: true,
       label: true,
       active: true,
+      serialNumber: true,
       assignedUserId: true,
     },
   });

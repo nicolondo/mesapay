@@ -1297,7 +1297,16 @@
     "usuariosSaving": "Guardando…",
     "usuariosSave": "Guardar",
     "usuariosConfirmDelete": "¿Eliminar a {name}? Esta acción no se puede deshacer.",
-    "usuariosDeleteFailed": "No se pudo eliminar"
+    "usuariosDeleteFailed": "No se pudo eliminar",
+    "datafonosSerialLabel": "Serial del datáfono",
+    "datafonosSerialPlaceholder": "Ej: 1850123456",
+    "datafonosSerialHint": "Serial físico del equipo Ultra — se usa para cobrar por cloud.",
+    "datafonosNoSerial": "Sin serial cargado",
+    "datafonosAddTitle": "Agregar datáfono",
+    "datafonosAddNamePlaceholder": "Nombre (ej: Caja 1)",
+    "datafonosAddBtn": "Agregar",
+    "datafonosAdding": "Agregando…",
+    "datafonosAddFailed": "No se pudo agregar el datáfono."
   },
   "opSalon": {
     "noRestaurant": "Sin restaurante.",

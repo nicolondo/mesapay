@@ -32,6 +32,10 @@ const schema = z.object({
   KUSHKI_PARTNER_API_KEY: z.string().optional(),
   KUSHKI_PARTNER_PRIVATE_KEY: z.string().optional(),
   KUSHKI_WEBHOOK_SECRET: z.string().optional(),
+  // Credencial del Cloud Terminal API (datáfono físico vía cloud —
+  // infra billpocket). Se manda como header X-BP-AUTH. Sin esto el push
+  // al datáfono real no funciona (mock no la necesita). i18n/datáfono.
+  KUSHKI_BP_AUTH: z.string().optional(),
 
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),

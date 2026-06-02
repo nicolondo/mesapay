@@ -106,7 +106,9 @@ export async function POST(
     const provider = await getPaymentProvider();
     push = await provider.pushToTerminal({
       merchantId: privateKey,
-      deviceId: parsed.data.deviceId,
+      // Cloud Terminal identifica el equipo por su SERIAL físico. El
+      // device legacy/mock cae al kushkiDeviceId.
+      deviceId: device.serialNumber ?? parsed.data.deviceId,
       amount: {
         // payment.amountCents YA incluye la propina (TOTAL). Sumar
         // tipCents otra vez cobraba doble propina en el datáfono real.

@@ -17,12 +17,14 @@ import type {
 import { getKushkiModeSync } from "../../platformConfig";
 import { kushkiFetch } from "./client";
 import {
+  pushPaymentToCloudTerminal,
+  cancelCloudTerminalPayment,
+} from "./cloudTerminal";
+import {
   SubmerchantCreateResponseSchema,
   type SubmerchantCreateResponse,
   ChargeResponseSchema,
   type ChargeResponse,
-  TerminalPushResponseSchema,
-  type TerminalPushResponse,
   BalanceResponseSchema,
   type BalanceResponse,
   MovementResponseSchema,
@@ -267,33 +269,34 @@ export class LiveKushkiProvider implements PaymentProvider {
     };
   }
 
+  /**
+   * Datáfono físico vía Kushki Cloud Terminal API (infra billpocket).
+   * `req.deviceId` carga el SERIAL del equipo Ultra (la charge route
+   * pasa device.serialNumber). El push sólo es un ACK — el aprobado/
+   * rechazado llega por webhook a /api/webhooks/kushki-terminal, que
+   * matchea por uniqueReference = paymentId.
+   */
   async pushToTerminal(req: TerminalPushRequest): Promise<TerminalPushResult> {
-    const resp = await kushkiFetch<TerminalPushResponse>("/smartpos/v1/transactions", {
-      method: "POST",
-      auth: { kind: "submerchant", privateKey: req.merchantId },
-      body: {
-        deviceId: req.deviceId,
-        amount: req.amount.amountCents,
-        currency: req.amount.currency,
-        metadata: req.metadata,
-      },
-      schema: TerminalPushResponseSchema,
+    const resp = await pushPaymentToCloudTerminal({
+      serialNumber: req.deviceId,
+      amountCents: req.amount.amountCents,
+      reference: req.metadata.paymentId,
+      description: `MESAPAY orden ${req.metadata.orderId.slice(0, 6)}`,
     });
     return {
-      providerRef: resp.transactionReference,
+      providerRef: resp.providerRef,
       status: resp.status,
       message: resp.message,
     };
   }
 
   async cancelTerminalTransaction(
-    merchantId: string,
+    _merchantId: string,
     providerRef: string,
   ): Promise<void> {
-    await kushkiFetch(`/smartpos/v1/transactions/${providerRef}/cancel`, {
-      method: "POST",
-      auth: { kind: "submerchant", privateKey: merchantId },
-    });
+    // providerRef == nuestra uniqueReference (paymentId). El serial no
+    // viaja acá; el cancel del Cloud Terminal es best-effort.
+    await cancelCloudTerminalPayment("", providerRef);
   }
 
   async getBalance(merchantId: string): Promise<WalletBalance> {

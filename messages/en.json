@@ -1297,7 +1297,16 @@
     "usuariosSaving": "Saving…",
     "usuariosSave": "Save",
     "usuariosConfirmDelete": "Delete {name}? This action cannot be undone.",
-    "usuariosDeleteFailed": "Couldn't delete"
+    "usuariosDeleteFailed": "Couldn't delete",
+    "datafonosSerialLabel": "Terminal serial",
+    "datafonosSerialPlaceholder": "e.g. 1850123456",
+    "datafonosSerialHint": "Physical Ultra device serial — used to charge via cloud.",
+    "datafonosNoSerial": "No serial set",
+    "datafonosAddTitle": "Add terminal",
+    "datafonosAddNamePlaceholder": "Name (e.g. Register 1)",
+    "datafonosAddBtn": "Add",
+    "datafonosAdding": "Adding…",
+    "datafonosAddFailed": "Couldn’t add the terminal."
   },
   "opSalon": {
     "noRestaurant": "No restaurant.",

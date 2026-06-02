@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   type FloorPlan,
   type Zone,
@@ -83,6 +84,7 @@ export function FloorPlanEditor({
   initialTables: EditorTable[];
   initialFloorPlan: FloorPlan;
 }) {
+  const tr = useTranslations("opSalon");
   const router = useRouter();
   const [tables, setTables] = useState<EditorTable[]>(initialTables);
   const [cols, setCols] = useState(initialFloorPlan.cols);
@@ -538,11 +540,11 @@ export function FloorPlanEditor({
     });
     setSaving(false);
     if (!res.ok) {
-      setMsg("No pudimos guardar. Intentá de nuevo.");
+      setMsg(tr("saveError"));
       return;
     }
     setDirty(false);
-    setMsg("Mapa guardado.");
+    setMsg(tr("savedOk"));
     router.refresh();
   }
 
@@ -560,14 +562,16 @@ export function FloorPlanEditor({
 
   const pendingHint = pending
     ? pending.kind === "placeTable"
-      ? "Tocá una celda para ubicar la mesa"
+      ? tr("hintPlaceTable")
       : pending.kind === "moveZone"
-        ? "Tocá la celda donde va la esquina superior izquierda de la zona"
+        ? tr("hintMoveZone")
         : pending.kind === "moveMarker"
-          ? "Tocá la celda donde va el ícono"
+          ? tr("hintMoveMarker")
           : pending.kind === "addZone"
-            ? `Arrastrá sobre las celdas para cubrir la zona "${ZONE_KINDS[pending.zoneKind].label}" (o tocá una)`
-            : `Tocá una celda para poner "${MARKER_KINDS[pending.markerKind].label}"`
+            ? tr("hintAddZone", { label: ZONE_KINDS[pending.zoneKind].label })
+            : tr("hintAddMarker", {
+                label: MARKER_KINDS[pending.markerKind].label,
+              })
     : null;
 
   return (
@@ -579,7 +583,7 @@ export function FloorPlanEditor({
           onClick={autoArrange}
           className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-xs font-medium text-op-muted hover:text-op-text"
         >
-          Auto-acomodar mesas
+          {tr("autoArrange")}
         </button>
         <div className="flex-1" />
         {msg && <span className="text-xs text-ok">{msg}</span>}
@@ -589,14 +593,14 @@ export function FloorPlanEditor({
           disabled={saving || !dirty}
           className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {saving ? "Guardando…" : dirty ? "Guardar mapa" : "Guardado"}
+          {saving ? tr("saving") : dirty ? tr("save") : tr("saved")}
         </button>
       </div>
 
       {/* Controles de grilla: tamaño + zoom */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3 text-sm">
         <Stepper
-          label="Columnas"
+          label={tr("columns")}
           value={cols}
           onDec={() => {
             setCols((c) => Math.max(minCols, c - 1));
@@ -610,7 +614,7 @@ export function FloorPlanEditor({
           canInc={cols < FLOOR_MAX_COLS}
         />
         <Stepper
-          label="Filas"
+          label={tr("rows")}
           value={rows}
           onDec={() => {
             setRows((r) => Math.max(minRows, r - 1));
@@ -624,7 +628,7 @@ export function FloorPlanEditor({
           canInc={rows < FLOOR_MAX_ROWS}
         />
         <label className="flex items-center gap-2 text-op-muted">
-          <span className="text-xs">Zoom</span>
+          <span className="text-xs">{tr("zoom")}</span>
           <input
             type="range"
             min={ZOOM_MIN}
@@ -652,7 +656,7 @@ export function FloorPlanEditor({
               : "border-op-border bg-op-surface text-op-text")
           }
         >
-          🚪 + Entrada
+          {tr("addEntrance")}
         </button>
 
         <div className="inline-flex items-center rounded-full border border-op-border bg-op-surface overflow-hidden">
@@ -680,7 +684,7 @@ export function FloorPlanEditor({
                 : "text-op-text")
             }
           >
-            + Zona
+            {tr("addZone")}
           </button>
         </div>
 
@@ -709,7 +713,7 @@ export function FloorPlanEditor({
                 : "text-op-text")
             }
           >
-            + Ícono
+            {tr("addIcon")}
           </button>
         </div>
 
@@ -719,7 +723,7 @@ export function FloorPlanEditor({
             onClick={() => setPending(null)}
             className="h-9 px-3 rounded-full border border-op-border text-xs text-op-muted"
           >
-            Cancelar
+            {tr("cancel")}
           </button>
         )}
       </div>
@@ -732,13 +736,16 @@ export function FloorPlanEditor({
 
       {/* Panel del elemento seleccionado */}
       {selTable && (
-        <SelPanel title={selTable.label ?? `Mesa ${selTable.number}`}>
+        <SelPanel
+          label={tr("selectedPrefix")}
+          title={selTable.label ?? tr("tableTitle", { number: selTable.number })}
+        >
           <button
             type="button"
             onClick={() => cycleShape(selTable.id)}
             className="h-8 px-3 rounded-full border border-op-border text-xs"
           >
-            Forma: {shapeLabel(selTable.shape)}
+            {tr("shapeLabel", { shape: shapeLabel(selTable.shape, tr) })}
           </button>
           {selTable.x != null && (
             <>
@@ -747,14 +754,14 @@ export function FloorPlanEditor({
                 onClick={() => setPending({ kind: "placeTable", id: selTable.id })}
                 className="h-8 px-3 rounded-full border border-op-border text-xs"
               >
-                Mover
+                {tr("move")}
               </button>
               <button
                 type="button"
                 onClick={() => removeTableFromPlan(selTable.id)}
                 className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
               >
-                Sacar del plano
+                {tr("removeFromPlan")}
               </button>
             </>
           )}
@@ -762,7 +769,12 @@ export function FloorPlanEditor({
       )}
 
       {selZone && (
-        <SelPanel title={`Zona: ${selZone.label || "(sin nombre)"}`}>
+        <SelPanel
+          label={tr("selectedPrefix")}
+          title={tr("zoneTitle", {
+            label: selZone.label || tr("zoneNoName"),
+          })}
+        >
           <select
             value={selZone.kind}
             onChange={(e) => setZoneKindOf(selZone.id, e.target.value as ZoneKind)}
@@ -782,8 +794,8 @@ export function FloorPlanEditor({
             className="h-8 w-40 rounded-full border border-op-border bg-op-surface text-xs px-3"
             placeholder={
               selZone.kind === "custom"
-                ? "Escribí el nombre de la zona"
-                : "Nombre"
+                ? tr("zonePlaceholderCustom")
+                : tr("zonePlaceholderName")
             }
           />
           <button
@@ -791,31 +803,33 @@ export function FloorPlanEditor({
             onClick={() => setPending({ kind: "moveZone", id: selZone.id })}
             className="h-8 px-3 rounded-full border border-op-border text-xs"
           >
-            Mover
+            {tr("move")}
           </button>
           <button
             type="button"
             onClick={() => deleteZone(selZone.id)}
             className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
           >
-            Borrar
+            {tr("delete")}
           </button>
           <button
             type="button"
             onClick={() => setSel(null)}
             className="h-8 px-3 rounded-full bg-ink text-bone text-xs font-medium"
           >
-            Listo
+            {tr("done")}
           </button>
           <span className="w-full text-[11px] text-op-muted mt-1">
-            Tocá celdas para agregar o quitar; arrastrá para pintar un bloque.
-            La zona puede tener forma irregular.
+            {tr("zoneEditHint")}
           </span>
         </SelPanel>
       )}
 
       {selMarker && (
-        <SelPanel title={`Ícono: ${markerLabel(selMarker)}`}>
+        <SelPanel
+          label={tr("selectedPrefix")}
+          title={tr("markerTitle", { label: markerLabel(selMarker) })}
+        >
           <select
             value={selMarker.kind}
             onChange={(e) =>
@@ -842,14 +856,14 @@ export function FloorPlanEditor({
             onClick={() => setPending({ kind: "moveMarker", id: selMarker.id })}
             className="h-8 px-3 rounded-full border border-op-border text-xs"
           >
-            Mover
+            {tr("move")}
           </button>
           <button
             type="button"
             onClick={() => deleteMarker(selMarker.id)}
             className="h-8 px-3 rounded-full border border-danger/40 text-danger text-xs"
           >
-            Borrar
+            {tr("delete")}
           </button>
         </SelPanel>
       )}
@@ -1083,7 +1097,9 @@ export function FloorPlanEditor({
                 <span className="font-display text-xs">
                   {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
                 </span>
-                <span className="opacity-60 text-[9px]">{t.capacity}p</span>
+                <span className="opacity-60 text-[9px]">
+                  {tr("seatsSuffix", { count: t.capacity })}
+                </span>
               </button>
             );
           })}
@@ -1153,7 +1169,7 @@ export function FloorPlanEditor({
       {unplaced.length > 0 && (
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-            Sin ubicar — arrastrá al mapa, o tocá una y después una celda
+            {tr("unplacedHeading")}
           </div>
           <div className="flex flex-wrap gap-2">
             {unplaced.map((t) => (
@@ -1170,8 +1186,10 @@ export function FloorPlanEditor({
                     : "bg-op-surface border-op-border text-op-text")
                 }
               >
-                {t.label ?? `Mesa ${t.number}`}{" "}
-                <span className="opacity-60 text-xs">{t.capacity}p</span>
+                {t.label ?? tr("tableTitle", { number: t.number })}{" "}
+                <span className="opacity-60 text-xs">
+                  {tr("seatsSuffix", { count: t.capacity })}
+                </span>
               </button>
             ))}
           </div>
@@ -1182,7 +1200,7 @@ export function FloorPlanEditor({
       {(zones.length > 0 || markers.length > 0) && (
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-            Zonas e íconos — tocá para editar
+            {tr("zonesIconsHeading")}
           </div>
           <div className="flex flex-wrap gap-2">
             {zones.map((z) => {
@@ -1210,7 +1228,7 @@ export function FloorPlanEditor({
                     className="w-2.5 h-2.5 rounded-sm"
                     style={{ background: c.stroke }}
                   />
-                  {z.label || "Sin nombre"}
+                  {z.label || tr("zoneNoNameChip")}
                 </button>
               );
             })}
@@ -1241,32 +1259,33 @@ export function FloorPlanEditor({
       )}
 
       <p className="mt-4 text-[11px] text-op-muted">
-        Tip: arrastrá las mesas para acomodarlas (o tocá y luego una celda).
-        La forma de la mesa (cuadrada / redonda / barra) es solo visual.
-        La capacidad y el consumo mínimo se editan en{" "}
+        {tr("tipPre")}
         <a
           href="/operator/settings/mesas"
           className="text-terracotta hover:underline"
         >
-          Mesas
+          {tr("tipLink")}
         </a>
-        .
+        {tr("tipPost")}
       </p>
     </div>
   );
 }
 
 function SelPanel({
+  label,
   title,
   children,
 }: {
+  label: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="mb-3 rounded-xl border border-op-border bg-op-surface px-4 py-2.5 flex items-center justify-between gap-3 text-sm flex-wrap">
       <span className="shrink-0">
-        Seleccionado: <strong>{title}</strong>
+        {label}
+        <strong>{title}</strong>
       </span>
       <div className="flex items-center gap-2 flex-wrap">{children}</div>
     </div>
@@ -1296,8 +1315,9 @@ function Stepper({
         onClick={onDec}
         disabled={!canDec}
         className="w-7 h-7 rounded-full border border-op-border disabled:opacity-30"
+        aria-hidden
       >
-        −
+        {"−"}
       </button>
       <span className="tabular w-5 text-center text-op-text font-medium">
         {value}
@@ -1307,15 +1327,23 @@ function Stepper({
         onClick={onInc}
         disabled={!canInc}
         className="w-7 h-7 rounded-full border border-op-border disabled:opacity-30"
+        aria-hidden
       >
-        +
+        {"+"}
       </button>
     </span>
   );
 }
 
-function shapeLabel(s: EditorTable["shape"]): string {
-  return s === "round" ? "Redonda" : s === "bar" ? "Barra" : "Cuadrada";
+function shapeLabel(
+  s: EditorTable["shape"],
+  tr: (key: string) => string,
+): string {
+  return s === "round"
+    ? tr("shapeRound")
+    : s === "bar"
+      ? tr("shapeBar")
+      : tr("shapeSquare");
 }
 function shapeClass(s: EditorTable["shape"]): string {
   return s === "round"

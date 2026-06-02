@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type Station = "kitchen" | "bar" | "counter";
 type CategoryKind =
@@ -22,23 +23,9 @@ type Category = {
   barSubStation: string | null;
 };
 
-const STATION_OPTIONS: { value: Station; label: string; help: string }[] = [
-  {
-    value: "kitchen",
-    label: "Cocina",
-    help: "El cocinero la prepara y la marca lista",
-  },
-  {
-    value: "bar",
-    label: "Bar / barista",
-    help: "Cuando hay bartender, va a su propio board",
-  },
-  {
-    value: "counter",
-    label: "Refri / mostrador",
-    help: "Sin preparación — el mesero la agarra del refri",
-  },
-];
+// Logic-only list of station values; labels/help resolved via i18n in
+// render (the constant can't call the translation hook).
+const STATION_OPTIONS: Station[] = ["kitchen", "bar", "counter"];
 
 export function StationsClient({
   hasBar: initialHasBar,
@@ -55,6 +42,7 @@ export function StationsClient({
   printPaperWidthMm: 58 | 80;
   categories: Category[];
 }) {
+  const t = useTranslations("opStations");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [hasBar, setHasBar] = useState(initialHasBar);
@@ -256,31 +244,25 @@ export function StationsClient({
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="flex items-center gap-3 text-sm text-op-muted mb-2">
         <Link href="/operator/settings" className="hover:text-ink">
-          Configuración
+          {t("breadcrumbSettings")}
         </Link>
-        <span>›</span>
-        <span className="text-ink">Estaciones de preparación</span>
+        <span aria-hidden>{"›"}</span>
+        <span className="text-ink">{t("breadcrumbCurrent")}</span>
       </div>
-      <div className="font-display text-3xl mb-1">Estaciones</div>
-      <p className="text-sm text-op-muted mb-8">
-        Define a dónde se va cada categoría cuando el cliente envía un pedido.
-        Si un plato no entra en su categoría, podés sobreescribirlo desde el
-        editor del menú.
-      </p>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
+      <p className="text-sm text-op-muted mb-8">{t("intro")}</p>
 
       {/* hasBar toggle */}
       <div className="bg-op-surface border border-op-border rounded-2xl p-5 mb-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="font-display text-lg">¿Tenés bartender?</div>
+            <div className="font-display text-lg">{t("barTitle")}</div>
             <p className="text-sm text-op-muted mt-1">
-              Si hay alguien dedicado al bar, los cocteles y bebidas que se
-              preparan tienen su propio board en{" "}
+              {t("barBodyPre")}
               <code className="font-mono text-xs bg-paper px-1.5 py-0.5 rounded">
-                /operator/bar
+                {"/operator/bar"}
               </code>
-              . Si no, todo lo de bar se trata como refri (el mesero lo
-              agarra).
+              {t("barBodyPost")}
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -297,7 +279,7 @@ export function StationsClient({
         </div>
         {savedFlash === "bar" && (
           <div className="mt-3 text-[11px] font-mono tracking-wider uppercase text-ok">
-            ✓ Guardado
+            {t("savedFlash")}
           </div>
         )}
       </div>
@@ -308,22 +290,20 @@ export function StationsClient({
           on its own screen. */}
       {hasBar && (
         <div className="bg-op-surface border border-op-border rounded-2xl p-5 mb-6">
-          <div className="font-display text-lg">Sub-estaciones del bar</div>
+          <div className="font-display text-lg">{t("subStationsTitle")}</div>
           <p className="text-sm text-op-muted mt-1 mb-4">
-            Opcional. Si el bar tiene varios puestos (cocteles, café,
-            cervezas), listálos separados por comas. Cada uno tendrá su
-            propio tab en{" "}
+            {t("subStationsBodyPre")}
             <code className="font-mono text-xs bg-paper px-1.5 py-0.5 rounded">
-              /operator/bar
-            </code>{" "}
-            y su propia impresora si tenés impresión activa.
+              {"/operator/bar"}
+            </code>
+            {t("subStationsBodyPost")}
           </p>
           <div className="flex gap-2">
             <input
               type="text"
               value={subStationsInput}
               onChange={(e) => setSubStationsInput(e.target.value)}
-              placeholder="Ej: Cocteles, Cafetería, Cervezas"
+              placeholder={t("subStationsPlaceholder")}
               className="flex-1 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
             />
             <button
@@ -335,12 +315,12 @@ export function StationsClient({
               }
               className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium disabled:opacity-40"
             >
-              {savingId === "__sub__" ? "Guardando…" : "Guardar"}
+              {savingId === "__sub__" ? t("saving") : t("save")}
             </button>
           </div>
           {savedFlash === "__sub__" && (
             <div className="mt-2 text-[11px] font-mono tracking-wider uppercase text-ok">
-              ✓ Guardado
+              {t("savedFlash")}
             </div>
           )}
           {barSubStations.length > 0 && (
@@ -360,25 +340,24 @@ export function StationsClient({
 
       {/* Printing config */}
       <div className="bg-op-surface border border-op-border rounded-2xl p-5 mb-6">
-        <div className="font-display text-lg">Impresión de tickets</div>
+        <div className="font-display text-lg">{t("printTitle")}</div>
         <p className="text-sm text-op-muted mt-1 mb-4">
-          Imprime un ticket físico cuando llega un pedido. Abrí{" "}
+          {t("printBodyPre")}
           <code className="font-mono text-xs bg-paper px-1.5 py-0.5 rounded">
-            /operator/print/cocina
-          </code>{" "}
-          (o{" "}
-          <code className="font-mono text-xs bg-paper px-1.5 py-0.5 rounded">
-            /operator/print/bar
+            {"/operator/print/cocina"}
           </code>
-          ) en el computador con la impresora térmica conectada. La página
-          imprime sola cuando llega un pedido.
+          {t("printBodyMid")}
+          <code className="font-mono text-xs bg-paper px-1.5 py-0.5 rounded">
+            {"/operator/print/bar"}
+          </code>
+          {t("printBodyMid2")}
         </p>
         <div className="space-y-3">
           <label className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-sm font-medium">Cocina</div>
+              <div className="text-sm font-medium">{t("printKitchenLabel")}</div>
               <div className="text-xs text-op-muted">
-                Imprime al pasar de “Por preparar” a “En cocina”.
+                {t("printKitchenHelp")}
               </div>
             </div>
             <Toggle
@@ -392,10 +371,9 @@ export function StationsClient({
           </label>
           <label className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-sm font-medium">Bar</div>
+              <div className="text-sm font-medium">{t("printBarLabel")}</div>
               <div className="text-xs text-op-muted">
-                Imprime al pasar de “Por preparar” a “En preparación”. La
-                cuenta regresiva del plato arranca al mismo tiempo.
+                {t("printBarHelp")}
               </div>
             </div>
             <Toggle
@@ -410,9 +388,9 @@ export function StationsClient({
           {(kitchenPrint || barPrint) && (
             <label className="flex items-center justify-between gap-4 pt-2 border-t border-op-border">
               <div>
-                <div className="text-sm font-medium">Ancho del papel</div>
+                <div className="text-sm font-medium">{t("paperWidthLabel")}</div>
                 <div className="text-xs text-op-muted">
-                  Lo más común en Colombia: 80mm.
+                  {t("paperWidthHelp")}
                 </div>
               </div>
               <select
@@ -424,15 +402,15 @@ export function StationsClient({
                 }}
                 className="h-9 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               >
-                <option value={80}>80 mm</option>
-                <option value={58}>58 mm</option>
+                <option value={80}>{t("paperWidth80")}</option>
+                <option value={58}>{t("paperWidth58")}</option>
               </select>
             </label>
           )}
         </div>
         {savedFlash === "__print__" && (
           <div className="mt-3 text-[11px] font-mono tracking-wider uppercase text-ok">
-            ✓ Guardado
+            {t("savedFlash")}
           </div>
         )}
         {(kitchenPrint || barPrint) && (
@@ -443,7 +421,7 @@ export function StationsClient({
                 target="_blank"
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-op-border bg-op-bg text-sm hover:bg-paper"
               >
-                🖨️ Abrir impresora de cocina
+                {t("openKitchenPrinter")}
               </Link>
             )}
             {barPrint && barSubStations.length === 0 && (
@@ -452,7 +430,7 @@ export function StationsClient({
                 target="_blank"
                 className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-op-border bg-op-bg text-sm hover:bg-paper"
               >
-                🖨️ Abrir impresora del bar
+                {t("openBarPrinter")}
               </Link>
             )}
             {barPrint &&
@@ -463,7 +441,7 @@ export function StationsClient({
                   target="_blank"
                   className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-op-border bg-op-bg text-sm hover:bg-paper"
                 >
-                  🖨️ Bar · {s}
+                  {t("openBarSubPrinter", { name: s })}
                 </Link>
               ))}
           </div>
@@ -473,15 +451,15 @@ export function StationsClient({
       {/* Smart suggestion */}
       {drinksOnKitchen.length > 0 && (
         <div className="bg-[#C98A2E]/10 border border-[#C98A2E]/30 rounded-2xl p-4 mb-6 flex items-start gap-3 text-sm">
-          <span className="text-base">💡</span>
+          <span className="text-base" aria-hidden>
+            💡
+          </span>
           <div className="flex-1 text-[#7F5A1F]">
-            Detectamos {drinksOnKitchen.length}{" "}
-            {drinksOnKitchen.length === 1 ? "categoría" : "categorías"} de
-            bebidas que aún van a cocina (
+            {t("suggestionBody", { count: drinksOnKitchen.length })}
             <strong>
               {drinksOnKitchen.map((c) => c.label).join(", ")}
             </strong>
-            ). ¿Las pasamos al bar?
+            {t("suggestionBodyAfter")}
             <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
@@ -490,12 +468,12 @@ export function StationsClient({
                 className="h-8 px-3 rounded-lg bg-[#C98A2E] text-bone text-xs font-medium disabled:opacity-50"
               >
                 {savingId === "__bulk__"
-                  ? "Aplicando…"
-                  : `Pasar ${drinksOnKitchen.length} al bar`}
+                  ? t("applying")
+                  : t("moveToBar", { count: drinksOnKitchen.length })}
               </button>
               {savedFlash === "__bulk__" && (
                 <span className="font-mono text-[10px] tracking-wider uppercase text-ok">
-                  ✓ Listo
+                  {t("appliedFlash")}
                 </span>
               )}
             </div>
@@ -506,11 +484,11 @@ export function StationsClient({
       {/* Category list */}
       <div className="space-y-2">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-2">
-          Por categoría
+          {t("byCategory")}
         </div>
         {categories.length === 0 && (
           <div className="text-sm text-op-muted py-6 text-center bg-op-surface border border-op-border rounded-xl">
-            No hay categorías. Crealas desde el menú.
+            {t("noCategories")}
           </div>
         )}
         {categories.map((c) => (
@@ -521,7 +499,7 @@ export function StationsClient({
             <div className="flex-1 min-w-[140px]">
               <div className="font-medium truncate">{c.label}</div>
               <div className="text-xs text-op-muted mt-0.5 truncate">
-                {kindLabel(c.kind)}
+                {kindLabel(c.kind, t)}
               </div>
             </div>
             <select
@@ -533,8 +511,8 @@ export function StationsClient({
               className="h-9 rounded-lg border border-op-border bg-op-bg text-sm px-3"
             >
               {STATION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                <option key={opt} value={opt}>
+                  {stationLabel(opt, t)}
                 </option>
               ))}
             </select>
@@ -552,7 +530,7 @@ export function StationsClient({
                 }
                 className="h-9 rounded-lg border border-op-border bg-op-bg text-sm px-3"
               >
-                <option value="">— Sin sub-estación —</option>
+                <option value="">{t("noSubStation")}</option>
                 {barSubStations.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -561,8 +539,11 @@ export function StationsClient({
               </select>
             )}
             {(savedFlash === c.id || savedFlash === c.id + "-sub") && (
-              <span className="font-mono text-[10px] tracking-wider uppercase text-ok shrink-0">
-                ✓
+              <span
+                className="font-mono text-[10px] tracking-wider uppercase text-ok shrink-0"
+                aria-hidden
+              >
+                {"✓"}
               </span>
             )}
           </div>
@@ -570,28 +551,38 @@ export function StationsClient({
       </div>
 
       <div className="mt-8 text-xs text-op-muted">
-        <strong>Refri / mostrador:</strong> el ítem entra ya como listo, sin
-        pasar por cocina ni bar. Aparece directo en Salón con la etiqueta de
-        dónde sacarlo. Ideal para botellitas de agua y cervezas embotelladas.
+        <strong>{t("counterNotePre")}</strong>
+        {t("counterNote")}
       </div>
     </div>
   );
 }
 
-function kindLabel(k: CategoryKind): string {
+function kindLabel(k: CategoryKind, t: (key: string) => string): string {
   switch (k) {
     case "starter":
-      return "Entrada";
+      return t("kindStarter");
     case "main":
-      return "Plato fuerte";
+      return t("kindMain");
     case "side":
-      return "Acompañamiento";
+      return t("kindSide");
     case "drink":
-      return "Bebida";
+      return t("kindDrink");
     case "dessert":
-      return "Postre";
+      return t("kindDessert");
     default:
-      return "Otro";
+      return t("kindOther");
+  }
+}
+
+function stationLabel(s: Station, t: (key: string) => string): string {
+  switch (s) {
+    case "kitchen":
+      return t("stationKitchenLabel");
+    case "bar":
+      return t("stationBarLabel");
+    default:
+      return t("stationCounterLabel");
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Per-table action row on /operator/tables (and /operator/orders/[id]).
@@ -29,12 +30,13 @@ export function TableActions({
   // there's nothing to charge — hide the Cobrar CTA.
   outstandingCents: number;
 }) {
+  const t = useTranslations("opTables");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTx] = useTransition();
 
   async function cancel() {
-    const ok = window.confirm("¿Cancelar esta orden? No se podrá revertir.");
+    const ok = window.confirm(t("confirmCancelOrderSimple"));
     if (!ok) return;
     setBusy(true);
     const res = await fetch(`/api/operator/orders/${orderId}`, {
@@ -44,7 +46,7 @@ export function TableActions({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo cancelar la orden.");
+      alert(t("actionsCancelFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -72,7 +74,7 @@ export function TableActions({
           rel="noreferrer"
           className="flex-1 min-w-[110px] h-8 inline-flex items-center justify-center rounded-lg bg-ink text-bone text-xs font-medium"
         >
-          Cobrar la cuenta
+          {t("actionsCharge")}
         </a>
       )}
       {canCancel && (
@@ -81,7 +83,7 @@ export function TableActions({
           disabled={busy}
           className="h-8 px-3 rounded-lg border border-danger/40 text-danger text-xs disabled:opacity-60"
         >
-          {busy ? "…" : "Cancelar"}
+          {busy ? "…" : t("actionsCancel")}
         </button>
       )}
     </div>

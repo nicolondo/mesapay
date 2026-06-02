@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -41,11 +42,13 @@ export default async function PrintTablesPage({
 }: {
   searchParams: Promise<{ pickup?: string }>;
 }) {
+  const tr = await getTranslations("opTables");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant)
+    return <div className="p-6">{tr("restaurantNotFound")}</div>;
 
   const { pickup } = await searchParams;
   const pickupOnly = pickup === "1";
@@ -87,9 +90,9 @@ export default async function PrintTablesPage({
   // mesa normal es "Mesa N".
   // MAYÚSCULA porque va abajo del QR como rótulo discreto.
   const labelOf = (n: number) => {
-    if (n === -1) return "RECOGIDA";
-    if (tenant.serviceMode === "counter") return "MOSTRADOR";
-    return `MESA ${n}`;
+    if (n === -1) return tr("printLabelPickup");
+    if (tenant.serviceMode === "counter") return tr("printLabelCounter");
+    return tr("printLabelTable", { number: n });
   };
 
   return (
@@ -210,11 +213,11 @@ export default async function PrintTablesPage({
       <div className="print-sheet p-6 bg-white text-ink">
         <div className="no-print mb-5 max-w-5xl mx-auto flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <div className="font-display text-3xl">QRs para imprimir</div>
+            <div className="font-display text-3xl">{tr("printHeading")}</div>
             <p className="text-sm text-op-muted mt-1">
-              Tarjetas de <strong>30×30mm</strong> en hoja A4 — caben
-              hasta <strong>45 por hoja</strong>. Cards flush con
-              borde compartido: un solo corte por línea.
+              {tr.rich("printIntro", {
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
           </div>
           <PrintButton />

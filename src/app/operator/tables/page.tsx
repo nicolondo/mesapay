@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -25,8 +26,10 @@ export const dynamic = "force-dynamic";
  *     mesas nuevas, pickup card) — sólo en operator/admin
  */
 export default async function TablesPage() {
+  const tr = await getTranslations("opTables");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId)
+    return <div className="p-6">{tr("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
 
@@ -274,7 +277,7 @@ export default async function TablesPage() {
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-3">
         <div className="font-display text-3xl">
-          {counterMode ? "Mostrador" : "Mesas"}
+          {counterMode ? tr("headerCounter") : tr("headerTables")}
         </div>
         {!isMeseroView && (
           <a
@@ -282,7 +285,7 @@ export default async function TablesPage() {
             target="_blank"
             className="h-9 px-4 rounded-full border border-op-border inline-flex items-center text-sm font-medium"
           >
-            {counterMode ? "Imprimir QR" : "Imprimir QRs"}
+            {counterMode ? tr("printQr") : tr("printQrs")}
           </a>
         )}
       </div>
@@ -297,21 +300,21 @@ export default async function TablesPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta">
-                Pedido anticipado
+                {tr("pickupKicker")}
               </div>
-              <div className="text-sm font-medium">QR de recogida</div>
+              <div className="text-sm font-medium">{tr("pickupTitle")}</div>
             </div>
             <a
               href={`/operator/tables/print?pickup=1`}
               target="_blank"
               className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
             >
-              Imprimir
+              {tr("pickupPrint")}
             </a>
           </div>
           <details className="mt-2">
             <summary className="text-[11px] text-op-muted cursor-pointer">
-              Enlace QR
+              {tr("pickupQrLink")}
             </summary>
             <a
               href={`${base}/p/${tenant.slug}?t=${pickupTable.qrToken}`}

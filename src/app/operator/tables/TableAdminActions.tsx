@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function DeleteTableButton({
   tableId,
@@ -10,12 +11,13 @@ export function DeleteTableButton({
   tableId: string;
   number: number;
 }) {
+  const t = useTranslations("opTables");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTx] = useTransition();
 
   async function del() {
-    const ok = window.confirm(`¿Eliminar la Mesa ${number}?`);
+    const ok = window.confirm(t("confirmDeleteTable", { number }));
     if (!ok) return;
     setBusy(true);
     const res = await fetch(`/api/operator/tables/${tableId}`, {
@@ -24,7 +26,7 @@ export function DeleteTableButton({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "No se pudo eliminar la mesa.");
+      alert(j.error ?? t("deleteTableFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -35,9 +37,9 @@ export function DeleteTableButton({
       onClick={del}
       disabled={busy}
       className="text-[11px] text-op-muted hover:text-danger disabled:opacity-60"
-      title="Eliminar mesa"
+      title={t("deleteTableTitle")}
     >
-      {busy ? "…" : "Eliminar"}
+      {busy ? "…" : t("deleteTable")}
     </button>
   );
 }
@@ -49,6 +51,7 @@ export function EditLabelButton({
   tableId: string;
   currentLabel: string | null;
 }) {
+  const t = useTranslations("opTables");
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(currentLabel ?? "");
@@ -64,7 +67,7 @@ export function EditLabelButton({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo guardar.");
+      alert(t("saveLabelFailed"));
       return;
     }
     setEditing(false);
@@ -77,7 +80,7 @@ export function EditLabelButton({
         onClick={() => setEditing(true)}
         className="text-xs text-op-muted hover:text-ink text-left truncate"
       >
-        {currentLabel || "+ Añadir etiqueta"}
+        {currentLabel || t("addLabel")}
       </button>
     );
   }
@@ -89,7 +92,7 @@ export function EditLabelButton({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         maxLength={40}
-        placeholder="Etiqueta"
+        placeholder={t("labelPlaceholder")}
         className="h-7 px-2 rounded border border-op-border bg-op-bg text-xs flex-1 min-w-0"
       />
       <button
@@ -97,7 +100,7 @@ export function EditLabelButton({
         disabled={busy}
         className="text-xs text-terracotta font-medium"
       >
-        OK
+        {t("labelOk")}
       </button>
       <button
         onClick={() => {
@@ -106,7 +109,7 @@ export function EditLabelButton({
         }}
         className="text-xs text-op-muted"
       >
-        ×
+        {"×"}
       </button>
     </div>
   );

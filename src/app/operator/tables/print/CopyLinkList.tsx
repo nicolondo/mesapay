@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * Lista de mesas con su link directo (el que codifica el QR) y un
@@ -16,6 +17,7 @@ export function CopyLinkList({
 }: {
   items: Array<{ id: string; label: string; url: string }>;
 }) {
+  const t = useTranslations("opTables");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function copy(id: string, url: string) {
@@ -50,12 +52,9 @@ export function CopyLinkList({
     <div className="border border-op-border rounded-2xl bg-op-surface overflow-hidden">
       <div className="px-4 py-3 border-b border-op-border">
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted">
-          Links para compartir
+          {t("shareLinksTitle")}
         </div>
-        <p className="text-xs text-op-muted mt-0.5">
-          Mismo link que codifica el QR de cada mesa. Útil si querés
-          mandarlo por chat o pegarlo en otro lado.
-        </p>
+        <p className="text-xs text-op-muted mt-0.5">{t("shareLinksHint")}</p>
       </div>
       <ul className="divide-y divide-op-border">
         {items.map((it) => (
@@ -79,7 +78,7 @@ export function CopyLinkList({
                   : "bg-ink text-bone hover:opacity-90")
               }
             >
-              {copiedId === it.id ? "Copiado" : "Copiar"}
+              {copiedId === it.id ? t("copied") : t("copy")}
             </button>
           </li>
         ))}

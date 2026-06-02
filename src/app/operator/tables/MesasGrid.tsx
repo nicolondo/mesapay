@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import {
   tileTokensForState,
@@ -106,6 +107,7 @@ export function MesasGrid({
   isMeseroView: boolean;
   freeTables: FreeTable[];
 }) {
+  const tr = useTranslations("opTables");
   const [filter, setFilter] = useState<FilterChip>("all");
   // ID del tile cuyo sheet está abierto. Solo uno a la vez.
   const [openTileId, setOpenTileId] = useState<string | null>(null);
@@ -137,27 +139,27 @@ export function MesasGrid({
         <Chip
           active={filter === "all"}
           onClick={() => setFilter("all")}
-          label="Todas"
+          label={tr("filterAll")}
           count={counts.all}
         />
         <Chip
           active={filter === "by_pay"}
           onClick={() => setFilter("by_pay")}
-          label="Por cobrar"
+          label={tr("filterByPay")}
           count={counts.by_pay}
           tone="danger"
         />
         <Chip
           active={filter === "recent"}
           onClick={() => setFilter("recent")}
-          label="Recién pagadas"
+          label={tr("filterRecent")}
           count={counts.recent}
           tone="ok"
         />
         <Chip
           active={filter === "free"}
           onClick={() => setFilter("free")}
-          label="Libres"
+          label={tr("filterFree")}
           count={counts.free}
         />
       </div>
@@ -166,7 +168,7 @@ export function MesasGrid({
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
         {filtered.length === 0 && (
           <div className="col-span-full text-center text-sm text-op-muted py-8">
-            No hay mesas en este filtro.
+            {tr("emptyFilter")}
           </div>
         )}
         {filtered.map((tile) => {
@@ -272,6 +274,7 @@ function FreeTile({
   isMeseroView: boolean;
   tenantSlug: string;
 }) {
+  const tr = useTranslations("opTables");
   const href = isMeseroView
     ? `/mesero/pedir/${tile.id}`
     : `/t/${tenantSlug}/menu?table=${tile.qrToken}&op=1`;
@@ -285,7 +288,9 @@ function FreeTile({
       className="aspect-[4/3] rounded-xl border border-op-border bg-op-surface hover:bg-op-bg flex flex-col items-center justify-center p-2 text-center transition-colors"
     >
       <div className="font-display text-base leading-none">
-        {counterMode ? "Mostr." : `M${tile.number}`}
+        {counterMode
+          ? tr("tileCounterShort")
+          : tr("tileTableShort", { number: tile.number })}
       </div>
       {tile.label && (
         <div className="font-mono text-[9px] text-op-muted mt-1 truncate w-full">
@@ -293,7 +298,7 @@ function FreeTile({
         </div>
       )}
       <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted mt-auto">
-        libre
+        {tr("tileFree")}
       </div>
     </Link>
   );
@@ -315,6 +320,7 @@ function RecentlyPaidTile({
   isMeseroView: boolean;
   tenantSlug: string;
 }) {
+  const tr = useTranslations("opTables");
   const minsAgo = Math.max(
     0,
     Math.floor((Date.now() - new Date(tile.paidAt).getTime()) / 60000),
@@ -335,7 +341,9 @@ function RecentlyPaidTile({
       className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 hover:bg-ok/15 p-2 flex flex-col items-center justify-center text-center relative transition-colors"
     >
       <div className="font-display text-base leading-none">
-        {counterMode ? "Mostr." : `M${tile.number}`}
+        {counterMode
+          ? tr("tileCounterShort")
+          : tr("tileTableShort", { number: tile.number })}
       </div>
       {tile.label && (
         <div className="font-mono text-[9px] text-op-muted mt-0.5 truncate w-full">
@@ -343,7 +351,8 @@ function RecentlyPaidTile({
         </div>
       )}
       <div className="text-[10px] text-[#1E5339] font-medium mt-1">
-        ✓ {minsAgo === 0 ? "ahora" : `${minsAgo}m`}
+        <span aria-hidden>{"✓ "}</span>
+        {minsAgo === 0 ? tr("tileNow") : tr("tileMinutesAgo", { mins: minsAgo })}
       </div>
       <span
         aria-hidden
@@ -374,17 +383,26 @@ function ActiveTile({
   tenantSlug: string;
   isMeseroView: boolean;
 }) {
+  const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
   const tableLabel = counterMode
-    ? "Mostrador"
-    : `Mesa ${tile.number}${tile.label ? ` · ${tile.label}` : ""}`;
+    ? tr("tableFullCounter")
+    : tile.label
+      ? tr("tableFullWithLabel", { number: tile.number, label: tile.label })
+      : tr("tableFull", { number: tile.number });
   const pulse = tokens.pulse;
   // Combinamos age + items en una sola linea compacta. Si nada
   // que mostrar, dejamos en blanco para que el layout no salte.
   const metaLine =
-    (tile.risk.agingMinutes > 0 ? `${tile.risk.agingMinutes}m` : "") +
-    (tile.risk.agingMinutes > 0 && tile.order.itemCount > 0 ? " · " : "") +
-    (tile.order.itemCount > 0 ? `${tile.order.itemCount}i` : "");
+    (tile.risk.agingMinutes > 0
+      ? tr("tileMetaMinutes", { mins: tile.risk.agingMinutes })
+      : "") +
+    (tile.risk.agingMinutes > 0 && tile.order.itemCount > 0
+      ? tr("tileMetaSep")
+      : "") +
+    (tile.order.itemCount > 0
+      ? tr("tileMetaItems", { count: tile.order.itemCount })
+      : "");
   return (
     <>
       <button
@@ -399,7 +417,9 @@ function ActiveTile({
         }
       >
         <div className="font-display text-base leading-none">
-          {counterMode ? "Mostr." : `M${tile.number}`}
+          {counterMode
+            ? tr("tileCounterShort")
+            : tr("tileTableShort", { number: tile.number })}
         </div>
         {tile.label && (
           <div className="font-mono text-[9px] text-op-muted truncate w-full mt-0.5">
@@ -436,7 +456,7 @@ function ActiveTile({
         {tile.order.needsWaiter && (
           <span
             aria-hidden
-            title="Llamado de mesero pendiente"
+            title={tr("waiterCallPending")}
             className="absolute top-1 right-1.5 text-[10px]"
           >
             🔔

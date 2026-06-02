@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
+  const t = useTranslations("opTables");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [number, setNumber] = useState<string>(String(suggestedNumber));
@@ -16,7 +18,7 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
     e.preventDefault();
     const n = Number(number);
     if (!Number.isInteger(n) || n < 1) {
-      setErr("El número debe ser un entero positivo.");
+      setErr(t("newTableInvalidNumber"));
       return;
     }
     setErr(null);
@@ -29,7 +31,7 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No se pudo crear la mesa.");
+      setErr(j.error ?? t("newTableCreateFailed"));
       return;
     }
     setNumber(String(n + 1));
@@ -44,7 +46,7 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
         onClick={() => setOpen(true)}
         className="h-10 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
       >
-        + Añadir mesa
+        {t("newTableAdd")}
       </button>
     );
   }
@@ -56,7 +58,7 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
     >
       <label className="flex flex-col">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Número
+          {t("newTableNumber")}
         </span>
         <input
           type="number"
@@ -70,13 +72,13 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
       </label>
       <label className="flex flex-col flex-1 min-w-[160px]">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Etiqueta (opcional)
+          {t("newTableLabel")}
         </span>
         <input
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Terraza, Ventana…"
+          placeholder={t("newTableLabelPlaceholder")}
           maxLength={40}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
         />
@@ -90,14 +92,14 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
           }}
           className="h-10 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {t("newTableCancel")}
         </button>
         <button
           type="submit"
           disabled={busy}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Creando…" : "Crear"}
+          {busy ? t("newTableCreating") : t("newTableCreate")}
         </button>
       </div>
       {err && (

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 
 type ItemDetail = {
@@ -99,6 +100,7 @@ export function TableDetailSheet({
   qrToken?: string;
   isMeseroView?: boolean;
 }) {
+  const tr = useTranslations("opTables");
   const [internalOpen, setInternalOpen] = useState(false);
   const controlled = externalOpen !== undefined;
   const open = controlled ? externalOpen : internalOpen;
@@ -171,11 +173,7 @@ export function TableDetailSheet({
   const [, startTx] = useTransition();
 
   async function cancelOrder() {
-    if (
-      !window.confirm(
-        "¿Cancelar la cuenta completa? Sólo funciona si cocina no ha empezado todavía. Si ya cocinaron algo, cancelá/no cobres plato por plato con motivo.",
-      )
-    ) {
+    if (!window.confirm(tr("confirmCancelOrder"))) {
       return;
     }
     setCancelOrderBusy(true);
@@ -192,8 +190,8 @@ export function TableDetailSheet({
       const msg =
         body?.message ??
         (body?.error === "kitchen_started"
-          ? "Cocina ya empezó algún plato. Cancelá plato por plato."
-          : "No se pudo cancelar la orden.");
+          ? tr("cancelOrderKitchenStarted")
+          : tr("cancelOrderFailed"));
       window.alert(msg);
       return;
     }
@@ -228,7 +226,7 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setMoveErr(j.message ?? j.error ?? "No pudimos mover la cuenta");
+      setMoveErr(j.message ?? j.error ?? tr("moveFailed"));
       return;
     }
     // El SSE de order.updated va a refrescar ambas tarjetas. Cerramos
@@ -252,8 +250,8 @@ export function TableDetailSheet({
       const msg =
         body?.message ??
         (kind === "comp"
-          ? "No pudimos no-cobrar el plato. Intenta de nuevo."
-          : "No pudimos cancelar el plato. Intenta de nuevo.");
+          ? tr("compItemFailed")
+          : tr("cancelItemFailed"));
       alert(msg);
       return;
     }
@@ -311,7 +309,7 @@ export function TableDetailSheet({
           onClick={() => setOpen(true)}
           className="mt-2 w-full text-xs text-op-muted hover:text-op-text underline-offset-2 hover:underline text-left"
         >
-          Ver detalle del pedido →
+          {tr("viewOrderDetail")}
         </button>
       )}
 
@@ -327,17 +325,21 @@ export function TableDetailSheet({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-                  {tableLabel} · {shortCode}
+                  {tableLabel}
+                  {" · "}
+                  {shortCode}
                 </div>
-                <h2 className="font-display text-2xl mt-1">Estado del pedido</h2>
+                <h2 className="font-display text-2xl mt-1">
+                  {tr("orderStatusTitle")}
+                </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 className="text-muted text-sm shrink-0"
-                aria-label="Cerrar"
+                aria-label={tr("close")}
               >
-                ✕
+                {"✕"}
               </button>
             </div>
 
@@ -350,8 +352,8 @@ export function TableDetailSheet({
                 <div className="min-w-0">
                   <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
                     {outstandingCents && outstandingCents > 0
-                      ? "Pendiente"
-                      : "Cuenta total"}
+                      ? tr("summaryPending")
+                      : tr("summaryTotal")}
                   </div>
                   <div className="font-display text-2xl tabular leading-tight">
                     {fmtCOP(
@@ -365,7 +367,7 @@ export function TableDetailSheet({
                     subtotalCents != null &&
                     subtotalCents !== outstandingCents && (
                       <div className="font-mono text-[10px] text-op-muted mt-0.5">
-                        de {fmtCOP(subtotalCents)}
+                        {tr("summaryOfTotal", { amount: fmtCOP(subtotalCents) })}
                       </div>
                     )}
                 </div>
@@ -424,8 +426,10 @@ export function TableDetailSheet({
                         : { target: "_blank", rel: "noreferrer" })}
                       className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-ink/90"
                     >
-                      <span aria-hidden className="text-base leading-none">+</span>
-                      <span>Agregar platos</span>
+                      <span aria-hidden className="text-base leading-none">
+                        {"+"}
+                      </span>
+                      <span>{tr("addDishes")}</span>
                     </Link>
                   )}
                   {canCharge && (
@@ -435,7 +439,7 @@ export function TableDetailSheet({
                       rel="noreferrer"
                       className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
                     >
-                      Cobrar la cuenta
+                      {tr("chargeBill")}
                     </a>
                   )}
                   {canMove && (
@@ -447,7 +451,7 @@ export function TableDetailSheet({
                       }}
                       className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium hover:bg-op-bg"
                     >
-                      Mover a otra mesa
+                      {tr("moveToTable")}
                     </button>
                   )}
                   {canCancelOrder && (
@@ -458,8 +462,8 @@ export function TableDetailSheet({
                       className="w-full h-11 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
                     >
                       {cancelOrderBusy
-                        ? "Cancelando…"
-                        : "Cancelar la cuenta"}
+                        ? tr("cancelBillBusy")
+                        : tr("cancelBill")}
                     </button>
                   )}
                 </div>
@@ -468,7 +472,7 @@ export function TableDetailSheet({
 
             {visibleRounds.length === 0 && (
               <div className="text-sm text-op-muted">
-                No hay platos activos.
+                {tr("noActiveDishes")}
               </div>
             )}
 
@@ -476,7 +480,7 @@ export function TableDetailSheet({
               <section key={round.id} className="space-y-2">
                 {visibleRounds.length > 1 && (
                   <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-                    Ronda {round.seq}
+                    {tr("round", { seq: round.seq })}
                   </div>
                 )}
                 <ul className="space-y-2">
@@ -500,7 +504,8 @@ export function TableDetailSheet({
                       >
                         <div className="flex items-baseline gap-2">
                           <span className="font-mono tabular text-muted shrink-0">
-                            {it.qty}×
+                            {it.qty}
+                            {"×"}
                           </span>
                           <span className="flex-1 text-sm font-medium">
                             {it.name}
@@ -523,7 +528,13 @@ export function TableDetailSheet({
                                 {it.guestName}
                               </span>
                             )}
-                            {it.notes && <span>“{it.notes}”</span>}
+                            {it.notes && (
+                              <span>
+                                {"“"}
+                                {it.notes}
+                                {"”"}
+                              </span>
+                            )}
                           </div>
                         )}
                         <div className="mt-1.5 flex items-center justify-between gap-2">
@@ -537,13 +548,15 @@ export function TableDetailSheet({
                               it.kitchenStatus === "in_kitchen" &&
                               elapsed != null &&
                               elapsed > 0 && (
-                                <span>hace {elapsed} min</span>
+                                <span>{tr("elapsedAgo", { mins: elapsed })}</span>
                               )}
                             {!it.servedAt &&
                               it.kitchenStatus === "ready" &&
                               readyElapsed != null &&
                               readyElapsed > 0 && (
-                                <span>listo hace {readyElapsed} min</span>
+                                <span>
+                                  {tr("readyAgo", { mins: readyElapsed })}
+                                </span>
                               )}
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -577,7 +590,7 @@ export function TableDetailSheet({
                                 }
                                 className="font-mono text-[10px] tracking-wider uppercase text-danger hover:bg-danger/10 px-2 py-1 rounded-full"
                               >
-                                Cancelar
+                                {tr("cancelItem")}
                               </button>
                             ) : (
                               <button
@@ -591,12 +604,12 @@ export function TableDetailSheet({
                                 }
                                 className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full"
                               >
-                                No cobrar
+                                {tr("compItem")}
                               </button>
                             )}
                             {it.expediteRequestedAt ? (
                               <span className="font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-2 py-0.5 rounded-full">
-                                🔥 Apurado
+                                {tr("expedited")}
                               </span>
                             ) : canExpedite ? (
                               <button
@@ -606,8 +619,8 @@ export function TableDetailSheet({
                                 className="font-mono text-[10px] tracking-wider uppercase border border-terracotta/40 text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded-full disabled:opacity-40"
                               >
                                 {pendingExpedite.has(it.id)
-                                  ? "Avisando…"
-                                  : "🔥 Apurar"}
+                                  ? tr("expediting")
+                                  : tr("expedite")}
                               </button>
                             ) : null}
                           </div>
@@ -620,7 +633,7 @@ export function TableDetailSheet({
             ))}
 
             <p className="text-[10px] text-op-muted">
-              El detalle se actualiza automáticamente cada 15 segundos.
+              {tr("autoRefreshNote")}
             </p>
           </div>
         </div>
@@ -663,6 +676,7 @@ function MoveTableSheet({
   onClose: () => void;
   onPick: (targetTableId: string) => void | Promise<void>;
 }) {
+  const tr = useTranslations("opTables");
   const [busy, setBusy] = useState(false);
   async function pick(id: string) {
     if (busy) return;
@@ -685,25 +699,24 @@ function MoveTableSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-              Mover de Mesa {sourceTableNumber}
+              {tr("moveFromTable", { number: sourceTableNumber })}
             </div>
-            <h2 className="font-display text-2xl mt-1">Elige mesa destino</h2>
+            <h2 className="font-display text-2xl mt-1">
+              {tr("movePickTitle")}
+            </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={tr("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
-        <p className="text-xs text-muted">
-          Solo se listan mesas libres. Si la mesa destino tiene cuenta
-          abierta, ciérrala antes de mover.
-        </p>
+        <p className="text-xs text-muted">{tr("moveHint")}</p>
 
         <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2">
           {freeTables.map((t) => (
@@ -734,20 +747,21 @@ function MoveTableSheet({
 }
 
 // Presets de motivo segun kind. Tap a un preset llena el textarea —
-// el mesero puede editarlo o tipear libre.
-const CANCEL_PRESETS = [
-  "Cliente cambió de opinión",
-  "Demora excesiva",
-  "Error al tomar pedido",
-  "Ingrediente faltante",
+// el mesero puede editarlo o tipear libre. Guardamos las CLAVES i18n
+// y resolvemos a texto traducido dentro del componente.
+const CANCEL_PRESET_KEYS = [
+  "presetCancelChangedMind",
+  "presetCancelTooSlow",
+  "presetCancelOrderError",
+  "presetCancelMissingIngredient",
 ];
 
-const COMP_PRESETS = [
-  "No le gustó al cliente",
-  "Plato frío / mal preparado",
-  "Plato equivocado",
-  "Cortesía",
-  "Cliente se fue sin pagar",
+const COMP_PRESET_KEYS = [
+  "presetCompDisliked",
+  "presetCompColdBad",
+  "presetCompWrongDish",
+  "presetCompCourtesy",
+  "presetCompWalkout",
 ];
 
 function CancelItemSheet({
@@ -762,19 +776,22 @@ function CancelItemSheet({
   onClose: () => void;
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
+  const tr = useTranslations("opTables");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const trimmed = reason.trim();
   const canSubmit = trimmed.length >= 3 && !busy;
 
   const isComp = kind === "comp";
-  const title = isComp ? "No cobrar plato" : "Cancelar plato";
+  const title = isComp ? tr("compSheetTitle") : tr("cancelSheetTitle");
   const subtitle = isComp
-    ? "El plato sale del subtotal pero queda registrado como entregado. Aparece en el reporte de no-cobrados con el motivo."
-    : "Sale del pedido, del kitchen board y del subtotal. Esta acción no se puede deshacer — si era un error, tendrá que volver a pedirse.";
-  const presets = isComp ? COMP_PRESETS : CANCEL_PRESETS;
-  const ctaIdle = isComp ? "No cobrar plato" : "Cancelar plato";
-  const ctaBusy = isComp ? "Guardando…" : "Cancelando…";
+    ? tr("compSheetSubtitle")
+    : tr("cancelSheetSubtitle");
+  const presets = (isComp ? COMP_PRESET_KEYS : CANCEL_PRESET_KEYS).map((k) =>
+    tr(k),
+  );
+  const ctaIdle = isComp ? tr("compCtaIdle") : tr("cancelCtaIdle");
+  const ctaBusy = isComp ? tr("compCtaBusy") : tr("cancelCtaBusy");
   const ctaClass = isComp
     ? "bg-terracotta text-bone"
     : "bg-danger text-bone";
@@ -810,9 +827,9 @@ function CancelItemSheet({
             onClick={onClose}
             disabled={busy}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={tr("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
@@ -820,7 +837,7 @@ function CancelItemSheet({
 
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            Motivo
+            {tr("reasonLabel")}
           </div>
           <div className="flex flex-wrap gap-2 mb-2">
             {presets.map((p) => (
@@ -842,7 +859,7 @@ function CancelItemSheet({
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="O escribe otro motivo…"
+            placeholder={tr("reasonPlaceholder")}
             rows={2}
             className="w-full px-3 py-2 rounded-lg border border-hairline bg-paper text-sm resize-none"
           />
@@ -869,11 +886,15 @@ function StatusPill({
 }: {
   status: "placed" | "in_kitchen" | "ready" | "served";
 }) {
+  const tr = useTranslations("opTables");
   const map: Record<typeof status, { label: string; cls: string }> = {
-    placed: { label: "Por preparar", cls: "bg-op-bg text-op-muted" },
-    in_kitchen: { label: "Preparando", cls: "bg-[#C98A2E]/15 text-[#8F6828]" },
-    ready: { label: "Listo", cls: "bg-ok/15 text-ok" },
-    served: { label: "Servido", cls: "bg-op-bg text-op-muted" },
+    placed: { label: tr("statusPlaced"), cls: "bg-op-bg text-op-muted" },
+    in_kitchen: {
+      label: tr("statusInKitchen"),
+      cls: "bg-[#C98A2E]/15 text-[#8F6828]",
+    },
+    ready: { label: tr("statusReady"), cls: "bg-ok/15 text-ok" },
+    served: { label: tr("statusServed"), cls: "bg-op-bg text-op-muted" },
   };
   const m = map[status];
   return (

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 type Menu = {
   id: string;
@@ -14,6 +15,7 @@ type Menu = {
 };
 
 export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
+  const t = useTranslations("opMenus");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [menus, setMenus] = useState(initialMenus);
@@ -33,7 +35,7 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        alert(j.error ?? "No se pudo crear el menú.");
+        alert(j.error ?? t("errCreate"));
         return;
       }
       const { menu } = await res.json();
@@ -65,7 +67,7 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
         body: JSON.stringify({ label: trimmed }),
       });
       if (!res.ok) {
-        alert("No se pudo renombrar.");
+        alert(t("errRename"));
         return;
       }
       setMenus((prev) =>
@@ -78,17 +80,18 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
 
   async function deleteMenu(menuId: string) {
     if (menus.length <= 1) {
-      alert("Debe haber al menos un menú.");
+      alert(t("errAtLeastOne"));
       return;
     }
     const target = menus.find((m) => m.id === menuId);
     if (!target) return;
     const msg =
       target.categoryCount > 0
-        ? `¿Borrar "${target.label}"? Sus ${target.categoryCount} ${
-            target.categoryCount === 1 ? "categoría" : "categorías"
-          } se moverán al primer menú restante.`
-        : `¿Borrar "${target.label}"?`;
+        ? t("confirmDeleteWithCats", {
+            label: target.label,
+            count: target.categoryCount,
+          })
+        : t("confirmDelete", { label: target.label });
     if (!window.confirm(msg)) return;
     setBusyId(menuId);
     try {
@@ -97,7 +100,7 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        alert(j.error ?? "No se pudo borrar.");
+        alert(j.error ?? t("errDelete"));
         return;
       }
       setMenus((prev) => prev.filter((m) => m.id !== menuId));
@@ -110,11 +113,11 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">Menús</div>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">
-        Un menú agrupa categorías. La mayoría de restaurantes tiene uno solo
-        (<strong>Carta</strong>). Crea otro para vinos, cocteles, brunch — y
-        el cliente verá pestañas para alternar entre ellos.
+        {t.rich("intro", {
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </p>
 
       <div className="space-y-2 mb-6">
@@ -144,16 +147,18 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
           onClick={() => setCreating(true)}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
         >
-          + Nuevo menú
+          {t("newMenu")}
         </button>
       )}
 
       <div className="mt-8 text-xs text-op-muted">
-        Para mover una categoría a otro menú, abrila desde{" "}
-        <Link href="/operator/menu" className="underline">
-          Menú
-        </Link>{" "}
-        y usa el selector “Menú” en el header de la categoría.
+        {t.rich("moveCategoryHint", {
+          link: (chunks) => (
+            <Link href="/operator/menu" className="underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </div>
     </div>
   );
@@ -172,6 +177,7 @@ function MenuRow({
   onRename: (label: string) => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations("opMenus");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(menu.label);
 
@@ -209,8 +215,7 @@ function MenuRow({
           </button>
         )}
         <div className="text-xs text-op-muted mt-0.5 truncate">
-          {menu.categoryCount}{" "}
-          {menu.categoryCount === 1 ? "categoría" : "categorías"} ·{" "}
+          {t("categoryCount", { count: menu.categoryCount })} ·{" "}
           <code className="font-mono">/{menu.slug}</code>
         </div>
       </div>
@@ -226,7 +231,7 @@ function MenuRow({
           disabled={disabled}
           className="text-xs text-op-muted hover:text-danger disabled:opacity-50"
         >
-          Eliminar
+          {t("delete")}
         </button>
       )}
     </div>
@@ -242,6 +247,7 @@ function NewMenuForm({
   onCancel: () => void;
   onSubmit: (label: string, description: string) => void;
 }) {
+  const t = useTranslations("opMenus");
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
 
@@ -256,26 +262,26 @@ function NewMenuForm({
     >
       <label className="flex flex-col">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Nombre del menú
+          {t("formNameLabel")}
         </span>
         <input
           autoFocus
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           maxLength={40}
-          placeholder="Carta de vinos · Cocteles · Brunch…"
+          placeholder={t("formNamePlaceholder")}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
         />
       </label>
       <label className="flex flex-col">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Descripción (opcional)
+          {t("formDescLabel")}
         </span>
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={240}
-          placeholder="Más de 180 referencias · Sommelier disponible"
+          placeholder={t("formDescPlaceholder")}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
         />
       </label>
@@ -285,14 +291,14 @@ function NewMenuForm({
           onClick={onCancel}
           className="h-9 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {t("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy || !label.trim()}
           className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Creando…" : "Crear menú"}
+          {busy ? t("creating") : t("createMenu")}
         </button>
       </div>
     </form>

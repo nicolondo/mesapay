@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { ensureDefaultMenu } from "@/lib/menus";
@@ -12,8 +13,9 @@ export const dynamic = "force-dynamic";
  * tabs on the diner's view.
  */
 export default async function MenusPage() {
+  const t = await getTranslations("opMenus");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   // Lazy-create the default Carta on first visit so the operator sees
   // at least one row instead of an empty page.

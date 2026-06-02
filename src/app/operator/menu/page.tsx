@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { normalizeModifiers } from "@/lib/modifiers";
@@ -8,8 +9,9 @@ import { MenuEditor } from "./MenuEditor";
 export const dynamic = "force-dynamic";
 
 export default async function MenuAdminPage() {
+  const t = await getTranslations("opMenuEditor");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   // Make sure the restaurant has a default menu before fetching — also
   // backfills any null menuId on existing categories.

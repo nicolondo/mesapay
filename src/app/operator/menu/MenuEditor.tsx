@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import type { MenuTag } from "@/lib/menuTags";
 
@@ -28,12 +29,6 @@ type MenuRef = { id: string; label: string; slug: string };
 // The other slugs (starter / side / drink / dessert) are accepted by
 // the API for historical reasons but no longer surfaced anywhere — the
 // editor only writes "main" or "other".
-
-const STATION_LABEL: Record<PrepStation, string> = {
-  kitchen: "Cocina",
-  bar: "Bar",
-  counter: "Refri / mostrador",
-};
 
 type ModOpt = { label: string; priceDeltaCents?: number };
 type ModifierDef = {
@@ -75,6 +70,7 @@ export function MenuEditor({
   categories: Cat[];
   items: Item[];
 }) {
+  const tr = useTranslations("opMenuEditor");
   // Local state for items + categories. We mutate on every CRUD op
   // instead of router.refresh() — refreshing re-renders the whole
   // page and bounces the operator's scroll position to the top, which
@@ -134,7 +130,7 @@ export function MenuEditor({
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-        <div className="font-display text-3xl">Menú</div>
+        <div className="font-display text-3xl">{tr("title")}</div>
         <div className="flex items-center gap-2">
           <a
             // Pass the active menu so the import wizard lands the new
@@ -149,14 +145,14 @@ export function MenuEditor({
             }
             className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center gap-1.5 hover:bg-op-bg"
           >
-            <span aria-hidden>🧠</span> Importar con AI
+            <span aria-hidden>🧠</span> {tr("importWithAi")}
           </a>
           {!addingCategory && (
             <button
               onClick={() => setAddingCategory(true)}
               className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
             >
-              + Nueva categoría
+              {tr("newCategory")}
             </button>
           )}
         </div>
@@ -216,8 +212,8 @@ export function MenuEditor({
       {visibleCategories.length === 0 && !addingCategory && (
         <div className="text-sm text-op-muted border border-dashed border-op-border rounded-xl p-8 text-center">
           {hasMultipleMenus
-            ? "Este menú aún no tiene categorías. Crea una o mueve alguna desde otro menú."
-            : "Todavía no tienes categorías. Crea la primera — por ejemplo, “Para empezar”, “Principales”, “Postres”."}
+            ? tr("emptyMultiMenu")
+            : tr("emptySingleMenu")}
         </div>
       )}
 
@@ -241,7 +237,7 @@ export function MenuEditor({
                     onClick={() => setAddingItemInCat(c.id)}
                     className="h-8 px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
                   >
-                    + Plato
+                    {tr("addDish")}
                   </button>
                 </div>
               </div>
@@ -262,7 +258,7 @@ export function MenuEditor({
               <ul className="divide-y divide-op-border border border-op-border rounded-xl bg-op-surface overflow-hidden">
                 {rows.length === 0 && addingItemInCat !== c.id && (
                   <li className="p-4 text-sm text-op-muted">
-                    Sin platos todavía.
+                    {tr("noDishesYet")}
                   </li>
                 )}
                 {rows.map((it) => (
@@ -305,7 +301,7 @@ export function MenuEditor({
                         onClick={() => setEditingItem(it)}
                         className="text-xs text-terracotta hover:underline"
                       >
-                        Editar
+                        {tr("edit")}
                       </button>
                     </div>
                   </li>
@@ -349,6 +345,7 @@ function AvailabilityToggle({
   item: Item;
   onChanged: (available: boolean) => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [available, setAvailable] = useState(item.available);
   const [busy, setBusy] = useState(false);
 
@@ -364,7 +361,7 @@ function AvailabilityToggle({
     setBusy(false);
     if (!res.ok) {
       setAvailable(!next);
-      alert("No se pudo cambiar la disponibilidad.");
+      alert(tr("errToggleAvailability"));
       return;
     }
     onChanged(next);
@@ -376,8 +373,8 @@ function AvailabilityToggle({
       disabled={busy}
       title={
         available
-          ? "Disponible — click para marcar agotado"
-          : "Agotado — click para reponer"
+          ? tr("availableTitle")
+          : tr("soldOutTitle")
       }
       className={
         "h-7 px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
@@ -386,7 +383,7 @@ function AvailabilityToggle({
           : "bg-danger/10 text-danger border-danger/30 hover:bg-danger/20")
       }
     >
-      {available ? "Disponible" : "Agotado"}
+      {available ? tr("available") : tr("soldOut")}
     </button>
   );
 }
@@ -406,6 +403,7 @@ function NewCategoryForm({
   onSave: (newCat: Cat) => void;
   onClose: () => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [label, setLabel] = useState("");
   // Internally we still write to CategoryKind. Only "main" vs "other"
   // matters in product behaviour (drives Fuertes juntos), so we expose
@@ -434,7 +432,7 @@ function NewCategoryForm({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "Error");
+      setErr(j.error ?? tr("errGeneric"));
       return;
     }
     const j = (await res.json()) as { id: string };
@@ -466,14 +464,14 @@ function NewCategoryForm({
       <div className="flex items-end gap-3">
         <label className="flex-1 flex flex-col">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Nombre de la categoría
+            {tr("categoryNameLabel")}
           </span>
           <input
             autoFocus
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={40}
-            placeholder="Para empezar, Principales, Postres…"
+            placeholder={tr("categoryNamePlaceholder")}
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
@@ -487,11 +485,9 @@ function NewCategoryForm({
             className="w-4 h-4 mt-0.5"
           />
           <span className="text-sm">
-            <span className="font-medium">Categoría de platos fuertes</span>
+            <span className="font-medium">{tr("mainCourseLabel")}</span>
             <span className="block text-[11px] text-op-muted mt-0.5">
-              Activa el modo “Fuertes juntos” cuando el comensal lo elige al
-              pedir — la cocina retiene estos platos hasta que TODOS estén
-              listos para salir a la mesa juntos.
+              {tr("mainCourseHelp")}
             </span>
           </span>
         </label>
@@ -502,14 +498,14 @@ function NewCategoryForm({
           onClick={onClose}
           className="h-10 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {tr("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy || !label.trim()}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Creando…" : "Crear"}
+          {busy ? tr("creating") : tr("create")}
         </button>
       </div>
       {err && <div className="w-full text-danger text-xs">{err}</div>}
@@ -532,6 +528,7 @@ function CategoryHeader({
   onPatch: (patch: Partial<Cat>) => void;
   onDeleted: () => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(cat.label);
   const [busy, setBusy] = useState(false);
@@ -550,7 +547,7 @@ function CategoryHeader({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo renombrar.");
+      alert(tr("errRename"));
       return;
     }
     setEditing(false);
@@ -565,7 +562,7 @@ function CategoryHeader({
       body: JSON.stringify({ kind }),
     });
     if (!res.ok) {
-      alert("No se pudo cambiar el tipo.");
+      alert(tr("errChangeKind"));
       return;
     }
     onPatch({ kind });
@@ -579,7 +576,7 @@ function CategoryHeader({
       body: JSON.stringify({ menuId }),
     });
     if (!res.ok) {
-      alert("No se pudo cambiar de menú.");
+      alert(tr("errChangeMenu"));
       return;
     }
     // Parent's replaceCategory uses this patch to update local state.
@@ -589,14 +586,14 @@ function CategoryHeader({
   }
 
   async function del() {
-    const ok = window.confirm(`¿Eliminar la categoría "${cat.label}"?`);
+    const ok = window.confirm(tr("confirmDeleteCategory", { label: cat.label }));
     if (!ok) return;
     const res = await fetch(`/api/operator/categories/${cat.id}`, {
       method: "DELETE",
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "No se pudo eliminar.");
+      alert(j.error ?? tr("errDeleteCategory"));
       return;
     }
     onDeleted();
@@ -617,7 +614,7 @@ function CategoryHeader({
           disabled={busy}
           className="text-xs text-terracotta font-medium"
         >
-          Guardar
+          {tr("save")}
         </button>
         <button
           onClick={() => {
@@ -626,7 +623,7 @@ function CategoryHeader({
           }}
           className="text-xs text-op-muted"
         >
-          Cancelar
+          {tr("cancel")}
         </button>
       </div>
     );
@@ -638,7 +635,7 @@ function CategoryHeader({
       {showKind && (
         <label
           className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
-          title="Activa el modo ‘Fuertes juntos’ — la cocina retiene estos platos hasta que TODOS estén listos para servir a la mesa juntos."
+          title={tr("mainCourseTitle")}
         >
           <input
             type="checkbox"
@@ -646,14 +643,14 @@ function CategoryHeader({
             onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
             className="w-3 h-3"
           />
-          <span>Platos fuertes</span>
+          <span>{tr("mainCourses")}</span>
         </label>
       )}
       {menus.length > 1 && (
         <select
           value={cat.menuId}
           onChange={(e) => changeMenu(e.target.value)}
-          title="Menú al que pertenece esta categoría"
+          title={tr("categoryMenuTitle")}
           className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
         >
           {menus.map((m) => (
@@ -667,13 +664,13 @@ function CategoryHeader({
         onClick={() => setEditing(true)}
         className="text-[11px] text-op-muted hover:text-ink"
       >
-        Renombrar
+        {tr("rename")}
       </button>
       <button
         onClick={del}
         className="text-[11px] text-op-muted hover:text-danger"
       >
-        Eliminar
+        {tr("delete")}
       </button>
     </div>
   );
@@ -688,6 +685,7 @@ function NewItemForm({
   onSave: (newItem: Item) => void;
   onClose: () => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
@@ -700,11 +698,11 @@ function NewItemForm({
     const cents = Math.round(Number(price) * 100);
     const mins = Math.round(Number(prepMinutes));
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
-      setErr("Revisa el nombre y el precio.");
+      setErr(tr("errCheckNamePrice"));
       return;
     }
     if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
-      setErr("Tiempo de preparación entre 1 y 120 minutos.");
+      setErr(tr("errPrepRange"));
       return;
     }
     setErr(null);
@@ -723,7 +721,7 @@ function NewItemForm({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "Error");
+      setErr(j.error ?? tr("errGeneric"));
       return;
     }
     const j = (await res.json()) as { id: string };
@@ -750,7 +748,7 @@ function NewItemForm({
       <div className="flex gap-3">
         <label className="flex flex-col flex-1">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Nombre
+            {tr("fieldName")}
           </span>
           <input
             autoFocus
@@ -762,7 +760,7 @@ function NewItemForm({
         </label>
         <label className="flex flex-col w-32">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Precio (COP)
+            {tr("fieldPrice")}
           </span>
           <input
             type="number"
@@ -776,7 +774,7 @@ function NewItemForm({
         </label>
         <label className="flex flex-col w-24">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Prep (min)
+            {tr("fieldPrep")}
           </span>
           <input
             type="number"
@@ -791,7 +789,7 @@ function NewItemForm({
       </div>
       <label className="flex flex-col">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          Descripción (opcional)
+          {tr("fieldDescriptionOptional")}
         </span>
         <textarea
           value={description}
@@ -808,14 +806,14 @@ function NewItemForm({
           onClick={onClose}
           className="h-9 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {tr("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy}
           className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Creando…" : "Crear plato"}
+          {busy ? tr("creating") : tr("createDish")}
         </button>
       </div>
     </form>
@@ -840,6 +838,7 @@ function ItemSheet({
   // local mutation to run.
   onDeleted: (archivedAsUnavailable: boolean) => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [name, setName] = useState(item.name);
   const [priceCents, setPriceCents] = useState(String(item.priceCents / 100));
   const [description, setDescription] = useState(item.description);
@@ -866,7 +865,7 @@ function ItemSheet({
     setUploading(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos subir la foto.");
+      setErr(j.error ?? tr("errPhotoUpload"));
       return;
     }
     const { url } = await res.json();
@@ -877,16 +876,20 @@ function ItemSheet({
     const cents = Math.round(Number(priceCents) * 100);
     const mins = Math.round(Number(prepMinutes));
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
-      setErr("Revisa el nombre y el precio.");
+      setErr(tr("errCheckNamePrice"));
       return;
     }
     if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
-      setErr("Tiempo de preparación entre 1 y 120 minutos.");
+      setErr(tr("errPrepRange"));
       return;
     }
     for (const m of modifiers) {
       if (!m.label.trim() || m.opts.length === 0) {
-        setErr(`El modificador "${m.label || "(sin nombre)"}" necesita etiqueta y al menos una opción.`);
+        setErr(
+          tr("errModifierIncomplete", {
+            label: m.label || tr("unnamed"),
+          }),
+        );
         return;
       }
     }
@@ -911,7 +914,7 @@ function ItemSheet({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "Error");
+      setErr(j.error ?? tr("errGeneric"));
       return;
     }
     // Hand the updated item back to the parent — they patch local
@@ -935,11 +938,7 @@ function ItemSheet({
     // We tell the operator up-front that historic-orders items will be
     // archived instead of hard-deleted, so the post-delete alert that
     // used to surprise them is no longer needed.
-    const ok = window.confirm(
-      `¿Eliminar "${item.name}"?\n\n` +
-        `Si aparece en pedidos anteriores no se puede borrar del todo — ` +
-        `lo dejaremos archivado (deja de mostrarse en la carta del cliente).`,
-    );
+    const ok = window.confirm(tr("confirmDeleteItem", { name: item.name }));
     if (!ok) return;
     setBusy(true);
     const res = await fetch(`/api/operator/menu-items/${item.id}`, {
@@ -948,7 +947,7 @@ function ItemSheet({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "Error");
+      alert(j.error ?? tr("errGeneric"));
       return;
     }
     const j = await res.json().catch(() => ({}));
@@ -972,7 +971,7 @@ function ItemSheet({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "No se pudo archivar.");
+      alert(j.error ?? tr("errArchive"));
       return;
     }
     // Reuse the "archived" branch in the parent — keeps the row in
@@ -998,19 +997,20 @@ function ItemSheet({
       >
         <div className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="font-display text-2xl">Editar plato</div>
+            <div className="font-display text-2xl">{tr("editDish")}</div>
             <button
               onClick={onClose}
+              aria-label={tr("close")}
               className="w-9 h-9 rounded-full border border-op-border"
             >
-              ×
+              <span aria-hidden>{"×"}</span>
             </button>
           </div>
 
           <div className="flex gap-3">
             <label className="flex-1 flex flex-col">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                Nombre
+                {tr("fieldName")}
               </span>
               <input
                 value={name}
@@ -1021,7 +1021,7 @@ function ItemSheet({
             </label>
             <label className="w-32 flex flex-col">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                Precio (COP)
+                {tr("fieldPrice")}
               </span>
               <input
                 type="number"
@@ -1034,7 +1034,7 @@ function ItemSheet({
             </label>
             <label className="w-24 flex flex-col">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                Prep (min)
+                {tr("fieldPrep")}
               </span>
               <input
                 type="number"
@@ -1050,7 +1050,7 @@ function ItemSheet({
 
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-              Descripción
+              {tr("fieldDescription")}
             </span>
             <textarea
               value={description}
@@ -1063,7 +1063,7 @@ function ItemSheet({
 
           <div className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-              Foto
+              {tr("fieldPhoto")}
             </span>
             <div className="flex items-center gap-3">
               <div
@@ -1074,7 +1074,11 @@ function ItemSheet({
               />
               <div className="flex flex-col gap-1.5">
                 <label className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-op-border bg-op-bg text-sm font-medium cursor-pointer hover:bg-ink/5">
-                  {uploading ? "Subiendo…" : photoUrl ? "Cambiar foto" : "Subir foto"}
+                  {uploading
+                    ? tr("uploading")
+                    : photoUrl
+                      ? tr("changePhoto")
+                      : tr("uploadPhoto")}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -1093,11 +1097,11 @@ function ItemSheet({
                     onClick={() => setPhotoUrl("")}
                     className="text-xs text-danger hover:underline text-left"
                   >
-                    Quitar foto
+                    {tr("removePhoto")}
                   </button>
                 )}
                 <div className="text-[11px] text-op-muted">
-                  JPG, PNG o WebP · máx 5MB
+                  {tr("photoHint")}
                 </div>
               </div>
             </div>
@@ -1105,7 +1109,7 @@ function ItemSheet({
 
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-              Categoría
+              {tr("fieldCategory")}
             </span>
             <select
               value={categoryId}
@@ -1127,10 +1131,15 @@ function ItemSheet({
             const inheritedStation =
               categories.find((c) => c.id === categoryId)?.prepStation ??
               "kitchen";
+            const stationLabel: Record<PrepStation, string> = {
+              kitchen: tr("stationKitchen"),
+              bar: tr("stationBar"),
+              counter: tr("stationCounter"),
+            };
             return (
               <label className="flex flex-col">
                 <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                  Estación
+                  {tr("fieldStation")}
                 </span>
                 <select
                   value={prepStation ?? ""}
@@ -1144,15 +1153,16 @@ function ItemSheet({
                   className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
                 >
                   <option value="">
-                    Usar la de la categoría ({STATION_LABEL[inheritedStation]})
+                    {tr("stationUseCategory", {
+                      station: stationLabel[inheritedStation],
+                    })}
                   </option>
-                  <option value="kitchen">Cocina</option>
-                  <option value="bar">Bar</option>
-                  <option value="counter">Refri / mostrador</option>
+                  <option value="kitchen">{tr("stationKitchen")}</option>
+                  <option value="bar">{tr("stationBar")}</option>
+                  <option value="counter">{tr("stationCounter")}</option>
                 </select>
                 <span className="text-[11px] text-op-muted mt-1">
-                  Sirve para casos como “jugo natural” en una categoría que en
-                  general va al bar pero este específico va a cocina.
+                  {tr("stationHelp")}
                 </span>
               </label>
             );
@@ -1160,24 +1170,26 @@ function ItemSheet({
 
           <div>
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2 flex items-center justify-between">
-              <span>Etiquetas</span>
+              <span>{tr("tagsTitle")}</span>
               <a
                 href="/operator/settings/etiquetas"
                 className="font-sans normal-case tracking-normal text-[11px] text-terracotta hover:underline"
               >
-                Editar lista →
+                {tr("editList")}
               </a>
             </div>
             {menuTags.length === 0 ? (
               <div className="text-[11px] text-op-muted border border-dashed border-op-border rounded-xl px-3 py-2">
-                Aún no hay etiquetas configuradas. Crea las primeras en{" "}
-                <a
-                  href="/operator/settings/etiquetas"
-                  className="text-terracotta hover:underline"
-                >
-                  Configuración → Etiquetas
-                </a>
-                .
+                {tr.rich("tagsEmpty", {
+                  link: (chunks) => (
+                    <a
+                      href="/operator/settings/etiquetas"
+                      className="text-terracotta hover:underline"
+                    >
+                      {chunks}
+                    </a>
+                  ),
+                })}
               </div>
             ) : (
               <div className="flex gap-2 flex-wrap">
@@ -1212,9 +1224,9 @@ function ItemSheet({
                   key={orphan}
                   onClick={() => toggleTag(orphan)}
                   className="mt-2 mr-2 h-8 px-3 rounded-full text-xs border bg-paper border-dashed border-op-border text-op-muted line-through"
-                  title="Etiqueta ya no existe en tu configuración"
+                  title={tr("orphanTagTitle")}
                 >
-                  {orphan} ✕
+                  {orphan} <span aria-hidden>{"✕"}</span>
                 </button>
               ))}
           </div>
@@ -1228,7 +1240,7 @@ function ItemSheet({
               onChange={(e) => setAvailable(e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-sm">Disponible (se muestra en el menú)</span>
+            <span className="text-sm">{tr("availableInMenu")}</span>
           </label>
 
           {err && <div className="text-danger text-sm">{err}</div>}
@@ -1240,16 +1252,16 @@ function ItemSheet({
                 disabled={busy}
                 className="text-sm text-danger hover:underline disabled:opacity-60"
               >
-                Eliminar
+                {tr("delete")}
               </button>
               {available && (
                 <button
                   onClick={archive}
                   disabled={busy}
                   className="text-sm text-op-muted hover:underline disabled:opacity-60"
-                  title="Deja de mostrarse en la carta del cliente sin borrarlo"
+                  title={tr("archiveTitle")}
                 >
-                  Archivar
+                  {tr("archive")}
                 </button>
               )}
             </div>
@@ -1259,14 +1271,14 @@ function ItemSheet({
                 disabled={busy}
                 className="h-10 px-4 rounded-full border border-op-border text-sm"
               >
-                Cancelar
+                {tr("cancel")}
               </button>
               <button
                 onClick={save}
                 disabled={busy}
                 className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
               >
-                {busy ? "Guardando…" : "Guardar"}
+                {busy ? tr("saving") : tr("save")}
               </button>
             </div>
           </div>
@@ -1295,6 +1307,7 @@ function ModifiersEditor({
   modifiers: ModifierDef[];
   onChange: (m: ModifierDef[]) => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   function add() {
     const base = "opcion";
     let id = base;
@@ -1318,19 +1331,19 @@ function ModifiersEditor({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Modificadores
+          {tr("modifiers")}
         </div>
         <button
           type="button"
           onClick={add}
           className="text-xs text-terracotta hover:underline"
         >
-          + Añadir
+          {tr("addModifier")}
         </button>
       </div>
       {modifiers.length === 0 && (
         <div className="text-xs text-op-muted">
-          Sin modificadores. Por ejemplo: nivel de picante, tamaño, guarnición.
+          {tr("modifiersEmpty")}
         </div>
       )}
       <div className="space-y-3">
@@ -1342,7 +1355,7 @@ function ModifiersEditor({
             <div className="flex gap-2 items-end">
               <label className="flex-1 flex flex-col">
                 <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                  Etiqueta
+                  {tr("modifierLabel")}
                 </span>
                 <input
                   value={m.label}
@@ -1359,13 +1372,13 @@ function ModifiersEditor({
                     }
                   }}
                   maxLength={60}
-                  placeholder="Nivel de picante, Tamaño…"
+                  placeholder={tr("modifierLabelPlaceholder")}
                   className="h-9 px-2 rounded border border-op-border bg-op-surface text-sm"
                 />
               </label>
               <label className="flex flex-col">
                 <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                  Tipo
+                  {tr("modifierType")}
                 </span>
                 <select
                   value={m.type}
@@ -1374,16 +1387,17 @@ function ModifiersEditor({
                   }
                   className="h-9 px-2 rounded border border-op-border bg-op-surface text-sm"
                 >
-                  <option value="radio">Uno solo</option>
-                  <option value="checkbox">Varias</option>
+                  <option value="radio">{tr("modifierTypeSingle")}</option>
+                  <option value="checkbox">{tr("modifierTypeMultiple")}</option>
                 </select>
               </label>
               <button
                 type="button"
                 onClick={() => remove(i)}
+                aria-label={tr("removeModifier")}
                 className="h-9 px-2 text-xs text-op-muted hover:text-danger"
               >
-                ×
+                <span aria-hidden>{"×"}</span>
               </button>
             </div>
 
@@ -1421,6 +1435,7 @@ function OptionsEditor({
   canDefault: boolean;
   onChange: (opts: ModOpt[], defaultOpt: string | undefined) => void;
 }) {
+  const tr = useTranslations("opMenuEditor");
   const [draft, setDraft] = useState("");
 
   function addDraft() {
@@ -1481,7 +1496,7 @@ function OptionsEditor({
             >
               <span className="flex-1 text-sm truncate">{o.label}</span>
               <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
-                <span>+</span>
+                <span aria-hidden>{"+"}</span>
                 <input
                   type="number"
                   value={deltaPesos}
@@ -1489,7 +1504,7 @@ function OptionsEditor({
                   placeholder="0"
                   step={100}
                   className="w-20 h-7 px-2 rounded border border-op-border bg-op-bg text-right tabular text-xs"
-                  title="Costo adicional (COP). Vacío = sin recargo."
+                  title={tr("optionPriceTitle")}
                 />
               </div>
               {canDefault && !isDefault && (
@@ -1497,23 +1512,23 @@ function OptionsEditor({
                   type="button"
                   onClick={() => onChange(opts, o.label)}
                   className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1.5 shrink-0"
-                  title="Marcar como opción por defecto"
+                  title={tr("setDefaultTitle")}
                 >
-                  default
+                  {tr("default")}
                 </button>
               )}
               {isDefault && (
                 <span className="text-[9px] uppercase tracking-wider text-ink shrink-0 px-1.5">
-                  default
+                  {tr("default")}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => removeAt(i)}
                 className="w-6 h-6 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center text-op-muted shrink-0"
-                aria-label={`Quitar ${o.label}`}
+                aria-label={tr("removeOption", { label: o.label })}
               >
-                ×
+                <span aria-hidden>{"×"}</span>
               </button>
             </div>
           );
@@ -1530,7 +1545,7 @@ function OptionsEditor({
             }
           }}
           maxLength={60}
-          placeholder="Añadir opción y Enter"
+          placeholder={tr("addOptionPlaceholder")}
           className="flex-1 h-8 px-2 rounded border border-op-border bg-op-surface text-xs"
         />
         <button
@@ -1538,7 +1553,7 @@ function OptionsEditor({
           onClick={addDraft}
           className="h-8 px-3 rounded-full bg-op-border/40 text-xs"
         >
-          Añadir
+          {tr("add")}
         </button>
       </div>
     </div>

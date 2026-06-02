@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
@@ -117,6 +118,7 @@ export function ServeBoard({
   terminalPending: TerminalPending[];
   device: { id: string; label: string } | null;
 }) {
+  const tr = useTranslations("serve");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
@@ -207,10 +209,10 @@ export function ServeBoard({
       : String(r.order.tableNumber);
   const groupLabel = (r: Round) =>
     r.order.orderType === "pickup"
-      ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
+      ? tr("pickupLabel", { name: r.order.pickupName ?? r.order.shortCode })
       : serviceMode === "counter"
-        ? `Orden ${r.order.shortCode}`
-        : `Mesa ${r.order.tableNumber}`;
+        ? tr("orderLabel", { code: r.order.shortCode })
+        : tr("tableLabel", { number: r.order.tableNumber });
 
   const byGroup = new Map<string, { label: string; sort: number; rounds: Round[] }>();
   for (const r of rounds) {
@@ -281,10 +283,10 @@ export function ServeBoard({
   ) {
     return (
       <div className="p-10 text-center">
-        <div className="font-display text-3xl mb-1">Todo entregado</div>
-        <div className="text-sm text-op-muted">
-          Cuando la cocina marque algo como listo, aparecerá aquí.
+        <div className="font-display text-3xl mb-1">
+          {tr("allDeliveredTitle")}
         </div>
+        <div className="text-sm text-op-muted">{tr("allDeliveredBody")}</div>
       </div>
     );
   }
@@ -292,44 +294,38 @@ export function ServeBoard({
   return (
     <div className="p-6 max-w-6xl mx-auto w-full">
       <div className="flex items-baseline justify-between mb-4">
-        <div className="font-display text-3xl">Salón</div>
+        <div className="font-display text-3xl">{tr("title")}</div>
         <div className="font-mono text-xs text-op-muted">
           {waiterCalls.length > 0 && (
             <>
-              {waiterCalls.length}{" "}
-              {waiterCalls.length === 1 ? "llamada" : "llamadas"}
-              {" · "}
+              {tr("summaryCalls", { count: waiterCalls.length })}
+              {tr("sep")}
             </>
           )}
           {terminalPending.length > 0 && (
             <>
-              {terminalPending.length}{" "}
-              {terminalPending.length === 1 ? "datáfono" : "datáfonos"} ·{" "}
+              {tr("summaryTerminals", { count: terminalPending.length })}
+              {tr("sep")}
             </>
           )}
           {cashPending.length > 0 && (
             <>
-              {cashPending.length}{" "}
-              {cashPending.length === 1 ? "cobro efectivo" : "cobros efectivo"}
-              {" · "}
+              {tr("summaryCash", { count: cashPending.length })}
+              {tr("sep")}
             </>
           )}
-          {totalReady} {totalReady === 1 ? "plato listo" : "platos listos"} ·{" "}
-          {groups.length}{" "}
+          {tr("summaryReady", { count: totalReady })}
+          {tr("sep")}
           {serviceMode === "counter"
-            ? groups.length === 1
-              ? "orden"
-              : "órdenes"
-            : groups.length === 1
-              ? "mesa"
-              : "mesas"}
+            ? tr("summaryOrders", { count: groups.length })
+            : tr("summaryTables", { count: groups.length })}
         </div>
       </div>
 
       {cancelledPending.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-danger mb-2">
-            Cancelaciones de cocina · avisar al cliente
+            {tr("cancelledHeading")}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {cancelledPending.map((c) => (
@@ -348,7 +344,7 @@ export function ServeBoard({
       {waiterCalls.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
-            Llamadas pendientes
+            {tr("callsHeading")}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {waiterCalls.map((w) => (
@@ -367,7 +363,8 @@ export function ServeBoard({
       {terminalPending.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
-            📱 Pidió datáfono
+            <span aria-hidden>{"📱 "}</span>
+            {tr("terminalHeading")}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {terminalPending.map((p) => (
@@ -389,7 +386,8 @@ export function ServeBoard({
       {cashPending.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-[#1E5339] mb-2">
-            💵 Cobros en efectivo
+            <span aria-hidden>{"💵 "}</span>
+            {tr("cashHeading")}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {cashPending.map((c) => (
@@ -414,8 +412,7 @@ export function ServeBoard({
               <div className="px-4 py-3 border-b border-op-border flex items-center justify-between">
                 <div className="font-display text-2xl">{g.label}</div>
                 <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-                  {g.rounds.length}{" "}
-                  {g.rounds.length === 1 ? "ronda" : "rondas"}
+                  {tr("roundsCount", { count: g.rounds.length })}
                 </div>
               </div>
               <ul className="p-3 space-y-3">
@@ -460,12 +457,18 @@ function CancelledCard({
   busy: boolean;
   onAck: () => void;
 }) {
+  const tr = useTranslations("serve");
   const title =
     cancelled.order.orderType === "pickup"
-      ? `Pickup · ${cancelled.order.pickupName ?? cancelled.order.shortCode}`
+      ? tr("pickupLabel", {
+          name: cancelled.order.pickupName ?? cancelled.order.shortCode,
+        })
       : serviceMode === "counter"
-        ? `Orden ${cancelled.order.shortCode}`
-        : `Mesa ${cancelled.order.tableNumber} · ${cancelled.order.shortCode}`;
+        ? tr("orderLabel", { code: cancelled.order.shortCode })
+        : tr("tableWithCode", {
+            number: cancelled.order.tableNumber,
+            code: cancelled.order.shortCode,
+          });
   return (
     <li className="rounded-2xl border-2 border-danger/40 bg-danger/5 p-4 flex flex-col">
       <div className="flex items-center justify-between gap-2">
@@ -474,7 +477,7 @@ function CancelledCard({
         </div>
         {cancelled.cancelledAt && (
           <span className="font-mono text-[10px] text-op-muted shrink-0">
-            {timeAgo(cancelled.cancelledAt)}
+            {timeAgo(cancelled.cancelledAt, tr)}
           </span>
         )}
       </div>
@@ -482,19 +485,20 @@ function CancelledCard({
         <ul className="space-y-0.5">
           {cancelled.items.map((i) => (
             <li key={i.id} className="line-through text-op-muted">
-              {i.qty}× {i.name}
+              {i.qty}
+              {"× "}
+              {i.name}
             </li>
           ))}
         </ul>
       </div>
       {cancelled.reason && (
         <div className="mt-2 text-xs text-ink-3">
-          Motivo:{" "}
-          <span className="italic">{cancelled.reason}</span>
+          {tr("cancelledMotive")} <span className="italic">{cancelled.reason}</span>
         </div>
       )}
       <div className="text-[11px] text-op-muted mt-2">
-        Ve a la mesa y avísale al cliente.
+        {tr("cancelledTellCustomer")}
       </div>
       <button
         type="button"
@@ -502,19 +506,22 @@ function CancelledCard({
         disabled={busy}
         className="mt-3 h-9 px-4 rounded-full bg-danger text-bone text-sm font-medium disabled:opacity-50"
       >
-        {busy ? "Confirmando…" : "Avisé al cliente"}
+        {busy ? tr("cancelledConfirming") : tr("cancelledAcked")}
       </button>
     </li>
   );
 }
 
-function timeAgo(iso: string): string {
+function timeAgo(
+  iso: string,
+  tr: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const ms = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return tr("timeNow");
+  if (mins < 60) return tr("timeMinutes", { mins });
   const h = Math.floor(mins / 60);
-  return `${h}h ${mins % 60}m`;
+  return tr("timeHoursMinutes", { hours: h, mins: mins % 60 });
 }
 
 function WaiterCallCard({
@@ -528,14 +535,15 @@ function WaiterCallCard({
   busy: boolean;
   onAck: () => void;
 }) {
+  const tr = useTranslations("serve");
   return (
     <li className="rounded-2xl border-2 border-terracotta/50 bg-terracotta/10 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="font-display text-2xl">
             {serviceMode === "counter"
-              ? `Orden ${call.shortCode}`
-              : `Mesa ${call.tableNumber}`}
+              ? tr("callOrder", { code: call.shortCode })
+              : tr("callTable", { number: call.tableNumber })}
           </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
             {call.shortCode}
@@ -547,14 +555,14 @@ function WaiterCallCard({
         <span className="w-7 h-7 rounded-full bg-terracotta/25 text-terracotta inline-flex items-center justify-center shrink-0">
           <BellIcon />
         </span>
-        <span>Solicitan un mesero</span>
+        <span>{tr("callRequest")}</span>
       </div>
       <button
         onClick={onAck}
         disabled={busy}
         className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform disabled:opacity-60"
       >
-        {busy ? "Atendiendo…" : "Voy en camino"}
+        {busy ? tr("callBusy") : tr("callOnMyWay")}
       </button>
     </li>
   );
@@ -595,20 +603,22 @@ function TerminalPendingCard({
   onCharged: () => void;
   onBusyChange: (id: string | null) => void;
 }) {
+  const tr = useTranslations("serve");
   const [err, setErr] = useState<string | null>(null);
   // pending.amountCents YA es el TOTAL (food + tip).
   const total = pending.amountCents;
   const isExternal = pending.method === "external_terminal";
   const title =
     serviceMode === "counter"
-      ? `Orden ${pending.order.shortCode}`
-      : `Mesa ${pending.order.tableNumber} · ${pending.order.shortCode}`;
+      ? tr("orderLabel", { code: pending.order.shortCode })
+      : tr("tableWithCode", {
+          number: pending.order.tableNumber,
+          code: pending.order.shortCode,
+        });
 
   async function charge() {
     if (!device) {
-      setErr(
-        "No hay un datáfono activo registrado. Pídele al admin que registre uno en /admin.",
-      );
+      setErr(tr("terminalNoDevice"));
       return;
     }
     onBusyChange(pending.id);
@@ -621,7 +631,7 @@ function TerminalPendingCard({
     onBusyChange(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos enviar al datáfono.");
+      setErr(j.error ?? tr("terminalSendError"));
       return;
     }
     onCharged();
@@ -646,7 +656,7 @@ function TerminalPendingCard({
     onBusyChange(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos marcar el cobro.");
+      setErr(j.error ?? tr("terminalSettleError"));
       return;
     }
     onCharged();
@@ -659,17 +669,17 @@ function TerminalPendingCard({
           {title}
         </div>
         <span className="font-mono text-[10px] text-op-muted shrink-0">
-          {timeAgoStr(pending.createdAt)}
+          {timeAgoStr(pending.createdAt, tr)}
         </span>
       </div>
       {isExternal && (
         <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted mt-1">
-          Datáfono propio del comercio
+          {tr("terminalOwnDevice")}
         </div>
       )}
       <div className="mt-2 flex items-baseline justify-between">
         <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          Cobrar
+          {tr("charge")}
         </span>
         <span className="font-display text-3xl tabular text-terracotta">
           {fmtCOP(total)}
@@ -677,13 +687,13 @@ function TerminalPendingCard({
       </div>
       {pending.tipCents > 0 && (
         <div className="text-[11px] text-op-muted mt-0.5 text-right">
-          Incluye propina {fmtCOP(pending.tipCents)}
+          {tr("includesTip", { amount: fmtCOP(pending.tipCents) })}
         </div>
       )}
       <div className="text-[11px] text-op-muted mt-2">
         {isExternal
-          ? "Pasa la tarjeta por tu datáfono y reporta el resultado."
-          : 'Lleva el datáfono a la mesa y presiona "Cobrar".'}
+          ? tr("terminalSwipeExternal")
+          : tr("terminalBringDevice")}
       </div>
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
       {isExternal ? (
@@ -694,7 +704,7 @@ function TerminalPendingCard({
             disabled={busy}
             className="h-10 rounded-full border border-op-border bg-paper text-ink text-sm disabled:opacity-60"
           >
-            Rechazado
+            {tr("terminalDeclined")}
           </button>
           <button
             type="button"
@@ -702,7 +712,7 @@ function TerminalPendingCard({
             disabled={busy}
             className="h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
           >
-            {busy ? "…" : "Aprobado"}
+            {busy ? "…" : tr("terminalApproved")}
           </button>
         </div>
       ) : (
@@ -712,19 +722,24 @@ function TerminalPendingCard({
           disabled={busy}
           className="mt-3 h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
         >
-          {busy ? "Enviando al datáfono…" : `Cobrar ${fmtCOP(total)}`}
+          {busy
+            ? tr("terminalSending")
+            : tr("terminalChargeAmount", { amount: fmtCOP(total) })}
         </button>
       )}
     </li>
   );
 }
 
-function timeAgoStr(iso: string): string {
+function timeAgoStr(
+  iso: string,
+  tr: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const ms = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  if (mins < 1) return tr("timeNow");
+  if (mins < 60) return tr("timeMinutes", { mins });
+  return tr("timeHoursMinutes", { hours: Math.floor(mins / 60), mins: mins % 60 });
 }
 
 function CashCard({
@@ -736,14 +751,15 @@ function CashCard({
   serviceMode: "table" | "counter";
   onSettle: () => void;
 }) {
+  const tr = useTranslations("serve");
   return (
     <li className="rounded-2xl border-2 border-terracotta/50 bg-terracotta/5 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="font-display text-2xl">
             {serviceMode === "counter"
-              ? `Orden ${pending.order.shortCode}`
-              : `Mesa ${pending.order.tableNumber}`}
+              ? tr("orderLabel", { code: pending.order.shortCode })
+              : tr("tableLabel", { number: pending.order.tableNumber })}
           </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
             {pending.order.shortCode}
@@ -753,7 +769,7 @@ function CashCard({
       </div>
       <div>
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          Cobrar
+          {tr("charge")}
         </div>
         <div className="font-display text-3xl tabular">
           {fmtCOP(pending.amountCents)}
@@ -763,15 +779,17 @@ function CashCard({
         pending.cashTenderCents >= pending.amountCents && (
           <div className="rounded-lg border border-[#7F5A1F]/40 bg-[#C98A2E]/15 p-2.5 text-[12px]">
             <div className="font-medium text-[#7F5A1F]">
-              Pagará con {fmtCOP(pending.cashTenderCents)}
+              {tr("cashWillPayWith", {
+                amount: fmtCOP(pending.cashTenderCents),
+              })}
             </div>
             {pending.cashTenderCents > pending.amountCents && (
               <div className="text-ink-3 mt-0.5">
-                Lleva{" "}
+                {tr("cashBring")}{" "}
                 <span className="font-mono tabular font-semibold">
                   {fmtCOP(pending.cashTenderCents - pending.amountCents)}
                 </span>{" "}
-                de devuelta
+                {tr("cashChange")}
               </div>
             )}
           </div>
@@ -780,13 +798,14 @@ function CashCard({
         onClick={onSettle}
         className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform"
       >
-        Registrar cobro
+        {tr("cashRegister")}
       </button>
     </li>
   );
 }
 
 function CashAge({ createdAt }: { createdAt: string }) {
+  const tr = useTranslations("serve");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
@@ -797,7 +816,7 @@ function CashAge({ createdAt }: { createdAt: string }) {
     mins >= 5 ? "text-danger" : mins >= 2 ? "text-[#C98A2E]" : "text-op-muted";
   return (
     <span className={"font-mono text-xs tabular " + tint}>
-      {mins < 1 ? "ahora" : `${mins}m`}
+      {mins < 1 ? tr("timeNow") : tr("timeMinutes", { mins })}
     </span>
   );
 }
@@ -813,6 +832,7 @@ function CashSettleModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const tr = useTranslations("serve");
   const due = pending.amountCents;
   // If the diner declared a tender amount up front, pre-fill recibido +
   // devuelta with the expected change. Waiter can still overwrite.
@@ -868,7 +888,7 @@ function CashSettleModal({
 
   async function submit() {
     if (short) {
-      setErr("Recibido insuficiente.");
+      setErr(tr("cashInsufficient"));
       return;
     }
     setBusy(true);
@@ -887,7 +907,7 @@ function CashSettleModal({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No se pudo registrar el cobro.");
+      setErr(j.error ?? tr("cashSettleError"));
       return;
     }
     onDone();
@@ -906,23 +926,26 @@ function CashSettleModal({
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
               {serviceMode === "counter"
-                ? `Orden ${pending.order.shortCode}`
-                : `Mesa ${pending.order.tableNumber} · ${pending.order.shortCode}`}
+                ? tr("orderLabel", { code: pending.order.shortCode })
+                : tr("tableWithCode", {
+                    number: pending.order.tableNumber,
+                    code: pending.order.shortCode,
+                  })}
             </div>
-            <div className="font-display text-2xl">Cobro en efectivo</div>
+            <div className="font-display text-2xl">{tr("cashModalTitle")}</div>
           </div>
           <button
             onClick={onClose}
             className="text-op-muted font-mono text-xs"
-            aria-label="Cerrar"
+            aria-label={tr("close")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
         <div className="rounded-xl bg-op-bg border border-op-border p-3 flex items-baseline justify-between">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            Total a cobrar
+            {tr("cashTotalToCharge")}
           </span>
           <span className="font-display text-3xl tabular">{fmtCOP(due)}</span>
         </div>
@@ -934,7 +957,7 @@ function CashSettleModal({
             onClick={applyExact}
             className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
           >
-            Pagó exacto
+            {tr("cashPaidExact")}
           </button>
           {COMMON_BILLS_COP.map((bill) => (
             <button
@@ -943,7 +966,7 @@ function CashSettleModal({
               onClick={() => setReceivedSmart(String(bill))}
               className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
             >
-              Recibió ${bill.toLocaleString("es-CO")}
+              {tr("cashReceivedBill", { bill: bill.toLocaleString("es-CO") })}
             </button>
           ))}
         </div>
@@ -951,7 +974,7 @@ function CashSettleModal({
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-              Recibido (COP)
+              {tr("cashReceivedLabel")}
             </span>
             <input
               type="number"
@@ -965,7 +988,7 @@ function CashSettleModal({
           </label>
           <label className="flex flex-col">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-              Devuelta (COP)
+              {tr("cashChangeLabel")}
             </span>
             <input
               type="number"
@@ -988,18 +1011,23 @@ function CashSettleModal({
             onClick={applyKeepChange}
             className="w-full h-11 rounded-xl border-2 border-dashed border-[#7F5A1F] bg-[#C98A2E]/10 text-[#7F5A1F] font-medium text-sm hover:bg-[#C98A2E]/20"
           >
-            💛 Que se quede con el cambio · propina{" "}
-            {fmtCOP(receivedCents - due)}
+            <span aria-hidden>{"💛 "}</span>
+            {tr("cashKeepChange", { amount: fmtCOP(receivedCents - due) })}
           </button>
         )}
 
         <div className="rounded-xl border border-dashed border-op-border p-3 text-sm flex items-center justify-between">
           <span className="text-op-muted">
-            {short
-              ? "Falta"
-              : extra > 0
-                ? "💛 Propina"
-                : "Cambio justo"}
+            {short ? (
+              tr("cashShort")
+            ) : extra > 0 ? (
+              <>
+                <span aria-hidden>{"💛 "}</span>
+                {tr("cashTip")}
+              </>
+            ) : (
+              tr("cashExactChange")
+            )}
           </span>
           <span
             className={
@@ -1011,14 +1039,15 @@ function CashSettleModal({
                   : "text-op-muted")
             }
           >
-            {short ? fmtCOP(due - net) : extra > 0 ? "+ " + fmtCOP(extra) : "—"}
+            {short
+              ? fmtCOP(due - net)
+              : extra > 0
+                ? "+ " + fmtCOP(extra)
+                : "—"}
           </span>
         </div>
         {extra > 0 && (
-          <div className="text-[11px] text-op-muted">
-            La propina se guarda en el pago para el cierre de turno y los
-            reportes. No tiene nada que ver con Kushki.
-          </div>
+          <div className="text-[11px] text-op-muted">{tr("cashTipExplainer")}</div>
         )}
 
         {err && <div className="text-danger text-sm">{err}</div>}
@@ -1028,7 +1057,7 @@ function CashSettleModal({
           disabled={busy || short}
           className="w-full h-12 rounded-full bg-ok text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Registrando…" : "Confirmar cobro"}
+          {busy ? tr("cashRegistering") : tr("cashConfirm")}
         </button>
       </div>
     </div>
@@ -1121,6 +1150,7 @@ function LooseItemsCard({
   items: Item[];
   onServe: (items: Item[]) => void;
 }) {
+  const tr = useTranslations("serve");
   const isPickup = r.order.orderType === "pickup";
 
   // Selection state. Default: all items checked.
@@ -1183,8 +1213,10 @@ function LooseItemsCard({
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
           {isPickup
-            ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
-            : `${r.order.shortCode} · R${r.seq}`}
+            ? tr("pickupLabel", {
+                name: r.order.pickupName ?? r.order.shortCode,
+              })
+            : tr("roundFuertes", { code: r.order.shortCode, seq: r.seq })}
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
@@ -1199,7 +1231,9 @@ function LooseItemsCard({
                 onClick={() => toggle(i.id)}
                 aria-pressed={checked}
                 aria-label={
-                  checked ? `Quitar ${i.name}` : `Agregar ${i.name}`
+                  checked
+                    ? tr("removeItem", { name: i.name })
+                    : tr("addItem", { name: i.name })
                 }
                 className={
                   "mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center transition-colors " +
@@ -1208,22 +1242,29 @@ function LooseItemsCard({
                     : "bg-paper border-op-border text-transparent")
                 }
               >
-                ✓
+                {"✓"}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-sm">
-                  <span className="font-mono">{i.qty}×</span> {i.name}
+                  <span className="font-mono">{i.qty}</span>
+                  {"× "}
+                  {i.name}
                 </div>
                 {i.modifiers.length > 0 && (
                   <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
                     {i.modifiers.map((g, idx) => (
-                      <div key={idx}>- {g}</div>
+                      <div key={idx}>
+                        {"- "}
+                        {g}
+                      </div>
                     ))}
                   </div>
                 )}
                 {i.notes && (
                   <div className="text-xs italic text-terracotta mt-0.5">
-                    “{i.notes}”
+                    {"“"}
+                    {i.notes}
+                    {"”"}
                   </div>
                 )}
                 <StationPill station={i.station} />
@@ -1244,7 +1285,7 @@ function LooseItemsCard({
           onClick={() => selectAll(!allChecked)}
           className="mt-2 text-[11px] font-mono tracking-wider uppercase text-op-muted hover:text-ink"
         >
-          {allChecked ? "Desmarcar todo" : "Marcar todo"}
+          {allChecked ? tr("deselectAll") : tr("selectAll")}
         </button>
       )}
 
@@ -1254,12 +1295,21 @@ function LooseItemsCard({
         className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {noneChecked
-          ? "Selecciona los platos a entregar"
+          ? tr("selectDishes")
           : isPickup
-            ? `Entregado a ${r.order.pickupName ?? r.order.shortCode}${selectedItems.length > 1 ? ` · ${selectedItems.length}` : ""}`
+            ? selectedItems.length > 1
+              ? tr("deliveredToCount", {
+                  name: r.order.pickupName ?? r.order.shortCode,
+                  count: selectedItems.length,
+                })
+              : tr("deliveredTo", {
+                  name: r.order.pickupName ?? r.order.shortCode,
+                })
             : serviceMode === "counter"
-              ? `Entregado${selectedItems.length > 1 ? ` · ${selectedItems.length}` : ""}`
-              : `Entregar ${selectedItems.length}${selectedItems.length === 1 ? "" : ""}`}
+              ? selectedItems.length > 1
+                ? tr("deliveredCount", { count: selectedItems.length })
+                : tr("delivered")
+              : tr("deliverCount", { count: selectedItems.length })}
       </button>
     </li>
   );
@@ -1272,19 +1322,19 @@ function MainsWaitingCard({
   round: Round;
   cookingCount: number;
 }) {
+  const tr = useTranslations("serve");
   return (
     <li className="rounded-xl border border-dashed border-op-border bg-op-bg p-3">
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          {r.order.shortCode} · R{r.seq} · Fuertes
+          {tr("roundFuertes", { code: r.order.shortCode, seq: r.seq })}
         </div>
         <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-          Fuertes juntos
+          {tr("badgeMainsTogether")}
         </span>
       </div>
       <div className="mt-2 text-xs text-op-muted">
-        Esperando cocina · {cookingCount}{" "}
-        {cookingCount === 1 ? "fuerte" : "fuertes"} en curso
+        {tr("waitingKitchen", { count: cookingCount })}
       </div>
     </li>
   );
@@ -1301,11 +1351,12 @@ function MainsBulkCard({
   items: Item[];
   onServe: () => void;
 }) {
+  const tr = useTranslations("serve");
   return (
     <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          {r.order.shortCode} · R{r.seq} · Fuertes juntos
+          {tr("roundFuertesJuntos", { code: r.order.shortCode, seq: r.seq })}
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
@@ -1313,17 +1364,24 @@ function MainsBulkCard({
         {items.map((i) => (
           <li key={i.id} className="flex items-start gap-2">
             <div className="flex-1">
-              <span className="font-mono">{i.qty}×</span> {i.name}
+              <span className="font-mono">{i.qty}</span>
+              {"× "}
+              {i.name}
               {i.modifiers.length > 0 && (
                 <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
                   {i.modifiers.map((g, idx) => (
-                    <div key={idx}>- {g}</div>
+                    <div key={idx}>
+                      {"- "}
+                      {g}
+                    </div>
                   ))}
                 </div>
               )}
               {i.notes && (
                 <div className="text-xs italic text-terracotta mt-0.5">
-                  “{i.notes}”
+                  {"“"}
+                  {i.notes}
+                  {"”"}
                 </div>
               )}
               <StationPill station={i.station} />
@@ -1341,8 +1399,8 @@ function MainsBulkCard({
         className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
       >
         {serviceMode === "counter"
-          ? `Entregado a ${r.order.shortCode}`
-          : `Entregado a Mesa ${r.order.tableNumber}`}
+          ? tr("deliveredToOrder", { code: r.order.shortCode })
+          : tr("deliveredToTable", { number: r.order.tableNumber })}
       </button>
     </li>
   );
@@ -1354,23 +1412,27 @@ function MainsBulkCard({
  * waiter knows to head to the pass without a label.
  */
 function StationPill({ station }: { station: Station }) {
+  const tr = useTranslations("serve");
   if (station === "kitchen") return null;
   if (station === "bar") {
     return (
       <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] tracking-wider uppercase text-[#7F5A1F] bg-[#C98A2E]/15 px-1.5 py-0.5 rounded">
-        🍷 Barra
+        <span aria-hidden>{"🍷 "}</span>
+        {tr("stationBar")}
       </span>
     );
   }
   // counter
   return (
     <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] tracking-wider uppercase text-[#2E6B4C] bg-[#2E6B4C]/10 px-1.5 py-0.5 rounded">
-      🧊 Refri
+      <span aria-hidden>{"🧊 "}</span>
+      {tr("stationCounter")}
     </span>
   );
 }
 
 function PassTimer({ readyAt }: { readyAt: string }) {
+  const tr = useTranslations("serve");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
@@ -1381,7 +1443,7 @@ function PassTimer({ readyAt }: { readyAt: string }) {
     mins >= 5 ? "text-danger" : mins >= 2 ? "text-[#C98A2E]" : "text-ok";
   return (
     <span className={"font-mono text-xs tabular " + tint}>
-      {mins < 1 ? "ahora" : `${mins}m`}
+      {mins < 1 ? tr("timeNow") : tr("timeMinutes", { mins })}
     </span>
   );
 }

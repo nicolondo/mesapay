@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -7,8 +8,9 @@ import { ServeBoard } from "./ServeBoard";
 export const dynamic = "force-dynamic";
 
 export default async function ServePage() {
+  const tr = await getTranslations("serve");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
 
@@ -223,7 +225,7 @@ export default async function ServePage() {
             // ack handler sepa que tiene que pegarle al endpoint
             // de tables, no al de orders.
             id: `table:${t.id}`,
-            shortCode: t.label ?? `Mesa ${t.number}`,
+            shortCode: t.label ?? tr("tableLabel", { number: t.number }),
             tableNumber: t.number,
             calledAt: (t.waiterCalledAt as Date).toISOString(),
             scope: "table" as const,

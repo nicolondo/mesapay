@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -27,8 +28,9 @@ export default async function BarPage({
 }: {
   searchParams: Promise<{ sub?: string }>;
 }) {
+  const t = await getTranslations("kitchen");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({ where: { id: restaurantId } });
   if (!tenant?.hasBar) {
@@ -74,7 +76,7 @@ export default async function BarPage({
         <div className="px-6 pt-4 pb-0 flex gap-2 overflow-x-auto scroll-hide">
           <BarTab
             href="/operator/bar"
-            label="Todo el bar"
+            label={t("barTabAll")}
             active={!activeSub}
           />
           {tenant.barSubStations.map((s) => (

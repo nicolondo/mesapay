@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
@@ -49,20 +50,23 @@ type Round = {
 
 type BoardMode = "kitchen" | "bar";
 
-const COLUMNS_KITCHEN: { key: KitchenStatus; label: string; tint: string }[] = [
-  { key: "placed", label: "Por preparar", tint: "border-[#C98A2E]/40" },
-  { key: "in_kitchen", label: "En cocina", tint: "border-[#B8893B]/50" },
-  { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
-];
+// `labelKey` is resolved through the `kitchen` namespace at render time
+// (column titles are user-facing and must be trilingual).
+const COLUMNS_KITCHEN: { key: KitchenStatus; labelKey: string; tint: string }[] =
+  [
+    { key: "placed", labelKey: "colToPrepare", tint: "border-[#C98A2E]/40" },
+    { key: "in_kitchen", labelKey: "colInKitchen", tint: "border-[#B8893B]/50" },
+    { key: "ready", labelKey: "colReady", tint: "border-[#2E6B4C]/40" },
+  ];
 
 // Same 3 columns at the bar, but the middle one is renamed and runs
 // a countdown — when the timer hits 0 we auto-flip to "Listo" so the
 // bartender doesn't have to babysit drinks they've already poured.
 // Manual "Listo" still works for cocktails that finish early.
-const COLUMNS_BAR: { key: KitchenStatus; label: string; tint: string }[] = [
-  { key: "placed", label: "Por preparar", tint: "border-[#C98A2E]/40" },
-  { key: "in_kitchen", label: "En preparación", tint: "border-[#B8893B]/50" },
-  { key: "ready", label: "Listo", tint: "border-[#2E6B4C]/40" },
+const COLUMNS_BAR: { key: KitchenStatus; labelKey: string; tint: string }[] = [
+  { key: "placed", labelKey: "colToPrepare", tint: "border-[#C98A2E]/40" },
+  { key: "in_kitchen", labelKey: "colInPreparation", tint: "border-[#B8893B]/50" },
+  { key: "ready", labelKey: "colReady", tint: "border-[#2E6B4C]/40" },
 ];
 
 const NEXT_STATUS: Record<KitchenStatus, KitchenStatus | null> = {
@@ -82,6 +86,7 @@ export function KitchenBoard({
   rounds: Round[];
   mode?: BoardMode;
 }) {
+  const tr = useTranslations("kitchen");
   const COLUMNS = boardMode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -278,7 +283,7 @@ export function KitchenBoard({
             className="bg-op-surface rounded-2xl border border-op-border flex flex-col min-h-[70vh]"
           >
             <div className="px-4 py-3 border-b border-op-border flex items-center justify-between">
-              <div className="font-display text-lg">{col.label}</div>
+              <div className="font-display text-lg">{tr(col.labelKey)}</div>
               <div className="font-mono text-xs text-op-muted tabular">
                 {rows.length.toString().padStart(2, "0")}
               </div>
@@ -324,20 +329,29 @@ export function KitchenBoard({
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-mono text-[11px] tracking-wider text-op-muted uppercase truncate">
                         {r.order.orderType === "pickup"
-                          ? `Pickup · ${r.order.pickupName ?? r.order.shortCode}`
+                          ? tr("pickupLabel", {
+                              name: r.order.pickupName ?? r.order.shortCode,
+                            })
                           : serviceMode === "counter"
-                            ? `Orden ${r.order.shortCode} · R${r.seq}`
-                            : `${r.order.shortCode} · Mesa ${r.order.tableNumber} · R${r.seq}`}
+                            ? tr("orderLabel", {
+                                code: r.order.shortCode,
+                                seq: r.seq,
+                              })
+                            : tr("tableLabel", {
+                                code: r.order.shortCode,
+                                number: r.order.tableNumber,
+                                seq: r.seq,
+                              })}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {r.order.orderType === "pickup" && (
                           <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-                            Recoger
+                            {tr("badgePickup")}
                           </span>
                         )}
                         {fuertesJuntos && (
                           <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-                            Fuertes juntos
+                            {tr("badgeMainsTogether")}
                           </span>
                         )}
                         {r.order.orderType === "pickup" && r.order.readyEta && !isReadyCol && (
@@ -353,7 +367,10 @@ export function KitchenBoard({
 
                     {isPartial && (
                       <div className="mt-1 font-mono text-[9px] tracking-wider uppercase text-op-muted">
-                        {colItems.length} de {r.items.length}
+                        {tr("partialCount", {
+                          shown: colItems.length,
+                          total: r.items.length,
+                        })}
                       </div>
                     )}
 
@@ -402,7 +419,7 @@ export function KitchenBoard({
                             onClick={() => advanceItems(itemIds, "in_kitchen")}
                             className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
                           >
-                            Empezar {colItems.length}
+                            {tr("startN", { count: colItems.length })}
                           </button>
                         )}
                         {isKitchenCol && (
@@ -410,7 +427,7 @@ export function KitchenBoard({
                             onClick={() => advanceItems(itemIds, "ready")}
                             className="flex-1 min-w-[120px] h-8 rounded-lg bg-ok text-bone text-xs font-medium"
                           >
-                            Marcar {colItems.length} listos
+                            {tr("markNReady", { count: colItems.length })}
                           </button>
                         )}
                         {isReadyCol && colServeable.length > 1 && (
@@ -418,7 +435,7 @@ export function KitchenBoard({
                             onClick={() => serveItems(colServeable)}
                             className="flex-1 min-w-[120px] h-8 rounded-lg bg-ink text-bone text-xs font-medium"
                           >
-                            Servir {colServeable.length}
+                            {tr("serveN", { count: colServeable.length })}
                           </button>
                         )}
                       </div>
@@ -429,7 +446,7 @@ export function KitchenBoard({
                           onClick={() => advanceItems(itemIds, "in_kitchen")}
                           className="h-7 px-2 rounded-md border border-op-border text-[11px] text-op-muted"
                         >
-                          Volver a cocina
+                          {tr("backToKitchen")}
                         </button>
                       </div>
                     )}
@@ -451,7 +468,7 @@ export function KitchenBoard({
               })}
               {rows.length === 0 && (
                 <li className="text-sm text-op-muted px-2 py-4 text-center">
-                  —
+                  {tr("empty")}
                 </li>
               )}
             </ul>
@@ -481,6 +498,7 @@ function ItemRow({
   onAdvance: () => void;
   onToggleServed: () => void;
 }) {
+  const tr = useTranslations("kitchen");
   return (
     <div className="flex items-start gap-2 py-0.5">
       <AdvanceControl
@@ -506,10 +524,15 @@ function ItemRow({
               <div className="mt-1">
                 <span
                   className="inline-flex items-center gap-1 w-fit font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-1.5 py-0.5 rounded"
-                  title={`Apurado a las ${new Date(item.expediteRequestedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`}
+                  title={tr("expediteTitle", {
+                    time: new Date(item.expediteRequestedAt).toLocaleTimeString(
+                      "es-CO",
+                      { hour: "2-digit", minute: "2-digit" },
+                    ),
+                  })}
                 >
-                  <span aria-hidden>🔥</span>
-                  <span>Apurar</span>
+                  <span aria-hidden>{"🔥"}</span>
+                  <span>{tr("expediteRush")}</span>
                 </span>
               </div>
             )}
@@ -524,7 +547,10 @@ function ItemRow({
                 }
               >
                 {item.modifiers.map((g, i) => (
-                  <div key={i}>- {g}</div>
+                  <div key={i}>
+                    {"- "}
+                    {g}
+                  </div>
                 ))}
               </div>
             )}
@@ -542,7 +568,9 @@ function ItemRow({
               (served ? "text-op-muted/80" : "text-terracotta")
             }
           >
-            “{item.notes}”
+            {"“"}
+            {item.notes}
+            {"”"}
           </div>
         )}
         {showCountdown && item.preparationStartedAt && (
@@ -572,6 +600,7 @@ function Countdown({
   startedAt: string;
   prepMinutes: number;
 }) {
+  const tr = useTranslations("kitchen");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -597,11 +626,11 @@ function Countdown({
         tint
       }
     >
-      <span aria-hidden>⏱</span>
+      <span aria-hidden>{"⏱"}</span>
       <span>
         {remainingMs > 0
           ? `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
-          : "¡listo!"}
+          : tr("countdownDone")}
       </span>
     </div>
   );
@@ -616,6 +645,7 @@ function AdvanceControl({
   pending: boolean;
   onAdvance: () => void;
 }) {
+  const tr = useTranslations("kitchen");
   // Action-oriented label so the cook reads what tapping will DO,
   // not the current state of the item.
   if (status === "placed") {
@@ -625,9 +655,9 @@ function AdvanceControl({
         onClick={onAdvance}
         disabled={pending}
         className="shrink-0 w-[88px] h-9 rounded-lg bg-ink text-bone text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1 active:scale-95 transition-transform disabled:opacity-50"
-        title="Empezar a cocinar"
+        title={tr("startCooking")}
       >
-        <PlayIcon /> Empezar
+        <PlayIcon /> {tr("start")}
       </button>
     );
   }
@@ -638,19 +668,19 @@ function AdvanceControl({
         onClick={onAdvance}
         disabled={pending}
         className="shrink-0 w-[88px] h-9 rounded-lg bg-[#C98A2E]/15 border border-[#C98A2E]/55 text-[#7F5A1F] text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1 active:scale-95 transition-transform hover:bg-[#C98A2E]/25 disabled:opacity-50"
-        title="Marcar listo"
+        title={tr("markReady")}
       >
-        <CheckIcon /> Listo
+        <CheckIcon /> {tr("ready")}
       </button>
     );
   }
   // ready — no further advance; show a static pill so layout stays aligned.
   return (
     <span
-      aria-label="Listo"
+      aria-label={tr("ready")}
       className="shrink-0 w-[88px] h-9 rounded-lg bg-[#2E6B4C]/12 border border-[#2E6B4C]/40 text-[#1E5339] text-[11px] font-medium uppercase tracking-wider inline-flex items-center justify-center gap-1"
     >
-      <CheckIcon /> Listo
+      <CheckIcon /> {tr("ready")}
     </span>
   );
 }
@@ -662,6 +692,7 @@ function ServeControl({
   served: boolean;
   onToggle: () => void;
 }) {
+  const tr = useTranslations("kitchen");
   return (
     <button
       type="button"
@@ -673,10 +704,10 @@ function ServeControl({
           ? "bg-ok border-ok text-bone"
           : "bg-op-surface border-op-border text-op-text hover:border-ok hover:bg-ok/5")
       }
-      title={served ? "Quitar servido" : "Marcar servido"}
+      title={served ? tr("serveRemove") : tr("serveMark")}
     >
       {served ? <CheckIcon /> : <CircleIcon />}
-      {served ? "Servido" : "Servir"}
+      {served ? tr("served") : tr("serve")}
     </button>
   );
 }
@@ -728,6 +759,7 @@ function CircleIcon() {
 }
 
 function AgeTimer({ placedAt }: { placedAt: string }) {
+  const tr = useTranslations("kitchen");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
@@ -738,7 +770,7 @@ function AgeTimer({ placedAt }: { placedAt: string }) {
     mins >= 15 ? "text-danger" : mins >= 8 ? "text-[#C98A2E]" : "text-op-muted";
   return (
     <span className={"font-mono text-xs tabular " + tint}>
-      {mins < 1 ? "<1m" : `${mins}m`}
+      {mins < 1 ? tr("ageUnderMinute") : tr("ageMinutes", { mins })}
     </span>
   );
 }
@@ -746,6 +778,7 @@ function AgeTimer({ placedAt }: { placedAt: string }) {
 function EtaBadge({ readyEta }: { readyEta: string }) {
   // Shows the customer-promised ETA so the cook can pace against it.
   // Red once we're past it — that's the signal to push the order.
+  const tr = useTranslations("kitchen");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
@@ -765,15 +798,17 @@ function EtaBadge({ readyEta }: { readyEta: string }) {
         tint
       }
     >
-      {late ? `+${Math.abs(mins)}m` : `ETA ${mins}m`}
+      {late ? tr("etaLate", { mins: Math.abs(mins) }) : tr("eta", { mins })}
     </span>
   );
 }
 
 // Quick-pick motives. Tapping one cancels the round immediately with the
 // preset text + the right "mark unavailable" intent. Easy to extend.
-const CANCEL_PRESETS: { label: string; markUnavailable: boolean }[] = [
-  { label: "No está disponible", markUnavailable: true },
+// `labelKey` resolves to the `kitchen` namespace at render time; the resolved
+// label doubles as the cancellation reason sent to the API.
+const CANCEL_PRESETS: { labelKey: string; markUnavailable: boolean }[] = [
+  { labelKey: "cancelPresetUnavailable", markUnavailable: true },
 ];
 
 function CancelControl({
@@ -789,6 +824,7 @@ function CancelControl({
   onClose: () => void;
   onConfirm: (reason: string, markUnavailable: boolean) => Promise<void>;
 }) {
+  const tr = useTranslations("kitchen");
   const [reason, setReason] = useState("");
   const [markUnavailable, setMarkUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -818,9 +854,9 @@ function CancelControl({
           type="button"
           onClick={onOpen}
           className="h-7 px-2 rounded-md border border-danger/30 text-[11px] text-danger hover:bg-danger/5"
-          title="Cancelar este pedido"
+          title={tr("cancelTitle")}
         >
-          Cancelar
+          {tr("cancel")}
         </button>
       </div>
     );
@@ -836,7 +872,7 @@ function CancelControl({
     try {
       await onConfirm(trimmed, markUnavailable);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
+      setErr(e instanceof Error ? e.message : tr("cancelError"));
     } finally {
       setBusy(false);
     }
@@ -845,15 +881,18 @@ function CancelControl({
   // One-tap cancel with a canned reason. Each preset declares whether the
   // dish should also be flipped to unavailable on the menu — for example
   // "No está disponible" obviously yes, but a future "Cliente cambió de
-  // opinión" preset would not.
-  async function submitPreset(preset: { label: string; markUnavailable: boolean }) {
+  // opinión" preset would not. The resolved label doubles as the reason.
+  async function submitPreset(preset: {
+    labelKey: string;
+    markUnavailable: boolean;
+  }) {
     if (busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await onConfirm(preset.label, preset.markUnavailable);
+      await onConfirm(tr(preset.labelKey), preset.markUnavailable);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "No pudimos cancelar.");
+      setErr(e instanceof Error ? e.message : tr("cancelError"));
     } finally {
       setBusy(false);
     }
@@ -869,24 +908,24 @@ function CancelControl({
       <div className="flex flex-wrap gap-1.5 mb-2">
         {CANCEL_PRESETS.map((p) => (
           <button
-            key={p.label}
+            key={p.labelKey}
             type="button"
             onClick={() => submitPreset(p)}
             disabled={busy}
             className="h-7 px-2.5 rounded-full bg-danger/15 text-danger text-[11px] font-medium hover:bg-danger/25 disabled:opacity-50"
             title={
               p.markUnavailable
-                ? `${p.label} (también quita el plato de la carta)`
-                : p.label
+                ? tr("cancelPresetTitleUnavailable", { label: tr(p.labelKey) })
+                : tr(p.labelKey)
             }
           >
-            {p.label}
+            {tr(p.labelKey)}
           </button>
         ))}
       </div>
       <label className="block">
         <span className="font-mono text-[9px] tracking-wider uppercase text-danger">
-          O escribe otro motivo
+          {tr("cancelOtherReason")}
         </span>
         <textarea
           ref={ref}
@@ -905,7 +944,7 @@ function CancelControl({
           }}
           rows={2}
           maxLength={240}
-          placeholder="Ej. cliente cambió de opinión, ingrediente agotado…"
+          placeholder={tr("cancelPlaceholder")}
           className="mt-1 w-full text-sm px-2 py-1.5 rounded border border-danger/40 bg-op-surface focus:outline-none focus:border-danger"
         />
       </label>
@@ -917,10 +956,7 @@ function CancelControl({
           disabled={busy}
           className="mt-0.5 accent-danger"
         />
-        <span>
-          También quitar este plato de la carta hasta que vuelva a estar
-          disponible
-        </span>
+        <span>{tr("cancelMarkUnavailable")}</span>
       </label>
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
       <div className="mt-2 flex justify-end gap-2">
@@ -930,7 +966,7 @@ function CancelControl({
           disabled={busy}
           className="h-7 px-3 rounded-md text-[11px] text-op-muted hover:text-op-text disabled:opacity-50"
         >
-          Volver
+          {tr("cancelGoBack")}
         </button>
         <button
           type="button"
@@ -938,7 +974,7 @@ function CancelControl({
           disabled={!canSubmit}
           className="h-7 px-3 rounded-md text-[11px] font-medium bg-danger text-bone disabled:opacity-50"
         >
-          {busy ? "Cancelando…" : "Confirmar cancelación"}
+          {busy ? tr("cancelling") : tr("cancelConfirm")}
         </button>
       </div>
     </div>
@@ -946,6 +982,7 @@ function CancelControl({
 }
 
 function PassTimer({ readyAt }: { readyAt: string }) {
+  const tr = useTranslations("kitchen");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
@@ -956,7 +993,7 @@ function PassTimer({ readyAt }: { readyAt: string }) {
     mins >= 5 ? "text-danger" : mins >= 2 ? "text-[#C98A2E]" : "text-ok";
   return (
     <span className={"font-mono text-xs tabular " + tint}>
-      {mins < 1 ? "Listo ahora" : `Listo hace ${mins}m`}
+      {mins < 1 ? tr("passNow") : tr("passAgo", { mins })}
     </span>
   );
 }

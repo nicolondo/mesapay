@@ -87,7 +87,9 @@
     "sendError": "Não conseguimos enviar o pedido. Verifique sua conexão.",
     "countryPickerTitle": "Código do país",
     "countrySearchPlaceholder": "Buscar país ou código",
-    "noCountry": "Não encontramos esse país."
+    "noCountry": "Não encontramos esse país.",
+    "categoriesTitle": "Categorias",
+    "allCategoriesAria": "Ver todas as categorias"
   },
   "landing": {
     "welcomeTo": "Bem-vindo a",
@@ -1071,7 +1073,6 @@
     "noRestaurant": "Sem restaurante.",
     "restaurantNotFound": "Restaurante não encontrado.",
     "backToSettings": "← Configurações",
-
     "landingTitle": "Configurações",
     "landingSubtitle": "Ative pagamentos, configure maquininhas e revise as informações do seu restaurante.",
     "cardIdentityTitle": "Identidade do comércio",
@@ -1123,7 +1124,6 @@
     "kushkiStatusSuspended": "Suspenso",
     "kushkiStatusDocsUploaded": "Documentos enviados",
     "kushkiStatusNotStarted": "Não iniciado",
-
     "tagsTitle": "Etiquetas de pratos",
     "tagsIntro": "Marque seus pratos com etiquetas como “Da casa” ou “Picante”. Aparecem como chips ao lado do nome tanto para o cliente quanto na cozinha.",
     "tagsColEmoji": "Emoji",
@@ -1146,7 +1146,6 @@
     "tagsSaveError": "Erro ao salvar",
     "tagsHelp": "O <strong>nome visível</strong> é o que o cliente vê (“Picante”). O <strong>slug</strong> é o identificador interno salvo em cada prato — é preenchido automaticamente a partir do nome, mas você pode editá-lo. Se você renomear o slug de uma etiqueta já atribuída, os pratos que a tinham deixam de mostrá-la.",
     "tagsMaxNote": "Máximo de {max} etiquetas por restaurante.",
-
     "meserosTitle": "Mesas por garçom",
     "meserosIntro": "Atribua a cada garçom as mesas que ele atende. Ele só verá em Salão, Cobranças e Mesas as que estiverem marcadas. Se nenhuma estiver marcada, o garçom vê todas (útil para turnos sem divisão por zona).",
     "meserosEmptyNoMeseros": "Você ainda não tem garçons criados. Peça ao suporte para criá-los pelo admin com o perfil <em>Garçom</em>.",
@@ -1165,7 +1164,6 @@
     "meserosSaved": "Salvo.",
     "meserosSaving": "Salvando…",
     "meserosSave": "Salvar",
-
     "mesasTitle": "Mesas",
     "mesasIntroPart1": "Capacidade, consumo mínimo e depósito de cada mesa. A capacidade é usada para mostrar as mesas certas ao reservar; o consumo mínimo é mostrado ao cliente. O ",
     "mesasIntroDeposit": "depósito",
@@ -1182,7 +1180,6 @@
     "mesasDepositMobile": "Depósito para reservar",
     "mesasRowDefault": "Mesa {number}",
     "mesasSaving": "salvando…",
-
     "datafonosTitle": "Maquininhas",
     "datafonosIntro": "Atribua cada maquininha ao garçom que a carrega. Quando esse garçom cobrar uma conta pela sua sessão, o sistema envia o valor direto para a maquininha DELE sem passar pelo Salão.",
     "datafonosEmpty": "Ainda não há maquininhas vinculadas ao comércio. Elas aparecerão aqui assim que forem pareadas com a Kushki (ou criadas em modo mock pelo admin).",
@@ -1200,7 +1197,6 @@
     "datafonosUnassignedHint": "Sem atribuição: qualquer garçom precisa abrir o Salão e escolher o dispositivo manualmente.",
     "datafonosSaveFailed": "Não conseguimos salvar.",
     "datafonosSaved": "Salvo.",
-
     "policiesTitle": "Políticas operacionais",
     "policiesIntro": "Defina como as gorjetas são divididas, como os turnos são contados e quando o sistema considera que uma mesa está em risco de sair sem pagar.",
     "policiesTipsKicker": "Gorjetas",
@@ -1230,7 +1226,6 @@
     "policiesSaved": "Salvo.",
     "policiesSaving": "Salvando…",
     "policiesSave": "Salvar",
-
     "usuariosTitle": "Usuários",
     "usuariosIntro": "Crie e gerencie os garçons, cozinha, bar, maquininha e outros operadores do seu restaurante.",
     "usuariosRoleOperator": "Operador (dono)",

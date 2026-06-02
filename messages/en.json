@@ -87,7 +87,9 @@
     "sendError": "We couldn't send the order. Check your connection.",
     "countryPickerTitle": "Country code",
     "countrySearchPlaceholder": "Search country or code",
-    "noCountry": "We couldn't find that country."
+    "noCountry": "We couldn't find that country.",
+    "categoriesTitle": "Categories",
+    "allCategoriesAria": "View all categories"
   },
   "landing": {
     "welcomeTo": "Welcome to",
@@ -1071,7 +1073,6 @@
     "noRestaurant": "No restaurant.",
     "restaurantNotFound": "Restaurant not found.",
     "backToSettings": "← Settings",
-
     "landingTitle": "Settings",
     "landingSubtitle": "Enable payments, set up card readers, and review your restaurant's information.",
     "cardIdentityTitle": "Business identity",
@@ -1123,7 +1124,6 @@
     "kushkiStatusSuspended": "Suspended",
     "kushkiStatusDocsUploaded": "Documents uploaded",
     "kushkiStatusNotStarted": "Not started",
-
     "tagsTitle": "Dish tags",
     "tagsIntro": "Mark your dishes with tags like “House special” or “Spicy”. They show up as chips next to the name for both guests and the kitchen.",
     "tagsColEmoji": "Emoji",
@@ -1146,7 +1146,6 @@
     "tagsSaveError": "Error while saving",
     "tagsHelp": "The <strong>display name</strong> is what the guest sees (“Spicy”). The <strong>slug</strong> is the internal identifier stored on each dish — it's auto-filled from the name but you can edit it. If you rename the slug of a tag that's already assigned, the dishes that had it stop showing it.",
     "tagsMaxNote": "Up to {max} tags per restaurant.",
-
     "meserosTitle": "Tables by waiter",
     "meserosIntro": "Assign each waiter the tables they serve. They'll only see the marked ones in Floor, Charges, and Tables. If none are marked, the waiter sees all (useful for shifts with no zone split).",
     "meserosEmptyNoMeseros": "You don't have any waiters yet. Ask support to create them from the admin with the <em>Waiter</em> role.",
@@ -1165,7 +1164,6 @@
     "meserosSaved": "Saved.",
     "meserosSaving": "Saving…",
     "meserosSave": "Save",
-
     "mesasTitle": "Tables",
     "mesasIntroPart1": "Capacity, minimum spend, and deposit for each table. Capacity is used to show the right tables when booking; the minimum spend is shown to the guest. The ",
     "mesasIntroDeposit": "deposit",
@@ -1182,7 +1180,6 @@
     "mesasDepositMobile": "Booking deposit",
     "mesasRowDefault": "Table {number}",
     "mesasSaving": "saving…",
-
     "datafonosTitle": "Card readers",
     "datafonosIntro": "Assign each card reader to the waiter who carries it. When that waiter charges a bill from their session, the system sends the amount straight to THEIR card reader without going through Floor.",
     "datafonosEmpty": "No card readers linked to the business yet. They'll appear here once paired with Kushki (or created in mock mode from the admin).",
@@ -1200,7 +1197,6 @@
     "datafonosUnassignedHint": "Unassigned: any waiter has to open Floor and pick the device manually.",
     "datafonosSaveFailed": "We couldn't save.",
     "datafonosSaved": "Saved.",
-
     "policiesTitle": "Operating policies",
     "policiesIntro": "Define how tips are split, how shifts are counted, and when the system considers a table at risk of leaving without paying.",
     "policiesTipsKicker": "Tips",
@@ -1230,7 +1226,6 @@
     "policiesSaved": "Saved.",
     "policiesSaving": "Saving…",
     "policiesSave": "Save",
-
     "usuariosTitle": "Users",
     "usuariosIntro": "Create and manage the waiters, kitchen, bar, card reader, and other operators of your restaurant.",
     "usuariosRoleOperator": "Operator (owner)",

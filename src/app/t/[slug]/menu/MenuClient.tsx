@@ -267,6 +267,8 @@ export function MenuClient({
   const [activeCat, setActiveCat] = useState<string>(
     scopedCategories[0]?.slug ?? "",
   );
+  // Popup con la lista vertical de todas las categorías (atajo de salto).
+  const [showCatList, setShowCatList] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openItem, setOpenItem] = useState<MenuItem | null>(null);
   const [showActiveSheet, setShowActiveSheet] = useState(false);
@@ -1011,35 +1013,127 @@ export function MenuClient({
             </div>
           )}
 
-          {/* Category chips */}
-          <div
-            ref={chipsScrollerRef}
-            className="mt-3 flex gap-2 overflow-x-auto scroll-hide -mx-5 px-5"
-          >
-            {scopedCategories.map((c) => (
+          {/* Category chips + opener de la lista completa (a la derecha) */}
+          <div className="mt-3 flex items-center gap-2 -mx-5 px-5">
+            <div
+              ref={chipsScrollerRef}
+              className="flex gap-2 overflow-x-auto scroll-hide flex-1 min-w-0"
+            >
+              {scopedCategories.map((c) => (
+                <button
+                  key={c.id}
+                  ref={(el) => {
+                    if (el) chipRefs.current.set(c.slug, el);
+                    else chipRefs.current.delete(c.slug);
+                  }}
+                  onClick={() => {
+                    setActiveCat(c.slug);
+                    scrollToCategory(c.slug);
+                  }}
+                  className={
+                    "shrink-0 px-4 h-9 rounded-full text-[13px] font-medium border transition-colors " +
+                    (activeCat === c.slug
+                      ? "bg-ink text-bone border-ink"
+                      : "bg-paper text-ink-3 border-hairline")
+                  }
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {scopedCategories.length > 1 && (
               <button
-                key={c.id}
-                ref={(el) => {
-                  if (el) chipRefs.current.set(c.slug, el);
-                  else chipRefs.current.delete(c.slug);
-                }}
-                onClick={() => {
-                  setActiveCat(c.slug);
-                  scrollToCategory(c.slug);
-                }}
-                className={
-                  "shrink-0 px-4 h-9 rounded-full text-[13px] font-medium border transition-colors " +
-                  (activeCat === c.slug
-                    ? "bg-ink text-bone border-ink"
-                    : "bg-paper text-ink-3 border-hairline")
-                }
+                type="button"
+                onClick={() => setShowCatList(true)}
+                aria-label={tMenu("allCategoriesAria")}
+                className="shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-full border border-hairline bg-paper text-ink-3"
               >
-                {c.label}
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <line x1="5.5" y1="4" x2="13" y2="4" />
+                  <line x1="5.5" y1="8" x2="13" y2="8" />
+                  <line x1="5.5" y1="12" x2="13" y2="12" />
+                  <circle cx="2.5" cy="4" r="0.9" fill="currentColor" stroke="none" />
+                  <circle cx="2.5" cy="8" r="0.9" fill="currentColor" stroke="none" />
+                  <circle cx="2.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+                </svg>
               </button>
-            ))}
+            )}
           </div>
         </div>
       </header>
+
+      {/* Popup: lista vertical de todas las categorías. Tocar una salta a
+          su sección (reusa scrollToCategory + scroll-spy). */}
+      {showCatList && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center"
+          onClick={() => setShowCatList(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-paper w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl max-h-[72vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
+              <h2 className="font-display text-xl">
+                {tMenu("categoriesTitle")}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowCatList(false)}
+                aria-label={tMenu("close")}
+                className="w-9 h-9 -mr-2 inline-flex items-center justify-center rounded-full text-ink-3 hover:bg-ink/5"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <line x1="5" y1="5" x2="15" y2="15" />
+                  <line x1="15" y1="5" x2="5" y2="15" />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto p-2">
+              {scopedCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveCat(c.slug);
+                    setShowCatList(false);
+                    scrollToCategory(c.slug);
+                  }}
+                  className={
+                    "w-full text-left px-4 h-12 rounded-xl flex items-center text-[15px] transition-colors " +
+                    (activeCat === c.slug
+                      ? "bg-ink text-bone"
+                      : "text-ink hover:bg-ink/5")
+                  }
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Menu by category */}
       <div className="max-w-2xl w-full mx-auto px-5 mt-4 space-y-10">

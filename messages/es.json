@@ -87,7 +87,9 @@
     "sendError": "No pudimos enviar el pedido. Revisa tu conexión.",
     "countryPickerTitle": "Código de país",
     "countrySearchPlaceholder": "Buscar país o código",
-    "noCountry": "No encontramos ese país."
+    "noCountry": "No encontramos ese país.",
+    "categoriesTitle": "Categorías",
+    "allCategoriesAria": "Ver todas las categorías"
   },
   "landing": {
     "welcomeTo": "Bienvenido a",
@@ -1071,7 +1073,6 @@
     "noRestaurant": "Sin restaurante.",
     "restaurantNotFound": "Restaurante no encontrado.",
     "backToSettings": "← Configuración",
-
     "landingTitle": "Configuración",
     "landingSubtitle": "Activa pagos, configura datáfonos y revisa la información de tu restaurante.",
     "cardIdentityTitle": "Identidad del comercio",
@@ -1123,7 +1124,6 @@
     "kushkiStatusSuspended": "Suspendido",
     "kushkiStatusDocsUploaded": "Documentos cargados",
     "kushkiStatusNotStarted": "No iniciado",
-
     "tagsTitle": "Etiquetas de platos",
     "tagsIntro": "Marca tus platos con etiquetas como “De la casa” o “Picante”. Aparecen como chips al lado del nombre tanto para el cliente como en cocina.",
     "tagsColEmoji": "Emoji",
@@ -1146,7 +1146,6 @@
     "tagsSaveError": "Error guardando",
     "tagsHelp": "El <strong>nombre visible</strong> es lo que ve el cliente (“Picante”). El <strong>slug</strong> es el identificador interno que se guarda en cada plato — se autollena del nombre pero puedes editarlo. Si renombras el slug de una etiqueta ya asignada, los platos que la tenían dejan de mostrarla.",
     "tagsMaxNote": "Máximo {max} etiquetas por restaurante.",
-
     "meserosTitle": "Mesas por mesero",
     "meserosIntro": "Asigna a cada mesero las mesas que atiende. Solo verá en Salón, Cobros y Mesas las que estén marcadas. Si ninguna está marcada, el mesero ve todas (útil para turnos donde no hay división por zona).",
     "meserosEmptyNoMeseros": "Todavía no tienes meseros creados. Pídele a soporte que los cree desde el admin con rol <em>Mesero</em>.",
@@ -1165,7 +1164,6 @@
     "meserosSaved": "Guardado.",
     "meserosSaving": "Guardando…",
     "meserosSave": "Guardar",
-
     "mesasTitle": "Mesas",
     "mesasIntroPart1": "Capacidad, consumo mínimo y depósito de cada mesa. La capacidad se usa para mostrar las mesas correctas al reservar; el consumo mínimo se muestra al cliente. El ",
     "mesasIntroDeposit": "depósito",
@@ -1182,7 +1180,6 @@
     "mesasDepositMobile": "Depósito para reservar",
     "mesasRowDefault": "Mesa {number}",
     "mesasSaving": "guardando…",
-
     "datafonosTitle": "Datáfonos",
     "datafonosIntro": "Asigna cada datáfono al mesero que lo carga. Cuando ese mesero cobre una cuenta desde su sesión, el sistema enviará el monto directo a SU datáfono sin pasar por Salón.",
     "datafonosEmpty": "Todavía no hay datáfonos vinculados al comercio. Aparecerán acá una vez que se pareen contra Kushki (o se creen en modo mock desde el admin).",
@@ -1200,7 +1197,6 @@
     "datafonosUnassignedHint": "Sin asignación: cualquier mesero tiene que abrir Salón y elegir el device manualmente.",
     "datafonosSaveFailed": "No pudimos guardar.",
     "datafonosSaved": "Guardado.",
-
     "policiesTitle": "Políticas operativas",
     "policiesIntro": "Define cómo se reparten las propinas, cómo se cuentan los turnos y cuándo el sistema considera que una mesa está en riesgo de irse sin pagar.",
     "policiesTipsKicker": "Propinas",
@@ -1230,7 +1226,6 @@
     "policiesSaved": "Guardado.",
     "policiesSaving": "Guardando…",
     "policiesSave": "Guardar",
-
     "usuariosTitle": "Usuarios",
     "usuariosIntro": "Crea y administra a los meseros, cocina, bar, datáfono y otros operadores de tu restaurante.",
     "usuariosRoleOperator": "Operador (dueño)",

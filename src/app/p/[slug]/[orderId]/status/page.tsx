@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { PickupStatusLive } from "./PickupStatusLive";
@@ -30,18 +31,22 @@ export default async function PickupStatusPage({
   const roundStatus = round?.status ?? "placed";
   const isReady = roundStatus === "ready" || roundStatus === "served";
   const isServed = roundStatus === "served";
+  const t = await getTranslations("pickup");
 
   return (
     <main className="flex-1 bg-bone">
       <div className="max-w-md mx-auto px-5 py-10">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta">
-          Pedido para recoger
+          {t("forPickup")}
         </div>
         <div className="font-display text-3xl tracking-[-0.015em] mt-1">
           {tenant.name}
         </div>
         <div className="font-mono text-[11px] text-muted mt-1">
-          Código {order.shortCode} · {order.pickupName ?? "—"}
+          {t("codeLine", {
+            code: order.shortCode,
+            name: order.pickupName ?? "—",
+          })}
         </div>
 
         <PickupStatusLive
@@ -55,7 +60,7 @@ export default async function PickupStatusPage({
 
         <div className="mt-8 rounded-2xl border border-hairline bg-paper p-5">
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-3">
-            Tu pedido
+            {t("yourOrder")}
           </div>
           <ul className="divide-y divide-hairline">
             {order.items.map((i) => (
@@ -74,7 +79,7 @@ export default async function PickupStatusPage({
           </ul>
           <div className="mt-3 pt-3 border-t border-hairline flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Pagado
+              {t("paid")}
             </span>
             <span className="font-display text-2xl tabular">
               {fmtCOP(order.totalCents)}
@@ -87,7 +92,7 @@ export default async function PickupStatusPage({
             href="/me"
             className="font-mono text-[11px] tracking-wider uppercase text-muted hover:text-terracotta"
           >
-            Ver mis órdenes →
+            {t("viewMyOrders")}
           </Link>
         </div>
       </div>

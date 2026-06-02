@@ -440,6 +440,27 @@
     "autoRefresh": "Esta página se actualiza automáticamente.",
     "backToCheckout": "Volver al checkout"
   },
+  "pickup": {
+    "unavailableTitle": "Pedido anticipado no disponible",
+    "unavailableBody": "Este restaurante aún no activó el pedido para recoger.",
+    "closedTitle": "Ahora estamos cerrados",
+    "reopenAt": "Abrimos de nuevo {when}.",
+    "noNextOpening": "No hay próxima apertura programada. Vuelve más tarde.",
+    "locationLabel": "Recogida",
+    "delivered": "Entregado",
+    "thanksDining": "Gracias por comer con nosotros",
+    "readyTitle": "¡Tu pedido está listo!",
+    "goToCounter": "Pasa por el mostrador",
+    "showCode": "Muestra el código al cajero.",
+    "estimatedTime": "Tiempo estimado",
+    "min": "min",
+    "notifyHint": "Te avisamos en esta pantalla cuando esté listo.",
+    "forPickup": "Pedido para recoger",
+    "codeLine": "Código {code} · {name}",
+    "yourOrder": "Tu pedido",
+    "paid": "Pagado",
+    "viewMyOrders": "Ver mis órdenes →"
+  },
   "reservar": {
     "closedTitle": "Reservas no disponibles",
     "closedBody": "{name} no está recibiendo reservas en línea por ahora."

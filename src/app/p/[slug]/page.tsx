@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { getKushkiMode } from "@/lib/platformConfig";
 import {
@@ -8,6 +9,8 @@ import {
 } from "@/lib/pickupAvailability";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
+import { getContentTranslations } from "@/lib/translateContent";
+import { defaultLocale, type Locale } from "@/i18n/config";
 import { MenuClient } from "../../t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +37,8 @@ export default async function PickupPage({
   });
   if (!tenant) return notFound();
 
+  const t = await getTranslations("pickup");
+
   if (!tenant.pickupEnabled) {
     return (
       <main className="flex flex-1 items-center justify-center px-6 py-20 bg-bone">
@@ -41,12 +46,8 @@ export default async function PickupPage({
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
             {tenant.name}
           </div>
-          <h1 className="font-display text-3xl mb-3">
-            Pedido anticipado no disponible
-          </h1>
-          <p className="text-muted">
-            Este restaurante aún no activó el pedido para recoger.
-          </p>
+          <h1 className="font-display text-3xl mb-3">{t("unavailableTitle")}</h1>
+          <p className="text-muted">{t("unavailableBody")}</p>
         </div>
       </main>
     );
@@ -71,11 +72,11 @@ export default async function PickupPage({
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta mb-3">
             {tenant.name}
           </div>
-          <h1 className="font-display text-3xl mb-3">Ahora estamos cerrados</h1>
+          <h1 className="font-display text-3xl mb-3">{t("closedTitle")}</h1>
           <p className="text-muted">
             {status.nextOpenAt
-              ? `Abrimos de nuevo ${formatNextOpening(status.nextOpenAt)}.`
-              : "No hay próxima apertura programada. Vuelve más tarde."}
+              ? t("reopenAt", { when: formatNextOpening(status.nextOpenAt) })
+              : t("noNextOpening")}
           </p>
         </div>
       </main>
@@ -107,6 +108,43 @@ export default async function PickupPage({
       })
     : null;
 
+  // i18n — traducción del CONTENIDO del menú (igual que la carta de mesa).
+  const locale = await getLocale();
+  let contentT = new Map<string, string>();
+  if (locale !== defaultLocale) {
+    const toTranslate: {
+      entityType: string;
+      entityId: string;
+      field: string;
+      text: string;
+    }[] = [];
+    for (const c of tenant.categories) {
+      if (c.label)
+        toTranslate.push({ entityType: "Category", entityId: c.id, field: "label", text: c.label });
+    }
+    for (const it of tenant.menuItems) {
+      if (it.name)
+        toTranslate.push({ entityType: "MenuItem", entityId: it.id, field: "name", text: it.name });
+      if (it.description)
+        toTranslate.push({ entityType: "MenuItem", entityId: it.id, field: "description", text: it.description });
+    }
+    for (const tag of menuTags) {
+      if (tag.label)
+        toTranslate.push({ entityType: "MenuTag", entityId: tag.slug, field: "label", text: tag.label });
+    }
+    contentT = await getContentTranslations(locale as Locale, toTranslate);
+  }
+  const tr = (
+    entityType: string,
+    entityId: string,
+    field: string,
+    fallback: string,
+  ) => contentT.get(`${entityType}:${entityId}:${field}`) ?? fallback;
+  const localizedMenuTags = menuTags.map((tag) => ({
+    ...tag,
+    label: tr("MenuTag", tag.slug, "label", tag.label),
+  }));
+
   return (
     <MenuClient
       tenant={{
@@ -116,12 +154,12 @@ export default async function PickupPage({
         serviceMode: tenant.serviceMode,
       }}
       tableId={pickupTable.id}
-      locationLabel="Recogida"
-      menuTags={menuTags}
+      locationLabel={t("locationLabel")}
+      menuTags={localizedMenuTags}
       categories={tenant.categories.map((c) => ({
         id: c.id,
         slug: c.slug,
-        label: c.label,
+        label: tr("Category", c.id, "label", c.label),
         // Pickup doesn't surface menu tabs (it's already a focused
         // single-flow experience), but the type requires the field.
         menuId: c.menuId ?? "",
@@ -131,8 +169,10 @@ export default async function PickupPage({
         return {
           id: m.id,
           categoryId: m.categoryId,
-          name: m.name,
-          description: m.description ?? "",
+          name: tr("MenuItem", m.id, "name", m.name),
+          description: m.description
+            ? tr("MenuItem", m.id, "description", m.description)
+            : "",
           priceCents: m.priceCents,
           tags: m.tags,
           photoUrl: m.photoUrl ?? null,

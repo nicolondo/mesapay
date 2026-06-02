@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export function PickupStatusLive({
@@ -20,6 +21,7 @@ export function PickupStatusLive({
   isServed: boolean;
 }) {
   const router = useRouter();
+  const t = useTranslations("pickup");
   const [remaining, setRemaining] = useState<number>(() =>
     computeRemaining(readyEtaIso),
   );
@@ -29,10 +31,10 @@ export function PickupStatusLive({
   // decrement locally for UX.
   useEffect(() => {
     if (isReady) return;
-    const t = setInterval(() => {
+    const id = setInterval(() => {
       setRemaining(computeRemaining(readyEtaIso));
     }, 10_000);
-    return () => clearInterval(t);
+    return () => clearInterval(id);
   }, [readyEtaIso, isReady]);
 
   // Live updates: when the kitchen flips the round to ready, refresh so the
@@ -61,9 +63,9 @@ export function PickupStatusLive({
     return (
       <div className="mt-6 rounded-2xl bg-ink text-bone p-6 text-center">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/70">
-          Entregado
+          {t("delivered")}
         </div>
-        <div className="font-display text-3xl mt-2">Gracias por comer con nosotros</div>
+        <div className="font-display text-3xl mt-2">{t("thanksDining")}</div>
       </div>
     );
   }
@@ -72,14 +74,12 @@ export function PickupStatusLive({
     return (
       <div className="mt-6 rounded-2xl bg-ok text-bone p-8 text-center">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-bone/80">
-          ¡Tu pedido está listo!
+          {t("readyTitle")}
         </div>
         <div className="font-display text-4xl mt-2 leading-[1.05]">
-          Pasa por el mostrador
+          {t("goToCounter")}
         </div>
-        <div className="text-sm text-bone/80 mt-3">
-          Muestra el código al cajero.
-        </div>
+        <div className="text-sm text-bone/80 mt-3">{t("showCode")}</div>
       </div>
     );
   }
@@ -88,14 +88,12 @@ export function PickupStatusLive({
   return (
     <div className="mt-6 rounded-2xl bg-paper border border-hairline p-6 text-center">
       <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-        Tiempo estimado
+        {t("estimatedTime")}
       </div>
       <div className="font-display text-6xl leading-none mt-3 tabular">
-        {mins} <span className="text-2xl text-muted">min</span>
+        {mins} <span className="text-2xl text-muted">{t("min")}</span>
       </div>
-      <div className="text-sm text-muted mt-3">
-        Te avisamos en esta pantalla cuando esté listo.
-      </div>
+      <div className="text-sm text-muted mt-3">{t("notifyHint")}</div>
       <div className="mt-4 h-1.5 rounded-full bg-hairline overflow-hidden">
         <div
           className="h-full bg-terracotta transition-all duration-500"

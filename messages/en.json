@@ -440,6 +440,27 @@
     "autoRefresh": "This page refreshes automatically.",
     "backToCheckout": "Back to checkout"
   },
+  "pickup": {
+    "unavailableTitle": "Pre-orders unavailable",
+    "unavailableBody": "This restaurant hasn't enabled pickup ordering yet.",
+    "closedTitle": "We're closed right now",
+    "reopenAt": "We reopen {when}.",
+    "noNextOpening": "No upcoming opening scheduled. Come back later.",
+    "locationLabel": "Pickup",
+    "delivered": "Delivered",
+    "thanksDining": "Thanks for dining with us",
+    "readyTitle": "Your order is ready!",
+    "goToCounter": "Come to the counter",
+    "showCode": "Show the code to the cashier.",
+    "estimatedTime": "Estimated time",
+    "min": "min",
+    "notifyHint": "We'll let you know on this screen when it's ready.",
+    "forPickup": "Pickup order",
+    "codeLine": "Code {code} · {name}",
+    "yourOrder": "Your order",
+    "paid": "Paid",
+    "viewMyOrders": "View my orders →"
+  },
   "reservar": {
     "closedTitle": "Reservations unavailable",
     "closedBody": "{name} is not taking online reservations right now."

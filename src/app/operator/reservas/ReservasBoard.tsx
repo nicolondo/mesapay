@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export type ReservationRow = {
   id: string;
@@ -24,12 +25,12 @@ const OFFSET_MS = -5 * 60 * 60 * 1000;
 const fmtCOP = (cents: number) =>
   "$" + Math.round(cents / 100).toLocaleString("es-CO");
 
-const DEPOSIT_META: Record<string, { label: string; tint: string }> = {
-  pending: { label: "Depósito pendiente", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
-  paid: { label: "Depósito pagado", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
-  applied: { label: "Abono aplicado", tint: "bg-op-bg text-op-muted" },
-  forfeited: { label: "Depósito retenido", tint: "bg-danger/15 text-danger" },
-  refunded: { label: "Depósito devuelto", tint: "bg-op-bg text-op-muted" },
+const DEPOSIT_META: Record<string, { labelKey: string; tint: string }> = {
+  pending: { labelKey: "depositPending", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
+  paid: { labelKey: "depositPaid", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
+  applied: { labelKey: "depositAppliedLabel", tint: "bg-op-bg text-op-muted" },
+  forfeited: { labelKey: "depositForfeited", tint: "bg-danger/15 text-danger" },
+  refunded: { labelKey: "depositRefunded", tint: "bg-op-bg text-op-muted" },
 };
 
 function fmtDayTime(iso: string): { day: string; time: string } {
@@ -45,26 +46,26 @@ function fmtDayTime(iso: string): { day: string; time: string } {
   return { day, time };
 }
 
-const STATUS_META: Record<string, { label: string; tint: string }> = {
-  pending: { label: "Pendiente", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
-  confirmed: { label: "Confirmada", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
-  seated: { label: "Sentados", tint: "bg-[#2E6B4C]/25 text-[#1E5339]" },
-  completed: { label: "Completada", tint: "bg-op-bg text-op-muted" },
-  cancelled: { label: "Cancelada", tint: "bg-danger/15 text-danger" },
-  no_show: { label: "No-show", tint: "bg-danger/15 text-danger" },
+const STATUS_META: Record<string, { labelKey: string; tint: string }> = {
+  pending: { labelKey: "statusPending", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
+  confirmed: { labelKey: "statusConfirmed", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
+  seated: { labelKey: "statusSeated", tint: "bg-[#2E6B4C]/25 text-[#1E5339]" },
+  completed: { labelKey: "statusCompleted", tint: "bg-op-bg text-op-muted" },
+  cancelled: { labelKey: "statusCancelled", tint: "bg-danger/15 text-danger" },
+  no_show: { labelKey: "statusNoShow", tint: "bg-danger/15 text-danger" },
 };
 
-const SOURCE_LABEL: Record<string, string> = {
-  direct: "Link directo",
-  google_maps: "Google Maps",
-  whatsapp: "WhatsApp",
-  phone: "Teléfono",
+const SOURCE_KEYS: Record<string, string> = {
+  direct: "sourceDirect",
+  google_maps: "sourceGoogleMaps",
+  whatsapp: "sourceWhatsapp",
+  phone: "sourcePhone",
 };
 
 const FILTERS = [
-  { key: "active", label: "Activas" },
-  { key: "today", label: "Hoy" },
-  { key: "all", label: "Todas" },
+  { key: "active", labelKey: "filterActive" },
+  { key: "today", labelKey: "filterToday" },
+  { key: "all", labelKey: "filterAll" },
 ] as const;
 type FilterKey = (typeof FILTERS)[number]["key"];
 
@@ -73,6 +74,7 @@ export function ReservasBoard({
 }: {
   initialRows: ReservationRow[];
 }) {
+  const t = useTranslations("opReservas");
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [filter, setFilter] = useState<FilterKey>("active");
@@ -103,16 +105,16 @@ export function ReservasBoard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "apply_deposit" }),
     });
-    const j = await res.json().catch(() => ({}));
+    await res.json().catch(() => ({}));
     setBusyId(null);
     if (res.ok) {
       setRows((rs) =>
         rs.map((r) => (r.id === id ? { ...r, depositStatus: "applied" } : r)),
       );
-      setMsg("Abono acreditado a la cuenta de la mesa.");
+      setMsg(t("depositApplied"));
       router.refresh();
     } else {
-      setMsg(j.message ?? "No pudimos acreditar el abono.");
+      setMsg(t("depositError"));
     }
   }
 
@@ -133,6 +135,13 @@ export function ReservasBoard({
     return true;
   });
 
+  const emptyMsg =
+    filter === "active"
+      ? t("emptyActive")
+      : filter === "today"
+        ? t("emptyToday")
+        : t("emptyAll");
+
   return (
     <div>
       <div className="flex gap-2 mb-4">
@@ -148,7 +157,7 @@ export function ReservasBoard({
                 : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
             }
           >
-            {f.label}
+            {t(f.labelKey)}
           </button>
         ))}
       </div>
@@ -161,16 +170,13 @@ export function ReservasBoard({
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-10 text-center text-sm text-op-muted">
-          No hay reservas {filter === "active" ? "activas" : filter === "today" ? "para hoy" : ""}.
+          {emptyMsg}
         </div>
       ) : (
         <ul className="space-y-2">
           {filtered.map((r) => {
             const { day, time } = fmtDayTime(r.startsAtISO);
-            const meta = STATUS_META[r.status] ?? {
-              label: r.status,
-              tint: "bg-op-bg text-op-muted",
-            };
+            const meta = STATUS_META[r.status];
             const busy = busyId === r.id;
             return (
               <li
@@ -187,10 +193,10 @@ export function ReservasBoard({
                       <span
                         className={
                           "inline-flex items-center h-5 px-2 rounded-full text-[10px] font-medium " +
-                          meta.tint
+                          (meta?.tint ?? "bg-op-bg text-op-muted")
                         }
                       >
-                        {meta.label}
+                        {meta ? t(meta.labelKey) : r.status}
                       </span>
                       {r.depositStatus !== "none" &&
                         r.depositCents != null &&
@@ -202,24 +208,34 @@ export function ReservasBoard({
                                 "bg-op-bg text-op-muted")
                             }
                           >
-                            {DEPOSIT_META[r.depositStatus]?.label ?? "Depósito"}{" "}
+                            {DEPOSIT_META[r.depositStatus]
+                              ? t(DEPOSIT_META[r.depositStatus].labelKey)
+                              : t("depositGeneric")}{" "}
                             {fmtCOP(r.depositCents)}
                           </span>
                         )}
                     </div>
                     <div className="text-sm mt-1">
-                      <strong>{r.customerName}</strong> · {r.partySize}{" "}
-                      {r.partySize === 1 ? "persona" : "personas"} ·{" "}
-                      {r.tableLabel}
+                      <strong>{r.customerName}</strong>{" "}
+                      <span aria-hidden>{"· "}</span>
+                      {t("cardMeta", {
+                        party: t("partySize", { count: r.partySize }),
+                        table: r.tableLabel,
+                      })}
                     </div>
                     <div className="text-[11px] text-op-muted mt-0.5">
                       {r.customerPhone ? `${r.customerPhone} · ` : ""}
-                      {r.customerEmail} · {SOURCE_LABEL[r.source] ?? r.source} ·{" "}
+                      {r.customerEmail}
+                      {" · "}
+                      {SOURCE_KEYS[r.source] ? t(SOURCE_KEYS[r.source]) : r.source}
+                      {" · "}
                       {r.confirmationCode}
                     </div>
                     {r.notes && (
                       <div className="text-[11px] text-ink-3 mt-1 italic">
-                        “{r.notes}”
+                        {"“"}
+                        {r.notes}
+                        {"”"}
                       </div>
                     )}
                   </div>
@@ -233,7 +249,7 @@ export function ReservasBoard({
                       disabled={busy}
                       tone="ok"
                     >
-                      Confirmar
+                      {t("actionConfirm")}
                     </ActionBtn>
                   )}
                   {(r.status === "pending" || r.status === "confirmed") && (
@@ -242,21 +258,21 @@ export function ReservasBoard({
                         onClick={() => setStatus(r.id, "seated")}
                         disabled={busy}
                       >
-                        Llegaron
+                        {t("actionArrived")}
                       </ActionBtn>
                       <ActionBtn
                         onClick={() => setStatus(r.id, "no_show")}
                         disabled={busy}
                         tone="danger"
                       >
-                        No-show
+                        {t("actionNoShow")}
                       </ActionBtn>
                       <ActionBtn
                         onClick={() => setStatus(r.id, "cancelled")}
                         disabled={busy}
                         tone="muted"
                       >
-                        Cancelar
+                        {t("actionCancel")}
                       </ActionBtn>
                     </>
                   )}
@@ -269,7 +285,7 @@ export function ReservasBoard({
                         disabled={busy}
                         tone="ok"
                       >
-                        Aplicar abono {fmtCOP(r.depositCents)} a la cuenta
+                        {t("actionApplyDeposit", { amount: fmtCOP(r.depositCents) })}
                       </ActionBtn>
                     )}
                   {r.status === "seated" && (
@@ -277,7 +293,7 @@ export function ReservasBoard({
                       onClick={() => setStatus(r.id, "completed")}
                       disabled={busy}
                     >
-                      Marcar completada
+                      {t("actionComplete")}
                     </ActionBtn>
                   )}
                 </div>

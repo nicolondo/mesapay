@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -13,9 +14,10 @@ export default async function OperatorOrderDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations("opOrders");
   const { id } = await params;
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const order = await db.order.findUnique({
     where: { id },
@@ -42,7 +44,7 @@ export default async function OperatorOrderDetail({
   >();
   for (const i of order.items) {
     const key = i.guestName?.trim() || "__anon__";
-    const label = i.guestName?.trim() || "Sin nombre";
+    const label = i.guestName?.trim() || t("noName");
     const entry =
       groups.get(key) ?? { name: label, items: [] as typeof order.items, subtotal: 0 };
     entry.items.push(i);
@@ -68,20 +70,26 @@ export default async function OperatorOrderDetail({
           href="/operator/orders"
           className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted hover:text-op-text"
         >
-          ← Órdenes
+          <span aria-hidden>{"← "}</span>
+          {t("back")}
         </Link>
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted">
-            {counterMode ? "Mostrador" : `Mesa ${order.table.number}`} ·{" "}
-            {fmtDateTime(order.createdAt)}
+            {t("datetime", {
+              channel: counterMode
+                ? t("channelCounter")
+                : t("tableNumber", { number: order.table.number }),
+              datetime: fmtDateTime(order.createdAt),
+            })}
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
-            Orden{" "}
+            {t("detailTitle")}{" "}
             <span className="font-mono text-base text-op-muted">
-              · {order.shortCode}
+              <span aria-hidden>{"· "}</span>
+              {order.shortCode}
             </span>
           </div>
         </div>
@@ -89,14 +97,14 @@ export default async function OperatorOrderDetail({
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Subtotal" value={fmtCOP(order.subtotalCents)} />
+        <Stat label={t("statSubtotal")} value={fmtCOP(order.subtotalCents)} />
         <Stat
-          label="Propina"
+          label={t("statTip")}
           value={order.tipCents ? fmtCOP(order.tipCents) : "—"}
         />
-        <Stat label="Pagado" value={paidSum === 0 ? "—" : fmtCOP(paidSum)} />
+        <Stat label={t("statPaid")} value={paidSum === 0 ? "—" : fmtCOP(paidSum)} />
         <Stat
-          label="Restante"
+          label={t("statRemaining")}
           value={
             order.status === "paid"
               ? "—"
@@ -108,7 +116,7 @@ export default async function OperatorOrderDetail({
       {order.status !== "paid" && order.status !== "cancelled" && (
         <div className="mt-4 bg-op-surface border border-op-border rounded-2xl p-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-            Acciones
+            {t("actions")}
           </div>
           <TableActions
             orderId={order.id}
@@ -121,7 +129,7 @@ export default async function OperatorOrderDetail({
 
       <div className="mt-6">
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted mb-2">
-          Rondas
+          {t("rounds")}
         </div>
         <ul className="space-y-2">
           {order.rounds.map((r) => {
@@ -134,7 +142,7 @@ export default async function OperatorOrderDetail({
               >
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs tracking-wider uppercase text-op-muted">
-                    Ronda {r.seq} · {fmtTime(r.placedAt)}
+                    {t("roundLabel", { seq: r.seq, time: fmtTime(r.placedAt) })}
                   </div>
                   <StatusPill status={r.status} />
                 </div>
@@ -149,7 +157,11 @@ export default async function OperatorOrderDetail({
                           "text-sm flex items-center gap-2 flex-wrap " +
                           (roundCancelled ? "line-through text-op-muted" : "")
                         }>
-                          <span>{li.qty}× {li.nameSnapshot}</span>
+                          <span>
+                            {li.qty}
+                            {"× "}
+                            {li.nameSnapshot}
+                          </span>
                           {!roundCancelled && (
                             <ItemStatusBadge
                               kitchenStatus={li.kitchenStatus}
@@ -159,19 +171,22 @@ export default async function OperatorOrderDetail({
                         </div>
                         {li.guestName && (
                           <div className="text-[11px] text-terracotta mt-0.5">
-                            de {li.guestName}
+                            {t("itemFrom", { name: li.guestName })}
                           </div>
                         )}
                         {(() => {
-                          const groups = formatItemSelections(
+                          const sels = formatItemSelections(
                             li.modifierSelections,
                             li.menuItem?.modifiers,
                           );
-                          if (groups.length === 0) return null;
+                          if (sels.length === 0) return null;
                           return (
                             <div className="text-xs text-op-muted mt-0.5 space-y-0.5">
-                              {groups.map((g, i) => (
-                                <div key={i}>- {g}</div>
+                              {sels.map((g, i) => (
+                                <div key={i}>
+                                  {"- "}
+                                  {g}
+                                </div>
                               ))}
                             </div>
                           );
@@ -192,7 +207,7 @@ export default async function OperatorOrderDetail({
             );
           })}
           {order.rounds.length === 0 && (
-            <li className="text-sm text-op-muted py-4">Sin rondas.</li>
+            <li className="text-sm text-op-muted py-4">{t("noRounds")}</li>
           )}
         </ul>
       </div>
@@ -200,7 +215,7 @@ export default async function OperatorOrderDetail({
       {multiGuest && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted mb-2">
-            Por persona
+            {t("perGuest")}
           </div>
           <ul className="space-y-2">
             {Array.from(groups.values()).map((g) => (
@@ -226,7 +241,9 @@ export default async function OperatorOrderDetail({
                       className="py-1.5 flex justify-between gap-3 text-sm"
                     >
                       <div>
-                        {li.qty}× {li.nameSnapshot}
+                        {li.qty}
+                        {"× "}
+                        {li.nameSnapshot}
                       </div>
                       <div className="font-mono tabular text-op-muted">
                         {fmtCOP(li.priceCentsSnapshot * li.qty)}
@@ -242,11 +259,11 @@ export default async function OperatorOrderDetail({
 
       <div className="mt-6">
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted mb-2">
-          Pagos
+          {t("payments")}
         </div>
         <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
           {order.payments.length === 0 ? (
-            <div className="p-4 text-sm text-op-muted">Sin pagos registrados.</div>
+            <div className="p-4 text-sm text-op-muted">{t("noPayments")}</div>
           ) : (
             <ul className="divide-y divide-op-border">
               {order.payments.map((p) => (
@@ -256,10 +273,11 @@ export default async function OperatorOrderDetail({
                 >
                   <div>
                     <div className="text-sm">
-                      {methodLabel(p.method)}{" "}
+                      {methodLabel(p.method, t)}{" "}
                       {p.splitOfCount ? (
                         <span className="text-op-muted text-xs">
-                          · 1 de {p.splitOfCount}
+                          <span aria-hidden>{"· "}</span>
+                          {t("splitOf", { count: p.splitOfCount })}
                         </span>
                       ) : null}
                     </div>
@@ -297,8 +315,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const meta = statusMeta(status);
+async function StatusPill({ status }: { status: string }) {
+  const t = await getTranslations("opOrders");
+  const meta = statusMeta(status, t);
   return (
     <span
       className={
@@ -311,7 +330,8 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function PaymentPill({ status }: { status: string }) {
+async function PaymentPill({ status }: { status: string }) {
+  const t = await getTranslations("opOrders");
   const tint =
     status === "approved"
       ? "bg-[#2E6B4C]/15 text-[#1E5339]"
@@ -320,12 +340,12 @@ function PaymentPill({ status }: { status: string }) {
         : "bg-paper text-op-muted";
   const label =
     status === "approved"
-      ? "Aprobado"
+      ? t("payApproved")
       : status === "failed"
-        ? "Fallido"
+        ? t("payFailed")
         : status === "refunded"
-          ? "Reembolsado"
-          : "Pendiente";
+          ? t("payRefunded")
+          : t("payPending");
   return (
     <span
       className={
@@ -342,26 +362,27 @@ function PaymentPill({ status }: { status: string }) {
 // view (Por preparar / Preparando / Listo para servir / Servido),
 // rendered with the same colour palette so support can talk about
 // what they see across both surfaces.
-function ItemStatusBadge({
+async function ItemStatusBadge({
   kitchenStatus,
   servedAt,
 }: {
   kitchenStatus: "placed" | "in_kitchen" | "ready";
   servedAt: Date | null;
 }) {
+  const t = await getTranslations("opOrders");
   let label: string;
   let className: string;
   if (servedAt) {
-    label = "Servido";
+    label = t("itemBadgeServed");
     className = "bg-[#2E6B4C]/15 text-[#1E5339]";
   } else if (kitchenStatus === "ready") {
-    label = "Listo para servir";
+    label = t("itemBadgeReady");
     className = "bg-[#2E6B4C]/10 text-[#1E5339]";
   } else if (kitchenStatus === "in_kitchen") {
-    label = "Preparando";
+    label = t("itemBadgePreparing");
     className = "bg-[#C98A2E]/20 text-[#8F6828]";
   } else {
-    label = "Por preparar";
+    label = t("itemBadgeToPrepare");
     className = "bg-paper text-op-muted border border-op-border";
   }
   return (
@@ -376,51 +397,51 @@ function ItemStatusBadge({
   );
 }
 
-function statusMeta(s: string) {
+function statusMeta(s: string, t: (key: string) => string) {
   switch (s) {
     case "open":
-      return { label: "Abierto", tint: "bg-paper text-op-muted" };
+      return { label: t("pillOpen"), tint: "bg-paper text-op-muted" };
     case "placed":
-      return { label: "Enviado", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
+      return { label: t("pillPlaced"), tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
     case "in_kitchen":
-      return { label: "En cocina", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
+      return { label: t("pillInKitchen"), tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
     case "ready":
-      return { label: "Listo", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillReady"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "served":
-      return { label: "Servido", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillServed"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "paying":
-      return { label: "Cobrando", tint: "bg-ink/10 text-ink" };
+      return { label: t("pillPaying"), tint: "bg-ink/10 text-ink" };
     case "paid":
-      return { label: "Pagado", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillPaid"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "cancelled":
-      return { label: "Cancelada", tint: "bg-danger/15 text-danger" };
+      return { label: t("pillCancelled"), tint: "bg-danger/15 text-danger" };
     default:
       return { label: s, tint: "bg-paper text-op-muted" };
   }
 }
 
-function methodLabel(m: string) {
+function methodLabel(m: string, t: (key: string) => string) {
   switch (m) {
     case "demo_card":
-      return "Tarjeta (demo)";
+      return t("mDemoCard");
     case "demo_cash":
-      return "Efectivo (demo)";
+      return t("mDemoCash");
     case "wompi_card":
-      return "Tarjeta · Wompi";
+      return t("mWompiCard");
     case "wompi_pse":
-      return "PSE · Wompi";
+      return t("mWompiPse");
     case "wompi_nequi":
-      return "Nequi · Wompi";
+      return t("mWompiNequi");
     case "kushki_apple_pay":
-      return "Apple Pay";
+      return t("mApplePay");
     case "kushki_card":
-      return "Tarjeta";
+      return t("mKushkiCard");
     case "kushki_card_terminal":
-      return "Tarjeta · datáfono";
+      return t("mKushkiTerminal");
     case "external_terminal":
-      return "Tarjeta · datáfono propio";
+      return t("mExternalTerminal");
     case "kushki_pse":
-      return "PSE";
+      return t("mKushkiPse");
     default:
       return m;
   }

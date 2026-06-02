@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import type { Prisma } from "@prisma/client";
@@ -10,17 +11,17 @@ export const dynamic = "force-dynamic";
 type StatusFilter = "all" | "open" | "paid" | "cancelled";
 type PeriodFilter = "today" | "7d" | "30d" | "all";
 
-const STATUS_OPTS: { id: StatusFilter; label: string }[] = [
-  { id: "all", label: "Todas" },
-  { id: "open", label: "Abiertas" },
-  { id: "paid", label: "Pagadas" },
-  { id: "cancelled", label: "Canceladas" },
+const STATUS_OPTS: { id: StatusFilter; labelKey: string }[] = [
+  { id: "all", labelKey: "statusAll" },
+  { id: "open", labelKey: "statusOpen" },
+  { id: "paid", labelKey: "statusPaid" },
+  { id: "cancelled", labelKey: "statusCancelled" },
 ];
-const PERIOD_OPTS: { id: PeriodFilter; label: string }[] = [
-  { id: "today", label: "Hoy" },
-  { id: "7d", label: "7 días" },
-  { id: "30d", label: "30 días" },
-  { id: "all", label: "Todo" },
+const PERIOD_OPTS: { id: PeriodFilter; labelKey: string }[] = [
+  { id: "today", labelKey: "periodToday" },
+  { id: "7d", labelKey: "period7d" },
+  { id: "30d", labelKey: "period30d" },
+  { id: "all", labelKey: "periodAll" },
 ];
 
 export default async function OrdersPage({
@@ -32,8 +33,9 @@ export default async function OrdersPage({
     q?: string;
   }>;
 }) {
+  const t = await getTranslations("opOrders");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -102,26 +104,28 @@ export default async function OrdersPage({
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-display text-3xl">Órdenes</div>
+          <div className="font-display text-3xl">{t("title")}</div>
           <p className="text-sm text-op-muted mt-1">
-            {totals.count} {totals.count === 1 ? "orden" : "órdenes"} ·{" "}
-            {totals.paidCount} pagada{totals.paidCount === 1 ? "" : "s"} ·{" "}
-            {fmtCOP(totals.paidSum)}
+            {t("summary", {
+              count: totals.count,
+              paidCount: totals.paidCount,
+              amount: fmtCOP(totals.paidSum),
+            })}
           </p>
         </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap mb-5">
         <FilterGroup
-          label="Estado"
-          options={STATUS_OPTS}
+          label={t("filterStatus")}
+          options={STATUS_OPTS.map((o) => ({ id: o.id, label: t(o.labelKey) }))}
           current={status}
           paramName="status"
           currentParams={{ period, q }}
         />
         <FilterGroup
-          label="Periodo"
-          options={PERIOD_OPTS}
+          label={t("filterPeriod")}
+          options={PERIOD_OPTS.map((o) => ({ id: o.id, label: t(o.labelKey) }))}
           current={period}
           paramName="period"
           currentParams={{ status, q }}
@@ -132,14 +136,14 @@ export default async function OrdersPage({
           <input
             name="q"
             defaultValue={q}
-            placeholder="Buscar por código"
+            placeholder={t("searchPlaceholder")}
             className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-sm w-48"
           />
           <button
             type="submit"
             className="h-9 px-4 rounded-full bg-ink text-bone text-sm"
           >
-            Buscar
+            {t("searchButton")}
           </button>
         </form>
       </div>
@@ -148,13 +152,13 @@ export default async function OrdersPage({
         <table className="w-full text-sm">
           <thead className="bg-op-bg">
             <tr className="text-left">
-              <Th>Fecha</Th>
-              <Th>Código</Th>
-              <Th>{counterMode ? "Canal" : "Mesa"}</Th>
-              <Th>Estado</Th>
-              <Th align="right">Items</Th>
-              <Th align="right">Subtotal</Th>
-              <Th align="right">Pagado</Th>
+              <Th>{t("colDate")}</Th>
+              <Th>{t("colCode")}</Th>
+              <Th>{counterMode ? t("colChannel") : t("colTable")}</Th>
+              <Th>{t("colStatus")}</Th>
+              <Th align="right">{t("colItems")}</Th>
+              <Th align="right">{t("colSubtotal")}</Th>
+              <Th align="right">{t("colPaid")}</Th>
               <Th />
             </tr>
           </thead>
@@ -175,7 +179,9 @@ export default async function OrdersPage({
                   </Td>
                   <Td className="font-mono">{o.shortCode}</Td>
                   <Td>
-                    {counterMode ? "Mostrador" : `Mesa ${o.table.number}`}
+                    {counterMode
+                      ? t("channelCounter")
+                      : t("tableNumber", { number: o.table.number })}
                   </Td>
                   <Td>
                     <StatusPill status={o.status} />
@@ -192,7 +198,7 @@ export default async function OrdersPage({
                       href={`/operator/orders/${o.id}`}
                       className="text-terracotta hover:underline"
                     >
-                      Ver →
+                      {t("view")} <span aria-hidden>{"→"}</span>
                     </Link>
                   </Td>
                 </tr>
@@ -204,7 +210,7 @@ export default async function OrdersPage({
                   colSpan={8}
                   className="text-center py-10 text-sm text-op-muted"
                 >
-                  No hay órdenes con estos filtros.
+                  {t("empty")}
                 </td>
               </tr>
             )}
@@ -298,8 +304,9 @@ function Td({
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const meta = statusMeta(status);
+async function StatusPill({ status }: { status: string }) {
+  const t = await getTranslations("opOrders");
+  const meta = statusMeta(status, t);
   return (
     <span
       className={
@@ -312,24 +319,24 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function statusMeta(s: string) {
+function statusMeta(s: string, t: (key: string) => string) {
   switch (s) {
     case "open":
-      return { label: "Abierto", tint: "bg-paper text-op-muted" };
+      return { label: t("pillOpen"), tint: "bg-paper text-op-muted" };
     case "placed":
-      return { label: "Enviado", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
+      return { label: t("pillPlaced"), tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
     case "in_kitchen":
-      return { label: "En cocina", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
+      return { label: t("pillInKitchen"), tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
     case "ready":
-      return { label: "Listo", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillReady"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "served":
-      return { label: "Servido", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillServed"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "paying":
-      return { label: "Cobrando", tint: "bg-ink/10 text-ink" };
+      return { label: t("pillPaying"), tint: "bg-ink/10 text-ink" };
     case "paid":
-      return { label: "Pagado", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+      return { label: t("pillPaid"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     case "cancelled":
-      return { label: "Cancelada", tint: "bg-danger/15 text-danger" };
+      return { label: t("pillCancelled"), tint: "bg-danger/15 text-danger" };
     default:
       return { label: s, tint: "bg-paper text-op-muted" };
   }

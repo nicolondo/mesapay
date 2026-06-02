@@ -631,7 +631,9 @@ function TerminalPendingCard({
     onBusyChange(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? tr("terminalSendError"));
+      // j.message trae el detalle real del datáfono (rechazo/error); j.error
+      // es el código interno. Preferimos el mensaje humano si vino.
+      setErr(j.message ?? j.error ?? tr("terminalSendError"));
       return;
     }
     onCharged();

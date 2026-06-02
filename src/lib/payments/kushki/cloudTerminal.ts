@@ -1,6 +1,6 @@
 import { createHmac } from "crypto";
 import { env } from "../../env";
-import { getKushkiModeSync } from "../../platformConfig";
+import { getKushkiMode } from "../../platformConfig";
 
 /**
  * Cliente del Kushki **Cloud Terminal API** de Colombia (datáfono físico
@@ -28,9 +28,12 @@ const BASE_URL = {
   production: "https://cloudt.kushkipagos.com",
 } as const;
 
-function baseUrl(): string {
+// async: lee el modo de la DB (getKushkiMode warmea el cache). Antes usaba
+// la versión sync, que tras un deploy fresco devolvía el default "mock" del
+// env y tiraba "must not be called in mock mode" aunque la DB diga production.
+async function baseUrl(): Promise<string> {
   if (env.KUSHKI_CLOUD_TERMINAL_URL) return env.KUSHKI_CLOUD_TERMINAL_URL;
-  const mode = getKushkiModeSync();
+  const mode = await getKushkiMode();
   if (mode === "mock") {
     throw new Error("cloudTerminal must not be called in mock mode");
   }
@@ -139,7 +142,7 @@ export async function pushPaymentToCloudTerminal(
   const raw = JSON.stringify(payload);
   const ts = Date.now().toString();
   const authorization = signBody(raw, businessCode);
-  const url = baseUrl() + pushPath(args.serialNumber);
+  const url = (await baseUrl()) + pushPath(args.serialNumber);
 
   console.log("[kushki/cloud-terminal] charge", {
     url,
@@ -201,18 +204,22 @@ export async function pushPaymentToCloudTerminal(
       "client_transaction_id",
       "id",
     ]) || args.reference;
-  const message = pick(json, [
-    "message",
-    "responseText",
-    "declineCode",
-    "responseCode",
-  ]);
+  // Estructura de error operacional: { type, code, message }.
+  const errType = pick(json, ["type"]);
+  const errCode = pick(json, ["code"]);
+  const rawMsg = pick(json, ["message", "responseText"]);
+  const errLabel =
+    [errType, errCode].filter(Boolean).join("/") +
+    (rawMsg ? `${errType || errCode ? ": " : ""}${rawMsg}` : "");
+  const message = errLabel || rawMsg || undefined;
 
   if (!res.ok) {
-    // 5xx → error retryable; 4xx → no cobrado (rechazo/validación). En ambos
-    // NO marcamos pagado; surface el mensaje para el mesero/logs.
+    // Los errores documentados (AUTH / PARAMETER / CONFIGURATION /
+    // TERMINAL-SUNMI / TERMINAL-PRINTER) son operacionales, NO un rechazo de
+    // tarjeta: la plata no se movió. Marcamos "error" (no settle) y surface
+    // type/code/message para diagnosticar y reintentar.
     return {
-      status: res.status >= 500 ? "error" : "declined",
+      status: "error",
       providerRef,
       message: message || `http_${res.status}`,
       httpStatus: res.status,
@@ -262,7 +269,7 @@ export async function cancelCloudTerminalPayment(
   const payload = { client_transaction_id: reference };
   const raw = JSON.stringify(payload);
   const url =
-    baseUrl() +
+    (await baseUrl()) +
     (env.KUSHKI_CLOUD_TERMINAL_CANCEL_PATH || "/api/v1/{serial}/cancel").replace(
       "{serial}",
       encodeURIComponent(serialNumber),

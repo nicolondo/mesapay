@@ -6,7 +6,7 @@ import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
-import { getKushkiModeSync } from "@/lib/platformConfig";
+import { getKushkiMode } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
 
 /**
@@ -68,7 +68,7 @@ export async function POST(
   //    datáfono real aunque el resto de Kushki siga en mock.
   // El Business-Code es la CLAVE HMAC con la que se firma el cobro: sin él
   // no podemos autenticar contra cloudt.
-  const mode = getKushkiModeSync();
+  const mode = await getKushkiMode();
   const businessCode =
     tenant.cloudTerminalBusinessCode || env.KUSHKI_BP_BUSINESS_CODE || null;
   const useRealTerminal = mode !== "mock" || !!businessCode;

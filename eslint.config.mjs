@@ -96,6 +96,7 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",
   "src/app/admin/plans/**/*.{ts,tsx}",
   "src/app/admin/groups/**/*.{ts,tsx}",
+  "src/app/group/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

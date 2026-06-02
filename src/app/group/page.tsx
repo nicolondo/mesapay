@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import {
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
  * autenticado con groupId válido.
  */
 export default async function GroupHome() {
+  const t = await getTranslations("opGroup");
   const ctx = await getActiveGroupShellContext();
   if (!ctx) {
     redirect("/signin?callbackUrl=/group");
@@ -151,35 +153,37 @@ export default async function GroupHome() {
   return (
     <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-        Pulso del grupo
+        {t("pulseLabel")}
       </div>
       <div className="font-display text-3xl tracking-[-0.015em] mb-1">
-        Hoy
+        {t("today")}
       </div>
       <p className="text-sm text-op-muted mb-5">
-        Cifras consolidadas de tus {restaurants.length}{" "}
-        {restaurants.length === 1 ? "restaurante" : "restaurantes"} desde
-        las 00:00.
+        {t("pulseIntro", { count: restaurants.length })}
       </p>
 
       {/* KPIs del día agregados */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <Kpi label="Ventas del grupo" value={fmtCOP(totalSalesCents)} />
+        <Kpi label={t("kpiGroupSales")} value={fmtCOP(totalSalesCents)} />
         <Kpi
-          label="Transacciones"
+          label={t("kpiTransactions")}
           value={String(totalTransactions)}
           hint={
             totalTransactions === 0
-              ? "Sin transacciones aún"
-              : `Ticket promedio ${fmtCOP(Math.round(totalSalesCents / Math.max(1, totalTransactions)))}`
+              ? t("kpiNoTransactions")
+              : t("kpiAvgTicket", {
+                  amount: fmtCOP(
+                    Math.round(totalSalesCents / Math.max(1, totalTransactions)),
+                  ),
+                })
           }
         />
-        <Kpi label="Top local del día" value={topRestaurantName} hint={topSales > 0 ? fmtCOP(topSales) : "—"} />
+        <Kpi label={t("kpiTopLocal")} value={topRestaurantName} hint={topSales > 0 ? fmtCOP(topSales) : "—"} />
       </div>
 
       <div className="flex items-center justify-between mb-3">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Restaurantes
+          {t("restaurantsTitle")}
         </div>
         {/* Botón crear queda como link a wizard — la página se
             arma en el siguiente commit. */}
@@ -187,13 +191,13 @@ export default async function GroupHome() {
           href="/group/restaurants/new"
           className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
         >
-          + Crear restaurante
+          {t("createRestaurant")}
         </Link>
       </div>
 
       {restaurants.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface p-8 text-center text-sm text-op-muted">
-          Aún no hay restaurantes en este grupo. Tap en "Crear restaurante" para empezar.
+          {t("noRestaurants")}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -217,6 +221,9 @@ export default async function GroupHome() {
                 salesCents={stats.salesCents}
                 transactionCount={stats.transactionCount}
                 impersonate={impersonate}
+                todayLabel={t("cardToday")}
+                txLabel={t("cardTx")}
+                enterLabel={t("enterAsOperator")}
               />
             );
           })}
@@ -259,6 +266,9 @@ function RestaurantCard({
   salesCents,
   transactionCount,
   impersonate,
+  todayLabel,
+  txLabel,
+  enterLabel,
 }: {
   id: string;
   slug: string;
@@ -268,6 +278,9 @@ function RestaurantCard({
   salesCents: number;
   transactionCount: number;
   impersonate: (formData: FormData) => Promise<void>;
+  todayLabel: string;
+  txLabel: string;
+  enterLabel: string;
 }) {
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-4 flex items-start gap-3">
@@ -294,7 +307,7 @@ function RestaurantCard({
         <div className="mt-2 flex items-baseline gap-3 flex-wrap">
           <div>
             <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted">
-              Hoy
+              {todayLabel}
             </div>
             <div className="font-mono tabular text-sm">
               {fmtCOP(salesCents)}
@@ -302,7 +315,7 @@ function RestaurantCard({
           </div>
           <div>
             <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted">
-              Tx
+              {txLabel}
             </div>
             <div className="font-mono tabular text-sm">{transactionCount}</div>
           </div>
@@ -313,7 +326,7 @@ function RestaurantCard({
             type="submit"
             className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
           >
-            Entrar como operador →
+            {enterLabel}
           </button>
         </form>
       </div>

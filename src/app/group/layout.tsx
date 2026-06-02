@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
 import {
@@ -22,6 +23,7 @@ export default async function GroupLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getTranslations("opGroup");
   const ctx = await getActiveGroupShellContext();
   if (!ctx) {
     // Resolver redirect por role: customer/anon → home; staff →
@@ -39,14 +41,13 @@ export default async function GroupLayout({
         <div className="min-h-screen bg-op-bg text-op-text flex items-center justify-center p-6">
           <div className="max-w-md text-center">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-              Sin grupo
+              {t("noGroupLabel")}
             </div>
             <h1 className="font-display text-2xl mb-2">
-              Tu cuenta no tiene grupo asignado
+              {t("noGroupTitle")}
             </h1>
             <p className="text-sm text-op-muted">
-              Hablá con MESAPAY para que vinculen tu usuario a un grupo
-              de restaurantes.
+              {t("noGroupBody")}
             </p>
           </div>
         </div>
@@ -75,10 +76,10 @@ export default async function GroupLayout({
       <div className="min-h-screen bg-op-bg text-op-text flex items-center justify-center p-6">
         <div className="max-w-md text-center">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-            Error
+            {t("errorLabel")}
           </div>
           <h1 className="font-display text-2xl mb-2">
-            Grupo no encontrado
+            {t("groupNotFound")}
           </h1>
         </div>
       </div>
@@ -92,7 +93,7 @@ export default async function GroupLayout({
         await signOut({ redirectTo: "/" });
       }}
     >
-      <button className="text-terracotta hover:underline">Salir</button>
+      <button className="text-terracotta hover:underline">{t("signOut")}</button>
     </form>
   );
 
@@ -112,15 +113,18 @@ export default async function GroupLayout({
         <div className="bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
           <div className="min-w-0 flex items-center gap-3 flex-wrap">
             <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-              Impersonando grupo
+              {t("impersonatingGroup")}
             </span>
             <span className="truncate">
-              Viendo como group_admin de <strong>{group.name}</strong>
+              {t.rich("viewingAsGroupAdmin", {
+                name: group.name,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </span>
           </div>
           <form action={stopImpersonatingGroup} className="shrink-0">
             <button className="font-mono text-[10px] tracking-wider uppercase underline">
-              Volver al admin
+              {t("backToAdmin")}
             </button>
           </form>
         </div>
@@ -130,17 +134,16 @@ export default async function GroupLayout({
           <div className="flex items-center gap-4 md:gap-6 min-w-0">
             <div className="shrink-0">
               <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
-                Grupo · {group._count.restaurants}{" "}
-                {group._count.restaurants === 1 ? "local" : "locales"}
+                {t("headerLocaleCount", { count: group._count.restaurants })}
               </div>
               <div className="font-display text-xl tracking-[-0.015em]">
                 {group.name}
               </div>
             </div>
             <nav className="hidden md:flex gap-1">
-              <NavLink href="/group">Restaurantes</NavLink>
+              <NavLink href="/group">{t("navRestaurants")}</NavLink>
               <NavLink href="/group/razones-sociales">
-                Razones sociales
+                {t("navLegalEntities")}
               </NavLink>
             </nav>
           </div>

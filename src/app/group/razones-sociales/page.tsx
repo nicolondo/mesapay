@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { LegalEntitiesClient } from "./LegalEntitiesClient";
@@ -7,6 +8,7 @@ import { LegalEntitiesClient } from "./LegalEntitiesClient";
 export const dynamic = "force-dynamic";
 
 export default async function LegalEntitiesPage() {
+  const t = await getTranslations("opGroup");
   const ctx = await getActiveGroupShellContext();
   if (!ctx) redirect("/group");
   const items = await db.legalEntity.findMany({
@@ -21,16 +23,13 @@ export default async function LegalEntitiesPage() {
         href="/group"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
-        ← Grupo
+        {t("legalBackToGroup")}
       </Link>
       <div className="font-display text-3xl tracking-[-0.015em] mt-2 mb-1">
-        Razones sociales
+        {t("legalTitle")}
       </div>
       <p className="text-sm text-op-muted mb-5">
-        Datos legales y numeración DIAN del grupo. Cada restaurante
-        puede asignarse a una de estas razones sociales — locales que
-        comparten razón social también comparten la numeración de
-        facturas.
+        {t("legalIntro")}
       </p>
       <LegalEntitiesClient
         initial={items.map((e) => ({

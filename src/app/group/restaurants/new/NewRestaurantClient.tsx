@@ -11,6 +11,7 @@ import {
 export function NewRestaurantClient() {
   const router = useRouter();
   const tl = useTranslations("location");
+  const tg = useTranslations("opGroup");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -38,7 +39,7 @@ export function NewRestaurantClient() {
     e.preventDefault();
     setErr(null);
     if (!name.trim() || !slug.trim()) {
-      setErr("Faltan datos.");
+      setErr(tg("missingData"));
       return;
     }
     setBusy(true);
@@ -59,7 +60,7 @@ export function NewRestaurantClient() {
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setErr(j.message ?? j.error ?? "No pudimos crear el restaurante.");
+      setErr(j.message ?? j.error ?? tg("createRestaurantFailed"));
       return;
     }
     // Después de crear, volvemos al landing — desde ahí el group_admin
@@ -75,14 +76,14 @@ export function NewRestaurantClient() {
     >
       <div>
         <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5 block">
-          Nombre
+          {tg("fieldName")}
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setNameAndSlug(e.target.value)}
           maxLength={80}
-          placeholder="Delirio Restaurante"
+          placeholder={tg("namePlaceholder")}
           className={inputCls}
           autoFocus
         />
@@ -90,10 +91,10 @@ export function NewRestaurantClient() {
 
       <div>
         <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5 block">
-          Identificador (URL)
+          {tg("fieldUrlId")}
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-op-muted text-sm">mesapay.co/t/</span>
+          <span className="text-op-muted text-sm">{tg("urlPrefix")}</span>
           <input
             type="text"
             value={slug}
@@ -102,31 +103,29 @@ export function NewRestaurantClient() {
               setSlugTouched(true);
             }}
             maxLength={40}
-            placeholder="delirio"
+            placeholder={tg("slugPlaceholder")}
             className={inputCls + " flex-1"}
           />
         </div>
-        <div className="text-[10px] text-op-muted mt-1">
-          Sólo a-z, 0-9 y guiones. Cliente escanea QR y va a esta URL.
-        </div>
+        <div className="text-[10px] text-op-muted mt-1">{tg("slugHint")}</div>
       </div>
 
       <div>
         <label className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2 block">
-          Modo de servicio
+          {tg("serviceMode")}
         </label>
         <div className="flex gap-2 flex-wrap">
           {(
             [
               {
                 value: "table" as const,
-                label: "Con mesas",
-                desc: "Cada mesa tiene su QR. Cliente escanea desde su puesto.",
+                label: tg("serviceModeTableLabel"),
+                desc: tg("serviceModeTableDesc"),
               },
               {
                 value: "counter" as const,
-                label: "Mostrador",
-                desc: "Un solo QR. Útil para food trucks / pickup.",
+                label: tg("serviceModeCounterLabel"),
+                desc: tg("serviceModeCounterDesc"),
               },
             ]
           ).map((o) => (
@@ -171,7 +170,7 @@ export function NewRestaurantClient() {
           disabled={busy || !name.trim() || !slug.trim()}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Creando…" : "Crear restaurante"}
+          {busy ? tg("creatingRestaurant") : tg("createRestaurantCta")}
         </button>
       </div>
     </form>

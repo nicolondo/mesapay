@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type LegalEntity = {
   id: string;
@@ -20,6 +21,7 @@ type LegalEntity = {
 };
 
 export function LegalEntitiesClient({ initial }: { initial: LegalEntity[] }) {
+  const t = useTranslations("opGroup");
   const router = useRouter();
   const [items, setItems] = useState<LegalEntity[]>(initial);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,9 +34,7 @@ export function LegalEntitiesClient({ initial }: { initial: LegalEntity[] }) {
   }
 
   async function deleteEntity(id: string) {
-    if (
-      !window.confirm("¿Borrar esta razón social? No se puede revertir.")
-    ) {
+    if (!window.confirm(t("confirmDeleteEntity"))) {
       return;
     }
     const res = await fetch(`/api/group/legal-entities/${id}`, {
@@ -42,7 +42,7 @@ export function LegalEntitiesClient({ initial }: { initial: LegalEntity[] }) {
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      window.alert(j.message ?? j.error ?? "No pudimos borrar.");
+      window.alert(j.message ?? j.error ?? t("deleteFailed"));
       return;
     }
     setItems((arr) => arr.filter((e) => e.id !== id));
@@ -52,8 +52,7 @@ export function LegalEntitiesClient({ initial }: { initial: LegalEntity[] }) {
     <div className="space-y-3">
       {items.length === 0 && !creating && (
         <div className="rounded-2xl border border-op-border bg-op-surface p-6 text-center text-sm text-op-muted">
-          Aún no hay razones sociales. Crea la primera para empezar a
-          asignarla a tus restaurantes.
+          {t("legalEmpty")}
         </div>
       )}
 
@@ -90,7 +89,7 @@ export function LegalEntitiesClient({ initial }: { initial: LegalEntity[] }) {
           onClick={() => setCreating(true)}
           className="w-full h-11 rounded-full border border-dashed border-op-border text-op-muted hover:text-op-text hover:border-op-text/40 text-sm font-medium"
         >
-          + Agregar razón social
+          {t("addLegalEntity")}
         </button>
       )}
     </div>
@@ -114,6 +113,7 @@ function EntityCard({
   onDelete: () => void;
   onChange: (patch: Partial<LegalEntity>) => void;
 }) {
+  const t = useTranslations("opGroup");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -140,7 +140,7 @@ function EntityCard({
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setErr(j.message ?? "No pudimos guardar.");
+      setErr(j.message ?? t("saveFailed"));
       return;
     }
     onSaved();
@@ -153,20 +153,19 @@ function EntityCard({
           <div className="min-w-0">
             <div className="font-display text-lg truncate">{entity.name}</div>
             <div className="font-mono text-xs text-op-muted">
-              NIT {entity.taxId}
+              {t("nitLabel", { taxId: entity.taxId })}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="font-mono text-[10px] tracking-wider uppercase px-2 py-1 rounded border bg-op-bg border-op-border text-op-muted">
-              {entity.restaurantCount}{" "}
-              {entity.restaurantCount === 1 ? "local" : "locales"}
+              {t("entityLocaleCount", { count: entity.restaurantCount })}
             </span>
             <button
               type="button"
               onClick={onStartEdit}
               className="h-8 px-3 rounded-full border border-op-border text-xs font-medium hover:bg-op-bg"
             >
-              Editar
+              {t("edit")}
             </button>
           </div>
         </div>
@@ -180,10 +179,15 @@ function EntityCard({
         {entity.dianResolution && (
           <div className="font-mono text-[11px] text-op-muted mt-1">
             {entity.dianResolution}
-            {entity.invoicePrefix ? ` · prefijo ${entity.invoicePrefix}` : ""}
+            {entity.invoicePrefix
+              ? t("prefixSuffix", { prefix: entity.invoicePrefix })
+              : ""}
             {entity.dianResolutionFrom != null &&
             entity.dianResolutionTo != null
-              ? ` · ${entity.dianResolutionFrom}-${entity.dianResolutionTo}`
+              ? t("rangeSuffix", {
+                  from: entity.dianResolutionFrom,
+                  to: entity.dianResolutionTo,
+                })
               : ""}
           </div>
         )}
@@ -194,8 +198,7 @@ function EntityCard({
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-        Editando · {entity.restaurantCount}{" "}
-        {entity.restaurantCount === 1 ? "local usa" : "locales usan"} esta
+        {t("editingEntity", { count: entity.restaurantCount })}
       </div>
       <Fields
         entity={entity}
@@ -207,14 +210,10 @@ function EntityCard({
           type="button"
           onClick={onDelete}
           disabled={busy || entity.restaurantCount > 0}
-          title={
-            entity.restaurantCount > 0
-              ? "Desasigná la razón social de los restaurantes antes de borrar"
-              : ""
-          }
+          title={entity.restaurantCount > 0 ? t("deleteEntityTitle") : ""}
           className="h-9 px-4 rounded-full border border-danger/40 text-danger text-sm disabled:opacity-40"
         >
-          Borrar
+          {t("delete")}
         </button>
         <div className="flex-1" />
         <button
@@ -223,7 +222,7 @@ function EntityCard({
           disabled={busy}
           className="h-9 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {t("cancel")}
         </button>
         <button
           type="button"
@@ -231,7 +230,7 @@ function EntityCard({
           disabled={busy || !entity.name.trim() || !entity.taxId.trim()}
           className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("saving") : t("save")}
         </button>
       </div>
     </div>
@@ -245,6 +244,7 @@ function CreateCard({
   onCancel: () => void;
   onCreated: () => void;
 }) {
+  const t = useTranslations("opGroup");
   const [draft, setDraft] = useState<LegalEntity>({
     id: "_new",
     name: "",
@@ -265,7 +265,7 @@ function CreateCard({
 
   async function create() {
     if (!draft.name.trim() || !draft.taxId.trim()) {
-      setErr("Nombre y NIT son obligatorios.");
+      setErr(t("nameNitRequired"));
       return;
     }
     setBusy(true);
@@ -290,7 +290,7 @@ function CreateCard({
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setErr(j.message ?? "No pudimos crear.");
+      setErr(j.message ?? t("createFailed"));
       return;
     }
     onCreated();
@@ -299,7 +299,7 @@ function CreateCard({
   return (
     <div className="rounded-2xl border-2 border-dashed border-op-border bg-op-surface p-5 space-y-3">
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-        Nueva razón social
+        {t("newEntity")}
       </div>
       <Fields
         entity={draft}
@@ -313,7 +313,7 @@ function CreateCard({
           disabled={busy}
           className="h-9 px-4 rounded-full border border-op-border text-sm"
         >
-          Cancelar
+          {t("cancel")}
         </button>
         <button
           type="button"
@@ -321,7 +321,7 @@ function CreateCard({
           disabled={busy || !draft.name.trim() || !draft.taxId.trim()}
           className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Creando…" : "Crear"}
+          {busy ? t("creating") : t("create")}
         </button>
       </div>
     </div>
@@ -338,7 +338,7 @@ function Fields({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Razón social" required>
+        <Field label={t("legalNameLabel")} required>
           <input
             type="text"
             value={entity.name}
@@ -347,7 +347,7 @@ function Fields({
             className={inputCls}
           />
         </Field>
-        <Field label="NIT" required>
+        <Field label={t("fieldNit")} required>
           <input
             type="text"
             value={entity.taxId}
@@ -358,7 +358,7 @@ function Fields({
         </Field>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="Dirección">
+        <Field label={t("addressLabel")}>
           <input
             type="text"
             value={entity.address ?? ""}
@@ -366,7 +366,7 @@ function Fields({
             className={inputCls}
           />
         </Field>
-        <Field label="Ciudad">
+        <Field label={t("cityLabel")}>
           <input
             type="text"
             value={entity.city ?? ""}
@@ -374,7 +374,7 @@ function Fields({
             className={inputCls}
           />
         </Field>
-        <Field label="Teléfono">
+        <Field label={t("phoneLabel")}>
           <input
             type="text"
             value={entity.phone ?? ""}
@@ -385,10 +385,10 @@ function Fields({
       </div>
       <details className="rounded-lg border border-op-border bg-op-bg/50 p-3">
         <summary className="cursor-pointer font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          Resolución DIAN (opcional)
+          {t("dianSection")}
         </summary>
         <div className="mt-3 space-y-3">
-          <Field label="Resolución">
+          <Field label={t("dianResolutionLabel")}>
             <input
               type="text"
               value={entity.dianResolution ?? ""}
@@ -400,7 +400,7 @@ function Fields({
             />
           </Field>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Numeración desde">
+            <Field label={t("dianFromLabel")}>
               <input
                 type="number"
                 min={0}
@@ -415,7 +415,7 @@ function Fields({
                 className={inputCls}
               />
             </Field>
-            <Field label="Numeración hasta">
+            <Field label={t("dianToLabel")}>
               <input
                 type="number"
                 min={0}
@@ -430,7 +430,7 @@ function Fields({
                 className={inputCls}
               />
             </Field>
-            <Field label="Fecha resolución">
+            <Field label={t("dianDateLabel")}>
               <input
                 type="date"
                 value={entity.dianResolutionDate ?? ""}
@@ -442,7 +442,7 @@ function Fields({
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Prefijo factura">
+            <Field label={t("invoicePrefixLabel")}>
               <input
                 type="text"
                 value={entity.invoicePrefix ?? ""}
@@ -454,7 +454,7 @@ function Fields({
                 className={inputCls + " uppercase"}
               />
             </Field>
-            <Field label="Próximo consecutivo">
+            <Field label={t("invoiceNextLabel")}>
               <input
                 type="number"
                 min={1}

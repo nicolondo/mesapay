@@ -26,7 +26,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
     <label
       aria-label="Idioma / Language"
       className={
-        "relative inline-flex items-center gap-1.5 h-9 rounded-full border border-ink/25 bg-paper px-3 cursor-pointer select-none " +
+        "relative inline-flex items-center gap-1.5 h-9 rounded-full border border-ink/40 bg-ink/[0.045] px-3 shadow-sm cursor-pointer select-none hover:bg-ink/[0.08] transition-colors " +
         (pending ? "opacity-60 " : "") +
         (className ?? "")
       }
@@ -34,10 +34,17 @@ export function LocaleSwitcher({ className }: { className?: string }) {
       <span aria-hidden className="text-[15px] leading-none">
         {"🌐"}
       </span>
-      <span className="font-mono text-[11px] font-semibold tracking-wide text-ink">
-        {SHORT[active] ?? "ES"}
+      {/* Nombre completo donde hay espacio (desktop) para que se lea
+          claramente como selector de idioma; en móvil cae al código. */}
+      <span className="text-[12px] tracking-wide text-ink leading-none">
+        <span className="hidden sm:inline font-medium">
+          {localeNames[active]}
+        </span>
+        <span className="sm:hidden font-mono font-semibold">
+          {SHORT[active] ?? "ES"}
+        </span>
       </span>
-      <span aria-hidden className="text-[9px] text-muted leading-none">
+      <span aria-hidden className="text-[9px] text-ink/60 leading-none">
         {"▾"}
       </span>
       <select

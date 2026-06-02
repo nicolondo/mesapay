@@ -923,11 +923,6 @@ export function MenuClient({
               )}
             </div>
           </div>
-          {/* Móvil: selector de idioma alineado a la derecha, debajo de
-              la campanita de llamar al mesero. */}
-          <div className="sm:hidden mt-2 flex justify-end">
-            <LocaleSwitcher />
-          </div>
           <div className="mt-3 flex items-center gap-2">
             {hydrated && !isPickup && (
               <button
@@ -979,6 +974,11 @@ export function MenuClient({
                 </button>
               )}
             </div>
+            {/* Idioma (móvil): chip compacto al final de la fila del
+                buscador. En desktop el selector vive en el header. */}
+            <span className="sm:hidden shrink-0">
+              <LocaleSwitcher />
+            </span>
           </div>
 
           {/* Top-level menu tabs (Carta, Vinos, Bebidas...). Hidden

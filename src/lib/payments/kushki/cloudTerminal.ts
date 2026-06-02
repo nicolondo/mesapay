@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 import { env } from "../../env";
 import { getKushkiMode } from "../../platformConfig";
 
@@ -128,6 +128,11 @@ export async function pushPaymentToCloudTerminal(
   // amount es un OBJETO en el contrato CO. Cobramos el total como base sin
   // IVA discriminado (la facturación DIAN la maneja MESAPAY aparte): todo
   // en subtotal_iva0, iva 0.
+  // client_transaction_id DEBE ser un UUID (el contrato lo valida). Nuestro
+  // Payment.id es un cuid, así que generamos un UUID por intento. Como el
+  // cobro es síncrono no necesitamos matchear webhook por este id; lo
+  // guardamos igual como providerRef para reconciliar.
+  const clientTxnId = randomUUID();
   const payload = {
     amount: {
       iva: 0,
@@ -135,7 +140,7 @@ export async function pushPaymentToCloudTerminal(
       subtotal_iva0: amount,
       extra_taxes: { airport_tax: 0, iac: 0, ice: 0, travel_agency: 0 },
     },
-    client_transaction_id: args.reference,
+    client_transaction_id: clientTxnId,
   };
 
   // Firmamos y enviamos EXACTAMENTE este string (byte-idéntico al firmado).
@@ -149,6 +154,7 @@ export async function pushPaymentToCloudTerminal(
     serialNumber: args.serialNumber,
     amount,
     reference: args.reference,
+    clientTxnId,
     bodyLen: raw.length,
   });
 
@@ -203,11 +209,15 @@ export async function pushPaymentToCloudTerminal(
       "transaction_id",
       "client_transaction_id",
       "id",
-    ]) || args.reference;
-  // Estructura de error operacional: { type, code, message }.
-  const errType = pick(json, ["type"]);
-  const errCode = pick(json, ["code"]);
-  const rawMsg = pick(json, ["message", "responseText"]);
+    ]) || clientTxnId;
+  // Estructura de error: { failure: { type, code, message } } (a veces top-level).
+  const failure =
+    json && typeof json === "object" && "failure" in (json as object)
+      ? (json as { failure: unknown }).failure
+      : json;
+  const errType = pick(failure, ["type"]);
+  const errCode = pick(failure, ["code"]);
+  const rawMsg = pick(failure, ["message", "responseText"]);
   const errLabel =
     [errType, errCode].filter(Boolean).join("/") +
     (rawMsg ? `${errType || errCode ? ": " : ""}${rawMsg}` : "");

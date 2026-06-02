@@ -11,7 +11,11 @@ export default async function DatafonosSettingsPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
-  const [devices, users] = await Promise.all([
+  const [restaurant, devices, users] = await Promise.all([
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { cloudTerminalBusinessCode: true },
+    }),
     db.terminalDevice.findMany({
       where: { restaurantId },
       orderBy: { createdAt: "asc" },
@@ -55,6 +59,7 @@ export default async function DatafonosSettingsPage() {
         </div>
       )}
       <DatafonosClient
+        businessCode={restaurant?.cloudTerminalBusinessCode ?? null}
         initial={devices.map((d) => ({
           id: d.id,
           label: d.label,

@@ -77,6 +77,11 @@ model Restaurant {
   kushkiPublicKey        String?
   kushkiPrivateKeyEnc    String?
   kushkiWebhookSecretEnc String?
+  // Business code del comercio en el Cloud Terminal API (datáfono físico
+  // vía cloud). Lo carga el comercio desde Configuración → Datáfonos. Va
+  // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth
+  // (X-BP-AUTH) es a nivel plataforma (env), este código rutea al comercio.
+  cloudTerminalBusinessCode String?
   kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
   kushkiOnboardingNotes  String?
   kushkiSubmittedAt      DateTime?

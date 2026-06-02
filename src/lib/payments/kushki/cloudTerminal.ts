@@ -60,6 +60,11 @@ export type CloudTerminalPushArgs = {
   reference: string;
   /** Texto que se muestra en el datáfono / extracto. */
   description?: string;
+  /**
+   * Business code del comercio (Restaurant.cloudTerminalBusinessCode).
+   * Si no viene, cae al env KUSHKI_BP_BUSINESS_CODE.
+   */
+  businessCode?: string | null;
 };
 
 export type CloudTerminalPushResult = {
@@ -79,7 +84,9 @@ export async function pushPaymentToCloudTerminal(
   // COP no tiene decimales → mandamos pesos enteros. (asumido: billpocket
   // espera el monto en unidades mayores, no centavos.)
   const amount = Math.round(args.amountCents / 100);
-  const businessCode = env.KUSHKI_BP_BUSINESS_CODE;
+  // Business code POR COMERCIO (lo carga el operador en Configuración →
+  // Datáfonos). Si no lo cargó, caemos al env de plataforma.
+  const businessCode = args.businessCode ?? env.KUSHKI_BP_BUSINESS_CODE;
   const body = {
     serialNumber: args.serialNumber,
     amount,

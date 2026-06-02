@@ -1307,6 +1307,11 @@
     "datafonosAddBtn": "Agregar",
     "datafonosAdding": "Agregando…",
     "datafonosAddFailed": "No se pudo agregar el datáfono.",
+    "datafonosBusinessCodeLabel": "Código de comercio",
+    "datafonosBusinessCodePlaceholder": "Ej: 123456",
+    "datafonosBusinessCodeBtn": "Guardar",
+    "datafonosBusinessCodeSaving": "Guardando…",
+    "datafonosBusinessCodeHint": "Código de tu comercio para cobrar por datáfono. Te lo entrega el proveedor del datáfono al activarlo.",
     "badgeDevicesEmpty": "Configurar"
   },
   "opSalon": {

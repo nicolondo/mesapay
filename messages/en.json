@@ -1307,6 +1307,11 @@
     "datafonosAddBtn": "Add",
     "datafonosAdding": "Adding…",
     "datafonosAddFailed": "Couldn’t add the terminal.",
+    "datafonosBusinessCodeLabel": "Business code",
+    "datafonosBusinessCodePlaceholder": "e.g. 123456",
+    "datafonosBusinessCodeBtn": "Save",
+    "datafonosBusinessCodeSaving": "Saving…",
+    "datafonosBusinessCodeHint": "Your business code for card-terminal charges. Your terminal provider gives it to you when activating the device.",
     "badgeDevicesEmpty": "Set up"
   },
   "opSalon": {

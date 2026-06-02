@@ -123,6 +123,8 @@ export async function POST(
         amountCents: payment.amountCents,
         reference: payment.id,
         description: `MESAPAY orden ${payment.orderId.slice(0, 6)}`,
+        // Business code del comercio (cargado en Config → Datáfonos).
+        businessCode: tenant.cloudTerminalBusinessCode,
       });
     } else {
       // —— Sin creds cloud: provider por modo (mock auto-aprueba; live

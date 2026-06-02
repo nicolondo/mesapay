@@ -31,9 +31,11 @@ const ROLE_LABEL_KEY: Record<string, string> = {
 export function DatafonosClient({
   initial,
   users,
+  businessCode,
 }: {
   initial: Device[];
   users: UserOption[];
+  businessCode: string | null;
 }) {
   const [devices, setDevices] = useState<Device[]>(initial);
 
@@ -45,6 +47,7 @@ export function DatafonosClient({
 
   return (
     <div className="space-y-3">
+      <BusinessCodeCard initial={businessCode} />
       <ul className="space-y-3">
         {devices.map((d) => (
           <DeviceCard
@@ -56,6 +59,75 @@ export function DatafonosClient({
         ))}
       </ul>
       <AddDeviceForm onCreated={(d) => setDevices((prev) => [...prev, d])} />
+    </div>
+  );
+}
+
+// Business code del comercio para el Cloud Terminal. Es por-comercio (lo
+// emite el procesador) y se manda en cada cobro al datáfono. Guarda al
+// presionar el botón; "" lo borra.
+function BusinessCodeCard({ initial }: { initial: string | null }) {
+  const t = useTranslations("opSettings");
+  const [code, setCode] = useState(initial ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+  const dirty = code.trim() !== (initial ?? "");
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch("/api/operator/terminal-business-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ businessCode: code.trim() }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg({ kind: "error", text: t("datafonosSaveFailed") });
+      return;
+    }
+    setMsg({ kind: "ok", text: t("datafonosSaved") });
+  }
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+        {t("datafonosBusinessCodeLabel")}
+      </div>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            setMsg(null);
+          }}
+          placeholder={t("datafonosBusinessCodePlaceholder")}
+          className="flex-1 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:border-terracotta"
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy || !dirty}
+          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+        >
+          {busy ? t("datafonosBusinessCodeSaving") : t("datafonosBusinessCodeBtn")}
+        </button>
+      </div>
+      <p className="text-[11px] text-op-muted mt-2">
+        {t("datafonosBusinessCodeHint")}
+      </p>
+      {msg && (
+        <div
+          className={
+            "mt-2 text-xs " + (msg.kind === "ok" ? "text-ok" : "text-danger")
+          }
+        >
+          {msg.text}
+        </div>
+      )}
     </div>
   );
 }

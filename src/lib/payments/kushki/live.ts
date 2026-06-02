@@ -282,6 +282,9 @@ export class LiveKushkiProvider implements PaymentProvider {
       amountCents: req.amount.amountCents,
       reference: req.metadata.paymentId,
       description: `MESAPAY orden ${req.metadata.orderId.slice(0, 6)}`,
+      // req.merchantId trae la private key del comercio (la charge route
+      // la pasa). Es la credencial X-BP-AUTH del Cloud Terminal.
+      auth: req.merchantId,
     });
     return {
       providerRef: resp.providerRef,

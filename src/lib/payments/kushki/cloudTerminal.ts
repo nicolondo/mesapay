@@ -21,10 +21,15 @@ import { getKushkiModeSync } from "../../platformConfig";
  * pruebe con un datáfono físico. Igual patrón que el init de PSE.
  */
 
-// Host del Cloud Terminal. En producción Kushki Colombia usa
-// cloudt.kushkipagos.com. Se puede overridear con KUSHKI_CLOUD_TERMINAL_URL.
+// Host del Cloud Terminal. La doc oficial (billpocket) usa
+//   prod: https://kushkicollect.billpocket.com
+//   uat:  https://kushkicollect.billpocket.dev
+// pero el comercio nos indicó que SU terminal en producción apunta a
+// cloudt.kushkipagos.com (front de Kushki Colombia), así que ése es el
+// default de prod. Si hay que cambiarlo, KUSHKI_CLOUD_TERMINAL_URL lo
+// overridea sin tocar código (p.ej. a kushkicollect.billpocket.com).
 const BASE_URL = {
-  sandbox: "https://cloudt-uat.kushkipagos.com",
+  sandbox: "https://kushkicollect.billpocket.dev",
   production: "https://cloudt.kushkipagos.com",
 } as const;
 
@@ -37,12 +42,14 @@ function baseUrl(): string {
   return BASE_URL[mode];
 }
 
-function bpAuth(): string {
-  const auth = env.KUSHKI_BP_AUTH;
+function bpAuth(explicit?: string | null): string {
+  // Preferimos la credencial explícita (private key del comercio) y caemos
+  // al env global. Sin ninguna, el datáfono cloud no puede cobrar.
+  const auth = explicit || env.KUSHKI_BP_AUTH;
   if (!auth) {
     throw new Error(
-      "KUSHKI_BP_AUTH no configurado — el datáfono cloud no puede cobrar. " +
-        "Seteá la credencial del Cloud Terminal API en el .env del VPS.",
+      "Cloud Terminal sin credencial — no hay private key del comercio ni " +
+        "KUSHKI_BP_AUTH global. El datáfono cloud no puede cobrar.",
     );
   }
   return auth;
@@ -65,6 +72,12 @@ export type CloudTerminalPushArgs = {
    * Si no viene, cae al env KUSHKI_BP_BUSINESS_CODE.
    */
   businessCode?: string | null;
+  /**
+   * Valor del header X-BP-AUTH (la credencial del Cloud Terminal). Según
+   * el comercio: usamos la private key del local (misma cred que el resto
+   * de Kushki). Si no viene, cae al env KUSHKI_BP_AUTH (override global).
+   */
+  auth?: string | null;
 };
 
 export type CloudTerminalPushResult = {
@@ -87,6 +100,11 @@ export async function pushPaymentToCloudTerminal(
   // Business code POR COMERCIO (lo carga el operador en Configuración →
   // Datáfonos). Si no lo cargó, caemos al env de plataforma.
   const businessCode = args.businessCode ?? env.KUSHKI_BP_BUSINESS_CODE;
+  // Campos según el contrato documentado (POST /push-notifications):
+  // requeridos serialNumber + amount + identifier; opcionales uniqueReference
+  // (anti-duplicado), description. businessCode NO está en el contrato MX,
+  // pero el comercio lo configuró y la variante CO puede usarlo → lo
+  // mandamos sólo si está; si molesta, lo vemos en el log y lo sacamos.
   const body = {
     serialNumber: args.serialNumber,
     amount,
@@ -94,14 +112,16 @@ export async function pushPaymentToCloudTerminal(
     uniqueReference: args.reference,
     ...(businessCode ? { businessCode } : {}),
     ...(args.description ? { description: args.description } : {}),
-    showNotification: true,
   };
 
   const url = baseUrl() + "/push-notifications";
   console.log("[kushki/cloud-terminal] push", {
+    url,
     serialNumber: args.serialNumber,
     amount,
     reference: args.reference,
+    businessCode: businessCode ?? null,
+    authSource: args.auth ? "merchant-key" : "env",
   });
 
   let res: Response;
@@ -111,7 +131,7 @@ export async function pushPaymentToCloudTerminal(
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        "X-BP-AUTH": bpAuth(),
+        "X-BP-AUTH": bpAuth(args.auth),
       },
       body: JSON.stringify(body),
       cache: "no-store",
@@ -150,6 +170,7 @@ export async function pushPaymentToCloudTerminal(
 export async function cancelCloudTerminalPayment(
   serialNumber: string,
   reference: string,
+  auth?: string | null,
 ): Promise<void> {
   const url = baseUrl() + "/push-notifications/cancel";
   try {
@@ -158,7 +179,7 @@ export async function cancelCloudTerminalPayment(
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        "X-BP-AUTH": bpAuth(),
+        "X-BP-AUTH": bpAuth(auth),
       },
       body: JSON.stringify({ serialNumber, uniqueReference: reference }),
       cache: "no-store",

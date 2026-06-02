@@ -8,6 +8,7 @@ import {
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
+import { getKushkiModeSync } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
 
 /**
@@ -63,13 +64,15 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  // Datáfono cloud "desacoplado": si están las credenciales del Cloud
-  // Terminal (KUSHKI_BP_AUTH), el push va al datáfono REAL (cloudt) sin
-  // importar KUSHKI_MODE — así el datáfono cobra de verdad aunque el resto
-  // de Kushki (tarjeta/PSE del comensal) siga en mock. Sin esas creds,
-  // caemos al provider por modo (mock auto-aprueba; live usa submerchant).
-  const cloudConfigured = !!env.KUSHKI_BP_AUTH;
-  if (!cloudConfigured && !tenant.kushkiMerchantId) {
+  // ¿Vamos al datáfono REAL (Cloud Terminal, cloudt) o al mock?
+  //  - En sandbox/producción → real.
+  //  - "Desacoplado": si hay credencial global (KUSHKI_BP_AUTH) usamos el
+  //    datáfono real aunque el resto de Kushki siga en mock.
+  // En modo real necesitamos con qué autenticar el X-BP-AUTH: la private
+  // key del comercio (implica onboarding) o la credencial global.
+  const mode = getKushkiModeSync();
+  const useRealTerminal = mode !== "mock" || !!env.KUSHKI_BP_AUTH;
+  if (useRealTerminal && !env.KUSHKI_BP_AUTH && !tenant.kushkiMerchantId) {
     return NextResponse.json(
       { error: "tenant_not_onboarded" },
       { status: 409 },
@@ -111,11 +114,20 @@ export async function POST(
 
   let push;
   try {
-    if (cloudConfigured) {
-      // —— Datáfono REAL vía Cloud Terminal (cloudt.kushkipagos.com),
-      // independiente de KUSHKI_MODE. Requiere el serial del equipo.
+    if (useRealTerminal) {
+      // —— Datáfono REAL vía Cloud Terminal (cloudt.kushkipagos.com).
+      // Necesita el serial del equipo y la credencial X-BP-AUTH (private
+      // key del comercio, o KUSHKI_BP_AUTH global).
       if (!device.serialNumber) {
         return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
+      }
+      const cloudAuth =
+        env.KUSHKI_BP_AUTH || (await getRestaurantPrivateKey(tenant.id));
+      if (!cloudAuth) {
+        return NextResponse.json(
+          { error: "credentials_missing" },
+          { status: 500 },
+        );
       }
       push = await pushPaymentToCloudTerminal({
         serialNumber: device.serialNumber,
@@ -125,20 +137,15 @@ export async function POST(
         description: `MESAPAY orden ${payment.orderId.slice(0, 6)}`,
         // Business code del comercio (cargado en Config → Datáfonos).
         businessCode: tenant.cloudTerminalBusinessCode,
+        // X-BP-AUTH = private key del comercio (misma cred que Delirio ya
+        // tenía guardada) salvo override global por env.
+        auth: cloudAuth,
       });
     } else {
-      // —— Sin creds cloud: provider por modo (mock auto-aprueba; live
-      // usa la llave del sub-merchant).
-      const privateKey = await getRestaurantPrivateKey(tenant.id);
-      if (!privateKey) {
-        return NextResponse.json(
-          { error: "credentials_missing" },
-          { status: 500 },
-        );
-      }
+      // —— Modo mock: el provider auto-aprueba vía el mock bridge.
       const provider = await getPaymentProvider();
       push = await provider.pushToTerminal({
-        merchantId: privateKey,
+        merchantId: "mock",
         deviceId: device.serialNumber ?? parsed.data.deviceId,
         amount: { amountCents: payment.amountCents, currency: "COP" },
         metadata: { orderId: payment.orderId, paymentId: payment.id },

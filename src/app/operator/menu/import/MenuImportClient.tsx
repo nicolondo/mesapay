@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
@@ -67,6 +68,7 @@ export function MenuImportClient({
   // review step. Unknown slugs returned by the AI are dropped silently.
   menuTags: MenuTag[];
 }) {
+  const tr = useTranslations("opMenuImport");
   const router = useRouter();
   const [, startTx] = useTransition();
   // Stage of the wizard:
@@ -105,13 +107,13 @@ export function MenuImportClient({
       .filter((c) => !existingSlugs.has(c.slug))
       .map((c) => ({
         key: `new:${c.slug}`,
-        label: c.label + " · nueva",
+        label: tr("categoryNewSuffix", { label: c.label }),
         slug: c.slug,
         kind: c.kind,
         isNew: true,
       }));
     return [...fromExisting, ...fromExtracted];
-  }, [initialCategories, extractedCats]);
+  }, [initialCategories, extractedCats, tr]);
 
   // Source URL state: when the operator imports from a URL we hide the
   // file preview and show the URL instead in the sidebar.
@@ -133,9 +135,7 @@ export function MenuImportClient({
       // again". Cap length so a runaway model dump doesn't break the
       // banner layout.
       const reason = ext.notes ? ` — ${ext.notes.slice(0, 240)}` : "";
-      setError(
-        `No detectamos platos. Prueba con una imagen más clara, otra URL, o sube un PDF.${reason}`,
-      );
+      setError(tr("errNoDishes", { reason }));
       setStage("upload");
       return false;
     }
@@ -174,7 +174,10 @@ export function MenuImportClient({
       // status, handled below.
       const secs = Math.round((Date.now() - startedAt) / 1000);
       setError(
-        `No se pudo conectar al servidor (${secs}s). ${err instanceof Error ? err.message : ""}`,
+        tr("errConnect", {
+          secs,
+          detail: err instanceof Error ? err.message : "",
+        }),
       );
       setStage("upload");
       return;
@@ -190,7 +193,7 @@ export function MenuImportClient({
         ? ((await res.json()) as { message?: string; error?: string })
         : ((await res.text()) as string).slice(0, 240);
     } catch {
-      body = "(respuesta vacía o inválida)";
+      body = tr("emptyOrInvalidResponse");
     }
     if (!res.ok) {
       // Surface the actual HTTP status + body so the operator (and us)
@@ -200,12 +203,12 @@ export function MenuImportClient({
         typeof body === "string"
           ? body || res.statusText
           : (body.message ?? body.error ?? res.statusText);
-      setError(`Error ${res.status} tras ${elapsed}s — ${reason}`);
+      setError(tr("errHttp", { status: res.status, elapsed, reason }));
       setStage("upload");
       return;
     }
     if (typeof body === "string") {
-      setError(`Respuesta inesperada del servidor (${elapsed}s).`);
+      setError(tr("errUnexpectedResponse", { elapsed }));
       setStage("upload");
       return;
     }
@@ -226,14 +229,14 @@ export function MenuImportClient({
       });
       const j = await res.json();
       if (!res.ok) {
-        setError(j.message ?? j.error ?? "No pudimos leer el sitio.");
+        setError(j.message ?? j.error ?? tr("errReadSite"));
         setStage("upload");
         return;
       }
       setSourceUrl(j.sourceUrl ?? url);
       applyExtraction(j);
     } catch {
-      setError("Falla de red al consultar el sitio.");
+      setError(tr("errNetworkSite"));
       setStage("upload");
     }
   }
@@ -266,7 +269,7 @@ export function MenuImportClient({
     setError(null);
     const selected = items.filter((i) => i.selected);
     if (selected.length === 0) {
-      setError("Selecciona al menos un plato para importar.");
+      setError(tr("errSelectAtLeastOne"));
       setBusyConfirm(false);
       return;
     }
@@ -307,7 +310,7 @@ export function MenuImportClient({
     setBusyConfirm(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "No pudimos importar los platos.");
+      setError(j.error ?? tr("errImport"));
       return;
     }
     const j = await res.json();
@@ -321,21 +324,18 @@ export function MenuImportClient({
       <div className="p-6 max-w-2xl mx-auto w-full">
         <div className="rounded-2xl border border-ok/30 bg-ok/10 p-8 text-center">
           <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto inline-flex items-center justify-center font-display text-3xl">
-            ✓
+            {"✓"}
           </div>
           <h1 className="font-display text-3xl mt-4">
-            {createdCount} platos importados
+            {tr("doneTitle", { count: createdCount })}
           </h1>
-          <p className="text-sm text-op-muted mt-2">
-            Ya están en tu menú. Puedes ajustar fotos, modificadores y orden
-            desde la edición normal.
-          </p>
+          <p className="text-sm text-op-muted mt-2">{tr("doneBody")}</p>
           <div className="mt-6 flex gap-2 justify-center">
             <Link
               href="/operator/menu"
               className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
             >
-              Ver mi menú
+              {tr("viewMyMenu")}
             </Link>
             <button
               type="button"
@@ -349,7 +349,7 @@ export function MenuImportClient({
               }}
               className="h-10 px-5 rounded-full border border-op-border text-sm font-medium"
             >
-              Importar otra carta
+              {tr("importAnother")}
             </button>
           </div>
         </div>
@@ -360,18 +360,19 @@ export function MenuImportClient({
   return (
     <div className="p-6 max-w-6xl mx-auto w-full">
       <div className="flex items-baseline justify-between mb-1">
-        <div className="font-display text-3xl">Importar carta con AI</div>
+        <div className="font-display text-3xl">{tr("title")}</div>
         <Link
           href="/operator/menu"
           className="text-sm text-op-muted hover:text-op-text"
         >
-          ← Volver al menú
+          {tr("backToMenu")}
         </Link>
       </div>
       <p className="text-sm text-op-muted mb-6">
-        Sube la carta de <strong>{tenantName}</strong> (PDF, JPG o foto desde
-        el celular) y la AI extrae los platos. Después los revisas, ajustas
-        y los importas todos de un solo tap.
+        {tr.rich("intro", {
+          name: tenantName,
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </p>
 
       <Stepper stage={stage} />
@@ -391,7 +392,7 @@ export function MenuImportClient({
           {menus.length > 1 && (
             <div className="mb-5 bg-op-surface border border-op-border rounded-2xl p-4">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-                Importar a
+                {tr("importTo")}
               </div>
               <select
                 value={targetMenuId}
@@ -405,8 +406,7 @@ export function MenuImportClient({
                 ))}
               </select>
               <p className="text-xs text-op-muted mt-2">
-                Las categorías nuevas se crearán en este menú. Las que
-                existan se actualizan donde estén.
+                {tr("importToHint")}
               </p>
             </div>
           )}
@@ -445,10 +445,11 @@ function Stepper({
 }: {
   stage: "upload" | "extracting" | "review" | "done";
 }) {
+  const tr = useTranslations("opMenuImport");
   const steps = [
-    { id: "upload", label: "Subir carta" },
-    { id: "extracting", label: "Leer con AI" },
-    { id: "review", label: "Revisar y editar" },
+    { id: "upload", label: tr("stepUpload") },
+    { id: "extracting", label: tr("stepRead") },
+    { id: "review", label: tr("stepReview") },
   ];
   const activeIdx = steps.findIndex((s) => s.id === stage);
   return (
@@ -482,7 +483,9 @@ function Stepper({
               {s.label}
             </span>
             {i < steps.length - 1 && (
-              <span className="text-op-muted mx-1">→</span>
+              <span className="text-op-muted mx-1" aria-hidden>
+                {"→"}
+              </span>
             )}
           </li>
         );
@@ -500,6 +503,7 @@ function UploadDrop({
   onFile: (f: File) => void;
   onUrl: (url: string) => void;
 }) {
+  const tr = useTranslations("opMenuImport");
   const [dragOver, setDragOver] = useState(false);
   const [url, setUrl] = useState("");
   const trimmed = url.trim();
@@ -534,16 +538,15 @@ function UploadDrop({
             : "border-op-border bg-op-surface hover:bg-op-bg")
         }
       >
-        <div className="text-5xl mb-4">📄</div>
+        <div className="text-5xl mb-4" aria-hidden>
+          {"📄"}
+        </div>
         <div className="font-display text-2xl mb-1">
-          {dragOver ? "Suelta aquí" : "Arrastra tu carta o haz click"}
+          {dragOver ? tr("dropHere") : tr("dragOrClick")}
         </div>
-        <div className="text-sm text-op-muted">
-          PDF, JPG, PNG o WebP · máx 45 MB
-        </div>
+        <div className="text-sm text-op-muted">{tr("fileFormats")}</div>
         <div className="text-[11px] text-op-muted mt-3">
-          Funciona con cartas escaneadas, fotos del menú impreso, o PDFs hechos
-          en Word/Canva. La AI lee todo y arma los platos por ti.
+          {tr("uploadHint")}
         </div>
         <input
           id="menu-import-file"
@@ -561,7 +564,7 @@ function UploadDrop({
       <div className="flex items-center gap-3">
         <div className="flex-1 h-px bg-op-border" />
         <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          O pega un enlace
+          {tr("orPasteLink")}
         </span>
         <div className="flex-1 h-px bg-op-border" />
       </div>
@@ -574,13 +577,15 @@ function UploadDrop({
         className="rounded-2xl border border-op-border bg-op-surface p-4"
       >
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-xl">🔗</span>
+          <span className="text-xl" aria-hidden>
+            {"🔗"}
+          </span>
           <div>
             <div className="font-display text-base leading-tight">
-              ¿La carta está en una página web?
+              {tr("urlTitle")}
             </div>
             <div className="text-[11px] text-op-muted mt-0.5">
-              Pega el link a la página de la carta o un PDF público.
+              {tr("urlSubtitle")}
             </div>
           </div>
         </div>
@@ -590,7 +595,7 @@ function UploadDrop({
             inputMode="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://restaurante.com/carta"
+            placeholder={tr("urlPlaceholder")}
             className="flex-1 min-w-0 h-11 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
             autoComplete="url"
             spellCheck={false}
@@ -600,12 +605,13 @@ function UploadDrop({
             disabled={!urlValid}
             className="h-11 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
           >
-            Leer
+            {tr("read")}
           </button>
         </div>
         <div className="text-[11px] text-op-muted mt-2">
-          También funciona con links directos a PDFs (ej.{" "}
-          <span className="font-mono">restaurante.com/menu.pdf</span>).
+          {tr.rich("urlPdfHint", {
+            code: (chunks) => <span className="font-mono">{chunks}</span>,
+          })}
         </div>
       </form>
     </div>
@@ -615,24 +621,28 @@ function UploadDrop({
 // ---------- Extracting ----------
 
 function ExtractingState({ fileName }: { fileName: string | null }) {
+  const tr = useTranslations("opMenuImport");
   return (
     <div className="rounded-3xl border border-op-border bg-op-surface p-16 text-center">
       <div className="relative w-16 h-16 mx-auto mb-6">
         <div className="absolute inset-0 rounded-full bg-terracotta/15 animate-ping" />
         <div className="absolute inset-2 rounded-full bg-terracotta/25" />
-        <div className="absolute inset-0 flex items-center justify-center text-2xl">
-          🧠
+        <div
+          className="absolute inset-0 flex items-center justify-center text-2xl"
+          aria-hidden
+        >
+          {"🧠"}
         </div>
       </div>
-      <div className="font-display text-2xl mb-1">Leyendo tu carta…</div>
+      <div className="font-display text-2xl mb-1">{tr("extractingTitle")}</div>
       <div className="text-sm text-op-muted">
         {fileName && (
           <>
-            <span className="font-mono">{fileName}</span> ·{" "}
+            <span className="font-mono">{fileName}</span>{" "}
+            <span aria-hidden>{"· "}</span>
           </>
         )}
-        Esto toma unos 10-30 segundos. La AI está identificando categorías,
-        platos, precios y descripciones.
+        {tr("extractingBody")}
       </div>
     </div>
   );
@@ -673,6 +683,7 @@ function ReviewState({
   onConfirm: () => void;
   busy: boolean;
 }) {
+  const tr = useTranslations("opMenuImport");
   const selectedCount = items.filter((i) => i.selected).length;
   const totalValue = items
     .filter((i) => i.selected)
@@ -697,7 +708,7 @@ function ReviewState({
         <div className="rounded-2xl bg-op-surface border border-op-border p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Platos detectados
+              {tr("dishesDetected")}
             </div>
             <div className="font-display text-3xl tabular">{items.length}</div>
           </div>
@@ -707,21 +718,21 @@ function ReviewState({
               onClick={() => onSelectAll(true)}
               className="h-8 px-3 rounded-full border border-op-border text-xs hover:bg-op-bg"
             >
-              Seleccionar todos
+              {tr("selectAll")}
             </button>
             <button
               type="button"
               onClick={() => onSelectAll(false)}
               className="h-8 px-3 rounded-full border border-op-border text-xs hover:bg-op-bg"
             >
-              Quitar selección
+              {tr("deselectAll")}
             </button>
           </div>
         </div>
 
         {extractionNotes && (
           <div className="mb-4 p-3 rounded-xl bg-[#C98A2E]/10 text-[#7F5A1F] text-xs">
-            Nota de la AI: {extractionNotes}
+            {tr("aiNote", { note: extractionNotes })}
           </div>
         )}
 
@@ -737,7 +748,7 @@ function ReviewState({
                     </div>
                     {cat?.isNew && (
                       <span className="inline-block mt-0.5 text-[10px] font-mono tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
-                        Nueva categoría
+                        {tr("newCategory")}
                       </span>
                     )}
                   </div>
@@ -767,7 +778,7 @@ function ReviewState({
         {filePreviewUrl && fileName && (
           <div className="rounded-2xl border border-op-border bg-op-surface p-3">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-              Archivo original
+              {tr("originalFile")}
             </div>
             <a
               href={filePreviewUrl}
@@ -778,15 +789,17 @@ function ReviewState({
               {fileName.toLowerCase().endsWith(".pdf") ? (
                 <div className="aspect-[3/4] flex items-center justify-center text-op-muted">
                   <div className="text-center">
-                    <div className="text-5xl mb-2">📄</div>
+                    <div className="text-5xl mb-2" aria-hidden>
+                      {"📄"}
+                    </div>
                     <div className="text-xs truncate px-2">{fileName}</div>
-                    <div className="text-[10px] mt-1">Click para abrir</div>
+                    <div className="text-[10px] mt-1">{tr("clickToOpen")}</div>
                   </div>
                 </div>
               ) : (
                 <img
                   src={filePreviewUrl}
-                  alt="Carta"
+                  alt={tr("menuAlt")}
                   className="w-full h-auto"
                 />
               )}
@@ -796,7 +809,7 @@ function ReviewState({
         {!filePreviewUrl && sourceUrl && (
           <div className="rounded-2xl border border-op-border bg-op-surface p-3">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-              Fuente
+              {tr("source")}
             </div>
             <a
               href={sourceUrl}
@@ -804,9 +817,11 @@ function ReviewState({
               rel="noreferrer"
               className="flex items-center gap-2 bg-op-bg rounded-lg border border-op-border p-3 hover:border-terracotta"
             >
-              <span className="text-2xl shrink-0">🔗</span>
+              <span className="text-2xl shrink-0" aria-hidden>
+                {"🔗"}
+              </span>
               <div className="min-w-0">
-                <div className="text-[11px] text-op-muted">URL</div>
+                <div className="text-[11px] text-op-muted">{tr("urlLabel")}</div>
                 <div className="text-xs font-mono truncate text-terracotta">
                   {sourceUrl}
                 </div>
@@ -818,17 +833,19 @@ function ReviewState({
         <div className="rounded-2xl border border-op-border bg-op-surface p-4 space-y-2">
           <div className="flex items-baseline justify-between">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Vas a importar
+              {tr("youWillImport")}
             </div>
             <div className="font-display text-2xl">{selectedCount}</div>
           </div>
           <div className="flex items-baseline justify-between text-xs text-op-muted">
-            <span>Valor sumado</span>
+            <span>{tr("summedValue")}</span>
             <span className="font-mono tabular">{fmtCOP(totalValue)}</span>
           </div>
           {withPhotoCount > 0 && (
             <div className="flex items-baseline justify-between text-xs text-op-muted">
-              <span>📸 Con foto</span>
+              <span>
+                <span aria-hidden>{"📸"}</span> {tr("withPhoto")}
+              </span>
               <span className="font-mono tabular">{withPhotoCount}</span>
             </div>
           )}
@@ -839,11 +856,11 @@ function ReviewState({
             className="w-full h-12 mt-2 rounded-full bg-terracotta text-bone font-medium disabled:opacity-50"
           >
             {busy
-              ? "Importando…"
-              : `Importar ${selectedCount} plato${selectedCount === 1 ? "" : "s"}`}
+              ? tr("importing")
+              : tr("importCta", { count: selectedCount })}
           </button>
           <p className="text-[11px] text-op-muted-2 text-center">
-            Después podrás agregar fotos y modificadores desde el menú normal.
+            {tr("reviewFooterHint")}
           </p>
         </div>
       </aside>
@@ -870,6 +887,7 @@ function ReviewCard({
   onPatch: (patch: Partial<EditableItem>) => void;
   onToggleTag: (t: Tag) => void;
 }) {
+  const tr = useTranslations("opMenuImport");
   const lowConfidence = item.confidence < 0.6;
   const priceCop = Math.round(item.priceCents / 100);
   return (
@@ -896,11 +914,11 @@ function ReviewCard({
             <button
               type="button"
               onClick={() => onPatch({ photoUrl: null })}
-              title="Quitar foto"
+              title={tr("removePhoto")}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-bone text-[10px] inline-flex items-center justify-center shadow"
-              aria-label="Quitar foto"
+              aria-label={tr("removePhoto")}
             >
-              ×
+              {"×"}
             </button>
           </div>
         )}
@@ -909,11 +927,13 @@ function ReviewCard({
             <input
               value={item.name}
               onChange={(e) => onPatch({ name: e.target.value })}
-              placeholder="Nombre del plato"
+              placeholder={tr("dishNamePlaceholder")}
               className="flex-1 min-w-0 h-9 px-2 -mx-2 rounded-md font-display text-lg leading-tight bg-transparent focus:bg-op-bg focus:outline-none border border-transparent focus:border-op-border"
             />
             <div className="shrink-0 flex items-center gap-1">
-              <span className="text-op-muted text-sm">$</span>
+              <span className="text-op-muted text-sm" aria-hidden>
+                {"$"}
+              </span>
               <input
                 type="number"
                 inputMode="numeric"
@@ -935,7 +955,7 @@ function ReviewCard({
                 description: e.target.value.length === 0 ? null : e.target.value,
               })
             }
-            placeholder="Descripción (opcional)"
+            placeholder={tr("descriptionPlaceholder")}
             rows={1}
             className="w-full text-sm px-2 py-1.5 rounded-md bg-transparent focus:bg-op-bg focus:outline-none border border-transparent focus:border-op-border resize-y"
           />
@@ -943,7 +963,7 @@ function ReviewCard({
           <div className="flex flex-wrap items-center gap-2">
             <label className="inline-flex items-center gap-1.5">
               <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-                Categoría
+                {tr("categoryLabel")}
               </span>
               <select
                 value={item.categorySlug}
@@ -980,7 +1000,9 @@ function ReviewCard({
             </div>
             {lowConfidence && (
               <span className="ml-auto text-[10px] text-[#7F5A1F] bg-[#C98A2E]/15 px-2 py-0.5 rounded-full">
-                Revisar (confianza {(item.confidence * 100).toFixed(0)}%)
+                {tr("lowConfidence", {
+                  pct: (item.confidence * 100).toFixed(0),
+                })}
               </span>
             )}
           </div>

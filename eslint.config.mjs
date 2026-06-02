@@ -69,6 +69,7 @@ const MIGRATED = [
   "src/app/operator/settings/pagos/**/*.{ts,tsx}",
   "src/app/operator/menu/page.tsx",
   "src/app/operator/menu/MenuEditor.tsx",
+  "src/app/operator/menu/import/**/*.{ts,tsx}",
   "src/app/operator/menus/**/*.{ts,tsx}",
 ];
 

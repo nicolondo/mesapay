@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { ensureDefaultMenu } from "@/lib/menus";
@@ -13,15 +14,16 @@ export default async function MenuImportPage({
   // tab's menu id here so we can default-target the right carta.
   searchParams: Promise<{ menu?: string }>;
 }) {
+  const t = await getTranslations("opMenuImport");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
   const sp = await searchParams;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: { name: true, slug: true },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
 
   // Make sure the restaurant has at least one menu so the import flow
   // always has a valid target.

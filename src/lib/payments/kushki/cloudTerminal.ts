@@ -261,53 +261,43 @@ export async function pushPaymentToCloudTerminal(
     pick(json, ["transaction_reference", "client_transaction_id"]) ||
     clientTxnId;
 
-  if (!res.ok) {
-    const failure =
-      asObj(json) && "failure" in (json as object)
-        ? (json as { failure: unknown }).failure
-        : json;
-    const type = pick(failure, ["type"]);
-    const code = pick(failure, ["code"]);
-    const msg = pick(failure, ["message"]);
-    const label =
-      [type, code].filter(Boolean).join("/") +
-      (msg ? `${type || code ? ": " : ""}${msg}` : "");
-    return {
-      status: "error",
-      providerRef,
-      message: label || `http_${res.status}`,
-      httpStatus: res.status,
-      raw: json,
-    };
-  }
-
+  const obj = asObj(json) || {};
   const txStatus = pick(rawResp, ["transaction_status"])?.toUpperCase();
-  const approvedFlag = asObj(json)?.approved;
-  const message =
-    pick(json, ["message"]) || pick(asObj(rawResp)?.kushki_response, ["message"]);
 
-  if (txStatus === "DECLINED" || approvedFlag === false) {
+  // ⚠️ APROBADO sólo con señal EXPLÍCITA. El datáfono devuelve HTTP 200
+  // también cuando el cliente cancela o falla, con cuerpo {type,code,message}
+  // (ej. {"type":"TERMINAL-SUNMI","code":"-1","message":"User cancel the
+  // process"}) y SIN approved/transaction_status. Nunca asumir aprobado.
+  const approvedOk =
+    res.ok && (obj.approved === true || txStatus === "APPROVAL");
+  if (approvedOk) {
     return {
-      status: "declined",
+      status: "approved",
       providerRef,
-      message: message || "declined",
+      message:
+        pick(obj, ["message"]) ||
+        pick(asObj(rawResp)?.kushki_response, ["message"]),
       httpStatus: res.status,
       raw: json,
     };
   }
-  if (txStatus === "ERROR") {
-    return {
-      status: "error",
-      providerRef,
-      message: message || "terminal_error",
-      httpStatus: res.status,
-      raw: json,
-    };
-  }
+
+  // No aprobado → rechazo o error (NUNCA cobrado). Detalle desde {type,code,
+  // message} (top-level con HTTP 200) o {failure:{...}} (con 4xx).
+  const failure = asObj(obj.failure) || obj;
+  const type = pick(failure, ["type"]);
+  const code = pick(failure, ["code"]);
+  const fmsg = pick(failure, ["message"]);
+  const label =
+    [type, code].filter(Boolean).join("/") +
+    (fmsg ? `${type || code ? ": " : ""}${fmsg}` : "");
+  // Rechazo de tarjeta (banco) → "declined". Cancelación / equipo / error
+  // operacional → "error" (deja el Payment pendiente para reintentar).
+  const isDecline = txStatus === "DECLINED" || obj.approved === false;
   return {
-    status: "approved",
+    status: isDecline ? "declined" : "error",
     providerRef,
-    message,
+    message: label || pick(obj, ["message"]) || `http_${res.status}`,
     httpStatus: res.status,
     raw: json,
   };

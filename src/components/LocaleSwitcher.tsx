@@ -31,9 +31,6 @@ export function LocaleSwitcher({ className }: { className?: string }) {
         (className ?? "")
       }
     >
-      <span aria-hidden className="text-[15px] leading-none">
-        {"🌐"}
-      </span>
       {/* Nombre completo donde hay espacio (desktop) para que se lea
           claramente como selector de idioma; en móvil cae al código. */}
       <span className="text-[12px] tracking-wide text-ink leading-none">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Identidad = {
   // Nombre comercial — display público + sender de los correos
@@ -25,6 +26,7 @@ type Identidad = {
 };
 
 export function IdentidadClient({ initial }: { initial: Identidad }) {
+  const t = useTranslations("opIdentity");
   const [v, setV] = useState<Identidad>(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -49,13 +51,13 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
       const j = await r.json().catch(() => ({}));
       setMsg({
         kind: "error",
-        text: j.message ?? j.error ?? "No pudimos subir el logo",
+        text: j.message ?? j.error ?? t("logoUploadError"),
       });
       return;
     }
     const j = (await r.json()) as { url: string };
     set("logoUrl", j.url);
-    setMsg({ kind: "ok", text: "Logo subido. Recuerda guardar." });
+    setMsg({ kind: "ok", text: t("logoUploaded") });
   }
 
   async function save() {
@@ -68,10 +70,10 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
     });
     setBusy(false);
     if (!r.ok) {
-      setMsg({ kind: "error", text: "No pudimos guardar" });
+      setMsg({ kind: "error", text: t("saveError") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("saved") });
   }
 
   return (
@@ -79,24 +81,20 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
       {/* Logo */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
-          Logo del comercio
+          {t("logoSectionTitle")}
         </div>
-        <p className="text-xs text-op-muted mb-3">
-          PNG o SVG. Aparece en el menú del cliente y en las facturas
-          que enviamos por correo. Si está vacío usamos el logo
-          MESAPAY.
-        </p>
+        <p className="text-xs text-op-muted mb-3">{t("logoHelp")}</p>
 
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-xl bg-paper border border-op-border flex items-center justify-center overflow-hidden shrink-0">
             {v.logoUrl ? (
               <img
                 src={v.logoUrl}
-                alt="Logo"
+                alt={t("logoAlt")}
                 className="w-full h-full object-contain p-2"
               />
             ) : (
-              <span className="text-[10px] text-op-muted">Sin logo</span>
+              <span className="text-[10px] text-op-muted">{t("logoEmpty")}</span>
             )}
           </div>
           <div className="flex flex-col gap-2">
@@ -118,10 +116,10 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
               className="h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40"
             >
               {uploading
-                ? "Subiendo…"
+                ? t("logoUploading")
                 : v.logoUrl
-                  ? "Cambiar logo"
-                  : "Subir logo"}
+                  ? t("logoChange")
+                  : t("logoUpload")}
             </button>
             {v.logoUrl && (
               <button
@@ -129,7 +127,7 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
                 onClick={() => set("logoUrl", null)}
                 className="h-7 px-3 text-[11px] text-danger hover:underline self-start"
               >
-                Quitar logo
+                {t("logoRemove")}
               </button>
             )}
           </div>
@@ -139,63 +137,60 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
       {/* Datos legales */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-          Datos legales
+          {t("legalSectionTitle")}
         </div>
-        <Field
-          label="Nombre del restaurante"
-          hint="Aparece como remitente de los correos de factura. Ej: si pones 'DELIRIO RESTAURANTE' el cliente verá 'DELIRIO RESTAURANTE · MESAPAY' en su bandeja de entrada."
-        >
+        <Field label={t("fieldNameLabel")} hint={t("fieldNameHint")}>
           <input
             type="text"
             value={v.name}
             onChange={(e) => set("name", e.target.value)}
-            placeholder="Delirio Restaurante"
+            placeholder={t("fieldNamePlaceholder")}
             maxLength={120}
             className={inputCls}
           />
         </Field>
-        <Field label="Razón social">
+        <Field label={t("fieldLegalNameLabel")}>
           <input
             type="text"
             value={v.legalName ?? ""}
             onChange={(e) => set("legalName", e.target.value || null)}
-            placeholder="Inversiones Mi Restaurante S.A.S."
+            placeholder={t("fieldLegalNamePlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="NIT" hint="Solo dígitos. El DV no es obligatorio.">
+        <Field label={t("fieldTaxIdLabel")} hint={t("fieldTaxIdHint")}>
           <input
             type="text"
             value={v.taxId ?? ""}
             onChange={(e) => set("taxId", e.target.value || null)}
-            placeholder="900123456-7"
+            placeholder={t("fieldTaxIdPlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="Dirección">
+        <Field label={t("fieldAddressLabel")}>
           <input
             type="text"
             value={v.legalAddress ?? ""}
             onChange={(e) => set("legalAddress", e.target.value || null)}
-            placeholder="Cra 11 # 85-32"
+            placeholder={t("fieldAddressPlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="Ciudad">
+        <Field label={t("fieldCityLabel")}>
           <input
             type="text"
             value={v.legalCity ?? ""}
             onChange={(e) => set("legalCity", e.target.value || null)}
-            placeholder="Bogotá"
+            placeholder={t("fieldCityPlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="Teléfono">
+        <Field label={t("fieldPhoneLabel")}>
           <input
             type="text"
             value={v.legalPhone ?? ""}
             onChange={(e) => set("legalPhone", e.target.value || null)}
-            placeholder="+57 320 123 4567"
+            placeholder={t("fieldPhonePlaceholder")}
             className={inputCls}
           />
         </Field>
@@ -204,23 +199,19 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
       {/* Resolución DIAN */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-          Resolución de facturación DIAN
+          {t("dianSectionTitle")}
         </div>
-        <p className="text-xs text-op-muted">
-          La información de la resolución que aparece en las facturas
-          tipo tirilla. No conectamos con la DIAN — esto es solo para
-          imprimir en el comprobante.
-        </p>
-        <Field label="Resolución (texto)">
+        <p className="text-xs text-op-muted">{t("dianHelp")}</p>
+        <Field label={t("dianResolutionLabel")}>
           <input
             type="text"
             value={v.dianResolution ?? ""}
             onChange={(e) => set("dianResolution", e.target.value || null)}
-            placeholder="Resolución 18760000001"
+            placeholder={t("dianResolutionPlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="Fecha de resolución">
+        <Field label={t("dianDateLabel")}>
           <input
             type="date"
             value={v.dianResolutionDate ?? ""}
@@ -231,7 +222,7 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Numeración desde">
+          <Field label={t("dianFromLabel")}>
             <input
               type="number"
               min={0}
@@ -242,11 +233,11 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
                   e.target.value ? Number(e.target.value) : null,
                 )
               }
-              placeholder="1"
+              placeholder={t("dianFromPlaceholder")}
               className={inputCls}
             />
           </Field>
-          <Field label="Numeración hasta">
+          <Field label={t("dianToLabel")}>
             <input
               type="number"
               min={0}
@@ -257,24 +248,24 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
                   e.target.value ? Number(e.target.value) : null,
                 )
               }
-              placeholder="5000"
+              placeholder={t("dianToPlaceholder")}
               className={inputCls}
             />
           </Field>
         </div>
-        <Field label="Prefijo" hint="Aparece antes del consecutivo. Ej: POS, FE.">
+        <Field label={t("prefixLabel")} hint={t("prefixHint")}>
           <input
             type="text"
             value={v.invoicePrefix ?? ""}
             onChange={(e) => set("invoicePrefix", e.target.value || null)}
-            placeholder="POS"
+            placeholder={t("prefixPlaceholder")}
             maxLength={10}
             className={inputCls + " uppercase"}
           />
         </Field>
         <Field
-          label="Próximo consecutivo a emitir"
-          hint="Si ya venías emitiendo en otra plataforma o quieres arrancar desde el inicio de la resolución, ajustá este número."
+          label={t("nextNumberLabel")}
+          hint={t("nextNumberHint")}
         >
           <input
             type="number"
@@ -299,7 +290,7 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
                 onClick={() => set("invoiceNextNumber", v.dianResolutionFrom!)}
                 className="mt-1 text-[10px] text-terracotta underline"
               >
-                Arrancar desde {v.dianResolutionFrom} (inicio de tu resolución)
+                {t("startFrom", { n: v.dianResolutionFrom })}
               </button>
             )}
         </Field>
@@ -321,7 +312,7 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
           disabled={busy}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("saving") : t("save")}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type DocKind =
   | "cedula_rep_legal"
@@ -43,16 +44,25 @@ type Status =
   | "rejected"
   | "suspended";
 
-const KIND_LABELS: Record<DocKind, string> = {
-  cedula_rep_legal: "Cédula representante legal",
-  rut: "RUT",
-  camara_comercio: "Cámara de comercio",
-  bank_cert: "Certificación bancaria",
-  origen_fondos: "Certificación origen de fondos (contador)",
-  estados_financieros: "Estados financieros",
-  estatutos: "Estatutos / acta constitutiva",
-  other: "Otro documento",
+type Translator = ReturnType<typeof useTranslations<"opPagos">>;
+
+// Maps each document kind to its translation key. The label itself is
+// resolved at render time via t(KIND_LABEL_KEYS[kind]) so it stays
+// trilingual; the enum values above remain the logic/data keys.
+const KIND_LABEL_KEYS: Record<DocKind, string> = {
+  cedula_rep_legal: "kindCedulaRepLegal",
+  rut: "kindRut",
+  camara_comercio: "kindCamaraComercio",
+  bank_cert: "kindBankCert",
+  origen_fondos: "kindOrigenFondos",
+  estados_financieros: "kindEstadosFinancieros",
+  estatutos: "kindEstatutos",
+  other: "kindOther",
 };
+
+function kindLabel(t: Translator, kind: DocKind): string {
+  return t(KIND_LABEL_KEYS[kind]);
+}
 
 // Order matters — this is the order the tiles appear in the wizard.
 // estatutos is kept in DocKind for back-compat but excluded from the new
@@ -83,6 +93,7 @@ export function OnboardingClient({
   initialBankInfo: Record<string, unknown> | null;
   initialDocuments: UploadedDoc[];
 }) {
+  const t = useTranslations("opPagos");
   const router = useRouter();
   const [docs, setDocs] = useState<UploadedDoc[]>(initialDocuments);
   const [bankInfo, setBankInfo] = useState<BankInfo>(() =>
@@ -113,7 +124,7 @@ export function OnboardingClient({
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "No pudimos subir el archivo.");
+      setError(j.error ?? t("uploadError"));
       return null;
     }
     const j = await res.json();
@@ -134,13 +145,13 @@ export function OnboardingClient({
   }
 
   async function deleteDocument(id: string) {
-    if (!confirm("¿Eliminar este documento?")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     const res = await fetch(
       `/api/operator/onboarding/documents?id=${encodeURIComponent(id)}`,
       { method: "DELETE" },
     );
     if (!res.ok) {
-      setError("No pudimos eliminar el documento.");
+      setError(t("deleteError"));
       return;
     }
     setDocs((prev) => prev.filter((d) => d.id !== id));
@@ -158,7 +169,7 @@ export function OnboardingClient({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j.error ?? "OCR falló.");
+        setError(j.error ?? t("ocrFailed"));
         return;
       }
       const j = await res.json();
@@ -201,7 +212,7 @@ export function OnboardingClient({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j.error ?? "OCR del RUT falló.");
+        setError(j.error ?? t("ocrRutFailed"));
         return;
       }
       const j = await res.json();
@@ -246,7 +257,7 @@ export function OnboardingClient({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(humanError(j));
+        setError(humanError(t, j));
         return;
       }
       startTx(() => router.refresh());
@@ -302,19 +313,13 @@ export function OnboardingClient({
       <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
         {tenant.name}
       </div>
-      <div className="font-display text-3xl mb-1">Activar pagos</div>
-      <p className="text-sm text-op-muted mb-6">
-        Sube tus documentos, valida la cuenta bancaria y envía la solicitud
-        para empezar a cobrar.
-      </p>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
+      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
-      <StatusBanner tenant={tenant} />
+      <StatusBanner tenant={tenant} t={t} />
 
       {/* Step 1: documents ---------------------------------------------- */}
-      <Section
-        title="1 · Documentos"
-        subtitle="Cuando subas el RUT, llenamos los datos legales automáticamente con AI."
-      >
+      <Section title={t("step1Title")} subtitle={t("step1Subtitle")}>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {(["cedula_rep_legal", "rut", "camara_comercio", "origen_fondos", "estados_financieros"] as DocKind[]).map(
             (kind) => (
@@ -330,15 +335,13 @@ export function OnboardingClient({
           )}
         </ul>
         {rutDoc && ocrRunning && (
-          <p className="mt-2 text-xs text-op-muted">
-            Leyendo RUT con AI…
-          </p>
+          <p className="mt-2 text-xs text-op-muted">{t("readingRut")}</p>
         )}
         {missingKinds.length > 0 && (
           <p className="mt-2 text-xs text-op-muted">
-            Faltan:{" "}
+            {t("missingPre")}{" "}
             <strong>
-              {missingKinds.map((k) => KIND_LABELS[k]).join(", ")}
+              {missingKinds.map((k) => kindLabel(t, k)).join(", ")}
             </strong>
             .
           </p>
@@ -346,10 +349,7 @@ export function OnboardingClient({
       </Section>
 
       {/* Step 2: bank cert + OCR ---------------------------------------- */}
-      <Section
-        title="2 · Certificación bancaria"
-        subtitle="La leemos con AI al subirla para llenar el formulario automáticamente."
-      >
+      <Section title={t("step2Title")} subtitle={t("step2Subtitle")}>
         <DocumentTile
           kind="bank_cert"
           docs={docs.filter((d) => d.kind === "bank_cert")}
@@ -364,72 +364,79 @@ export function OnboardingClient({
             disabled={ocrRunning || isLocked}
             className="mt-3 h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
           >
-            {ocrRunning ? "Leyendo…" : "Volver a leer con AI"}
+            {ocrRunning ? t("reading") : t("rereadAi")}
           </button>
         )}
         {bankInfo.source === "ai_extracted" && (
           <div className="mt-2 text-xs text-op-muted">
-            Datos leídos automáticamente
+            {t("aiReadPre")}
             {bankInfo.aiConfidence !== undefined
-              ? ` · confianza ${(bankInfo.aiConfidence * 100).toFixed(0)}%`
+              ? t("aiReadConfidence", {
+                  pct: (bankInfo.aiConfidence * 100).toFixed(0),
+                })
               : ""}
-            . Si algo está mal, vuelve a subir una certificación más clara.
+            {t("aiReadPost")}
           </div>
         )}
       </Section>
 
       {/* Step 3: bank form (read-only, filled by AI from the bank cert) */}
-      <Section
-        title="3 · Datos bancarios"
-        subtitle="Se llenan automáticamente al subir la certificación bancaria."
-      >
+      <Section title={t("step3Title")} subtitle={t("step3Subtitle")}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <DisplayField label="Banco" value={bankInfo.bankName} />
+          <DisplayField label={t("bankNameLabel")} value={bankInfo.bankName} t={t} />
           <DisplayField
-            label="Tipo de cuenta"
+            label={t("accountTypeLabel")}
             value={
               bankInfo.accountType === "ahorros"
-                ? "Ahorros"
+                ? t("accountTypeAhorros")
                 : bankInfo.accountType === "corriente"
-                  ? "Corriente"
+                  ? t("accountTypeCorriente")
                   : ""
             }
+            t={t}
           />
-          <DisplayField label="Número de cuenta" value={bankInfo.accountNumber} mono />
-          <DisplayField label="Titular" value={bankInfo.holderName} />
-          <DisplayField label="Tipo doc titular" value={bankInfo.holderDocType} />
-          <DisplayField label="Número de documento" value={bankInfo.holderDocNumber} mono />
+          <DisplayField
+            label={t("accountNumberLabel")}
+            value={bankInfo.accountNumber}
+            mono
+            t={t}
+          />
+          <DisplayField label={t("holderNameLabel")} value={bankInfo.holderName} t={t} />
+          <DisplayField
+            label={t("holderDocTypeLabel")}
+            value={bankInfo.holderDocType}
+            t={t}
+          />
+          <DisplayField
+            label={t("holderDocNumberLabel")}
+            value={bankInfo.holderDocNumber}
+            mono
+            t={t}
+          />
         </div>
       </Section>
 
       {/* Step 4: legal data (read-only, filled by AI from the RUT) ----- */}
-      <Section
-        title="4 · Datos legales del comercio"
-        subtitle="Se llenan automáticamente al subir el RUT."
-      >
+      <Section title={t("step4Title")} subtitle={t("step4Subtitle")}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <DisplayField label="Razón social" value={legalName} />
-          <DisplayField label="NIT" value={taxId} mono />
-          <DisplayField label="Email de contacto" value={contactEmail} />
-          <DisplayField label="Teléfono de contacto" value={contactPhone} />
+          <DisplayField label={t("legalNameLabel")} value={legalName} t={t} />
+          <DisplayField label={t("taxIdLabel")} value={taxId} mono t={t} />
+          <DisplayField label={t("contactEmailLabel")} value={contactEmail} t={t} />
+          <DisplayField label={t("contactPhoneLabel")} value={contactPhone} t={t} />
         </div>
       </Section>
 
       {beneficiaryCheck.kind === "match" && (
         <div className="my-4 p-3 rounded-xl bg-ok/10 text-ok text-sm flex items-start gap-2">
-          <span aria-hidden>✓</span>
-          <span>
-            El titular de la cuenta coincide con el RUT.
-          </span>
+          <span aria-hidden>{"✓"}</span>
+          <span>{t("beneficiaryMatch")}</span>
         </div>
       )}
       {beneficiaryCheck.kind === "mismatch" && (
         <div className="my-4 p-3 rounded-xl bg-danger/10 text-danger text-sm">
-          <div className="font-medium">
-            El titular de la cuenta no coincide con el RUT
-          </div>
+          <div className="font-medium">{t("beneficiaryMismatchTitle")}</div>
           <div className="mt-1">
-            RUT (NIT/Cédula):{" "}
+            {t("beneficiaryRutLabel")}{" "}
             <span className="font-mono">{beneficiaryCheck.rutId}</span>
             {beneficiaryCheck.rutName && (
               <>
@@ -438,7 +445,7 @@ export function OnboardingClient({
             )}
           </div>
           <div>
-            Cuenta bancaria:{" "}
+            {t("beneficiaryBankLabel")}{" "}
             <span className="font-mono">{beneficiaryCheck.bankId}</span>
             {beneficiaryCheck.bankName && (
               <>
@@ -446,11 +453,7 @@ export function OnboardingClient({
               </>
             )}
           </div>
-          <div className="mt-2 text-[12px]">
-            Para evitar problemas con la dispersión de fondos, el beneficiario
-            de la cuenta debe ser el mismo titular del RUT. Corrige los datos
-            o sube los documentos correctos.
-          </div>
+          <div className="mt-2 text-[12px]">{t("beneficiaryMismatchHelp")}</div>
         </div>
       )}
 
@@ -467,12 +470,10 @@ export function OnboardingClient({
           disabled={!canSubmit || busy}
           className="h-12 px-6 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Enviando solicitud…" : "Enviar solicitud"}
+          {busy ? t("submitting") : t("submit")}
         </button>
         {isLocked && (
-          <span className="text-xs text-op-muted">
-            La solicitud ya está enviada. Si necesitas corregir algo, contáctanos.
-          </span>
+          <span className="text-xs text-op-muted">{t("lockedNotice")}</span>
         )}
       </div>
     </div>
@@ -499,19 +500,21 @@ function Section({
 
 function StatusBanner({
   tenant,
+  t,
 }: {
   tenant: {
     status: Status;
     notes: string | null;
     merchantId: string | null;
   };
+  t: Translator;
 }) {
   if (tenant.status === "active") {
     return (
       <div className="rounded-2xl border border-ok/30 bg-ok/10 text-ok p-4 mb-6">
-        <div className="font-display text-lg">¡Listo para cobrar!</div>
+        <div className="font-display text-lg">{t("statusActiveTitle")}</div>
         <div className="text-sm mt-1">
-          Tu cuenta está activa. ID interno: {tenant.merchantId}
+          {t("statusActiveBody", { merchantId: tenant.merchantId ?? "" })}
         </div>
       </div>
     );
@@ -519,18 +522,15 @@ function StatusBanner({
   if (tenant.status === "submitted" || tenant.status === "in_review") {
     return (
       <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#7F5A1F] p-4 mb-6">
-        <div className="font-display text-lg">En revisión</div>
-        <div className="text-sm mt-1">
-          Estamos validando tus documentos. Te avisamos por correo cuando
-          quede activo.
-        </div>
+        <div className="font-display text-lg">{t("statusReviewTitle")}</div>
+        <div className="text-sm mt-1">{t("statusReviewBody")}</div>
       </div>
     );
   }
   if (tenant.status === "rejected" && tenant.notes) {
     return (
       <div className="rounded-2xl border border-danger/30 bg-danger/10 text-danger p-4 mb-6">
-        <div className="font-display text-lg">Solicitud rechazada</div>
+        <div className="font-display text-lg">{t("statusRejectedTitle")}</div>
         <div className="text-sm mt-1">{tenant.notes}</div>
       </div>
     );
@@ -558,6 +558,7 @@ function DocumentTile({
   onDelete: (id: string) => void;
   disabled: boolean;
 }) {
+  const t = useTranslations("opPagos");
   const inputId = `doc-${kind}`;
   const [dragOver, setDragOver] = useState(false);
 
@@ -570,7 +571,7 @@ function DocumentTile({
     if (!ACCEPTED_MIMES.has(file.type)) {
       // Surface the validation softly: the upload route would also reject
       // it, but giving feedback here saves a round trip.
-      alert("Formato no soportado. Usa PDF, JPG, PNG o WebP.");
+      alert(t("unsupportedFormat"));
       return;
     }
     onUpload(file);
@@ -606,14 +607,14 @@ function DocumentTile({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          {KIND_LABELS[kind]}
+          {kindLabel(t, kind)}
         </div>
         {docs.length > 0 && (
           <span
             className="font-mono text-[9px] tracking-wider uppercase text-ok"
-            aria-label="Cargado"
+            aria-label={t("tileLoaded")}
           >
-            ✓ Cargado
+            {t("tileLoadedBadge")}
           </span>
         )}
       </div>
@@ -628,11 +629,9 @@ function DocumentTile({
                 : "text-op-muted hover:text-op-text")
             }
           >
-            {dragOver
-              ? "Suelta aquí"
-              : "Arrastra el archivo o haz click para subirlo"}
+            {dragOver ? t("tileDropHere") : t("tileDragOrClick")}
             <div className="text-[10px] text-op-muted mt-0.5">
-              PDF, JPG, PNG o WebP · máx 10 MB
+              {t("tileHint")}
             </div>
           </label>
         ) : (
@@ -656,7 +655,7 @@ function DocumentTile({
                   disabled={disabled}
                   className="text-xs text-op-muted hover:text-danger disabled:opacity-40"
                 >
-                  Eliminar
+                  {t("tileDelete")}
                 </button>
               </li>
             ))}
@@ -667,7 +666,7 @@ function DocumentTile({
                 (disabled ? "opacity-50 pointer-events-none" : "hover:bg-op-bg")
               }
             >
-              Reemplazar / agregar
+              {t("tileReplace")}
             </label>
           </ul>
         )}
@@ -699,10 +698,12 @@ function DisplayField({
   label,
   value,
   mono,
+  t,
 }: {
   label: string;
   value: string;
   mono?: boolean;
+  t: Translator;
 }) {
   const empty = !value.trim();
   return (
@@ -716,7 +717,7 @@ function DisplayField({
           (empty ? "text-op-muted italic" : mono ? "font-mono tabular" : "")
         }
       >
-        {empty ? "Se llena automáticamente" : value}
+        {empty ? t("displayAutoFill") : value}
       </div>
     </div>
   );
@@ -758,21 +759,29 @@ function normaliseBankInfo(raw: Record<string, unknown> | null): BankInfo {
   };
 }
 
-function humanError(j: {
-  error?: string;
-  missing?: string[];
-  detail?: string;
-  rutId?: string;
-  bankId?: string;
-}): string {
+function humanError(
+  t: Translator,
+  j: {
+    error?: string;
+    missing?: string[];
+    detail?: string;
+    rutId?: string;
+    bankId?: string;
+  },
+): string {
   if (j.error === "documents_incomplete" && j.missing) {
-    return `Faltan documentos: ${j.missing.join(", ")}`;
+    return t("errMissingDocs", { missing: j.missing.join(", ") });
   }
   if (j.error === "beneficiary_mismatch") {
-    return `El titular de la cuenta (${j.bankId}) no coincide con el RUT (${j.rutId}). Corrige los datos antes de enviar.`;
+    return t("errBeneficiaryMismatch", {
+      bankId: j.bankId ?? "",
+      rutId: j.rutId ?? "",
+    });
   }
   if (j.error === "submit_failed") {
-    return `La solicitud fue rechazada: ${j.detail ?? "sin detalle"}`;
+    return j.detail
+      ? t("errSubmitFailedDetail", { detail: j.detail })
+      : t("errSubmitFailedNoDetail");
   }
-  return j.error ?? "No pudimos enviar la solicitud.";
+  return j.error ?? t("errGeneric");
 }

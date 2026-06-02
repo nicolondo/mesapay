@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Selector chico arriba del form de identidad. Cuando el restaurante
@@ -29,6 +30,7 @@ export function LegalEntityPicker({
   options: Option[];
   initialLegalEntityId: string | null;
 }) {
+  const t = useTranslations("opIdentity");
   const router = useRouter();
   const [value, setValue] = useState<string>(initialLegalEntityId ?? "");
   const [busy, setBusy] = useState(false);
@@ -48,34 +50,29 @@ export function LegalEntityPicker({
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg({ kind: "error", text: j.message ?? "No pudimos guardar." });
+      setMsg({ kind: "error", text: j.message ?? t("groupSaveError") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("saved") });
     router.refresh();
   }
 
   return (
     <section className="rounded-2xl border border-terracotta/30 bg-terracotta/5 p-5 mb-5">
       <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-terracotta mb-2">
-        Razón social del grupo
+        {t("groupTitle")}
       </div>
-      <p className="text-xs text-op-muted mb-3">
-        Este restaurante está dentro de un grupo. Podés usar una razón
-        social compartida (misma numeración DIAN para los locales que
-        la comparten) o dejarlo en "usar la del restaurante" y editar
-        los campos locales abajo.
-      </p>
+      <p className="text-xs text-op-muted mb-3">{t("groupIntro")}</p>
       <div className="flex items-center gap-2 flex-wrap">
         <select
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
         >
-          <option value="">Usar la del restaurante (local)</option>
+          <option value="">{t("groupUseLocal")}</option>
           {options.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.name} — NIT {o.taxId}
+              {t("groupOptionLabel", { name: o.name, taxId: o.taxId })}
             </option>
           ))}
         </select>
@@ -85,7 +82,7 @@ export function LegalEntityPicker({
           disabled={busy || !dirty}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("saving") : t("save")}
         </button>
         {msg && (
           <span
@@ -99,12 +96,12 @@ export function LegalEntityPicker({
       </div>
       {options.length === 0 && (
         <div className="text-[11px] text-op-muted mt-2">
-          Aún no hay razones sociales en el grupo. Creá una desde{" "}
+          {t("groupEmptyPre")}{" "}
           <a
             href="/group/razones-sociales"
             className="text-terracotta underline"
           >
-            /group/razones-sociales
+            {"/group/razones-sociales"}
           </a>
           .
         </div>

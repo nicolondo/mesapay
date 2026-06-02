@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { OnboardingClient } from "./OnboardingClient";
@@ -5,8 +6,9 @@ import { OnboardingClient } from "./OnboardingClient";
 export const dynamic = "force-dynamic";
 
 export default async function KushkiOnboardingPage() {
+  const t = await getTranslations("opPagos");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -22,7 +24,7 @@ export default async function KushkiOnboardingPage() {
       bankInfo: true,
     },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
 
   const documents = await db.kushkiDocument.findMany({
     where: { restaurantId },

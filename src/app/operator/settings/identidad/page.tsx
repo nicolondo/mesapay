@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { IdentidadClient } from "./IdentidadClient";
@@ -7,8 +8,9 @@ import { LegalEntityPicker } from "./LegalEntityPicker";
 export const dynamic = "force-dynamic";
 
 export default async function IdentidadPage() {
+  const t = await getTranslations("opIdentity");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -30,7 +32,7 @@ export default async function IdentidadPage() {
       legalEntityId: true,
     },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
 
   // Si pertenece a un grupo, traemos las razones sociales disponibles
   // para que el picker arriba del form deje al operador elegir.
@@ -48,14 +50,11 @@ export default async function IdentidadPage() {
         href="/operator/settings"
         className="text-sm text-op-muted hover:underline"
       >
-        ← Configuración
+        {"← "}
+        {t("breadcrumbSettings")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">Identidad del comercio</div>
-      <p className="text-sm text-op-muted mb-6">
-        Logo, razón social, NIT y resolución DIAN. Esta información
-        aparece en las facturas que envías al cliente y en el menú que
-        ve al escanear el QR.
-      </p>
+      <div className="font-display text-3xl mt-2 mb-1">{t("title")}</div>
+      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
       {tenant.groupId && (
         <LegalEntityPicker

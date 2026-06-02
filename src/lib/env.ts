@@ -42,6 +42,11 @@ const schema = z.object({
   // Override del host del Cloud Terminal. Default por modo
   // (prod → https://cloudt.kushkipagos.com). Útil si Kushki da otro host.
   KUSHKI_CLOUD_TERMINAL_URL: z.string().url().optional(),
+  // Override de los paths del Cloud Terminal (usar {serial} como
+  // placeholder). Permite ajustar el endpoint exacto sin redeploy una vez
+  // confirmado el contrato. Defaults en cloudTerminal.ts.
+  KUSHKI_CLOUD_TERMINAL_PATH: z.string().optional(),
+  KUSHKI_CLOUD_TERMINAL_CANCEL_PATH: z.string().optional(),
 
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),

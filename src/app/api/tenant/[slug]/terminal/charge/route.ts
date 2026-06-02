@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import {
-  getPaymentProvider,
-  getRestaurantPrivateKey,
-} from "@/lib/payments";
+import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
 import { getKushkiModeSync } from "@/lib/platformConfig";
@@ -66,15 +63,17 @@ export async function POST(
   }
   // ¿Vamos al datáfono REAL (Cloud Terminal, cloudt) o al mock?
   //  - En sandbox/producción → real.
-  //  - "Desacoplado": si hay credencial global (KUSHKI_BP_AUTH) usamos el
+  //  - "Desacoplado": si el comercio cargó su Business-Code, usamos el
   //    datáfono real aunque el resto de Kushki siga en mock.
-  // En modo real necesitamos con qué autenticar el X-BP-AUTH: la private
-  // key del comercio (implica onboarding) o la credencial global.
+  // El Business-Code es la CLAVE HMAC con la que se firma el cobro: sin él
+  // no podemos autenticar contra cloudt.
   const mode = getKushkiModeSync();
-  const useRealTerminal = mode !== "mock" || !!env.KUSHKI_BP_AUTH;
-  if (useRealTerminal && !env.KUSHKI_BP_AUTH && !tenant.kushkiMerchantId) {
+  const businessCode =
+    tenant.cloudTerminalBusinessCode || env.KUSHKI_BP_BUSINESS_CODE || null;
+  const useRealTerminal = mode !== "mock" || !!businessCode;
+  if (useRealTerminal && !businessCode) {
     return NextResponse.json(
-      { error: "tenant_not_onboarded" },
+      { error: "cloud_business_code_missing" },
       { status: 409 },
     );
   }
@@ -116,18 +115,9 @@ export async function POST(
   try {
     if (useRealTerminal) {
       // —— Datáfono REAL vía Cloud Terminal (cloudt.kushkipagos.com).
-      // Necesita el serial del equipo y la credencial X-BP-AUTH (private
-      // key del comercio, o KUSHKI_BP_AUTH global).
+      // Necesita el serial del equipo; la auth es HMAC con el Business-Code.
       if (!device.serialNumber) {
         return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
-      }
-      const cloudAuth =
-        env.KUSHKI_BP_AUTH || (await getRestaurantPrivateKey(tenant.id));
-      if (!cloudAuth) {
-        return NextResponse.json(
-          { error: "credentials_missing" },
-          { status: 500 },
-        );
       }
       push = await pushPaymentToCloudTerminal({
         serialNumber: device.serialNumber,
@@ -135,11 +125,9 @@ export async function POST(
         amountCents: payment.amountCents,
         reference: payment.id,
         description: `MESAPAY orden ${payment.orderId.slice(0, 6)}`,
-        // Business code del comercio (cargado en Config → Datáfonos).
-        businessCode: tenant.cloudTerminalBusinessCode,
-        // X-BP-AUTH = private key del comercio (misma cred que Delirio ya
-        // tenía guardada) salvo override global por env.
-        auth: cloudAuth,
+        // Business-Code del comercio (clave HMAC), cargado en Config →
+        // Datáfonos (fallback al env de plataforma).
+        businessCode,
       });
     } else {
       // —— Modo mock: el provider auto-aprueba vía el mock bridge.

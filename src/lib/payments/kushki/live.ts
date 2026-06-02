@@ -277,14 +277,14 @@ export class LiveKushkiProvider implements PaymentProvider {
    * matchea por uniqueReference = paymentId.
    */
   async pushToTerminal(req: TerminalPushRequest): Promise<TerminalPushResult> {
+    // La auth del Cloud Terminal es HMAC con el Business-Code, no la private
+    // key. La charge route llama a pushPaymentToCloudTerminal directo con el
+    // businessCode del comercio; este wrapper (vía provider) cae al env.
     const resp = await pushPaymentToCloudTerminal({
       serialNumber: req.deviceId,
       amountCents: req.amount.amountCents,
       reference: req.metadata.paymentId,
       description: `MESAPAY orden ${req.metadata.orderId.slice(0, 6)}`,
-      // req.merchantId trae la private key del comercio (la charge route
-      // la pasa). Es la credencial X-BP-AUTH del Cloud Terminal.
-      auth: req.merchantId,
     });
     return {
       providerRef: resp.providerRef,

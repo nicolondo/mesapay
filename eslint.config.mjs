@@ -24,6 +24,7 @@ const MIGRATED = [
   // de caracteres en glob — hay que escaparlos (\\[ \\]) o la regla no
   // aplica a esos archivos.
   "src/app/r/\\[slug\\]/page.tsx",
+  "src/app/r/\\[slug\\]/ReservarClient.tsx",
   "src/app/t/\\[slug\\]/menu/page.tsx",
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
   "src/app/t/\\[slug\\]/page.tsx",

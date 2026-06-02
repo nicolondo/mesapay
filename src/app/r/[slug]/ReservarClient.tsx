@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
 import {
   type FloorPlan,
@@ -88,6 +89,7 @@ export function ReservarClient({
   kushkiMode: "mock" | "sandbox" | "production";
   pseBanks: { code: string; name: string }[];
 }) {
+  const tr = useTranslations("reservar");
   const [date, setDate] = useState(todayLocal());
   const [partySize, setPartySize] = useState(2);
   const [slots, setSlots] = useState<AvailSlot[]>([]);
@@ -156,11 +158,11 @@ export function ReservarClient({
   async function submit() {
     if (!selectedSlot || !selectedTableId) return;
     if (!name.trim()) {
-      setErr("Decinos tu nombre.");
+      setErr(tr("errName"));
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido.");
+      setErr(tr("errEmail"));
       return;
     }
     setSubmitting(true);
@@ -182,7 +184,7 @@ export function ReservarClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.message ?? j.error ?? "No pudimos crear la reserva.");
+        setErr(j.message ?? j.error ?? tr("errCreate"));
         return;
       }
       // Mesa con depósito → cobramos antes de confirmar. Si no, listo.
@@ -206,33 +208,32 @@ export function ReservarClient({
       <main className="min-h-dvh bg-bone text-ink flex flex-col items-center justify-center px-6 py-12">
         <div className="max-w-sm w-full text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] flex items-center justify-center text-2xl mb-4">
-            ✓
+            {"✓"}
           </div>
-          <h1 className="font-display text-3xl mb-2">¡Reserva confirmada!</h1>
+          <h1 className="font-display text-3xl mb-2">{tr("confirmedTitle")}</h1>
           <p className="text-sm text-muted mb-1">
-            Te esperamos en {tenantName}
+            {tr("seeYouAt", { name: tenantName })}
           </p>
           <p className="text-sm text-ink mb-6">
             {prettyDate(date)} · {selectedSlot?.label} · {partySize}{" "}
-            {partySize === 1 ? "persona" : "personas"}
+            {partySize === 1 ? tr("person") : tr("people")}
           </p>
           <div className="rounded-2xl border border-hairline bg-paper p-4 mb-6">
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              Código de reserva
+              {tr("reservationCode")}
             </div>
             <div className="font-display text-2xl tracking-wide mt-1">
               {done.code}
             </div>
             <p className="text-[11px] text-muted mt-2">
-              Te mandamos los detalles a {email}. Guardá este código por
-              si necesitás cancelar.
+              {tr("detailsSent", { email })}
             </p>
           </div>
           <a
             href={`/r/${tenantSlug}/reserva/${done.code}`}
             className="text-sm text-terracotta hover:underline"
           >
-            Ver o cancelar mi reserva →
+            {tr("viewOrCancel")}
           </a>
         </div>
       </main>
@@ -248,15 +249,16 @@ export function ReservarClient({
             <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-1">
               {tenantName}
             </div>
-            <h1 className="font-display text-3xl">Apartá tu mesa</h1>
+            <h1 className="font-display text-3xl">{tr("holdYourTable")}</h1>
             <p className="text-sm text-muted mt-2">
               {prettyDate(date)} · {selectedSlot?.label} · {partySize}{" "}
-              {partySize === 1 ? "persona" : "personas"}
+              {partySize === 1 ? tr("person") : tr("people")}
             </p>
             <p className="text-sm text-ink mt-3">
-              Esta mesa pide un depósito de{" "}
-              <strong>{fmtCOP(depositStep.depositCents)}</strong> para
-              confirmar. Se descuenta de tu cuenta cuando llegues.
+              {tr.rich("depositExplain", {
+                amount: fmtCOP(depositStep.depositCents),
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
           </div>
           <DepositPay
@@ -274,8 +276,7 @@ export function ReservarClient({
             }}
           />
           <p className="text-[11px] text-muted text-center mt-4">
-            Tenés unos minutos para completar el pago antes de que la mesa se
-            libere. Si no se presentan, el depósito no se devuelve.
+            {tr("depositTimerNote")}
           </p>
         </div>
       </main>
@@ -300,14 +301,14 @@ export function ReservarClient({
           </div>
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mb-6">
-          Reservá tu mesa
+          {tr("title")}
         </h1>
 
         {/* Paso 1: fecha + grupo */}
         <div className="rounded-2xl border border-hairline bg-paper p-5 mb-4 space-y-4">
           <label className="block">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              Fecha
+              {tr("dateLabel")}
             </span>
             <input
               type="date"
@@ -320,7 +321,7 @@ export function ReservarClient({
           </label>
           <div>
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              ¿Cuántos son?
+              {tr("howMany")}
             </span>
             <div className="mt-1 flex flex-wrap gap-2">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
@@ -346,7 +347,7 @@ export function ReservarClient({
         {/* Paso 2: slots */}
         <div className="mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            Horarios disponibles · {prettyDate(date)}
+            {tr("availableTimes", { date: prettyDate(date) })}
           </div>
           {loading ? (
             <div className="grid grid-cols-3 gap-2">
@@ -359,7 +360,7 @@ export function ReservarClient({
             </div>
           ) : slots.length === 0 ? (
             <div className="rounded-xl border border-hairline bg-paper px-4 py-6 text-center text-sm text-muted">
-              No hay horarios disponibles para esta fecha. Probá otro día.
+              {tr("noSlots")}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
@@ -396,7 +397,7 @@ export function ReservarClient({
           floorTables.length > 0 && (
             <div className="mb-4">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-                Elegí tu mesa en el mapa
+                {tr("pickTableMap")}
               </div>
               <FloorPlanPicker
                 floorTables={floorTables}
@@ -408,11 +409,11 @@ export function ReservarClient({
               <div className="flex items-center gap-4 mt-2 text-[11px] text-muted">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3 rounded bg-[#2E6B4C]/20 border border-[#2E6B4C]/40 inline-block" />
-                  Disponible
+                  {tr("available")}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3 rounded bg-hairline inline-block" />
-                  Ocupada / no disponible
+                  {tr("occupied")}
                 </span>
               </div>
             </div>
@@ -424,7 +425,7 @@ export function ReservarClient({
           floorTables.length === 0 && (
             <div className="mb-4">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-                Elegí tu mesa
+                {tr("pickTable")}
               </div>
               <div className="space-y-2">
                 {selectedSlot.tables.map((t) => (
@@ -441,7 +442,7 @@ export function ReservarClient({
                   >
                     <div>
                       <div className="font-medium text-sm">
-                        {t.label ?? `Mesa ${t.number}`}
+                        {t.label ?? tr("tableN", { number: t.number })}
                       </div>
                       <div
                         className={
@@ -451,12 +452,18 @@ export function ReservarClient({
                             : "text-muted")
                         }
                       >
-                        Hasta {t.capacity} personas
+                        {tr("upToPeople", { count: t.capacity })}
                         {t.minConsumptionCents
-                          ? ` · consumo mínimo ${fmtCOP(t.minConsumptionCents)}`
+                          ? " · " +
+                            tr("minConsumptionInline", {
+                              amount: fmtCOP(t.minConsumptionCents),
+                            })
                           : ""}
                         {t.reservationDepositCents
-                          ? ` · depósito ${fmtCOP(t.reservationDepositCents)}`
+                          ? " · " +
+                            tr("depositInline", {
+                              amount: fmtCOP(t.reservationDepositCents),
+                            })
                           : ""}
                       </div>
                     </div>
@@ -480,21 +487,22 @@ export function ReservarClient({
               <div className="mb-4 text-xs text-muted bg-paper border border-hairline rounded-xl px-4 py-3 space-y-1">
                 {t.minConsumptionCents ? (
                   <div>
-                    Consumo mínimo:{" "}
-                    <strong className="text-ink">
-                      {fmtCOP(t.minConsumptionCents)}
-                    </strong>
-                    .
+                    {tr.rich("minConsumptionInfo", {
+                      amount: fmtCOP(t.minConsumptionCents),
+                      b: (chunks) => (
+                        <strong className="text-ink">{chunks}</strong>
+                      ),
+                    })}
                   </div>
                 ) : null}
                 {t.reservationDepositCents ? (
                   <div>
-                    Pide un depósito de{" "}
-                    <strong className="text-ink">
-                      {fmtCOP(t.reservationDepositCents)}
-                    </strong>{" "}
-                    para apartar — se descuenta de tu cuenta al llegar (no se
-                    devuelve si no se presentan).
+                    {tr.rich("depositInfo", {
+                      amount: fmtCOP(t.reservationDepositCents),
+                      b: (chunks) => (
+                        <strong className="text-ink">{chunks}</strong>
+                      ),
+                    })}
                   </div>
                 ) : null}
               </div>
@@ -504,17 +512,17 @@ export function ReservarClient({
         {/* Paso 4: datos + confirmar */}
         {selectedSlot && selectedTableId && (
           <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-3">
-            <div className="font-display text-lg">Tus datos</div>
+            <div className="font-display text-lg">{tr("yourData")}</div>
             <input
               type="text"
-              placeholder="Nombre"
+              placeholder={tr("namePlaceholder")}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
             />
             <input
               type="email"
-              placeholder="Email"
+              placeholder={tr("email")}
               inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -522,14 +530,14 @@ export function ReservarClient({
             />
             <input
               type="tel"
-              placeholder="Teléfono (opcional)"
+              placeholder={tr("phonePlaceholder")}
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
             />
             <textarea
-              placeholder="Algo que debamos saber (opcional): cumpleaños, alergias, mesa cerca de ventana…"
+              placeholder={tr("notesPlaceholder")}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
@@ -557,10 +565,14 @@ export function ReservarClient({
                   (x) => x.id === selectedTableId,
                 );
                 const needsDeposit = !!t?.reservationDepositCents;
-                if (submitting) return "Reservando…";
+                if (submitting) return tr("submitting");
                 if (needsDeposit)
-                  return `Continuar · depósito ${fmtCOP(t!.reservationDepositCents!)}`;
-                return `Reservar · ${prettyDate(date)} ${selectedSlot.label}`;
+                  return tr("continueDeposit", {
+                    amount: fmtCOP(t!.reservationDepositCents!),
+                  });
+                return tr("reserveCta", {
+                  when: `${prettyDate(date)} ${selectedSlot.label}`,
+                });
               })()}
             </button>
           </div>
@@ -593,6 +605,7 @@ function FloorPlanPicker({
   selectedTableId: string | null;
   onPick: (id: string) => void;
 }) {
+  const tr = useTranslations("reservar");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [boxW, setBoxW] = useState(0);
 
@@ -736,8 +749,11 @@ function FloorPlanPicker({
               onClick={() => free && onPick(t.id)}
               title={
                 free
-                  ? `${t.label ?? `Mesa ${t.number}`} · hasta ${t.capacity}`
-                  : "No disponible"
+                  ? tr("tableTitleFree", {
+                      name: t.label ?? tr("tableN", { number: t.number }),
+                      capacity: t.capacity,
+                    })
+                  : tr("unavailable")
               }
               className={
                 "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
@@ -759,7 +775,9 @@ function FloorPlanPicker({
               <span className="font-display text-xs">
                 {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
               </span>
-              <span className="opacity-60 text-[9px]">{t.capacity}p</span>
+              <span className="opacity-60 text-[9px]">
+                {tr("capacityShort", { count: t.capacity })}
+              </span>
             </button>
           );
         })}
@@ -799,10 +817,11 @@ function FloorPlanPicker({
   );
 }
 
+// Valores = claves del catálogo `reservar` (resueltas con tr en render).
 const DEPOSIT_METHOD_NAMES: Record<string, string> = {
-  kushki_card: "Tarjeta",
-  kushki_pse: "PSE",
-  kushki_apple_pay: "Apple Pay",
+  kushki_card: "methodCard",
+  kushki_pse: "methodPse",
+  kushki_apple_pay: "methodApplePay",
 };
 
 /**
@@ -832,6 +851,7 @@ function DepositPay({
   // Apple Pay sólo se ofrece si el navegador realmente lo soporta
   // (Safari en iPhone/Mac). En el resto lo ocultamos del selector para
   // no mostrar una opción muerta.
+  const tr = useTranslations("reservar");
   const [appleOk, setAppleOk] = useState(false);
   const [selected, setSelected] = useState("");
   useEffect(() => {
@@ -859,7 +879,7 @@ function DepositPay({
     return (
       <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-2">
         <div className="text-sm font-medium text-ink mb-1">
-          ¿Cómo querés pagar el depósito?
+          {tr("howPayDeposit")}
         </div>
         {list.map((m) => (
           <button
@@ -868,8 +888,8 @@ function DepositPay({
             onClick={() => setSelected(m)}
             className="w-full h-12 rounded-xl border border-hairline bg-bone text-sm font-medium text-ink flex items-center justify-between px-4 hover:border-ink"
           >
-            <span>{DEPOSIT_METHOD_NAMES[m]}</span>
-            <span className="text-muted">→</span>
+            <span>{tr(DEPOSIT_METHOD_NAMES[m])}</span>
+            <span className="text-muted">{"→"}</span>
           </button>
         ))}
       </div>
@@ -883,7 +903,7 @@ function DepositPay({
         onClick={() => setSelected("")}
         className="mt-2 w-full text-center text-xs text-muted hover:text-ink"
       >
-        ← Elegir otro medio
+        ← {tr("chooseAnother")}
       </button>
     ) : null;
 
@@ -956,6 +976,7 @@ function DepositCard({
   kushkiMode: "mock" | "sandbox" | "production";
   onApproved: () => void;
 }) {
+  const tr = useTranslations("reservar");
   const [number, setNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -982,24 +1003,24 @@ function DepositCard({
     setErr(null);
     const digits = number.replace(/\s/g, "");
     if (digits.length < 13 || digits.length > 19) {
-      setErr("Número de tarjeta inválido.");
+      setErr(tr("errCardNumber"));
       return;
     }
     if (holderName.trim().length < 3) {
-      setErr("Ingresá el nombre como aparece en la tarjeta.");
+      setErr(tr("errCardName"));
       return;
     }
     const m = /^(\d{2})\/(\d{2})$/.exec(expiry);
     if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) {
-      setErr("Vencimiento en formato MM/YY.");
+      setErr(tr("errExpiry"));
       return;
     }
     if (!cvv.match(/^\d{3,4}$/)) {
-      setErr("CVV inválido.");
+      setErr(tr("errCvv"));
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido.");
+      setErr(tr("errEmail"));
       return;
     }
 
@@ -1037,7 +1058,7 @@ function DepositCard({
           await res.json().catch(() => ({}));
         if (!res.ok || json.code || !json.token) {
           setErr(
-            `${json.message ?? "No pudimos procesar el pago"}${json.code ? ` (${json.code})` : ""}`,
+            `${json.message ?? tr("errProcessPayment")}${json.code ? ` (${json.code})` : ""}`,
           );
           setBusy(false);
           return;
@@ -1055,19 +1076,19 @@ function DepositCard({
       );
       const cj = await chargeRes.json().catch(() => ({}));
       if (!chargeRes.ok) {
-        setErr(cj.message ?? "No pudimos cobrar el depósito.");
+        setErr(cj.message ?? tr("errChargeDeposit"));
         setBusy(false);
         return;
       }
       if (!cj.approved) {
-        setErr(cj.message ?? "Pago rechazado. Probá con otra tarjeta.");
+        setErr(cj.message ?? tr("errDeclinedCard"));
         setBusy(false);
         return;
       }
       onApproved();
     } catch (e) {
       console.error("[deposit] error", e);
-      setErr("No pudimos procesar el pago. Intentá de nuevo.");
+      setErr(tr("errProcessCard"));
       setBusy(false);
     }
   }
@@ -1076,60 +1097,60 @@ function DepositCard({
     <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-3">
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Número de tarjeta
+          {tr("cardNumber")}
         </span>
         <input
           inputMode="numeric"
           autoComplete="cc-number"
           value={number}
           onChange={(e) => setNumber(formatCardNumber(e.target.value))}
-          placeholder="1234 5678 9012 3456"
+          placeholder={tr("cardNumberPlaceholder")}
           className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
         />
       </label>
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Nombre en la tarjeta
+          {tr("cardName")}
         </span>
         <input
           autoComplete="cc-name"
           value={holderName}
           onChange={(e) => setHolderName(e.target.value)}
-          placeholder="Como aparece en la tarjeta"
+          placeholder={tr("cardNamePlaceholder")}
           className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
         />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            Vencimiento
+            {tr("expiry")}
           </span>
           <input
             inputMode="numeric"
             autoComplete="cc-exp"
             value={expiry}
             onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-            placeholder="MM/YY"
+            placeholder={tr("expiryPlaceholder")}
             className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
           />
         </label>
         <label className="block">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            CVV
+            {tr("cvv")}
           </span>
           <input
             inputMode="numeric"
             autoComplete="cc-csc"
             value={cvv}
             onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            placeholder="123"
+            placeholder={tr("cvvPlaceholder")}
             className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tabular focus:outline-none focus:border-ink"
           />
         </label>
       </div>
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Email
+          {tr("email")}
         </span>
         <input
           type="email"
@@ -1137,7 +1158,7 @@ function DepositCard({
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
+          placeholder={tr("emailPlaceholder")}
           className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
         />
       </label>
@@ -1154,11 +1175,11 @@ function DepositCard({
         onClick={pay}
         className="w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
       >
-        {busy ? "Procesando…" : `Pagar depósito · ${fmtCOP(depositCents)}`}
+        {busy
+          ? tr("processing")
+          : tr("payDeposit", { amount: fmtCOP(depositCents) })}
       </button>
-      <p className="text-[10px] text-muted text-center">
-        Pago seguro. Tus datos de tarjeta no se guardan en MESAPAY.
-      </p>
+      <p className="text-[10px] text-muted text-center">{tr("cardSecureNote")}</p>
     </div>
   );
 }
@@ -1179,6 +1200,7 @@ function DepositApplePay({
   kushkiMode: "mock" | "sandbox" | "production";
   onApproved: () => void;
 }) {
+  const tr = useTranslations("reservar");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1196,14 +1218,14 @@ function DepositApplePay({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.approved) {
-        setErr(j.message ?? "No pudimos cobrar el depósito con Apple Pay.");
+        setErr(j.message ?? tr("errDepositApple"));
         setBusy(false);
         return;
       }
       onApproved();
     } catch (e) {
       console.error("[deposit-applepay]", e);
-      setErr("No pudimos procesar Apple Pay.");
+      setErr(tr("errProcessApple"));
       setBusy(false);
     }
   }
@@ -1215,13 +1237,13 @@ function DepositApplePay({
           publicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
           amountCents={depositCents}
-          displayName="Depósito de reserva"
+          displayName={tr("depositDisplayName")}
           busy={busy}
           onTokenized={charge}
         />
       ) : (
         <p className="text-sm text-muted text-center">
-          Apple Pay no está disponible para este comercio.
+          {tr("appleUnavailable")}
         </p>
       )}
       {err && (
@@ -1230,7 +1252,7 @@ function DepositApplePay({
         </div>
       )}
       <p className="text-[10px] text-muted text-center mt-3">
-        Disponible en Safari (iPhone / Mac).
+        {tr("appleSafariNote")}
       </p>
     </div>
   );
@@ -1256,6 +1278,7 @@ function DepositPse({
   kushkiMode: "mock" | "sandbox" | "production";
   initialBanks: { code: string; name: string }[];
 }) {
+  const tr = useTranslations("reservar");
   // Bancos pre-cargados desde el server (SSR) → dropdown instantáneo.
   // Si vinieron vacíos, caemos al fetch del browser (cache 1h).
   const [banks, setBanks] = useState<{ code: string; name: string }[]>(
@@ -1284,9 +1307,9 @@ function DepositPse({
         const res = await fetch(`/api/tenant/${tenantSlug}/pay/pse-banks`);
         const j = await res.json();
         if (alive && res.ok && Array.isArray(j.banks)) setBanks(j.banks);
-        else if (alive) setErr(j.message ?? "No pudimos cargar los bancos.");
+        else if (alive) setErr(j.message ?? tr("errBanks"));
       } catch {
-        if (alive) setErr("No pudimos cargar los bancos.");
+        if (alive) setErr(tr("errBanks"));
       } finally {
         if (alive) setBanksLoading(false);
       }
@@ -1299,15 +1322,15 @@ function DepositPse({
 
   async function pay() {
     if (!isMock && !bankCode) {
-      setErr("Elegí tu banco.");
+      setErr(tr("errChooseBank"));
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      setErr("Email inválido.");
+      setErr(tr("errEmail"));
       return;
     }
     if (!docNumber.trim()) {
-      setErr("Número de documento obligatorio.");
+      setErr(tr("errDocRequired"));
       return;
     }
     setErr(null);
@@ -1333,7 +1356,7 @@ function DepositPse({
         );
         const j = await res.json().catch(() => ({}));
         if (!res.ok || !j.redirectUrl) {
-          setErr(j.message ?? "No pudimos iniciar PSE.");
+          setErr(j.message ?? tr("errPseInit"));
           setBusy(false);
           return;
         }
@@ -1384,7 +1407,7 @@ function DepositPse({
       });
       if (response.code || !response.token) {
         setErr(
-          `${response.message ?? response.error ?? "No pudimos procesar el pago"}${response.code ? ` (${response.code})` : ""}`,
+          `${response.message ?? response.error ?? tr("errProcessPayment")}${response.code ? ` (${response.code})` : ""}`,
         );
         setBusy(false);
         return;
@@ -1399,14 +1422,14 @@ function DepositPse({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.redirectUrl) {
-        setErr(j.message ?? "No pudimos iniciar la transferencia.");
+        setErr(j.message ?? tr("errTransferInit"));
         setBusy(false);
         return;
       }
       window.location.href = j.redirectUrl;
     } catch (e) {
       console.error("[deposit-pse]", e);
-      setErr("No pudimos iniciar PSE. Intentá de nuevo.");
+      setErr(tr("errPseRetry"));
       setBusy(false);
     }
   }
@@ -1416,7 +1439,7 @@ function DepositPse({
       {!isMock && (
         <label className="block">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            Banco
+            {tr("bank")}
           </span>
           <select
             value={bankCode}
@@ -1425,7 +1448,7 @@ function DepositPse({
             className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
           >
             <option value="">
-              {banksLoading ? "Cargando bancos…" : "Elegí tu banco"}
+              {banksLoading ? tr("loadingBanks") : tr("chooseBank")}
             </option>
             {banks.map((b) => (
               <option key={b.code} value={b.code}>
@@ -1438,7 +1461,7 @@ function DepositPse({
       <div className="grid grid-cols-[90px_1fr] gap-2">
         <label className="block">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            Tipo
+            {tr("docType")}
           </span>
           <select
             value={docType}
@@ -1456,27 +1479,27 @@ function DepositPse({
         </label>
         <label className="block">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            Documento
+            {tr("document")}
           </span>
           <input
             inputMode="numeric"
             value={docNumber}
             onChange={(e) => setDocNumber(e.target.value)}
-            placeholder="Número de documento"
+            placeholder={tr("docNumberPlaceholder")}
             className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
           />
         </label>
       </div>
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Email
+          {tr("email")}
         </span>
         <input
           type="email"
           inputMode="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
+          placeholder={tr("emailPlaceholder")}
           className="mt-1 w-full h-11 rounded-xl border border-hairline bg-bone px-3 text-sm focus:outline-none focus:border-ink"
         />
       </label>
@@ -1493,11 +1516,12 @@ function DepositPse({
         onClick={pay}
         className="w-full h-12 rounded-full bg-ink text-bone font-medium text-sm disabled:opacity-60"
       >
-        {busy ? "Conectando con tu banco…" : `Pagar con PSE · ${fmtCOP(depositCents)}`}
+        {busy
+          ? tr("connectingBank")
+          : tr("payPse", { amount: fmtCOP(depositCents) })}
       </button>
       <p className="text-[10px] text-muted text-center">
-        Te llevamos a tu banco para autorizar la transferencia de forma
-        segura.
+        {tr("pseSecureNote")}
       </p>
     </div>
   );

@@ -7,6 +7,8 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
+import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
+import { env } from "@/lib/env";
 
 /**
  * Push a pending datáfono Payment to a Kushki Smart POS terminal.
@@ -61,7 +63,13 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!tenant.kushkiMerchantId) {
+  // Datáfono cloud "desacoplado": si están las credenciales del Cloud
+  // Terminal (KUSHKI_BP_AUTH), el push va al datáfono REAL (cloudt) sin
+  // importar KUSHKI_MODE — así el datáfono cobra de verdad aunque el resto
+  // de Kushki (tarjeta/PSE del comensal) siga en mock. Sin esas creds,
+  // caemos al provider por modo (mock auto-aprueba; live usa submerchant).
+  const cloudConfigured = !!env.KUSHKI_BP_AUTH;
+  if (!cloudConfigured && !tenant.kushkiMerchantId) {
     return NextResponse.json(
       { error: "tenant_not_onboarded" },
       { status: 409 },
@@ -101,33 +109,39 @@ export async function POST(
     return NextResponse.json({ error: "invalid_device" }, { status: 400 });
   }
 
-  const privateKey = await getRestaurantPrivateKey(tenant.id);
-  if (!privateKey) {
-    return NextResponse.json(
-      { error: "credentials_missing" },
-      { status: 500 },
-    );
-  }
-
   let push;
   try {
-    const provider = await getPaymentProvider();
-    push = await provider.pushToTerminal({
-      merchantId: privateKey,
-      // Cloud Terminal identifica el equipo por su SERIAL físico. El
-      // device legacy/mock cae al kushkiDeviceId.
-      deviceId: device.serialNumber ?? parsed.data.deviceId,
-      amount: {
-        // payment.amountCents YA incluye la propina (TOTAL). Sumar
-        // tipCents otra vez cobraba doble propina en el datáfono real.
+    if (cloudConfigured) {
+      // —— Datáfono REAL vía Cloud Terminal (cloudt.kushkipagos.com),
+      // independiente de KUSHKI_MODE. Requiere el serial del equipo.
+      if (!device.serialNumber) {
+        return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
+      }
+      push = await pushPaymentToCloudTerminal({
+        serialNumber: device.serialNumber,
+        // amountCents YA incluye la propina (TOTAL).
         amountCents: payment.amountCents,
-        currency: "COP",
-      },
-      metadata: {
-        orderId: payment.orderId,
-        paymentId: payment.id,
-      },
-    });
+        reference: payment.id,
+        description: `MESAPAY orden ${payment.orderId.slice(0, 6)}`,
+      });
+    } else {
+      // —— Sin creds cloud: provider por modo (mock auto-aprueba; live
+      // usa la llave del sub-merchant).
+      const privateKey = await getRestaurantPrivateKey(tenant.id);
+      if (!privateKey) {
+        return NextResponse.json(
+          { error: "credentials_missing" },
+          { status: 500 },
+        );
+      }
+      const provider = await getPaymentProvider();
+      push = await provider.pushToTerminal({
+        merchantId: privateKey,
+        deviceId: device.serialNumber ?? parsed.data.deviceId,
+        amount: { amountCents: payment.amountCents, currency: "COP" },
+        metadata: { orderId: payment.orderId, paymentId: payment.id },
+      });
+    }
   } catch (err) {
     return NextResponse.json(
       {

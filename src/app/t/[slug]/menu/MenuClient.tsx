@@ -894,7 +894,12 @@ export function MenuClient({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <LocaleSwitcher />
+              {/* Desktop: el selector vive en el cluster del header.
+                  En móvil se mueve abajo (ver bloque sm:hidden) para no
+                  apretar la fila de íconos. */}
+              <span className="hidden sm:inline-flex">
+                <LocaleSwitcher />
+              </span>
               <LayoutSwitcher layout={layout} onChange={changeLayout} />
               {/* Llamar al mesero — siempre visible cuando es modo
                   mesa (sin pickup). El endpoint by-table maneja
@@ -917,6 +922,11 @@ export function MenuClient({
                 </Link>
               )}
             </div>
+          </div>
+          {/* Móvil: selector de idioma alineado a la derecha, debajo de
+              la campanita de llamar al mesero. */}
+          <div className="sm:hidden mt-2 flex justify-end">
+            <LocaleSwitcher />
           </div>
           <div className="mt-3 flex items-center gap-2">
             {hydrated && !isPickup && (

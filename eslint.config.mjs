@@ -25,6 +25,7 @@ const MIGRATED = [
   // aplica a esos archivos.
   "src/app/r/\\[slug\\]/page.tsx",
   "src/app/r/\\[slug\\]/ReservarClient.tsx",
+  "src/app/r/\\[slug\\]/reserva/\\[code\\]/**/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/menu/page.tsx",
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
   "src/app/t/\\[slug\\]/page.tsx",

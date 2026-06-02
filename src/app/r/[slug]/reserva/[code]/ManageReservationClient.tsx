@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function ManageReservationClient({
   tenantSlug,
@@ -14,12 +15,13 @@ export function ManageReservationClient({
   cancelable: boolean;
   alreadyCancelled: boolean;
 }) {
+  const tr = useTranslations("reservar");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function cancel() {
-    if (!confirm("¿Seguro que querés cancelar tu reserva?")) return;
+    if (!confirm(tr("confirmCancel"))) return;
     setBusy(true);
     setErr(null);
     const res = await fetch(
@@ -28,7 +30,7 @@ export function ManageReservationClient({
     );
     setBusy(false);
     if (!res.ok) {
-      setErr("No pudimos cancelar. Intentá de nuevo o llamá al restaurante.");
+      setErr(tr("errCancel"));
       return;
     }
     router.refresh();
@@ -37,7 +39,7 @@ export function ManageReservationClient({
   if (alreadyCancelled) {
     return (
       <p className="text-sm text-muted text-center">
-        Esta reserva ya no está activa.
+        {tr("notActive")}
       </p>
     );
   }
@@ -45,7 +47,7 @@ export function ManageReservationClient({
   if (!cancelable) {
     return (
       <p className="text-xs text-muted text-center">
-        Para cambios, comunicate directamente con el restaurante.
+        {tr("contactRestaurant")}
       </p>
     );
   }
@@ -58,7 +60,7 @@ export function ManageReservationClient({
         disabled={busy}
         className="h-11 px-6 rounded-full border border-danger/40 text-danger text-sm font-medium disabled:opacity-50"
       >
-        {busy ? "Cancelando…" : "Cancelar mi reserva"}
+        {busy ? tr("cancelling") : tr("cancelReservation")}
       </button>
       {err && <p className="mt-2 text-xs text-danger">{err}</p>}
     </div>

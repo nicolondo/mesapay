@@ -1,17 +1,18 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { ManageReservationClient } from "./ManageReservationClient";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, { label: string; tint: string }> = {
-  pending: { label: "Pendiente de confirmación", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
-  confirmed: { label: "Confirmada", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
-  seated: { label: "En el restaurante", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
-  completed: { label: "Completada", tint: "bg-paper text-muted" },
-  cancelled: { label: "Cancelada", tint: "bg-danger/15 text-danger" },
-  no_show: { label: "No asistió", tint: "bg-danger/15 text-danger" },
+const STATUS_META: Record<string, { key: string; tint: string }> = {
+  pending: { key: "statusPending", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
+  confirmed: { key: "statusConfirmed", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
+  seated: { key: "statusSeated", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
+  completed: { key: "statusCompleted", tint: "bg-paper text-muted" },
+  cancelled: { key: "statusCancelled", tint: "bg-danger/15 text-danger" },
+  no_show: { key: "statusNoShow", tint: "bg-danger/15 text-danger" },
 };
 
 function prettyWhen(d: Date): string {
@@ -35,6 +36,7 @@ export default async function ManageReservationPage({
   params: Promise<{ slug: string; code: string }>;
 }) {
   const { slug, code } = await params;
+  const t = await getTranslations("reservar");
 
   const reservation = await db.reservation.findUnique({
     where: { confirmationCode: code },
@@ -46,10 +48,9 @@ export default async function ManageReservationPage({
 
   if (!reservation || reservation.restaurant.slug !== slug) return notFound();
 
-  const status = STATUS_LABEL[reservation.status] ?? {
-    label: reservation.status,
-    tint: "bg-paper text-muted",
-  };
+  const statusMeta = STATUS_META[reservation.status];
+  const statusLabel = statusMeta ? t(statusMeta.key) : reservation.status;
+  const statusTint = statusMeta?.tint ?? "bg-paper text-muted";
   // Cancelable solo si está pendiente/confirmada y todavía no empezó.
   const cancelable =
     (reservation.status === "pending" || reservation.status === "confirmed") &&
@@ -64,46 +65,46 @@ export default async function ManageReservationPage({
             ? ` · ${reservation.restaurant.legalCity}`
             : ""}
         </div>
-        <h1 className="font-display text-3xl mb-4">Tu reserva</h1>
+        <h1 className="font-display text-3xl mb-4">{t("yourReservation")}</h1>
 
         <div className="rounded-2xl border border-hairline bg-paper p-5 mb-5">
           <span
             className={
               "inline-flex items-center h-7 px-3 rounded-full text-[11px] font-medium mb-4 " +
-              status.tint
+              statusTint
             }
           >
-            {status.label}
+            {statusLabel}
           </span>
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="text-muted py-1">Fecha</td>
+                <td className="text-muted py-1">{t("dateLabel")}</td>
                 <td className="text-right font-medium">
                   {prettyWhen(reservation.startsAt)}
                 </td>
               </tr>
               <tr>
-                <td className="text-muted py-1">Personas</td>
+                <td className="text-muted py-1">{t("fieldPeople")}</td>
                 <td className="text-right font-medium">
                   {reservation.partySize}
                 </td>
               </tr>
               <tr>
-                <td className="text-muted py-1">Mesa</td>
+                <td className="text-muted py-1">{t("fieldTable")}</td>
                 <td className="text-right font-medium">
                   {reservation.table.label ??
-                    `Mesa ${reservation.table.number}`}
+                    t("tableN", { number: reservation.table.number })}
                 </td>
               </tr>
               <tr>
-                <td className="text-muted py-1">A nombre de</td>
+                <td className="text-muted py-1">{t("fieldName")}</td>
                 <td className="text-right font-medium">
                   {reservation.customerName}
                 </td>
               </tr>
               <tr>
-                <td className="text-muted py-2.5">Código</td>
+                <td className="text-muted py-2.5">{t("fieldCode")}</td>
                 <td className="text-right font-display text-lg pt-2.5">
                   {reservation.confirmationCode}
                 </td>
@@ -112,7 +113,7 @@ export default async function ManageReservationPage({
           </table>
           {reservation.notes && (
             <p className="mt-3 pt-3 border-t border-hairline text-xs text-muted">
-              Nota: {reservation.notes}
+              {t("noteLine", { note: reservation.notes })}
             </p>
           )}
         </div>

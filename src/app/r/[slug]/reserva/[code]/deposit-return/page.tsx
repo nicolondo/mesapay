@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getRestaurantPrivateKey } from "@/lib/payments";
 import { getKushkiMode } from "@/lib/platformConfig";
@@ -50,6 +51,7 @@ export default async function DepositReturnPage({
   params: Promise<{ slug: string; code: string }>;
 }) {
   const { slug, code } = await params;
+  const t = await getTranslations("reservar");
 
   const reservation = await db.reservation.findUnique({
     where: { confirmationCode: code },
@@ -125,25 +127,27 @@ export default async function DepositReturnPage({
     <main className="min-h-dvh bg-bone text-ink flex flex-col items-center justify-center px-6 py-12">
       <div className="max-w-sm w-full text-center">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-2">
-          PSE · {reservation.restaurant.name}
+          {`${t("methodPse")} · ${reservation.restaurant.name}`}
         </div>
 
         {state === "approved" && (
           <>
             <div className="mx-auto w-14 h-14 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] flex items-center justify-center text-2xl mb-4">
-              ✓
+              {"✓"}
             </div>
-            <h1 className="font-display text-3xl mb-2">¡Mesa apartada!</h1>
+            <h1 className="font-display text-3xl mb-2">
+              {t("depositApprovedTitle")}
+            </h1>
             <p className="text-sm text-muted mb-1">
-              Recibimos tu depósito
               {reservation.depositCents
-                ? ` de ${fmt(reservation.depositCents)}`
-                : ""}
-              . Se descuenta de tu cuenta cuando llegues.
+                ? t("depositReceivedWithAmount", {
+                    amount: fmt(reservation.depositCents),
+                  })
+                : t("depositReceivedNoAmount")}
             </p>
             <div className="rounded-2xl border border-hairline bg-paper p-4 my-6">
               <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                Código de reserva
+                {t("reservationCode")}
               </div>
               <div className="font-display text-2xl tracking-wide mt-1">
                 {reservation.confirmationCode}
@@ -153,38 +157,38 @@ export default async function DepositReturnPage({
               href={`/r/${slug}/reserva/${reservation.confirmationCode}`}
               className="text-sm text-terracotta hover:underline"
             >
-              Ver o cancelar mi reserva →
+              {t("viewOrCancel")}
             </Link>
           </>
         )}
 
         {state === "declined" && (
           <>
-            <div className="text-5xl mb-3">✕</div>
-            <h1 className="font-display text-2xl mb-2">Depósito no completado</h1>
+            <div className="text-5xl mb-3">{"✕"}</div>
+            <h1 className="font-display text-2xl mb-2">
+              {t("depositDeclinedTitle")}
+            </h1>
             <p className="text-sm text-muted mb-6">
-              Tu banco no confirmó la transferencia. Podés volver a intentar la
-              reserva.
+              {t("depositDeclinedBody")}
             </p>
             <Link
               href={`/r/${slug}`}
               className="inline-flex items-center justify-center h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
             >
-              Volver a reservar
+              {t("backToReserve")}
             </Link>
           </>
         )}
 
         {state === "pending" && (
           <>
-            <div className="text-5xl mb-3 animate-pulse">⏳</div>
-            <h1 className="font-display text-2xl mb-2">Procesando…</h1>
+            <div className="text-5xl mb-3 animate-pulse">{"⏳"}</div>
+            <h1 className="font-display text-2xl mb-2">{t("processing")}</h1>
             <p className="text-sm text-muted mb-1">
-              Estamos confirmando tu transferencia con el banco. Puede tardar
-              unos segundos.
+              {t("processingBody")}
             </p>
             <p className="text-xs text-muted mb-2">
-              Esta página se actualiza sola.
+              {t("pageAutoRefresh")}
             </p>
             <meta httpEquiv="refresh" content="3" />
           </>

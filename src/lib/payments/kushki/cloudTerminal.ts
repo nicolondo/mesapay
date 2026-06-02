@@ -1,24 +1,28 @@
-import { createHmac, randomUUID } from "crypto";
+import {
+  createHash,
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  randomUUID,
+} from "crypto";
 import { env } from "../../env";
 import { getKushkiMode } from "../../platformConfig";
 
 /**
- * Cliente del Kushki ONE — Payment API (Cloud) para datáfonos SmartPOS
- * (Sunmi P3/P2). Host cloudt.kushkipagos.com (prod) / uat-cloudt (UAT).
+ * Cliente del Kushki ONE — Payment API (Cloud) para datáfonos SmartPOS.
+ * Host cloudt.kushkipagos.com (prod) / uat-cloudt (UAT).
  *
- * AUTENTICACIÓN (OpenAPI oficial "Kushki ONE — Payment API (Cloud)"):
- *   Authorization = Base64( HMAC-SHA256( rawBody, Business-Code ) )
- *   timestamp     = Unix en MILISEGUNDOS (±5 min del server)
- *   El Business-Code es la clave HMAC; lo carga el comercio en
- *   Configuración → Datáfonos.
+ * AUTENTICACIÓN + CIFRADO (replica cloudpayment.middleware.ts; verificado
+ * contra el pre-request de Postman del comercio):
+ *   timestamp     = Unix en SEGUNDOS.
+ *   password      = MD5( (businessCode + serial + "YYYY:MM:DD:HH:MM"UTC).padEnd(32,'0') )
+ *   Authorization = "Basic " + SHA512( base64( JSON.stringify({...payload, key: base64(password+ts)}) ) )
+ *   Body CIFRADO  = AES-256-CBC( JSON.stringify(payload), key = (ts + "___" + password)[:32], IV random )
+ *                   → enviado como { "data": "<ivHex>:<cipherHex>" }
+ *   ⚠️ la clave AES usa TRES guiones bajos ("___") entre ts y password.
  *
  * Cobro SÍNCRONO: POST /terminal/v1/{serial}/sync/charge bloquea hasta que
- * el cliente pasa la tarjeta y el adquirente responde. El resultado vuelve
- * en la misma respuesta (no hay webhook).
- *
- * ⚠️ El equipo debe estar online (egress 443) y con la app Kushki ONE
- * Connect activa para recibir el push; si no, la nube responde
- * CLOUDPAYMENT_VALIDATION_ERROR antes de validar la firma.
+ * el cliente pasa la tarjeta. El resultado vuelve en la misma respuesta.
  */
 
 const BASE_URL = {
@@ -26,7 +30,6 @@ const BASE_URL = {
   production: "https://cloudt.kushkipagos.com",
 } as const;
 
-// async: lee el modo de la DB (warmea cache). Evita el default "mock".
 async function baseUrl(): Promise<string> {
   if (env.KUSHKI_CLOUD_TERMINAL_URL) return env.KUSHKI_CLOUD_TERMINAL_URL;
   const mode = await getKushkiMode();
@@ -36,33 +39,85 @@ async function baseUrl(): Promise<string> {
   return BASE_URL[mode];
 }
 
-/** El serial va en el path: POST /terminal/v1/{serial}/sync/charge. */
 function pushPath(serial: string): string {
   const tmpl =
     env.KUSHKI_CLOUD_TERMINAL_PATH || "/terminal/v1/{serial}/sync/charge";
   return tmpl.replace("{serial}", encodeURIComponent(serial));
 }
 
-// El cobro es síncrono: la doc sugiere timeout ≥90s por la latencia del relay.
+// Síncrono: la doc sugiere timeout ≥90s por la latencia del relay.
 const CHARGE_TIMEOUT_MS = 95_000;
 
-/** Business-Code = clave HMAC. Sin él no podemos firmar → no cobrar. */
 function resolveBusinessCode(explicit?: string | null): string {
   const code = explicit || env.KUSHKI_BP_BUSINESS_CODE;
   if (!code) {
     throw new Error(
-      "Cloud Terminal sin Business-Code (clave HMAC). Cargalo en " +
-        "Configuración → Datáfonos.",
+      "Cloud Terminal sin Business-Code. Cargalo en Configuración → Datáfonos.",
     );
   }
   return code;
 }
 
-/** Authorization = Base64( HMAC-SHA256( rawBody, businessCode ) ). */
-function signBody(rawBody: string, businessCode: string): string {
-  return createHmac("sha256", businessCode)
-    .update(rawBody, "utf8")
-    .digest("base64");
+// ——— Cripto del Cloud Terminal ———
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+function formattedDate(tsSeconds: number): string {
+  const d = new Date(tsSeconds * 1000);
+  return (
+    `${d.getUTCFullYear()}:${pad2(d.getUTCMonth() + 1)}:${pad2(d.getUTCDate())}` +
+    `:${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`
+  );
+}
+function md5hex(s: string): string {
+  return createHash("md5").update(s, "utf8").digest("hex");
+}
+function sha512hex(s: string): string {
+  return createHash("sha512").update(s, "utf8").digest("hex");
+}
+function b64(s: string): string {
+  return Buffer.from(s, "utf8").toString("base64");
+}
+function tokenPassword(token: string, tsSeconds: number): string {
+  return md5hex((token + formattedDate(tsSeconds)).padEnd(32, "0"));
+}
+function buildAuthHash(
+  payload: Record<string, unknown>,
+  tsSeconds: number,
+  password: string,
+): string {
+  const withKey = { ...payload, key: b64(password + tsSeconds) };
+  return sha512hex(b64(JSON.stringify(withKey)));
+}
+// ⚠️ TRES guiones bajos entre ts y password.
+function aesKey(tsSeconds: number, password: string): Buffer {
+  return Buffer.from((tsSeconds + "___" + password).substring(0, 32), "utf8");
+}
+function encryptPayload(
+  text: string,
+  tsSeconds: number,
+  password: string,
+): string {
+  const iv = randomBytes(16);
+  const c = createCipheriv("aes-256-cbc", aesKey(tsSeconds, password), iv);
+  const enc = Buffer.concat([c.update(text, "utf8"), c.final()]);
+  return iv.toString("hex") + ":" + enc.toString("hex");
+}
+function decryptData(
+  data: string,
+  tsSeconds: number,
+  password: string,
+): string {
+  const [ivHex, ctHex] = data.split(":");
+  const d = createDecipheriv(
+    "aes-256-cbc",
+    aesKey(tsSeconds, password),
+    Buffer.from(ivHex, "hex"),
+  );
+  return Buffer.concat([
+    d.update(Buffer.from(ctHex, "hex")),
+    d.final(),
+  ]).toString("utf8");
 }
 
 export type CloudTerminalPushArgs = {
@@ -76,12 +131,11 @@ export type CloudTerminalPushArgs = {
   description?: string;
   /** Email del cliente (opcional) → metadata.customer_email. */
   customerEmail?: string | null;
-  /** Business-Code del comercio (clave HMAC). Fallback al env. */
+  /** Business-Code del comercio. Fallback al env. */
   businessCode?: string | null;
 };
 
 export type CloudTerminalChargeResult = {
-  /** Estado FINAL del cobro síncrono. */
   status: "approved" | "declined" | "error";
   /** transaction_reference (para void/refund) o el client_transaction_id. */
   providerRef: string;
@@ -105,17 +159,18 @@ function pick(obj: unknown, keys: string[]): string | undefined {
 }
 
 /**
- * Cobra SÍNCRONO en el datáfono. Devuelve el resultado final (aprobado /
- * rechazado / error); el caller settlea con eso.
+ * Cobra SÍNCRONO en el datáfono. Devuelve el resultado final; el caller
+ * settlea con eso.
  */
 export async function pushPaymentToCloudTerminal(
   args: CloudTerminalPushArgs,
 ): Promise<CloudTerminalChargeResult> {
   const businessCode = resolveBusinessCode(args.businessCode);
+  const serial = args.serialNumber;
   // COP no tiene decimales → unidades mayores (pesos enteros).
   const amount = Math.round(args.amountCents / 100);
   const clientTxnId = randomUUID(); // idempotency key (UUID v4)
-  const payload = {
+  const payload: Record<string, unknown> = {
     amount: {
       iva: 0,
       subtotal_iva: 0,
@@ -130,18 +185,19 @@ export async function pushPaymentToCloudTerminal(
     },
   };
 
-  // Firmamos y enviamos EXACTAMENTE este string (byte-idéntico al firmado).
-  const raw = JSON.stringify(payload);
-  const authorization = signBody(raw, businessCode);
-  const ts = Date.now().toString(); // MILISEGUNDOS
-  const url = (await baseUrl()) + pushPath(args.serialNumber);
+  const ts = Math.floor(Date.now() / 1000); // SEGUNDOS
+  const password = tokenPassword(businessCode + serial, ts);
+  const authHash = buildAuthHash(payload, ts, password);
+  const encryptedData = encryptPayload(JSON.stringify(payload), ts, password);
+  const url = (await baseUrl()) + pushPath(serial);
 
   console.log("[kushki/cloud-terminal] charge", {
     url,
-    serialNumber: args.serialNumber,
+    serialNumber: serial,
     amount,
     reference: args.reference,
     clientTxnId,
+    ts,
   });
 
   const controller = new AbortController();
@@ -151,12 +207,11 @@ export async function pushPaymentToCloudTerminal(
     res = await fetch(url, {
       method: "POST",
       headers: {
-        Accept: "application/json",
         "Content-Type": "application/json",
-        Authorization: authorization,
-        timestamp: ts,
+        Authorization: `Basic ${authHash}`,
+        timestamp: String(ts),
       },
-      body: raw,
+      body: JSON.stringify({ data: encryptedData }),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -182,6 +237,17 @@ export async function pushPaymentToCloudTerminal(
   } catch {
     json = null;
   }
+  // La respuesta puede venir cifrada como { data: "<ivHex>:<ctHex>" }.
+  const dataField = asObj(json)?.data;
+  if (typeof dataField === "string" && /^[0-9a-f]+:[0-9a-f]+$/i.test(dataField)) {
+    try {
+      const dec = decryptData(dataField, ts, password);
+      json = JSON.parse(dec);
+      console.log("[kushki/cloud-terminal] charge resp (descifrada):", dec.slice(0, 500));
+    } catch (e) {
+      console.warn("[kushki/cloud-terminal] no se pudo descifrar la respuesta", e);
+    }
+  }
   console.log(
     `[kushki/cloud-terminal] charge resp ${res.status}:`,
     text.slice(0, 500) || "(empty)",
@@ -193,7 +259,6 @@ export async function pushPaymentToCloudTerminal(
     pick(json, ["transaction_reference", "client_transaction_id"]) ||
     clientTxnId;
 
-  // ---- Errores operacionales: { type, code, message } (a veces en failure)
   if (!res.ok) {
     const failure =
       asObj(json) && "failure" in (json as object)
@@ -214,7 +279,6 @@ export async function pushPaymentToCloudTerminal(
     };
   }
 
-  // ---- 200: leer transaction_status (APPROVAL / DECLINED / ERROR) + approved
   const txStatus = pick(rawResp, ["transaction_status"])?.toUpperCase();
   const approvedFlag = asObj(json)?.approved;
   const message =
@@ -238,7 +302,6 @@ export async function pushPaymentToCloudTerminal(
       raw: json,
     };
   }
-  // APPROVAL (o approved:true / sin status explícito en 200) → aprobado.
   return {
     status: "approved",
     providerRef,
@@ -250,7 +313,7 @@ export async function pushPaymentToCloudTerminal(
 
 /**
  * Aborta un cobro en curso en el datáfono (POST /sync/abort, sin body ni
- * Authorization). Best-effort: si no hay transacción activa, Kushki da 409.
+ * Authorization). Best-effort.
  */
 export async function cancelCloudTerminalPayment(
   serialNumber: string,

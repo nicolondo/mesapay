@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   PAYMENT_METHOD_CATALOG,
   type PaymentMethodSlug,
@@ -20,6 +21,7 @@ export function PaymentMethodsPanel({
   restaurantId: string;
   initialEnabled: PaymentMethodSlug[];
 }) {
+  const t = useTranslations("opAdmin");
   const router = useRouter();
   const [enabled, setEnabled] = useState<Set<PaymentMethodSlug>>(
     new Set(initialEnabled),
@@ -56,10 +58,10 @@ export function PaymentMethodsPanel({
     );
     setBusy(false);
     if (!res.ok) {
-      setMsg({ kind: "error", text: "No pudimos guardar." });
+      setMsg({ kind: "error", text: t("saveFailedShort") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("savedOk") });
     router.refresh();
   }
 
@@ -68,14 +70,17 @@ export function PaymentMethodsPanel({
       <div className="flex items-start justify-between gap-3 mb-1">
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-            Medios de pago
+            {t("paymentMethodsTitle")}
           </div>
           <div className="text-sm mt-1">
-            Decide qué opciones ve el cliente al pagar la cuenta.
+            {t("paymentMethodsIntro")}
           </div>
         </div>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted shrink-0">
-          {enabled.size} / {PAYMENT_METHOD_CATALOG.length}
+          {t("paymentMethodsCount", {
+            enabled: enabled.size,
+            total: PAYMENT_METHOD_CATALOG.length,
+          })}
         </div>
       </div>
 
@@ -117,8 +122,7 @@ export function PaymentMethodsPanel({
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="text-[11px] text-op-muted">
-          Apagar todos hace que el cliente no vea ningún botón de pago en la
-          carta — úsalo sólo si quieres bloquear cobros temporalmente.
+          {t("paymentMethodsHint")}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {msg && (
@@ -137,7 +141,7 @@ export function PaymentMethodsPanel({
             disabled={busy || !dirty}
             className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {busy ? "Guardando…" : "Guardar"}
+            {busy ? t("saving") : t("save")}
           </button>
         </div>
       </div>

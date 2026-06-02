@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Panel para asignar/reasignar/desvincular el grupo del restaurante.
@@ -23,6 +24,7 @@ export function GroupAssignPanel({
   groups: { id: string; name: string; slug: string }[];
   currentLegalEntityName: string | null;
 }) {
+  const t = useTranslations("opAdmin");
   const router = useRouter();
   const [selected, setSelected] = useState<string>(initialGroupId ?? "");
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,7 @@ export function GroupAssignPanel({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos guardar el cambio.");
+      setErr(j.error ?? t("saveError"));
       return;
     }
     startTransition(() => router.refresh());
@@ -57,18 +59,18 @@ export function GroupAssignPanel({
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
-        Grupo
+        {t("groupTitle")}
       </div>
       <div className="text-sm mb-3">
         {initialGroup ? (
           <>
-            Pertenece a <strong>{initialGroup.name}</strong>{" "}
+            {t("groupBelongsTo")} <strong>{initialGroup.name}</strong>{" "}
             <span className="font-mono text-[11px] text-op-muted">
               /{initialGroup.slug}
             </span>
           </>
         ) : (
-          <span className="text-op-muted">Sin grupo asignado.</span>
+          <span className="text-op-muted">{t("groupNone")}</span>
         )}
       </div>
 
@@ -78,10 +80,10 @@ export function GroupAssignPanel({
           onChange={(e) => setSelected(e.target.value)}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta min-w-[14rem]"
         >
-          <option value="">Sin grupo</option>
+          <option value="">{t("groupNoneOption")}</option>
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
-              {g.name} (/{g.slug})
+              {t("groupOption", { name: g.name, slug: g.slug })}
             </option>
           ))}
         </select>
@@ -91,7 +93,7 @@ export function GroupAssignPanel({
           disabled={!dirty || busy}
           className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("saving") : t("save")}
         </button>
         {dirty && (
           <button
@@ -103,30 +105,32 @@ export function GroupAssignPanel({
             disabled={busy}
             className="h-10 px-3 rounded-full text-sm text-op-muted hover:text-op-text"
           >
-            Cancelar
+            {t("cancel")}
           </button>
         )}
       </div>
 
       {willClearLegalEntity && (
         <div className="mt-3 text-[11px] text-[#7F5A1F] bg-[#C98A2E]/10 border border-[#C98A2E]/30 rounded-lg px-3 py-2">
-          ⚠ El comercio tiene asignada la razón social{" "}
-          <strong>{currentLegalEntityName}</strong> del grupo actual. Al
-          cambiar de grupo esa razón se desvincula y deberá asignarse una
-          del grupo destino desde{" "}
-          <span className="font-mono">/operator/settings/identidad</span>.
+          <span aria-hidden>{"⚠"}</span>{" "}
+          {t.rich("groupWillClearLegalEntity", {
+            name: currentLegalEntityName,
+            strong: (chunks) => <strong>{chunks}</strong>,
+            code: (chunks) => <span className="font-mono">{chunks}</span>,
+          })}
         </div>
       )}
       {dirty && !willClearLegalEntity && nextGroup && (
         <div className="mt-3 text-[11px] text-op-muted">
-          Se asignará a <strong>{nextGroup.name}</strong>. El group_admin
-          de ese grupo podrá ver este restaurante desde /group.
+          {t.rich("groupWillAssign", {
+            name: nextGroup.name,
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </div>
       )}
       {dirty && !willClearLegalEntity && !nextGroup && initialGroup && (
         <div className="mt-3 text-[11px] text-op-muted">
-          Quedará sin grupo. El restaurante seguirá funcionando como
-          comercio independiente.
+          {t("groupWillRemove")}
         </div>
       )}
       {err && (

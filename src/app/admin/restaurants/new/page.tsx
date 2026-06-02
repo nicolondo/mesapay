@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { registerRestaurant } from "@/lib/registerRestaurant";
 
 async function submit(formData: FormData) {
   "use server";
+  const t = await getTranslations("opAdmin");
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
-    redirect("/admin/restaurants/new?err=No+autorizado");
+    redirect(
+      "/admin/restaurants/new?err=" + encodeURIComponent(t("errNotAuthorized")),
+    );
   }
 
   const restaurantName = String(formData.get("restaurantName") ?? "").trim();
@@ -25,7 +29,7 @@ async function submit(formData: FormData) {
   ) {
     redirect(
       "/admin/restaurants/new?err=" +
-        encodeURIComponent("Completa todos los campos (contraseña ≥ 6)"),
+        encodeURIComponent(t("errFillAllFields")),
     );
   }
 
@@ -50,6 +54,7 @@ export default async function NewRestaurantPage({
   searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
   const sp = await searchParams;
+  const t = await getTranslations("opAdmin");
 
   return (
     <div className="flex-1 p-6 max-w-2xl mx-auto w-full">
@@ -57,11 +62,11 @@ export default async function NewRestaurantPage({
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
-        ← Restaurantes
+        {t("detailBack")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">Nuevo restaurante</div>
+      <div className="font-display text-3xl mt-2 mb-1">{t("newTitle")}</div>
       <div className="text-sm text-op-muted mb-6">
-        Se crea con menú base, 1 mesa y el correo del dueño como operador.
+        {t("newIntro")}
       </div>
 
       {sp.err && (
@@ -74,29 +79,29 @@ export default async function NewRestaurantPage({
         action={submit}
         className="bg-op-surface border border-op-border rounded-2xl p-6 space-y-4"
       >
-        <Field label="Nombre del restaurante" name="restaurantName" required />
+        <Field label={t("fieldRestaurantName")} name="restaurantName" required />
         <div>
           <Field
-            label="Identificador (slug)"
+            label={t("fieldSlug")}
             name="restaurantSlug"
             required
-            hint="Aparece en la URL: mesapay.com/t/{slug}. Solo minúsculas y guiones."
+            hint={t("fieldSlugHint")}
           />
         </div>
 
         <div className="h-px bg-op-border my-6" />
 
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted">
-          Cuenta del dueño / operador
+          {t("ownerSection")}
         </div>
-        <Field label="Nombre completo" name="ownerName" required />
-        <Field label="Correo" name="ownerEmail" type="email" required />
+        <Field label={t("fieldFullName")} name="ownerName" required />
+        <Field label={t("fieldEmail")} name="ownerEmail" type="email" required />
         <Field
-          label="Contraseña inicial"
+          label={t("fieldInitialPassword")}
           name="ownerPassword"
           type="text"
           required
-          hint="Se comparte con el dueño para el primer ingreso. Mínimo 6 caracteres."
+          hint={t("fieldInitialPasswordHint")}
         />
 
         <div className="pt-2 flex gap-2">
@@ -104,13 +109,13 @@ export default async function NewRestaurantPage({
             type="submit"
             className="flex-1 h-11 rounded-xl bg-ink text-bone text-sm font-medium"
           >
-            Crear restaurante
+            {t("createRestaurant")}
           </button>
           <Link
             href="/admin/restaurants"
             className="h-11 px-4 rounded-xl border border-op-border text-sm inline-flex items-center"
           >
-            Cancelar
+            {t("cancel")}
           </Link>
         </div>
       </form>

@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { getKushkiMode } from "@/lib/platformConfig";
 import { KushkiModeSwitcher } from "../KushkiModeSwitcher";
 
@@ -9,14 +10,14 @@ export const dynamic = "force-dynamic";
  * feature flags, secrets globales, etc.).
  */
 export default async function AdminConfiguracionPage() {
+  const t = await getTranslations("opAdmin");
   const kushkiMode = await getKushkiMode();
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">Configuración</div>
+      <div className="font-display text-3xl mb-1">{t("configTitle")}</div>
       <p className="text-sm text-op-muted mb-6">
-        Ajustes plataforma-wide. Los cambios afectan a todos los comercios
-        en MESAPAY y se propagan a los procesos del cluster en ~60s.
+        {t("configIntro")}
       </p>
 
       <section className="mb-6">

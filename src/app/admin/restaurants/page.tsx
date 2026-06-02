@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import {
@@ -19,6 +20,7 @@ export default async function RestaurantsAdmin({
   searchParams: Promise<{ ok?: string }>;
 }) {
   const sp = await searchParams;
+  const t = await getTranslations("opAdmin");
   const [restaurants, paidCounts, lastOrders, firstOrders, operatorCounts] =
     await Promise.all([
       db.restaurant.findMany({
@@ -66,37 +68,39 @@ export default async function RestaurantsAdmin({
     <div className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
       <div className="flex items-baseline justify-between gap-3 mb-6 flex-wrap">
         <div className="min-w-0">
-          <div className="font-display text-2xl md:text-3xl">Restaurantes</div>
+          <div className="font-display text-2xl md:text-3xl">{t("restaurantsTitle")}</div>
           <div className="text-sm text-op-muted mt-1">
-            {restaurants.length}{" "}
-            {restaurants.length === 1 ? "cuenta" : "cuentas"} en la plataforma
+            {t("accountsInPlatform", { count: restaurants.length })}
           </div>
         </div>
         <Link
           href="/admin/restaurants/new"
           className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
         >
-          + Nuevo restaurante
+          {t("newRestaurant")}
         </Link>
       </div>
 
       {sp.ok && (
         <div className="mb-4 rounded-lg border border-ok/30 bg-ok/10 text-[#1E5339] px-3 py-2 text-sm">
-          Restaurante <span className="font-mono">{sp.ok}</span> creado.
+          {t.rich("restaurantCreated", {
+            slug: sp.ok,
+            code: (chunks) => <span className="font-mono">{chunks}</span>,
+          })}
         </div>
       )}
 
       {restaurants.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-op-border bg-op-surface p-10 text-center">
-          <div className="font-display text-2xl mb-1">Todavía no hay cuentas</div>
+          <div className="font-display text-2xl mb-1">{t("noAccountsTitle")}</div>
           <div className="text-sm text-op-muted mb-4">
-            Crea el primer restaurante para empezar.
+            {t("noAccountsBody")}
           </div>
           <Link
             href="/admin/restaurants/new"
             className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium inline-flex items-center"
           >
-            + Nuevo restaurante
+            {t("newRestaurant")}
           </Link>
         </div>
       ) : (
@@ -136,19 +140,19 @@ export default async function RestaurantsAdmin({
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <MembershipPill status={membership} plan={r.plan} />
-                      <StatePill state={state} />
+                      <MembershipPill status={membership} plan={r.plan} t={t} />
+                      <StatePill state={state} t={t} />
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <MiniStat label="Operadores" value={ops} />
-                    <MiniStat label="Menú" value={r._count.menuItems} />
-                    <MiniStat label="Mesas" value={r._count.tables} />
-                    <MiniStat label="Órdenes" value={r._count.orders} />
-                    <MiniStat label="Pagadas" value={paid} />
+                    <MiniStat label={t("colOperators")} value={ops} />
+                    <MiniStat label={t("colMenu")} value={r._count.menuItems} />
+                    <MiniStat label={t("colTables")} value={r._count.tables} />
+                    <MiniStat label={t("colOrders")} value={r._count.orders} />
+                    <MiniStat label={t("colPaid")} value={paid} />
                     <MiniStat
-                      label="Última"
-                      value={last ? <RelTime date={last} /> : "—"}
+                      label={t("colLast")}
+                      value={last ? <RelTime date={last} t={t} /> : "—"}
                     />
                   </div>
                 </Link>
@@ -163,16 +167,16 @@ export default async function RestaurantsAdmin({
           <table className="w-full text-sm">
             <thead className="bg-op-bg">
               <tr className="text-left">
-                <Th>Restaurante</Th>
-                <Th>Alta</Th>
-                <Th>Operadores</Th>
-                <Th>Menú</Th>
-                <Th>Mesas</Th>
-                <Th>Órdenes</Th>
-                <Th>Pagadas</Th>
-                <Th>Última</Th>
-                <Th>Plan</Th>
-                <Th>Estado</Th>
+                <Th>{t("colRestaurant")}</Th>
+                <Th>{t("colCreated")}</Th>
+                <Th>{t("colOperators")}</Th>
+                <Th>{t("colMenu")}</Th>
+                <Th>{t("colTables")}</Th>
+                <Th>{t("colOrders")}</Th>
+                <Th>{t("colPaid")}</Th>
+                <Th>{t("colLast")}</Th>
+                <Th>{t("colPlan")}</Th>
+                <Th>{t("colStatus")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -214,7 +218,7 @@ export default async function RestaurantsAdmin({
                       <div>{bogotaDate(r.createdAt)}</div>
                       {first && (
                         <div className="font-mono text-[10px] text-op-muted">
-                          1ra orden: {bogotaDate(first)}
+                          {t("firstOrder", { date: bogotaDate(first) })}
                         </div>
                       )}
                     </Td>
@@ -225,16 +229,16 @@ export default async function RestaurantsAdmin({
                     <Td>{paid}</Td>
                     <Td>
                       {last ? (
-                        <RelTime date={last} />
+                        <RelTime date={last} t={t} />
                       ) : (
                         <span className="text-op-muted">—</span>
                       )}
                     </Td>
                     <Td>
-                      <MembershipPill status={membership} plan={r.plan} />
+                      <MembershipPill status={membership} plan={r.plan} t={t} />
                     </Td>
                     <Td>
-                      <StatePill state={state} />
+                      <StatePill state={state} t={t} />
                     </Td>
                   </tr>
                 );
@@ -299,26 +303,28 @@ function deriveState({
   return "en_uso";
 }
 
-function StatePill({ state }: { state: State }) {
+type Translate = Awaited<ReturnType<typeof getTranslations<"opAdmin">>>;
+
+function StatePill({ state, t }: { state: State; t: Translate }) {
   const map: Record<State, { label: string; cls: string }> = {
     activo: {
-      label: "Activo",
+      label: t("stateActivo"),
       cls: "bg-[#2E6B4C]/12 text-[#1E5339] border-[#2E6B4C]/35",
     },
     en_uso: {
-      label: "En uso",
+      label: t("stateEnUso"),
       cls: "bg-[#C98A2E]/15 text-[#7F5A1F] border-[#C98A2E]/50",
     },
     configurando: {
-      label: "Configurando",
+      label: t("stateConfigurando"),
       cls: "bg-terracotta/10 text-terracotta border-terracotta/30",
     },
     inactivo: {
-      label: "Inactivo",
+      label: t("stateInactivo"),
       cls: "bg-danger/10 text-danger border-danger/25",
     },
     nuevo: {
-      label: "Sin operador",
+      label: t("stateNuevo"),
       cls: "bg-op-bg text-op-muted border-op-border",
     },
   };
@@ -335,19 +341,20 @@ function StatePill({ state }: { state: State }) {
   );
 }
 
-const PLAN_LABEL: Record<string, string> = {
-  trial: "Prueba",
-  basic: "Básico",
-  pro: "Pro",
-};
-
 function MembershipPill({
   status,
   plan,
+  t,
 }: {
   status: MembershipStatus;
   plan: "trial" | "basic" | "pro";
+  t: Translate;
 }) {
+  const planLabel: Record<"trial" | "basic" | "pro", string> = {
+    trial: t("planTrial"),
+    basic: t("planBasic"),
+    pro: t("planPro"),
+  };
   const map: Record<MembershipStatus, string> = {
     al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
     trial: "bg-op-bg text-op-muted border-op-border",
@@ -357,7 +364,7 @@ function MembershipPill({
   };
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-[11px]">{PLAN_LABEL[plan]}</span>
+      <span className="font-mono text-[11px]">{planLabel[plan]}</span>
       <span
         className={
           "font-mono text-[9px] tracking-wider uppercase px-2 py-0.5 rounded border inline-block w-fit " +
@@ -370,17 +377,17 @@ function MembershipPill({
   );
 }
 
-function RelTime({ date }: { date: Date }) {
+function RelTime({ date, t }: { date: Date; t: Translate }) {
   const days = Math.floor((Date.now() - date.getTime()) / 86400000);
   const label =
     days === 0
-      ? "hoy"
+      ? t("relToday")
       : days === 1
-        ? "ayer"
+        ? t("relYesterday")
         : days < 7
-          ? `hace ${days}d`
+          ? t("relDaysAgo", { days })
           : days < 30
-            ? `hace ${Math.floor(days / 7)}sem`
+            ? t("relWeeksAgo", { weeks: Math.floor(days / 7) })
             : bogotaDate(date);
   return <span className="font-mono text-xs text-op-muted">{label}</span>;
 }

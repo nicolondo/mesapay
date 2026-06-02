@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { listAuditEvents, labelForKind } from "@/lib/auditLog";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 
@@ -24,6 +25,7 @@ export default async function AdminAuditPage({
   }>;
 }) {
   const { kind, restaurantId, actorEmail } = await searchParams;
+  const t = await getTranslations("opAdmin");
 
   const events = await listAuditEvents({
     kind: kind || undefined,
@@ -49,30 +51,27 @@ export default async function AdminAuditPage({
   return (
     <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-        Plataforma
+        {t("platformLabel")}
       </div>
       <div className="font-display text-3xl tracking-[-0.015em] mb-1">
-        Audit log
+        {t("auditTitle")}
       </div>
       <p className="text-sm text-op-muted mb-5">
-        Historial de acciones administrativas — cambios de plan,
-        pagos manuales, ediciones del catálogo. Las acciones del
-        operador en su propio comercio (identidad, usuarios, etc.)
-        también aparecen acá.
+        {t("auditIntro")}
       </p>
 
       {/* Filtros */}
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-          Filtros
+          {t("filters")}
         </div>
         <div className="flex flex-wrap gap-3 items-end">
-          <FilterField label="Acción">
+          <FilterField label={t("filterAction")}>
             <FilterLink
               href={buildHref({ kind: undefined, restaurantId, actorEmail })}
               active={!kind}
             >
-              Todas
+              {t("filterAll")}
             </FilterLink>
             {uniqueKinds.map((k) => (
               <FilterLink
@@ -85,7 +84,7 @@ export default async function AdminAuditPage({
             ))}
           </FilterField>
           {uniqueRestaurants.length > 0 && (
-            <FilterField label="Comercio">
+            <FilterField label={t("filterMerchant")}>
               <FilterLink
                 href={buildHref({
                   kind,
@@ -94,7 +93,7 @@ export default async function AdminAuditPage({
                 })}
                 active={!restaurantId}
               >
-                Todos
+                {t("filterAllMerchants")}
               </FilterLink>
               {uniqueRestaurants.map((r) => (
                 <FilterLink
@@ -116,7 +115,7 @@ export default async function AdminAuditPage({
               href="/admin/audit"
               className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
             >
-              Limpiar filtros
+              {t("clearFilters")}
             </Link>
           )}
         </div>
@@ -126,12 +125,12 @@ export default async function AdminAuditPage({
       <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
         <div className="px-5 py-3 border-b border-op-border flex items-center justify-between">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-            Eventos · {events.length}
+            {t("eventsCount", { count: events.length })}
           </div>
         </div>
         {events.length === 0 ? (
           <div className="p-8 text-sm text-op-muted text-center">
-            Sin eventos para este filtro.
+            {t("noEventsFilter")}
           </div>
         ) : (
           <ul className="divide-y divide-op-border">
@@ -148,11 +147,11 @@ export default async function AdminAuditPage({
                     <div className="text-sm">{e.summary}</div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-op-muted">
                       <span className="font-mono">{e.actorEmail}</span>
-                      <span>·</span>
+                      <span aria-hidden>{"·"}</span>
                       <span className="font-mono uppercase">
                         {e.actorRole}
                       </span>
-                      <span>·</span>
+                      <span aria-hidden>{"·"}</span>
                       <Link
                         href={buildHref({
                           kind: e.kind,
@@ -165,7 +164,7 @@ export default async function AdminAuditPage({
                       </Link>
                       {e.restaurant && (
                         <>
-                          <span>·</span>
+                          <span aria-hidden>{"·"}</span>
                           <Link
                             href={`/admin/restaurants/${e.restaurant.id}`}
                             className="hover:text-op-text"

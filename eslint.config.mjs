@@ -79,6 +79,19 @@ const MIGRATED = [
   "src/app/operator/reports/**/*.{ts,tsx}",
   "src/app/operator/shifts/page.tsx",
   "src/app/operator/shifts/\\[id\\]/**/*.{ts,tsx}",
+  "src/app/admin/layout.tsx",
+  "src/app/admin/AdminMobileMenu.tsx",
+  "src/app/admin/page.tsx",
+  "src/app/admin/KushkiModeSwitcher.tsx",
+  "src/app/admin/configuracion/**/*.{ts,tsx}",
+  "src/app/admin/audit/**/*.{ts,tsx}",
+  "src/app/admin/restaurants/page.tsx",
+  "src/app/admin/restaurants/new/**/*.{ts,tsx}",
+  "src/app/admin/restaurants/\\[id\\]/page.tsx",
+  "src/app/admin/restaurants/\\[id\\]/RestaurantNameEditor.tsx",
+  "src/app/admin/restaurants/\\[id\\]/UsersPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/GroupAssignPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/PaymentMethodsPanel.tsx",
 ];
 
 const eslintConfig = defineConfig([

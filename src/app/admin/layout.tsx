@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { AdminMobileMenu } from "./AdminMobileMenu";
 
@@ -11,6 +12,7 @@ export default async function AdminLayout({
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/admin");
   if (session.user.role !== "platform_admin") redirect("/");
+  const t = await getTranslations("opAdmin");
 
   // The signout server-action is the same one rendered inline in the
   // desktop header AND inside the mobile drawer. We define it once and
@@ -23,7 +25,7 @@ export default async function AdminLayout({
         await signOut({ redirectTo: "/" });
       }}
     >
-      <button className="text-terracotta hover:underline">Salir</button>
+      <button className="text-terracotta hover:underline">{t("signOut")}</button>
     </form>
   );
   const signOutFormMobile = (
@@ -37,7 +39,7 @@ export default async function AdminLayout({
         type="submit"
         className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
       >
-        Cerrar sesión
+        {t("signOutFull")}
       </button>
     </form>
   );
@@ -49,21 +51,21 @@ export default async function AdminLayout({
           <div className="flex items-center gap-4 md:gap-6 min-w-0">
             <div className="shrink-0">
               <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
-                Plataforma · Admin
+                {t("shellTag")}
               </div>
               <div className="font-display text-xl tracking-[-0.015em]">
-                MESAPAY
+                {"MESAPAY"}
               </div>
             </div>
             {/* Inline nav hidden on small screens — see AdminMobileMenu
                 for the hamburger drawer that takes its place. */}
             <nav className="hidden md:flex gap-1">
-              <NavLink href="/admin">Resumen</NavLink>
-              <NavLink href="/admin/restaurants">Restaurantes</NavLink>
-              <NavLink href="/admin/groups">Grupos</NavLink>
-              <NavLink href="/admin/plans">Planes</NavLink>
-              <NavLink href="/admin/audit">Audit</NavLink>
-              <NavLink href="/admin/configuracion">Configuración</NavLink>
+              <NavLink href="/admin">{t("navSummary")}</NavLink>
+              <NavLink href="/admin/restaurants">{t("navRestaurants")}</NavLink>
+              <NavLink href="/admin/groups">{t("navGroups")}</NavLink>
+              <NavLink href="/admin/plans">{t("navPlans")}</NavLink>
+              <NavLink href="/admin/audit">{t("navAudit")}</NavLink>
+              <NavLink href="/admin/configuracion">{t("navConfig")}</NavLink>
             </nav>
           </div>
           <div className="hidden md:flex items-center gap-3 text-sm">
@@ -71,7 +73,7 @@ export default async function AdminLayout({
               href="/operator"
               className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
             >
-              ← Operador
+              {t("backToOperator")}
             </Link>
             <span className="text-op-muted">{session.user.email}</span>
             {signOutFormDesktop}

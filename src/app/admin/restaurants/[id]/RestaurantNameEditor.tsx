@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Inline rename for a restaurant from the admin detail view. Shows
@@ -17,6 +18,7 @@ export function RestaurantNameEditor({
   restaurantId: string;
   initialName: string;
 }) {
+  const t = useTranslations("opAdmin");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [name, setName] = useState(initialName);
@@ -39,7 +41,7 @@ export function RestaurantNameEditor({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo renombrar.");
+      alert(t("renameFailed"));
       setDraft(name);
       return;
     }
@@ -83,7 +85,7 @@ export function RestaurantNameEditor({
         onClick={() => setEditing(true)}
         className="text-[11px] text-op-muted hover:text-ink font-mono tracking-wider uppercase"
       >
-        Editar
+        {t("renameTitle")}
       </button>
     </div>
   );

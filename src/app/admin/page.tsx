@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
  * En producción con N comercios chicos cabe en < 200ms.
  */
 export default async function AdminDashboard() {
+  const t = await getTranslations("opAdmin");
   const now = new Date();
   const startOfMonth = new Date(
     now.getFullYear(),
@@ -226,51 +228,59 @@ export default async function AdminDashboard() {
   return (
     <div className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-        Plataforma
+        {t("platformLabel")}
       </div>
       <div className="font-display text-3xl tracking-[-0.015em] mb-1">
-        Resumen
+        {t("dashTitle")}
       </div>
       <p className="text-sm text-op-muted mb-6">
-        Métricas en vivo de MESAPAY. Las cifras del mes se calculan
-        desde el primer día del mes actual hasta ahora.
+        {t("dashIntro")}
       </p>
 
       {/* KPIs principales */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <KpiCard
-          label="MRR estimado"
+          label={t("kpiMrr")}
           value={fmtCOP(mrrCents)}
-          hint="Suma mensual de comercios al día o por vencer"
+          hint={t("kpiMrrHint")}
         />
         <KpiCard
-          label="Comercios activos"
+          label={t("kpiActive")}
           value={String(restaurants.length - statusCount.suspendido)}
-          hint={`${restaurants.length} totales · ${statusCount.suspendido} suspendidos`}
+          hint={t("kpiActiveHint", {
+            total: restaurants.length,
+            suspended: statusCount.suspendido,
+          })}
         />
         <KpiCard
-          label="Cobrado este mes"
+          label={t("kpiBilled")}
           value={fmtCOP(mrrNow)}
-          hint={`${membershipPaymentsThisMonth._count._all} pagos · ${formatDelta(mrrNow, mrrPrev)} vs mes pasado`}
+          hint={t("kpiBilledHint", {
+            count: membershipPaymentsThisMonth._count._all,
+            delta: formatDelta(mrrNow, mrrPrev),
+          })}
         />
         <KpiCard
-          label="Nuevos este mes"
+          label={t("kpiNew")}
           value={String(newRestaurantsThisMonth)}
-          hint="Comercios creados"
+          hint={t("kpiNewHint")}
         />
       </div>
 
       {/* Volumen transaccional */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         <KpiCard
-          label="Transacciones del mes"
+          label={t("kpiTransactions")}
           value={fmtCOP(salesNow)}
-          hint={`${salesThisMonth._count._all} pagos procesados · ${formatDelta(salesNow, salesPrev)} vs mes pasado`}
+          hint={t("kpiTransactionsHint", {
+            count: salesThisMonth._count._all,
+            delta: formatDelta(salesNow, salesPrev),
+          })}
           big
         />
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Comercios por estado
+            {t("byStatus")}
           </div>
           <ul className="space-y-1.5 text-sm">
             {(
@@ -302,13 +312,13 @@ export default async function AdminDashboard() {
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-              Por plan
+              {t("byPlan")}
             </div>
             <Link
               href="/admin/plans"
               className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
             >
-              Editar →
+              {t("edit")}
             </Link>
           </div>
           <ul className="divide-y divide-op-border">
@@ -322,13 +332,14 @@ export default async function AdminDashboard() {
                   <div>
                     <div>{p.name}</div>
                     <div className="font-mono text-[10px] text-op-muted">
-                      {p.tier} · {fmtCOP(p.defaultPriceCents)} sugerido
+                      {p.tier} <span aria-hidden>{"·"}</span>{" "}
+                      {t("priceSuggested", { price: fmtCOP(p.defaultPriceCents) })}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="font-mono tabular">{b.count}</div>
                     <div className="font-mono text-[10px] text-op-muted">
-                      {fmtCOP(b.mrr)} MRR
+                      {t("mrrSuffix", { value: fmtCOP(b.mrr) })}
                     </div>
                   </div>
                 </li>
@@ -339,11 +350,11 @@ export default async function AdminDashboard() {
 
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Top comercios del mes
+            {t("topMerchants")}
           </div>
           {topRestaurants.length === 0 ? (
             <div className="text-sm text-op-muted">
-              Sin transacciones este mes.
+              {t("noTransactionsMonth")}
             </div>
           ) : (
             <ul className="divide-y divide-op-border">
@@ -378,7 +389,7 @@ export default async function AdminDashboard() {
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-              Necesitan atención
+              {t("needsAttention")}
             </div>
             <span className="font-mono text-[10px] text-op-muted">
               {needsAttention.length}
@@ -386,7 +397,7 @@ export default async function AdminDashboard() {
           </div>
           {needsAttention.length === 0 ? (
             <div className="text-sm text-op-muted">
-              Todos al día — sin pendientes.
+              {t("allUpToDate")}
             </div>
           ) : (
             <ul className="divide-y divide-op-border">
@@ -401,12 +412,12 @@ export default async function AdminDashboard() {
                   >
                     <div className="text-sm truncate">{r.name}</div>
                     <div className="font-mono text-[10px] text-op-muted">
-                      {planLabelOf(r.plan)} ·{" "}
+                      {planLabelOf(r.plan)} <span aria-hidden>{"·"}</span>{" "}
                       {r.daysLeft != null && r.daysLeft >= 0
-                        ? `vence en ${r.daysLeft}d`
+                        ? t("expiresInDays", { days: r.daysLeft })
                         : r.daysLeft != null
-                          ? `vencido hace ${Math.abs(r.daysLeft)}d`
-                          : "sin periodo"}
+                          ? t("expiredDaysAgo", { days: Math.abs(r.daysLeft) })
+                          : t("noPeriod")}
                     </div>
                   </Link>
                   <StatusPillSmall status={r.status} />
@@ -419,18 +430,18 @@ export default async function AdminDashboard() {
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-              Actividad reciente
+              {t("recentActivity")}
             </div>
             <Link
               href="/admin/audit"
               className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
             >
-              Ver todo →
+              {t("viewAll")}
             </Link>
           </div>
           {recentEvents.length === 0 ? (
             <div className="text-sm text-op-muted">
-              Sin actividad reciente.
+              {t("noRecentActivity")}
             </div>
           ) : (
             <ul className="space-y-2.5">
@@ -440,8 +451,13 @@ export default async function AdminDashboard() {
                   <li key={e.id} className="text-sm">
                     <div className="truncate">{e.summary}</div>
                     <div className="font-mono text-[10px] text-op-muted">
-                      {date} {time} · {e.actorEmail}
-                      {e.restaurant && ` · ${e.restaurant.name}`}
+                      {date} {time} <span aria-hidden>{"·"}</span> {e.actorEmail}
+                      {e.restaurant && (
+                        <>
+                          {" "}
+                          <span aria-hidden>{"·"}</span> {e.restaurant.name}
+                        </>
+                      )}
                     </div>
                   </li>
                 );
@@ -455,13 +471,13 @@ export default async function AdminDashboard() {
       <div className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-            Últimos comercios
+            {t("latestMerchants")}
           </div>
           <Link
             href="/admin/restaurants"
             className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
           >
-            Ver todos →
+            {t("viewAllPlural")}
           </Link>
         </div>
         <ul className="divide-y divide-op-border">
@@ -476,7 +492,8 @@ export default async function AdminDashboard() {
               >
                 <div className="truncate">{r.name}</div>
                 <div className="font-mono text-[10px] text-op-muted">
-                  /{r.slug} · alta {fmtBogotaDateTime(r.createdAt).date}
+                  /{r.slug} <span aria-hidden>{"·"}</span>{" "}
+                  {t("createdOn", { date: fmtBogotaDateTime(r.createdAt).date })}
                 </div>
               </Link>
               <div className="text-right shrink-0">

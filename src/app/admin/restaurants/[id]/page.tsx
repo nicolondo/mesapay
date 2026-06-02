@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -28,12 +29,6 @@ import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 
 export const dynamic = "force-dynamic";
 
-const METHOD_LABEL: Record<string, string> = {
-  manual_cash: "Efectivo",
-  manual_transfer: "Transferencia",
-  wompi: "Wompi",
-};
-
 
 export default async function RestaurantDetail({
   params,
@@ -41,6 +36,12 @@ export default async function RestaurantDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations("opAdmin");
+  const METHOD_LABEL: Record<string, string> = {
+    manual_cash: t("methodCash"),
+    manual_transfer: t("methodTransfer"),
+    wompi: t("methodWompi"),
+  };
   const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog, allGroups, currentLegalEntity] =
     await Promise.all([
       db.restaurant.findUnique({ where: { id } }),
@@ -144,7 +145,7 @@ export default async function RestaurantDetail({
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
-        ← Restaurantes
+        {t("detailBack")}
       </Link>
 
       <div className="flex items-start justify-between mt-4 mb-6 gap-3">
@@ -155,7 +156,7 @@ export default async function RestaurantDetail({
           />
           <div className="font-mono text-xs text-op-muted mt-1">/{rest.slug}</div>
           <div className="font-mono text-[11px] text-op-muted mt-1">
-            Alta: {fmtBogotaDateTime(rest.createdAt).date}
+            {t("detailCreatedAt", { date: fmtBogotaDateTime(rest.createdAt).date })}
           </div>
         </div>
         <form action={impersonate}>
@@ -163,17 +164,17 @@ export default async function RestaurantDetail({
             type="submit"
             className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium"
           >
-            Entrar como operador →
+            {t("enterAsOperator")}
           </button>
         </form>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <Stat label="Operadores" value={operators.length} />
-        <Stat label="Categorías" value={counts?._count.categories ?? 0} />
-        <Stat label="Platos" value={counts?._count.menuItems ?? 0} />
-        <Stat label="Mesas" value={counts?._count.tables ?? 0} />
-        <Stat label="Órdenes" value={counts?._count.orders ?? 0} />
+        <Stat label={t("colOperators")} value={operators.length} />
+        <Stat label={t("statCategories")} value={counts?._count.categories ?? 0} />
+        <Stat label={t("statDishes")} value={counts?._count.menuItems ?? 0} />
+        <Stat label={t("colTables")} value={counts?._count.tables ?? 0} />
+        <Stat label={t("colOrders")} value={counts?._count.orders ?? 0} />
       </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface mb-4 overflow-hidden">
@@ -182,15 +183,15 @@ export default async function RestaurantDetail({
           <div className="flex items-start justify-between mb-5">
             <div>
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-                Plan y facturación
+                {t("planAndBilling")}
               </div>
               <div className="font-display text-2xl mt-1">
                 {currentPlanLabel}{" "}
                 <span className="text-op-muted text-base font-sans">
-                  ·{" "}
+                  <span aria-hidden>{"·"}</span>{" "}
                   {rest.monthlyPriceCents > 0
-                    ? `${fmtCOP(rest.monthlyPriceCents)}/mes`
-                    : "Sin costo"}
+                    ? t("perMonth", { price: fmtCOP(rest.monthlyPriceCents) })
+                    : t("noCost")}
                 </span>
               </div>
             </div>
@@ -221,7 +222,7 @@ export default async function RestaurantDetail({
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MiniStat
-              label="Vence"
+              label={t("expires")}
               value={
                 rest.periodEndsAt
                   ? fmtBogotaDateTime(rest.periodEndsAt).date
@@ -229,9 +230,9 @@ export default async function RestaurantDetail({
               }
             />
             <MiniStat
-              label="Días restantes"
+              label={t("daysLeft")}
               value={
-                rest.periodEndsAt ? <DaysLeft date={rest.periodEndsAt} /> : "—"
+                rest.periodEndsAt ? <DaysLeft date={rest.periodEndsAt} t={t} /> : "—"
               }
             />
           </div>
@@ -240,7 +241,7 @@ export default async function RestaurantDetail({
         {/* Section 2 — registrar pago manual */}
         <div className="p-5 border-t border-op-border bg-op-bg/30">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Registrar pago manual
+            {t("recordManualPayment")}
           </div>
           <RecordPaymentForm
             restaurantId={id}
@@ -251,10 +252,10 @@ export default async function RestaurantDetail({
         {/* Section 3 — historial */}
         <div className="p-5 border-t border-op-border">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Historial · {payments.length}
+            {t("history", { count: payments.length })}
           </div>
           {payments.length === 0 ? (
-            <div className="text-sm text-op-muted">Sin pagos registrados.</div>
+            <div className="text-sm text-op-muted">{t("noPaymentsRecorded")}</div>
           ) : (
             <ul className="divide-y divide-op-border">
               {payments.map((p) => (
@@ -276,7 +277,7 @@ export default async function RestaurantDetail({
                       {fmtBogotaDateTime(p.periodEnd).date}
                     </div>
                     <div className="text-[11px] text-op-muted mt-0.5">
-                      Por {p.recordedByEmail}
+                      {t("recordedBy", { email: p.recordedByEmail })}
                       {p.note ? ` · ${p.note}` : ""}
                     </div>
                   </div>
@@ -306,28 +307,28 @@ export default async function RestaurantDetail({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Pagos
+              {t("paymentsCardTitle")}
             </div>
             <div className="text-sm mt-1">
               {rest.kushkiOnboardingStatus === "active"
-                ? "Activo. El comercio puede recibir pagos."
+                ? t("paymentsActive")
                 : rest.kushkiOnboardingStatus === "not_started"
-                  ? "Aún no ha iniciado el onboarding."
-                  : `Estado: ${rest.kushkiOnboardingStatus}`}
+                  ? t("paymentsNotStarted")
+                  : t("paymentsStatus", { status: rest.kushkiOnboardingStatus })}
             </div>
           </div>
           <Link
             href={`/admin/restaurants/${id}/pagos`}
             className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
           >
-            Ver detalles →
+            {t("viewDetails")}
           </Link>
         </div>
       </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
-          Modo de servicio
+          {t("serviceModeTitle")}
         </div>
         <ServiceModePicker
           restaurantId={id}
@@ -335,8 +336,8 @@ export default async function RestaurantDetail({
         />
         <div className="text-[11px] text-op-muted mt-2">
           {rest.serviceMode === "counter"
-            ? "Cliente ordena desde un QR único, sin mesas. Útil para food trucks y mostradores."
-            : "Cada mesa tiene su propio QR. El cliente escanea desde su puesto."}
+            ? t("serviceModeCounter")
+            : t("serviceModeTable")}
         </div>
       </div>
 
@@ -344,10 +345,10 @@ export default async function RestaurantDetail({
         <div className="flex items-start justify-between gap-4 mb-2">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Pedido anticipado
+              {t("pickupTitle")}
             </div>
             <div className="text-sm mt-1">
-              Cliente escanea un QR, prepaga y recoge en el mostrador.
+              {t("pickupBody")}
             </div>
           </div>
           <PickupToggle
@@ -356,8 +357,7 @@ export default async function RestaurantDetail({
           />
         </div>
         <div className="text-[11px] text-op-muted mt-2">
-          El QR de recogida se imprime desde Mesas. El tiempo de espera se
-          calcula en vivo según lo que esté en cocina.
+          {t("pickupHint")}
         </div>
         {rest.pickupEnabled && (
           <div className="mt-5 pt-4 border-t border-op-border">
@@ -374,14 +374,14 @@ export default async function RestaurantDetail({
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">
-          Actividad
+          {t("activityTitle")}
         </div>
-        <Row label="Primera orden">
+        <Row label={t("rowFirstOrder")}>
           {firstOrder
             ? fmtBogotaDateTime(firstOrder.createdAt).date
             : "—"}
         </Row>
-        <Row label="Última orden">
+        <Row label={t("rowLastOrder")}>
           {lastOrder ? (
             <>
               {fmtBogotaDateTime(lastOrder.createdAt).date}{" "}
@@ -393,7 +393,7 @@ export default async function RestaurantDetail({
             "—"
           )}
         </Row>
-        <Row label="Pagadas">{paidCount}</Row>
+        <Row label={t("rowPaid")}>{paidCount}</Row>
       </div>
 
       <UsersPanel
@@ -453,17 +453,29 @@ function Row({
   );
 }
 
-function DaysLeft({ date }: { date: Date }) {
+function DaysLeft({
+  date,
+  t,
+}: {
+  date: Date;
+  t: Awaited<ReturnType<typeof getTranslations<"opAdmin">>>;
+}) {
   const days = Math.floor((date.getTime() - Date.now()) / 86400000);
   if (days < 0)
     return (
       <span className="text-danger font-mono tabular">
-        vencido hace {Math.abs(days)}d
+        {t("daysLeftExpiredAgo", { days: Math.abs(days) })}
       </span>
     );
   if (days === 0)
-    return <span className="text-[#7F5A1F] font-mono tabular">vence hoy</span>;
-  return <span className="font-mono tabular">{days} días</span>;
+    return (
+      <span className="text-[#7F5A1F] font-mono tabular">
+        {t("daysLeftToday")}
+      </span>
+    );
+  return (
+    <span className="font-mono tabular">{t("daysLeftValue", { days })}</span>
+  );
 }
 
 function StatusPill({ status }: { status: MembershipStatus }) {

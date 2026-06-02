@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Mobile-only hamburger drawer for the admin layout. The desktop nav
@@ -22,6 +23,7 @@ export function AdminMobileMenu({
   // the signOut() server-side logic.
   signOutAction: React.ReactNode;
 }) {
+  const t = useTranslations("opAdmin");
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -48,7 +50,7 @@ export function AdminMobileMenu({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Abrir menú"
+        aria-label={t("openMenu")}
         className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
       >
         <svg
@@ -81,16 +83,16 @@ export function AdminMobileMenu({
             <div className="flex items-center justify-between px-5 py-4 border-b border-op-border">
               <div>
                 <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
-                  Plataforma · Admin
+                  {t("shellTag")}
                 </div>
                 <div className="font-display text-lg tracking-[-0.015em]">
-                  MESAPAY
+                  {"MESAPAY"}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Cerrar menú"
+                aria-label={t("closeMenu")}
                 className="w-9 h-9 inline-flex items-center justify-center rounded-lg text-op-muted hover:text-op-text"
               >
                 <svg
@@ -110,31 +112,31 @@ export function AdminMobileMenu({
 
             <nav className="flex flex-col p-3 gap-1">
               <DrawerLink href="/admin" pathname={pathname}>
-                Resumen
+                {t("navSummary")}
               </DrawerLink>
               <DrawerLink href="/admin/restaurants" pathname={pathname}>
-                Restaurantes
+                {t("navRestaurants")}
               </DrawerLink>
               <DrawerLink href="/admin/groups" pathname={pathname}>
-                Grupos
+                {t("navGroups")}
               </DrawerLink>
               <DrawerLink href="/admin/plans" pathname={pathname}>
-                Planes
+                {t("navPlans")}
               </DrawerLink>
               <DrawerLink href="/admin/audit" pathname={pathname}>
-                Audit log
+                {t("navAuditLog")}
               </DrawerLink>
               <DrawerLink href="/admin/configuracion" pathname={pathname}>
-                Configuración
+                {t("navConfig")}
               </DrawerLink>
               <DrawerLink href="/operator" pathname={pathname}>
-                ← Volver a Operador
+                {t("backToOperatorFull")}
               </DrawerLink>
             </nav>
 
             <div className="mt-auto border-t border-op-border p-5">
               <div className="text-[11px] text-op-muted mb-2">
-                Sesión iniciada como
+                {t("loggedInAs")}
               </div>
               <div className="text-sm font-medium mb-4 break-all">
                 {userEmail}

@@ -32,10 +32,16 @@ const schema = z.object({
   KUSHKI_PARTNER_API_KEY: z.string().optional(),
   KUSHKI_PARTNER_PRIVATE_KEY: z.string().optional(),
   KUSHKI_WEBHOOK_SECRET: z.string().optional(),
-  // Credencial del Cloud Terminal API (datáfono físico vía cloud —
-  // infra billpocket). Se manda como header X-BP-AUTH. Sin esto el push
-  // al datáfono real no funciona (mock no la necesita). i18n/datáfono.
+  // Credencial del Cloud Terminal API (datáfono físico vía cloud). Se
+  // manda como header X-BP-AUTH. Sin esto el push al datáfono real no
+  // funciona (mock no la necesita).
   KUSHKI_BP_AUTH: z.string().optional(),
+  // Business code del comercio en el Cloud Terminal (lo emite Kushki).
+  // Va en el cuerpo del push. Configurable desde el backend (.env del VPS).
+  KUSHKI_BP_BUSINESS_CODE: z.string().optional(),
+  // Override del host del Cloud Terminal. Default por modo
+  // (prod → https://cloudt.kushkipagos.com). Útil si Kushki da otro host.
+  KUSHKI_CLOUD_TERMINAL_URL: z.string().url().optional(),
 
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),

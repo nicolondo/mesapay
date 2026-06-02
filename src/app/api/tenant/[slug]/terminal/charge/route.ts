@@ -34,7 +34,15 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const role = session.user.role;
-  if (role !== "terminal" && role !== "operator" && role !== "platform_admin") {
+  // El mesero es el usuario principal del cobro por datáfono: lleva el
+  // equipo a la mesa y presiona "Cobrar" desde el Salón. terminal/operator/
+  // platform_admin también pueden. (Antes faltaba "mesero" → 403 forbidden.)
+  if (
+    role !== "mesero" &&
+    role !== "terminal" &&
+    role !== "operator" &&
+    role !== "platform_admin"
+  ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

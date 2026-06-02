@@ -21,12 +21,15 @@ import { getKushkiModeSync } from "../../platformConfig";
  * pruebe con un datáfono físico. Igual patrón que el init de PSE.
  */
 
+// Host del Cloud Terminal. En producción Kushki Colombia usa
+// cloudt.kushkipagos.com. Se puede overridear con KUSHKI_CLOUD_TERMINAL_URL.
 const BASE_URL = {
-  sandbox: "https://kushkicollect.billpocket.dev",
-  production: "https://kushkicollect.billpocket.com",
+  sandbox: "https://cloudt-uat.kushkipagos.com",
+  production: "https://cloudt.kushkipagos.com",
 } as const;
 
 function baseUrl(): string {
+  if (env.KUSHKI_CLOUD_TERMINAL_URL) return env.KUSHKI_CLOUD_TERMINAL_URL;
   const mode = getKushkiModeSync();
   if (mode === "mock") {
     throw new Error("cloudTerminal must not be called in mock mode");
@@ -76,11 +79,13 @@ export async function pushPaymentToCloudTerminal(
   // COP no tiene decimales → mandamos pesos enteros. (asumido: billpocket
   // espera el monto en unidades mayores, no centavos.)
   const amount = Math.round(args.amountCents / 100);
+  const businessCode = env.KUSHKI_BP_BUSINESS_CODE;
   const body = {
     serialNumber: args.serialNumber,
     amount,
     identifier: args.reference,
     uniqueReference: args.reference,
+    ...(businessCode ? { businessCode } : {}),
     ...(args.description ? { description: args.description } : {}),
     showNotification: true,
   };

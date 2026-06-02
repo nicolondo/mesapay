@@ -335,6 +335,7 @@ function Fields({
   entity: LegalEntity;
   onChange: (patch: Partial<LegalEntity>) => void;
 }) {
+  const t = useTranslations("opGroup");
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

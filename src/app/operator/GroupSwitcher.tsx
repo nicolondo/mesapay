@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 
 /**
  * Dropdown chico en el header del operator que permite a un
@@ -19,12 +20,13 @@ export function GroupSwitcher({
   siblings: { id: string; name: string }[];
   action: (formData: FormData) => void | Promise<void>;
 }) {
+  const t = useTranslations("operator");
   const [pending, startTx] = useTransition();
   if (siblings.length === 0) return null;
   return (
     <form action={action} className="inline-flex items-center gap-1.5">
       <label className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-        Cambiar a:
+        {t("switchTo")}
       </label>
       <select
         name="restaurantId"
@@ -40,7 +42,7 @@ export function GroupSwitcher({
         className="bg-bone text-ink text-xs font-medium px-2 py-1 rounded-md border border-bone/40 cursor-pointer disabled:opacity-60"
       >
         <option value="" disabled>
-          {pending ? "Cargando…" : "Elegí local"}
+          {pending ? t("loading") : t("chooseLocal")}
         </option>
         {siblings.map((r) => (
           <option key={r.id} value={r.id}>

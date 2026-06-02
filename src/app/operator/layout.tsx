@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { getTranslations, getLocale } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
+import { localeTag } from "@/lib/format";
+import { type Locale } from "@/i18n/config";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
 import { OperatorMobileMenu } from "./OperatorMobileMenu";
@@ -15,6 +18,7 @@ export default async function OperatorLayout({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/operator");
+  const t = await getTranslations("operator");
   // group_admin entra acá cuando está impersonando un restaurante
   // de su grupo (validación de scope ya en getActiveContext).
   if (
@@ -83,10 +87,12 @@ export default async function OperatorLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-op-bg p-6 text-op-text">
         <div className="max-w-md text-center space-y-4">
-          <div className="font-display text-3xl">Cuenta suspendida</div>
+          <div className="font-display text-3xl">{t("suspendedTitle")}</div>
           <p className="text-sm text-op-muted">
-            El acceso a <strong>{tenant.name}</strong> está pausado. Ponte en
-            contacto con MESAPAY para reactivarla.
+            {t.rich("suspendedBody", {
+              name: tenant.name,
+              b: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
           <form
             action={async () => {
@@ -95,7 +101,7 @@ export default async function OperatorLayout({
             }}
           >
             <button className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium">
-              Cerrar sesión
+              {t("signOutFull")}
             </button>
           </form>
         </div>
@@ -153,10 +159,10 @@ export default async function OperatorLayout({
         <div className="print:hidden bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
           <div className="min-w-0 flex items-center gap-3 flex-wrap">
             <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-              {isGroupAdmin ? "Grupo" : "Impersonando"}
+              {isGroupAdmin ? t("impGroup") : t("impImpersonating")}
             </span>
             <span className="truncate">
-              {isGroupAdmin ? "Viendo" : "Viendo como operador de"}{" "}
+              {isGroupAdmin ? t("impViewing") : t("impViewingAsOperator")}{" "}
               <strong>{tenant?.name ?? "…"}</strong>
             </span>
             {/* Switcher entre restaurantes del grupo — sólo cuando hay
@@ -168,24 +174,27 @@ export default async function OperatorLayout({
           </div>
           <form action={stopImpersonating} className="shrink-0">
             <button className="font-mono text-[10px] tracking-wider uppercase underline">
-              {isGroupAdmin ? "Volver al grupo" : "Dejar de impersonar"}
+              {isGroupAdmin ? t("impBackToGroup") : t("impStop")}
             </button>
           </form>
         </div>
       )}
       {membership === "vencido" && (
         <div className="print:hidden bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm">
-          <strong>Mensualidad vencida.</strong> Regulariza el pago para evitar
-          la suspensión del acceso.
+          {t.rich("membershipOverdue", {
+            b: (chunks) => <strong>{chunks}</strong>,
+          })}
         </div>
       )}
       {membership === "por_vencer" && (
         <div className="print:hidden bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
-          Tu mensualidad vence pronto
           {tenant?.periodEndsAt
-            ? ` (${new Date(tenant.periodEndsAt).toLocaleDateString("es-CO")})`
-            : ""}
-          .
+            ? t("membershipDueSoonDate", {
+                date: new Date(tenant.periodEndsAt).toLocaleDateString(
+                  localeTag((await getLocale()) as Locale),
+                ),
+              })
+            : t("membershipDueSoon")}
         </div>
       )}
       {(() => {
@@ -193,28 +202,31 @@ export default async function OperatorLayout({
         // drawer render the same items in the same order. Includes
         // Cocina + Bar conditionally based on tenant config.
         const navItems: { href: string; label: string }[] = [
-          { href: "/operator", label: "Resumen" },
-          { href: "/operator/kitchen", label: "Cocina" },
+          { href: "/operator", label: t("navSummary") },
+          { href: "/operator/kitchen", label: t("navKitchen") },
           ...(tenant?.hasBar
-            ? [{ href: "/operator/bar", label: "Bar" }]
+            ? [{ href: "/operator/bar", label: t("navBar") }]
             : []),
-          { href: "/operator/serve", label: "Salón" },
+          { href: "/operator/serve", label: t("navHall") },
           ...(tenant?.reservationsEnabled
-            ? [{ href: "/operator/reservas", label: "Reservas" }]
+            ? [{ href: "/operator/reservas", label: t("navReservations") }]
             : []),
-          { href: "/operator/payments", label: "Cobros" },
-          { href: "/operator/orders", label: "Órdenes" },
-          { href: "/operator/menu", label: "Menú" },
-          { href: "/operator/menus", label: "Cartas" },
+          { href: "/operator/payments", label: t("navPayments") },
+          { href: "/operator/orders", label: t("navOrders") },
+          { href: "/operator/menu", label: t("navMenu") },
+          { href: "/operator/menus", label: t("navMenus") },
           {
             href: "/operator/tables",
-            label: tenant?.serviceMode === "counter" ? "Mostrador" : "Mesas",
+            label:
+              tenant?.serviceMode === "counter"
+                ? t("navCounter")
+                : t("navTables"),
           },
-          { href: "/operator/ratings", label: "Reseñas" },
-          { href: "/operator/facturas", label: "Facturas" },
-          { href: "/operator/reports", label: "Cierre" },
-          { href: "/operator/wallet", label: "Wallet" },
-          { href: "/operator/settings", label: "Configuración" },
+          { href: "/operator/ratings", label: t("navRatings") },
+          { href: "/operator/facturas", label: t("navInvoices") },
+          { href: "/operator/reports", label: t("navClose") },
+          { href: "/operator/wallet", label: t("navWallet") },
+          { href: "/operator/settings", label: t("navSettings") },
         ];
         // The signOut server-action gets rendered twice (desktop link +
         // mobile drawer button) so we declare it once and reuse the
@@ -227,7 +239,9 @@ export default async function OperatorLayout({
               await signOut({ redirectTo: "/" });
             }}
           >
-            <button className="text-terracotta hover:underline">Salir</button>
+            <button className="text-terracotta hover:underline">
+              {t("signOut")}
+            </button>
           </form>
         );
         const signOutMobile = (
@@ -241,7 +255,7 @@ export default async function OperatorLayout({
               type="submit"
               className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
             >
-              Cerrar sesión
+              {t("signOutFull")}
             </button>
           </form>
         );
@@ -251,10 +265,10 @@ export default async function OperatorLayout({
               <div className="flex items-center gap-4 md:gap-6 min-w-0">
                 <div className="shrink-0 min-w-0">
                   <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-op-muted truncate">
-                    Operador · {tenant?.name ?? "Sin restaurante"}
+                    {t("roleLabel", { name: tenant?.name ?? t("noRestaurant") })}
                   </div>
                   <div className="font-display text-xl tracking-[-0.015em]">
-                    MESAPAY
+                    {"MESAPAY"}
                   </div>
                 </div>
                 {/* Inline nav — desktop only. On mobile the hamburger
@@ -273,14 +287,14 @@ export default async function OperatorLayout({
                     href="/admin"
                     className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
                   >
-                    Admin →
+                    {t("adminLink")}
                   </Link>
                 )}
                 <span className="text-op-muted">{session.user.email}</span>
                 {signOutDesktop}
               </div>
               <OperatorMobileMenu
-                tenantName={tenant?.name ?? "Sin restaurante"}
+                tenantName={tenant?.name ?? t("noRestaurant")}
                 userEmail={session.user.email}
                 isAdmin={session.user.role === "platform_admin"}
                 items={navItems}

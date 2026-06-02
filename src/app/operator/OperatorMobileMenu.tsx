@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type NavItem = { href: string; label: string };
 
@@ -29,6 +30,7 @@ export function OperatorMobileMenu({
   // action inside a client component, so the parent passes it as JSX).
   signOutAction: React.ReactNode;
 }) {
+  const t = useTranslations("operator");
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -52,7 +54,7 @@ export function OperatorMobileMenu({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Abrir menú"
+        aria-label={t("openMenu")}
         className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
       >
         <svg
@@ -85,16 +87,16 @@ export function OperatorMobileMenu({
             <div className="flex items-center justify-between px-5 py-4 border-b border-op-border">
               <div className="min-w-0">
                 <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-op-muted truncate">
-                  Operador · {tenantName}
+                  {t("roleLabel", { name: tenantName })}
                 </div>
                 <div className="font-display text-lg tracking-[-0.015em]">
-                  MESAPAY
+                  {"MESAPAY"}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Cerrar menú"
+                aria-label={t("closeMenu")}
                 className="w-9 h-9 inline-flex items-center justify-center rounded-lg text-op-muted hover:text-op-text shrink-0"
               >
                 <svg
@@ -124,14 +126,14 @@ export function OperatorMobileMenu({
               ))}
               {isAdmin && (
                 <DrawerLink href="/admin" pathname={pathname}>
-                  Admin de plataforma →
+                  {t("platformAdminLink")}
                 </DrawerLink>
               )}
             </nav>
 
             <div className="mt-auto border-t border-op-border p-5">
               <div className="text-[11px] text-op-muted mb-2">
-                Sesión iniciada como
+                {t("loggedInAs")}
               </div>
               <div className="text-sm font-medium mb-4 break-all">
                 {userEmail}

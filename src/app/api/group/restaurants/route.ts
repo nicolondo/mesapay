@@ -32,6 +32,11 @@ const schema = z.object({
     .toLowerCase()
     .regex(/^[a-z0-9-]{2,40}$/, "Slug inválido (2-40 chars, a-z 0-9 -)"),
   serviceMode: z.enum(["table", "counter"]).optional().default("table"),
+  address: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(120).optional(),
+  country: z.string().trim().max(2).optional(),
+  countryName: z.string().trim().max(120).optional(),
+  placeId: z.string().trim().max(300).optional(),
 });
 
 // Slugs reservados para que un comercio no se quede con una ruta
@@ -72,6 +77,12 @@ export async function POST(req: Request) {
   }
 
   const { name, slug, serviceMode } = parsed.data;
+  // Ubicación opcional: null cuando viene vacía; país en ISO uppercase.
+  const address = parsed.data.address?.trim() || null;
+  const city = parsed.data.city?.trim() || null;
+  const country = parsed.data.country?.trim().toUpperCase() || null;
+  const countryName = parsed.data.countryName?.trim() || null;
+  const placeId = parsed.data.placeId?.trim() || null;
   if (RESERVED.has(slug)) {
     return NextResponse.json(
       { error: "reserved", message: "Ese slug está reservado." },
@@ -96,6 +107,11 @@ export async function POST(req: Request) {
         name,
         serviceMode,
         groupId,
+        address,
+        city,
+        country,
+        countryName,
+        placeId,
       },
     });
     await tx.table.create({

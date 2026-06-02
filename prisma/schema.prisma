@@ -162,6 +162,19 @@ model Restaurant {
   legalCity    String?
   legalPhone   String?
 
+  // Ubicación operativa del local (separada de los datos legales* de
+  // facturación). Se captura al crear el restaurante, con autocompletado
+  // de Google Places. Sirve para filtrar el portafolio por país/ciudad
+  // (clave para la expansión multi-país CO/MX/BR/US). country guarda el
+  // código ISO-3166-1 alpha-2 en mayúsculas (CO, MX, BR, US) para filtros
+  // estables; countryName el nombre legible mostrado. address es la línea
+  // formateada que devuelve Places.
+  address      String?
+  city         String?
+  country      String? // ISO alpha-2 (CO, MX, …)
+  countryName  String? // nombre legible (Colombia, México, …)
+  placeId      String? // Google Places place_id (referencia futura)
+
   // Resolución DIAN — texto descriptivo del acto administrativo
   // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
   // la fecha quedan como campos separados para mostrarlos en formato

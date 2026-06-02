@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { registerRestaurant } from "@/lib/registerRestaurant";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 async function submit(formData: FormData) {
   "use server";
@@ -19,6 +20,13 @@ async function submit(formData: FormData) {
   const ownerName = String(formData.get("ownerName") ?? "").trim();
   const ownerEmail = String(formData.get("ownerEmail") ?? "").trim();
   const ownerPassword = String(formData.get("ownerPassword") ?? "");
+
+  // Ubicación opcional — no bloquea la creación si viene vacía.
+  const address = String(formData.get("address") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim();
+  const countryName = String(formData.get("countryName") ?? "").trim();
+  const placeId = String(formData.get("placeId") ?? "").trim();
 
   if (
     !restaurantName ||
@@ -39,6 +47,11 @@ async function submit(formData: FormData) {
     ownerName,
     ownerEmail,
     ownerPassword,
+    address,
+    city,
+    country,
+    countryName,
+    placeId,
   });
   if (!res.ok) {
     redirect("/admin/restaurants/new?err=" + encodeURIComponent(res.error));
@@ -55,6 +68,7 @@ export default async function NewRestaurantPage({
 }) {
   const sp = await searchParams;
   const t = await getTranslations("opAdmin");
+  const tl = await getTranslations("location");
 
   return (
     <div className="flex-1 p-6 max-w-2xl mx-auto w-full">
@@ -88,6 +102,25 @@ export default async function NewRestaurantPage({
             hint={t("fieldSlugHint")}
           />
         </div>
+
+        <div className="h-px bg-op-border my-6" />
+
+        <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted">
+          {tl("section")}
+        </div>
+        <AddressAutocomplete
+          labelAddress={tl("address")}
+          addressPlaceholder={tl("addressPlaceholder")}
+          labelCity={tl("city")}
+          cityPlaceholder={tl("cityPlaceholder")}
+          labelCountry={tl("country")}
+          countryPlaceholder={tl("countryPlaceholder")}
+          nameAddress="address"
+          nameCity="city"
+          nameCountry="country"
+          nameCountryName="countryName"
+          namePlaceId="placeId"
+        />
 
         <div className="h-px bg-op-border my-6" />
 

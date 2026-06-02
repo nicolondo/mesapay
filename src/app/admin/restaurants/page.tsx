@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import {
@@ -17,13 +17,26 @@ export const dynamic = "force-dynamic";
 export default async function RestaurantsAdmin({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string }>;
+  searchParams: Promise<{ ok?: string; country?: string; city?: string }>;
 }) {
   const sp = await searchParams;
   const t = await getTranslations("opAdmin");
+  const tl = await getTranslations("location");
+  const locale = await getLocale();
+
+  // Filtros de ubicación (opcionales). País en ISO uppercase; ciudad
+  // case-insensitive porque viene del autocompletado / texto libre.
+  const country = sp.country?.trim().toUpperCase() || undefined;
+  const city = sp.city?.trim() || undefined;
+  const where = {
+    ...(country ? { country } : {}),
+    ...(city ? { city: { equals: city, mode: "insensitive" as const } } : {}),
+  };
+
   const [restaurants, paidCounts, lastOrders, firstOrders, operatorCounts] =
     await Promise.all([
       db.restaurant.findMany({
+        where,
         orderBy: { createdAt: "desc" },
         include: {
           _count: {
@@ -50,6 +63,41 @@ export default async function RestaurantsAdmin({
         _count: { _all: true },
       }),
     ]);
+
+  // Valores distintos para los selects del filtro — sobre TODOS los
+  // restaurantes (no sólo los filtrados), para no perder opciones al
+  // refinar. Descartamos nulls/vacíos.
+  const [countryRows, cityRows] = await Promise.all([
+    db.restaurant.findMany({
+      where: { country: { not: null } },
+      select: { country: true },
+      distinct: ["country"],
+    }),
+    db.restaurant.findMany({
+      where: { city: { not: null } },
+      select: { city: true },
+      distinct: ["city"],
+    }),
+  ]);
+  const regionNames = (() => {
+    try {
+      return new Intl.DisplayNames([locale], { type: "region" });
+    } catch {
+      return null;
+    }
+  })();
+  const countryOptions = countryRows
+    .map((r) => r.country!)
+    .filter(Boolean)
+    .map((code) => ({
+      code,
+      label: (regionNames?.of(code) ?? code) || code,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
+  const cityOptions = cityRows
+    .map((r) => r.city!)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, locale));
 
   const paidByRest = new Map(
     paidCounts.map((p) => [p.restaurantId, p._count._all]),
@@ -88,6 +136,62 @@ export default async function RestaurantsAdmin({
             code: (chunks) => <span className="font-mono">{chunks}</span>,
           })}
         </div>
+      )}
+
+      {(countryOptions.length > 0 || cityOptions.length > 0) && (
+        <form
+          method="GET"
+          className="mb-4 flex flex-wrap items-end gap-3 rounded-2xl border border-op-border bg-op-surface p-3"
+        >
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+              {tl("filterCountry")}
+            </span>
+            <select
+              name="country"
+              defaultValue={country ?? ""}
+              className="mt-1 h-10 rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+            >
+              <option value="">{tl("allCountries")}</option>
+              {countryOptions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+              {tl("filterCity")}
+            </span>
+            <select
+              name="city"
+              defaultValue={city ?? ""}
+              className="mt-1 h-10 rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+            >
+              <option value="">{tl("allCities")}</option>
+              {cityOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium"
+          >
+            {t("filters")}
+          </button>
+          {(country || city) && (
+            <Link
+              href="/admin/restaurants"
+              className="h-10 px-4 rounded-lg border border-op-border text-sm inline-flex items-center"
+            >
+              {t("clearFilters")}
+            </Link>
+          )}
+        </form>
       )}
 
       {restaurants.length === 0 ? (

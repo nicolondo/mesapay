@@ -2,13 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import {
+  AddressAutocomplete,
+  type AddressValue,
+} from "@/components/AddressAutocomplete";
 
 export function NewRestaurantClient() {
   const router = useRouter();
+  const tl = useTranslations("location");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [serviceMode, setServiceMode] = useState<"table" | "counter">("table");
+  const [location, setLocation] = useState<AddressValue>({
+    address: "",
+    city: "",
+    country: "",
+    countryName: "",
+    placeId: "",
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -36,6 +49,11 @@ export function NewRestaurantClient() {
         name: name.trim(),
         slug: slug.trim(),
         serviceMode,
+        address: location.address,
+        city: location.city,
+        country: location.country,
+        countryName: location.countryName,
+        placeId: location.placeId,
       }),
     });
     setBusy(false);
@@ -128,6 +146,21 @@ export function NewRestaurantClient() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
+          {tl("section")}
+        </div>
+        <AddressAutocomplete
+          labelAddress={tl("address")}
+          addressPlaceholder={tl("addressPlaceholder")}
+          labelCity={tl("city")}
+          cityPlaceholder={tl("cityPlaceholder")}
+          labelCountry={tl("country")}
+          countryPlaceholder={tl("countryPlaceholder")}
+          onChange={setLocation}
+        />
       </div>
 
       {err && <div className="text-danger text-xs">{err}</div>}

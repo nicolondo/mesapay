@@ -2285,5 +2285,19 @@
     "paymentMethodsHint": "Turning all off means the customer sees no payment button on the menu — use it only to block charges temporarily.",
     "savedOk": "Saved.",
     "saveFailedShort": "We couldn't save."
+  },
+  "location": {
+    "section": "Location",
+    "address": "Address",
+    "addressPlaceholder": "Start typing the address…",
+    "city": "City",
+    "cityPlaceholder": "City",
+    "country": "Country",
+    "countryPlaceholder": "Choose a country",
+    "allCountries": "All countries",
+    "allCities": "All cities",
+    "filterCountry": "Filter by country",
+    "filterCity": "Filter by city",
+    "noLocation": "No location"
   }
 }

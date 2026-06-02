@@ -2285,5 +2285,19 @@
     "paymentMethodsHint": "Desligar todos faz com que o cliente não veja nenhum botão de pagamento no cardápio — use apenas se quiser bloquear cobranças temporariamente.",
     "savedOk": "Salvo.",
     "saveFailedShort": "Não foi possível salvar."
+  },
+  "location": {
+    "section": "Localização",
+    "address": "Endereço",
+    "addressPlaceholder": "Comece a digitar o endereço…",
+    "city": "Cidade",
+    "cityPlaceholder": "Cidade",
+    "country": "País",
+    "countryPlaceholder": "Escolha um país",
+    "allCountries": "Todos os países",
+    "allCities": "Todas as cidades",
+    "filterCountry": "Filtrar por país",
+    "filterCity": "Filtrar por cidade",
+    "noLocation": "Sem localização"
   }
 }

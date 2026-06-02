@@ -9,6 +9,11 @@ const schema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(6).max(120),
   serviceMode: z.enum(["table", "counter"]).optional(),
+  address: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(120).optional(),
+  country: z.string().trim().max(2).optional(),
+  countryName: z.string().trim().max(120).optional(),
+  placeId: z.string().trim().max(300).optional(),
 });
 
 export async function POST(req: Request) {
@@ -25,6 +30,11 @@ export async function POST(req: Request) {
     ownerEmail: parsed.data.email,
     ownerPassword: parsed.data.password,
     serviceMode: parsed.data.serviceMode,
+    address: parsed.data.address,
+    city: parsed.data.city,
+    country: parsed.data.country,
+    countryName: parsed.data.countryName,
+    placeId: parsed.data.placeId,
   });
 
   if (!result.ok) {

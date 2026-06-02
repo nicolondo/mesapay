@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
+import { useTranslations } from "next-intl";
+import {
+  AddressAutocomplete,
+  type AddressValue,
+} from "@/components/AddressAutocomplete";
 
 function slugifyClient(s: string) {
   return s
@@ -17,6 +22,7 @@ function slugifyClient(s: string) {
 
 export default function RestaurantSignUp() {
   const router = useRouter();
+  const tl = useTranslations("location");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantSlug, setRestaurantSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -24,6 +30,13 @@ export default function RestaurantSignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [location, setLocation] = useState<AddressValue>({
+    address: "",
+    city: "",
+    country: "",
+    countryName: "",
+    placeId: "",
+  });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,6 +60,11 @@ export default function RestaurantSignUp() {
         name,
         email,
         password,
+        address: location.address,
+        city: location.city,
+        country: location.country,
+        countryName: location.countryName,
+        placeId: location.placeId,
       }),
     });
     if (!res.ok) {
@@ -151,6 +169,21 @@ export default function RestaurantSignUp() {
               Food truck, carrito, para llevar
             </div>
           </button>
+        </div>
+
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+          {tl("section")}
+        </div>
+        <div className="mb-5">
+          <AddressAutocomplete
+            labelAddress={tl("address")}
+            addressPlaceholder={tl("addressPlaceholder")}
+            labelCity={tl("city")}
+            cityPlaceholder={tl("cityPlaceholder")}
+            labelCountry={tl("country")}
+            countryPlaceholder={tl("countryPlaceholder")}
+            onChange={setLocation}
+          />
         </div>
 
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2 mt-2">

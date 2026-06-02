@@ -2285,5 +2285,19 @@
     "paymentMethodsHint": "Apagar todos hace que el cliente no vea ningún botón de pago en la carta — úsalo sólo si quieres bloquear cobros temporalmente.",
     "savedOk": "Guardado.",
     "saveFailedShort": "No pudimos guardar."
+  },
+  "location": {
+    "section": "Ubicación",
+    "address": "Dirección",
+    "addressPlaceholder": "Empezá a escribir la dirección…",
+    "city": "Ciudad",
+    "cityPlaceholder": "Ciudad",
+    "country": "País",
+    "countryPlaceholder": "Elegí un país",
+    "allCountries": "Todos los países",
+    "allCities": "Todas las ciudades",
+    "filterCountry": "Filtrar por país",
+    "filterCity": "Filtrar por ciudad",
+    "noLocation": "Sin ubicación"
   }
 }

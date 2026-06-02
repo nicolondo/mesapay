@@ -40,6 +40,11 @@ export type RegisterRestaurantInput = {
   ownerEmail: string;
   ownerPassword: string;
   serviceMode?: ServiceMode;
+  address?: string;
+  city?: string;
+  country?: string;
+  countryName?: string;
+  placeId?: string;
 };
 
 export type RegisterRestaurantResult =
@@ -91,12 +96,25 @@ export async function registerRestaurant(
 
   const serviceMode: ServiceMode = input.serviceMode ?? "table";
 
+  // Ubicación opcional: normalizamos (trim address/city, uppercase país ISO)
+  // y dejamos null cuando viene vacío para no guardar strings en blanco.
+  const address = input.address?.trim() || null;
+  const city = input.city?.trim() || null;
+  const country = input.country?.trim().toUpperCase() || null;
+  const countryName = input.countryName?.trim() || null;
+  const placeId = input.placeId?.trim() || null;
+
   const result = await db.$transaction(async (tx) => {
     const restaurant = await tx.restaurant.create({
       data: {
         slug,
         name: input.restaurantName.trim(),
         serviceMode,
+        address,
+        city,
+        country,
+        countryName,
+        placeId,
       },
     });
 

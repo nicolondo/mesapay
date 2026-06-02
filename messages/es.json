@@ -1306,7 +1306,8 @@
     "datafonosAddNamePlaceholder": "Nombre (ej: Caja 1)",
     "datafonosAddBtn": "Agregar",
     "datafonosAdding": "Agregando…",
-    "datafonosAddFailed": "No se pudo agregar el datáfono."
+    "datafonosAddFailed": "No se pudo agregar el datáfono.",
+    "badgeDevicesEmpty": "Configurar"
   },
   "opSalon": {
     "noRestaurant": "Sin restaurante.",

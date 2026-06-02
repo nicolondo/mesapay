@@ -1306,7 +1306,8 @@
     "datafonosAddNamePlaceholder": "Name (e.g. Register 1)",
     "datafonosAddBtn": "Add",
     "datafonosAdding": "Adding…",
-    "datafonosAddFailed": "Couldn’t add the terminal."
+    "datafonosAddFailed": "Couldn’t add the terminal.",
+    "badgeDevicesEmpty": "Set up"
   },
   "opSalon": {
     "noRestaurant": "No restaurant.",

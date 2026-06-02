@@ -141,26 +141,28 @@ export default async function SettingsPage() {
           badge={t("badgeTags", { count: tagCount })}
           tint="bg-paper text-op-muted"
         />
-        {deviceCount > 0 && (
-          <SettingCard
-            href="/operator/settings/datafonos"
-            title={t("cardDevicesTitle")}
-            subtitle={t("cardDevicesSubtitle")}
-            badge={
-              deviceAssigned === 0
+        {/* Siempre visible: el comercio entra acá para dar de alta su
+            primer datáfono y cargar el serial (Cloud Terminal API). */}
+        <SettingCard
+          href="/operator/settings/datafonos"
+          title={t("cardDevicesTitle")}
+          subtitle={t("cardDevicesSubtitle")}
+          badge={
+            deviceCount === 0
+              ? t("badgeDevicesEmpty")
+              : deviceAssigned === 0
                 ? t("badgeDevicesUnassigned", { count: deviceCount })
                 : t("badgeDevicesAssigned", {
                     assigned: deviceAssigned,
                     total: deviceCount,
                   })
-            }
-            tint={
-              deviceAssigned > 0
-                ? "bg-ok/15 text-ok"
-                : "bg-paper text-op-muted"
-            }
-          />
-        )}
+          }
+          tint={
+            deviceAssigned > 0
+              ? "bg-ok/15 text-ok"
+              : "bg-paper text-op-muted"
+          }
+        />
         <SettingCard
           href="/operator/settings/staff-policies"
           title={t("cardPoliciesTitle")}

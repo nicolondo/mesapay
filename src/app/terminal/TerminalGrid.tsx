@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
@@ -75,6 +76,7 @@ export function TerminalGrid({
   tables: TableCard[];
   device: { id: string; label: string } | null;
 }) {
+  const tr = useTranslations("opTerminal");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [openTable, setOpenTable] = useState<TableCard | null>(null);
@@ -135,28 +137,28 @@ export function TerminalGrid({
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-60">
             {tenantName}
           </div>
-          <div className="font-display text-3xl">Mesas en vivo</div>
+          <div className="font-display text-3xl">{tr("liveTables")}</div>
         </div>
         <div className="flex gap-2 flex-wrap">
           {stats.terminalReq > 0 && (
             <Stat
-              label="📱 Pidió datáfono"
+              label={tr("statTerminalRequested")}
               value={String(stats.terminalReq)}
               tint="bg-terracotta text-bone"
             />
           )}
           {stats.cashReq > 0 && (
             <Stat
-              label="💵 Pidió efectivo"
+              label={tr("statCashRequested")}
               value={String(stats.cashReq)}
               tint="bg-[#2E6B4C] text-bone"
             />
           )}
-          <Stat label="Libres" value={String(stats.free)} tint="bg-bone/10" />
-          <Stat label="Abiertas" value={String(stats.open)} tint="bg-terracotta/20" />
-          <Stat label="Pagadas" value={String(stats.paid)} tint="bg-ok/20" />
+          <Stat label={tr("statFree")} value={String(stats.free)} tint="bg-bone/10" />
+          <Stat label={tr("statOpen")} value={String(stats.open)} tint="bg-terracotta/20" />
+          <Stat label={tr("statPaid")} value={String(stats.paid)} tint="bg-ok/20" />
           <Stat
-            label="Por cobrar"
+            label={tr("statOutstanding")}
             value={fmtCOP(stats.outstanding)}
             tint="bg-[#C98A2E]/25"
           />
@@ -208,17 +210,24 @@ const STATE_TINT: Record<TableState, string> = {
   paid: "bg-ok/15 border-ok/40",
 };
 
-const STATE_LABEL: Record<TableState, string> = {
-  free: "Libre",
-  occupied: "Abierta",
-  partial: "Pago parcial",
-  charging: "Cobrando…",
-  terminal_requested: "Pidió datáfono",
-  cash_requested: "Pidió efectivo",
-  paid: "Pagada",
+type Translator = ReturnType<typeof useTranslations>;
+
+const STATE_LABEL_KEY: Record<TableState, string> = {
+  free: "stateFree",
+  occupied: "stateOccupied",
+  partial: "statePartial",
+  charging: "stateCharging",
+  terminal_requested: "stateTerminalRequested",
+  cash_requested: "stateCashRequested",
+  paid: "statePaid",
 };
 
+function stateLabel(state: TableState, tr: Translator): string {
+  return tr(STATE_LABEL_KEY[state]);
+}
+
 function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
+  const tr = useTranslations("opTerminal");
   const disabled = t.state === "free";
   const isTerminalReq = t.state === "terminal_requested";
   const isCashReq = t.state === "cash_requested";
@@ -250,18 +259,20 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
       }
     >
       <div className="flex items-baseline justify-between gap-2">
-        <div className="font-display text-2xl">Mesa {t.number}</div>
+        <div className="font-display text-2xl">
+          {tr("tableNumber", { number: t.number })}
+        </div>
         {isTerminalReq ? (
           <span className="font-mono text-[10px] tracking-wider uppercase bg-terracotta text-bone px-2 py-0.5 rounded-full shrink-0">
-            📱 Pidió datáfono
+            {tr("tileTerminalRequested")}
           </span>
         ) : isCashReq ? (
           <span className="font-mono text-[10px] tracking-wider uppercase bg-[#2E6B4C] text-bone px-2 py-0.5 rounded-full shrink-0">
-            💵 Pidió efectivo
+            {tr("tileCashRequested")}
           </span>
         ) : (
           <div className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-            {STATE_LABEL[t.state]}
+            {stateLabel(t.state, tr)}
           </div>
         )}
       </div>
@@ -274,33 +285,33 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
         <div className="mt-3">
           {t.state === "paid" ? (
             <div className="font-mono text-xs opacity-70">
-              Total {fmtCOP(t.subtotalCents)}
+              {tr("tileTotal", { amount: fmtCOP(t.subtotalCents) })}
             </div>
           ) : requestedAmount != null ? (
             <>
               <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
-                Cobrar
+                {tr("tileCharge")}
               </div>
               <div className="font-display text-2xl tabular">
                 {fmtCOP(requestedAmount)}
               </div>
               {requestedAt && (
                 <div className="text-[11px] opacity-70 mt-0.5">
-                  Pedido {timeAgo(requestedAt)}
+                  {tr("tileRequestedAt", { ago: timeAgo(requestedAt, tr) })}
                 </div>
               )}
             </>
           ) : (
             <>
               <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
-                Pendiente
+                {tr("tilePending")}
               </div>
               <div className="font-display text-2xl tabular">
                 {fmtCOP(t.outstandingCents)}
               </div>
               {t.paidCents > 0 && (
                 <div className="text-[11px] opacity-70 mt-0.5">
-                  Ya pagado {fmtCOP(t.paidCents)}
+                  {tr("tileAlreadyPaid", { amount: fmtCOP(t.paidCents) })}
                 </div>
               )}
             </>
@@ -311,12 +322,12 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
   );
 }
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, tr: Translator): string {
   const ms = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "hace nada";
-  if (mins < 60) return `hace ${mins}m`;
-  return `hace ${Math.floor(mins / 60)}h`;
+  if (mins < 1) return tr("agoNow");
+  if (mins < 60) return tr("agoMinutes", { mins });
+  return tr("agoHours", { hours: Math.floor(mins / 60) });
 }
 
 function DetailSheet({
@@ -332,6 +343,7 @@ function DetailSheet({
   onClose: () => void;
   onChargedQueued: () => void;
 }) {
+  const tr = useTranslations("opTerminal");
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // Per-payment "settling cash" inline form state. Cash payments don't have
@@ -341,9 +353,7 @@ function DetailSheet({
 
   async function chargeTerminal(paymentId: string) {
     if (!device) {
-      setErr(
-        "No hay un datáfono activo registrado. Pídele al admin que registre uno.",
-      );
+      setErr(tr("noTerminalRegistered"));
       return;
     }
     setBusyPaymentId(paymentId);
@@ -356,7 +366,7 @@ function DetailSheet({
     setBusyPaymentId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos enviar al datáfono.");
+      setErr(j.error ?? tr("sendToTerminalFailed"));
       return;
     }
     onChargedQueued();
@@ -380,7 +390,7 @@ function DetailSheet({
     setBusyPaymentId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos confirmar el efectivo.");
+      setErr(j.error ?? tr("confirmCashFailed"));
       return;
     }
     setCashFormFor(null);
@@ -399,22 +409,24 @@ function DetailSheet({
         <div className="p-5 border-b border-hairline flex items-center justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-              {STATE_LABEL[table.state]}
-              {table.shortCode ? ` · ${table.shortCode}` : ""}
+              {stateLabel(table.state, tr)}
+              {table.shortCode ? tr("guestSuffix", { name: table.shortCode }) : ""}
             </div>
-            <div className="font-display text-xl">Mesa {table.number}</div>
+            <div className="font-display text-xl">
+              {tr("tableNumber", { number: table.number })}
+            </div>
           </div>
           <button onClick={onClose} className="text-muted text-sm">
-            Cerrar
+            {tr("close")}
           </button>
         </div>
 
         <div className="p-5 space-y-4">
           {table.state === "paid" ? (
             <div className="rounded-xl border border-ok/30 bg-ok/10 p-4 text-ok">
-              <div className="font-display text-lg">Pagada</div>
+              <div className="font-display text-lg">{tr("paid")}</div>
               <div className="text-sm mt-1">
-                Total {fmtCOP(table.subtotalCents)}
+                {tr("sheetTotal", { amount: fmtCOP(table.subtotalCents) })}
               </div>
             </div>
           ) : (
@@ -424,7 +436,7 @@ function DetailSheet({
               {table.pendingPayments.length > 0 && (
                 <div className="space-y-2">
                   <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                    Pagos pendientes
+                    {tr("pendingPayments")}
                   </div>
                   {table.pendingPayments.map((p) => {
                     // p.amountCents YA incluye la propina (convención
@@ -446,18 +458,22 @@ function DetailSheet({
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">
+                            <span className="text-lg" aria-hidden>
                               {isTerminal ? "📱" : isCash ? "💵" : "💳"}
                             </span>
                             <div>
                               <div className="font-medium text-sm">
-                                {humanMethod(p.method)}
+                                {humanMethod(p.method, tr)}
                               </div>
                               <div className="text-[11px] text-ink-3">
-                                Pedido {timeAgo(p.createdAt)}
                                 {p.tipCents > 0
-                                  ? ` · propina ${fmtCOP(p.tipCents)}`
-                                  : ""}
+                                  ? tr("requestedAtTip", {
+                                      ago: timeAgo(p.createdAt, tr),
+                                      tip: fmtCOP(p.tipCents),
+                                    })
+                                  : tr("requestedAtNoTip", {
+                                      ago: timeAgo(p.createdAt, tr),
+                                    })}
                               </div>
                             </div>
                           </div>
@@ -471,15 +487,20 @@ function DetailSheet({
                           p.cashTenderCents >= total && (
                             <div className="mt-2 rounded-lg border border-[#7F5A1F]/40 bg-[#C98A2E]/15 p-2 text-[12px]">
                               <div className="font-medium text-[#7F5A1F]">
-                                Pagará con {fmtCOP(p.cashTenderCents)}
+                                {tr("willPayWith", {
+                                  amount: fmtCOP(p.cashTenderCents),
+                                })}
                               </div>
                               {p.cashTenderCents > total && (
                                 <div className="text-ink-3 mt-0.5">
-                                  Lleva{" "}
-                                  <span className="font-mono tabular font-semibold">
-                                    {fmtCOP(p.cashTenderCents - total)}
-                                  </span>{" "}
-                                  de devuelta
+                                  {tr.rich("takesChange", {
+                                    amount: fmtCOP(p.cashTenderCents - total),
+                                    b: (chunks) => (
+                                      <span className="font-mono tabular font-semibold">
+                                        {chunks}
+                                      </span>
+                                    ),
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -493,8 +514,10 @@ function DetailSheet({
                             className="mt-3 w-full h-11 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
                           >
                             {busyPaymentId === p.id
-                              ? "Enviando al datáfono…"
-                              : `Cobrar ${fmtCOP(total)} con datáfono`}
+                              ? tr("sendingToTerminal")
+                              : tr("chargeWithTerminal", {
+                                  amount: fmtCOP(total),
+                                })}
                           </button>
                         )}
 
@@ -505,7 +528,7 @@ function DetailSheet({
                             disabled={!!busyPaymentId}
                             className="mt-3 w-full h-11 rounded-full bg-[#2E6B4C] text-bone font-medium disabled:opacity-60"
                           >
-                            Confirmar efectivo recibido
+                            {tr("confirmCashReceived")}
                           </button>
                         )}
                         {isCash && cashFormFor === p.id && (
@@ -528,14 +551,16 @@ function DetailSheet({
               {/* Always-visible bill totals */}
               <div className="rounded-xl border border-hairline bg-paper p-4">
                 <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  Pendiente en la cuenta
+                  {tr("outstandingOnBill")}
                 </div>
                 <div className="font-display text-3xl tabular">
                   {fmtCOP(table.outstandingCents)}
                 </div>
                 <div className="text-xs text-muted mt-1">
-                  Cuenta total {fmtCOP(table.subtotalCents)} · ya pagado{" "}
-                  {fmtCOP(table.paidCents)}
+                  {tr("billTotalPaid", {
+                    total: fmtCOP(table.subtotalCents),
+                    paid: fmtCOP(table.paidCents),
+                  })}
                 </div>
               </div>
 
@@ -544,7 +569,7 @@ function DetailSheet({
               {table.items.length > 0 && (
                 <div>
                   <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-1">
-                    Pedido
+                    {tr("orderHeading")}
                   </div>
                   {table.guestGroups.length > 1 ? (
                     <div className="space-y-2">
@@ -571,7 +596,7 @@ function DetailSheet({
                                 className="flex justify-between gap-2"
                               >
                                 <span className="truncate">
-                                  {i.qty}× {i.name}
+                                  {tr("lineItem", { qty: i.qty, name: i.name })}
                                 </span>
                                 <span className="font-mono tabular shrink-0">
                                   {fmtCOP(i.priceCents * i.qty)}
@@ -590,10 +615,10 @@ function DetailSheet({
                           className="flex justify-between gap-2 px-3 py-2 text-sm"
                         >
                           <span className="truncate">
-                            {i.qty}× {i.name}
+                            {tr("lineItem", { qty: i.qty, name: i.name })}
                             {i.guestName && (
                               <span className="text-terracotta ml-1 text-[11px]">
-                                · {i.guestName}
+                                {tr("guestSuffix", { name: i.guestName })}
                               </span>
                             )}
                           </span>
@@ -610,7 +635,7 @@ function DetailSheet({
               {table.approvedSummaries.length > 0 && (
                 <div>
                   <div className="font-mono text-[10px] tracking-wider uppercase text-muted mb-1">
-                    Pagos previos
+                    {tr("previousPayments")}
                   </div>
                   <ul className="space-y-1 text-sm">
                     {table.approvedSummaries.map((p) => (
@@ -619,10 +644,12 @@ function DetailSheet({
                         className="flex justify-between bg-paper border border-hairline rounded-lg px-3 py-2"
                       >
                         <span className="truncate">
-                          {humanMethod(p.method)}
                           {p.tipCents > 0
-                            ? ` · propina ${fmtCOP(p.tipCents)}`
-                            : ""}
+                            ? tr("previousPaymentTip", {
+                                method: humanMethod(p.method, tr),
+                                tip: fmtCOP(p.tipCents),
+                              })
+                            : humanMethod(p.method, tr)}
                         </span>
                         <span className="font-mono tabular">
                           {fmtCOP(p.amountCents)}
@@ -635,8 +662,7 @@ function DetailSheet({
 
               {table.pendingPayments.length === 0 && (
                 <div className="text-xs text-muted text-center pt-2">
-                  El cliente todavía no pidió pagar. Cuando lo haga, aparecerá
-                  arriba con el botón para cobrar.
+                  {tr("noPaymentRequestedYet")}
                 </div>
               )}
               {err && (
@@ -663,6 +689,7 @@ function CashConfirmForm({
   onCancel: () => void;
   onConfirm: (cashReceivedCents: number, changeGivenCents: number) => void;
 }) {
+  const tr = useTranslations("opTerminal");
   // Prefill from the diner's declared tender if available, falling back to
   // the exact owed amount. Devuelta auto-suggests; operator can override.
   const initialReceived =
@@ -683,7 +710,7 @@ function CashConfirmForm({
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
-            Recibido
+            {tr("cashReceivedLabel")}
           </span>
           <input
             type="number"
@@ -695,7 +722,7 @@ function CashConfirmForm({
         </label>
         <label className="block">
           <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
-            Devuelta
+            {tr("cashChangeLabel")}
           </span>
           <input
             type="number"
@@ -709,8 +736,8 @@ function CashConfirmForm({
       </div>
       <div className="text-[11px] text-ink-3">
         {tipImplied > 0
-          ? `Propina implícita ${fmtCOP(tipImplied)} (recibido − cuenta − devuelta)`
-          : "Sin propina."}
+          ? tr("impliedTip", { amount: fmtCOP(tipImplied) })
+          : tr("noTip")}
       </div>
       <div className="flex gap-2">
         <button
@@ -719,7 +746,7 @@ function CashConfirmForm({
           disabled={busy}
           className="h-10 px-4 rounded-full border border-hairline text-sm text-ink-3 disabled:opacity-50"
         >
-          Volver
+          {tr("back")}
         </button>
         <button
           type="button"
@@ -727,31 +754,31 @@ function CashConfirmForm({
           disabled={busy || !valid}
           className="flex-1 h-10 rounded-full bg-[#2E6B4C] text-bone text-sm font-medium disabled:opacity-50"
         >
-          {busy ? "Confirmando…" : "Confirmar"}
+          {busy ? tr("confirming") : tr("confirm")}
         </button>
       </div>
     </div>
   );
 }
 
-function humanMethod(m: string): string {
+function humanMethod(m: string, tr: Translator): string {
   switch (m) {
     case "kushki_apple_pay":
-      return "Apple Pay";
+      return tr("methodApplePay");
     case "kushki_card":
-      return "Tarjeta";
+      return tr("methodCard");
     case "kushki_card_terminal":
-      return "Tarjeta · datáfono";
+      return tr("methodCardTerminal");
     case "external_terminal":
-      return "Tarjeta · datáfono propio";
+      return tr("methodExternalTerminal");
     case "kushki_pse":
-      return "PSE";
+      return tr("methodPse");
     case "demo_cash":
-      return "Efectivo";
+      return tr("methodCash");
     case "demo_card":
-      return "Tarjeta (demo)";
+      return tr("methodDemoCard");
     case "wompi_nequi":
-      return "Nequi";
+      return tr("methodNequi");
     default:
       return m;
   }

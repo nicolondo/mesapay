@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
@@ -7,16 +8,17 @@ import { TerminalGrid } from "./TerminalGrid";
 export const dynamic = "force-dynamic";
 
 export default async function TerminalPage() {
+  const tr = await getTranslations("opTerminal");
   const session = await auth();
   const ctx = await getActiveContext();
   const restaurantId = ctx?.restaurantId ?? session?.user?.restaurantId ?? null;
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: { id: true, slug: true, name: true, serviceMode: true },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{tr("restaurantNotFound")}</div>;
 
   // All tables of the tenant (excluding the pickup virtual table number -1
   // since the terminal can't charge a pickup customer at the table).
@@ -127,7 +129,7 @@ export default async function TerminalPage() {
     >();
     for (const i of order.items) {
       const key = i.guestName?.trim() || "__anon__";
-      const label = i.guestName?.trim() || "Sin nombre";
+      const label = i.guestName?.trim() || tr("anonGuest");
       const g = guestMap.get(key) ?? { name: label, items: [], subtotalCents: 0 };
       g.items.push(i);
       g.subtotalCents += i.priceCentsSnapshot * i.qty;

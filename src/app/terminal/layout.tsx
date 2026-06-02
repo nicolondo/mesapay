@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
@@ -14,6 +15,7 @@ export default async function TerminalLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getTranslations("opTerminal");
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/terminal");
   const role = session.user.role;
@@ -27,10 +29,11 @@ export default async function TerminalLayout({
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-bone">
         <div className="text-center max-w-sm">
-          <div className="font-display text-2xl">Sin restaurante asignado</div>
+          <div className="font-display text-2xl">
+            {t("noRestaurantAssignedTitle")}
+          </div>
           <p className="text-muted mt-2 text-sm">
-            Habla con tu administrador para que vincule este datáfono a un
-            restaurante.
+            {t("noRestaurantAssignedBody")}
           </p>
         </div>
       </div>
@@ -46,9 +49,9 @@ export default async function TerminalLayout({
       <header className="border-b border-bone/10 px-5 py-3 flex items-center justify-between">
         <div>
           <div className="font-mono text-[9px] tracking-[0.18em] uppercase opacity-60">
-            Datáfono · {tenant?.name ?? "—"}
+            {t("headerLabel", { name: tenant?.name ?? "—" })}
           </div>
-          <div className="font-display text-xl">MESAPAY</div>
+          <div className="font-display text-xl">{"MESAPAY"}</div>
         </div>
         <form
           action={async () => {
@@ -56,7 +59,9 @@ export default async function TerminalLayout({
             await signOut({ redirectTo: "/" });
           }}
         >
-          <button className="text-bone/70 text-sm hover:underline">Salir</button>
+          <button className="text-bone/70 text-sm hover:underline">
+            {t("signOut")}
+          </button>
         </form>
       </header>
       <main className="flex-1">{children}</main>

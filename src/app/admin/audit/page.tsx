@@ -27,6 +27,41 @@ export default async function AdminAuditPage({
   const { kind, restaurantId, actorEmail } = await searchParams;
   const t = await getTranslations("opAdmin");
 
+  // Etiqueta i18n para un kind de audit. Los kinds conocidos tienen una
+  // clave `audit_<kind con puntos→guiones bajos>` en el namespace; los
+  // desconocidos (catch-all) caen al label en español del lib.
+  const KNOWN_AUDIT_KINDS = new Set([
+    "membership.plan.update",
+    "membership.payment.record",
+    "membership.suspend",
+    "membership.unsuspend",
+    "membership.service_mode.update",
+    "membership.pickup.toggle",
+    "membership.pickup.hours.update",
+    "plan_catalog.update",
+    "platform.kushki_mode.update",
+    "restaurant.name.update",
+    "restaurant.identity.update",
+    "restaurant.payment_methods.update",
+    "restaurant.staff_policies.update",
+    "restaurant.reservations.update",
+    "user.create",
+    "user.update",
+    "user.delete",
+    "order.cancel",
+    "order_item.cancel",
+    "order_item.comp",
+    "restaurant.create",
+    "restaurant.group.update",
+    "group.legal_entity.create",
+    "group.legal_entity.update",
+    "group.legal_entity.delete",
+  ]);
+  const kindLabel = (k: string): string =>
+    KNOWN_AUDIT_KINDS.has(k)
+      ? t(("audit_" + k.replace(/\./g, "_")) as Parameters<typeof t>[0])
+      : labelForKind(k);
+
   const events = await listAuditEvents({
     kind: kind || undefined,
     restaurantId: restaurantId || undefined,
@@ -79,7 +114,7 @@ export default async function AdminAuditPage({
                 href={buildHref({ kind: k, restaurantId, actorEmail })}
                 active={kind === k}
               >
-                {labelForKind(k)}
+                {kindLabel(k)}
               </FilterLink>
             ))}
           </FilterField>

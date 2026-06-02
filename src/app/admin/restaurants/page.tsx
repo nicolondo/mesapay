@@ -3,7 +3,6 @@ import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import {
-  STATUS_LABEL,
   deriveMembershipStatus,
   type MembershipStatus,
 } from "@/lib/membership";
@@ -475,7 +474,7 @@ function MembershipPill({
           map[status]
         }
       >
-        {STATUS_LABEL[status]}
+        {t("ms_" + status)}
       </span>
     </div>
   );

@@ -8,7 +8,6 @@ import { fmtBogotaDateTime } from "@/lib/bogota";
 import { fmtCOP } from "@/lib/format";
 import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
 import {
-  STATUS_LABEL,
   deriveMembershipStatus,
   type MembershipStatus,
 } from "@/lib/membership";
@@ -196,7 +195,7 @@ export default async function RestaurantDetail({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <StatusPill status={status} />
+              <StatusPill status={status} t={t} />
               <SuspendButton restaurantId={id} suspended={rest.suspended} />
             </div>
           </div>
@@ -478,7 +477,13 @@ function DaysLeft({
   );
 }
 
-function StatusPill({ status }: { status: MembershipStatus }) {
+function StatusPill({
+  status,
+  t,
+}: {
+  status: MembershipStatus;
+  t: Awaited<ReturnType<typeof getTranslations<"opAdmin">>>;
+}) {
   const map: Record<MembershipStatus, string> = {
     al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
     trial: "bg-op-bg text-op-muted border-op-border",
@@ -493,7 +498,7 @@ function StatusPill({ status }: { status: MembershipStatus }) {
         map[status]
       }
     >
-      {STATUS_LABEL[status]}
+      {t("ms_" + status)}
     </span>
   );
 }

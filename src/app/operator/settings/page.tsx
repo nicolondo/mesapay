@@ -6,8 +6,6 @@ import { resolveMenuTags } from "@/lib/menuTags";
 import {
   resolveTipPolicy,
   resolveShiftPolicy,
-  TIP_POLICY_LABELS,
-  SHIFT_POLICY_LABELS,
 } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
@@ -167,7 +165,7 @@ export default async function SettingsPage() {
           href="/operator/settings/staff-policies"
           title={t("cardPoliciesTitle")}
           subtitle={t("cardPoliciesSubtitle")}
-          badge={`${TIP_POLICY_LABELS[tipPol]} · ${SHIFT_POLICY_LABELS[shiftPol]}`}
+          badge={`${t("tip_" + tipPol)} · ${t("shift_" + shiftPol)}`}
           tint="bg-paper text-op-muted"
         />
         {meseroCount > 0 && (

@@ -5,7 +5,6 @@ import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import {
   deriveMembershipStatus,
-  STATUS_LABEL,
   type MembershipStatus,
 } from "@/lib/membership";
 import { getPlanCatalog } from "@/lib/planCatalog";
@@ -297,7 +296,7 @@ export default async function AdminDashboard() {
                 className="flex items-center justify-between"
               >
                 <StatusDot status={s} />
-                <span className="flex-1 ml-2">{STATUS_LABEL[s]}</span>
+                <span className="flex-1 ml-2">{t("ms_" + s)}</span>
                 <span className="font-mono tabular text-op-muted">
                   {statusCount[s]}
                 </span>
@@ -420,7 +419,7 @@ export default async function AdminDashboard() {
                           : t("noPeriod")}
                     </div>
                   </Link>
-                  <StatusPillSmall status={r.status} />
+                  <StatusPillSmall status={r.status} label={t("ms_" + r.status)} />
                 </li>
               ))}
             </ul>
@@ -558,7 +557,13 @@ function StatusDot({ status }: { status: MembershipStatus }) {
   );
 }
 
-function StatusPillSmall({ status }: { status: MembershipStatus }) {
+function StatusPillSmall({
+  status,
+  label,
+}: {
+  status: MembershipStatus;
+  label: string;
+}) {
   const map: Record<MembershipStatus, string> = {
     al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
     trial: "bg-op-bg text-op-muted border-op-border",
@@ -573,7 +578,7 @@ function StatusPillSmall({ status }: { status: MembershipStatus }) {
         map[status]
       }
     >
-      {STATUS_LABEL[status]}
+      {label}
     </span>
   );
 }

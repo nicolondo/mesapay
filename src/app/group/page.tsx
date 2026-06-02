@@ -10,7 +10,6 @@ import {
 } from "@/lib/activeRestaurant";
 import {
   deriveMembershipStatus,
-  STATUS_LABEL,
   type MembershipStatus,
 } from "@/lib/membership";
 
@@ -218,6 +217,7 @@ export default async function GroupHome() {
                 name={r.name}
                 logoUrl={r.logoUrl}
                 status={status}
+                statusLabel={t("ms_" + status)}
                 salesCents={stats.salesCents}
                 transactionCount={stats.transactionCount}
                 impersonate={impersonate}
@@ -263,6 +263,7 @@ function RestaurantCard({
   name,
   logoUrl,
   status,
+  statusLabel,
   salesCents,
   transactionCount,
   impersonate,
@@ -275,6 +276,7 @@ function RestaurantCard({
   name: string;
   logoUrl: string | null;
   status: MembershipStatus;
+  statusLabel: string;
   salesCents: number;
   transactionCount: number;
   impersonate: (formData: FormData) => Promise<void>;
@@ -301,7 +303,7 @@ function RestaurantCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="font-display text-lg truncate">{name}</div>
-          <StatusPill status={status} />
+          <StatusPill status={status} label={statusLabel} />
         </div>
         <div className="font-mono text-[11px] text-op-muted">/{slug}</div>
         <div className="mt-2 flex items-baseline gap-3 flex-wrap">
@@ -334,7 +336,13 @@ function RestaurantCard({
   );
 }
 
-function StatusPill({ status }: { status: MembershipStatus }) {
+function StatusPill({
+  status,
+  label,
+}: {
+  status: MembershipStatus;
+  label: string;
+}) {
   const map: Record<MembershipStatus, string> = {
     al_dia: "bg-ok/10 text-[#1E5339] border-ok/30",
     trial: "bg-op-bg text-op-muted border-op-border",
@@ -349,7 +357,7 @@ function StatusPill({ status }: { status: MembershipStatus }) {
         map[status]
       }
     >
-      {STATUS_LABEL[status]}
+      {label}
     </span>
   );
 }

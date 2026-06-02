@@ -39,6 +39,24 @@ const RESEND_THRESHOLD_DAYS = 7;
 
 type ReminderKind = "T-7" | "T-3" | "T-0" | "overdue" | "suspended";
 
+/**
+ * Idioma del email según el país del comercio (el destinatario es el
+ * operador, no un comensal con cookie de idioma). Map mínimo; default
+ * "es" para cualquier país sin mapeo o sin país en DB.
+ */
+function localeForCountry(country: string | null | undefined): string {
+  switch ((country ?? "").toLowerCase()) {
+    case "co":
+      return "es";
+    case "br":
+      return "pt";
+    case "us":
+      return "en";
+    default:
+      return "es";
+  }
+}
+
 export async function POST(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
@@ -150,13 +168,14 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const { subject, html, text } = renderMembershipReminderEmail({
+    const { subject, html, text } = await renderMembershipReminderEmail({
       kind,
       restaurantName: rest.name,
       planName: planName(rest.plan),
       monthlyPriceCop: Math.round(rest.monthlyPriceCents / 100),
       periodEndsAt: rest.periodEndsAt,
       daysFromEnd,
+      locale: localeForCountry(rest.country),
     });
 
     const sent = await sendEmail({ to: target, subject, html, text });

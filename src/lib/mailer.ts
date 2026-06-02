@@ -123,14 +123,16 @@ export async function sendWelcomeEmail(
  * Mantiene la misma paleta MESAPAY del email de factura (bone bg,
  * paper card, ink CTA) para que el operador reconozca el remitente.
  */
-export function renderMembershipReminderEmail(args: {
+export async function renderMembershipReminderEmail(args: {
   kind: "T-7" | "T-3" | "T-0" | "overdue" | "suspended";
   restaurantName: string;
   planName: string;
   monthlyPriceCop: number; // pesos (sin centavos)
   periodEndsAt: Date | null;
   daysFromEnd: number; // negativo si ya venció
-}): { subject: string; html: string; text: string } {
+  /** Idioma del destinatario (operador). null ⇒ default (es). */
+  locale?: string | null;
+}): Promise<{ subject: string; html: string; text: string }> {
   const {
     kind,
     restaurantName,
@@ -140,13 +142,18 @@ export function renderMembershipReminderEmail(args: {
     daysFromEnd,
   } = args;
 
+  const { t, locale: lang } = await getEmailTranslator(
+    args.locale,
+    "emailMembership",
+  );
+
   const endsAtLabel = periodEndsAt
     ? periodEndsAt.toLocaleDateString("es-CO", {
         day: "2-digit",
         month: "long",
         year: "numeric",
       })
-    : "—";
+    : t("dateFallback");
 
   let subject: string;
   let headline: string;
@@ -155,34 +162,54 @@ export function renderMembershipReminderEmail(args: {
 
   switch (kind) {
     case "T-7":
-      subject = `Tu plan MESAPAY vence en ${daysFromEnd} días`;
-      headline = `Tu plan vence en ${daysFromEnd} días`;
-      body = `Hola, tu plan ${planName} de MESAPAY para ${restaurantName} vence el ${endsAtLabel}. Si quieres mantener el servicio sin interrupciones, renueva antes de esa fecha.`;
-      cta = "Renovar mi plan";
+      subject = t("subjectT7", { days: daysFromEnd });
+      headline = t("headlineT7", { days: daysFromEnd });
+      body = t("bodyT7", {
+        plan: planName,
+        name: restaurantName,
+        date: endsAtLabel,
+      });
+      cta = t("ctaT7");
       break;
     case "T-3":
-      subject = `Tu plan MESAPAY vence en ${daysFromEnd} días`;
-      headline = `Solo ${daysFromEnd} días para renovar`;
-      body = `Tu plan ${planName} de MESAPAY para ${restaurantName} vence el ${endsAtLabel}. Después de esa fecha tendrás un periodo de gracia corto y luego suspendemos el acceso automáticamente.`;
-      cta = "Renovar ahora";
+      subject = t("subjectT3", { days: daysFromEnd });
+      headline = t("headlineT3", { days: daysFromEnd });
+      body = t("bodyT3", {
+        plan: planName,
+        name: restaurantName,
+        date: endsAtLabel,
+      });
+      cta = t("ctaT3");
       break;
     case "T-0":
-      subject = `Tu plan MESAPAY vence hoy`;
-      headline = `Tu plan vence hoy`;
-      body = `El plan ${planName} de ${restaurantName} vence al final del día (${endsAtLabel}). Si no lo renuevas, mañana entrará en periodo de gracia y suspenderemos el acceso en pocos días.`;
-      cta = "Renovar ahora";
+      subject = t("subjectT0");
+      headline = t("headlineT0");
+      body = t("bodyT0", {
+        plan: planName,
+        name: restaurantName,
+        date: endsAtLabel,
+      });
+      cta = t("ctaT0");
       break;
     case "overdue":
-      subject = `Tu plan MESAPAY está vencido`;
-      headline = `Plan vencido hace ${Math.abs(daysFromEnd)} días`;
-      body = `El plan ${planName} de ${restaurantName} venció el ${endsAtLabel}. Estás en periodo de gracia — el acceso sigue activo pero pronto se suspenderá automáticamente. Renueva para evitar interrupciones.`;
-      cta = "Renovar para evitar suspensión";
+      subject = t("subjectOverdue");
+      headline = t("headlineOverdue", { days: Math.abs(daysFromEnd) });
+      body = t("bodyOverdue", {
+        plan: planName,
+        name: restaurantName,
+        date: endsAtLabel,
+      });
+      cta = t("ctaOverdue");
       break;
     case "suspended":
-      subject = `Tu cuenta MESAPAY fue suspendida`;
-      headline = `Acceso suspendido`;
-      body = `El plan ${planName} de ${restaurantName} venció el ${endsAtLabel} y no recibimos el pago. Por eso suspendimos el acceso. Apenas registremos tu pago, reactivamos automáticamente.`;
-      cta = "Contactar para renovar";
+      subject = t("subjectSuspended");
+      headline = t("headlineSuspended");
+      body = t("bodySuspended", {
+        plan: planName,
+        name: restaurantName,
+        date: endsAtLabel,
+      });
+      cta = t("ctaSuspended");
       break;
   }
 
@@ -193,17 +220,17 @@ export function renderMembershipReminderEmail(args: {
     "",
     body,
     "",
-    `Plan: ${planName}`,
-    `Mensualidad: $${monthlyPriceCop.toLocaleString("es-CO")} COP`,
-    `Vencimiento: ${endsAtLabel}`,
+    `${t("labelPlan")}: ${planName}`,
+    `${t("labelMonthly")}: $${monthlyPriceCop.toLocaleString("es-CO")} COP`,
+    `${t("labelDue")}: ${endsAtLabel}`,
     "",
-    "Contacta a tu asesor de MESAPAY para renovar.",
+    t("contactLine"),
     "",
-    "El equipo MESAPAY",
+    t("team"),
   ].join("\n");
 
   const html = `<!doctype html>
-<html lang="es">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -241,17 +268,17 @@ export function renderMembershipReminderEmail(args: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5DED1;border-bottom:1px solid #E5DED1;">
               <tr>
                 <td style="padding:14px 0;width:50%;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">Plan</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("labelPlan"))}</div>
                   <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">${escapeHtml(planName)}</div>
                 </td>
                 <td align="right" style="padding:14px 0;width:50%;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">Mensualidad</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("labelMonthly"))}</div>
                   <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">$${monthlyPriceCop.toLocaleString("es-CO")}</div>
                 </td>
               </tr>
               <tr>
                 <td colspan="2" style="padding:0 0 14px 0;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;">
-                  Vencimiento ${escapeHtml(endsAtLabel)}
+                  ${escapeHtml(t("labelDue"))} ${escapeHtml(endsAtLabel)}
                 </td>
               </tr>
             </table>
@@ -260,8 +287,7 @@ export function renderMembershipReminderEmail(args: {
         <tr>
           <td align="center" style="padding:24px 36px 28px 36px;">
             <p style="font-size:13px;color:#3A332B;line-height:1.5;margin:0 0 18px 0;">
-              Contacta a tu asesor de MESAPAY para renovar tu plan
-              o cambiar tu método de pago.
+              ${escapeHtml(t("contactParagraph"))}
             </p>
             <a href="mailto:hola@mesapay.co?subject=${encodeURIComponent("Renovar plan " + restaurantName)}" style="display:inline-block;background:#1A1613;color:#F5F1EA;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:500;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
               ${escapeHtml(cta)}
@@ -270,7 +296,7 @@ export function renderMembershipReminderEmail(args: {
         </tr>
       </table>
       <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#B8A98D;margin-top:16px;">
-        Enviado por MESAPAY · Hecho en Colombia
+        ${escapeHtml(t("footer"))}
       </div>
     </td>
   </tr>

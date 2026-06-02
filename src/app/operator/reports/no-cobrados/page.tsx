@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { fmtCOP } from "@/lib/format";
@@ -25,11 +26,11 @@ export const dynamic = "force-dynamic";
 
 type RangeKey = "today" | "7d" | "30d" | "month";
 
-const RANGE_LABELS: Record<RangeKey, string> = {
-  today: "Hoy",
-  "7d": "Últimos 7 días",
-  "30d": "Últimos 30 días",
-  month: "Este mes",
+const RANGE_LABEL_KEY: Record<RangeKey, string> = {
+  today: "rangeToday",
+  "7d": "range7d",
+  "30d": "range30d",
+  month: "rangeMonth",
 };
 
 function startOfRange(range: RangeKey, now = new Date()): Date {
@@ -66,8 +67,10 @@ export default async function NoCobradosPage({
     email?: string;
   }>;
 }) {
+  const t = await getTranslations("opReports");
+  const rangeLabel = (r: RangeKey) => t(RANGE_LABEL_KEY[r]);
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const sp = await searchParams;
   const range: RangeKey =
@@ -128,12 +131,12 @@ export default async function NoCobradosPage({
       cancelCount += 1;
       cancelLostCents += cost;
     }
-    const email = it.cancelledByEmail ?? "(sin email)";
+    const email = it.cancelledByEmail ?? t("noEmail");
     const e = byEmail.get(email) ?? { count: 0, lostCents: 0 };
     e.count += 1;
     e.lostCents += cost;
     byEmail.set(email, e);
-    const reason = it.cancellationReason?.trim() || "(sin motivo)";
+    const reason = it.cancellationReason?.trim() || t("noReason");
     const r = byReason.get(reason) ?? { count: 0, lostCents: 0 };
     r.count += 1;
     r.lostCents += cost;
@@ -172,53 +175,52 @@ export default async function NoCobradosPage({
         href="/operator/reports"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
-        ← Reportes
+        {t("uncollectedBack")}
       </Link>
       <div className="font-display text-3xl tracking-[-0.015em] mt-2 mb-1">
-        Platos no cobrados
+        {t("uncollectedTitle")}
       </div>
       <p className="text-sm text-op-muted mb-5">
-        Cancelaciones y comps de los meseros. <strong>Cancelar</strong> =
-        el cliente no recibió el plato. <strong>No cobrar (comp)</strong>{" "}
-        = el cliente sí lo recibió pero el restaurante absorbió el
-        costo (queja, cortesía, walkout).
+        {t.rich("uncollectedIntro", {
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </p>
 
       {/* Filtros */}
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-          Filtros
+          {t("filters")}
         </div>
         <div className="flex flex-wrap gap-3 items-start">
-          <FilterField label="Período">
+          <FilterField label={t("filterPeriod")}>
             {(["today", "7d", "30d", "month"] as RangeKey[]).map((r) => (
               <FilterChip
                 key={r}
                 href={buildHref({ range: r })}
                 active={range === r}
               >
-                {RANGE_LABELS[r]}
+                {rangeLabel(r)}
               </FilterChip>
             ))}
           </FilterField>
-          <FilterField label="Tipo">
+          <FilterField label={t("filterKind")}>
             <FilterChip href={buildHref({ kind: undefined })} active={!kindFilter}>
-              Ambos
+              {t("filterBoth")}
             </FilterChip>
             <FilterChip href={buildHref({ kind: "cancel" })} active={kindFilter === "cancel"} tone="danger">
-              Cancelar
+              {t("filterCancel")}
             </FilterChip>
             <FilterChip href={buildHref({ kind: "comp" })} active={kindFilter === "comp"} tone="terracotta">
-              No cobrar (comp)
+              {t("filterComp")}
             </FilterChip>
           </FilterField>
           {emailFilter && (
-            <FilterField label={`Mesero: ${emailFilter}`}>
+            <FilterField label={t("filterWaiter", { email: emailFilter })}>
               <FilterChip
                 href={buildHref({ email: undefined })}
                 active={false}
               >
-                Limpiar
+                {t("clear")}
               </FilterChip>
             </FilterField>
           )}
@@ -227,29 +229,32 @@ export default async function NoCobradosPage({
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <Kpi label="Total no cobrado" value={fmtCOP(totalLostCents)} />
+        <Kpi label={t("kpiTotalUncollected")} value={fmtCOP(totalLostCents)} />
         <Kpi
-          label="Cancelaciones"
+          label={t("kpiCancellations")}
           value={`${cancelCount}`}
           hint={fmtCOP(cancelLostCents)}
         />
         <Kpi
-          label="No cobrados (comp)"
+          label={t("kpiUncollectedComp")}
           value={`${compCount}`}
           hint={fmtCOP(compLostCents)}
           accent="terracotta"
         />
         <Kpi
-          label="Platos en total"
+          label={t("kpiTotalDishes")}
           value={`${items.length}`}
-          hint={`en ${RANGE_LABELS[range].toLowerCase()}`}
+          hint={t("kpiTotalDishesHint", { range: rangeLabel(range).toLowerCase() })}
         />
       </div>
 
       {/* Breakdowns */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <BreakdownCard
-          title="Por mesero"
+          title={t("breakdownByWaiter")}
+          emptyLabel={t("noData")}
+          itemsLabel={(count) => t("itemsCount", { count })}
+          formatMoney={fmtCOP}
           rows={topEmails.map((e) => ({
             label: e.email,
             count: e.count,
@@ -258,7 +263,10 @@ export default async function NoCobradosPage({
           }))}
         />
         <BreakdownCard
-          title="Por motivo"
+          title={t("breakdownByReason")}
+          emptyLabel={t("noData")}
+          itemsLabel={(count) => t("itemsCount", { count })}
+          formatMoney={fmtCOP}
           rows={topReasons.map((r) => ({
             label: r.reason,
             count: r.count,
@@ -266,7 +274,10 @@ export default async function NoCobradosPage({
           }))}
         />
         <BreakdownCard
-          title="Por plato"
+          title={t("breakdownByDish")}
+          emptyLabel={t("noData")}
+          itemsLabel={(count) => t("itemsCount", { count })}
+          formatMoney={fmtCOP}
           rows={topDishes.map((d) => ({
             label: d.dish,
             count: d.count,
@@ -278,11 +289,11 @@ export default async function NoCobradosPage({
       {/* Lista detallada */}
       <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
         <div className="px-4 py-3 border-b border-op-border font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Detalle · {items.length} {items.length === 1 ? "ítem" : "ítems"}
+          {t("detailHeader", { count: items.length })}
         </div>
         {items.length === 0 ? (
           <div className="p-8 text-center text-sm text-op-muted">
-            Sin items no cobrados en este filtro.
+            {t("noUncollectedFilter")}
           </div>
         ) : (
           <ul className="divide-y divide-op-border">
@@ -291,8 +302,13 @@ export default async function NoCobradosPage({
               const { date, time } = fmtBogotaDateTime(it.cancelledAt!);
               const cost = it.priceCentsSnapshot * it.qty;
               const tableLabel = it.order.table
-                ? `Mesa ${it.order.table.number}${it.order.table.label ? ` · ${it.order.table.label}` : ""}`
-                : "Sin mesa";
+                ? it.order.table.label
+                  ? t("tableLabelWithName", {
+                      number: it.order.table.number,
+                      label: it.order.table.label,
+                    })
+                  : t("tableLabel", { number: it.order.table.number })
+                : t("noTable");
               return (
                 <li key={it.id} className="px-4 py-3 flex gap-3 items-start">
                   <div className="font-mono text-[10px] text-op-muted shrink-0 w-24 leading-snug">
@@ -308,7 +324,7 @@ export default async function NoCobradosPage({
                       <span className="text-sm font-medium truncate">
                         {it.nameSnapshot}
                       </span>
-                      <KindPill kind={kind} />
+                      <KindPill kind={kind} label={kind === "comp" ? t("pillUncollected") : t("pillCancelled")} />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-op-muted">
                       <span>{tableLabel}</span>
@@ -316,12 +332,12 @@ export default async function NoCobradosPage({
                       <span className="font-mono">{it.order.shortCode}</span>
                       <span>·</span>
                       <span className="font-mono">
-                        {it.cancelledByEmail ?? "(sin email)"}
+                        {it.cancelledByEmail ?? t("noEmail")}
                       </span>
                     </div>
                     {it.cancellationReason && (
                       <div className="mt-1 text-xs text-op-text italic">
-                        "{it.cancellationReason}"
+                        {`"${it.cancellationReason}"`}
                       </div>
                     )}
                   </div>
@@ -428,8 +444,14 @@ function Kpi({
 function BreakdownCard({
   title,
   rows,
+  emptyLabel,
+  itemsLabel,
+  formatMoney,
 }: {
   title: string;
+  emptyLabel: string;
+  itemsLabel: (count: number) => string;
+  formatMoney: (cents: number) => string;
   rows: Array<{
     label: string;
     count: number;
@@ -443,7 +465,7 @@ function BreakdownCard({
         {title}
       </div>
       {rows.length === 0 ? (
-        <div className="text-xs text-op-muted">Sin datos.</div>
+        <div className="text-xs text-op-muted">{emptyLabel}</div>
       ) : (
         <ul className="divide-y divide-op-border">
           {rows.map((r, idx) => {
@@ -452,11 +474,11 @@ function BreakdownCard({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm truncate">{r.label}</div>
                   <div className="font-mono text-[10px] text-op-muted">
-                    {r.count} {r.count === 1 ? "ítem" : "ítems"}
+                    {itemsLabel(r.count)}
                   </div>
                 </div>
                 <div className="font-mono tabular text-sm shrink-0">
-                  {fmtCOP(r.lostCents)}
+                  {formatMoney(r.lostCents)}
                 </div>
               </>
             );
@@ -481,12 +503,11 @@ function BreakdownCard({
   );
 }
 
-function KindPill({ kind }: { kind: "cancel" | "comp" }) {
+function KindPill({ kind, label }: { kind: "cancel" | "comp"; label: string }) {
   const cls =
     kind === "comp"
       ? "bg-terracotta/15 text-terracotta border-terracotta/30"
       : "bg-danger/10 text-danger border-danger/30";
-  const label = kind === "comp" ? "no cobrado" : "cancelado";
   return (
     <span
       className={

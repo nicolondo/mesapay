@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -16,9 +17,10 @@ export default async function ShiftsListPage({
 }: {
   searchParams: Promise<{ cursor?: string }>;
 }) {
+  const t = await getTranslations("opShifts");
   const { cursor } = await searchParams;
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const { items, nextCursor } = await listShiftsWithSummary(restaurantId, {
     cursor: cursor || undefined,
@@ -32,21 +34,19 @@ export default async function ShiftsListPage({
           href="/operator/reports"
           className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
         >
-          ← Reportes
+          {t("back")}
         </Link>
       </div>
       <div className="font-display text-3xl tracking-[-0.015em] mt-2 mb-1">
-        Turnos cerrados
+        {t("title")}
       </div>
       <p className="text-sm text-op-muted mb-6">
-        Cada turno tiene su reporte contable detallado — breakdown
-        por método y mesero, arqueo de efectivo, lista de pagos.
-        Click sobre un turno para verlo e imprimirlo.
+        {t("subtitle")}
       </p>
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface p-8 text-center text-sm text-op-muted">
-          Aún no hay turnos cerrados.
+          {t("emptyClosed")}
         </div>
       ) : (
         <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
@@ -72,17 +72,17 @@ export default async function ShiftsListPage({
                           {closeLabel.time}
                         </>
                       ) : (
-                        "—"
+                        t("durationDash")
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">
-                        {s.userLabel ?? "Turno del restaurante"}
+                        {s.userLabel ?? t("shiftOfRestaurant")}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-op-muted">
-                        <span>{formatDuration(durMs)}</span>
+                        <span>{formatDuration(durMs, t)}</span>
                         <span>·</span>
-                        <span>{s.paymentCount} pagos</span>
+                        <span>{t("paymentsCount", { count: s.paymentCount })}</span>
                         {s.cashDiffCents != null && s.cashDiffCents !== 0 && (
                           <>
                             <span>·</span>
@@ -93,8 +93,10 @@ export default async function ShiftsListPage({
                                   : "text-danger"
                               }
                             >
-                              Caja {s.cashDiffCents > 0 ? "+" : ""}
-                              {fmtCOP(s.cashDiffCents)}
+                              {t("drawer", {
+                                sign: s.cashDiffCents > 0 ? "+" : "",
+                                amount: fmtCOP(s.cashDiffCents),
+                              })}
                             </span>
                           </>
                         )}
@@ -106,7 +108,7 @@ export default async function ShiftsListPage({
                       </div>
                       {s.tipCents > 0 && (
                         <div className="font-mono text-[11px] text-op-muted">
-                          + {fmtCOP(s.tipCents)} propina
+                          {t("tipSuffix", { amount: fmtCOP(s.tipCents) })}
                         </div>
                       )}
                     </div>
@@ -124,7 +126,7 @@ export default async function ShiftsListPage({
             href={`/operator/shifts?cursor=${nextCursor}`}
             className="h-9 px-4 inline-flex items-center rounded-full border border-op-border text-sm hover:bg-op-bg"
           >
-            Cargar más
+            {t("loadMore")}
           </Link>
         </div>
       )}
@@ -132,11 +134,14 @@ export default async function ShiftsListPage({
   );
 }
 
-function formatDuration(ms: number): string {
-  if (ms <= 0) return "—";
+function formatDuration(
+  ms: number,
+  t: Awaited<ReturnType<typeof getTranslations<"opShifts">>>,
+): string {
+  if (ms <= 0) return t("durationDash");
   const totalMin = Math.round(ms / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m}m`;
+  if (h === 0) return t("durationM", { m });
+  return t("durationHm", { h, m });
 }

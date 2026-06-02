@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { fmtCOP } from "@/lib/format";
@@ -11,6 +12,21 @@ import {
 import { PrintButton } from "./PrintButton";
 
 export const dynamic = "force-dynamic";
+
+const METHOD_KEY: Record<string, string> = {
+  demo_card: "methodDemoCard",
+  demo_cash: "methodDemoCash",
+  wompi_card: "methodWompiCard",
+  wompi_pse: "methodWompiPse",
+  wompi_nequi: "methodWompiNequi",
+  kushki_apple_pay: "methodKushkiApplePay",
+  kushki_google_pay: "methodKushkiGooglePay",
+  kushki_card_terminal: "methodKushkiCardTerminal",
+  kushki_card: "methodKushkiCard",
+  external_terminal: "methodExternalTerminal",
+  kushki_pse: "methodKushkiPse",
+  reservation_deposit: "methodReservationDeposit",
+};
 
 /**
  * Reporte contable detallado de un turno cerrado. Pensado para el
@@ -28,8 +44,13 @@ export default async function ShiftDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations("opShifts");
+  const methodLabel = (method: string) =>
+    METHOD_KEY[method]
+      ? t(METHOD_KEY[method])
+      : PAYMENT_METHOD_LABEL[method as keyof typeof PAYMENT_METHOD_LABEL] ?? method;
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const report = await buildShiftReport(id);
   if (!report) notFound();
@@ -47,10 +68,10 @@ export default async function ShiftDetailPage({
   const durationMs = report.shift.closedAt
     ? report.shift.closedAt.getTime() - report.shift.openedAt.getTime()
     : 0;
-  const durationLabel = formatDuration(durationMs);
+  const durationLabel = formatDuration(durationMs, t);
 
   const merchant =
-    tenant?.legalName?.trim() || tenant?.name || "Comercio";
+    tenant?.legalName?.trim() || tenant?.name || t("merchantFallback");
 
   return (
     <>
@@ -74,7 +95,7 @@ export default async function ShiftDetailPage({
             href="/operator/shifts"
             className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
           >
-            ← Turnos
+            {t("detailBack")}
           </Link>
           <PrintButton />
         </div>
@@ -82,26 +103,28 @@ export default async function ShiftDetailPage({
         {/* Header */}
         <header className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
-            Cierre de turno
+            {t("shiftClose")}
           </div>
           <h1 className="font-display text-3xl tracking-[-0.015em] mb-1">
             {merchant}
           </h1>
           {tenant?.taxId && (
             <div className="font-mono text-xs text-op-muted">
-              NIT {tenant.taxId}
+              {t("taxId", { taxId: tenant.taxId })}
             </div>
           )}
           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <Field label="Abrió">
-              {openLabel.date} · {openLabel.time}
+            <Field label={t("fieldOpened")}>
+              {t("dateTime", { date: openLabel.date, time: openLabel.time })}
             </Field>
-            <Field label="Cerró">
-              {closeLabel ? `${closeLabel.date} · ${closeLabel.time}` : "—"}
+            <Field label={t("fieldClosed")}>
+              {closeLabel
+                ? t("dateTime", { date: closeLabel.date, time: closeLabel.time })
+                : t("emptyDash")}
             </Field>
-            <Field label="Duración">{durationLabel}</Field>
-            <Field label="Turno de">
-              {report.shift.userLabel ?? "Restaurante (global)"}
+            <Field label={t("fieldDuration")}>{durationLabel}</Field>
+            <Field label={t("fieldShiftOf")}>
+              {report.shift.userLabel ?? t("shiftOfGlobal")}
             </Field>
           </div>
         </header>
@@ -109,14 +132,14 @@ export default async function ShiftDetailPage({
         {/* Totales */}
         <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Resumen
+            {t("summary")}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Ventas brutas" value={fmtCOP(report.totals.grossCents)} />
-            <Stat label="Comida (sin propina)" value={fmtCOP(report.totals.foodCents)} />
-            <Stat label="Propinas" value={fmtCOP(report.totals.tipCents)} />
+            <Stat label={t("grossSales")} value={fmtCOP(report.totals.grossCents)} />
+            <Stat label={t("foodNoTip")} value={fmtCOP(report.totals.foodCents)} />
+            <Stat label={t("tips")} value={fmtCOP(report.totals.tipCents)} />
             <Stat
-              label="Pagos · órdenes"
+              label={t("paymentsOrders")}
               value={`${report.totals.paymentCount} · ${report.totals.ordersClosed}`}
             />
           </div>
@@ -125,19 +148,19 @@ export default async function ShiftDetailPage({
         {/* Por método */}
         <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Por método de pago
+            {t("byMethodTitle")}
           </div>
           {report.byMethod.length === 0 ? (
-            <div className="text-sm text-op-muted">Sin pagos.</div>
+            <div className="text-sm text-op-muted">{t("noPayments")}</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-op-muted">
-                  <Th>Método</Th>
-                  <Th align="right">Pagos</Th>
-                  <Th align="right">Bruto</Th>
-                  <Th align="right">Propina</Th>
-                  <Th align="right">Comida</Th>
+                  <Th>{t("thMethod")}</Th>
+                  <Th align="right">{t("thPayments")}</Th>
+                  <Th align="right">{t("thGross")}</Th>
+                  <Th align="right">{t("thTip")}</Th>
+                  <Th align="right">{t("thFood")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +169,7 @@ export default async function ShiftDetailPage({
                     key={m.method}
                     className="shift-row border-t border-op-border"
                   >
-                    <Td>{PAYMENT_METHOD_LABEL[m.method] ?? m.method}</Td>
+                    <Td>{methodLabel(m.method)}</Td>
                     <Td align="right">{m.count}</Td>
                     <Td align="right" mono>
                       {fmtCOP(m.grossCents)}
@@ -160,7 +183,7 @@ export default async function ShiftDetailPage({
                   </tr>
                 ))}
                 <tr className="shift-row border-t-2 border-ink/40 font-medium">
-                  <Td>Total</Td>
+                  <Td>{t("total")}</Td>
                   <Td align="right">{report.totals.paymentCount}</Td>
                   <Td align="right" mono>
                     {fmtCOP(report.totals.grossCents)}
@@ -181,16 +204,16 @@ export default async function ShiftDetailPage({
         {report.byWaiter.length > 0 && (
           <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-              Por mesero
+              {t("byWaiterTitle")}
             </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-op-muted">
-                  <Th>Quien cobró</Th>
-                  <Th align="right">Pagos</Th>
-                  <Th align="right">Bruto</Th>
-                  <Th align="right">Efectivo</Th>
-                  <Th align="right">Propina</Th>
+                  <Th>{t("thWhoCollected")}</Th>
+                  <Th align="right">{t("thPayments")}</Th>
+                  <Th align="right">{t("thGross")}</Th>
+                  <Th align="right">{t("thCash")}</Th>
+                  <Th align="right">{t("thTip")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -220,43 +243,43 @@ export default async function ShiftDetailPage({
         {/* Efectivo + arqueo */}
         <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Efectivo y arqueo
+            {t("cashAndCount")}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             <Stat
-              label="Base inicial"
+              label={t("baseInitial")}
               value={fmtCOP(report.shift.openingCashCents)}
             />
             <Stat
-              label="Recibido en efectivo"
+              label={t("cashReceived")}
               value={fmtCOP(report.cash.receivedCents)}
             />
             <Stat
-              label="Vuelto entregado"
+              label={t("changeGiven")}
               value={fmtCOP(report.cash.changeGivenCents)}
             />
             <Stat
-              label="Esperado en caja"
+              label={t("expectedInDrawer")}
               value={
                 report.shift.expectedCashCents != null
                   ? fmtCOP(report.shift.expectedCashCents)
-                  : "—"
+                  : t("emptyDash")
               }
             />
             <Stat
-              label="Declarado al cierre"
+              label={t("declaredAtClose")}
               value={
                 report.shift.declaredCashCents != null
                   ? fmtCOP(report.shift.declaredCashCents)
-                  : "—"
+                  : t("emptyDash")
               }
             />
             <Stat
-              label="Diferencia"
+              label={t("difference")}
               value={
                 report.shift.cashDiffCents != null
                   ? `${report.shift.cashDiffCents > 0 ? "+" : ""}${fmtCOP(report.shift.cashDiffCents)}`
-                  : "—"
+                  : t("emptyDash")
               }
               accent={
                 report.shift.cashDiffCents == null
@@ -272,7 +295,7 @@ export default async function ShiftDetailPage({
           {report.shift.notes && (
             <div className="pt-3 border-t border-op-border">
               <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-                Notas
+                {t("notes")}
               </div>
               <div className="text-sm whitespace-pre-wrap">
                 {report.shift.notes}
@@ -284,21 +307,21 @@ export default async function ShiftDetailPage({
         {/* Pagos */}
         <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-            Pagos · {report.payments.length}
+            {t("paymentsTitle", { count: report.payments.length })}
           </div>
           {report.payments.length === 0 ? (
-            <div className="text-sm text-op-muted">Sin pagos.</div>
+            <div className="text-sm text-op-muted">{t("noPayments")}</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-op-muted">
-                  <Th>Hora</Th>
-                  <Th>Orden</Th>
-                  <Th>Mesa</Th>
-                  <Th>Método</Th>
-                  <Th>Cobró</Th>
-                  <Th align="right">Bruto</Th>
-                  <Th align="right">Propina</Th>
+                  <Th>{t("thTime")}</Th>
+                  <Th>{t("thOrder")}</Th>
+                  <Th>{t("thTable")}</Th>
+                  <Th>{t("thMethod")}</Th>
+                  <Th>{t("thCollectedBy")}</Th>
+                  <Th align="right">{t("thGross")}</Th>
+                  <Th align="right">{t("thTip")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -310,12 +333,12 @@ export default async function ShiftDetailPage({
                     <Td mono>
                       {p.settledAt
                         ? fmtBogotaDateTime(p.settledAt).time
-                        : "—"}
+                        : t("emptyDash")}
                     </Td>
                     <Td mono>{p.orderShortCode}</Td>
-                    <Td>{p.tableLabel ?? "—"}</Td>
-                    <Td>{PAYMENT_METHOD_LABEL[p.method] ?? p.method}</Td>
-                    <Td>{p.collectedByLabel ?? "Cliente"}</Td>
+                    <Td>{p.tableLabel ?? t("emptyDash")}</Td>
+                    <Td>{methodLabel(p.method)}</Td>
+                    <Td>{p.collectedByLabel ?? t("collectedByCustomer")}</Td>
                     <Td align="right" mono>
                       {fmtCOP(p.amountCents)}
                     </Td>
@@ -330,8 +353,10 @@ export default async function ShiftDetailPage({
         </section>
 
         <div className="no-print text-[11px] text-op-muted text-center mt-6">
-          Reporte generado el {fmtBogotaDateTime(new Date()).date} ·{" "}
-          {fmtBogotaDateTime(new Date()).time} desde MESAPAY
+          {t("reportGenerated", {
+            date: fmtBogotaDateTime(new Date()).date,
+            time: fmtBogotaDateTime(new Date()).time,
+          })}
         </div>
       </div>
     </>
@@ -423,11 +448,14 @@ function Td({
   );
 }
 
-function formatDuration(ms: number): string {
-  if (ms <= 0) return "—";
+function formatDuration(
+  ms: number,
+  t: Awaited<ReturnType<typeof getTranslations<"opShifts">>>,
+): string {
+  if (ms <= 0) return t("emptyDash");
   const totalMin = Math.round(ms / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m}m`;
+  if (h === 0) return t("durationM", { m });
+  return t("durationHm", { h, m });
 }

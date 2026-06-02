@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
-const METHOD_LABEL: Record<string, string> = {
-  demo_cash: "Efectivo",
-  demo_card: "Tarjeta (demo)",
-  wompi_card: "Tarjeta",
-  wompi_pse: "PSE",
-  wompi_nequi: "Nequi",
-  kushki_apple_pay: "Apple Pay",
-  kushki_card_terminal: "Datáfono",
+const METHOD_KEY: Record<string, string> = {
+  demo_cash: "methodDemoCash",
+  demo_card: "methodDemoCard",
+  wompi_card: "methodWompiCard",
+  wompi_pse: "methodWompiPse",
+  wompi_nequi: "methodWompiNequi",
+  kushki_apple_pay: "methodKushkiApplePay",
+  kushki_card_terminal: "methodKushkiCardTerminal",
 };
 
 type Metrics = {
@@ -108,13 +109,13 @@ export function ShiftPanel({ initial }: ShiftPanelProps) {
 // Closed (no open shift) — invite the operator to abrir turno.
 
 function ClosedBanner({ onAbrir }: { onAbrir: () => void }) {
+  const t = useTranslations("opReports");
   return (
     <div className="bg-op-surface border border-op-border rounded-2xl p-5 mb-4 flex flex-wrap items-center gap-4 justify-between">
       <div>
-        <div className="font-display text-xl">Sin turno abierto</div>
+        <div className="font-display text-xl">{t("noShiftTitle")}</div>
         <p className="text-sm text-op-muted mt-1 max-w-md">
-          Abre el turno al iniciar el día declarando el fondo de caja (el efectivo
-          con el que arrancas para dar vueltas). Al cerrarlo verás el arqueo.
+          {t("noShiftBody")}
         </p>
       </div>
       <button
@@ -122,7 +123,7 @@ function ClosedBanner({ onAbrir }: { onAbrir: () => void }) {
         onClick={onAbrir}
         className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
       >
-        Abrir turno
+        {t("openShift")}
       </button>
     </div>
   );
@@ -138,18 +139,22 @@ function OpenPanel({
   state: Extract<ShiftPanelProps["initial"], { open: true }>;
   onCerrar: () => void;
 }) {
-  const since = useMemo(() => relativeTime(state.shift.openedAt), [state.shift.openedAt]);
+  const t = useTranslations("opReports");
+  const since = useMemo(
+    () => relativeTime(state.shift.openedAt, t),
+    [state.shift.openedAt, t],
+  );
   const canClose = state.openOrders.length === 0;
   return (
     <div className="bg-op-surface border border-op-border rounded-2xl p-5 mb-4">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
         <div>
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Turno abierto
+            {t("shiftOpen")}
           </div>
           <div className="font-display text-2xl mt-1">{since}</div>
           <div className="text-[12px] text-op-muted mt-0.5">
-            Fondo inicial: {fmtCOP(state.shift.openingCashCents)}
+            {t("openingFund", { amount: fmtCOP(state.shift.openingCashCents) })}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -163,18 +168,18 @@ function OpenPanel({
                 ? "bg-ink text-bone"
                 : "bg-op-surface border border-op-border text-op-muted cursor-not-allowed")
             }
-            title={canClose ? "" : "Resuelve las órdenes abiertas primero"}
+            title={canClose ? "" : t("resolveOpenFirst")}
           >
-            Cerrar turno
+            {t("closeShift")}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Cobrado" value={fmtCOP(state.metrics.grossCents)} hint={`${state.metrics.payments} cobros`} />
-        <Stat label="Propinas" value={fmtCOP(state.metrics.tipCents)} />
-        <Stat label="Efectivo en caja (esperado)" value={fmtCOP(state.expectedCashCents)} hint={`Fondo + cash`} />
-        <Stat label="Cuentas cerradas" value={String(state.metrics.ordersClosed)} />
+        <Stat label={t("statCharged")} value={fmtCOP(state.metrics.grossCents)} hint={t("statChargedHint", { count: state.metrics.payments })} />
+        <Stat label={t("statTipsLower")} value={fmtCOP(state.metrics.tipCents)} />
+        <Stat label={t("statCashExpected")} value={fmtCOP(state.expectedCashCents)} hint={t("statCashExpectedHint")} />
+        <Stat label={t("statClosedBills")} value={String(state.metrics.ordersClosed)} />
       </div>
 
       {state.metrics.byMethod.length > 0 && (
@@ -185,7 +190,7 @@ function OpenPanel({
               className="border border-op-border rounded-xl px-3 py-2 flex items-center justify-between"
             >
               <span>
-                {METHOD_LABEL[b.method] ?? b.method}
+                {METHOD_KEY[b.method] ? t(METHOD_KEY[b.method]) : b.method}
                 <span className="text-op-muted text-[11px]"> · {b.count}</span>
               </span>
               <span className="font-mono tabular">{fmtCOP(b.sumCents)}</span>
@@ -197,11 +202,10 @@ function OpenPanel({
       {state.openOrders.length > 0 && (
         <div className="mt-5 border border-op-border rounded-xl p-4 bg-op-surface">
           <div className="font-display text-base mb-1">
-            {state.openOrders.length}{" "}
-            {state.openOrders.length === 1 ? "cuenta abierta" : "cuentas abiertas"}
+            {t("openBillsCount", { count: state.openOrders.length })}
           </div>
           <p className="text-[12px] text-op-muted mb-3">
-            Cierra o anula estas cuentas antes de cerrar el turno.
+            {t("resolveOpenBills")}
           </p>
           <ul className="divide-y divide-op-border">
             {state.openOrders.map((o) => (
@@ -221,7 +225,7 @@ function OpenPanel({
                     href={`/operator/orders/${o.id}`}
                     className="text-[12px] text-terracotta hover:underline"
                   >
-                    Ir a cobrar →
+                    {t("goCollect")}
                   </Link>
                 </div>
               </li>
@@ -255,6 +259,7 @@ function OpenShiftSheet({
   onClose: () => void;
   onDone: () => void | Promise<void>;
 }) {
+  const t = useTranslations("opReports");
   const [amount, setAmount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,12 +275,12 @@ function OpenShiftSheet({
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j.error ?? "no se pudo abrir el turno");
+        throw new Error(j.error ?? t("errCannotOpen"));
       }
       await onDone();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "error");
+      setError(e instanceof Error ? e.message : t("errGeneric"));
     } finally {
       setBusy(false);
     }
@@ -283,14 +288,14 @@ function OpenShiftSheet({
 
   return (
     <Backdrop onClose={onClose}>
-      <SheetTitle title="Abrir turno" subtitle="Declara el fondo de caja inicial" />
+      <SheetTitle title={t("openShift")} subtitle={t("openShiftSheetSubtitle")} />
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Efectivo inicial en caja
+          {t("initialCashLabel")}
         </span>
         <CashInput value={amount} onChange={setAmount} autoFocus />
         <span className="block text-[11px] text-op-muted mt-1">
-          El efectivo que tienes en caja para dar vueltas. Suma al esperado al cerrar.
+          {t("initialCashHint")}
         </span>
       </label>
       {error && (
@@ -302,7 +307,7 @@ function OpenShiftSheet({
         onCancel={onClose}
         onConfirm={submit}
         busy={busy}
-        confirmLabel="Abrir turno"
+        confirmLabel={t("openShift")}
       />
     </Backdrop>
   );
@@ -317,6 +322,7 @@ function CloseShiftSheet({
   onClose: () => void;
   onDone: () => void | Promise<void>;
 }) {
+  const t = useTranslations("opReports");
   const [declared, setDeclared] = useState(state.expectedCashCents);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -337,25 +343,32 @@ function CloseShiftSheet({
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
-        throw new Error(j.error ?? "no se pudo cerrar");
+        throw new Error(j.error ?? t("errCannotClose"));
       }
       await onDone();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "error");
+      setError(e instanceof Error ? e.message : t("errGeneric"));
     } finally {
       setBusy(false);
     }
   }
 
+  const diffValue =
+    diff === 0
+      ? t("differenceExact")
+      : diff > 0
+        ? t("differenceOver", { amount: fmtCOP(Math.abs(diff)) })
+        : t("differenceShort", { amount: fmtCOP(Math.abs(diff)) });
+
   return (
     <Backdrop onClose={onClose}>
-      <SheetTitle title="Cerrar turno" subtitle="Arqueo de caja" />
+      <SheetTitle title={t("closeShift")} subtitle={t("closeShiftSheetSubtitle")} />
 
       <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
         <div className="border border-op-border rounded-xl p-3">
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Fondo inicial
+            {t("initialFund")}
           </div>
           <div className="font-display text-lg tabular">
             {fmtCOP(state.shift.openingCashCents)}
@@ -363,7 +376,7 @@ function CloseShiftSheet({
         </div>
         <div className="border border-op-border rounded-xl p-3">
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Efectivo cobrado
+            {t("cashCollected")}
           </div>
           <div className="font-display text-lg tabular">
             {fmtCOP(state.metrics.cashCents)}
@@ -371,7 +384,7 @@ function CloseShiftSheet({
         </div>
         <div className="border border-op-border rounded-xl p-3 col-span-2 bg-op-surface">
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Efectivo esperado en caja
+            {t("cashExpectedInDrawer")}
           </div>
           <div className="font-display text-2xl tabular">
             {fmtCOP(state.expectedCashCents)}
@@ -381,7 +394,7 @@ function CloseShiftSheet({
 
       <label className="block mb-3">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Efectivo contado físicamente
+          {t("cashCountedPhysically")}
         </span>
         <CashInput value={declared} onChange={setDeclared} autoFocus />
       </label>
@@ -396,23 +409,19 @@ function CloseShiftSheet({
               : "bg-red-50 border border-red-200 text-red-900")
         }
       >
-        Diferencia: {diff === 0 ? "cuadra exacto ✓" : `${diff > 0 ? "sobrante" : "faltante"} ${fmtCOP(Math.abs(diff))}`}
+        {t("differenceLabel", { value: diffValue })}
       </div>
 
       <label className="block mb-1">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Notas (opcional)
+          {t("notesLabel")}
         </span>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           maxLength={2000}
-          placeholder={
-            diff !== 0
-              ? "¿Por qué hay diferencia? (vueltos, propina mesero, etc.)"
-              : ""
-          }
+          placeholder={diff !== 0 ? t("notesPlaceholder") : ""}
           className="w-full mt-1 rounded-lg border border-op-border bg-op-surface px-3 py-2 text-sm"
         />
       </label>
@@ -426,7 +435,7 @@ function CloseShiftSheet({
         onCancel={onClose}
         onConfirm={submit}
         busy={busy}
-        confirmLabel="Confirmar cierre"
+        confirmLabel={t("confirmClose")}
       />
     </Backdrop>
   );
@@ -512,6 +521,7 @@ function SheetActions({
   busy: boolean;
   confirmLabel: string;
 }) {
+  const t = useTranslations("opReports");
   return (
     <div className="flex justify-end gap-2 mt-5">
       <button
@@ -520,7 +530,7 @@ function SheetActions({
         disabled={busy}
         className="h-10 px-4 rounded-full text-sm text-op-text/80"
       >
-        Cancelar
+        {t("cancel")}
       </button>
       <button
         type="button"
@@ -528,18 +538,23 @@ function SheetActions({
         disabled={busy}
         className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
       >
-        {busy ? "…" : confirmLabel}
+        {busy ? t("busy") : confirmLabel}
       </button>
     </div>
   );
 }
 
-function relativeTime(iso: string) {
+function relativeTime(
+  iso: string,
+  t: ReturnType<typeof useTranslations<"opReports">>,
+) {
   const opened = new Date(iso).getTime();
   const ms = Date.now() - opened;
   const mins = Math.max(1, Math.round(ms / 60_000));
-  if (mins < 60) return `${mins} min`;
+  if (mins < 60) return t("relativeMin", { mins });
   const hours = Math.floor(mins / 60);
   const rem = mins % 60;
-  return rem === 0 ? `${hours} h` : `${hours} h ${rem} m`;
+  return rem === 0
+    ? t("relativeHour", { hours })
+    : t("relativeHourMin", { hours, rem });
 }

@@ -71,6 +71,9 @@ const MIGRATED = [
   "src/app/operator/menu/MenuEditor.tsx",
   "src/app/operator/menu/import/**/*.{ts,tsx}",
   "src/app/operator/menus/**/*.{ts,tsx}",
+  "src/app/operator/reports/**/*.{ts,tsx}",
+  "src/app/operator/shifts/page.tsx",
+  "src/app/operator/shifts/\\[id\\]/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

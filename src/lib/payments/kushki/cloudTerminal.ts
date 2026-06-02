@@ -167,14 +167,16 @@ export async function pushPaymentToCloudTerminal(
 ): Promise<CloudTerminalChargeResult> {
   const businessCode = resolveBusinessCode(args.businessCode);
   const serial = args.serialNumber;
-  // COP no tiene decimales → unidades mayores (pesos enteros).
-  const amount = Math.round(args.amountCents / 100);
+  // El Cloud Terminal interpreta el monto en MINOR UNITS (centavos): cobra
+  // value/100. amountCents YA está en centavos ($43.890 = 4.389.000), así
+  // que se manda TAL CUAL (no dividir por 100, o cobraría $438,90).
+  const amountMinor = Math.round(args.amountCents);
   const clientTxnId = randomUUID(); // idempotency key (UUID v4)
   const payload: Record<string, unknown> = {
     amount: {
       iva: 0,
       subtotal_iva: 0,
-      subtotal_iva0: amount,
+      subtotal_iva0: amountMinor,
       extra_taxes: { airport_tax: 0, iac: 0, ice: 0, travel_agency: 0 },
     },
     client_transaction_id: clientTxnId,
@@ -194,7 +196,7 @@ export async function pushPaymentToCloudTerminal(
   console.log("[kushki/cloud-terminal] charge", {
     url,
     serialNumber: serial,
-    amount,
+    amountMinor,
     reference: args.reference,
     clientTxnId,
     ts,

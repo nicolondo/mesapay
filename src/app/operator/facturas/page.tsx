@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { FacturasClient } from "./FacturasClient";
@@ -9,8 +10,9 @@ export default async function FacturasPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  const t = await getTranslations("opFacturas");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const sp = await searchParams;
   const tab = sp.status === "generated" ? "generated" : "pending";

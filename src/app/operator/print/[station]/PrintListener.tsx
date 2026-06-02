@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 type Station = "kitchen" | "bar";
+
+type Tr = (key: string, values?: Record<string, string | number>) => string;
 
 type Ticket = {
   restaurantName: string;
@@ -53,6 +56,7 @@ export function PrintListener({
   paperWidthMm: number;
   availableSubStations: string[];
 }) {
+  const t = useTranslations("opPrint");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [history, setHistory] = useState<PrintEntry[]>([]);
   const [connected, setConnected] = useState(false);
@@ -148,7 +152,7 @@ export function PrintListener({
   function renderAndPrint(ticket: Ticket) {
     const iframe = iframeRef.current;
     if (!iframe) return;
-    const html = buildTicketHtml(ticket);
+    const html = buildTicketHtml(ticket, t);
     iframe.srcdoc = html;
     // The print() call needs to wait for the iframe to load, otherwise
     // we'd print an empty document. The iframe's onload fires once
@@ -166,42 +170,42 @@ export function PrintListener({
 
   function testPrint() {
     setPrimed(true);
-    renderAndPrint(buildSampleTicket(station, barSubStation, paperWidthMm, tenantName));
+    renderAndPrint(
+      buildSampleTicket(station, barSubStation, paperWidthMm, tenantName, t),
+    );
   }
 
   const title =
     station === "kitchen"
-      ? "Impresora — Cocina"
+      ? t("titleKitchen")
       : barSubStation
-        ? `Impresora — Bar · ${barSubStation}`
-        : "Impresora — Bar";
+        ? t("titleBarSub", { sub: barSubStation })
+        : t("titleBar");
 
   return (
     <div className="p-6 max-w-2xl mx-auto w-full">
       <div className="flex items-center gap-3 text-sm text-op-muted mb-2">
         <Link href="/operator" className="hover:text-ink">
-          Operador
+          {t("breadcrumbOperator")}
         </Link>
-        <span>›</span>
+        <span aria-hidden>{"›"}</span>
         <span className="text-ink">{title}</span>
       </div>
       <div className="font-display text-3xl mb-1">{title}</div>
-      <p className="text-sm text-op-muted mb-6">
-        Dejá esta pestaña abierta en el computador con la impresora térmica
-        conectada como impresora predeterminada. Los tickets se imprimen
-        solos al llegar.
-      </p>
+      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
       {!stationEnabled ? (
         <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-5 text-sm text-[#7F5A1F]">
-          La impresión para esta estación está apagada. Activala en{" "}
-          <Link
-            href="/operator/settings/estaciones"
-            className="underline font-medium"
-          >
-            Configuración › Estaciones
-          </Link>
-          .
+          {t.rich("disabled", {
+            link: (chunks) => (
+              <Link
+                href="/operator/settings/estaciones"
+                className="underline font-medium"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </div>
       ) : (
         <>
@@ -216,13 +220,11 @@ export function PrintListener({
                   }
                 />
                 <span className="text-sm font-medium">
-                  {connected
-                    ? "Escuchando pedidos…"
-                    : "Sin conexión, intentando reconectar"}
+                  {connected ? t("listening") : t("disconnected")}
                 </span>
               </div>
               <div className="text-xs text-op-muted mt-1">
-                Papel: {paperWidthMm}mm · {tenantName}
+                {t("paperInfo", { mm: paperWidthMm, name: tenantName })}
               </div>
             </div>
             <button
@@ -230,42 +232,45 @@ export function PrintListener({
               onClick={testPrint}
               className="h-10 px-4 rounded-xl border border-op-border bg-op-bg text-sm font-medium"
             >
-              Imprimir prueba
+              {t("testPrint")}
             </button>
           </div>
 
           {/* First-run tip about silent printing */}
           {!primed && (
             <div className="rounded-xl border border-op-border bg-paper p-4 mb-4 text-xs text-op-muted">
-              <strong className="text-ink-3">Tip de impresión silenciosa:</strong>{" "}
-              en el primer ticket aparecerá el diálogo de impresión.
-              Activá la opción “Imprimir sin diálogo” o iniciá Chrome con{" "}
-              <code className="font-mono bg-op-surface px-1 py-0.5 rounded">
-                --kiosk-printing
-              </code>{" "}
-              y los siguientes saldrán automáticamente. En Mac la opción es
-              <em> Sistema › Impresoras › Impresión sin avisos</em>.
+              {t.rich("silentTip", {
+                strong: (chunks) => (
+                  <strong className="text-ink-3">{chunks}</strong>
+                ),
+                code: (chunks) => (
+                  <code className="font-mono bg-op-surface px-1 py-0.5 rounded">
+                    {chunks}
+                  </code>
+                ),
+                em: (chunks) => <em>{chunks}</em>,
+              })}
             </div>
           )}
 
           {availableSubStations.length > 0 && station === "bar" && (
             <div className="mb-4 flex gap-2 flex-wrap text-xs">
-              <span className="text-op-muted">Esta impresora:</span>
+              <span className="text-op-muted">{t("thisPrinter")}</span>
               {barSubStation ? (
                 <span className="font-mono tracking-wider uppercase text-ink-3 bg-paper px-2 py-1 rounded">
                   {barSubStation}
                 </span>
               ) : (
                 <span className="font-mono tracking-wider uppercase text-ink-3 bg-paper px-2 py-1 rounded">
-                  TODO EL BAR
+                  {t("allBar")}
                 </span>
               )}
-              <span className="text-op-muted">· Cambiar:</span>
+              <span className="text-op-muted">{t("changeLabel")}</span>
               <Link
                 href={`/operator/print/bar`}
                 className="underline text-op-muted"
               >
-                Todo
+                {t("allOption")}
               </Link>
               {availableSubStations.map((s) => (
                 <Link
@@ -282,11 +287,11 @@ export function PrintListener({
           {/* History */}
           <div>
             <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-2">
-              Últimos tickets
+              {t("recentTickets")}
             </div>
             {history.length === 0 && (
               <div className="text-sm text-op-muted py-6 text-center border border-dashed border-op-border rounded-xl">
-                Aún no se ha impreso nada en esta sesión.
+                {t("nothingPrinted")}
               </div>
             )}
             <ul className="space-y-1.5">
@@ -297,7 +302,7 @@ export function PrintListener({
                 >
                   <span className="font-mono">{h.shortCode}</span>
                   <span className="text-op-muted">
-                    {h.itemCount} {h.itemCount === 1 ? "ítem" : "ítems"} ·{" "}
+                    {t("historyItemCount", { count: h.itemCount })} ·{" "}
                     {new Date(h.printedAt).toLocaleTimeString("es-CO", {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -314,7 +319,7 @@ export function PrintListener({
       {/* The actual print iframe — off-screen so it never shows. */}
       <iframe
         ref={iframeRef}
-        title="Impresión"
+        title={t("iframeTitle")}
         aria-hidden
         className="fixed -left-[9999px] top-0 w-[400px] h-[800px] border-0"
       />
@@ -327,18 +332,20 @@ export function PrintListener({
  * so most browsers render at the printer's actual paper width and
  * skip the standard A4 margins.
  */
-function buildTicketHtml(ticket: Ticket): string {
+function buildTicketHtml(ticket: Ticket, t: Tr): string {
   const width = ticket.paperWidthMm;
   const dest =
     ticket.order.orderType === "pickup"
-      ? `RECOGER · ${ticket.order.pickupName ?? ticket.order.shortCode}`
-      : `MESA ${ticket.order.tableNumber}`;
+      ? t("ticketPickup", {
+          name: ticket.order.pickupName ?? ticket.order.shortCode,
+        })
+      : t("ticketTable", { number: ticket.order.tableNumber });
   const stationName =
     ticket.station === "kitchen"
-      ? "COCINA"
+      ? t("ticketKitchen")
       : ticket.barSubStation
-        ? `BAR · ${ticket.barSubStation.toUpperCase()}`
-        : "BAR";
+        ? t("ticketBarSub", { sub: ticket.barSubStation.toUpperCase() })
+        : t("ticketBar");
   const time = new Date(ticket.placedAt).toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
@@ -348,7 +355,7 @@ function buildTicketHtml(ticket: Ticket): string {
   // browsers that don't respect @page still render at the right width.
   return `<!doctype html>
 <html><head><meta charset="utf-8"/>
-<title>Ticket</title>
+<title>${escapeHtml(t("ticketDocTitle"))}</title>
 <style>
   @page { size: ${width}mm auto; margin: 0; }
   * { box-sizing: border-box; }
@@ -421,7 +428,7 @@ function buildTicketHtml(ticket: Ticket): string {
 <body>
   <div class="station">${escapeHtml(stationName)}</div>
   <div class="dest">${escapeHtml(dest)}</div>
-  <div class="meta">${escapeHtml(ticket.order.shortCode)} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? " · FUERTES JUNTOS" : ""}</div>
+  <div class="meta">${escapeHtml(ticket.order.shortCode)} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? ` · ${escapeHtml(t("ticketMainsTogether"))}` : ""}</div>
   <hr/>
   ${ticket.items
     .map(
@@ -435,7 +442,7 @@ function buildTicketHtml(ticket: Ticket): string {
   `,
     )
     .join("")}
-  ${ticket.order.notes ? `<hr/><div class="ordernotes">Mesa: ${escapeHtml(ticket.order.notes)}</div>` : ""}
+  ${ticket.order.notes ? `<hr/><div class="ordernotes">${escapeHtml(t("ticketTableNote"))}: ${escapeHtml(ticket.order.notes)}</div>` : ""}
   <hr/>
   <div class="foot">${escapeHtml(ticket.restaurantName)}</div>
 </body></html>`;
@@ -455,6 +462,7 @@ function buildSampleTicket(
   sub: string | null,
   paperWidth: number,
   tenantName: string,
+  t: Tr,
 ): Ticket {
   return {
     restaurantName: tenantName,
@@ -464,7 +472,7 @@ function buildSampleTicket(
     roundSeq: 1,
     placedAt: new Date().toISOString(),
     order: {
-      shortCode: "PRUEBA",
+      shortCode: t("sampleShortCode"),
       orderType: "dineIn",
       tableNumber: 7,
       pickupName: null,
@@ -474,9 +482,9 @@ function buildSampleTicket(
     items: [
       {
         qty: 1,
-        name: "Ticket de prueba",
+        name: t("sampleItemName"),
         modifiers: [],
-        notes: "Si ves este texto, la impresora está bien conectada.",
+        notes: t("sampleItemNote"),
         guestName: null,
       },
     ],

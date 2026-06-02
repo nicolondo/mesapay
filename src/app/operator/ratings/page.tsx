@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -6,8 +7,9 @@ import { Stars } from "@/app/t/[slug]/order/[orderId]/RatingInline";
 export const dynamic = "force-dynamic";
 
 export default async function OperatorRatingsPage() {
+  const t = await getTranslations("opRatings");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const [ratings, items] = await Promise.all([
     db.dishRating.findMany({
@@ -53,20 +55,20 @@ export default async function OperatorRatingsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="font-display text-3xl mb-5">Reseñas</div>
+      <div className="font-display text-3xl mb-5">{t("title")}</div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
         <Stat
-          label="Total de reseñas"
+          label={t("totalReviews")}
           value={totalRatings.toString()}
         />
         <Stat
-          label="Promedio global"
-          value={totalRatings > 0 ? globalAvg.toFixed(2) : "—"}
+          label={t("globalAverage")}
+          value={totalRatings > 0 ? globalAvg.toFixed(2) : t("dash")}
           right={<Stars stars={Math.round(globalAvg)} size={18} />}
         />
         <Stat
-          label="Platos con reseña"
+          label={t("dishesWithReview")}
           value={itemsWithAvg.length.toString()}
         />
       </div>
@@ -74,7 +76,7 @@ export default async function OperatorRatingsPage() {
       {itemsWithAvg.length > 0 && (
         <section className="mb-10">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-            Por plato
+            {t("byDish")}
           </div>
           <ul className="divide-y divide-op-border border border-op-border rounded-xl bg-op-surface overflow-hidden">
             {itemsWithAvg.map((i) => (
@@ -82,7 +84,7 @@ export default async function OperatorRatingsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{i.name}</div>
                   <div className="text-xs text-op-muted mt-0.5">
-                    {i.count} {i.count === 1 ? "reseña" : "reseñas"}
+                    {t("reviewCount", { count: i.count })}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -99,11 +101,11 @@ export default async function OperatorRatingsPage() {
 
       <section>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-          Comentarios recientes
+          {t("recentComments")}
         </div>
         {ratings.length === 0 ? (
           <div className="text-sm text-op-muted border border-dashed border-op-border rounded-xl p-8 text-center">
-            Aún no tienes reseñas.
+            {t("noReviews")}
           </div>
         ) : (
           <ul className="space-y-3">
@@ -121,14 +123,17 @@ export default async function OperatorRatingsPage() {
                       </div>
                       <div className="text-xs text-op-muted mt-0.5">
                         {r.order.shortCode} ·{" "}
-                        {r.guestName ? r.guestName : "Anónimo"} · {date} {time}
+                        {r.guestName ? r.guestName : t("anonymous")} · {date}{" "}
+                        {time}
                       </div>
                     </div>
                     <Stars stars={r.stars} size={16} />
                   </div>
                   {r.comment && (
                     <div className="mt-2 text-sm text-op-text">
-                      “{r.comment}”
+                      {"“"}
+                      {r.comment}
+                      {"”"}
                     </div>
                   )}
                 </li>

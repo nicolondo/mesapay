@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -7,11 +8,12 @@ import { LiveRefresh } from "./LiveRefresh";
 export const dynamic = "force-dynamic";
 
 export default async function OperatorHome() {
+  const tr = await getTranslations("opDashboard");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return (
       <div className="p-8">
-        <p>No tienes restaurante asignado. Contacta al admin.</p>
+        <p>{tr("noRestaurant")}</p>
       </div>
     );
   }
@@ -99,14 +101,14 @@ export default async function OperatorHome() {
     <div className="p-6 max-w-6xl mx-auto w-full">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi label="Ventas hoy" value={fmtCOP(salesTodayCents)} />
-        <Kpi label="Órdenes pagadas" value={String(todayPaidCount)} />
+        <Kpi label={tr("kpiSalesToday")} value={fmtCOP(salesTodayCents)} />
+        <Kpi label={tr("kpiPaidOrders")} value={String(todayPaidCount)} />
         <Kpi
-          label="Ticket promedio"
-          value={todayPaidCount === 0 ? "—" : fmtCOP(avgTicketCents)}
+          label={tr("kpiAvgTicket")}
+          value={todayPaidCount === 0 ? tr("dash") : fmtCOP(avgTicketCents)}
         />
         <Kpi
-          label="Abiertas ahora"
+          label={tr("kpiOpenNow")}
           value={String(openOrdersCount)}
           accent={openOrdersCount > 0}
         />
@@ -115,7 +117,7 @@ export default async function OperatorHome() {
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-op-surface border border-op-border rounded-2xl p-5">
           <div className="flex items-baseline justify-between">
-            <div className="font-display text-xl">Últimos 7 días</div>
+            <div className="font-display text-xl">{tr("last7Days")}</div>
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
               {fmtCOP(weekDays.reduce((s, d) => s + d.cents, 0))}
             </div>
@@ -135,7 +137,7 @@ export default async function OperatorHome() {
                     title={fmtCOP(d.cents)}
                   />
                   <div className="font-mono text-[9px] text-op-muted">
-                    {dayLabel(d.date)}
+                    {dayLabel(d.date, tr)}
                   </div>
                 </div>
               );
@@ -145,15 +147,15 @@ export default async function OperatorHome() {
 
         <div className="bg-op-surface border border-op-border rounded-2xl p-5">
           <div className="flex items-baseline justify-between">
-            <div className="font-display text-xl">Top platos hoy</div>
+            <div className="font-display text-xl">{tr("topDishesToday")}</div>
             <Link href="/operator/menu" className="text-xs text-terracotta">
-              Ver menú →
+              {tr("viewMenu")}
             </Link>
           </div>
           <ul className="mt-3 divide-y divide-op-border">
             {topItemsRaw.length === 0 && (
               <li className="py-4 text-sm text-op-muted">
-                Nadie ha pagado todavía hoy.
+                {tr("noPaidYet")}
               </li>
             )}
             {topItemsRaw.map((t, i) => (
@@ -179,10 +181,10 @@ export default async function OperatorHome() {
       <div className="mt-8 bg-op-surface border border-op-border rounded-2xl">
         <div className="flex items-center justify-between px-5 py-3 border-b border-op-border">
           <div className="font-display text-xl">
-            {counterMode ? "Órdenes activas" : "Mesas activas"}
+            {counterMode ? tr("activeOrders") : tr("activeTables")}
           </div>
           <Link href="/operator/kitchen" className="text-sm text-terracotta">
-            Ir a cocina →
+            {tr("goToKitchen")}
           </Link>
         </div>
         <ul className="divide-y divide-op-border">
@@ -195,15 +197,17 @@ export default async function OperatorHome() {
               >
                 <div className="flex items-center gap-3">
                   <div className="font-display text-lg w-24">
-                    {counterMode ? o.shortCode : `Mesa ${o.table.number}`}
+                    {counterMode
+                      ? o.shortCode
+                      : tr("tableLabel", { number: o.table.number })}
                   </div>
                   <div>
                     <div className="font-mono text-sm">
-                      {counterMode ? "Mostrador" : o.shortCode}
+                      {counterMode ? tr("counter") : o.shortCode}
                     </div>
                     <div className="text-xs text-op-muted">
-                      {itemCount} {itemCount === 1 ? "item" : "items"} ·{" "}
-                      {statusLabel(o.status)} · {ageLabel(o.createdAt)}
+                      {tr("itemCount", { count: itemCount })} ·{" "}
+                      {statusLabel(o.status, tr)} · {ageLabel(o.createdAt, tr)}
                     </div>
                   </div>
                 </div>
@@ -215,9 +219,7 @@ export default async function OperatorHome() {
           })}
           {openOrders.length === 0 && (
             <li className="px-5 py-6 text-sm text-op-muted">
-              {counterMode
-                ? "No hay órdenes activas en este momento."
-                : "No hay mesas activas en este momento."}
+              {counterMode ? tr("noActiveOrders") : tr("noActiveTables")}
             </li>
           )}
         </ul>
@@ -259,34 +261,36 @@ function Kpi({
   );
 }
 
-const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
-function dayLabel(d: Date) {
-  return DAYS[d.getDay()];
+type Tr = (key: string, values?: Record<string, string | number>) => string;
+
+const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
+function dayLabel(d: Date, tr: Tr) {
+  return tr(DAY_KEYS[d.getDay()]);
 }
 
-function statusLabel(s: string) {
+function statusLabel(s: string, tr: Tr) {
   switch (s) {
     case "open":
-      return "Abierto";
+      return tr("statusOpen");
     case "placed":
-      return "Enviado";
+      return tr("statusPlaced");
     case "in_kitchen":
-      return "En cocina";
+      return tr("statusInKitchen");
     case "ready":
-      return "Listo";
+      return tr("statusReady");
     case "served":
-      return "Servido";
+      return tr("statusServed");
     case "paying":
-      return "Cobrando";
+      return tr("statusPaying");
     default:
       return s;
   }
 }
 
-function ageLabel(d: Date) {
+function ageLabel(d: Date, tr: Tr) {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return tr("ageNow");
+  if (mins < 60) return tr("ageMinutes", { mins });
   const h = Math.floor(mins / 60);
-  return `${h}h`;
+  return tr("ageHours", { hours: h });
 }

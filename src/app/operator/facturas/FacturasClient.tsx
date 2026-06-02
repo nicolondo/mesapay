@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 
 type Req = {
@@ -38,6 +39,7 @@ export function FacturasClient({
   pending: Req[];
   generated: GeneratedReq[];
 }) {
+  const t = useTranslations("opFacturas");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -62,31 +64,27 @@ export function FacturasClient({
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">Facturas electrónicas</div>
-      <p className="text-sm text-op-muted mb-6">
-        Solicitudes de los clientes para que les emitas factura desde tu
-        sistema (Siigo / Alegra / Factura1 / etc.). Cuando la generes,
-        márcala para no perderle la pista.
-      </p>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
+      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
       <div className="flex gap-2 border-b border-op-border mb-4">
         <TabButton
           active={tab === "pending"}
           onClick={() => setTab("pending")}
-          label="Pendientes"
+          label={t("tabPending")}
           count={pending.length}
         />
         <TabButton
           active={tab === "generated"}
           onClick={() => setTab("generated")}
-          label="Ya generadas"
+          label={t("tabGenerated")}
           count={generated.length}
         />
       </div>
 
       {tab === "pending" ? (
         pending.length === 0 ? (
-          <Empty text="No hay solicitudes pendientes." />
+          <Empty text={t("emptyPending")} />
         ) : (
           <ul className="space-y-3">
             {pending.map((r) => (
@@ -100,7 +98,7 @@ export function FacturasClient({
           </ul>
         )
       ) : generated.length === 0 ? (
-        <Empty text="Aún no has generado ninguna factura." />
+        <Empty text={t("emptyGenerated")} />
       ) : (
         <ul className="space-y-3">
           {generated.map((r) => (
@@ -164,13 +162,14 @@ function RequestCard({
   busy: boolean;
   onMark: (id: string, status: "generated" | "rejected") => void;
 }) {
+  const t = useTranslations("opFacturas");
   function copyAll() {
     const text = [
       `${req.customerName}`,
       `${req.docType}: ${req.docNumber}`,
       `${req.address}, ${req.city}, ${req.department}`,
-      `Email: ${req.email}`,
-      `Orden: ${req.order.shortCode} · ${fmtCOP(req.order.totalCents)}`,
+      `${t("copyEmail")}: ${req.email}`,
+      `${t("copyOrder")}: ${req.order.shortCode} · ${fmtCOP(req.order.totalCents)}`,
     ].join("\n");
     navigator.clipboard.writeText(text).catch(() => {});
   }
@@ -181,12 +180,12 @@ function RequestCard({
         <div className="min-w-0">
           <div className="font-display text-xl">{req.customerName}</div>
           <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted mt-0.5">
-            Orden {req.order.shortCode} · {fmtCOP(req.order.totalCents)} ·{" "}
-            {hoursAgo(req.createdAt)}
+            {t("orderPrefix")} {req.order.shortCode} ·{" "}
+            {fmtCOP(req.order.totalCents)} · {hoursAgo(req.createdAt, t)}
           </div>
         </div>
         <span className="px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium bg-[#C98A2E]/20 text-[#7F5A1F] shrink-0">
-          Pendiente
+          {t("badgePending")}
         </span>
       </div>
 
@@ -194,7 +193,7 @@ function RequestCard({
         <Row label={req.docType}>
           <span className="font-mono tabular">{req.docNumber}</span>
         </Row>
-        <Row label="Correo">
+        <Row label={t("fieldEmail")}>
           <a
             href={`mailto:${req.email}`}
             className="text-terracotta hover:underline truncate"
@@ -202,8 +201,8 @@ function RequestCard({
             {req.email}
           </a>
         </Row>
-        <Row label="Dirección">{req.address}</Row>
-        <Row label="Ciudad / Depto">
+        <Row label={t("fieldAddress")}>{req.address}</Row>
+        <Row label={t("fieldCityDept")}>
           {req.city}, {req.department}
         </Row>
       </div>
@@ -215,29 +214,24 @@ function RequestCard({
           disabled={busy}
           className="h-10 px-5 rounded-full bg-ok text-bone text-sm font-medium disabled:opacity-50"
         >
-          ✓ Marcar como generada
+          {t("markGenerated")}
         </button>
         <button
           type="button"
           onClick={copyAll}
           className="h-10 px-4 rounded-full border border-op-border text-sm font-medium hover:bg-op-bg"
         >
-          Copiar datos
+          {t("copyData")}
         </button>
         <button
           type="button"
           onClick={() => {
-            if (
-              confirm(
-                "¿Rechazar esta solicitud? El cliente no recibirá factura. Esta acción se puede revertir.",
-              )
-            )
-              onMark(req.id, "rejected");
+            if (confirm(t("rejectConfirm"))) onMark(req.id, "rejected");
           }}
           disabled={busy}
           className="h-10 px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-50"
         >
-          Rechazar
+          {t("reject")}
         </button>
       </div>
     </li>
@@ -253,6 +247,7 @@ function GeneratedCard({
   busy: boolean;
   onReopen: () => void;
 }) {
+  const t = useTranslations("opFacturas");
   return (
     <li className="rounded-2xl border border-op-border bg-op-surface p-5">
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -264,11 +259,12 @@ function GeneratedCard({
             </span>
           </div>
           <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted mt-0.5">
-            Orden {req.order.shortCode} · {fmtCOP(req.order.totalCents)}
+            {t("orderPrefix")} {req.order.shortCode} ·{" "}
+            {fmtCOP(req.order.totalCents)}
           </div>
         </div>
         <span className="px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium bg-ok/15 text-ok shrink-0">
-          ✓ Generada
+          {t("badgeGenerated")}
         </span>
       </div>
       <div className="text-xs text-op-muted">
@@ -276,8 +272,10 @@ function GeneratedCard({
       </div>
       {req.generatedAt && (
         <div className="text-[11px] text-op-muted mt-1">
-          Marcada por {req.generatedByEmail ?? "—"} el{" "}
-          {new Date(req.generatedAt).toLocaleString("es-CO")}
+          {t("markedBy", {
+            email: req.generatedByEmail ?? t("dash"),
+            date: new Date(req.generatedAt).toLocaleString("es-CO"),
+          })}
         </div>
       )}
       <button
@@ -286,7 +284,7 @@ function GeneratedCard({
         disabled={busy}
         className="mt-3 text-[11px] text-op-muted hover:text-op-text underline disabled:opacity-50"
       >
-        Marcar como pendiente de nuevo
+        {t("markPendingAgain")}
       </button>
     </li>
   );
@@ -303,12 +301,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function hoursAgo(iso: string): string {
+function hoursAgo(
+  iso: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const ms = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `hace ${mins}m`;
+  if (mins < 1) return t("agoNow");
+  if (mins < 60) return t("agoMinutes", { mins });
   const h = Math.floor(mins / 60);
-  if (h < 24) return `hace ${h}h`;
-  return `hace ${Math.floor(h / 24)}d`;
+  if (h < 24) return t("agoHours", { hours: h });
+  return t("agoDays", { days: Math.floor(h / 24) });
 }

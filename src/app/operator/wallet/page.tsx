@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { WalletClient } from "./WalletClient";
@@ -36,8 +37,9 @@ function normalisePolicy(raw: unknown): AutoPolicy {
 }
 
 export default async function WalletPage() {
+  const t = await getTranslations("opWallet");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -49,7 +51,7 @@ export default async function WalletPage() {
       autoDispersePolicy: true,
     },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{t("notFound")}</div>;
 
   const movements = await db.walletMovement.findMany({
     where: { restaurantId },

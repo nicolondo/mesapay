@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 
@@ -37,6 +38,7 @@ export function WalletClient({
   initialMovements: Movement[];
   initialPolicy: AutoPolicy;
 }) {
+  const t = useTranslations("opWallet");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [balance, setBalance] = useState<{
@@ -87,20 +89,18 @@ export function WalletClient({
   if (!onboarded) {
     return (
       <div className="p-6 max-w-3xl mx-auto w-full">
-        <div className="font-display text-3xl mb-1">Wallet</div>
-        <p className="text-sm text-op-muted mb-6">
-          Para empezar a recibir dinero necesitas activar pagos en MESAPAY.
-        </p>
+        <div className="font-display text-3xl mb-1">{t("title")}</div>
+        <p className="text-sm text-op-muted mb-6">{t("activateIntro")}</p>
         <div className="rounded-2xl border border-op-border bg-op-surface p-6 text-center">
-          <div className="font-display text-xl">Aún no estás activo</div>
+          <div className="font-display text-xl">{t("notActiveTitle")}</div>
           <p className="text-sm text-op-muted mt-1 mb-4">
-            Completa la solicitud para que tu wallet quede habilitada.
+            {t("notActiveBody")}
           </p>
           <Link
             href="/operator/settings/pagos"
             className="inline-flex h-10 px-5 rounded-full bg-terracotta text-bone font-medium items-center"
           >
-            Ir al onboarding
+            {t("goToOnboarding")}
           </Link>
         </div>
       </div>
@@ -112,26 +112,24 @@ export function WalletClient({
       <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
         {tenantName}
       </div>
-      <div className="font-display text-3xl mb-1">Wallet</div>
-      <p className="text-sm text-op-muted mb-6">
-        Saldo disponible y movimientos de tu wallet.
-      </p>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
+      <p className="text-sm text-op-muted mb-6">{t("subtitle")}</p>
 
       <div className="rounded-2xl bg-ink text-bone p-6 mb-6">
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70 mb-1">
-          Saldo disponible
+          {t("availableBalance")}
         </div>
         <div className="font-display text-4xl tabular">
-          {balance ? fmtCOP(balance.availableCents) : "…"}
+          {balance ? fmtCOP(balance.availableCents) : t("loadingEllipsis")}
         </div>
         {balance && balance.pendingCents > 0 && (
           <div className="text-xs opacity-70 mt-1">
-            Pendiente: {fmtCOP(balance.pendingCents)}
+            {t("pending", { amount: fmtCOP(balance.pendingCents) })}
           </div>
         )}
         {balanceErr && (
           <div className="text-xs text-danger mt-2">
-            No pudimos cargar el saldo ({balanceErr}).
+            {t("balanceError", { code: balanceErr })}
           </div>
         )}
         <div className="mt-5 flex flex-wrap gap-2">
@@ -141,22 +139,20 @@ export function WalletClient({
             disabled={!balance || balance.availableCents <= 0 || !bankLabel}
             className="h-10 px-5 rounded-full bg-bone text-ink text-sm font-medium disabled:opacity-50"
           >
-            Pasar al banco
+            {t("toBank")}
           </button>
           {bankLabel && (
             <span className="font-mono text-[10px] tracking-wider uppercase opacity-70 self-center">
-              → {bankLabel}
+              {"→"} {bankLabel}
             </span>
           )}
         </div>
       </div>
 
       <section className="mb-8">
-        <div className="font-display text-xl mb-3">Movimientos</div>
+        <div className="font-display text-xl mb-3">{t("movements")}</div>
         {initialMovements.length === 0 ? (
-          <div className="text-sm text-op-muted">
-            Aún no hay movimientos. Aparecerán aquí cuando recibas tu primer cobro.
-          </div>
+          <div className="text-sm text-op-muted">{t("noMovements")}</div>
         ) : (
           <ul className="divide-y divide-op-border border-y border-op-border">
             {initialMovements.map((m) => (
@@ -167,7 +163,7 @@ export function WalletClient({
                 <div className="min-w-0">
                   <div className="text-sm truncate">{m.description}</div>
                   <div className="text-[11px] text-op-muted mt-0.5">
-                    {humanKind(m.kind)} ·{" "}
+                    {humanKind(m.kind, t)} ·{" "}
                     {new Date(m.occurredAt).toLocaleString("es-CO")}
                   </div>
                 </div>
@@ -182,7 +178,7 @@ export function WalletClient({
                     {fmtCOP(m.amountCents)}
                   </div>
                   <div className="text-[10px] text-op-muted font-mono tabular">
-                    Saldo {fmtCOP(m.balanceAfterCents)}
+                    {t("balancePrefix", { amount: fmtCOP(m.balanceAfterCents) })}
                   </div>
                 </div>
               </li>
@@ -192,7 +188,7 @@ export function WalletClient({
       </section>
 
       <section className="mb-12">
-        <div className="font-display text-xl mb-3">Dispersión automática</div>
+        <div className="font-display text-xl mb-3">{t("autoDisperseTitle")}</div>
         <div className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
           <label className="flex items-center gap-3 text-sm">
             <input
@@ -211,17 +207,17 @@ export function WalletClient({
               }}
               disabled={savingPolicy}
             />
-            Pasar saldo al banco automáticamente
+            {t("autoDisperseToggle")}
           </label>
           {policy.enabled && (
             <div className="grid grid-cols-2 gap-3">
               <Select
-                label="Frecuencia"
+                label={t("frequency")}
                 value={policy.mode}
                 options={[
-                  ["daily", "Diaria"],
-                  ["weekly", "Semanal"],
-                  ["threshold", "Cuando pase un umbral"],
+                  ["daily", t("freqDaily")],
+                  ["weekly", t("freqWeekly")],
+                  ["threshold", t("freqThreshold")],
                 ]}
                 onChange={(v) =>
                   savePolicy({
@@ -232,7 +228,7 @@ export function WalletClient({
               />
               {policy.mode === "threshold" ? (
                 <NumberField
-                  label="Umbral en pesos"
+                  label={t("thresholdPesos")}
                   value={policy.thresholdCents ?? 500000}
                   onChange={(v) =>
                     savePolicy({ ...policy, thresholdCents: v })
@@ -240,7 +236,7 @@ export function WalletClient({
                 />
               ) : (
                 <TextField
-                  label="Hora (24h)"
+                  label={t("hour24")}
                   value={policy.time ?? "22:00"}
                   onChange={(v) => savePolicy({ ...policy, time: v })}
                 />
@@ -276,13 +272,14 @@ function DisperseSheet({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useTranslations("opWallet");
   const [amount, setAmount] = useState<number>(maxCents);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function go() {
     if (amount <= 0 || amount > maxCents) {
-      setErr("Monto inválido.");
+      setErr(t("invalidAmount"));
       return;
     }
     setBusy(true);
@@ -295,7 +292,7 @@ function DisperseSheet({
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setErr(j.message ?? j.error ?? "No pudimos dispersar.");
+      setErr(j.message ?? j.error ?? t("disperseError"));
       return;
     }
     onSuccess();
@@ -311,20 +308,20 @@ function DisperseSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-hairline flex items-center justify-between">
-          <div className="font-display text-xl">Pasar al banco</div>
+          <div className="font-display text-xl">{t("toBank")}</div>
           <button onClick={onClose} className="text-muted text-sm">
-            Cerrar
+            {t("close")}
           </button>
         </div>
         <div className="p-5 space-y-4">
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-            Destino · {bankLabel}
+            {t("destination", { bank: bankLabel })}
           </div>
           <NumberField
-            label="Monto"
+            label={t("amount")}
             value={amount}
             onChange={(v) => setAmount(Math.min(maxCents, v))}
-            hint={`Máximo ${fmtCOP(maxCents)}`}
+            hint={t("max", { amount: fmtCOP(maxCents) })}
           />
           {err && <div className="text-danger text-sm">{err}</div>}
           <button
@@ -332,10 +329,10 @@ function DisperseSheet({
             disabled={busy || amount <= 0}
             className="w-full h-12 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
           >
-            {busy ? "Procesando…" : `Enviar ${fmtCOP(amount)}`}
+            {busy ? t("processing") : t("sendAmount", { amount: fmtCOP(amount) })}
           </button>
           <p className="text-[11px] text-muted-2 text-center">
-            La dispersión normalmente se acredita en 1 día hábil.
+            {t("disperseNote")}
           </p>
         </div>
       </div>
@@ -343,18 +340,21 @@ function DisperseSheet({
   );
 }
 
-function humanKind(k: string): string {
+function humanKind(
+  k: string,
+  t: (key: string) => string,
+): string {
   switch (k) {
     case "credit":
-      return "Cobro";
+      return t("kindCredit");
     case "debit":
-      return "Débito";
+      return t("kindDebit");
     case "fee":
-      return "Comisión";
+      return t("kindFee");
     case "dispersion":
-      return "Transferencia a banco";
+      return t("kindDispersion");
     case "adjustment":
-      return "Ajuste";
+      return t("kindAdjustment");
     default:
       return k;
   }

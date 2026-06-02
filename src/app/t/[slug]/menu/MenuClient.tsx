@@ -894,7 +894,7 @@ export function MenuClient({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <LocaleSwitcher className="h-9 rounded-full border border-hairline bg-paper px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted" />
+              <LocaleSwitcher />
               <LayoutSwitcher layout={layout} onChange={changeLayout} />
               {/* Llamar al mesero — siempre visible cuando es modo
                   mesa (sin pickup). El endpoint by-table maneja

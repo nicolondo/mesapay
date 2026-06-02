@@ -92,6 +92,10 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/UsersPanel.tsx",
   "src/app/admin/restaurants/\\[id\\]/GroupAssignPanel.tsx",
   "src/app/admin/restaurants/\\[id\\]/PaymentMethodsPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/BillingPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",
+  "src/app/admin/plans/**/*.{ts,tsx}",
+  "src/app/admin/groups/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

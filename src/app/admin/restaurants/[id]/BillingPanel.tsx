@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 
 type Plan = "trial" | "basic" | "pro";
@@ -11,14 +12,6 @@ type PlanOption = {
   label: string;
   suggestedPriceCents: number;
 };
-
-// Defaults usados como fallback si el caller no pasa planOptions —
-// preserva el comportamiento histórico antes del catálogo editable.
-const DEFAULT_PLAN_OPTIONS: PlanOption[] = [
-  { value: "trial", label: "Prueba", suggestedPriceCents: 0 },
-  { value: "basic", label: "Básico", suggestedPriceCents: 20_000_000 },
-  { value: "pro", label: "Pro", suggestedPriceCents: 40_000_000 },
-];
 
 export function PlanEditor({
   restaurantId,
@@ -33,6 +26,14 @@ export function PlanEditor({
   // /admin/restaurants/[id]), refleja el catálogo /admin/plans.
   planOptions?: PlanOption[];
 }) {
+  const t = useTranslations("opAdminBilling");
+  // Defaults usados como fallback si el caller no pasa planOptions —
+  // preserva el comportamiento histórico antes del catálogo editable.
+  const DEFAULT_PLAN_OPTIONS: PlanOption[] = [
+    { value: "trial", label: t("planDefaultTrial"), suggestedPriceCents: 0 },
+    { value: "basic", label: t("planDefaultBasic"), suggestedPriceCents: 20_000_000 },
+    { value: "pro", label: t("planDefaultPro"), suggestedPriceCents: 40_000_000 },
+  ];
   const PLAN_OPTIONS = planOptions ?? DEFAULT_PLAN_OPTIONS;
   const router = useRouter();
   const [selected, setSelected] = useState<Plan>(plan);
@@ -48,7 +49,7 @@ export function PlanEditor({
   async function save() {
     const cents = Math.round(Number(priceCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
-      setErr("Precio inválido.");
+      setErr(t("priceInvalid"));
       return;
     }
     setBusy(true);
@@ -64,7 +65,7 @@ export function PlanEditor({
     });
     setBusy(false);
     if (!res.ok) {
-      setErr("No se pudo guardar.");
+      setErr(t("saveFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -74,7 +75,7 @@ export function PlanEditor({
     <div className="space-y-4">
       <div>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-          Plan
+          {t("plan")}
         </div>
         <div className="inline-flex p-1 rounded-full bg-op-bg border border-op-border">
           {PLAN_OPTIONS.map((p) => (
@@ -102,10 +103,10 @@ export function PlanEditor({
       </div>
       <div>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-          Mensualidad
+          {t("monthlyFee")}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-op-muted text-sm">$</span>
+          <span className="text-op-muted text-sm">{"$"}</span>
           <input
             type="number"
             value={priceCop}
@@ -114,7 +115,7 @@ export function PlanEditor({
             step={1000}
             className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
           />
-          <span className="text-op-muted text-xs">COP / mes</span>
+          <span className="text-op-muted text-xs">{t("perMonthSuffix")}</span>
         </div>
       </div>
       {err && <div className="text-danger text-xs">{err}</div>}
@@ -124,7 +125,7 @@ export function PlanEditor({
           disabled={busy || !dirty}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {busy ? "Guardando…" : "Guardar plan"}
+          {busy ? t("saving") : t("savePlan")}
         </button>
       </div>
     </div>
@@ -138,6 +139,7 @@ export function RecordPaymentForm({
   restaurantId: string;
   suggestedAmountCents: number;
 }) {
+  const t = useTranslations("opAdminBilling");
   const router = useRouter();
   const [amountCop, setAmountCop] = useState(
     String(Math.round(suggestedAmountCents / 100)),
@@ -154,7 +156,7 @@ export function RecordPaymentForm({
     e.preventDefault();
     const cents = Math.round(Number(amountCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
-      setErr("Monto inválido.");
+      setErr(t("amountInvalid"));
       return;
     }
     setBusy(true);
@@ -171,7 +173,7 @@ export function RecordPaymentForm({
     });
     setBusy(false);
     if (!res.ok) {
-      setErr("No se pudo registrar.");
+      setErr(t("recordFailed"));
       return;
     }
     setNote("");
@@ -183,7 +185,7 @@ export function RecordPaymentForm({
       <div className="flex gap-2 flex-wrap items-end">
         <label className="flex flex-col">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-            Monto (COP)
+            {t("amountCop")}
           </span>
           <input
             type="number"
@@ -196,7 +198,7 @@ export function RecordPaymentForm({
         </label>
         <label className="flex flex-col">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-            Método
+            {t("method")}
           </span>
           <select
             value={method}
@@ -205,20 +207,20 @@ export function RecordPaymentForm({
             }
             className="h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
           >
-            <option value="manual_transfer">Transferencia</option>
-            <option value="manual_cash">Efectivo</option>
-            <option value="wompi">Wompi (futuro)</option>
+            <option value="manual_transfer">{t("methodTransfer")}</option>
+            <option value="manual_cash">{t("methodCash")}</option>
+            <option value="wompi">{t("methodWompi")}</option>
           </select>
         </label>
         <label className="flex flex-col flex-1 min-w-[180px]">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-            Nota (opcional)
+            {t("noteOptional")}
           </span>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={240}
-            placeholder="Factura #… / referencia"
+            placeholder={t("notePlaceholder")}
             className="h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
@@ -227,12 +229,12 @@ export function RecordPaymentForm({
           disabled={busy}
           className="h-9 px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
         >
-          {busy ? "Registrando…" : "Marcar pago"}
+          {busy ? t("recording") : t("markPayment")}
         </button>
       </div>
       {err && <div className="text-danger text-xs">{err}</div>}
       <div className="text-[11px] text-op-muted">
-        Registra un pago manual y extiende el periodo un mes.
+        {t("recordPaymentHint")}
       </div>
     </form>
   );
@@ -245,6 +247,7 @@ export function SuspendButton({
   restaurantId: string;
   suspended: boolean;
 }) {
+  const t = useTranslations("opAdminBilling");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTx] = useTransition();
@@ -252,8 +255,8 @@ export function SuspendButton({
   async function toggle() {
     const next = !suspended;
     const label = next
-      ? "¿Suspender acceso del restaurante?"
-      : "¿Reactivar acceso del restaurante?";
+      ? t("suspendConfirm")
+      : t("reactivateConfirm");
     if (!window.confirm(label)) return;
     setBusy(true);
     const res = await fetch(`/api/admin/membership/${restaurantId}`, {
@@ -263,7 +266,7 @@ export function SuspendButton({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo cambiar.");
+      alert(t("changeFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -280,7 +283,7 @@ export function SuspendButton({
           : "bg-danger/10 text-danger border-danger/30")
       }
     >
-      {suspended ? "Reactivar" : "Suspender"}
+      {suspended ? t("reactivate") : t("suspend")}
     </button>
   );
 }
@@ -292,6 +295,7 @@ export function ServiceModePicker({
   restaurantId: string;
   serviceMode: "table" | "counter";
 }) {
+  const t = useTranslations("opAdminBilling");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTx] = useTransition();
@@ -300,8 +304,8 @@ export function ServiceModePicker({
     if (next === serviceMode || busy) return;
     const confirmMsg =
       next === "counter"
-        ? "Al pasar a modo mostrador los clientes dejarán de escanear por mesa. ¿Continuar?"
-        : "Al volver a modo con mesas necesitas tener al menos una mesa creada. ¿Continuar?";
+        ? t("serviceModeCounterConfirm")
+        : t("serviceModeTableConfirm");
     if (!window.confirm(confirmMsg)) return;
     setBusy(true);
     const res = await fetch(`/api/admin/membership/${restaurantId}`, {
@@ -311,7 +315,7 @@ export function ServiceModePicker({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo cambiar el modo.");
+      alert(t("serviceModeChangeFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -321,8 +325,8 @@ export function ServiceModePicker({
     <div className="flex gap-2 flex-wrap">
       {(
         [
-          { value: "table", label: "Con mesas" },
-          { value: "counter", label: "Mostrador" },
+          { value: "table", label: t("serviceModeTable") },
+          { value: "counter", label: t("serviceModeCounter") },
         ] as const
       ).map((o) => (
         <button
@@ -350,19 +354,14 @@ export function PickupToggle({
   restaurantId: string;
   pickupEnabled: boolean;
 }) {
+  const t = useTranslations("opAdminBilling");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [, startTx] = useTransition();
 
   async function toggle() {
     const next = !pickupEnabled;
-    if (
-      next &&
-      !window.confirm(
-        "Activar pedido anticipado mostrará un QR de recogida y los clientes podrán prepagar para recoger en el mostrador. ¿Continuar?",
-      )
-    )
-      return;
+    if (next && !window.confirm(t("pickupEnableConfirm"))) return;
     setBusy(true);
     const res = await fetch(`/api/admin/membership/${restaurantId}`, {
       method: "POST",
@@ -374,7 +373,7 @@ export function PickupToggle({
     });
     setBusy(false);
     if (!res.ok) {
-      alert("No se pudo cambiar.");
+      alert(t("changeFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -391,7 +390,7 @@ export function PickupToggle({
           : "bg-op-bg border-op-border")
       }
     >
-      {pickupEnabled ? "Activado" : "Desactivado"}
+      {pickupEnabled ? t("pickupEnabled") : t("pickupDisabled")}
     </button>
   );
 }
@@ -400,14 +399,14 @@ type DayCode = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type Window = { from: string; to: string };
 type PickupHoursInput = Record<DayCode, Window[]>;
 
-const DAY_ORDER: { key: DayCode; label: string }[] = [
-  { key: "mon", label: "Lunes" },
-  { key: "tue", label: "Martes" },
-  { key: "wed", label: "Miércoles" },
-  { key: "thu", label: "Jueves" },
-  { key: "fri", label: "Viernes" },
-  { key: "sat", label: "Sábado" },
-  { key: "sun", label: "Domingo" },
+const DAY_ORDER: { key: DayCode; tKey: string }[] = [
+  { key: "mon", tKey: "dayMon" },
+  { key: "tue", tKey: "dayTue" },
+  { key: "wed", tKey: "dayWed" },
+  { key: "thu", tKey: "dayThu" },
+  { key: "fri", tKey: "dayFri" },
+  { key: "sat", tKey: "daySat" },
+  { key: "sun", tKey: "daySun" },
 ];
 
 const EMPTY_HOURS: PickupHoursInput = {
@@ -463,6 +462,7 @@ export function PickupSchedulePanel({
   pickupHours: Record<string, unknown> | null;
   pickupMaxEtaMinutes: number | null;
 }) {
+  const t = useTranslations("opAdminBilling");
   const router = useRouter();
   const normalized = normalizeHours(pickupHours);
   const [mode, setMode] = useState<"always" | "custom">(
@@ -515,7 +515,7 @@ export function PickupSchedulePanel({
         for (const w of hoursPayload[day.key]) {
           if (w.from >= w.to) {
             setBusy(false);
-            setErr(`${day.label}: la hora de cierre debe ser mayor a la de apertura.`);
+            setErr(t("closeAfterOpen", { day: t(day.tKey) }));
             return;
           }
         }
@@ -531,7 +531,7 @@ export function PickupSchedulePanel({
     });
     if (!hoursRes.ok) {
       setBusy(false);
-      setErr("No se pudieron guardar los horarios.");
+      setErr(t("hoursSaveFailed"));
       return;
     }
 
@@ -539,7 +539,7 @@ export function PickupSchedulePanel({
     const cap = capOn ? Number(capInput) : null;
     if (cap != null && (!Number.isFinite(cap) || cap < 5 || cap > 240)) {
       setBusy(false);
-      setErr("Tope de espera debe estar entre 5 y 240 minutos.");
+      setErr(t("etaCapInvalid"));
       return;
     }
     const capRes = await fetch(`/api/admin/membership/${restaurantId}`, {
@@ -552,10 +552,10 @@ export function PickupSchedulePanel({
     });
     setBusy(false);
     if (!capRes.ok) {
-      setErr("Se guardaron los horarios pero falló el tope.");
+      setErr(t("etaCapPartialFail"));
       return;
     }
-    setOk("Guardado");
+    setOk(t("saved"));
     startTx(() => router.refresh());
   }
 
@@ -563,13 +563,13 @@ export function PickupSchedulePanel({
     <div className="space-y-4">
       <div>
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-          Horario de atención
+          {t("hoursTitle")}
         </div>
         <div className="flex gap-2 mb-3">
           {(
             [
-              { v: "always", label: "Abierto siempre" },
-              { v: "custom", label: "Horarios por día" },
+              { v: "always", label: t("hoursAlways") },
+              { v: "custom", label: t("hoursCustom") },
             ] as const
           ).map((o) => (
             <button
@@ -594,10 +594,10 @@ export function PickupSchedulePanel({
                 key={day.key}
                 className="flex items-start gap-3 py-2 border-t border-op-border first:border-t-0"
               >
-                <div className="w-24 shrink-0 text-sm pt-1">{day.label}</div>
+                <div className="w-24 shrink-0 text-sm pt-1">{t(day.tKey)}</div>
                 <div className="flex-1 space-y-1.5">
                   {draft[day.key].length === 0 ? (
-                    <div className="text-xs text-op-muted">Cerrado</div>
+                    <div className="text-xs text-op-muted">{t("closed")}</div>
                   ) : (
                     draft[day.key].map((w, idx) => (
                       <div key={idx} className="flex items-center gap-2">
@@ -609,7 +609,7 @@ export function PickupSchedulePanel({
                           }
                           className="h-8 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
                         />
-                        <span className="text-op-muted text-xs">–</span>
+                        <span className="text-op-muted text-xs" aria-hidden>{"–"}</span>
                         <input
                           type="time"
                           value={w.to}
@@ -622,9 +622,9 @@ export function PickupSchedulePanel({
                           type="button"
                           onClick={() => removeWindow(day.key, idx)}
                           className="h-7 w-7 rounded-full border border-op-border text-op-muted hover:text-danger hover:border-danger/40 text-xs"
-                          aria-label="Quitar ventana"
+                          aria-label={t("removeWindow")}
                         >
-                          ×
+                          {"×"}
                         </button>
                       </div>
                     ))
@@ -634,7 +634,7 @@ export function PickupSchedulePanel({
                     onClick={() => addWindow(day.key)}
                     className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
                   >
-                    + Agregar ventana
+                    {t("addWindow")}
                   </button>
                 </div>
               </li>
@@ -645,7 +645,7 @@ export function PickupSchedulePanel({
 
       <div className="pt-3 border-t border-op-border">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-          Tope de espera
+          {t("etaCapTitle")}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-sm">
@@ -654,7 +654,7 @@ export function PickupSchedulePanel({
               checked={capOn}
               onChange={(e) => setCapOn(e.target.checked)}
             />
-            <span>Rechazar órdenes si el ETA supera</span>
+            <span>{t("etaCapLabel")}</span>
           </label>
           <input
             type="number"
@@ -666,11 +666,10 @@ export function PickupSchedulePanel({
             disabled={!capOn}
             className="h-9 w-24 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular disabled:opacity-50"
           />
-          <span className="text-op-muted text-xs">min</span>
+          <span className="text-op-muted text-xs">{t("minutesAbbr")}</span>
         </div>
         <div className="text-[11px] text-op-muted mt-1">
-          Cuando la cocina está saturada evita recibir pedidos que no podrás
-          cumplir a tiempo.
+          {t("etaCapHint")}
         </div>
       </div>
 
@@ -681,7 +680,7 @@ export function PickupSchedulePanel({
         disabled={busy}
         className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
       >
-        {busy ? "Guardando…" : "Guardar horario"}
+        {busy ? t("saving") : t("saveHours")}
       </button>
     </div>
   );

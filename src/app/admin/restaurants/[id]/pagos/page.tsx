@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { AdminPagosConfig } from "./AdminPagosConfig";
@@ -11,28 +12,30 @@ function fmtFull(d: Date): string {
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, { label: string; tint: string }> = {
-  not_started: { label: "No iniciado", tint: "bg-op-bg text-op-muted" },
+// Cada estado mapea a su clave de traducción + tint. La etiqueta se
+// resuelve dentro del componente vía tr().
+const STATUS_META: Record<string, { tKey: string; tint: string }> = {
+  not_started: { tKey: "statusNotStarted", tint: "bg-op-bg text-op-muted" },
   docs_uploaded: {
-    label: "Documentos cargados",
+    tKey: "statusDocsUploaded",
     tint: "bg-paper text-op-muted",
   },
-  submitted: { label: "Enviado", tint: "bg-[#C98A2E]/20 text-[#8F6828]" },
-  in_review: { label: "En revisión", tint: "bg-[#C98A2E]/20 text-[#8F6828]" },
-  active: { label: "Activo", tint: "bg-ok/15 text-ok" },
-  rejected: { label: "Rechazado", tint: "bg-danger/15 text-danger" },
-  suspended: { label: "Suspendido", tint: "bg-danger/15 text-danger" },
+  submitted: { tKey: "statusSubmitted", tint: "bg-[#C98A2E]/20 text-[#8F6828]" },
+  in_review: { tKey: "statusInReview", tint: "bg-[#C98A2E]/20 text-[#8F6828]" },
+  active: { tKey: "statusActive", tint: "bg-ok/15 text-ok" },
+  rejected: { tKey: "statusRejected", tint: "bg-danger/15 text-danger" },
+  suspended: { tKey: "statusSuspended", tint: "bg-danger/15 text-danger" },
 };
 
-const KIND_LABEL: Record<string, string> = {
-  cedula_rep_legal: "Cédula representante legal",
-  rut: "RUT",
-  camara_comercio: "Cámara de comercio",
-  bank_cert: "Certificación bancaria",
-  origen_fondos: "Origen de fondos (contador)",
-  estados_financieros: "Estados financieros",
-  estatutos: "Estatutos",
-  other: "Otro",
+const KIND_TKEY: Record<string, string> = {
+  cedula_rep_legal: "kindCedulaRepLegal",
+  rut: "kindRut",
+  camara_comercio: "kindCamaraComercio",
+  bank_cert: "kindBankCert",
+  origen_fondos: "kindOrigenFondos",
+  estados_financieros: "kindEstadosFinancieros",
+  estatutos: "kindEstatutos",
+  other: "kindOther",
 };
 
 export default async function AdminPagosPage({
@@ -41,6 +44,7 @@ export default async function AdminPagosPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const tr = await getTranslations("opAdminBilling");
   const rest = await db.restaurant.findUnique({ where: { id } });
   if (!rest) notFound();
 
@@ -66,9 +70,10 @@ export default async function AdminPagosPage({
     }),
   ]);
 
-  const status = STATUS_LABEL[rest.kushkiOnboardingStatus] ?? {
-    label: rest.kushkiOnboardingStatus,
-    tint: "bg-op-bg text-op-muted",
+  const statusMeta = STATUS_META[rest.kushkiOnboardingStatus];
+  const status = {
+    label: statusMeta ? tr(statusMeta.tKey) : rest.kushkiOnboardingStatus,
+    tint: statusMeta?.tint ?? "bg-op-bg text-op-muted",
   };
 
   const bank = rest.bankInfo as Record<string, unknown> | null;
@@ -77,21 +82,24 @@ export default async function AdminPagosPage({
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center gap-2 text-sm text-op-muted mb-2">
         <Link href={`/admin/restaurants/${id}`} className="hover:underline">
-          ← {rest.name}
+          {"← "}
+          {rest.name}
         </Link>
-        <span>/</span>
-        <span>Pagos</span>
+        <span aria-hidden>{"/"}</span>
+        <span>{tr("pagosBreadcrumb")}</span>
       </div>
-      <div className="font-display text-3xl mb-1">Pagos · {rest.name}</div>
+      <div className="font-display text-3xl mb-1">
+        {tr("pagosTitle", { name: rest.name })}
+      </div>
       <p className="text-sm text-op-muted mb-6">
-        Estado de onboarding, documentos KYC, transacciones y eventos.
+        {tr("pagosIntro")}
       </p>
 
       <section className="rounded-2xl border border-op-border bg-op-surface p-5 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Estado actual
+              {tr("currentStatus")}
             </div>
             <div className="mt-1 inline-flex items-center gap-2">
               <span
@@ -106,16 +114,16 @@ export default async function AdminPagosPage({
           </div>
           <div className="text-sm text-op-muted">
             {rest.kushkiSubmittedAt && (
-              <div>Enviado: {fmtFull(rest.kushkiSubmittedAt)}</div>
+              <div>{tr("submittedAt", { date: fmtFull(rest.kushkiSubmittedAt) })}</div>
             )}
             {rest.kushkiActivatedAt && (
-              <div>Activado: {fmtFull(rest.kushkiActivatedAt)}</div>
+              <div>{tr("activatedAt", { date: fmtFull(rest.kushkiActivatedAt) })}</div>
             )}
           </div>
         </div>
         {rest.kushkiOnboardingNotes && (
           <div className="mt-3 text-sm text-op-muted whitespace-pre-wrap">
-            <strong>Notas:</strong> {rest.kushkiOnboardingNotes}
+            <strong>{tr("notesLabel")}</strong> {rest.kushkiOnboardingNotes}
           </div>
         )}
       </section>
@@ -135,51 +143,52 @@ export default async function AdminPagosPage({
       </section>
 
       <section className="mb-6">
-        <h2 className="font-display text-xl mb-3">Datos bancarios</h2>
+        <h2 className="font-display text-xl mb-3">{tr("bankTitle")}</h2>
         {bank ? (
           <div className="rounded-2xl border border-op-border bg-op-surface p-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <Field label="Banco" value={String(bank.bankName ?? "—")} />
+            <Field label={tr("bankName")} value={String(bank.bankName ?? "—")} />
             <Field
-              label="Tipo de cuenta"
+              label={tr("bankAccountType")}
               value={String(bank.accountType ?? "—")}
             />
             <Field
-              label="Número"
+              label={tr("bankNumber")}
               value={String(bank.accountNumber ?? "—")}
               mono
             />
-            <Field label="Titular" value={String(bank.holderName ?? "—")} />
+            <Field label={tr("bankHolder")} value={String(bank.holderName ?? "—")} />
             <Field
-              label="Tipo doc"
+              label={tr("bankHolderDocType")}
               value={String(bank.holderDocType ?? "—")}
             />
             <Field
-              label="Número doc"
+              label={tr("bankHolderDocNumber")}
               value={String(bank.holderDocNumber ?? "—")}
               mono
             />
             <Field
-              label="Fuente"
+              label={tr("bankSource")}
               value={
                 String(bank.source) === "ai_extracted"
-                  ? `AI (${
-                      typeof bank.aiConfidence === "number"
-                        ? (bank.aiConfidence * 100).toFixed(0) + "%"
-                        : "—"
-                    } confianza)`
-                  : "Manual"
+                  ? tr("bankSourceAi", {
+                      confidence:
+                        typeof bank.aiConfidence === "number"
+                          ? (bank.aiConfidence * 100).toFixed(0) + "%"
+                          : "—",
+                    })
+                  : tr("bankSourceManual")
               }
             />
           </div>
         ) : (
-          <div className="text-sm text-op-muted">Sin datos bancarios.</div>
+          <div className="text-sm text-op-muted">{tr("noBankData")}</div>
         )}
       </section>
 
       <section className="mb-6">
-        <h2 className="font-display text-xl mb-3">Documentos KYC</h2>
+        <h2 className="font-display text-xl mb-3">{tr("docsTitle")}</h2>
         {documents.length === 0 ? (
-          <div className="text-sm text-op-muted">Sin documentos.</div>
+          <div className="text-sm text-op-muted">{tr("noDocs")}</div>
         ) : (
           <ul className="divide-y divide-op-border border-y border-op-border">
             {documents.map((d) => (
@@ -189,12 +198,18 @@ export default async function AdminPagosPage({
               >
                 <div className="min-w-0">
                   <div className="text-sm">
-                    {KIND_LABEL[d.kind] ?? d.kind}{" "}
-                    <span className="text-op-muted">· {d.fileName}</span>
+                    {KIND_TKEY[d.kind] ? tr(KIND_TKEY[d.kind]) : d.kind}{" "}
+                    <span className="text-op-muted" aria-hidden>
+                      {"· "}
+                      {d.fileName}
+                    </span>
                   </div>
                   <div className="text-[11px] text-op-muted">
-                    Subido {fmtFull(d.createdAt)} · {d.mimeType} ·{" "}
-                    {(d.fileSize / 1024).toFixed(0)} KB
+                    {tr("docUploaded", {
+                      date: fmtFull(d.createdAt),
+                      mime: d.mimeType,
+                      size: (d.fileSize / 1024).toFixed(0),
+                    })}
                   </div>
                 </div>
                 <a
@@ -203,7 +218,7 @@ export default async function AdminPagosPage({
                   rel="noreferrer"
                   className="text-sm text-terracotta hover:underline shrink-0"
                 >
-                  Abrir
+                  {tr("docOpen")}
                 </a>
               </li>
             ))}
@@ -212,9 +227,9 @@ export default async function AdminPagosPage({
       </section>
 
       <section className="mb-6">
-        <h2 className="font-display text-xl mb-3">Transacciones recientes</h2>
+        <h2 className="font-display text-xl mb-3">{tr("txTitle")}</h2>
         {transactions.length === 0 ? (
-          <div className="text-sm text-op-muted">Sin transacciones.</div>
+          <div className="text-sm text-op-muted">{tr("noTx")}</div>
         ) : (
           <ul className="text-sm font-mono divide-y divide-op-border border-y border-op-border">
             {transactions.map((t) => (
@@ -245,9 +260,9 @@ export default async function AdminPagosPage({
       </section>
 
       <section className="mb-6">
-        <h2 className="font-display text-xl mb-3">Movimientos wallet</h2>
+        <h2 className="font-display text-xl mb-3">{tr("walletTitle")}</h2>
         {movements.length === 0 ? (
-          <div className="text-sm text-op-muted">Sin movimientos.</div>
+          <div className="text-sm text-op-muted">{tr("noMovements")}</div>
         ) : (
           <ul className="text-sm divide-y divide-op-border border-y border-op-border">
             {movements.map((m) => (
@@ -257,15 +272,18 @@ export default async function AdminPagosPage({
               >
                 <div className="min-w-0">
                   <div className="truncate">{m.description}</div>
-                  <div className="text-[11px] text-op-muted">
-                    {m.kind} · {fmtFull(m.occurredAt)}
+                  <div className="text-[11px] text-op-muted" aria-hidden>
+                    {m.kind} {"· "}
+                    {fmtFull(m.occurredAt)}
                   </div>
                 </div>
                 <div className="font-mono tabular text-right">
                   {m.kind === "credit" ? "+" : "−"}
                   {(m.amountCents / 100).toLocaleString("es-CO")}
                   <div className="text-[10px] text-op-muted">
-                    saldo {(m.balanceAfterCents / 100).toLocaleString("es-CO")}
+                    {tr("walletBalance", {
+                      balance: (m.balanceAfterCents / 100).toLocaleString("es-CO"),
+                    })}
                   </div>
                 </div>
               </li>
@@ -275,9 +293,9 @@ export default async function AdminPagosPage({
       </section>
 
       <section className="mb-12">
-        <h2 className="font-display text-xl mb-3">Eventos de webhook</h2>
+        <h2 className="font-display text-xl mb-3">{tr("webhookTitle")}</h2>
         {webhookEvents.length === 0 ? (
-          <div className="text-sm text-op-muted">Sin eventos.</div>
+          <div className="text-sm text-op-muted">{tr("noWebhookEvents")}</div>
         ) : (
           <ul className="text-sm font-mono divide-y divide-op-border border-y border-op-border">
             {webhookEvents.map((e) => (

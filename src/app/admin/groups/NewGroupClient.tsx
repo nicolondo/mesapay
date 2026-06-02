@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function NewGroupClient({
   ungroupedRestaurants,
 }: {
   ungroupedRestaurants: { id: string; name: string; slug: string }[];
 }) {
+  const t = useTranslations("opAdminGroups");
   const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -74,16 +76,16 @@ export function NewGroupClient({
   async function create() {
     setErr(null);
     if (!name.trim() || !slug.trim()) {
-      setErr("Nombre y slug obligatorios.");
+      setErr(t("nameSlugRequired"));
       return;
     }
     if (createAdmin) {
       if (!adminEmail.trim() || !adminPassword) {
-        setErr("Email y contraseña del admin son obligatorios.");
+        setErr(t("adminCredsRequired"));
         return;
       }
       if (adminPassword.length < 6) {
-        setErr("Contraseña min 6 caracteres.");
+        setErr(t("passwordTooShort"));
         return;
       }
     }
@@ -105,7 +107,7 @@ export function NewGroupClient({
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setErr(j.message ?? "No pudimos crear el grupo.");
+      setErr(j.message ?? t("createGroupFailed"));
       return;
     }
     // Reset
@@ -123,21 +125,21 @@ export function NewGroupClient({
   return (
     <section className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-4">
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-        Crear grupo nuevo
+        {t("createGroup")}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Nombre">
+        <Field label={t("fieldName")}>
           <input
             type="text"
             value={name}
             onChange={(e) => setNameAndSlug(e.target.value)}
             maxLength={160}
-            placeholder="Grupo Delirio"
+            placeholder={t("namePlaceholder")}
             className={inputCls}
           />
         </Field>
-        <Field label="Slug">
+        <Field label={t("fieldSlug")}>
           <input
             type="text"
             value={slug}
@@ -146,7 +148,7 @@ export function NewGroupClient({
               setSlugTouched(true);
             }}
             maxLength={40}
-            placeholder="grupo-delirio"
+            placeholder={t("slugPlaceholder")}
             className={inputCls}
           />
         </Field>
@@ -156,14 +158,17 @@ export function NewGroupClient({
         <div>
           <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-              Asignar restaurantes (opcional)
+              {t("assignRestaurants")}
             </div>
             {/* Contador: cuando hay filtro activo, mostrar el match vs
                 total para que sepan que la lista esta filtrada. */}
             <div className="font-mono text-[10px] text-op-muted">
               {normalizedSearch
-                ? `${filteredRestaurants.length} de ${ungroupedRestaurants.length}`
-                : `${ungroupedRestaurants.length} sin grupo`}
+                ? t("filteredCount", {
+                    shown: filteredRestaurants.length,
+                    total: ungroupedRestaurants.length,
+                  })
+                : t("ungroupedCount", { count: ungroupedRestaurants.length })}
             </div>
           </div>
           <div className="relative mb-2">
@@ -171,7 +176,7 @@ export function NewGroupClient({
               type="search"
               value={restaurantSearch}
               onChange={(e) => setRestaurantSearch(e.target.value)}
-              placeholder="Buscar por nombre o slug…"
+              placeholder={t("searchPlaceholder")}
               className="w-full h-10 pl-9 pr-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
             />
             <svg
@@ -193,7 +198,7 @@ export function NewGroupClient({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-auto rounded-lg border border-op-border p-2 bg-op-bg/30">
             {filteredRestaurants.length === 0 ? (
               <div className="col-span-full text-center text-xs text-op-muted py-6">
-                Sin resultados para "{restaurantSearch.trim()}".
+                {t("noSearchResults", { query: restaurantSearch.trim() })}
               </div>
             ) : (
               filteredRestaurants.map((r) => (
@@ -224,8 +229,8 @@ export function NewGroupClient({
           </div>
           <div className="text-[10px] text-op-muted mt-1">
             {selectedRestaurants.size > 0
-              ? `${selectedRestaurants.size} seleccionado${selectedRestaurants.size === 1 ? "" : "s"}`
-              : "Sólo se listan restaurantes sin grupo asignado."}
+              ? t("selectedCount", { count: selectedRestaurants.size })
+              : t("onlyUngrouped")}
           </div>
         </div>
       )}
@@ -239,35 +244,35 @@ export function NewGroupClient({
             className="accent-ink"
           />
           <span className="text-sm">
-            Crear usuario group_admin para este grupo
+            {t("createGroupAdmin")}
           </span>
         </label>
         {createAdmin && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Nombre">
+            <Field label={t("fieldName")}>
               <input
                 type="text"
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
-                placeholder="Dueño Delirio"
+                placeholder={t("adminNamePlaceholder")}
                 className={inputCls}
               />
             </Field>
-            <Field label="Email">
+            <Field label={t("fieldEmail")}>
               <input
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@delirio.com"
+                placeholder={t("adminEmailPlaceholder")}
                 className={inputCls}
               />
             </Field>
-            <Field label="Contraseña">
+            <Field label={t("fieldPassword")}>
               <input
                 type="password"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="min 6 caracteres"
+                placeholder={t("passwordPlaceholder")}
                 className={inputCls}
               />
             </Field>
@@ -284,7 +289,7 @@ export function NewGroupClient({
           disabled={busy || !name.trim() || !slug.trim()}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Creando…" : "Crear grupo"}
+          {busy ? t("creating") : t("createGroupCta")}
         </button>
       </div>
     </section>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { NewGroupClient } from "./NewGroupClient";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  * dueño) a un grupo nuevo. Auth via /admin/layout.tsx.
  */
 export default async function AdminGroupsPage() {
+  const t = await getTranslations("opAdminGroups");
   const [groups, ungroupedRestaurants] = await Promise.all([
     db.group.findMany({
       orderBy: { createdAt: "desc" },
@@ -39,26 +41,24 @@ export default async function AdminGroupsPage() {
   return (
     <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-        Plataforma
+        {t("platformLabel")}
       </div>
       <div className="font-display text-3xl tracking-[-0.015em] mb-1">
-        Grupos
+        {t("title")}
       </div>
       <p className="text-sm text-op-muted mb-5">
-        Agrupa varios restaurantes bajo un solo dueño/cadena.
-        El group_admin que crees podrá ver y gestionar todos sus
-        locales desde /group.
+        {t("intro")}
       </p>
 
       <NewGroupClient ungroupedRestaurants={ungroupedRestaurants} />
 
       <div className="mt-6 rounded-2xl border border-op-border bg-op-surface overflow-hidden">
         <div className="px-5 py-3 border-b border-op-border font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-          Grupos existentes · {groups.length}
+          {t("existingGroups", { count: groups.length })}
         </div>
         {groups.length === 0 ? (
           <div className="p-6 text-sm text-op-muted text-center">
-            Aún no hay grupos. Crea el primero arriba.
+            {t("noGroups")}
           </div>
         ) : (
           <ul className="divide-y divide-op-border">
@@ -74,26 +74,13 @@ export default async function AdminGroupsPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-op-muted mt-1">
-                    <span>
-                      {g._count.restaurants}{" "}
-                      {g._count.restaurants === 1
-                        ? "restaurante"
-                        : "restaurantes"}
-                    </span>
-                    <span>·</span>
-                    <span>
-                      {g._count.members}{" "}
-                      {g._count.members === 1 ? "miembro" : "miembros"}
-                    </span>
-                    <span>·</span>
-                    <span>
-                      {g._count.legalEntities}{" "}
-                      {g._count.legalEntities === 1
-                        ? "razón social"
-                        : "razones sociales"}
-                    </span>
-                    <span>·</span>
-                    <span>Alta {fmtBogotaDateTime(g.createdAt).date}</span>
+                    <span>{t("restaurantCount", { count: g._count.restaurants })}</span>
+                    <span aria-hidden>{"·"}</span>
+                    <span>{t("memberCount", { count: g._count.members })}</span>
+                    <span aria-hidden>{"·"}</span>
+                    <span>{t("legalEntityCount", { count: g._count.legalEntities })}</span>
+                    <span aria-hidden>{"·"}</span>
+                    <span>{t("createdOn", { date: fmtBogotaDateTime(g.createdAt).date })}</span>
                   </div>
                   {/* Chips con los restaurantes del grupo — cada uno
                       linkea a su ficha. Si el grupo está vacío
@@ -121,7 +108,7 @@ export default async function AdminGroupsPage() {
                   href={`/admin/groups/${g.id}`}
                   className="inline-flex items-center justify-center h-8 px-3 rounded-full border border-op-border text-xs font-medium hover:bg-op-bg shrink-0"
                 >
-                  Detalle →
+                  {t("detail")}
                 </Link>
               </li>
             ))}

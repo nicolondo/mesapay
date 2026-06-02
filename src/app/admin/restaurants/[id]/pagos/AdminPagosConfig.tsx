@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type Status =
   | "not_started"
@@ -12,14 +13,16 @@ type Status =
   | "rejected"
   | "suspended";
 
-const STATUS_OPTIONS: [Status, string][] = [
-  ["not_started", "No iniciado"],
-  ["docs_uploaded", "Documentos cargados"],
-  ["submitted", "Enviado"],
-  ["in_review", "En revisión"],
-  ["active", "Activo"],
-  ["rejected", "Rechazado"],
-  ["suspended", "Suspendido"],
+// El estado mapea a su clave de traducción; la etiqueta se resuelve
+// dentro del componente con t().
+const STATUS_TKEYS: [Status, string][] = [
+  ["not_started", "statusNotStarted"],
+  ["docs_uploaded", "statusDocsUploaded"],
+  ["submitted", "statusSubmitted"],
+  ["in_review", "statusInReview"],
+  ["active", "statusActive"],
+  ["rejected", "statusRejected"],
+  ["suspended", "statusSuspended"],
 ];
 
 /**
@@ -42,6 +45,11 @@ export function AdminPagosConfig({
     hasWebhookSecret: boolean;
   };
 }) {
+  const t = useTranslations("opAdminBilling");
+  const statusOptions: [string, string][] = STATUS_TKEYS.map(([v, k]) => [
+    v,
+    t(k),
+  ]);
   const router = useRouter();
   const [, startTx] = useTransition();
   const [merchantId, setMerchantId] = useState(initial.merchantId);
@@ -82,22 +90,17 @@ export function AdminPagosConfig({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setMsg({ kind: "error", text: j.error ?? "No pudimos guardar." });
+      setMsg({ kind: "error", text: j.error ?? t("configSaveFailed") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("configSaved") });
     setPrivateKey(""); // never keep it in the form after save
     setWebhookSecret("");
     startTx(() => router.refresh());
   }
 
   async function clearWebhookSecret() {
-    if (
-      !confirm(
-        "¿Borrar el webhook signing secret? Los webhooks de este comercio van a usar el secret global del partner.",
-      )
-    )
-      return;
+    if (!confirm(t("clearWebhookConfirm"))) return;
     setBusy(true);
     const res = await fetch(`/api/admin/restaurants/${restaurantId}/kushki`, {
       method: "PATCH",
@@ -112,14 +115,13 @@ export function AdminPagosConfig({
     });
     setBusy(false);
     if (res.ok) {
-      setMsg({ kind: "ok", text: "Webhook secret borrado." });
+      setMsg({ kind: "ok", text: t("webhookSecretCleared") });
       startTx(() => router.refresh());
     }
   }
 
   async function clearPrivateKey() {
-    if (!confirm("¿Borrar la llave privada almacenada? El comercio no podrá cobrar hasta que se vuelva a configurar."))
-      return;
+    if (!confirm(t("clearPrivateKeyConfirm"))) return;
     setBusy(true);
     const res = await fetch(
       `/api/admin/restaurants/${restaurantId}/kushki`,
@@ -137,33 +139,36 @@ export function AdminPagosConfig({
     );
     setBusy(false);
     if (res.ok) {
-      setMsg({ kind: "ok", text: "Llave privada borrada." });
+      setMsg({ kind: "ok", text: t("privateKeyCleared") });
       startTx(() => router.refresh());
     }
   }
 
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-5">
-      <div className="font-display text-lg mb-1">Editar configuración</div>
+      <div className="font-display text-lg mb-1">{t("configTitle")}</div>
       <p className="text-xs text-op-muted mb-4">
-        Override manual. Lo que pongas aquí sobrescribe lo que reportó el flujo
-        automático del comercio.
+        {t("configIntro")}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Merchant ID" value={merchantId} onChange={setMerchantId} />
-        <Field label="Public key" value={publicKey} onChange={setPublicKey} mono />
+        <Field label={t("fieldMerchantId")} value={merchantId} onChange={setMerchantId} />
+        <Field label={t("fieldPublicKey")} value={publicKey} onChange={setPublicKey} mono />
         <div className="md:col-span-2">
           <Field
             label={
               initial.hasPrivateKey
-                ? "Private key (deja vacío para no cambiar)"
-                : "Private key"
+                ? t("fieldPrivateKeyKeep")
+                : t("fieldPrivateKey")
             }
             value={privateKey}
             onChange={setPrivateKey}
             type="password"
             mono
-            placeholder={initial.hasPrivateKey ? "•••••••• (cifrada en DB)" : "—"}
+            placeholder={
+              initial.hasPrivateKey
+                ? t("privateKeyPlaceholderSet")
+                : t("privateKeyPlaceholderEmpty")
+            }
           />
           {initial.hasPrivateKey && (
             <button
@@ -172,7 +177,7 @@ export function AdminPagosConfig({
               disabled={busy}
               className="mt-1 text-[11px] text-danger hover:underline"
             >
-              Borrar llave privada
+              {t("clearPrivateKey")}
             </button>
           )}
         </div>
@@ -180,8 +185,8 @@ export function AdminPagosConfig({
           <Field
             label={
               initial.hasWebhookSecret
-                ? "Webhook signing secret (deja vacío para no cambiar)"
-                : "Webhook signing secret"
+                ? t("fieldWebhookSecretKeep")
+                : t("fieldWebhookSecret")
             }
             value={webhookSecret}
             onChange={setWebhookSecret}
@@ -189,14 +194,12 @@ export function AdminPagosConfig({
             mono
             placeholder={
               initial.hasWebhookSecret
-                ? "•••••••• (cifrado en DB)"
-                : "Si está vacío, se usa el secret global del partner"
+                ? t("webhookSecretPlaceholderSet")
+                : t("webhookSecretPlaceholderEmpty")
             }
           />
           <p className="mt-1 text-[11px] text-op-muted">
-            HMAC-SHA256. Lo configurás en el dashboard del comercio en
-            Kushki. Si lo dejás vacío, MESAPAY verifica los webhooks con
-            el secret global del partner (variable de entorno).
+            {t("webhookSecretHint")}
           </p>
           {initial.hasWebhookSecret && (
             <button
@@ -205,20 +208,20 @@ export function AdminPagosConfig({
               disabled={busy}
               className="mt-1 text-[11px] text-danger hover:underline"
             >
-              Borrar webhook secret
+              {t("clearWebhookSecret")}
             </button>
           )}
         </div>
         <Select
-          label="Estado de onboarding"
+          label={t("fieldOnboardingStatus")}
           value={onboardingStatus}
-          options={STATUS_OPTIONS as [string, string][]}
+          options={statusOptions}
           onChange={(v) => setOnboardingStatus(v as Status)}
         />
         <div className="md:col-span-2">
           <label className="block">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Notas internas
+              {t("fieldInternalNotes")}
             </span>
             <textarea
               value={notes}
@@ -236,7 +239,7 @@ export function AdminPagosConfig({
           disabled={busy}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("saving") : t("save")}
         </button>
         {msg && (
           <span

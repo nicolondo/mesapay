@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import type { PlanCatalogEntry } from "@/lib/planCatalog";
 
@@ -34,6 +35,7 @@ function PlanCard({
   plan: PlanCatalogEntry;
   restaurantCount: number;
 }) {
+  const t = useTranslations("opAdminPlans");
   const router = useRouter();
   const [name, setName] = useState(plan.name);
   const [description, setDescription] = useState(plan.description ?? "");
@@ -74,7 +76,7 @@ function PlanCard({
   async function save() {
     const cents = Math.round(Number(priceCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
-      setMsg({ kind: "error", text: "Precio inválido." });
+      setMsg({ kind: "error", text: t("priceInvalid") });
       return;
     }
     setBusy(true);
@@ -99,11 +101,11 @@ function PlanCard({
       const j = await res.json().catch(() => ({}));
       setMsg({
         kind: "error",
-        text: j.message ?? "No se pudo guardar.",
+        text: j.message ?? t("saveFailed"),
       });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("saved") });
     // Refresh para que el countByTier se mantenga sincronizado si
     // se cambia visible (el server-side recalcula).
     startTx(() => router.refresh());
@@ -114,7 +116,7 @@ function PlanCard({
       <div className="flex items-start justify-between p-5 gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-            Tier · {plan.tier}
+            {t("tierLabel", { tier: plan.tier })}
           </div>
           <div className="font-display text-2xl mt-0.5 tracking-[-0.01em]">
             {name || plan.tier}
@@ -122,14 +124,14 @@ function PlanCard({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[10px] tracking-wider uppercase px-2 py-1 rounded border bg-op-bg border-op-border text-op-muted">
-            {restaurantCount} {restaurantCount === 1 ? "comercio" : "comercios"}
+            {t("merchantCount", { count: restaurantCount })}
           </span>
           <VisibleToggle value={visible} onChange={setVisible} />
         </div>
       </div>
 
       <div className="p-5 pt-0 space-y-4">
-        <Field label="Nombre del plan">
+        <Field label={t("fieldName")}>
           <input
             type="text"
             value={name}
@@ -141,25 +143,25 @@ function PlanCard({
         </Field>
 
         <Field
-          label="Descripción"
-          hint="Frase corta que aparece bajo el nombre del plan al operador."
+          label={t("fieldDescription")}
+          hint={t("descriptionHint")}
         >
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={240}
-            placeholder="Para restaurantes pequeños que arrancan."
+            placeholder={t("descriptionPlaceholder")}
             className={inputCls}
           />
         </Field>
 
         <Field
-          label="Precio sugerido"
-          hint="Aparece como default al asignar este plan a un restaurante. Cada restaurante puede sobreescribirlo individualmente."
+          label={t("fieldPrice")}
+          hint={t("priceHint")}
         >
           <div className="flex items-center gap-2">
-            <span className="text-op-muted text-sm">$</span>
+            <span className="text-op-muted text-sm">{"$"}</span>
             <input
               type="number"
               value={priceCop}
@@ -168,16 +170,18 @@ function PlanCard({
               step={1000}
               className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
             />
-            <span className="text-op-muted text-xs">COP / mes</span>
+            <span className="text-op-muted text-xs">{t("perMonthSuffix")}</span>
             <span className="text-op-muted text-xs ml-auto">
-              ≈ {fmtCOP(Math.round(Number(priceCop) * 100) || 0)} / mes
+              {t("perMonthApprox", {
+                price: fmtCOP(Math.round(Number(priceCop) * 100) || 0),
+              })}
             </span>
           </div>
         </Field>
 
         <Field
-          label="Qué incluye"
-          hint="Lista corta de features que se muestran al cliente al elegir plan."
+          label={t("fieldFeatures")}
+          hint={t("featuresHint")}
         >
           <ul className="space-y-2">
             {features.map((f, idx) => (
@@ -187,16 +191,16 @@ function PlanCard({
                   value={f}
                   onChange={(e) => setFeature(idx, e.target.value)}
                   maxLength={120}
-                  placeholder="Ej: Mesas ilimitadas"
+                  placeholder={t("featurePlaceholder")}
                   className={inputCls + " flex-1"}
                 />
                 <button
                   type="button"
                   onClick={() => removeFeature(idx)}
-                  aria-label="Quitar"
+                  aria-label={t("removeFeature")}
                   className="h-9 w-9 rounded-full border border-op-border text-op-muted hover:text-danger hover:border-danger/40 text-sm shrink-0"
                 >
-                  ×
+                  {"×"}
                 </button>
               </li>
             ))}
@@ -207,7 +211,7 @@ function PlanCard({
                   onClick={addFeature}
                   className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
                 >
-                  + Agregar feature
+                  {t("addFeature")}
                 </button>
               </li>
             )}
@@ -230,7 +234,7 @@ function PlanCard({
             disabled={busy || !dirty}
             className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {busy ? "Guardando…" : "Guardar"}
+            {busy ? t("saving") : t("save")}
           </button>
         </div>
       </div>
@@ -245,6 +249,7 @@ function VisibleToggle({
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const t = useTranslations("opAdminPlans");
   return (
     <button
       type="button"
@@ -255,13 +260,9 @@ function VisibleToggle({
           ? "bg-ok/10 text-[#1E5339] border-ok/30"
           : "bg-op-bg text-op-muted border-op-border")
       }
-      title={
-        value
-          ? "Visible al asignar plan a restaurantes nuevos"
-          : "Oculto del selector (existentes siguen funcionando)"
-      }
+      title={value ? t("visibleTitle") : t("hiddenTitle")}
     >
-      {value ? "Visible" : "Oculto"}
+      {value ? t("visible") : t("hidden")}
     </button>
   );
 }

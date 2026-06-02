@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 /**
  * Form mini para asignar un restaurante existente (sin grupo) al
@@ -18,6 +19,7 @@ export function AddRestaurantToGroup({
   groupId: string;
   candidates: { id: string; name: string; slug: string }[];
 }) {
+  const t = useTranslations("opAdminGroups");
   const router = useRouter();
   const [selected, setSelected] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,8 +29,7 @@ export function AddRestaurantToGroup({
   if (candidates.length === 0) {
     return (
       <div className="text-[11px] text-op-muted">
-        No hay restaurantes sin grupo. Para mover uno desde otro grupo,
-        entrá a su ficha y cambia el grupo desde ahí.
+        {t("noUngrouped")}
       </div>
     );
   }
@@ -45,7 +46,7 @@ export function AddRestaurantToGroup({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos asignar el restaurante.");
+      setErr(j.error ?? t("assignFailed"));
       return;
     }
     setSelected("");
@@ -59,10 +60,10 @@ export function AddRestaurantToGroup({
         onChange={(e) => setSelected(e.target.value)}
         className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta min-w-[14rem]"
       >
-        <option value="">Elegir restaurante sin grupo…</option>
+        <option value="">{t("chooseUngrouped")}</option>
         {candidates.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.name} (/{c.slug})
+            {t("candidateOption", { name: c.name, slug: c.slug })}
           </option>
         ))}
       </select>
@@ -72,7 +73,7 @@ export function AddRestaurantToGroup({
         disabled={!selected || busy}
         className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
       >
-        {busy ? "Asignando…" : "Asignar al grupo"}
+        {busy ? t("assigning") : t("assignToGroup")}
       </button>
       {err && <div className="text-xs text-danger basis-full">{err}</div>}
     </div>

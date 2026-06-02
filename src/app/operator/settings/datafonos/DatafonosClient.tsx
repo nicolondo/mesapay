@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Device = {
   id: string;
@@ -18,10 +19,12 @@ type UserOption = {
   role: string;
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  mesero: "Mesero",
-  operator: "Operador",
-  terminal: "Datáfono",
+// Maps a user role to its i18n key. Resolved via t() at render time so the
+// option label stays trilingual.
+const ROLE_LABEL_KEY: Record<string, string> = {
+  mesero: "datafonosRoleMesero",
+  operator: "datafonosRoleOperator",
+  terminal: "datafonosRoleTerminal",
 };
 
 export function DatafonosClient({
@@ -62,6 +65,7 @@ function DeviceCard({
   users: UserOption[];
   onPatch: (next: Partial<Device>) => void;
 }) {
+  const t = useTranslations("opSettings");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -81,10 +85,10 @@ function DeviceCard({
     setBusy(false);
     if (!res.ok) {
       onPatch(prev);
-      setMsg({ kind: "error", text: "No pudimos guardar." });
+      setMsg({ kind: "error", text: t("datafonosSaveFailed") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("datafonosSaved") });
   }
 
   const assignedUser = users.find((u) => u.id === device.assignedUserId);
@@ -95,12 +99,13 @@ function DeviceCard({
         <div className="min-w-0">
           <div className="font-display text-xl truncate">{device.label}</div>
           <div className="font-mono text-[11px] text-op-muted truncate">
-            ID: {device.kushkiDeviceId}
+            {t("datafonosDeviceId", { id: device.kushkiDeviceId })}
           </div>
           {device.lastSeenAt && (
             <div className="text-[11px] text-op-muted mt-0.5">
-              Última conexión:{" "}
-              {new Date(device.lastSeenAt).toLocaleString("es-CO")}
+              {t("datafonosLastSeen", {
+                date: new Date(device.lastSeenAt).toLocaleString("es-CO"),
+              })}
             </div>
           )}
         </div>
@@ -115,13 +120,13 @@ function DeviceCard({
               : "bg-paper text-op-muted border-op-border")
           }
         >
-          {device.active ? "Activo" : "Inactivo"}
+          {device.active ? t("datafonosActive") : t("datafonosInactive")}
         </button>
       </div>
 
       <div>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-          Mesero asignado
+          {t("datafonosAssignedMesero")}
         </div>
         <select
           value={device.assignedUserId ?? ""}
@@ -131,17 +136,20 @@ function DeviceCard({
           disabled={busy}
           className="w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
         >
-          <option value="">— Sin asignar (cualquiera lo puede usar) —</option>
+          <option value="">{t("datafonosUnassignedOption")}</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.label} · {ROLE_LABEL[u.role] ?? u.role}
+              {t("datafonosOptionLabel", {
+                label: u.label,
+                role: ROLE_LABEL_KEY[u.role] ? t(ROLE_LABEL_KEY[u.role]) : u.role,
+              })}
             </option>
           ))}
         </select>
         <p className="text-[11px] text-op-muted mt-2">
           {assignedUser
-            ? `Cuando ${assignedUser.label} cobre con datáfono, el cargo se envía directo a este device.`
-            : "Sin asignación: cualquier mesero tiene que abrir Salón y elegir el device manualmente."}
+            ? t("datafonosAssignedHint", { name: assignedUser.label })
+            : t("datafonosUnassignedHint")}
         </p>
       </div>
 

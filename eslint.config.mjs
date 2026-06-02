@@ -55,6 +55,13 @@ const MIGRATED = [
   "src/app/operator/reservas/page.tsx",
   "src/app/operator/reservas/ReservasBoard.tsx",
   "src/app/operator/tables/**/*.{ts,tsx}",
+  "src/app/operator/settings/page.tsx",
+  "src/app/operator/settings/etiquetas/**/*.{ts,tsx}",
+  "src/app/operator/settings/meseros/**/*.{ts,tsx}",
+  "src/app/operator/settings/mesas/**/*.{ts,tsx}",
+  "src/app/operator/settings/datafonos/**/*.{ts,tsx}",
+  "src/app/operator/settings/staff-policies/**/*.{ts,tsx}",
+  "src/app/operator/settings/usuarios/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

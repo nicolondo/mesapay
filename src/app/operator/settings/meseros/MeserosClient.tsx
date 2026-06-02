@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Mesero = {
   id: string;
@@ -54,6 +55,7 @@ function MeseroCard({
   tables: Table[];
   onChange: (tns: number[]) => void;
 }) {
+  const tr = useTranslations("opSettings");
   const [selected, setSelected] = useState<Set<number>>(
     new Set(mesero.assignedTableNumbers),
   );
@@ -90,7 +92,7 @@ function MeseroCard({
     const from = parseInt(rangeFrom, 10);
     const to = parseInt(rangeTo, 10);
     if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) {
-      setMsg({ kind: "error", text: "Rango inválido." });
+      setMsg({ kind: "error", text: tr("meserosRangeInvalid") });
       return;
     }
     setSelected((prev) => {
@@ -116,11 +118,11 @@ function MeseroCard({
     });
     setBusy(false);
     if (!r.ok) {
-      setMsg({ kind: "error", text: "No pudimos guardar." });
+      setMsg({ kind: "error", text: tr("meserosSaveFailed") });
       return;
     }
     onChange(payload);
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: tr("meserosSaved") });
   }
 
   const displayName = mesero.name?.trim() || mesero.email;
@@ -138,8 +140,8 @@ function MeseroCard({
         </div>
         <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted shrink-0">
           {selected.size === 0
-            ? "Atiende todas"
-            : `${selected.size} ${selected.size === 1 ? "mesa" : "mesas"}`}
+            ? tr("meserosServesAll")
+            : tr("meserosTableCount", { count: selected.size })}
         </div>
       </div>
 
@@ -150,32 +152,34 @@ function MeseroCard({
           onClick={selectAll}
           className="h-7 px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
         >
-          Todas
+          {tr("meserosSelectAll")}
         </button>
         <button
           type="button"
           onClick={clearAll}
           className="h-7 px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
         >
-          Ninguna
+          {tr("meserosSelectNone")}
         </button>
         <div className="flex items-center gap-1.5 ml-auto">
           <span className="text-[10px] text-op-muted font-mono uppercase tracking-wider">
-            Rango
+            {tr("meserosRange")}
           </span>
           <input
             type="number"
             value={rangeFrom}
             onChange={(e) => setRangeFrom(e.target.value)}
-            placeholder="1"
+            placeholder={tr("meserosRangeFromPlaceholder")}
             className="h-7 w-14 px-2 rounded-md border border-op-border bg-op-bg text-xs font-mono tabular text-center"
           />
-          <span className="text-op-muted">→</span>
+          <span className="text-op-muted" aria-hidden="true">
+            {"→"}
+          </span>
           <input
             type="number"
             value={rangeTo}
             onChange={(e) => setRangeTo(e.target.value)}
-            placeholder="10"
+            placeholder={tr("meserosRangeToPlaceholder")}
             className="h-7 w-14 px-2 rounded-md border border-op-border bg-op-bg text-xs font-mono tabular text-center"
           />
           <button
@@ -183,7 +187,7 @@ function MeseroCard({
             onClick={applyRange}
             className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium hover:bg-ink/90"
           >
-            Sumar
+            {tr("meserosRangeAdd")}
           </button>
         </div>
       </div>
@@ -228,7 +232,7 @@ function MeseroCard({
           disabled={busy || !dirty}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? tr("meserosSaving") : tr("meserosSave")}
         </button>
       </div>
     </div>

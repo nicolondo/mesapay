@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -14,12 +15,13 @@ export const dynamic = "force-dynamic";
  * cliente para crear/editar/borrar.
  */
 export default async function UsuariosPage() {
+  const t = await getTranslations("opSettings");
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/operator/settings/usuarios");
 
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
-    return <div className="p-6">Sin restaurante.</div>;
+    return <div className="p-6">{t("noRestaurant")}</div>;
   }
 
   const dbUsers = await db.user.findMany({
@@ -52,13 +54,12 @@ export default async function UsuariosPage() {
         href="/operator/settings"
         className="text-sm text-op-muted hover:underline"
       >
-        ← Configuración
+        {t("backToSettings")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">Usuarios</div>
-      <p className="text-sm text-op-muted mb-6">
-        Crea y administra a los meseros, cocina, bar, datáfono y otros
-        operadores de tu restaurante.
-      </p>
+      <div className="font-display text-3xl mt-2 mb-1">
+        {t("usuariosTitle")}
+      </div>
+      <p className="text-sm text-op-muted mb-6">{t("usuariosIntro")}</p>
 
       <UsuariosClient initialUsers={users} currentUserId={session.user.id} />
     </div>

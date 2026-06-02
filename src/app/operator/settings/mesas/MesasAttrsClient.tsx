@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export type MesaRow = {
   id: string;
@@ -23,6 +24,7 @@ export function MesasAttrsClient({
 }: {
   initialRows: MesaRow[];
 }) {
+  const t = useTranslations("opSettings");
   const [rows, setRows] = useState(initialRows);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -45,11 +47,11 @@ export function MesasAttrsClient({
     <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
       {/* Header (desktop) */}
       <div className="hidden md:grid grid-cols-[1fr_80px_120px_120px_80px] gap-3 px-4 py-2 border-b border-op-border text-[10px] font-mono tracking-wider uppercase text-op-muted">
-        <div>Mesa</div>
-        <div>Capacidad</div>
-        <div>Consumo mín.</div>
-        <div>Depósito</div>
-        <div className="text-right">Reservable</div>
+        <div>{t("mesasColTable")}</div>
+        <div>{t("mesasColCapacity")}</div>
+        <div>{t("mesasColMinConsumption")}</div>
+        <div>{t("mesasColDeposit")}</div>
+        <div className="text-right">{t("mesasColReservable")}</div>
       </div>
 
       <ul className="divide-y divide-op-border">
@@ -59,10 +61,10 @@ export function MesasAttrsClient({
             className="px-4 py-3 grid grid-cols-2 md:grid-cols-[1fr_80px_120px_120px_80px] gap-3 items-center"
           >
             <div className="col-span-2 md:col-span-1 font-medium text-sm">
-              {r.label ?? `Mesa ${r.number}`}
+              {r.label ?? t("mesasRowDefault", { number: r.number })}
               {savingId === r.id && (
                 <span className="ml-2 text-[10px] text-op-muted">
-                  guardando…
+                  {t("mesasSaving")}
                 </span>
               )}
             </div>
@@ -70,7 +72,7 @@ export function MesasAttrsClient({
             {/* Capacidad */}
             <label className="block">
               <span className="md:hidden text-[10px] font-mono uppercase text-op-muted">
-                Capacidad
+                {t("mesasColCapacity")}
               </span>
               <input
                 type="number"
@@ -90,7 +92,7 @@ export function MesasAttrsClient({
             {/* Consumo mínimo (en pesos) */}
             <label className="block">
               <span className="md:hidden text-[10px] font-mono uppercase text-op-muted">
-                Consumo mín.
+                {t("mesasColMinConsumption")}
               </span>
               <div className="flex items-center gap-1">
                 <span className="text-op-muted text-sm">$</span>
@@ -124,7 +126,7 @@ export function MesasAttrsClient({
             {/* Depósito para reservar (en pesos) */}
             <label className="block">
               <span className="md:hidden text-[10px] font-mono uppercase text-op-muted">
-                Depósito para reservar
+                {t("mesasDepositMobile")}
               </span>
               <div className="flex items-center gap-1">
                 <span className="text-op-muted text-sm">$</span>
@@ -158,7 +160,7 @@ export function MesasAttrsClient({
             {/* Reservable */}
             <div className="flex md:justify-end items-center gap-2">
               <span className="md:hidden text-[10px] font-mono uppercase text-op-muted">
-                Reservable
+                {t("mesasColReservable")}
               </span>
               <button
                 type="button"

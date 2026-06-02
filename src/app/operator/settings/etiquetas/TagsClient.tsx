@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { MenuTag } from "@/lib/menuTags";
 import { MAX_MENU_TAGS, SLUG_REGEX } from "@/lib/menuTags";
 
 type Row = MenuTag & { tmpId: string };
 
 export function TagsClient({ initial }: { initial: MenuTag[] }) {
+  const tr = useTranslations("opSettings");
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((t, i) => ({ ...t, tmpId: `${t.slug}-${i}` })),
   );
@@ -91,9 +93,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
     // before the server scolds them.
     for (const t of payload) {
       if (!SLUG_REGEX.test(t.slug)) {
-        setError(
-          `"${t.slug}" no es un slug válido. Solo letras minúsculas, números y guiones.`,
-        );
+        setError(tr("tagsInvalidSlug", { slug: t.slug }));
         setSaving(false);
         return;
       }
@@ -101,7 +101,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
     const slugs = new Set<string>();
     for (const t of payload) {
       if (slugs.has(t.slug)) {
-        setError(`El slug "${t.slug}" está repetido.`);
+        setError(tr("tagsDuplicateSlug", { slug: t.slug }));
         setSaving(false);
         return;
       }
@@ -116,11 +116,11 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
-        throw new Error(j.error ?? "No se pudo guardar");
+        throw new Error(j.error ?? tr("tagsSaveFailed"));
       }
       setSavedAt(new Date());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error guardando");
+      setError(e instanceof Error ? e.message : tr("tagsSaveError"));
     } finally {
       setSaving(false);
     }
@@ -131,22 +131,22 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
       <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
         <div className="grid grid-cols-[40px_70px_1fr_1fr_120px] gap-2 px-4 py-2 border-b border-op-border bg-op-bg/40">
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            #
+            {"#"}
           </div>
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Emoji
+            {tr("tagsColEmoji")}
           </div>
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            Nombre visible
+            {tr("tagsColLabel")}
           </div>
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
-            ID (slug)
+            {tr("tagsColSlug")}
           </div>
           <div />
         </div>
         {rows.length === 0 && (
           <div className="px-4 py-6 text-sm text-op-muted text-center">
-            Sin etiquetas. Agrega la primera abajo.
+            {tr("tagsEmptyRows")}
           </div>
         )}
         {rows.map((r, idx) => (
@@ -160,39 +160,39 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
                 onClick={() => move(r.tmpId, -1)}
                 disabled={idx === 0}
                 className="text-op-muted hover:text-ink disabled:opacity-30 text-xs leading-none"
-                aria-label="Subir"
+                aria-label={tr("tagsMoveUp")}
               >
-                ▲
+                {"▲"}
               </button>
               <button
                 type="button"
                 onClick={() => move(r.tmpId, 1)}
                 disabled={idx === rows.length - 1}
                 className="text-op-muted hover:text-ink disabled:opacity-30 text-xs leading-none"
-                aria-label="Bajar"
+                aria-label={tr("tagsMoveDown")}
               >
-                ▼
+                {"▼"}
               </button>
             </div>
             <input
               value={r.emoji ?? ""}
               onChange={(e) => setEmoji(r.tmpId, e.target.value)}
               maxLength={4}
-              placeholder="🌶️"
+              placeholder={tr("tagsEmojiPlaceholder")}
               className="h-9 px-2 rounded-lg border border-op-border bg-op-bg text-center text-base"
             />
             <input
               value={r.label}
               onChange={(e) => setLabel(r.tmpId, e.target.value)}
               maxLength={40}
-              placeholder="Picante"
+              placeholder={tr("tagsLabelPlaceholder")}
               className="h-9 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
             />
             <input
               value={r.slug}
               onChange={(e) => setSlug(r.tmpId, e.target.value)}
               maxLength={32}
-              placeholder="picante"
+              placeholder={tr("tagsSlugPlaceholder")}
               className="h-9 px-3 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
             />
             <div className="text-right">
@@ -201,7 +201,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
                 onClick={() => remove(r.tmpId)}
                 className="text-[11px] text-danger hover:underline"
               >
-                Eliminar
+                {tr("tagsRemove")}
               </button>
             </div>
           </div>
@@ -215,7 +215,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
           disabled={rows.length >= MAX_MENU_TAGS}
           className="h-10 px-4 rounded-full bg-op-surface border border-op-border text-sm font-medium disabled:opacity-50"
         >
-          + Nueva etiqueta
+          {tr("tagsAddNew")}
         </button>
 
         <div className="flex items-center gap-3">
@@ -224,7 +224,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
           )}
           {savedAt && !error && (
             <span className="text-xs text-op-muted">
-              Guardado · {savedAt.toLocaleTimeString()}
+              {tr("tagsSavedAt", { time: savedAt.toLocaleTimeString() })}
             </span>
           )}
           <button
@@ -233,22 +233,18 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
             disabled={saving}
             className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
           >
-            {saving ? "Guardando…" : "Guardar"}
+            {saving ? tr("tagsSaving") : tr("tagsSave")}
           </button>
         </div>
       </div>
 
       <div className="text-[11px] text-op-muted mt-4 space-y-1">
         <p>
-          El <strong>nombre visible</strong> es lo que ve el cliente
-          (“Picante”). El <strong>slug</strong> es el identificador interno
-          que se guarda en cada plato — se autollena del nombre pero puedes
-          editarlo. Si renombras el slug de una etiqueta ya asignada, los
-          platos que la tenían dejan de mostrarla.
+          {tr.rich("tagsHelp", {
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
-        <p>
-          Máximo {MAX_MENU_TAGS} etiquetas por restaurante.
-        </p>
+        <p>{tr("tagsMaxNote", { max: MAX_MENU_TAGS })}</p>
       </div>
     </div>
   );

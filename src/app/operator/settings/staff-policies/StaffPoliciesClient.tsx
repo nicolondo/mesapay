@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
 
 export function StaffPoliciesClient({
@@ -12,6 +13,7 @@ export function StaffPoliciesClient({
   initialShiftPolicy: ShiftPolicy;
   initialWalkoutDangerMinutes: number;
 }) {
+  const t = useTranslations("opSettings");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
   const [shiftPolicy, setShiftPolicy] = useState<ShiftPolicy>(initialShiftPolicy);
   const [walkoutDanger, setWalkoutDanger] = useState<number>(
@@ -35,7 +37,7 @@ export function StaffPoliciesClient({
     ) {
       setMsg({
         kind: "error",
-        text: "Umbral de walkout debe estar entre 1 y 180 minutos.",
+        text: t("policiesWalkoutRangeError"),
       });
       return;
     }
@@ -52,10 +54,10 @@ export function StaffPoliciesClient({
     });
     setBusy(false);
     if (!r.ok) {
-      setMsg({ kind: "error", text: "No se pudo guardar." });
+      setMsg({ kind: "error", text: t("policiesSaveFailed") });
       return;
     }
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("policiesSaved") });
   }
 
   return (
@@ -63,73 +65,70 @@ export function StaffPoliciesClient({
       {/* Propinas */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          Propinas
+          {t("policiesTipsKicker")}
         </div>
         <h2 className="font-display text-lg mb-3">
-          ¿Cómo se reparten las propinas?
+          {t("policiesTipsQuestion")}
         </h2>
         <RadioCard
           name="tipPolicy"
           value="shared"
           active={tipPolicy === "shared"}
           onChange={() => setTipPolicy("shared")}
-          title="Compartidas"
-          subtitle="Las propinas son del restaurante. El operador decide cómo distribuir al cierre. El mesero no ve propinas personales en su vista 'Yo'."
+          title={t("policiesTipsSharedTitle")}
+          subtitle={t("policiesTipsSharedSubtitle")}
         />
         <RadioCard
           name="tipPolicy"
           value="by_waiter"
           active={tipPolicy === "by_waiter"}
           onChange={() => setTipPolicy("by_waiter")}
-          title="Por mesero"
-          subtitle="Cada propina queda atada al mesero que cobró la cuenta. Cada uno ve su acumulado del día en 'Yo'."
+          title={t("policiesTipsByWaiterTitle")}
+          subtitle={t("policiesTipsByWaiterSubtitle")}
         />
       </section>
 
       {/* Turnos */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          Turnos
+          {t("policiesShiftsKicker")}
         </div>
         <h2 className="font-display text-lg mb-3">
-          ¿Quién abre y cierra el turno?
+          {t("policiesShiftsQuestion")}
         </h2>
         <RadioCard
           name="shiftPolicy"
           value="global"
           active={shiftPolicy === "global"}
           onChange={() => setShiftPolicy("global")}
-          title="Turno único del local"
-          subtitle="Un solo turno por restaurante, abierto y cerrado por el operador. Arqueo de caja al final del día."
+          title={t("policiesShiftsGlobalTitle")}
+          subtitle={t("policiesShiftsGlobalSubtitle")}
         />
         <RadioCard
           name="shiftPolicy"
           value="by_waiter"
           active={shiftPolicy === "by_waiter"}
           onChange={() => setShiftPolicy("by_waiter")}
-          title="Turno por mesero"
-          subtitle="Cada mesero abre y cierra su propio turno desde la app. Útil cuando rotan turnos largos / cortos. Coexiste con el turno del local."
+          title={t("policiesShiftsByWaiterTitle")}
+          subtitle={t("policiesShiftsByWaiterSubtitle")}
         />
       </section>
 
       {/* Walkout-risk */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          Walkout-risk
+          {t("policiesWalkoutKicker")}
         </div>
         <h2 className="font-display text-lg mb-1">
-          ¿Cuándo una mesa está en riesgo de irse sin pagar?
+          {t("policiesWalkoutQuestion")}
         </h2>
         <p className="text-xs text-op-muted mb-3">
-          La vista Mesas colorea cada mesa según el tiempo sin pagar
-          desde que entregaste todos los platos (o desde que
-          pidieron cobro y nadie atendió). Subí el número en
-          restaurantes de sobremesa larga; bajalo en rotación rápida.
+          {t("policiesWalkoutIntro")}
         </p>
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              Riesgo alto (rojo) después de
+              {t("policiesWalkoutLabel")}
             </span>
             <input
               type="number"
@@ -143,24 +142,26 @@ export function StaffPoliciesClient({
               }}
               className="h-9 w-20 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular text-center focus:outline-none focus:border-terracotta"
             />
-            <span className="text-sm text-op-muted">min</span>
+            <span className="text-sm text-op-muted">
+              {t("policiesWalkoutMin")}
+            </span>
           </label>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
           <RiskPreview
-            label="Atento"
+            label={t("policiesWalkoutPreviewAttentive")}
             mins={Math.round(walkoutDanger * 0.25)}
             dotClass="bg-[#C98A2E]/70"
             text="text-op-text"
           />
           <RiskPreview
-            label="Atención"
+            label={t("policiesWalkoutPreviewAttention")}
             mins={Math.round(walkoutDanger * 0.5)}
             dotClass="bg-[#C98A2E]"
             text="text-[#7F5A1F]"
           />
           <RiskPreview
-            label="Riesgo alto"
+            label={t("policiesWalkoutPreviewHigh")}
             mins={walkoutDanger}
             dotClass="bg-[#C9302C] animate-pulse"
             text="text-[#C9302C]"
@@ -168,9 +169,7 @@ export function StaffPoliciesClient({
           />
         </div>
         <p className="text-[10px] text-op-muted mt-3">
-          Para pedidos de cobro o llamadas a mesero sin atender, los
-          umbrales son la mitad (más urgente). Una mesa cocinando
-          todavía nunca está en riesgo.
+          {t("policiesWalkoutFootnote")}
         </p>
       </section>
 
@@ -190,7 +189,7 @@ export function StaffPoliciesClient({
           disabled={busy || !dirty}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {busy ? "Guardando…" : "Guardar"}
+          {busy ? t("policiesSaving") : t("policiesSave")}
         </button>
       </div>
     </div>
@@ -210,6 +209,7 @@ function RiskPreview({
   text: string;
   extraBold?: boolean;
 }) {
+  const t = useTranslations("opSettings");
   return (
     <div className="rounded-xl border border-op-border bg-op-bg px-2 py-2 text-center">
       <div className="flex items-center justify-center gap-1.5 mb-0.5">
@@ -223,7 +223,7 @@ function RiskPreview({
           "font-mono tabular " + text + " " + (extraBold ? "font-bold" : "")
         }
       >
-        {mins}m
+        {t("policiesWalkoutPreviewMins", { mins })}
       </div>
     </div>
   );

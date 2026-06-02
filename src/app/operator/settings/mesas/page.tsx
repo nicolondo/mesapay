@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { MesasAttrsClient, type MesaRow } from "./MesasAttrsClient";
@@ -6,8 +7,9 @@ import { MesasAttrsClient, type MesaRow } from "./MesasAttrsClient";
 export const dynamic = "force-dynamic";
 
 export default async function MesasSettingsPage() {
+  const tr = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -46,15 +48,13 @@ export default async function MesasSettingsPage() {
         href="/operator/settings"
         className="text-sm text-op-muted hover:underline"
       >
-        ← Configuración
+        {tr("backToSettings")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">Mesas</div>
+      <div className="font-display text-3xl mt-2 mb-1">{tr("mesasTitle")}</div>
       <p className="text-sm text-op-muted mb-6">
-        Capacidad, consumo mínimo y depósito de cada mesa. La capacidad se
-        usa para mostrar las mesas correctas al reservar; el consumo mínimo
-        se muestra al cliente. El <strong>depósito</strong> se cobra online
-        al reservar y se abona a la cuenta cuando llegan (no se devuelve si
-        no se presentan). Dejalo en blanco para mesas sin depósito.
+        {tr("mesasIntroPart1")}
+        <strong>{tr("mesasIntroDeposit")}</strong>
+        {tr("mesasIntroPart2")}
         {!tenant?.reservationsEnabled && (
           <>
             {" "}
@@ -62,18 +62,18 @@ export default async function MesasSettingsPage() {
               href="/operator/settings/reservas"
               className="text-terracotta hover:underline"
             >
-              Activá reservas
-            </Link>{" "}
-            para que estos valores se usen en el flujo de reserva.
+              {tr("mesasIntroEnablePrefix")}
+            </Link>
+            {tr("mesasIntroEnableSuffix")}
           </>
         )}
       </p>
 
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-10 text-center text-sm text-op-muted">
-          No hay mesas todavía. Creá mesas desde{" "}
+          {tr("mesasEmptyPrefix")}
           <Link href="/operator/tables" className="text-terracotta hover:underline">
-            Mesas
+            {tr("mesasTablesLink")}
           </Link>
           .
         </div>

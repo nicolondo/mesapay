@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
@@ -12,8 +13,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const t = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) return <div className="p-6">Sin restaurante.</div>;
+  if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -32,7 +34,7 @@ export default async function SettingsPage() {
       reservationsEnabled: true,
     },
   });
-  if (!tenant) return <div className="p-6">Restaurante no encontrado.</div>;
+  if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -74,25 +76,24 @@ export default async function SettingsPage() {
     }),
   ]);
 
+  const stationsRouted = t("badgeStationsRouted", { count: stationsCount });
+
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">Configuración</div>
-      <p className="text-sm text-op-muted mb-6">
-        Activa pagos, configura datáfonos y revisa la información de tu
-        restaurante.
-      </p>
+      <div className="font-display text-3xl mb-1">{t("landingTitle")}</div>
+      <p className="text-sm text-op-muted mb-6">{t("landingSubtitle")}</p>
 
       <div className="space-y-3">
         <SettingCard
           href="/operator/settings/identidad"
-          title="Identidad del comercio"
-          subtitle="Logo, razón social, NIT, resolución DIAN"
+          title={t("cardIdentityTitle")}
+          subtitle={t("cardIdentitySubtitle")}
           badge={
             tenant.logoUrl && tenant.legalName && tenant.taxId
-              ? "Completo"
+              ? t("badgeComplete")
               : tenant.logoUrl || tenant.legalName
-                ? "Parcial"
-                : "Sin configurar"
+                ? t("badgePartial")
+                : t("badgeUnconfigured")
           }
           tint={
             tenant.logoUrl && tenant.legalName && tenant.taxId
@@ -104,9 +105,9 @@ export default async function SettingsPage() {
         />
         <SettingCard
           href="/operator/settings/usuarios"
-          title="Usuarios"
-          subtitle="Meseros, cocina, bar, datáfono y operadores"
-          badge={`${staffCount} ${staffCount === 1 ? "usuario" : "usuarios"}`}
+          title={t("cardUsersTitle")}
+          subtitle={t("cardUsersSubtitle")}
+          badge={t("badgeUsers", { count: staffCount })}
           tint={
             staffCount > 0
               ? "bg-ok/15 text-ok"
@@ -115,16 +116,20 @@ export default async function SettingsPage() {
         />
         <SettingCard
           href="/operator/settings/pagos"
-          title="Pagos"
-          subtitle="Onboarding, datos bancarios y datáfonos"
-          badge={status.label}
+          title={t("cardPaymentsTitle")}
+          subtitle={t("cardPaymentsSubtitle")}
+          badge={t(status.statusKey)}
           tint={status.tint}
         />
         <SettingCard
           href="/operator/wallet"
-          title="Wallet y dispersiones"
-          subtitle="Saldo, movimientos y transferencia al banco"
-          badge={tenant.kushkiMerchantId ? "Disponible" : "Bloqueado"}
+          title={t("cardWalletTitle")}
+          subtitle={t("cardWalletSubtitle")}
+          badge={
+            tenant.kushkiMerchantId
+              ? t("badgeWalletAvailable")
+              : t("badgeWalletBlocked")
+          }
           tint={
             tenant.kushkiMerchantId
               ? "bg-ok/15 text-ok"
@@ -133,20 +138,23 @@ export default async function SettingsPage() {
         />
         <SettingCard
           href="/operator/settings/etiquetas"
-          title="Etiquetas de platos"
-          subtitle="De la casa, Favorito, Vegetariano… o las que tú definas"
-          badge={`${tagCount} ${tagCount === 1 ? "etiqueta" : "etiquetas"}`}
+          title={t("cardTagsTitle")}
+          subtitle={t("cardTagsSubtitle")}
+          badge={t("badgeTags", { count: tagCount })}
           tint="bg-paper text-op-muted"
         />
         {deviceCount > 0 && (
           <SettingCard
             href="/operator/settings/datafonos"
-            title="Datáfonos"
-            subtitle="Asigna cada Smart POS al mesero que lo carga"
+            title={t("cardDevicesTitle")}
+            subtitle={t("cardDevicesSubtitle")}
             badge={
               deviceAssigned === 0
-                ? `${deviceCount} sin asignar`
-                : `${deviceAssigned}/${deviceCount} asignados`
+                ? t("badgeDevicesUnassigned", { count: deviceCount })
+                : t("badgeDevicesAssigned", {
+                    assigned: deviceAssigned,
+                    total: deviceCount,
+                  })
             }
             tint={
               deviceAssigned > 0
@@ -157,20 +165,23 @@ export default async function SettingsPage() {
         )}
         <SettingCard
           href="/operator/settings/staff-policies"
-          title="Propinas y turnos"
-          subtitle="Compartidas o por mesero. Turno único del local o por mesero."
+          title={t("cardPoliciesTitle")}
+          subtitle={t("cardPoliciesSubtitle")}
           badge={`${TIP_POLICY_LABELS[tipPol]} · ${SHIFT_POLICY_LABELS[shiftPol]}`}
           tint="bg-paper text-op-muted"
         />
         {meseroCount > 0 && (
           <SettingCard
             href="/operator/settings/meseros"
-            title="Mesas por mesero"
-            subtitle="Asigna a cada mesero su sección del salón"
+            title={t("cardMeserosTitle")}
+            subtitle={t("cardMeserosSubtitle")}
             badge={
               meserosWithRange === 0
-                ? `${meseroCount} ${meseroCount === 1 ? "mesero ve todas" : "meseros ven todas"}`
-                : `${meserosWithRange}/${meseroCount} ${meserosWithRange === 1 ? "asignado" : "asignados"}`
+                ? t("badgeMeserosSeeAll", { count: meseroCount })
+                : t("badgeMeserosAssigned", {
+                    assigned: meserosWithRange,
+                    total: meseroCount,
+                  })
             }
             tint={
               meserosWithRange > 0
@@ -181,18 +192,14 @@ export default async function SettingsPage() {
         )}
         <SettingCard
           href="/operator/settings/estaciones"
-          title="Estaciones de preparación"
-          subtitle="A dónde manda los tickets: cocina, bar o refri"
+          title={t("cardStationsTitle")}
+          subtitle={t("cardStationsSubtitle")}
           badge={
             tenant.hasBar
-              ? `Bar activo · ${stationsCount} ${
-                  stationsCount === 1 ? "categoría" : "categorías"
-                } ruteada${stationsCount === 1 ? "" : "s"}`
+              ? t("badgeBarActive", { routed: stationsRouted })
               : stationsCount > 0
-                ? `${stationsCount} ${
-                    stationsCount === 1 ? "categoría" : "categorías"
-                  } ruteada${stationsCount === 1 ? "" : "s"}`
-                : "Todo a cocina"
+                ? stationsRouted
+                : t("badgeAllToKitchen")
           }
           tint={
             tenant.hasBar || stationsCount > 0
@@ -202,14 +209,16 @@ export default async function SettingsPage() {
         />
         <SettingCard
           href="/operator/settings/reservas"
-          title="Reservas"
-          subtitle="Recibí reservas de mesa desde un link. Turnos, duración y confirmación."
+          title={t("cardReservasTitle")}
+          subtitle={t("cardReservasSubtitle")}
           badge={
             tenant.reservationsEnabled
               ? upcomingReservations > 0
-                ? `Activo · ${upcomingReservations} próxima${upcomingReservations === 1 ? "" : "s"}`
-                : "Activo"
-              : "Desactivado"
+                ? t("badgeReservasActiveUpcoming", {
+                    count: upcomingReservations,
+                  })
+                : t("badgeReservasActive")
+              : t("badgeReservasDisabled")
           }
           tint={
             tenant.reservationsEnabled
@@ -220,18 +229,18 @@ export default async function SettingsPage() {
         {tenant.reservationsEnabled && (
           <SettingCard
             href="/operator/settings/mesas"
-            title="Mesas: capacidad y consumo"
-            subtitle="Cuántos entran y consumo mínimo por mesa. Usado al reservar."
-            badge="Configurar"
+            title={t("cardMesasTitle")}
+            subtitle={t("cardMesasSubtitle")}
+            badge={t("badgeConfigure")}
             tint="bg-paper text-op-muted"
           />
         )}
         {tenant.reservationsEnabled && (
           <SettingCard
             href="/operator/settings/salon"
-            title="Mapa del salón"
-            subtitle="Acomodá tus mesas como están en el local. El cliente lo ve al reservar."
-            badge="Diseñar"
+            title={t("cardSalonTitle")}
+            subtitle={t("cardSalonSubtitle")}
+            badge={t("badgeDesign")}
             tint="bg-paper text-op-muted"
           />
         )}
@@ -270,25 +279,44 @@ function SettingCard({
       >
         {badge}
       </span>
-      <span className="text-op-muted">→</span>
+      <span className="text-op-muted" aria-hidden="true">
+        {"→"}
+      </span>
     </Link>
   );
 }
 
-function humanStatus(s: string): { label: string; tint: string } {
+// Maps the Kushki onboarding status to an i18n key + tint. The label is
+// resolved by the caller via t(statusKey) so this stays language-free.
+function humanStatus(s: string): { statusKey: string; tint: string } {
   switch (s) {
     case "active":
-      return { label: "Activo", tint: "bg-ok/15 text-ok" };
+      return { statusKey: "kushkiStatusActive", tint: "bg-ok/15 text-ok" };
     case "in_review":
     case "submitted":
-      return { label: "En revisión", tint: "bg-[#C98A2E]/20 text-[#8F6828]" };
+      return {
+        statusKey: "kushkiStatusInReview",
+        tint: "bg-[#C98A2E]/20 text-[#8F6828]",
+      };
     case "rejected":
-      return { label: "Rechazado", tint: "bg-danger/15 text-danger" };
+      return {
+        statusKey: "kushkiStatusRejected",
+        tint: "bg-danger/15 text-danger",
+      };
     case "suspended":
-      return { label: "Suspendido", tint: "bg-danger/15 text-danger" };
+      return {
+        statusKey: "kushkiStatusSuspended",
+        tint: "bg-danger/15 text-danger",
+      };
     case "docs_uploaded":
-      return { label: "Documentos cargados", tint: "bg-paper text-op-muted" };
+      return {
+        statusKey: "kushkiStatusDocsUploaded",
+        tint: "bg-paper text-op-muted",
+      };
     default:
-      return { label: "No iniciado", tint: "bg-paper text-op-muted" };
+      return {
+        statusKey: "kushkiStatusNotStarted",
+        tint: "bg-paper text-op-muted",
+      };
   }
 }

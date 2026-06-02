@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Role = "operator" | "mesero" | "kitchen" | "bar" | "terminal";
 
@@ -13,12 +14,14 @@ type User = {
   createdAt: string | Date;
 };
 
-const ROLE_LABELS: Record<Role, string> = {
-  operator: "Operador (dueño)",
-  mesero: "Mesero",
-  kitchen: "Cocina",
-  bar: "Bar",
-  terminal: "Datáfono",
+// Maps a role to its i18n key. Resolved via t() at render time so labels
+// stay trilingual (the role string itself is the logic-layer value).
+const ROLE_LABEL_KEYS: Record<Role, string> = {
+  operator: "usuariosRoleOperator",
+  mesero: "usuariosRoleMesero",
+  kitchen: "usuariosRoleKitchen",
+  bar: "usuariosRoleBar",
+  terminal: "usuariosRoleTerminal",
 };
 
 const ROLE_TINTS: Record<Role, string> = {
@@ -36,6 +39,7 @@ export function UsuariosClient({
   initialUsers: User[];
   currentUserId?: string;
 }) {
+  const t = useTranslations("opSettings");
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -75,7 +79,7 @@ export function UsuariosClient({
             onClick={() => setShowCreate(true)}
             className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
           >
-            + Nuevo usuario
+            {t("usuariosNewUser")}
           </button>
         )}
       </div>
@@ -85,7 +89,10 @@ export function UsuariosClient({
         grouped[role].length > 0 ? (
           <div key={role} className="space-y-2">
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted px-1">
-              {ROLE_LABELS[role]} · {grouped[role].length}
+              {t("usuariosGroupCount", {
+                role: t(ROLE_LABEL_KEYS[role]),
+                count: grouped[role].length,
+              })}
             </div>
             {grouped[role].map((u) => (
               <UserCard
@@ -102,10 +109,10 @@ export function UsuariosClient({
 
       {users.length === 0 && (
         <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
-          <div className="font-display text-lg mb-1">Aún no hay usuarios</div>
-          <p className="text-sm text-op-muted">
-            Agrega tu primer mesero, cocina o datáfono.
-          </p>
+          <div className="font-display text-lg mb-1">
+            {t("usuariosEmptyTitle")}
+          </div>
+          <p className="text-sm text-op-muted">{t("usuariosEmptyBody")}</p>
         </div>
       )}
     </div>
@@ -119,6 +126,7 @@ function CreateForm({
   onCancel: () => void;
   onCreated: (u: User) => void;
 }) {
+  const t = useTranslations("opSettings");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -143,7 +151,7 @@ function CreateForm({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setErr(j.message || j.error || "No se pudo crear");
+      setErr(j.message || j.error || t("usuariosCreateFailed"));
       return;
     }
     const j = await r.json();
@@ -156,55 +164,59 @@ function CreateForm({
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="font-display text-lg">Nuevo usuario</div>
+      <div className="font-display text-lg">{t("usuariosCreateTitle")}</div>
 
-      <Field label="Nombre">
+      <Field label={t("usuariosFieldName")}>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Juan Pérez"
+          placeholder={t("usuariosNamePlaceholder")}
           maxLength={80}
           className={inputCls}
         />
       </Field>
 
-      <Field label="Email" required>
+      <Field label={t("usuariosFieldEmail")} required>
         <input
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="juan@restaurante.com"
+          placeholder={t("usuariosEmailPlaceholder")}
           autoComplete="off"
           className={inputCls}
         />
       </Field>
 
-      <Field label="Contraseña" required hint="Mínimo 6 caracteres">
+      <Field
+        label={t("usuariosFieldPassword")}
+        required
+        hint={t("usuariosPasswordHint")}
+      >
         <input
           type="text"
           required
           minLength={6}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••"
+          placeholder={t("usuariosPasswordPlaceholder")}
           autoComplete="new-password"
           className={inputCls}
         />
       </Field>
 
-      <Field label="Rol" required>
+      <Field label={t("usuariosFieldRole")} required>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
           className={inputCls}
         >
-          <option value="mesero">Mesero</option>
-          <option value="kitchen">Cocina</option>
-          <option value="bar">Bar</option>
-          <option value="terminal">Datáfono</option>
-          <option value="operator">Operador (dueño)</option>
+          <option value="mesero">{t("usuariosRoleMesero")}</option>
+          <option value="kitchen">{t("usuariosRoleKitchen")}</option>
+          <option value="bar">{t("usuariosRoleBar")}</option>
+          <option value="terminal">{t("usuariosRoleTerminal")}</option>
+          <option value="operator">{t("usuariosRoleOperator")}</option>
         </select>
       </Field>
 
@@ -216,14 +228,14 @@ function CreateForm({
           onClick={onCancel}
           className="h-10 px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
         >
-          Cancelar
+          {t("usuariosCancel")}
         </button>
         <button
           type="submit"
           disabled={busy}
           className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
         >
-          {busy ? "Creando…" : "Crear"}
+          {busy ? t("usuariosCreating") : t("usuariosCreate")}
         </button>
       </div>
     </form>
@@ -241,6 +253,7 @@ function UserCard({
   onUpdated: (u: User) => void;
   onDeleted: (id: string) => void;
 }) {
+  const t = useTranslations("opSettings");
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name ?? "");
   const [email, setEmail] = useState(user.email);
@@ -290,20 +303,23 @@ function UserCard({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setMsg({ kind: "error", text: j.message || j.error || "No se pudo guardar" });
+      setMsg({
+        kind: "error",
+        text: j.message || j.error || t("usuariosSaveFailed"),
+      });
       return;
     }
     const j = await r.json();
     onUpdated(j.user as User);
     setNewPassword("");
-    setMsg({ kind: "ok", text: "Guardado." });
+    setMsg({ kind: "ok", text: t("usuariosSaved") });
     setEditing(false);
   }
 
   async function remove() {
     if (
       !confirm(
-        `¿Eliminar a ${user.name || user.email}? Esta acción no se puede deshacer.`,
+        t("usuariosConfirmDelete", { name: user.name || user.email }),
       )
     ) {
       return;
@@ -316,7 +332,10 @@ function UserCard({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setMsg({ kind: "error", text: j.message || j.error || "No se pudo eliminar" });
+      setMsg({
+        kind: "error",
+        text: j.message || j.error || t("usuariosDeleteFailed"),
+      });
       return;
     }
     onDeleted(user.id);
@@ -331,7 +350,7 @@ function UserCard({
           <div className="font-display text-lg truncate">{displayName}</div>
           {isSelf && (
             <span className="font-mono text-[9px] tracking-wider uppercase text-op-muted">
-              (tú)
+              {t("usuariosSelf")}
             </span>
           )}
         </div>
@@ -341,7 +360,7 @@ function UserCard({
             ROLE_TINTS[user.role]
           }
         >
-          {ROLE_LABELS[user.role]}
+          {t(ROLE_LABEL_KEYS[user.role])}
         </span>
       </div>
 
@@ -352,7 +371,7 @@ function UserCard({
           </div>
           {user.role === "mesero" && user.assignedTableNumbers.length > 0 && (
             <div className="text-[11px] text-op-muted mb-3">
-              Atiende mesas:{" "}
+              {t("usuariosServesTables")}
               <span className="font-mono">
                 {user.assignedTableNumbers.join(", ")}
               </span>
@@ -363,23 +382,23 @@ function UserCard({
               type="button"
               onClick={remove}
               disabled={busy || isSelf}
-              title={isSelf ? "No puedes eliminar tu propio usuario" : undefined}
+              title={isSelf ? t("usuariosDeleteSelfTitle") : undefined}
               className="h-8 px-3 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Eliminar
+              {t("usuariosDelete")}
             </button>
             <button
               type="button"
               onClick={() => setEditing(true)}
               className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
             >
-              Editar
+              {t("usuariosEdit")}
             </button>
           </div>
         </>
       ) : (
         <div className="space-y-3">
-          <Field label="Nombre">
+          <Field label={t("usuariosFieldName")}>
             <input
               type="text"
               value={name}
@@ -388,7 +407,7 @@ function UserCard({
               className={inputCls}
             />
           </Field>
-          <Field label="Email">
+          <Field label={t("usuariosFieldEmail")}>
             <input
               type="email"
               value={email}
@@ -398,31 +417,34 @@ function UserCard({
             />
           </Field>
           <Field
-            label="Nueva contraseña"
-            hint="Déjalo vacío para mantener la actual"
+            label={t("usuariosNewPassword")}
+            hint={t("usuariosNewPasswordHint")}
           >
             <input
               type="text"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••"
+              placeholder={t("usuariosPasswordPlaceholder")}
               autoComplete="new-password"
               minLength={6}
               className={inputCls}
             />
           </Field>
-          <Field label="Rol" hint={isSelf ? "No puedes cambiar tu propio rol" : undefined}>
+          <Field
+            label={t("usuariosFieldRole")}
+            hint={isSelf ? t("usuariosRoleSelfHint") : undefined}
+          >
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as Role)}
               disabled={isSelf}
               className={inputCls + " disabled:opacity-60"}
             >
-              <option value="mesero">Mesero</option>
-              <option value="kitchen">Cocina</option>
-              <option value="bar">Bar</option>
-              <option value="terminal">Datáfono</option>
-              <option value="operator">Operador (dueño)</option>
+              <option value="mesero">{t("usuariosRoleMesero")}</option>
+              <option value="kitchen">{t("usuariosRoleKitchen")}</option>
+              <option value="bar">{t("usuariosRoleBar")}</option>
+              <option value="terminal">{t("usuariosRoleTerminal")}</option>
+              <option value="operator">{t("usuariosRoleOperator")}</option>
             </select>
           </Field>
 
@@ -445,7 +467,7 @@ function UserCard({
               }}
               className="h-9 px-4 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:bg-op-surface"
             >
-              Cancelar
+              {t("usuariosCancel")}
             </button>
             <button
               type="button"
@@ -453,7 +475,7 @@ function UserCard({
               disabled={busy || !dirty}
               className="h-9 px-5 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {busy ? "Guardando…" : "Guardar"}
+              {busy ? t("usuariosSaving") : t("usuariosSave")}
             </button>
           </div>
         </div>

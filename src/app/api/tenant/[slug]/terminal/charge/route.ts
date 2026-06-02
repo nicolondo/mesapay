@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
+import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
 import { getKushkiModeSync } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
 
@@ -111,15 +112,23 @@ export async function POST(
     return NextResponse.json({ error: "invalid_device" }, { status: 400 });
   }
 
-  let push;
-  try {
-    if (useRealTerminal) {
-      // —— Datáfono REAL vía Cloud Terminal (cloudt.kushkipagos.com).
-      // Necesita el serial del equipo; la auth es HMAC con el Business-Code.
-      if (!device.serialNumber) {
-        return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
-      }
-      push = await pushPaymentToCloudTerminal({
+  await db.terminalDevice.update({
+    where: { id: device.id },
+    data: { lastSeenAt: new Date() },
+  });
+
+  if (useRealTerminal) {
+    // —— Datáfono REAL vía Cloud Terminal SÍNCRONO
+    // (POST /terminal/v1/{serial}/sync/charge). La request se queda
+    // esperando hasta ~90s mientras el cliente pasa la tarjeta, y el
+    // resultado (aprobada/rechazada) vuelve en la MISMA respuesta. No hay
+    // webhook: settleamos acá mismo con el motor compartido.
+    if (!device.serialNumber) {
+      return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
+    }
+    let result;
+    try {
+      result = await pushPaymentToCloudTerminal({
         serialNumber: device.serialNumber,
         // amountCents YA incluye la propina (TOTAL).
         amountCents: payment.amountCents,
@@ -129,16 +138,74 @@ export async function POST(
         // Datáfonos (fallback al env de plataforma).
         businessCode,
       });
-    } else {
-      // —— Modo mock: el provider auto-aprueba vía el mock bridge.
-      const provider = await getPaymentProvider();
-      push = await provider.pushToTerminal({
-        merchantId: "mock",
-        deviceId: device.serialNumber ?? parsed.data.deviceId,
-        amount: { amountCents: payment.amountCents, currency: "COP" },
-        metadata: { orderId: payment.orderId, paymentId: payment.id },
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: "push_failed",
+          message: err instanceof Error ? err.message : "unknown",
+        },
+        { status: 502 },
+      );
+    }
+
+    await db.payment.update({
+      where: { id: payment.id },
+      data: { providerRef: result.providerRef },
+    });
+
+    if (result.status === "approved") {
+      await processKushkiWebhook({
+        eventId: `cloudterm:${payment.id}:ok`,
+        type: "terminal.approved",
+        restaurantId: tenant.id,
+        paymentId: payment.id,
+        providerRef: result.providerRef,
+        message: result.message,
+        raw: result.raw,
+      });
+      return NextResponse.json({
+        ok: true,
+        status: "approved",
+        providerRef: result.providerRef,
       });
     }
+
+    if (result.status === "declined") {
+      // Rechazo de tarjeta: marcamos el Payment como declined (no cobrado)
+      // para que el mesero pueda reintentar / cambiar de método.
+      await processKushkiWebhook({
+        eventId: `cloudterm:${payment.id}:no:${Date.now()}`,
+        type: "terminal.declined",
+        restaurantId: tenant.id,
+        paymentId: payment.id,
+        providerRef: result.providerRef,
+        message: result.message,
+        raw: result.raw,
+      });
+      return NextResponse.json(
+        { ok: false, status: "declined", message: result.message },
+        { status: 402 },
+      );
+    }
+
+    // status === "error": timeout / 5xx / red. NO cobrado, NO settle —
+    // dejamos el Payment pending para reintentar.
+    return NextResponse.json(
+      { ok: false, status: "error", message: result.message },
+      { status: 502 },
+    );
+  }
+
+  // —— Modo mock: el provider auto-aprueba vía el mock bridge (async).
+  let push;
+  try {
+    const provider = await getPaymentProvider();
+    push = await provider.pushToTerminal({
+      merchantId: "mock",
+      deviceId: device.serialNumber ?? parsed.data.deviceId,
+      amount: { amountCents: payment.amountCents, currency: "COP" },
+      metadata: { orderId: payment.orderId, paymentId: payment.id },
+    });
   } catch (err) {
     return NextResponse.json(
       {
@@ -148,18 +215,10 @@ export async function POST(
       { status: 502 },
     );
   }
-
-  // Record the provider ref now so the webhook can find this payment even
-  // if it arrives before the operator's HTTP response.
   await db.payment.update({
     where: { id: payment.id },
     data: { providerRef: push.providerRef },
   });
-  await db.terminalDevice.update({
-    where: { id: device.id },
-    data: { lastSeenAt: new Date() },
-  });
-
   return NextResponse.json({
     ok: true,
     providerRef: push.providerRef,

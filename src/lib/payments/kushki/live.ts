@@ -277,9 +277,11 @@ export class LiveKushkiProvider implements PaymentProvider {
    * matchea por uniqueReference = paymentId.
    */
   async pushToTerminal(req: TerminalPushRequest): Promise<TerminalPushResult> {
-    // La auth del Cloud Terminal es HMAC con el Business-Code, no la private
-    // key. La charge route llama a pushPaymentToCloudTerminal directo con el
-    // businessCode del comercio; este wrapper (vía provider) cae al env.
+    // El Cloud Terminal CO es SÍNCRONO y se autentica con HMAC del
+    // Business-Code (no la private key). La charge route llama a
+    // pushPaymentToCloudTerminal directo (con el businessCode del comercio)
+    // y settlea con el resultado; este wrapper del provider queda como
+    // compatibilidad y cae al Business-Code del env.
     const resp = await pushPaymentToCloudTerminal({
       serialNumber: req.deviceId,
       amountCents: req.amount.amountCents,
@@ -288,7 +290,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     });
     return {
       providerRef: resp.providerRef,
-      status: resp.status,
+      status: resp.status === "approved" ? "delivered" : "failed",
       message: resp.message,
     };
   }

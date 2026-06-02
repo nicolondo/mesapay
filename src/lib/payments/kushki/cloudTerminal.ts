@@ -38,14 +38,18 @@ function baseUrl(): string {
 }
 
 /**
- * Path del endpoint de cobro. El serial del datáfono va en el path
- * (placeholder {serial}). Override total con KUSHKI_CLOUD_TERMINAL_PATH
- * para ajustarlo sin redeploy cuando confirmemos el contrato exacto.
+ * Path del endpoint de cobro SÍNCRONO. El serial del datáfono va en el path.
+ * Confirmado por la doc del comercio: POST /terminal/v1/{serial}/sync/charge.
+ * Override con KUSHKI_CLOUD_TERMINAL_PATH (placeholder {serial}) por si cambia.
  */
 function pushPath(serial: string): string {
-  const tmpl = env.KUSHKI_CLOUD_TERMINAL_PATH || "/api/v1/{serial}/payment";
+  const tmpl = env.KUSHKI_CLOUD_TERMINAL_PATH || "/terminal/v1/{serial}/sync/charge";
   return tmpl.replace("{serial}", encodeURIComponent(serial));
 }
+
+// El cobro es síncrono: la request se queda esperando mientras el cliente
+// pasa la tarjeta. Damos margen (la doc sugiere ~90s por la latencia del relay).
+const CHARGE_TIMEOUT_MS = 95_000;
 
 /** Business-Code = clave del HMAC. Sin él no podemos firmar → no cobrar. */
 function resolveBusinessCode(explicit?: string | null): string {
@@ -85,20 +89,36 @@ export type CloudTerminalPushArgs = {
   businessCode?: string | null;
 };
 
-export type CloudTerminalPushResult = {
-  /** Lo que guardamos en Payment.providerRef para matchear el webhook. */
+export type CloudTerminalChargeResult = {
+  /** Estado FINAL del cobro síncrono. */
+  status: "approved" | "declined" | "error";
+  /** Referencia que guardamos en Payment.providerRef. */
   providerRef: string;
-  status: "queued" | "delivered" | "failed";
   message?: string;
+  httpStatus?: number;
+  raw?: unknown;
 };
 
+function pick(obj: unknown, keys: string[]): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const o = obj as Record<string, unknown>;
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === "string" && v) return v;
+    if (typeof v === "number") return String(v);
+  }
+  return undefined;
+}
+
 /**
- * Manda el cobro al datáfono. Devuelve sólo el ACK — el aprobado/rechazado
- * viene después por webhook.
+ * Cobra SÍNCRONO en el datáfono: POST /terminal/v1/{serial}/sync/charge.
+ * La request se queda esperando hasta ~90s mientras el cliente pasa la
+ * tarjeta; el resultado (aprobada/rechazada) vuelve en la misma respuesta.
+ * NO hay webhook — el caller settlea con lo que devuelve esta función.
  */
 export async function pushPaymentToCloudTerminal(
   args: CloudTerminalPushArgs,
-): Promise<CloudTerminalPushResult> {
+): Promise<CloudTerminalChargeResult> {
   const businessCode = resolveBusinessCode(args.businessCode);
   // COP no tiene decimales → unidades mayores (pesos enteros).
   const amount = Math.round(args.amountCents / 100);
@@ -113,16 +133,15 @@ export async function pushPaymentToCloudTerminal(
       extra_taxes: { airport_tax: 0, iac: 0, ice: 0, travel_agency: 0 },
     },
     client_transaction_id: args.reference,
-    ...(args.description ? { description: args.description } : {}),
   };
 
-  // Firmamos y enviamos EXACTAMENTE este string (byte-idéntico).
+  // Firmamos y enviamos EXACTAMENTE este string (byte-idéntico al firmado).
   const raw = JSON.stringify(payload);
   const ts = Date.now().toString();
   const authorization = signBody(raw, businessCode);
   const url = baseUrl() + pushPath(args.serialNumber);
 
-  console.log("[kushki/cloud-terminal] push", {
+  console.log("[kushki/cloud-terminal] charge", {
     url,
     serialNumber: args.serialNumber,
     amount,
@@ -130,6 +149,8 @@ export async function pushPaymentToCloudTerminal(
     bodyLen: raw.length,
   });
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CHARGE_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -142,29 +163,84 @@ export async function pushPaymentToCloudTerminal(
       },
       body: raw,
       cache: "no-store",
+      signal: controller.signal,
     });
   } catch (err) {
-    console.error("[kushki/cloud-terminal] network error", err);
-    throw err;
+    clearTimeout(timer);
+    const aborted = err instanceof Error && err.name === "AbortError";
+    console.error(
+      `[kushki/cloud-terminal] charge ${aborted ? "timeout" : "network error"}`,
+      err,
+    );
+    // No sabemos si se cobró o no → error (no settle). El mesero reintenta.
+    return {
+      status: "error",
+      providerRef: args.reference,
+      message: aborted ? "timeout" : "network_error",
+    };
   }
+  clearTimeout(timer);
 
   const text = await res.text().catch(() => "");
-  if (!res.ok) {
-    console.error(
-      `[kushki/cloud-terminal] push ${res.status}: ${text.slice(0, 300)}`,
-    );
-    throw new Error(`cloud terminal push failed (${res.status})`);
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
   }
   console.log(
-    "[kushki/cloud-terminal] push ack",
-    text.slice(0, 400) || "(empty ok)",
+    `[kushki/cloud-terminal] charge resp ${res.status}:`,
+    text.slice(0, 400) || "(empty)",
   );
 
+  const providerRef =
+    pick(json, [
+      "transactionReference",
+      "ticketNumber",
+      "transaction_id",
+      "client_transaction_id",
+      "id",
+    ]) || args.reference;
+  const message = pick(json, [
+    "message",
+    "responseText",
+    "declineCode",
+    "responseCode",
+  ]);
+
+  if (!res.ok) {
+    // 5xx → error retryable; 4xx → no cobrado (rechazo/validación). En ambos
+    // NO marcamos pagado; surface el mensaje para el mesero/logs.
+    return {
+      status: res.status >= 500 ? "error" : "declined",
+      providerRef,
+      message: message || `http_${res.status}`,
+      httpStatus: res.status,
+      raw: json,
+    };
+  }
+
+  // 2xx: aprobado salvo que el body diga explícitamente lo contrario.
+  const statusStr = pick(json, ["status", "transactionStatus"])?.toUpperCase();
+  const explicitlyDeclined =
+    statusStr === "DECLINED" ||
+    statusStr === "REJECTED" ||
+    (json as { approved?: boolean })?.approved === false;
+  if (explicitlyDeclined) {
+    return {
+      status: "declined",
+      providerRef,
+      message: message || "declined",
+      httpStatus: res.status,
+      raw: json,
+    };
+  }
   return {
-    // El push sólo es un ACK; matcheamos el resultado por client_transaction_id
-    // (= reference) en el webhook, así que ése es nuestro providerRef.
-    providerRef: args.reference,
-    status: "queued",
+    status: "approved",
+    providerRef,
+    message,
+    httpStatus: res.status,
+    raw: json,
   };
 }
 

@@ -10,6 +10,7 @@ import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
 import { OperatorMobileMenu } from "./OperatorMobileMenu";
 import { GroupSwitcher } from "./GroupSwitcher";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 export default async function OperatorLayout({
   children,
@@ -293,6 +294,9 @@ export default async function OperatorLayout({
                 <span className="text-op-muted">{session.user.email}</span>
                 {signOutDesktop}
               </div>
+              {/* Selector de idioma — visible en desktop y móvil para que el
+                  comercio pueda cambiar es/en/pt desde el panel. */}
+              <LocaleSwitcher className="shrink-0" />
               <OperatorMobileMenu
                 tenantName={tenant?.name ?? t("noRestaurant")}
                 userEmail={session.user.email}

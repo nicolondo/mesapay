@@ -80,8 +80,11 @@ export async function pretranslateMenu(
   const targets = locales.filter((l) => l !== defaultLocale) as Locale[];
   for (const locale of targets) {
     for (let i = 0; i < items.length; i += CHUNK) {
-      // getContentTranslations persiste lo faltante y respeta lo cacheado.
-      await getContentTranslations(locale, items.slice(i, i + CHUNK));
+      // generateMissing: true → ESTA ruta sí llama a la IA (en chunks) y
+      // persiste. El render del menú queda solo-caché (instantáneo).
+      await getContentTranslations(locale, items.slice(i, i + CHUNK), {
+        generateMissing: true,
+      });
     }
   }
   return { strings: items.length, locales: targets };

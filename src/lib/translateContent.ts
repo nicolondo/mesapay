@@ -61,6 +61,11 @@ function client(): Anthropic | null {
 export async function getContentTranslations(
   locale: Locale,
   items: TranslatableItem[],
+  // generateMissing: si falta una traducción, ¿la generamos con IA AHORA
+  // (bloqueante) o devolvemos el original? Default FALSE = solo-caché, para
+  // que el render del menú (y el cambio de idioma) sea instantáneo. La
+  // generación en lote se hace desde el panel ("Traducir carta con IA").
+  opts: { generateMissing?: boolean } = {},
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   // Español es el idioma original: no se traduce.
@@ -97,7 +102,13 @@ export async function getContentTranslations(
 
   if (missing.length === 0) return out;
 
-  // 2) Traducir lo faltante con IA (una sola llamada).
+  // Solo-caché (default): NO llamamos a la IA en el render. Devolvemos lo
+  // cacheado + originales para lo faltante. Evita el freeze al cambiar de
+  // idioma. La generación corre en lote desde el panel.
+  if (!opts.generateMissing) return out;
+
+  // 2) Traducir lo faltante con IA (sólo cuando generateMissing=true, ej.
+  //    el botón "Traducir carta con IA" — y en chunks, no 347 de una).
   const anthropic = client();
   if (!anthropic) return out; // sin API key: quedan los originales
 

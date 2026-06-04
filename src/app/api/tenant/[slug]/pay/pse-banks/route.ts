@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 /**
  * Lista los bancos PSE soportados. El front lo usa para armar el
@@ -31,6 +32,7 @@ export async function GET(
       id: true,
       kushkiPublicKey: true,
       kushkiOnboardingStatus: true,
+      kushkiMode: true,
     },
   });
   if (!tenant) {
@@ -50,7 +52,9 @@ export async function GET(
   try {
     // Mock acepta cualquier string como publicKey. Live exige uno real.
     const publicKey = tenant.kushkiPublicKey ?? "mock_public_key";
-    const provider = await getPaymentProvider();
+    const provider = await getPaymentProvider(
+      await getRestaurantKushkiMode(tenant),
+    );
     const banks = await provider.listPseBanks(publicKey);
     cached = { fetchedAt: now, banks };
     return NextResponse.json({ banks });

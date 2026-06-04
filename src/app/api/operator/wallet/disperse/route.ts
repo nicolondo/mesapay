@@ -7,6 +7,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import type { BankInfo } from "@/lib/payments";
 
 const schema = z.object({
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { kushkiMerchantId: true, bankInfo: true },
+    select: { kushkiMerchantId: true, bankInfo: true, kushkiMode: true },
   });
   if (!tenant?.kushkiMerchantId || !tenant.bankInfo) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
@@ -44,7 +45,9 @@ export async function POST(req: Request) {
   const bankInfo = tenant.bankInfo as unknown as BankInfo;
 
   try {
-    const provider = await getPaymentProvider();
+    const provider = await getPaymentProvider(
+      await getRestaurantKushkiMode(tenant),
+    );
     const result = await provider.disburse({
       merchantId: privateKey,
       amount: { amountCents: parsed.data.amountCents, currency: "COP" },

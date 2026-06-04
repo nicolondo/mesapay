@@ -12,6 +12,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 /**
  * Token-based charge through Kushki. Maneja DOS variantes:
@@ -106,7 +107,9 @@ export async function POST(
     },
   });
 
-  const provider = await getPaymentProvider();
+  const provider = await getPaymentProvider(
+    await getRestaurantKushkiMode(tenant),
+  );
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) {
     await db.payment.update({

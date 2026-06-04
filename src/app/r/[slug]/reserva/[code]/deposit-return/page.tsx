@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getRestaurantPrivateKey } from "@/lib/payments";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { publishOrderEvent } from "@/lib/events";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
 
@@ -21,7 +21,11 @@ async function reconcile(args: {
   reservationId: string;
   restaurantId: string;
 }): Promise<"approved" | "declined" | "pending"> {
-  const mode = await getKushkiMode();
+  const rest = await db.restaurant.findUnique({
+    where: { id: args.restaurantId },
+    select: { kushkiMode: true },
+  });
+  const mode = await getRestaurantKushkiMode(rest);
   if (mode === "mock") return "pending";
   const privateKey = await getRestaurantPrivateKey(args.restaurantId);
   if (!privateKey) return "pending";

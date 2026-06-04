@@ -6,6 +6,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
 
@@ -59,6 +60,7 @@ export async function POST(
       id: true,
       name: true,
       kushkiMerchantId: true,
+      kushkiMode: true,
       legalCity: true,
       reservationConfig: true,
     },
@@ -112,7 +114,9 @@ export async function POST(
     );
   }
 
-  const provider = await getPaymentProvider();
+  const provider = await getPaymentProvider(
+    await getRestaurantKushkiMode(tenant),
+  );
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });

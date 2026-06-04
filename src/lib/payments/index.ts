@@ -1,50 +1,61 @@
 import { db } from "../db";
 import { decrypt, encrypt } from "../crypto";
-import { getKushkiMode, getKushkiModeSync } from "../platformConfig";
+import {
+  getKushkiMode,
+  getKushkiModeSync,
+  type KushkiMode,
+} from "../platformConfig";
 import { LiveKushkiProvider } from "./kushki/live";
 import { MockKushkiProvider } from "./kushki/mock";
 import type { PaymentProvider } from "./types";
 
 /**
  * Single entry point for callers. Resolves which provider implementation
- * to use based on KUSHKI_MODE. We export functions instead of a class
+ * to use based on the Kushki mode. We export functions instead of a class
  * because most call sites only need one or two operations.
+ *
+ * El modo puede ser GLOBAL (PlatformConfig) o, preferentemente, el modo
+ * EFECTIVO de un comercio (Restaurant.kushkiMode resuelto vía
+ * getRestaurantKushkiMode). Pasalo como `modeOverride` para que el provider
+ * —y por debajo el host de Kushki— sigan la config del comercio.
  */
 
-let cached: PaymentProvider | null = null;
-let cachedMode: string | null = null;
+// Un provider por modo. Live lleva su modo adentro (host uat/prod); mock es
+// stateless. Cachear por modo evita reconstruir en cada request.
+const providerCache = new Map<KushkiMode, PaymentProvider>();
 
-/**
- * Async: lee el modo desde DB (warmeando el cache si está stale) y
- * devuelve el provider que corresponde. Preferida en todas las routes
- * porque garantiza que el admin que cambió a sandbox desde /admin se
- * refleja inmediatamente sin esperar a que otro async path warmee el
- * caché global de platformConfig.
- */
-export async function getPaymentProvider(): Promise<PaymentProvider> {
-  const mode = await getKushkiMode();
-  if (cached && cachedMode === mode) return cached;
+function providerFor(mode: KushkiMode): PaymentProvider {
+  const hit = providerCache.get(mode);
+  if (hit) return hit;
   const provider: PaymentProvider =
-    mode === "mock" ? new MockKushkiProvider() : new LiveKushkiProvider();
-  cached = provider;
-  cachedMode = mode;
+    mode === "mock"
+      ? new MockKushkiProvider()
+      : new LiveKushkiProvider(mode);
+  providerCache.set(mode, provider);
   return provider;
 }
 
 /**
- * Sync: devuelve el provider basado en el caché actual de modo. Sólo
- * para paths que no pueden volverse async (e.g. handlers internos
- * profundos). El caché puede estar stale por hasta 60s comparado con
- * lo que dice DB — usar la versión async en routes nuevas.
+ * Async: si no se pasa `modeOverride`, lee el modo GLOBAL desde DB
+ * (warmeando el cache si está stale). Pasá el modo efectivo del comercio
+ * cuando lo tengas para que las llamadas a Kushki vayan al host correcto.
  */
-export function getPaymentProviderSync(): PaymentProvider {
-  const mode = getKushkiModeSync();
-  if (cached && cachedMode === mode) return cached;
-  const provider: PaymentProvider =
-    mode === "mock" ? new MockKushkiProvider() : new LiveKushkiProvider();
-  cached = provider;
-  cachedMode = mode;
-  return provider;
+export async function getPaymentProvider(
+  modeOverride?: KushkiMode,
+): Promise<PaymentProvider> {
+  const mode = modeOverride ?? (await getKushkiMode());
+  return providerFor(mode);
+}
+
+/**
+ * Sync: usa el modo cacheado (o el override). Sólo para paths que no pueden
+ * volverse async; el caché global puede estar stale hasta 60s.
+ */
+export function getPaymentProviderSync(
+  modeOverride?: KushkiMode,
+): PaymentProvider {
+  const mode = modeOverride ?? getKushkiModeSync();
+  return providerFor(mode);
 }
 
 /**

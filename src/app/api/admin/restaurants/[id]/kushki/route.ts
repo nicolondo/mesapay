@@ -16,6 +16,12 @@ const schema = z.object({
   // usando este secreto. Misma política que la private key: cifrada
   // at-rest, write-only en el form, "" explícito limpia el valor.
   webhookSecret: z.string().trim().max(500).nullable().optional(),
+  // Modo Kushki por comercio. null = hereda el modo global de plataforma.
+  // "" del form también se trata como null (heredar).
+  kushkiMode: z
+    .enum(["mock", "sandbox", "production"])
+    .nullable()
+    .optional(),
   onboardingStatus: z.enum([
     "not_started",
     "docs_uploaded",
@@ -66,6 +72,11 @@ export async function PATCH(
     kushkiOnboardingStatus: parsed.data.onboardingStatus,
     kushkiOnboardingNotes: parsed.data.notes,
   };
+  // Modo por comercio: sólo lo tocamos si vino en el body. null = heredar
+  // el modo global de plataforma.
+  if (parsed.data.kushkiMode !== undefined) {
+    data.kushkiMode = parsed.data.kushkiMode;
+  }
   // Stamp activatedAt the first time the merchant becomes active, but don't
   // overwrite an existing stamp if the admin toggles status around.
   if (willBeActive && !rest.kushkiActivatedAt) {

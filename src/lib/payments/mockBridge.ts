@@ -1,7 +1,6 @@
 import { subscribeMockWebhook } from "./kushki/mock";
 import { processKushkiWebhook } from "./webhookHandler";
 import { randomUUID } from "crypto";
-import { getKushkiModeSync } from "../platformConfig";
 
 /**
  * In mock mode the Kushki "webhook" never reaches our HTTP endpoint because
@@ -9,15 +8,17 @@ import { getKushkiModeSync } from "../platformConfig";
  * in-process bus. This bridge subscribes to that bus and feeds the same
  * shared processor the real webhook route uses.
  *
- * The bridge is installed lazily — first call to ensureMockBridge() — so we
- * don't spin up listeners in production processes.
+ * The bridge is installed lazily — first call to ensureMockBridge(). NO lo
+ * gateamos por el modo GLOBAL: ahora el modo es por-comercio, así que un
+ * comercio en "mock" puede convivir con un global "sandbox". El listener es
+ * ocioso salvo que el MockKushkiProvider emita —y eso sólo ocurre cuando se
+ * resolvió mock para ese comercio—, así que instalarlo siempre es inocuo.
  */
 
 let installed = false;
 
 export function ensureMockBridge(): void {
   if (installed) return;
-  if (getKushkiModeSync() !== "mock") return;
   installed = true;
   subscribeMockWebhook((e) => {
     if (

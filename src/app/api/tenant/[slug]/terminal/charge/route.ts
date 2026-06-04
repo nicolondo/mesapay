@@ -6,7 +6,7 @@ import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
 
 /**
@@ -68,7 +68,9 @@ export async function POST(
   //    datáfono real aunque el resto de Kushki siga en mock.
   // El Business-Code es la CLAVE HMAC con la que se firma el cobro: sin él
   // no podemos autenticar contra cloudt.
-  const mode = await getKushkiMode();
+  // Modo EFECTIVO del comercio (override propio o global). Define el host
+  // del datáfono: sandbox → uat-cloudt, production → cloudt.
+  const mode = await getRestaurantKushkiMode(tenant);
   const businessCode =
     tenant.cloudTerminalBusinessCode || env.KUSHKI_BP_BUSINESS_CODE || null;
   const useRealTerminal = mode !== "mock" || !!businessCode;
@@ -137,6 +139,8 @@ export async function POST(
         // Business-Code del comercio (clave HMAC), cargado en Config →
         // Datáfonos (fallback al env de plataforma).
         businessCode,
+        // Host del Cloud Terminal según el modo efectivo del comercio.
+        mode,
       });
     } catch (err) {
       return NextResponse.json(
@@ -199,7 +203,7 @@ export async function POST(
   // —— Modo mock: el provider auto-aprueba vía el mock bridge (async).
   let push;
   try {
-    const provider = await getPaymentProvider();
+    const provider = await getPaymentProvider(mode);
     push = await provider.pushToTerminal({
       merchantId: "mock",
       deviceId: device.serialNumber ?? parsed.data.deviceId,

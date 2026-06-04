@@ -6,7 +6,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
-import { getKushkiModeSync } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { publishOrderEvent } from "@/lib/events";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
@@ -60,6 +60,7 @@ export async function POST(
       kushkiMerchantId: true,
       kushkiPublicKey: true,
       kushkiOnboardingStatus: true,
+      kushkiMode: true,
       legalCity: true,
       reservationConfig: true,
     },
@@ -107,7 +108,8 @@ export async function POST(
   const depositCents = reservation.depositCents;
   const origin = appOrigin(req);
   const returnUrl = `${origin}/r/${slug}/reserva/${code}/deposit-return`;
-  const mode = getKushkiModeSync();
+  // Modo efectivo del comercio (override propio o global) → host de Kushki.
+  const mode = await getRestaurantKushkiMode(tenant);
 
   // ── Mock: confirmamos el depósito directo (no hay banco real) ──────
   if (mode === "mock" || !parsed.data.token) {

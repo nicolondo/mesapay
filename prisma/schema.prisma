@@ -82,6 +82,12 @@ model Restaurant {
   // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth
   // (X-BP-AUTH) es a nivel plataforma (env), este código rutea al comercio.
   cloudTerminalBusinessCode String?
+  // Modo Kushki por comercio: "mock" | "sandbox" | "production". Null =
+  // hereda el modo global de PlatformConfig.kushkiMode. Controla a qué
+  // host (uat vs prod) van TODAS las operaciones de pago de este comercio
+  // —tarjeta, PSE, Apple Pay y el datáfono cloud— y si se usa el provider
+  // mock o el real. Editable por comercio desde /admin/restaurants/[id]/pagos.
+  kushkiMode             String?
   kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
   kushkiOnboardingNotes  String?
   kushkiSubmittedAt      DateTime?

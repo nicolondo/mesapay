@@ -2530,6 +2530,12 @@
     "webhookSecretHint": "HMAC-SHA256. You set it in the merchant's Kushki dashboard. If you leave it blank, MESAPAY verifies webhooks with the partner's global secret (environment variable).",
     "clearWebhookSecret": "Delete webhook secret",
     "fieldOnboardingStatus": "Onboarding status",
+    "fieldKushkiMode": "Payments environment",
+    "kushkiModeInherit": "Inherit global",
+    "kushkiModeMock": "Test (mock)",
+    "kushkiModeSandbox": "Sandbox (UAT)",
+    "kushkiModeProduction": "Production",
+    "kushkiModeHint": "Sets which environment this merchant's charges go to —card, PSE, Apple Pay and the terminal—: Sandbox uses the test host (UAT) and Production the real one. “Inherit global” uses the platform-level mode.",
     "fieldInternalNotes": "Internal notes",
     "save": "Save"
   },

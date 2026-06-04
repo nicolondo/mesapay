@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import {
   formatNextOpening,
   pickupStatus,
@@ -193,7 +193,7 @@ export default async function PickupPage({
           !!tenant.kushkiMerchantId &&
           tenant.kushkiOnboardingStatus === "active",
         kushkiPublicKey: tenant.kushkiPublicKey,
-        isMockMode: (await getKushkiMode()) === "mock",
+        isMockMode: (await getRestaurantKushkiMode(tenant)) === "mock",
       }}
     />
   );

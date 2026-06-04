@@ -6,6 +6,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 /**
  * Returns the live balance from the provider. We don't cache here — the
@@ -26,7 +27,7 @@ export async function GET() {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { kushkiMerchantId: true },
+    select: { kushkiMerchantId: true, kushkiMode: true },
   });
   if (!tenant?.kushkiMerchantId) {
     return NextResponse.json(
@@ -38,7 +39,9 @@ export async function GET() {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
   try {
-    const provider = await getPaymentProvider();
+    const provider = await getPaymentProvider(
+      await getRestaurantKushkiMode(tenant),
+    );
     const balance = await provider.getBalance(privateKey);
     return NextResponse.json({
       availableCents: balance.availableCents,

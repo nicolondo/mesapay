@@ -102,3 +102,29 @@ export async function invalidateKushkiModeCache(): Promise<void> {
   warmedAt = 0;
   await refreshFromDb();
 }
+
+/**
+ * Resuelve el modo EFECTIVO de un comercio: si tiene un override propio
+ * (Restaurant.kushkiMode) válido lo usa; si no, hereda el global. Es la
+ * forma canónica de leer el modo en cualquier path que tenga el comercio
+ * en scope (charges, datáfono, SDK del browser). Sin override → idéntico
+ * a getKushkiMode().
+ */
+export async function getRestaurantKushkiMode(
+  restaurant: { kushkiMode?: string | null } | null | undefined,
+): Promise<KushkiMode> {
+  const override = restaurant?.kushkiMode;
+  if (isValidMode(override)) return override;
+  return getKushkiMode();
+}
+
+/**
+ * Variante pura/sync: aplica el override del comercio sobre un modo global
+ * ya conocido. Útil cuando ya tenés el global en mano y no querés otro await.
+ */
+export function resolveKushkiMode(
+  override: string | null | undefined,
+  globalMode: KushkiMode,
+): KushkiMode {
+  return isValidMode(override) ? override : globalMode;
+}

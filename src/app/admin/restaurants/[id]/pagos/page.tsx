@@ -138,6 +138,8 @@ export default async function AdminPagosPage({
             notes: rest.kushkiOnboardingNotes ?? "",
             hasPrivateKey: !!rest.kushkiPrivateKeyEnc,
             hasWebhookSecret: !!rest.kushkiWebhookSecretEnc,
+            // "" = heredar el modo global de plataforma.
+            kushkiMode: rest.kushkiMode ?? "",
           }}
         />
       </section>

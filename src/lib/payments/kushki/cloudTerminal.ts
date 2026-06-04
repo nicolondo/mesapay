@@ -6,7 +6,7 @@ import {
   randomUUID,
 } from "crypto";
 import { env } from "../../env";
-import { getKushkiMode } from "../../platformConfig";
+import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 
 /**
  * Cliente del Kushki ONE — Payment API (Cloud) para datáfonos SmartPOS.
@@ -30,13 +30,17 @@ const BASE_URL = {
   production: "https://cloudt.kushkipagos.com",
 } as const;
 
-async function baseUrl(): Promise<string> {
-  if (env.KUSHKI_CLOUD_TERMINAL_URL) return env.KUSHKI_CLOUD_TERMINAL_URL;
-  const mode = await getKushkiMode();
-  if (mode === "mock") {
-    throw new Error("cloudTerminal must not be called in mock mode");
-  }
-  return BASE_URL[mode];
+/**
+ * Host del Cloud Terminal según el modo EFECTIVO del comercio. Sólo
+ * "production" pega al host real (cloudt). Sandbox —y cualquier otro caso,
+ * incluido el "desacoplado" mock+Business-Code— van al host UAT
+ * (uat-cloudt). Antes había un override por env (KUSHKI_CLOUD_TERMINAL_URL)
+ * que forzaba prod siempre; se quitó para que el datáfono siga el modo del
+ * comercio (sandbox → UAT).
+ */
+function terminalBaseUrl(mode?: KushkiMode): string {
+  const m = mode ?? getKushkiModeSync();
+  return m === "production" ? BASE_URL.production : BASE_URL.sandbox;
 }
 
 function pushPath(serial: string): string {
@@ -133,6 +137,8 @@ export type CloudTerminalPushArgs = {
   customerEmail?: string | null;
   /** Business-Code del comercio. Fallback al env. */
   businessCode?: string | null;
+  /** Modo efectivo del comercio. production → cloudt; resto → uat-cloudt. */
+  mode?: KushkiMode;
 };
 
 export type CloudTerminalChargeResult = {
@@ -191,7 +197,7 @@ export async function pushPaymentToCloudTerminal(
   const password = tokenPassword(businessCode + serial, ts);
   const authHash = buildAuthHash(payload, ts, password);
   const encryptedData = encryptPayload(JSON.stringify(payload), ts, password);
-  const url = (await baseUrl()) + pushPath(serial);
+  const url = terminalBaseUrl(args.mode) + pushPath(serial);
 
   console.log("[kushki/cloud-terminal] charge", {
     url,
@@ -311,11 +317,12 @@ export async function cancelCloudTerminalPayment(
   serialNumber: string,
   _reference: string,
   _businessCode?: string | null,
+  mode?: KushkiMode,
 ): Promise<void> {
   if (!serialNumber) return;
   try {
     const url =
-      (await baseUrl()) +
+      terminalBaseUrl(mode) +
       `/terminal/v1/${encodeURIComponent(serialNumber)}/sync/abort`;
     const res = await fetch(url, {
       method: "POST",

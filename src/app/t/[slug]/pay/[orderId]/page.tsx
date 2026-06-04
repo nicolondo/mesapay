@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
@@ -108,7 +108,7 @@ export default async function PayPage({
       serviceMode={tenant.serviceMode}
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
-      kushkiMode={await getKushkiMode()}
+      kushkiMode={await getRestaurantKushkiMode(tenant)}
       enabledMethods={enabledMethods}
       pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}

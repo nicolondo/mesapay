@@ -14,7 +14,7 @@ import type {
   DispersionRequest,
   DispersionResult,
 } from "../types";
-import { getKushkiModeSync } from "../../platformConfig";
+import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 import { kushkiFetch } from "./client";
 import {
   pushPaymentToCloudTerminal,
@@ -47,12 +47,21 @@ const PSE_BANK_TTL_MS = 60 * 60 * 1000;
 const pseBankCache = new Map<string, { at: number; banks: PseBank[] }>();
 
 export class LiveKushkiProvider implements PaymentProvider {
+  /**
+   * Modo efectivo (sandbox/production) con el que opera esta instancia.
+   * Selecciona el host de Kushki. Puede venir resuelto por-comercio
+   * (Restaurant.kushkiMode) o, si se omite, cae al global cacheado en cada
+   * request. Nunca es "mock": en mock se usa MockKushkiProvider.
+   */
+  constructor(private readonly mode?: KushkiMode) {}
+
   async submitOnboarding(
     submission: OnboardingSubmission,
   ): Promise<MerchantSummary> {
     const resp = await kushkiFetch<SubmerchantCreateResponse>("/partners/v1/submerchants", {
       method: "POST",
       auth: { kind: "partner" },
+      mode: this.mode,
       body: {
         legalName: submission.legalName,
         taxId: submission.taxId,
@@ -88,6 +97,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     const resp = await kushkiFetch<SubmerchantCreateResponse>(`/partners/v1/submerchants/${merchantId}`, {
       method: "GET",
       auth: { kind: "partner" },
+      mode: this.mode,
       schema: SubmerchantCreateResponseSchema,
     });
     return {
@@ -107,6 +117,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     const resp = await kushkiFetch<ChargeResponse>("/card/v1/charges", {
       method: "POST",
       auth: { kind: "submerchant", privateKey: req.merchantId },
+      mode: this.mode,
       body: {
         token: req.token,
         amount: { subtotalIva: 0, subtotalIva0: req.amount.amountCents / 100, iva: 0, currency: req.amount.currency },
@@ -149,6 +160,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     >("/transfer/v1/bankList", {
       method: "GET",
       auth: { kind: "submerchant_public", publicKey },
+      mode: this.mode,
     });
     const arr = Array.isArray(resp) ? resp : [];
     const banks = arr.map((b) => ({
@@ -224,6 +236,7 @@ export class LiveKushkiProvider implements PaymentProvider {
           // req.merchantId carga la PUBLIC key del sub-merchant para
           // este flow (ver pse-init route).
           auth: { kind: "submerchant_public", publicKey: req.merchantId },
+          mode: this.mode,
           body,
         },
       );
@@ -272,7 +285,7 @@ export class LiveKushkiProvider implements PaymentProvider {
       // Sin redirect explícito caemos a la página hosted de Kushki PSE
       // con el token. Si el path real es otro lo ajustamos cuando lo
       // veamos en los logs.
-      `${getKushkiModeSync() === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
+      `${(this.mode ?? getKushkiModeSync()) === "production" ? "https://transferencias.kushkipagos.com" : "https://transferencias-uat.kushkipagos.com"}/?token=${encodeURIComponent(token)}`;
 
     return {
       providerRef: token || explicitRedirect.slice(-40),
@@ -299,6 +312,7 @@ export class LiveKushkiProvider implements PaymentProvider {
       amountCents: req.amount.amountCents,
       reference: req.metadata.paymentId,
       description: `MESAPAY orden ${req.metadata.orderId.slice(0, 6)}`,
+      mode: this.mode,
     });
     return {
       providerRef: resp.providerRef,
@@ -313,13 +327,14 @@ export class LiveKushkiProvider implements PaymentProvider {
   ): Promise<void> {
     // providerRef == nuestra uniqueReference (paymentId). El serial no
     // viaja acá; el cancel del Cloud Terminal es best-effort.
-    await cancelCloudTerminalPayment("", providerRef);
+    await cancelCloudTerminalPayment("", providerRef, null, this.mode);
   }
 
   async getBalance(merchantId: string): Promise<WalletBalance> {
     const resp = await kushkiFetch<BalanceResponse>(`/wallet/v1/balance`, {
       method: "GET",
       auth: { kind: "submerchant", privateKey: merchantId },
+      mode: this.mode,
       schema: BalanceResponseSchema,
     });
     return {
@@ -341,6 +356,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     const resp = await kushkiFetch<unknown>(path, {
       method: "GET",
       auth: { kind: "submerchant", privateKey: merchantId },
+      mode: this.mode,
     });
     const arr = Array.isArray(resp) ? resp : [];
     const out: WalletMovement[] = [];
@@ -363,6 +379,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     const resp = await kushkiFetch<DispersionResponse>(`/wallet/v1/dispersions`, {
       method: "POST",
       auth: { kind: "submerchant", privateKey: req.merchantId },
+      mode: this.mode,
       body: {
         amount: req.amount.amountCents,
         currency: req.amount.currency,

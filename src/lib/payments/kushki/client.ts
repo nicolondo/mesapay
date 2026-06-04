@@ -1,5 +1,5 @@
 import { requireKushkiKey } from "../../env";
-import { getKushkiModeSync } from "../../platformConfig";
+import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 import type { ZodType } from "zod";
 
 /**
@@ -19,8 +19,10 @@ const BASE_URL = {
   production: "https://api.kushkipagos.com",
 } as const;
 
-function baseUrl(): string {
-  const mode = getKushkiModeSync();
+function baseUrl(modeOverride?: KushkiMode): string {
+  // El modo puede venir resuelto por-comercio (opts.mode). Si no, caemos
+  // al global cacheado.
+  const mode = modeOverride ?? getKushkiModeSync();
   if (mode === "mock") {
     throw new Error("kushkiFetch must not be called in mock mode");
   }
@@ -70,13 +72,18 @@ type FetchOpts = {
   /** When provided, response is validated through this zod schema. */
   schema?: ZodType<unknown>;
   retries?: number;
+  /**
+   * Modo Kushki efectivo del comercio (sandbox/production). Selecciona el
+   * host (uat vs prod). Si se omite, usa el modo global cacheado.
+   */
+  mode?: KushkiMode;
 };
 
 export async function kushkiFetch<T>(
   path: string,
   opts: FetchOpts,
 ): Promise<T> {
-  const url = baseUrl() + path;
+  const url = baseUrl(opts.mode) + path;
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };

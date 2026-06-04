@@ -43,6 +43,8 @@ export function AdminPagosConfig({
     notes: string;
     hasPrivateKey: boolean;
     hasWebhookSecret: boolean;
+    // "" = heredar el modo global de plataforma.
+    kushkiMode: string;
   };
 }) {
   const t = useTranslations("opAdminBilling");
@@ -59,6 +61,7 @@ export function AdminPagosConfig({
   const [onboardingStatus, setOnboardingStatus] = useState<Status>(
     initial.onboardingStatus,
   );
+  const [kushkiMode, setKushkiMode] = useState(initial.kushkiMode);
   const [notes, setNotes] = useState(initial.notes);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -73,6 +76,8 @@ export function AdminPagosConfig({
       publicKey: publicKey.trim() || null,
       onboardingStatus,
       notes: notes.trim() || null,
+      // "" → null = heredar el modo global de plataforma.
+      kushkiMode: kushkiMode || null,
     };
     // Only send privateKey if the admin typed something. An empty string
     // here means "clear the stored key"; undefined means "leave it alone".
@@ -218,6 +223,22 @@ export function AdminPagosConfig({
           options={statusOptions}
           onChange={(v) => setOnboardingStatus(v as Status)}
         />
+        <div>
+          <Select
+            label={t("fieldKushkiMode")}
+            value={kushkiMode}
+            options={[
+              ["", t("kushkiModeInherit")],
+              ["mock", t("kushkiModeMock")],
+              ["sandbox", t("kushkiModeSandbox")],
+              ["production", t("kushkiModeProduction")],
+            ]}
+            onChange={setKushkiMode}
+          />
+          <p className="mt-1 text-[11px] text-op-muted">
+            {t("kushkiModeHint")}
+          </p>
+        </div>
         <div className="md:col-span-2">
           <label className="block">
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">

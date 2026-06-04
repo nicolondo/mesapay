@@ -19,6 +19,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -164,7 +165,9 @@ export async function POST(
       );
     }
     try {
-      const provider = await getPaymentProvider();
+      const provider = await getPaymentProvider(
+        await getRestaurantKushkiMode(tenant),
+      );
       const charge = await provider.chargeWithToken({
         merchantId: privateKey,
         amount: { amountCents: subtotalCents, currency: "COP" },

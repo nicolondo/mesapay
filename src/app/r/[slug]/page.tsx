@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { resolveReservationConfig } from "@/lib/reservations";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { getPaymentProvider } from "@/lib/payments";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { ReservarClient } from "./ReservarClient";
@@ -40,9 +40,12 @@ export default async function ReservarPage({
       legalCity: true,
       kushkiPublicKey: true,
       kushkiOnboardingStatus: true,
+      kushkiMode: true,
     },
   });
   if (!tenant) return notFound();
+  // Modo efectivo del comercio (override propio o global) → host de Kushki.
+  const kushkiMode = await getRestaurantKushkiMode(tenant);
 
   if (!tenant.reservationsEnabled) {
     const t = await getTranslations("reservar");
@@ -71,7 +74,7 @@ export default async function ReservarPage({
   let pseBanks: { code: string; name: string }[] = [];
   if (tenant.kushkiOnboardingStatus === "active" && tenant.kushkiPublicKey) {
     try {
-      const provider = await getPaymentProvider();
+      const provider = await getPaymentProvider(kushkiMode);
       pseBanks = await provider.listPseBanks(tenant.kushkiPublicKey);
     } catch (err) {
       console.error("[reservar] prefetch pse banks", err);
@@ -89,7 +92,7 @@ export default async function ReservarPage({
       policyNote={config.policyNote ?? null}
       source={source === "google" ? "google_maps" : "direct"}
       kushkiPublicKey={tenant.kushkiPublicKey}
-      kushkiMode={await getKushkiMode()}
+      kushkiMode={kushkiMode}
       pseBanks={pseBanks}
     />
   );

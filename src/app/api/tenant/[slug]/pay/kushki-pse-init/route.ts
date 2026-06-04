@@ -8,7 +8,7 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
-import { getKushkiModeSync } from "@/lib/platformConfig";
+import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 
 /**
@@ -36,15 +36,15 @@ async function chargeTransferInit(args: {
   };
   metadata: { orderId: string; paymentId: string };
   privateKey: string;
+  mode: KushkiMode;
 }): Promise<{
   redirectUrl?: string;
   url?: string;
   security?: { acsURL?: string };
   [k: string]: unknown;
 }> {
-  const mode = getKushkiModeSync();
   const baseUrl =
-    mode === "production"
+    args.mode === "production"
       ? "https://api.kushkipagos.com"
       : "https://api-uat.kushkipagos.com";
 
@@ -151,6 +151,8 @@ export async function POST(
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
   }
+  // Modo efectivo del comercio (override propio o global) → host de Kushki.
+  const mode = await getRestaurantKushkiMode(tenant);
   if (
     !tenant.kushkiMerchantId ||
     tenant.kushkiOnboardingStatus !== "active"
@@ -279,6 +281,7 @@ export async function POST(
         buyer: parsed.data.buyer,
         metadata: { orderId: order.id, paymentId: payment.id },
         privateKey,
+        mode,
       });
       const redirectUrl =
         (typeof initResp.redirectUrl === "string" && initResp.redirectUrl) ||
@@ -338,7 +341,7 @@ export async function POST(
   const returnUrl = `${origin}/t/${slug}/pay/${order.id}/pse-return?pid=${payment.id}`;
 
   try {
-    const provider = await getPaymentProvider();
+    const provider = await getPaymentProvider(mode);
     const result = await provider.initiatePse({
       merchantId: publicKey,
       amount: {

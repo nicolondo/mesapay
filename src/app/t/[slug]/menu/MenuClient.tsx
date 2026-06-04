@@ -872,9 +872,9 @@ export function MenuClient({
         ref={headerRef}
         className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline"
       >
-        <div className="max-w-2xl mx-auto px-5 pt-5 pb-3">
+        <div className="max-w-2xl mx-auto px-5 pt-3 pb-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               {/* Logo del comercio. Fallback al logo MESAPAY si no
                   subieron uno (resolveLogoSrc encapsula la lógica). */}
               <img
@@ -884,13 +884,13 @@ export function MenuClient({
                     : "/icons/icon-192.png"
                 }
                 alt={tenant.name}
-                className="w-10 h-10 rounded-lg object-contain bg-paper border border-hairline shrink-0"
+                className="w-9 h-9 rounded-lg object-contain bg-paper border border-hairline shrink-0"
               />
-              <div className="min-w-0">
-                <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted">
+              <div className="min-w-0 leading-tight">
+                <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate">
                   {locationLabel} · {tenant.name}
                 </div>
-                <h1 className="font-display text-3xl tracking-[-0.015em]">
+                <h1 className="font-display text-xl tracking-[-0.015em] leading-tight">
                   {tMenu("title")}
                 </h1>
               </div>
@@ -925,7 +925,7 @@ export function MenuClient({
               )}
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2.5 flex items-center gap-2">
             {hydrated && !isPickup && (
               <button
                 onClick={() => setShowNameSheet(true)}

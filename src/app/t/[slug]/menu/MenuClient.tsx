@@ -2026,10 +2026,21 @@ function ItemSheet({
   // The ratio check (|dx| must dominate |dy| by 1.2x) keeps diagonal
   // scrolls from triggering false swipes; the 60px threshold weeds
   // out tiny accidental drags.
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchStartRef = useRef<{
+    x: number;
+    y: number;
+    scrollTop: number;
+  } | null>(null);
+  // Ref al contenedor scrolleable para saber si estamos arriba de todo:
+  // el swipe-down solo cierra cuando scrollTop === 0 (si no, es scroll).
+  const sheetScrollRef = useRef<HTMLDivElement | null>(null);
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
-    touchStartRef.current = { x: t.clientX, y: t.clientY };
+    touchStartRef.current = {
+      x: t.clientX,
+      y: t.clientY,
+      scrollTop: sheetScrollRef.current?.scrollTop ?? 0,
+    };
   }
   function onTouchEnd(e: React.TouchEvent) {
     const start = touchStartRef.current;
@@ -2038,6 +2049,14 @@ function ItemSheet({
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
+    // Swipe DOWN para cerrar: gesto vertical hacia abajo, dominante sobre el
+    // horizontal, y solo si el contenido estaba arriba de todo al empezar
+    // (si no, el usuario está scrolleando y no queremos cerrar).
+    if (dy > 90 && Math.abs(dy) > Math.abs(dx) * 1.2 && start.scrollTop <= 0) {
+      onClose();
+      return;
+    }
+    // Swipe horizontal para cambiar de plato.
     if (Math.abs(dx) < 60) return;
     if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
     if (dx < 0 && hasNext) onNext();
@@ -2054,11 +2073,15 @@ function ItemSheet({
       onClick={onClose}
     >
       <div
-        className="bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto slide-up"
+        ref={sheetScrollRef}
+        className="relative bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto slide-up"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
+        {/* Barrita de agarre (solo móvil): indica que se puede deslizar
+            hacia abajo para cerrar. Flota sobre la foto, no bloquea taps. */}
+        <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-10 rounded-full bg-white/75 shadow pointer-events-none" />
         {item.photoUrl && (
           <div
             // Square photo, full width. On a 390px phone that's a

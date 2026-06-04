@@ -76,6 +76,10 @@ export default async function PayPage({
     tenant.enabledPaymentMethods,
   );
   const pseBanks: Array<{ code: string; name: string }> = await (async () => {
+    // En modo staff (mesero/operator) el cobro es por datáfono/efectivo;
+    // PSE es pago online del comensal. Saltamos el prefetch para no bloquear
+    // el render del cobro con una llamada a Kushki que no se va a usar.
+    if (operatorMode) return [];
     if (!enabledMethods.includes("kushki_pse" as PaymentMethodSlug)) return [];
     if (!kushkiReady) return [];
     try {

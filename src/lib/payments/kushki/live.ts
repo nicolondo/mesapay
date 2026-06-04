@@ -38,6 +38,14 @@ import {
  * pattern. Exact paths and field names may need 1-line tweaks once we have
  * partner-grade docs from Kushki — keep all transport details in this file.
  */
+
+// Cache in-memory de la lista de bancos PSE por publicKey. La lista cambia
+// rarísimo y el fetch a Kushki es lento (segundos) — sin cache bloqueaba el
+// render de la página de pago en CADA carga. TTL 1h; warmea en el primer hit
+// de cada proceso.
+const PSE_BANK_TTL_MS = 60 * 60 * 1000;
+const pseBankCache = new Map<string, { at: number; banks: PseBank[] }>();
+
 export class LiveKushkiProvider implements PaymentProvider {
   async submitOnboarding(
     submission: OnboardingSubmission,
@@ -134,6 +142,8 @@ export class LiveKushkiProvider implements PaymentProvider {
    * para suscripciones PSE recurrentes, lista distinta.)
    */
   async listPseBanks(publicKey: string): Promise<PseBank[]> {
+    const hit = pseBankCache.get(publicKey);
+    if (hit && Date.now() - hit.at < PSE_BANK_TTL_MS) return hit.banks;
     const resp = await kushkiFetch<
       Array<{ code?: string; id?: string; name: string }>
     >("/transfer/v1/bankList", {
@@ -141,10 +151,12 @@ export class LiveKushkiProvider implements PaymentProvider {
       auth: { kind: "submerchant_public", publicKey },
     });
     const arr = Array.isArray(resp) ? resp : [];
-    return arr.map((b) => ({
+    const banks = arr.map((b) => ({
       code: String(b.code ?? b.id ?? ""),
       name: b.name,
     }));
+    if (banks.length > 0) pseBankCache.set(publicKey, { at: Date.now(), banks });
+    return banks;
   }
 
   /**

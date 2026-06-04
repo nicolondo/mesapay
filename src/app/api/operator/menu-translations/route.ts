@@ -21,8 +21,9 @@ function guard(role?: string) {
 
 /**
  * POST → genera/cachea con IA las traducciones de TODA la carta (en/pt).
+ * Body { force?: true } → rehace las automáticas (conserva las manuales).
  */
-export async function POST() {
+export async function POST(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -31,8 +32,10 @@ export async function POST() {
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
   }
+  const body = await req.json().catch(() => ({}));
+  const force = body?.force === true;
   try {
-    const result = await pretranslateMenu(restaurantId);
+    const result = await pretranslateMenu(restaurantId, { force });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[menu-translations] generate failed", err);

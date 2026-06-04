@@ -1329,6 +1329,8 @@
     "generatingHint": "Esto puede tardar hasta un minuto si tenés muchos platos. No cierres la página.",
     "generatedOk": "Listo: {count} textos procesados en inglés y portugués.",
     "generateFailed": "No se pudo traducir. Intentá de nuevo.",
+    "retranslateBtn": "Volver a traducir todo con IA",
+    "retranslateConfirm": "Esto rehace TODAS las traducciones automáticas (se conservan las que editaste a mano). ¿Continuar?",
     "colEs": "Español (original)",
     "colEn": "Inglés",
     "colPt": "Portugués",

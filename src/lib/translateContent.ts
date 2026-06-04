@@ -125,9 +125,15 @@ export async function getContentTranslations(
         {
           role: "user",
           content:
-            `You translate restaurant menu content from Spanish to ${targetLang}. ` +
-            `Translate the "text" of each item naturally and concisely for a menu. ` +
-            `Keep brand/proper names as-is. Do NOT add notes. ` +
+            `You are translating a restaurant menu from Spanish to ${targetLang}. ` +
+            `Translate EVERY "text" naturally and concisely for a menu — INCLUDING ` +
+            `section/category names and descriptive phrases (e.g. "Fuertes" → main ` +
+            `dishes, "Manos a la Tortilla", "Mexicano al Centro"). ` +
+            `Keep a word unchanged ONLY if it is a true proper name (a brand, a ` +
+            `person, the restaurant name) or an international dish loanword that is ` +
+            `identical in ${targetLang} (e.g. Taco, Quesadilla, Burrito, Molcajete, ` +
+            `Malbec, Tartar, WOK). Never leave a descriptive Spanish phrase ` +
+            `untranslated. Do NOT add notes or explanations. ` +
             `Return ONLY a JSON array of {"i": number, "t": string}, no prose.\n\n` +
             JSON.stringify(payload),
         },

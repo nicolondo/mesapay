@@ -72,12 +72,32 @@ export type PretranslateResult = {
 /**
  * Genera (y cachea) las traducciones de toda la carta a en/pt. Síncrono:
  * el operador toca el botón una vez y espera. Devuelve un resumen.
+ *
+ * force=true → borra primero las traducciones AUTOMÁTICAS (source="machine")
+ * y las rehace con el prompt vigente. Conserva las ediciones MANUALES.
  */
 export async function pretranslateMenu(
   restaurantId: string,
+  opts: { force?: boolean } = {},
 ): Promise<PretranslateResult> {
   const items = await collectMenuTranslatables(restaurantId);
   const targets = locales.filter((l) => l !== defaultLocale) as Locale[];
+
+  if (opts.force && items.length) {
+    // Rehacer: borrar solo las máquina (no las manuales) de estas entidades.
+    await db.translation.deleteMany({
+      where: {
+        source: "machine",
+        locale: { in: targets },
+        OR: items.map((it) => ({
+          entityType: it.entityType,
+          entityId: it.entityId,
+          field: it.field,
+        })),
+      },
+    });
+  }
+
   for (const locale of targets) {
     for (let i = 0; i < items.length; i += CHUNK) {
       // generateMissing: true → ESTA ruta sí llama a la IA (en chunks) y

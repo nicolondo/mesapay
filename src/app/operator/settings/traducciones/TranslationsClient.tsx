@@ -36,12 +36,15 @@ export function TranslationsClient({
   );
   const [, startTransition] = useTransition();
 
-  async function generate() {
+  async function generate(force = false) {
+    if (force && !confirm(t("retranslateConfirm"))) return;
     setBusy(true);
     setMsg(null);
     try {
       const res = await fetch("/api/operator/menu-translations", {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ force }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -67,14 +70,24 @@ export function TranslationsClient({
             {t("aiSubtitle", { count: itemCount })}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={busy}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60 shrink-0"
-        >
-          {busy ? t("generating") : t("generateBtn")}
-        </button>
+        <div className="flex flex-col gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => generate(false)}
+            disabled={busy}
+            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+          >
+            {busy ? t("generating") : t("generateBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={() => generate(true)}
+            disabled={busy}
+            className="text-[12px] text-op-muted underline hover:text-ink disabled:opacity-60"
+          >
+            {t("retranslateBtn")}
+          </button>
+        </div>
       </div>
       {busy && <p className="text-[11px] text-op-muted">{t("generatingHint")}</p>}
       {msg && (

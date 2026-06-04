@@ -1329,6 +1329,8 @@
     "generatingHint": "This can take up to a minute if you have many dishes. Don't close the page.",
     "generatedOk": "Done: {count} texts processed in English and Portuguese.",
     "generateFailed": "Couldn't translate. Try again.",
+    "retranslateBtn": "Re-translate everything with AI",
+    "retranslateConfirm": "This redoes ALL automatic translations (your manual edits are kept). Continue?",
     "colEs": "Spanish (original)",
     "colEn": "English",
     "colPt": "Portuguese",

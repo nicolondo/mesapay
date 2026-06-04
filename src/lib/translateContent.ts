@@ -40,6 +40,12 @@ function hash(text: string): string {
   return createHash("sha1").update(text).digest("hex").slice(0, 16);
 }
 
+/** Mismo hash que usa la cache — para guardar overrides manuales con el
+ * sourceHash correcto (así no se re-traducen mientras el original no cambie). */
+export function contentSourceHash(text: string): string {
+  return hash(text);
+}
+
 let _client: Anthropic | null = null;
 function client(): Anthropic | null {
   if (!process.env.ANTHROPIC_API_KEY) return null;
@@ -99,7 +105,10 @@ export async function getContentTranslations(
     const targetLang = LANG_NAME[locale as Exclude<Locale, "es">];
     const payload = missing.map((m, i) => ({ i, text: m.text }));
     const msg = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest",
+      // Mismo modelo que el resto de la app (env default Haiku 4.5). El alias
+      // viejo "claude-3-5-haiku-latest" quedó retirado → las traducciones
+      // fallaban en silencio y caían al español (0 filas en Translation).
+      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
       max_tokens: 4096,
       messages: [
         {

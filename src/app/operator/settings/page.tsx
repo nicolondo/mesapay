@@ -141,6 +141,13 @@ export default async function SettingsPage() {
           badge={t("badgeTags", { count: tagCount })}
           tint="bg-paper text-op-muted"
         />
+        <SettingCard
+          href="/operator/settings/traducciones"
+          title={t("cardTranslationsTitle")}
+          subtitle={t("cardTranslationsSubtitle")}
+          badge={t("badgeTranslate")}
+          tint="bg-paper text-op-muted"
+        />
         {/* Siempre visible: el comercio entra acá para dar de alta su
             primer datáfono y cargar el serial (Cloud Terminal API). */}
         <SettingCard

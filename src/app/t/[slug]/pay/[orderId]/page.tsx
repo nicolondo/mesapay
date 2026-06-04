@@ -4,12 +4,8 @@ import { getKushkiMode } from "@/lib/platformConfig";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import {
-  resolveEnabledPaymentMethods,
-  type PaymentMethodSlug,
-} from "@/lib/paymentMethods";
+import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { getAssignedDevice } from "@/lib/meseroDevice";
-import { getPaymentProvider } from "@/lib/payments";
 
 export default async function PayPage({
   params,
@@ -67,30 +63,15 @@ export default async function PayPage({
       ? await getAssignedDevice(session.user.id, tenant.id)
       : null;
 
-  // Pre-fetch de la lista de bancos PSE server-side. El backend ya
-  // cachea 1h in-memory, así que después del primer request del
-  // proceso esto es esencialmente gratis. Al embebberlo en las props
-  // del PayClient, cuando el diner abre el sheet la lista aparece
-  // instantánea — eliminamos un roundtrip HTTP fetch desde el browser.
+  // NO pre-fetcheamos los bancos PSE acá. Esa llamada a Kushki es lenta
+  // (varios segundos) y bloqueaba el render de "Pagar" en CADA carga, para
+  // todos — aunque casi nadie use PSE. El PseSheet del cliente pide la lista
+  // solo cuando el diner abre PSE (GET /pay/pse-banks, ahora con caché),
+  // así "Pagar" abre al instante.
   const enabledMethods = resolveEnabledPaymentMethods(
     tenant.enabledPaymentMethods,
   );
-  const pseBanks: Array<{ code: string; name: string }> = await (async () => {
-    // En modo staff (mesero/operator) el cobro es por datáfono/efectivo;
-    // PSE es pago online del comensal. Saltamos el prefetch para no bloquear
-    // el render del cobro con una llamada a Kushki que no se va a usar.
-    if (operatorMode) return [];
-    if (!enabledMethods.includes("kushki_pse" as PaymentMethodSlug)) return [];
-    if (!kushkiReady) return [];
-    try {
-      const publicKey = tenant.kushkiPublicKey ?? "mock_public_key";
-      const provider = await getPaymentProvider();
-      return await provider.listPseBanks(publicKey);
-    } catch (err) {
-      console.error("[pay/page] pse banks prefetch failed", err);
-      return []; // fallback: el client-side hace su propio fetch
-    }
-  })();
+  const pseBanks: Array<{ code: string; name: string }> = [];
 
   // Mesero usa su propia PWA con bottom nav (Salón/Cobros/Mesas) y
   // está bloqueado por el guard de /operator/*. Operator y platform_admin

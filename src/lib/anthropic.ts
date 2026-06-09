@@ -13,7 +13,7 @@ import { env, requireAnthropicKey } from "./env";
  */
 
 let client: Anthropic | null = null;
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!client) {
     client = new Anthropic({ apiKey: requireAnthropicKey() });
   }
@@ -478,6 +478,11 @@ Reglas:
 - taxId: solo dígitos, sin DV. Si en el documento aparece "900123456-7", taxId="900123456" y taxIdDV="7".
 - legalName: si es persona jurídica, la razón social; si es natural, el nombre completo del contribuyente.
 - Si el documento no parece un RUT, devuelve todos los campos en null con confidence 0.`;
+
+// Default model for the Pulso insights assistant. Override with the
+// ANTHROPIC_INSIGHTS_MODEL env var (e.g. claude-sonnet-4-5-20251101).
+export const INSIGHTS_MODEL =
+  process.env.ANTHROPIC_INSIGHTS_MODEL ?? "claude-sonnet-4-5";
 
 export async function extractRutData(source: DocumentSource): Promise<RutExtraction> {
   const c = getClient();

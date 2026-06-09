@@ -2804,5 +2804,17 @@
     "methodCash": "Efectivo",
     "methodDemoCard": "Tarjeta (demo)",
     "methodNequi": "Nequi"
+  },
+  "opAdminAi": {
+    "title": "Asistente Pulso",
+    "optInherit": "Heredar plan",
+    "optOn": "Forzar habilitado",
+    "optOff": "Forzar deshabilitado",
+    "limitLabel": "Límite de mensajes/día",
+    "limitPlaceholder": "Global por defecto",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Guardado.",
+    "saveFailed": "No se pudo guardar."
   }
 }

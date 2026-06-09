@@ -2804,5 +2804,17 @@
     "methodCash": "Cash",
     "methodDemoCard": "Card (demo)",
     "methodNequi": "Nequi"
+  },
+  "opAdminAi": {
+    "title": "Pulso Assistant",
+    "optInherit": "Inherit from plan",
+    "optOn": "Force enabled",
+    "optOff": "Force disabled",
+    "limitLabel": "Daily message limit",
+    "limitPlaceholder": "Global default",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "saveFailed": "Could not save."
   }
 }

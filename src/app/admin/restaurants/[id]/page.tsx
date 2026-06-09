@@ -25,6 +25,7 @@ import { RestaurantNameEditor } from "./RestaurantNameEditor";
 import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
 import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { AdminAiConfig } from "./AdminAiConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -301,6 +302,16 @@ export default async function RestaurantDetail({
         groups={allGroups}
         currentLegalEntityName={currentLegalEntity?.name ?? null}
       />
+
+      <div className="mb-4">
+        <AdminAiConfig
+          restaurantId={id}
+          initial={{
+            aiInsightsEnabled: rest.aiInsightsEnabled,
+            aiDailyMessageLimit: rest.aiDailyMessageLimit,
+          }}
+        />
+      </div>
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="flex items-center justify-between gap-3">

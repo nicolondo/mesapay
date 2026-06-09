@@ -2804,5 +2804,17 @@
     "methodCash": "Dinheiro",
     "methodDemoCard": "Cartão (demo)",
     "methodNequi": "Nequi"
+  },
+  "opAdminAi": {
+    "title": "Assistente Pulso",
+    "optInherit": "Herdar do plano",
+    "optOn": "Forçar habilitado",
+    "optOff": "Forçar desabilitado",
+    "limitLabel": "Limite de mensagens/dia",
+    "limitPlaceholder": "Padrão global",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saved": "Salvo.",
+    "saveFailed": "Não foi possível salvar."
   }
 }

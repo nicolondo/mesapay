@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import type { ToolContext, ToolDef } from "./types";
-import { resolveRange, type RangeInput } from "./dateRange";
+import { resolveRange, rangeInputZod, rangeJsonSchema, type RangeInput } from "./dateRange";
 
 export type DishRow = { name: string; qty: number; priceCents: number };
 export type TopDish = { name: string; qty: number; revenueCents: number };
@@ -30,12 +30,7 @@ export function aggregateTopDishes(
 }
 
 const inputSchema = z.object({
-  range: z
-    .union([
-      z.object({ preset: z.enum(["7d", "30d", "90d", "mtd", "qtd"]) }),
-      z.object({ from: z.string(), to: z.string() }),
-    ])
-    .default({ preset: "30d" }),
+  range: rangeInputZod,
   by: z.enum(["qty", "revenue"]).default("qty"),
   limit: z.number().int().min(1).max(25).default(10),
 });
@@ -50,13 +45,7 @@ export const topDishesTool: ToolDef<Input> = {
   jsonSchema: {
     type: "object",
     properties: {
-      range: {
-        description: "Rango de fechas. Default últimos 30 días.",
-        oneOf: [
-          { type: "object", properties: { preset: { enum: ["7d", "30d", "90d", "mtd", "qtd"] } }, required: ["preset"] },
-          { type: "object", properties: { from: { type: "string" }, to: { type: "string" } }, required: ["from", "to"] },
-        ],
-      },
+      range: rangeJsonSchema,
       by: { type: "string", enum: ["qty", "revenue"], description: "Ordenar por cantidad o ingreso." },
       limit: { type: "integer", minimum: 1, maximum: 25 },
     },

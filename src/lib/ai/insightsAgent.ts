@@ -20,7 +20,7 @@ export async function runInsightsAgent(args: {
   const { client, model, system, ctx, executeTool } = args;
   const messages: any[] = [...args.messages];
   const toolCalls: { name: string; input: unknown }[] = [];
-  const maxIterations = args.maxIterations ?? 6;
+  const maxIterations = args.maxIterations ?? 8;
 
   for (let i = 0; i < maxIterations; i++) {
     const res: Anthropic.Messages.Message = await client.messages.create({
@@ -51,8 +51,21 @@ export async function runInsightsAgent(args: {
     }
     messages.push({ role: "user", content: results });
   }
+  // Agotó el presupuesto de tool-calls: pedimos una respuesta final SIN tools
+  // para que el modelo redacte con lo que ya obtuvo, en vez de un dead-end.
+  const finalRes: Anthropic.Messages.Message = await client.messages.create({
+    model,
+    max_tokens: 1500,
+    system,
+    messages,
+  });
+  const finalText = (finalRes.content ?? [])
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
   return {
-    text: "No pude completar el análisis (alcancé el límite de pasos). Probá una pregunta más específica.",
+    text: finalText || "No pude completar el análisis. Probá una pregunta más específica.",
     toolCalls,
   };
 }

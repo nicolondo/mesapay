@@ -36,4 +36,14 @@ describe("rangeInputZod", () => {
       to: "2026-02-01",
     });
   });
+  it("acepta range como STRING JSON (lo que manda Claude en la práctica)", () => {
+    expect(rangeInputZod.parse('{"preset":"mtd"}')).toEqual({ preset: "mtd" });
+    expect(rangeInputZod.parse('{"from":"2026-06-01","to":"2026-06-09"}')).toEqual({
+      from: "2026-06-01",
+      to: "2026-06-09",
+    });
+  });
+  it("tolera string JSON con espacios/newlines", () => {
+    expect(rangeInputZod.parse('\n{\n  "preset": "mtd"\n}\n')).toEqual({ preset: "mtd" });
+  });
 });

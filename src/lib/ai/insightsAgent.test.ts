@@ -25,14 +25,21 @@ describe("runInsightsAgent", () => {
     expect(out.toolCalls.map((c) => c.name)).toEqual(["top_dishes"]);
   });
 
-  it("corta en maxIterations sin loop infinito", async () => {
+  it("al agotar maxIterations hace una llamada final SIN tools y devuelve su texto", async () => {
     const toolMsg = { stop_reason: "tool_use", content: [{ type: "tool_use", id: "t", name: "top_dishes", input: {} }] };
-    const client = fakeClient([toolMsg, toolMsg, toolMsg, toolMsg]);
+    const finalMsg = { stop_reason: "end_turn", content: [{ type: "text", text: "Con lo disponible, tu mejor categoría es Pizzas." }] };
+    const client = fakeClient([toolMsg, toolMsg, finalMsg]);
     const out = await runInsightsAgent({
       client, model: "m", system: "s", messages: [{ role: "user", content: "x" }],
-      ctx, executeTool: vi.fn(async () => ({})), maxIterations: 2,
+      ctx, executeTool: vi.fn(async () => ({})),
+      tools: [{ name: "top_dishes", description: "d", input_schema: { type: "object" } }] as any,
+      maxIterations: 2,
     });
-    expect(client.messages.create).toHaveBeenCalledTimes(2);
-    expect(out.text).toMatch(/no pude completar|límite/i);
+    // 2 iteraciones de tool + 1 llamada final de cierre
+    expect(client.messages.create).toHaveBeenCalledTimes(3);
+    // La llamada final NO debe incluir tools (fuerza al modelo a responder)
+    expect(client.messages.create.mock.calls[0][0].tools).toBeDefined();
+    expect(client.messages.create.mock.calls[2][0].tools).toBeUndefined();
+    expect(out.text).toContain("Pizzas");
   });
 });

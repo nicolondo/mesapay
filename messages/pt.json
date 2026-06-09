@@ -2830,6 +2830,9 @@
     "disabled": "O assistente Pulso não está habilitado para este estabelecimento.",
     "sug1": "Quais são meus pratos mais vendidos este mês?",
     "sug2": "Quais pratos quase não vendem?",
-    "sug3": "Mostre meus pratos top por receita"
+    "sug3": "Mostre meus pratos top por receita",
+    "sug4": "Em quais dias e horários tenho mais movimento?",
+    "sug5": "Quem é meu melhor garçom este mês?",
+    "sug6": "Quando a cozinha fica sobrecarregada?"
   }
 }

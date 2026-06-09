@@ -2830,6 +2830,9 @@
     "disabled": "El asistente Pulso no está habilitado para este comercio.",
     "sug1": "¿Cuáles son mis platos más vendidos este mes?",
     "sug2": "¿Qué platos casi no se venden?",
-    "sug3": "Mostrame mis platos top por ingreso"
+    "sug3": "Mostrame mis platos top por ingreso",
+    "sug4": "¿Qué días y horas tengo más movimiento?",
+    "sug5": "¿Quién es mi mejor mesero este mes?",
+    "sug6": "¿Cuándo se satura la cocina?"
   }
 }

@@ -11,7 +11,7 @@ export function InsightsChat() {
   const [convId, setConvId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
-  const suggestions = [t("sug1"), t("sug2"), t("sug3")];
+  const suggestions = [t("sug1"), t("sug2"), t("sug3"), t("sug4"), t("sug5"), t("sug6")];
 
   async function send(text: string) {
     if (!text.trim() || busy) return;

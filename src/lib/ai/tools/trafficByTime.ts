@@ -37,6 +37,7 @@ export const trafficByTimeTool: ToolDef<Input> = {
     const orders = await db.order.findMany({
       where: {
         restaurantId: ctx.scope.restaurantId,
+        status: { notIn: ["open", "cancelled"] },
         OR: [{ placedAt: { gte: from, lte: to } }, { placedAt: null, createdAt: { gte: from, lte: to } }],
       },
       select: { placedAt: true, createdAt: true, totalCents: true },

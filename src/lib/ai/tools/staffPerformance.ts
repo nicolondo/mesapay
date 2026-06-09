@@ -35,7 +35,8 @@ export const staffPerformanceTool: ToolDef<Input> = {
   name: "staff_performance",
   description:
     "Desempeño por mesero (según quién cobró): ventas, # de cobros, mesas " +
-    "atendidas, propinas y ticket promedio. Útil para '¿quién es mi mejor mesero?'.",
+    "atendidas, propinas y ticket promedio. Los pagos self-service del comensal " +
+    "por QR no se atribuyen a ningún mesero. Útil para '¿quién es mi mejor mesero?'.",
   inputSchema,
   jsonSchema: { type: "object", properties: { range: rangeJsonSchema } },
   async run(input, ctx) {

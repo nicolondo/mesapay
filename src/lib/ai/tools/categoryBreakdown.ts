@@ -35,7 +35,8 @@ export const categoryBreakdownTool: ToolDef<Input> = {
   name: "category_breakdown",
   description:
     "Ventas desglosadas por categoría de la carta y por tipo (comida, bebida, " +
-    "postre, etc.). Útil para ver el peso de vinos/bebidas vs comida.",
+    "postre, etc.). El ingreso se calcula con el precio base del ítem (no incluye " +
+    "recargos de modificadores). Útil para ver el peso de vinos/bebidas vs comida.",
   inputSchema,
   jsonSchema: {
     type: "object",

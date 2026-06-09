@@ -2808,6 +2808,7 @@
   },
   "opAdminAi": {
     "title": "Assistente Pulso",
+    "enabledLabel": "Status do assistente",
     "optInherit": "Herdar do plano",
     "optOn": "Forçar habilitado",
     "optOff": "Forçar desabilitado",

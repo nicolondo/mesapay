@@ -2808,6 +2808,7 @@
   },
   "opAdminAi": {
     "title": "Pulso Assistant",
+    "enabledLabel": "Assistant status",
     "optInherit": "Inherit from plan",
     "optOn": "Force enabled",
     "optOff": "Force disabled",

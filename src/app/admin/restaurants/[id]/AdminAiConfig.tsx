@@ -78,7 +78,7 @@ export function AdminAiConfig({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="block">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {t("title")}
+            {t("enabledLabel")}
           </span>
           <select
             value={aiEnabled}

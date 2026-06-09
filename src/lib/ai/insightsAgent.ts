@@ -23,14 +23,16 @@ export async function runInsightsAgent(args: {
   const maxIterations = args.maxIterations ?? 6;
 
   for (let i = 0; i < maxIterations; i++) {
-    const res: any = await client.messages.create({
+    const res: Anthropic.Messages.Message = await client.messages.create({
       model,
       max_tokens: 1500,
       system,
       tools: args.tools,
       messages,
     });
-    const toolUses = (res.content ?? []).filter((b: any) => b.type === "tool_use");
+    const toolUses = (res.content ?? []).filter(
+      (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
+    );
     if (res.stop_reason !== "tool_use" || toolUses.length === 0) {
       const text = (res.content ?? [])
         .filter((b: any) => b.type === "text")

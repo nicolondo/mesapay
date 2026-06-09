@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getClient, INSIGHTS_MODEL } from "@/lib/anthropic";
@@ -18,7 +18,10 @@ const schema = z.object({
 export async function POST(req: Request) {
   const session = await auth();
   const role = session?.user?.role;
-  if (!session?.user || (role !== "operator" && role !== "platform_admin")) {
+  if (
+    !session?.user ||
+    (role !== "operator" && role !== "platform_admin" && role !== "group_admin")
+  ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const scope = await resolveInsightsScope();
@@ -40,24 +43,25 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  // Conversación (crear o continuar)
-  let conv = parsed.data.conversationId
+  // Conversación (crear o continuar) — sólo crear si no existe aún
+  const existingConv = parsed.data.conversationId
     ? await db.aiConversation.findFirst({ where: { id: parsed.data.conversationId, restaurantId: scope.restaurantId } })
     : null;
-  if (!conv) {
-    conv = await db.aiConversation.create({
-      data: { restaurantId: scope.restaurantId, userId: session.user.id, title: parsed.data.message.slice(0, 60) },
-    });
-  }
-  await db.aiMessage.create({ data: { conversationId: conv.id, role: "user", content: parsed.data.message } });
+  const isNewConv = !existingConv;
+  const conv = existingConv ?? await db.aiConversation.create({
+    data: { restaurantId: scope.restaurantId, userId: session.user.id, title: parsed.data.message.slice(0, 60) },
+  });
 
-  // Historial reciente (últimos 20) como contexto
-  const history = await db.aiMessage.findMany({
+  // Historial previo (sin incluir el mensaje actual) — últimos 20
+  const priorHistory = await db.aiMessage.findMany({
     where: { conversationId: conv.id },
     orderBy: { createdAt: "asc" },
     take: 20,
   });
-  const messages = history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  const messages = [
+    ...priorHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    { role: "user" as const, content: parsed.data.message },
+  ];
 
   const locale = await getLocale(); // cookie MESAPAY_LOCALE (next-intl)
   const today = new Date().toISOString().slice(0, 10);
@@ -67,19 +71,35 @@ export async function POST(req: Request) {
     `(nunca inventes cifras). Sé concreto: números clave, comparaciones y 1-2 recomendaciones ` +
     `accionables. Si una pregunta no se puede responder con las herramientas, decilo.`;
 
-  const result = await runInsightsAgent({
-    client: getClient(),
-    model: INSIGHTS_MODEL,
-    system,
-    messages,
-    ctx: { scope, timezone: timezoneForCountry(r.country) },
-    executeTool,
-    tools: anthropicTools(),
-  });
+  let result;
+  try {
+    result = await runInsightsAgent({
+      client: getClient(),
+      model: INSIGHTS_MODEL,
+      system,
+      messages,
+      ctx: { scope, timezone: timezoneForCountry(r.country) },
+      executeTool,
+      tools: anthropicTools(),
+    });
+  } catch (err) {
+    console.error("[insights/chat] runInsightsAgent failed:", err);
+    // Si creamos la conversación en esta request pero el agente falló,
+    // la eliminamos para no dejar conversaciones huérfanas.
+    if (isNewConv) {
+      await db.aiConversation.delete({ where: { id: conv.id } }).catch(() => null);
+    }
+    const t = await getTranslations("insights");
+    return NextResponse.json({ error: t("error") }, { status: 500 });
+  }
 
-  await db.aiMessage.create({
-    data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as any },
-  });
+  // Éxito: persistir usuario + asistente en una transacción atómica
+  await db.$transaction([
+    db.aiMessage.create({ data: { conversationId: conv.id, role: "user", content: parsed.data.message } }),
+    db.aiMessage.create({
+      data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as any },
+    }),
+  ]);
 
   return NextResponse.json({ conversationId: conv.id, text: result.text, toolCalls: result.toolCalls });
 }

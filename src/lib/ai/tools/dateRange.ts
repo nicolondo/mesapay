@@ -2,11 +2,26 @@ import { z } from "zod";
 
 export type DateRange = { from: Date; to: Date };
 
+const rangeObjectZod = z.union([
+  z.object({ preset: z.enum(["7d", "30d", "90d", "mtd", "qtd"]) }),
+  z.object({ from: z.string(), to: z.string() }),
+]);
+
+// Claude a veces serializa el argumento anidado `range` como STRING JSON
+// (ej. '{"preset":"mtd"}') en vez de objeto. Lo toleramos: si llega string,
+// lo parseamos antes de validar. Evita que el agente entre en bucle de
+// reintentos por "input inválido".
 export const rangeInputZod = z
-  .union([
-    z.object({ preset: z.enum(["7d", "30d", "90d", "mtd", "qtd"]) }),
-    z.object({ from: z.string(), to: z.string() }),
-  ])
+  .preprocess((v) => {
+    if (typeof v === "string") {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return v;
+      }
+    }
+    return v;
+  }, rangeObjectZod)
   .default({ preset: "30d" });
 
 export const rangeJsonSchema = {

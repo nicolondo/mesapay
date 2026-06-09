@@ -687,6 +687,7 @@
     "navClose": "Cierre",
     "navWallet": "Wallet",
     "navSettings": "Configuración",
+    "navInsights": "Pulso",
     "roleLabel": "Operador · {name}",
     "noRestaurant": "Sin restaurante",
     "adminLink": "Admin →",
@@ -2816,5 +2817,18 @@
     "saving": "Guardando…",
     "saved": "Guardado.",
     "saveFailed": "No se pudo guardar."
+  },
+  "insights": {
+    "title": "Pulso",
+    "subtitle": "Preguntale a tus datos sobre tu negocio.",
+    "placeholder": "Escribí tu pregunta…",
+    "send": "Enviar",
+    "thinking": "Analizando tus datos…",
+    "error": "Algo salió mal. Probá de nuevo.",
+    "limitReached": "Alcanzaste el límite de preguntas de hoy.",
+    "disabled": "El asistente Pulso no está habilitado para este comercio.",
+    "sug1": "¿Cuáles son mis platos más vendidos este mes?",
+    "sug2": "¿Qué platos casi no se venden?",
+    "sug3": "Mostrame mis platos top por ingreso"
   }
 }

@@ -228,6 +228,7 @@ export default async function OperatorLayout({
           { href: "/operator/reports", label: t("navClose") },
           { href: "/operator/wallet", label: t("navWallet") },
           { href: "/operator/settings", label: t("navSettings") },
+          { href: "/operator/insights", label: t("navInsights") },
         ];
         // The signOut server-action gets rendered twice (desktop link +
         // mobile drawer button) so we declare it once and reuse the

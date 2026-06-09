@@ -88,6 +88,14 @@ model Restaurant {
   // —tarjeta, PSE, Apple Pay y el datáfono cloud— y si se usa el provider
   // mock o el real. Editable por comercio desde /admin/restaurants/[id]/pagos.
   kushkiMode             String?
+  // Pulso (asistente de IA): override por comercio del gating por plan.
+  // null = según plan (trial/pro habilitados, basic no). true/false = forzar.
+  aiInsightsEnabled    Boolean?
+  // Límite de mensajes/día del asistente para este comercio. null = usar el
+  // default global de PlatformConfig.aiDailyMessageLimit.
+  aiDailyMessageLimit  Int?
+  // Relaciones de Pulso
+  aiConversations      AiConversation[]
   kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
   kushkiOnboardingNotes  String?
   kushkiSubmittedAt      DateTime?
@@ -365,6 +373,9 @@ model PlatformConfig {
   kushkiMode  String   @default("mock")
   updatedAt   DateTime @updatedAt
   updatedById String?
+  // Default global de mensajes/día del asistente Pulso (override por comercio
+  // en Restaurant.aiDailyMessageLimit).
+  aiDailyMessageLimit Int @default(50)
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints
@@ -1378,4 +1389,31 @@ model Translation {
 
   @@unique([entityType, entityId, field, locale])
   @@index([entityType, entityId])
+}
+
+model AiConversation {
+  id           String      @id @default(cuid())
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  groupId      String?
+  userId       String
+  title        String      @default("Nueva conversación")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  messages     AiMessage[]
+
+  @@index([restaurantId, userId])
+  @@index([groupId, userId])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // "user" | "assistant"
+  content        String
+  toolCalls      Json?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
 }

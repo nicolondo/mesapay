@@ -687,6 +687,7 @@
     "navClose": "Close-out",
     "navWallet": "Wallet",
     "navSettings": "Settings",
+    "navInsights": "Pulso",
     "roleLabel": "Operator · {name}",
     "noRestaurant": "No restaurant",
     "adminLink": "Admin →",
@@ -2804,5 +2805,31 @@
     "methodCash": "Cash",
     "methodDemoCard": "Card (demo)",
     "methodNequi": "Nequi"
+  },
+  "opAdminAi": {
+    "title": "Pulso Assistant",
+    "enabledLabel": "Assistant status",
+    "optInherit": "Inherit from plan",
+    "optOn": "Force enabled",
+    "optOff": "Force disabled",
+    "limitLabel": "Daily message limit",
+    "limitPlaceholder": "Global default",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "saveFailed": "Could not save."
+  },
+  "insights": {
+    "title": "Pulso",
+    "subtitle": "Ask your data about your business.",
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "thinking": "Analyzing your data…",
+    "error": "Something went wrong. Please try again.",
+    "limitReached": "You've reached today's question limit.",
+    "disabled": "The Pulso assistant is not enabled for this business.",
+    "sug1": "What are my best-selling dishes this month?",
+    "sug2": "Which dishes barely sell?",
+    "sug3": "Show me my top dishes by revenue"
   }
 }

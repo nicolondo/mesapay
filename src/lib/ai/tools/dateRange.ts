@@ -1,4 +1,21 @@
+import { z } from "zod";
+
 export type DateRange = { from: Date; to: Date };
+
+export const rangeInputZod = z
+  .union([
+    z.object({ preset: z.enum(["7d", "30d", "90d", "mtd", "qtd"]) }),
+    z.object({ from: z.string(), to: z.string() }),
+  ])
+  .default({ preset: "30d" });
+
+export const rangeJsonSchema = {
+  description: "Rango de fechas. Default últimos 30 días.",
+  oneOf: [
+    { type: "object", properties: { preset: { enum: ["7d", "30d", "90d", "mtd", "qtd"] } }, required: ["preset"] },
+    { type: "object", properties: { from: { type: "string" }, to: { type: "string" } }, required: ["from", "to"] },
+  ],
+} as const;
 export type RangeInput =
   | { preset: "7d" | "30d" | "90d" | "mtd" | "qtd" }
   | { from: string; to: string };

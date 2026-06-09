@@ -1,0 +1,21 @@
+# robots.txt — MESAPAY
+# Permitimos el rastreo (incluidos los crawlers de vistas previas de redes
+# sociales / Open Graph) y mantenemos fuera las zonas privadas y de API.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /operator/
+Disallow: /admin/
+Disallow: /group/
+
+# Crawlers de Meta / Facebook / Instagram / WhatsApp para previews (Open Graph).
+# Allowlist explícito recomendado por el depurador de Facebook.
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: facebookcatalog
+Allow: /

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3300",
     "lint": "eslint",
+    "test": "vitest run",
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
@@ -47,6 +48,7 @@
     "eslint-plugin-i18next": "^6.1.4",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.6"
   }
 }

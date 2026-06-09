@@ -96,6 +96,7 @@ model Restaurant {
   aiDailyMessageLimit  Int?
   // Relaciones de Pulso
   aiConversations      AiConversation[]
+  searchEvents         SearchEvent[]
   kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
   kushkiOnboardingNotes  String?
   kushkiSubmittedAt      DateTime?
@@ -1416,4 +1417,19 @@ model AiMessage {
   createdAt      DateTime       @default(now())
 
   @@index([conversationId, createdAt])
+}
+
+model SearchEvent {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  term         String
+  rawTerm      String
+  resultCount  Int
+  hadResults   Boolean
+  locale       String?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, term])
 }

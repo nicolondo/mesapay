@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
@@ -251,6 +251,10 @@ export function MenuClient({
 }) {
   const router = useRouter();
   const tMenu = useTranslations("menu");
+  // Idioma activo del comensal (cookie MESAPAY_LOCALE) — lo adjuntamos al
+  // beacon de captura de búsquedas para que Pulso pueda segmentar términos
+  // por idioma. Es solo telemetría; no afecta el render.
+  const locale = useLocale();
   // Active top-level menu tab. Hidden entirely when there's only one
   // menu (default case). Falls back to first menu id if anything is off.
   const [activeMenuId, setActiveMenuId] = useState<string>(
@@ -547,6 +551,48 @@ export function MenuClient({
   const visibleCount = searching
     ? Array.from(itemsByCat.values()).reduce((s, arr) => s + arr.length, 0)
     : 0;
+
+  // Captura de búsquedas del comensal para la herramienta `top_searches`
+  // de Pulso. Fire-and-forget con debounce: cuando el comensal pausa de
+  // escribir (≥2 chars) mandamos el término normalizado del lado servidor,
+  // el conteo de resultados que está viendo y su idioma. No bloquea ni
+  // altera el comportamiento de búsqueda — cualquier fallo se traga en
+  // silencio para nunca romper la carta.
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) return;
+    const id = setTimeout(() => {
+      const url = `/api/tenant/${tenant.slug}/search-log`;
+      const payload = JSON.stringify({
+        term,
+        resultCount: visibleCount,
+        locale,
+      });
+      try {
+        if (
+          typeof navigator !== "undefined" &&
+          typeof navigator.sendBeacon === "function"
+        ) {
+          navigator.sendBeacon(
+            url,
+            new Blob([payload], { type: "application/json" }),
+          );
+        } else {
+          // sendBeacon ausente (algunos navegadores viejos / entornos):
+          // fetch con keepalive sobrevive a la navegación igual que el beacon.
+          fetch(url, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch {
+        // best-effort: nunca rompemos la búsqueda del comensal
+      }
+    }, 800);
+    return () => clearTimeout(id);
+  }, [query, visibleCount, tenant.slug, locale]);
 
   // Flat ordered list of currently-visible items, used by the detail
   // sheet for swipe navigation (left = next, right = prev). The order

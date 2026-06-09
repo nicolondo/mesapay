@@ -2830,6 +2830,9 @@
     "disabled": "The Pulso assistant is not enabled for this business.",
     "sug1": "What are my best-selling dishes this month?",
     "sug2": "Which dishes barely sell?",
-    "sug3": "Show me my top dishes by revenue"
+    "sug3": "Show me my top dishes by revenue",
+    "sug4": "What days and hours do I get the most traffic?",
+    "sug5": "Who is my best waiter this month?",
+    "sug6": "When does the kitchen get overwhelmed?"
   }
 }

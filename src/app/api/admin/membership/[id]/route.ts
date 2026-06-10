@@ -6,6 +6,10 @@ import { db } from "@/lib/db";
 import { extendOneMonth } from "@/lib/membership";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { fmtCOP } from "@/lib/format";
+import {
+  resolveCommissionBps,
+  commissionAmountCents,
+} from "@/lib/commissions";
 
 const planSchema = z.object({
   action: z.literal("set_plan"),
@@ -265,43 +269,112 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  // record_payment
+  // record_payment — TypeScript puede perder la narrowing al llegar aquí por
+  // fall-through; las propiedades específicas del discriminant las extraemos
+  // con un cast seguro al tipo conocido.
+  const paymentData = parsed.data as {
+    action: "record_payment";
+    amountCents: number;
+    method: "manual_cash" | "manual_transfer" | "wompi";
+    note?: string;
+  };
   const { periodStart, periodEnd } = extendOneMonth(rest.periodEndsAt ?? null);
-  const [created] = await db.$transaction([
-    db.membershipPayment.create({
+  const { amountCents } = paymentData;
+
+  // Resolver comisión si el restaurante tiene un comercial asignado.
+  let commissionRepId: string | null = null;
+  let commissionBps = 0;
+  let commissionAmt = 0;
+
+  if (rest.salesRepUserId && amountCents > 0) {
+    const [rep, platformCfg] = await Promise.all([
+      db.user.findUnique({
+        where: { id: rest.salesRepUserId },
+        select: { commissionBps: true, role: true },
+      }),
+      db.platformConfig.findUnique({
+        where: { id: "singleton" },
+        select: { salesCommissionBps: true },
+      }),
+    ]);
+
+    const platformBps = platformCfg?.salesCommissionBps ?? 1000;
+    commissionRepId = rest.salesRepUserId;
+    commissionBps = resolveCommissionBps({
+      restaurantBps: rest.salesRepCommissionBps,
+      repBps: rep?.commissionBps ?? null,
+      platformBps,
+    });
+    commissionAmt = commissionAmountCents(amountCents, commissionBps);
+  }
+
+  // Transacción interactiva para poder usar el id del pago creado.
+  const { payment, commissionEntry } = await db.$transaction(async (tx) => {
+    const payment = await tx.membershipPayment.create({
       data: {
         restaurantId: id,
-        amountCents: parsed.data.amountCents,
-        method: parsed.data.method,
-        note: parsed.data.note ?? null,
+        amountCents,
+        method: paymentData.method,
+        note: paymentData.note ?? null,
         periodStart,
         periodEnd,
         recordedByEmail: session.user.email,
       },
-    }),
-    db.restaurant.update({
+    });
+
+    await tx.restaurant.update({
       where: { id },
       data: {
         periodEndsAt: periodEnd,
         // Auto-unsuspend on fresh payment.
         suspended: false,
       },
-    }),
-  ]);
+    });
+
+    // Crear CommissionEntry si hay comercial y monto > 0.
+    let commissionEntry = null;
+    if (commissionRepId && commissionAmt > 0) {
+      commissionEntry = await tx.commissionEntry.create({
+        data: {
+          salesRepUserId: commissionRepId,
+          restaurantId: id,
+          membershipPaymentId: payment.id,
+          baseAmountCents: amountCents,
+          bps: commissionBps,
+          amountCents: commissionAmt,
+          status: "pending",
+        },
+      });
+    }
+
+    return { payment, commissionEntry };
+  });
+
+  // Auditoría del pago.
   await recordAuditEvent({
     kind: "membership.payment.record",
     restaurantId: id,
-    target: { type: "membership_payment", id: created.id },
-    summary: `Registró pago de ${fmtCOP(parsed.data.amountCents)} (${parsed.data.method})${parsed.data.note ? ` — ${parsed.data.note}` : ""}`,
+    target: { type: "membership_payment", id: payment.id },
+    summary: `Registró pago de ${fmtCOP(amountCents)} (${paymentData.method})${paymentData.note ? ` — ${paymentData.note}` : ""}`,
     diff: {
       after: {
-        amountCents: parsed.data.amountCents,
-        method: parsed.data.method,
+        amountCents,
+        method: paymentData.method,
         periodStart,
         periodEnd,
       },
     },
   });
+
+  // Auditoría de la comisión acumulada.
+  if (commissionEntry) {
+    await recordAuditEvent({
+      kind: "commission.accrue",
+      restaurantId: id,
+      target: { type: "commission_entry", id: commissionEntry.id },
+      summary: `Comisión ${fmtCOP(commissionEntry.amountCents)} (bps ${commissionBps}) para comercial por pago ${fmtCOP(amountCents)}`,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

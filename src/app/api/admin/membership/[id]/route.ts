@@ -281,74 +281,84 @@ export async function POST(
   const { periodStart, periodEnd } = extendOneMonth(rest.periodEndsAt ?? null);
   const { amountCents } = paymentData;
 
-  // Resolver comisión si el restaurante tiene un comercial asignado.
-  let commissionRepId: string | null = null;
-  let commissionBps = 0;
-  let commissionAmt = 0;
+  // Transacción interactiva — la resolución de comisión ocurre DENTRO de la
+  // transacción para evitar una ventana TOCTOU entre la lectura inicial del
+  // restaurant y la creación del CommissionEntry.
+  const { payment, commissionEntry, commissionBps } =
+    await db.$transaction(async (tx) => {
+      // Re-leer el restaurant dentro de la transacción para obtener los valores
+      // frescos de salesRepUserId y salesRepCommissionBps.
+      const freshRest = await tx.restaurant.findUnique({
+        where: { id },
+        select: { salesRepUserId: true, salesRepCommissionBps: true },
+      });
 
-  if (rest.salesRepUserId && amountCents > 0) {
-    const [rep, platformCfg] = await Promise.all([
-      db.user.findUnique({
-        where: { id: rest.salesRepUserId },
-        select: { commissionBps: true, role: true },
-      }),
-      db.platformConfig.findUnique({
-        where: { id: "singleton" },
-        select: { salesCommissionBps: true },
-      }),
-    ]);
+      // Resolver comisión si el restaurante tiene un comercial asignado.
+      let commissionRepId: string | null = null;
+      let commissionBps = 0;
+      let commissionAmt = 0;
 
-    const platformBps = platformCfg?.salesCommissionBps ?? 1000;
-    commissionRepId = rest.salesRepUserId;
-    commissionBps = resolveCommissionBps({
-      restaurantBps: rest.salesRepCommissionBps,
-      repBps: rep?.commissionBps ?? null,
-      platformBps,
-    });
-    commissionAmt = commissionAmountCents(amountCents, commissionBps);
-  }
+      if (freshRest?.salesRepUserId && amountCents > 0) {
+        const [rep, platformCfg] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: freshRest.salesRepUserId },
+            select: { commissionBps: true, role: true },
+          }),
+          tx.platformConfig.findUnique({
+            where: { id: "singleton" },
+            select: { salesCommissionBps: true },
+          }),
+        ]);
 
-  // Transacción interactiva para poder usar el id del pago creado.
-  const { payment, commissionEntry } = await db.$transaction(async (tx) => {
-    const payment = await tx.membershipPayment.create({
-      data: {
-        restaurantId: id,
-        amountCents,
-        method: paymentData.method,
-        note: paymentData.note ?? null,
-        periodStart,
-        periodEnd,
-        recordedByEmail: session.user.email,
-      },
-    });
+        const platformBps = platformCfg?.salesCommissionBps ?? 1000;
+        commissionRepId = freshRest.salesRepUserId;
+        commissionBps = resolveCommissionBps({
+          restaurantBps: freshRest.salesRepCommissionBps,
+          repBps: rep?.commissionBps ?? null,
+          platformBps,
+        });
+        commissionAmt = commissionAmountCents(amountCents, commissionBps);
+      }
 
-    await tx.restaurant.update({
-      where: { id },
-      data: {
-        periodEndsAt: periodEnd,
-        // Auto-unsuspend on fresh payment.
-        suspended: false,
-      },
-    });
-
-    // Crear CommissionEntry si hay comercial y monto > 0.
-    let commissionEntry = null;
-    if (commissionRepId && commissionAmt > 0) {
-      commissionEntry = await tx.commissionEntry.create({
+      const payment = await tx.membershipPayment.create({
         data: {
-          salesRepUserId: commissionRepId,
           restaurantId: id,
-          membershipPaymentId: payment.id,
-          baseAmountCents: amountCents,
-          bps: commissionBps,
-          amountCents: commissionAmt,
-          status: "pending",
+          amountCents,
+          method: paymentData.method,
+          note: paymentData.note ?? null,
+          periodStart,
+          periodEnd,
+          recordedByEmail: session.user.email,
         },
       });
-    }
 
-    return { payment, commissionEntry };
-  });
+      await tx.restaurant.update({
+        where: { id },
+        data: {
+          periodEndsAt: periodEnd,
+          // Auto-unsuspend on fresh payment.
+          suspended: false,
+        },
+      });
+
+      // Crear CommissionEntry si hay comercial y monto > 0.
+      let commissionEntry = null;
+      if (commissionRepId && commissionAmt > 0) {
+        commissionEntry = await tx.commissionEntry.create({
+          data: {
+            salesRepUserId: commissionRepId,
+            restaurantId: id,
+            membershipPaymentId: payment.id,
+            baseAmountCents: amountCents,
+            bps: commissionBps,
+            amountCents: commissionAmt,
+            status: "pending",
+          },
+        });
+      }
+
+      return { payment, commissionEntry, commissionBps };
+    });
 
   // Auditoría del pago.
   await recordAuditEvent({

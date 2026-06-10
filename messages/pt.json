@@ -2912,6 +2912,18 @@
     "actionFailed": "Não foi possível concluir a ação.",
     "loading": "Carregando…",
     "empty": "Nenhuma comissão corresponde aos filtros atuais.",
-    "navComisiones": "Comissões"
+    "navComisiones": "Comissões",
+    "newRepTitle": "Novo vendedor",
+    "newRepCreate": "Adicionar vendedor",
+    "newRepClose": "Cancelar",
+    "newRepSave": "Criar",
+    "newRepSaving": "Criando…",
+    "newRepOk": "Vendedor criado com sucesso.",
+    "newRepErrEmailTaken": "Esse e-mail já está cadastrado.",
+    "newRepErrCreate": "Não foi possível criar o vendedor.",
+    "newRepFieldEmail": "E-mail",
+    "newRepFieldName": "Nome",
+    "newRepFieldPassword": "Senha",
+    "newRepFieldBps": "% comissão padrão (opcional)"
   }
 }

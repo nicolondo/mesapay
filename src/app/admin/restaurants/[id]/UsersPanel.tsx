@@ -172,7 +172,7 @@ export function UsersPanel({
                 <option value="kitchen">{t("roleKitchenOption")}</option>
                 <option value="bar">{t("roleBarOption")}</option>
                 <option value="terminal">{t("roleTerminalOption")}</option>
-                <option value="comercial">{t("roleComercialOption")}</option>
+                {/* comercial is a global role — created from /admin/comisiones */}
               </select>
             </label>
           </div>

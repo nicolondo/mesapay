@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { fmtBogotaDateTime } from "@/lib/bogota";
 
 type Rep = { id: string; name: string | null; email: string };
 
@@ -29,16 +31,58 @@ type ApiResponse = {
 };
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "America/Bogota",
-  });
+  return fmtBogotaDateTime(new Date(iso)).date;
 }
 
 export function CommissionsClient({ comerciales }: { comerciales: Rep[] }) {
   const t = useTranslations("opAdminCommissions");
+  const router = useRouter();
+  const [, startTx] = useTransition();
+
+  // ── Nuevo comercial form ───────────────────────────────────────────────────
+  const [showNewRep, setShowNewRep] = useState(false);
+  const [repEmail, setRepEmail] = useState("");
+  const [repName, setRepName] = useState("");
+  const [repPassword, setRepPassword] = useState("");
+  const [repBps, setRepBps] = useState("");
+  const [repBusy, setRepBusy] = useState(false);
+  const [repErr, setRepErr] = useState<string | null>(null);
+  const [repOk, setRepOk] = useState(false);
+
+  async function createComercial() {
+    setRepBusy(true);
+    setRepErr(null);
+    setRepOk(false);
+    const bpsNum = repBps.trim() !== "" ? Math.round(parseFloat(repBps) * 100) : undefined;
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: repEmail.trim(),
+        name: repName.trim() || undefined,
+        password: repPassword,
+        role: "comercial",
+        ...(bpsNum !== undefined ? { commissionBps: bpsNum } : {}),
+      }),
+    });
+    setRepBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})) as { error?: string };
+      switch (j.error) {
+        case "email_taken": setRepErr(t("newRepErrEmailTaken")); break;
+        default: setRepErr(j.error ?? t("newRepErrCreate")); break;
+      }
+      return;
+    }
+    setRepEmail("");
+    setRepName("");
+    setRepPassword("");
+    setRepBps("");
+    setRepOk(true);
+    setShowNewRep(false);
+    startTx(() => router.refresh());
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   const [status, setStatus] = useState("");
   const [repId, setRepId] = useState("");
@@ -142,6 +186,46 @@ export function CommissionsClient({ comerciales }: { comerciales: Rep[] }) {
 
   return (
     <div>
+      {/* Nuevo comercial */}
+      <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+            {t("newRepTitle")}
+          </div>
+          <button
+            type="button"
+            onClick={() => { setShowNewRep((v) => !v); setRepErr(null); setRepOk(false); }}
+            className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium"
+          >
+            {showNewRep ? t("newRepClose") : t("newRepCreate")}
+          </button>
+        </div>
+        {repOk && (
+          <div className="text-sm text-ok mb-2">{t("newRepOk")}</div>
+        )}
+        {showNewRep && (
+          <div className="pt-3 border-t border-op-border space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <RepField label={t("newRepFieldEmail")} value={repEmail} onChange={setRepEmail} type="email" />
+              <RepField label={t("newRepFieldName")} value={repName} onChange={setRepName} />
+              <RepField label={t("newRepFieldPassword")} value={repPassword} onChange={setRepPassword} type="password" />
+              <RepField label={t("newRepFieldBps")} value={repBps} onChange={setRepBps} type="number" />
+            </div>
+            {repErr && <div className="text-danger text-sm">{repErr}</div>}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={createComercial}
+                disabled={repBusy || !repEmail.trim() || repPassword.length < 8}
+                className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+              >
+                {repBusy ? t("newRepSaving") : t("newRepSave")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
         <div>
@@ -318,6 +402,32 @@ export function CommissionsClient({ comerciales }: { comerciales: Rep[] }) {
         )}
       </div>
     </div>
+  );
+}
+
+function RepField({
+  label,
+  value,
+  onChange,
+  type,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+        {label}
+      </span>
+      <input
+        type={type ?? "text"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
+      />
+    </label>
   );
 }
 

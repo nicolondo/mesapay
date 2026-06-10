@@ -2912,6 +2912,18 @@
     "actionFailed": "No se pudo completar la acción.",
     "loading": "Cargando…",
     "empty": "No hay comisiones con los filtros actuales.",
-    "navComisiones": "Comisiones"
+    "navComisiones": "Comisiones",
+    "newRepTitle": "Nuevo comercial",
+    "newRepCreate": "Crear comercial",
+    "newRepClose": "Cancelar",
+    "newRepSave": "Crear",
+    "newRepSaving": "Creando…",
+    "newRepOk": "Comercial creado correctamente.",
+    "newRepErrEmailTaken": "Ese email ya está registrado.",
+    "newRepErrCreate": "No se pudo crear el comercial.",
+    "newRepFieldEmail": "Email",
+    "newRepFieldName": "Nombre",
+    "newRepFieldPassword": "Contraseña",
+    "newRepFieldBps": "% comisión por defecto (opcional)"
   }
 }

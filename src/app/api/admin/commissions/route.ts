@@ -123,10 +123,12 @@ export async function POST(req: Request) {
     const totalCents = entries.reduce((s, e) => s + e.amountCents, 0);
     const summary = `Marcó ${result.count} comisión(es) como pagadas · total ${fmtCOP(totalCents)}${paidNote ? ` · nota: ${paidNote}` : ""}`;
 
+    const affectedIds = entries.map((e) => e.id);
     await recordAuditEvent({
       kind: "commission.mark_paid",
       restaurantId: null,
       summary,
+      diff: { after: { ids: affectedIds } },
     });
 
     return NextResponse.json({ ok: true, updated: result.count });
@@ -148,10 +150,12 @@ export async function POST(req: Request) {
   const totalCents = entries.reduce((s, e) => s + e.amountCents, 0);
   const summary = `Reversó ${result.count} comisión(es) · total ${fmtCOP(totalCents)}`;
 
+  const reversedIds = entries.map((e) => e.id);
   await recordAuditEvent({
     kind: "commission.reverse",
     restaurantId: null,
     summary,
+    diff: { after: { ids: reversedIds } },
   });
 
   return NextResponse.json({ ok: true, updated: result.count });

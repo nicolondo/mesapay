@@ -2912,6 +2912,18 @@
     "actionFailed": "Action could not be completed.",
     "loading": "Loading…",
     "empty": "No commissions match the current filters.",
-    "navComisiones": "Commissions"
+    "navComisiones": "Commissions",
+    "newRepTitle": "New sales rep",
+    "newRepCreate": "Add sales rep",
+    "newRepClose": "Cancel",
+    "newRepSave": "Create",
+    "newRepSaving": "Creating…",
+    "newRepOk": "Sales rep created successfully.",
+    "newRepErrEmailTaken": "That email is already registered.",
+    "newRepErrCreate": "Could not create the sales rep.",
+    "newRepFieldEmail": "Email",
+    "newRepFieldName": "Name",
+    "newRepFieldPassword": "Password",
+    "newRepFieldBps": "Default commission % (optional)"
   }
 }

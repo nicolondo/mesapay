@@ -26,6 +26,7 @@ import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
 import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AdminAiConfig } from "./AdminAiConfig";
+import { AdminSalesRep } from "./AdminSalesRep";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export default async function RestaurantDetail({
     manual_transfer: t("methodTransfer"),
     wompi: t("methodWompi"),
   };
-  const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog, allGroups, currentLegalEntity] =
+  const [rest, operators, counts, lastOrder, firstOrder, payments, planCatalog, allGroups, currentLegalEntity, comerciales, platformConfig] =
     await Promise.all([
       db.restaurant.findUnique({ where: { id } }),
       db.user.findMany({
@@ -104,6 +105,17 @@ export default async function RestaurantDetail({
           select: { name: true },
         });
       })(),
+      // List of users with role=comercial for the sales rep selector.
+      db.user.findMany({
+        where: { role: "comercial" },
+        select: { id: true, name: true, email: true, commissionBps: true },
+        orderBy: { name: "asc" },
+      }),
+      // Platform default commission bps.
+      db.platformConfig.findUnique({
+        where: { id: "singleton" },
+        select: { salesCommissionBps: true },
+      }),
     ]);
 
   if (!rest) notFound();
@@ -312,6 +324,19 @@ export default async function RestaurantDetail({
           }}
         />
       </div>
+
+      <AdminSalesRep
+        restaurantId={id}
+        comerciales={comerciales}
+        initialSalesRepUserId={rest.salesRepUserId}
+        initialSalesRepCommissionBps={rest.salesRepCommissionBps}
+        platformDefaultBps={platformConfig?.salesCommissionBps ?? 1000}
+        repDefaultBps={
+          rest.salesRepUserId
+            ? (comerciales.find((c) => c.id === rest.salesRepUserId)?.commissionBps ?? null)
+            : null
+        }
+      />
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="flex items-center justify-between gap-3">

@@ -2378,6 +2378,8 @@
     "roleKitchenOption": "Cozinha — apenas o painel da cozinha, sem nav",
     "roleBarOption": "Bar — apenas o painel do bar, sem nav",
     "roleTerminalOption": "Maquininha — grade de mesas para cobrar com Smart POS",
+    "roleComercial": "Comercial",
+    "roleComercialOption": "Comercial — vendedor externo com portal de comissões",
     "creating": "Criando…",
     "createUser": "Criar usuário",
     "userSigninHint": "O usuário poderá iniciar sessão em /signin com estes dados.",

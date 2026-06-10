@@ -15,8 +15,9 @@ const schema = z.object({
     "kitchen",
     "bar",
     "platform_admin",
+    "comercial",
   ]),
-  // Required for operator + terminal; ignored for platform_admin.
+  // Required for operator + terminal; ignored for platform_admin and comercial.
   restaurantId: z.string().min(1).optional(),
 });
 
@@ -45,7 +46,9 @@ export async function POST(req: Request) {
 
   const { email, name, password, role, restaurantId } = parsed.data;
 
-  if (role !== "platform_admin") {
+  // platform_admin and comercial are global roles — no restaurant required.
+  const isGlobalRole = role === "platform_admin" || role === "comercial";
+  if (!isGlobalRole) {
     if (!restaurantId) {
       return NextResponse.json(
         { error: "restaurant_required" },
@@ -70,7 +73,7 @@ export async function POST(req: Request) {
       name: name ?? null,
       passwordHash,
       role,
-      restaurantId: role === "platform_admin" ? null : restaurantId!,
+      restaurantId: isGlobalRole ? null : restaurantId!,
     },
     select: {
       id: true,

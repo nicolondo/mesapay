@@ -2378,6 +2378,8 @@
     "roleKitchenOption": "Cocina — solo el tablero de cocina, sin nav",
     "roleBarOption": "Bar — solo el tablero del bar, sin nav",
     "roleTerminalOption": "Datáfono — grilla de mesas para cobrar con Smart POS",
+    "roleComercial": "Comercial",
+    "roleComercialOption": "Comercial — vendedor externo con portal de comisiones",
     "creating": "Creando…",
     "createUser": "Crear usuario",
     "userSigninHint": "El usuario podrá iniciar sesión en /signin con estos datos.",

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
-type Role = "operator" | "terminal" | "mesero" | "kitchen" | "bar";
+type Role = "operator" | "terminal" | "mesero" | "kitchen" | "bar" | "comercial";
 type User = {
   id: string;
   email: string;
@@ -19,6 +19,7 @@ const ROLE_TINT: Record<Role, string> = {
   mesero: "bg-[#2E6B4C]/15 text-[#1E5339]",
   kitchen: "bg-[#C98A2E]/15 text-[#8F6828]",
   bar: "bg-[#7C4A8A]/15 text-[#5C3568]",
+  comercial: "bg-[#1A5FAD]/15 text-[#1A5FAD]",
 };
 
 export function UsersPanel({
@@ -35,6 +36,7 @@ export function UsersPanel({
     mesero: t("roleMesero"),
     kitchen: t("roleKitchen"),
     bar: t("roleBar"),
+    comercial: t("roleComercial"),
   };
   const router = useRouter();
   const [, startTx] = useTransition();
@@ -44,6 +46,9 @@ export function UsersPanel({
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("operator");
+  // comercial users are global (no restaurant). We still pass restaurantId
+  // in the body but the API ignores it for global roles.
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -167,6 +172,7 @@ export function UsersPanel({
                 <option value="kitchen">{t("roleKitchenOption")}</option>
                 <option value="bar">{t("roleBarOption")}</option>
                 <option value="terminal">{t("roleTerminalOption")}</option>
+                <option value="comercial">{t("roleComercialOption")}</option>
               </select>
             </label>
           </div>

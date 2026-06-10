@@ -2378,6 +2378,8 @@
     "roleKitchenOption": "Kitchen — kitchen board only, no nav",
     "roleBarOption": "Bar — bar board only, no nav",
     "roleTerminalOption": "Card reader — table grid to charge with a Smart POS",
+    "roleComercial": "Sales rep",
+    "roleComercialOption": "Sales rep — external seller with a commissions portal",
     "creating": "Creating…",
     "createUser": "Create user",
     "userSigninHint": "The user will be able to sign in at /signin with these credentials.",

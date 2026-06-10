@@ -254,8 +254,15 @@ model Restaurant {
   simpleInvoices      SimpleInvoice[]
   shifts              Shift[]
 
+  // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
+  salesRepUserId        String?
+  salesRep              User?             @relation("RestaurantSalesRep", fields: [salesRepUserId], references: [id], onDelete: SetNull)
+  salesRepCommissionBps Int?
+  commissionEntries     CommissionEntry[]
+
   @@index([slug])
   @@index([groupId])
+  @@index([salesRepUserId])
 }
 
 /// Grupo de restaurantes — agrupa N locales bajo un mismo dueño/cadena.
@@ -377,6 +384,8 @@ model PlatformConfig {
   // Default global de mensajes/día del asistente Pulso (override por comercio
   // en Restaurant.aiDailyMessageLimit).
   aiDailyMessageLimit Int @default(50)
+  // Default global de comisión en basis points; override por comercial y por comercio.
+  salesCommissionBps  Int @default(1000)
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints
@@ -433,7 +442,30 @@ model MembershipPayment {
   recordedByEmail String
   createdAt       DateTime         @default(now())
 
+  commissionEntry CommissionEntry?
+
   @@index([restaurantId, createdAt])
+}
+
+model CommissionEntry {
+  id                  String            @id @default(cuid())
+  salesRepUserId      String
+  salesRep            User              @relation(fields: [salesRepUserId], references: [id], onDelete: Cascade)
+  restaurantId        String
+  restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  membershipPaymentId String            @unique
+  membershipPayment   MembershipPayment @relation(fields: [membershipPaymentId], references: [id], onDelete: Cascade)
+  baseAmountCents     Int
+  bps                 Int
+  amountCents         Int
+  status              CommissionStatus  @default(pending)
+  createdAt           DateTime          @default(now())
+  paidAt              DateTime?
+  paidNote            String?
+
+  @@index([salesRepUserId, createdAt])
+  @@index([restaurantId])
+  @@index([status])
 }
 
 enum Role {
@@ -456,6 +488,15 @@ enum Role {
   // restaurante del grupo. Scoped al grupo: NO ve restaurantes
   // ajenos. Distinto a platform_admin (que ve todo MESAPAY).
   group_admin
+  // Sales rep que trae restaurantes y cobra comisión recurrente;
+  // su portal es /comercial.
+  comercial
+}
+
+enum CommissionStatus {
+  pending
+  paid
+  reversed
 }
 
 model User {
@@ -502,6 +543,11 @@ model User {
   paymentsCollected Payment[] @relation("PaymentsCollected")
 
   pushSubscriptions PushSubscription[]
+
+  // Comisiones comerciales
+  commissionBps       Int?
+  referredRestaurants Restaurant[]      @relation("RestaurantSalesRep")
+  commissionEntries   CommissionEntry[]
 
   @@index([restaurantId])
   @@index([groupId])

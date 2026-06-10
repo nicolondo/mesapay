@@ -6,6 +6,10 @@ import { db } from "@/lib/db";
 import { extendOneMonth } from "@/lib/membership";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { fmtCOP } from "@/lib/format";
+import {
+  resolveCommissionBps,
+  commissionAmountCents,
+} from "@/lib/commissions";
 
 const planSchema = z.object({
   action: z.literal("set_plan"),
@@ -265,43 +269,122 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  // record_payment
+  // record_payment — TypeScript puede perder la narrowing al llegar aquí por
+  // fall-through; las propiedades específicas del discriminant las extraemos
+  // con un cast seguro al tipo conocido.
+  const paymentData = parsed.data as {
+    action: "record_payment";
+    amountCents: number;
+    method: "manual_cash" | "manual_transfer" | "wompi";
+    note?: string;
+  };
   const { periodStart, periodEnd } = extendOneMonth(rest.periodEndsAt ?? null);
-  const [created] = await db.$transaction([
-    db.membershipPayment.create({
-      data: {
-        restaurantId: id,
-        amountCents: parsed.data.amountCents,
-        method: parsed.data.method,
-        note: parsed.data.note ?? null,
-        periodStart,
-        periodEnd,
-        recordedByEmail: session.user.email,
-      },
-    }),
-    db.restaurant.update({
-      where: { id },
-      data: {
-        periodEndsAt: periodEnd,
-        // Auto-unsuspend on fresh payment.
-        suspended: false,
-      },
-    }),
-  ]);
+  const { amountCents } = paymentData;
+
+  // Transacción interactiva — la resolución de comisión ocurre DENTRO de la
+  // transacción para evitar una ventana TOCTOU entre la lectura inicial del
+  // restaurant y la creación del CommissionEntry.
+  const { payment, commissionEntry, commissionBps } =
+    await db.$transaction(async (tx) => {
+      // Re-leer el restaurant dentro de la transacción para obtener los valores
+      // frescos de salesRepUserId y salesRepCommissionBps.
+      const freshRest = await tx.restaurant.findUnique({
+        where: { id },
+        select: { salesRepUserId: true, salesRepCommissionBps: true },
+      });
+
+      // Resolver comisión si el restaurante tiene un comercial asignado.
+      let commissionRepId: string | null = null;
+      let commissionBps = 0;
+      let commissionAmt = 0;
+
+      if (freshRest?.salesRepUserId && amountCents > 0) {
+        const [rep, platformCfg] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: freshRest.salesRepUserId },
+            select: { commissionBps: true, role: true },
+          }),
+          tx.platformConfig.findUnique({
+            where: { id: "singleton" },
+            select: { salesCommissionBps: true },
+          }),
+        ]);
+
+        const platformBps = platformCfg?.salesCommissionBps ?? 1000;
+        commissionRepId = freshRest.salesRepUserId;
+        commissionBps = resolveCommissionBps({
+          restaurantBps: freshRest.salesRepCommissionBps,
+          repBps: rep?.commissionBps ?? null,
+          platformBps,
+        });
+        commissionAmt = commissionAmountCents(amountCents, commissionBps);
+      }
+
+      const payment = await tx.membershipPayment.create({
+        data: {
+          restaurantId: id,
+          amountCents,
+          method: paymentData.method,
+          note: paymentData.note ?? null,
+          periodStart,
+          periodEnd,
+          recordedByEmail: session.user.email,
+        },
+      });
+
+      await tx.restaurant.update({
+        where: { id },
+        data: {
+          periodEndsAt: periodEnd,
+          // Auto-unsuspend on fresh payment.
+          suspended: false,
+        },
+      });
+
+      // Crear CommissionEntry si hay comercial y monto > 0.
+      let commissionEntry = null;
+      if (commissionRepId && commissionAmt > 0) {
+        commissionEntry = await tx.commissionEntry.create({
+          data: {
+            salesRepUserId: commissionRepId,
+            restaurantId: id,
+            membershipPaymentId: payment.id,
+            baseAmountCents: amountCents,
+            bps: commissionBps,
+            amountCents: commissionAmt,
+            status: "pending",
+          },
+        });
+      }
+
+      return { payment, commissionEntry, commissionBps };
+    });
+
+  // Auditoría del pago.
   await recordAuditEvent({
     kind: "membership.payment.record",
     restaurantId: id,
-    target: { type: "membership_payment", id: created.id },
-    summary: `Registró pago de ${fmtCOP(parsed.data.amountCents)} (${parsed.data.method})${parsed.data.note ? ` — ${parsed.data.note}` : ""}`,
+    target: { type: "membership_payment", id: payment.id },
+    summary: `Registró pago de ${fmtCOP(amountCents)} (${paymentData.method})${paymentData.note ? ` — ${paymentData.note}` : ""}`,
     diff: {
       after: {
-        amountCents: parsed.data.amountCents,
-        method: parsed.data.method,
+        amountCents,
+        method: paymentData.method,
         periodStart,
         periodEnd,
       },
     },
   });
+
+  // Auditoría de la comisión acumulada.
+  if (commissionEntry) {
+    await recordAuditEvent({
+      kind: "commission.accrue",
+      restaurantId: id,
+      target: { type: "commission_entry", id: commissionEntry.id },
+      summary: `Comisión ${fmtCOP(commissionEntry.amountCents)} (bps ${commissionBps}) para comercial por pago ${fmtCOP(amountCents)}`,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

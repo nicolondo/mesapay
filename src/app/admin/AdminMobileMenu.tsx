@@ -126,6 +126,9 @@ export function AdminMobileMenu({
               <DrawerLink href="/admin/audit" pathname={pathname}>
                 {t("navAuditLog")}
               </DrawerLink>
+              <DrawerLink href="/admin/comisiones" pathname={pathname}>
+                {t("navComisiones")}
+              </DrawerLink>
               <DrawerLink href="/admin/configuracion" pathname={pathname}>
                 {t("navConfig")}
               </DrawerLink>

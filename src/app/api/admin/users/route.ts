@@ -15,9 +15,13 @@ const schema = z.object({
     "kitchen",
     "bar",
     "platform_admin",
+    "comercial",
   ]),
-  // Required for operator + terminal; ignored for platform_admin.
+  // Required for operator + terminal; ignored for platform_admin and comercial.
   restaurantId: z.string().min(1).optional(),
+  // Optional default commission rate in basis points (0–5000 = 0–50%).
+  // Only meaningful when role === "comercial"; ignored for all other roles.
+  commissionBps: z.number().int().min(0).max(5000).optional(),
 });
 
 /**
@@ -43,9 +47,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const { email, name, password, role, restaurantId } = parsed.data;
+  const { email, name, password, role, restaurantId, commissionBps } = parsed.data;
 
-  if (role !== "platform_admin") {
+  // platform_admin and comercial are global roles — no restaurant required.
+  const isGlobalRole = role === "platform_admin" || role === "comercial";
+  if (!isGlobalRole) {
     if (!restaurantId) {
       return NextResponse.json(
         { error: "restaurant_required" },
@@ -70,7 +76,10 @@ export async function POST(req: Request) {
       name: name ?? null,
       passwordHash,
       role,
-      restaurantId: role === "platform_admin" ? null : restaurantId!,
+      restaurantId: isGlobalRole ? null : restaurantId!,
+      ...(role === "comercial" && commissionBps !== undefined
+        ? { commissionBps }
+        : {}),
     },
     select: {
       id: true,

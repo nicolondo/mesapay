@@ -1,17 +1,39 @@
 import { getTranslations } from "next-intl/server";
 import { getKushkiMode } from "@/lib/platformConfig";
+import { db } from "@/lib/db";
 import { KushkiModeSwitcher } from "../KushkiModeSwitcher";
+import { CrmCountriesCard } from "../CrmCountriesCard";
+import coData from "@/data/cities/co.json";
+import mxData from "@/data/cities/mx.json";
 
 export const dynamic = "force-dynamic";
 
+const DATASETS: Record<string, { name: string; datasetSize: number }> = {
+  CO: { name: "Colombia", datasetSize: (coData as { cities: string[] }).cities.length },
+  MX: { name: "México", datasetSize: (mxData as { cities: string[] }).cities.length },
+};
+
 /**
- * Configuración global de plataforma. Por ahora sólo el switch de
- * modo Kushki, pero pensada para crecer (toggles plataforma-wide,
- * feature flags, secrets globales, etc.).
+ * Configuración global de plataforma. Modo Kushki + países CRM.
  */
 export default async function AdminConfiguracionPage() {
   const t = await getTranslations("opAdmin");
   const kushkiMode = await getKushkiMode();
+
+  // Load CRM country state for the card.
+  const [dbCountries, cityCounts] = await Promise.all([
+    db.crmCountry.findMany({ select: { code: true, enabled: true } }),
+    db.crmCity.groupBy({ by: ["countryCode"], _count: { id: true } }),
+  ]);
+  const dbMap = new Map(dbCountries.map((c) => [c.code, c.enabled]));
+  const countMap = new Map(cityCounts.map((c) => [c.countryCode, c._count.id]));
+  const initialCountries = Object.entries(DATASETS).map(([code, ds]) => ({
+    code,
+    name: ds.name,
+    enabled: dbMap.get(code) ?? false,
+    cityCount: countMap.get(code) ?? 0,
+    datasetSize: ds.datasetSize,
+  }));
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full">
@@ -22,6 +44,10 @@ export default async function AdminConfiguracionPage() {
 
       <section className="mb-6">
         <KushkiModeSwitcher initialMode={kushkiMode} />
+      </section>
+
+      <section className="mb-6">
+        <CrmCountriesCard initialCountries={initialCountries} />
       </section>
     </div>
   );

@@ -18,7 +18,7 @@ import { NextResponse } from "next/server";
  * standalone mode would otherwise open the browser, which is jarring.
  */
 
-type Kind = "mesero" | "cocina" | "bar";
+type Kind = "mesero" | "cocina" | "bar" | "comercial";
 
 const VARIANTS: Record<
   Kind,
@@ -41,6 +41,12 @@ const VARIANTS: Record<
     shortName: "MP BAR",
     start: "/bar",
     scope: "/bar",
+  },
+  comercial: {
+    name: "MP COMERCIAL",
+    shortName: "MP COMERCIAL",
+    start: "/comercial/crm",
+    scope: "/comercial/",
   },
 };
 

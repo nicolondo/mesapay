@@ -50,7 +50,8 @@ function SignIn() {
       else if (role === "bar") dest = "/bar";
       else if (role === "operator") dest = "/operator";
       else if (role === "platform_admin") dest = "/admin";
-      else if (role === "comercial") dest = "/comercial";
+      else if (role === "comercial" || role === "gerente_comercial")
+        dest = "/comercial";
     }
     router.push(dest);
     router.refresh();

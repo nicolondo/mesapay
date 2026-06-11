@@ -3257,6 +3257,8 @@
     "dndLostTitle": "Lost reason",
     "dndLostConfirm": "Confirm",
     "dndErrorStage": "Error moving lead. Try again.",
-    "dndToastMoved": "Lead moved to {stage}"
+    "dndToastMoved": "Lead moved to {stage}",
+    "kanbanLoadingAll": "Loading leads…",
+    "kanbanCap": "Showing first 500 leads"
   }
 }

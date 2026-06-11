@@ -3151,7 +3151,7 @@
     "calendarNewAppointment": "Nueva cita",
     "pushReminderTitle": "Cita próxima",
     "pushReminderBody": "{title} con {leadName} a las {time}",
-    "masTemplates": "Plantillas de correo",
+    "masTemplates": "Plantillas (correo y WhatsApp)",
     "masDocumentsLink": "Documentos",
     "masEmailLink": "Mi correo",
     "docsPageTitle": "Documentos",

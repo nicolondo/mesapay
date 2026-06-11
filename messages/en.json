@@ -3151,7 +3151,7 @@
     "calendarNewAppointment": "New appointment",
     "pushReminderTitle": "Upcoming appointment",
     "pushReminderBody": "{title} with {leadName} at {time}",
-    "masTemplates": "Email templates",
+    "masTemplates": "Templates (email & WhatsApp)",
     "masDocumentsLink": "Documents",
     "masEmailLink": "My email",
     "docsPageTitle": "Documents",

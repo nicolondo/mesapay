@@ -19,6 +19,8 @@ export type LeadCard = {
   lastActivityAt: Date | string | null;
   nextActionAt: Date | string | null;
   createdAt: Date | string;
+  unitsCount: number | null;
+  unitNames: string[];
   city: { id: string; name: string } | null;
   assignedTo: { id: string; name: string | null } | null;
   contacts: { id: string; name: string; phone: string | null; email: string | null }[];
@@ -870,6 +872,41 @@ function StageChip({
   );
 }
 
+function GroupUnitsBadge({
+  lead,
+  t,
+}: {
+  lead: LeadCard;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  t: (key: string, vars?: Record<string, any>) => string;
+}) {
+  if (lead.unitNames.length > 0) {
+    const first2 = lead.unitNames.slice(0, 2).join(", ");
+    const rest = lead.unitNames.length - 2;
+    const summary =
+      rest > 0
+        ? t("groupUnitsSummary", { first: first2, rest })
+        : first2;
+    const count = lead.unitNames.length;
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+        <span className="text-xs text-op-muted truncate max-w-[140px]">{summary}</span>
+        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+          {t("groupUnitsCount", { count })}
+        </span>
+      </div>
+    );
+  }
+  if (lead.unitsCount && lead.unitsCount > 1) {
+    return (
+      <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+        {t("groupUnitsCount", { count: lead.unitsCount })}
+      </span>
+    );
+  }
+  return null;
+}
+
 function LeadListCard({
   lead,
   relTime,
@@ -879,7 +916,8 @@ function LeadListCard({
   lead: LeadCard;
   relTime: (d: Date | string | null) => string;
   stageLabel: Record<string, string>;
-  t: (key: string) => string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  t: (key: string, vars?: Record<string, any>) => string;
 }) {
   const primaryContact = lead.contacts[0] ?? null;
 
@@ -920,6 +958,9 @@ function LeadListCard({
           {stageLabel[lead.stage] ?? lead.stage}
         </span>
       </div>
+
+      {/* Group units summary */}
+      <GroupUnitsBadge lead={lead} t={t} />
 
       {/* City + last activity time */}
       <div className="flex items-center justify-between text-xs text-op-muted">
@@ -1048,6 +1089,7 @@ function KanbanColumn({
               />
               <span className="truncate">{lead.name}</span>
             </Link>
+            <GroupUnitsBadge lead={lead} t={t} />
             {lead.city && (
               <div className="text-xs text-op-muted">{lead.city.name}</div>
             )}

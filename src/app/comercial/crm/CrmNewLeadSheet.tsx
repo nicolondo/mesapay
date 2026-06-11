@@ -46,6 +46,7 @@ export function CrmNewLeadSheet({
   const [countryCode, setCountryCode] = useState(userCountryCode ?? "");
   const [countries, setCountries] = useState<Country[]>([]);
   const [priority, setPriority] = useState<"a" | "b" | "c">("b");
+  const [unitsCount, setUnitsCount] = useState("");
   const [notes, setNotes] = useState("");
 
   // Dupe state
@@ -137,6 +138,7 @@ export function CrmNewLeadSheet({
         countryCode: userCountryCode ? undefined : countryCode || undefined,
         cityId: cityId || undefined,
         priority,
+        unitsCount: unitsCount ? parseInt(unitsCount, 10) : undefined,
         notes: notes.trim() || undefined,
         contact:
           contactName.trim() || rawPhone
@@ -401,6 +403,18 @@ export function CrmNewLeadSheet({
                   );
                 })}
               </div>
+            </div>
+
+            {/* Number of restaurants */}
+            <div>
+              <FieldLabel>{t("fieldUnitsCount")}</FieldLabel>
+              <input
+                type="number"
+                min="1"
+                value={unitsCount}
+                onChange={(e) => setUnitsCount(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
             </div>
 
             {/* Notes */}

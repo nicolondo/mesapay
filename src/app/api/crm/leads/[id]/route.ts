@@ -5,6 +5,22 @@ import { getCrmContext } from "@/lib/crm/access";
 import { recordAuditEvent } from "@/lib/auditLog";
 import type { CrmStage } from "@prisma/client";
 
+// Reusable unitNames validator (same rules as POST route)
+const unitNamesSchema = z
+  .array(z.string().trim().min(1).max(80))
+  .max(100)
+  .optional()
+  .transform((arr) => {
+    if (!arr) return arr;
+    const seen = new Set<string>();
+    return arr.filter((n) => {
+      const key = n.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
+
 // R2: "ganado" is only reachable via /convert; exclude it from direct PATCH.
 const VALID_STAGES: CrmStage[] = [
   "nuevo",
@@ -26,6 +42,7 @@ const patchSchema = z.object({
   source: z.string().max(100).nullable().optional(),
   planProposed: z.string().max(100).nullable().optional(),
   unitsCount: z.number().int().positive().nullable().optional(),
+  unitNames: unitNamesSchema,
   notes: z.string().max(5000).nullable().optional(),
   stage: z.enum(VALID_STAGES as [CrmStage, ...CrmStage[]]).optional(),
   lostReason: z.string().max(500).optional(),
@@ -141,7 +158,21 @@ export async function PATCH(
   if (body.priority !== undefined) updateData.priority = body.priority;
   if (body.source !== undefined) updateData.source = body.source;
   if (body.planProposed !== undefined) updateData.planProposed = body.planProposed;
-  if (body.unitsCount !== undefined) updateData.unitsCount = body.unitsCount;
+  if (body.unitNames !== undefined) {
+    // When unitNames is provided apply auto-count rule:
+    // non-empty list → override unitsCount; empty list → leave unitsCount as separately provided.
+    updateData.unitNames = body.unitNames;
+    if (body.unitNames.length > 0) {
+      updateData.unitsCount = body.unitNames.length;
+    } else if (body.unitsCount !== undefined) {
+      // Empty list + explicit unitsCount in same request → honour the explicit value.
+      updateData.unitsCount = body.unitsCount;
+    }
+    // Empty list without explicit unitsCount → leave unitsCount untouched (don't set it).
+  } else if (body.unitsCount !== undefined) {
+    // No unitNames in request → honour manual unitsCount as before.
+    updateData.unitsCount = body.unitsCount;
+  }
   if (body.notes !== undefined) updateData.notes = body.notes;
   if (body.stage !== undefined) updateData.stage = body.stage;
   if (body.lostReason !== undefined) updateData.lostReason = body.lostReason;

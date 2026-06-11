@@ -95,6 +95,7 @@ export default async function CrmLeadDetailPage({
     source: lead.source,
     planProposed: lead.planProposed,
     unitsCount: lead.unitsCount,
+    unitNames: lead.unitNames,
     notes: lead.notes,
     lostReason: lead.lostReason,
     nextActionAt: lead.nextActionAt?.toISOString() ?? null,

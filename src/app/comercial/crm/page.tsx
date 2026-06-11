@@ -66,6 +66,8 @@ export default async function CrmPipelinePage({
       lastActivityAt: true,
       nextActionAt: true,
       createdAt: true,
+      unitsCount: true,
+      unitNames: true,
       city: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
       contacts: {

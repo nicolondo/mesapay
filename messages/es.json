@@ -2955,5 +2955,20 @@
     "mgmtActionOk": "Listo.",
     "mgmtActionFailed": "No se pudo completar la acción.",
     "mgmtEmpty": "No hay comerciales."
+  },
+  "opAdminCrm": {
+    "cardTitle": "CRM · Países",
+    "cardIntro": "Activa un país para cargar todas sus ciudades y habilitarlo en el CRM.",
+    "colCountry": "País",
+    "colCities": "Ciudades",
+    "colStatus": "Estado",
+    "enabled": "Activo",
+    "disabled": "Inactivo",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "saving": "Guardando…",
+    "errorSave": "No se pudo guardar.",
+    "seededInfo": "{count} ciudades sembradas.",
+    "citiesCount": "{count} ciudades"
   }
 }

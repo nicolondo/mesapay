@@ -2955,5 +2955,20 @@
     "mgmtActionOk": "Done.",
     "mgmtActionFailed": "Could not complete the action.",
     "mgmtEmpty": "No sales reps found."
+  },
+  "opAdminCrm": {
+    "cardTitle": "CRM · Countries",
+    "cardIntro": "Enable a country to load all its cities and make them available in the CRM.",
+    "colCountry": "Country",
+    "colCities": "Cities",
+    "colStatus": "Status",
+    "enabled": "Active",
+    "disabled": "Inactive",
+    "enable": "Enable",
+    "disable": "Disable",
+    "saving": "Saving…",
+    "errorSave": "Could not save.",
+    "seededInfo": "{count} cities loaded.",
+    "citiesCount": "{count} cities"
   }
 }

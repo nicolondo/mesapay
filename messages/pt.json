@@ -2955,5 +2955,20 @@
     "mgmtActionOk": "Pronto.",
     "mgmtActionFailed": "Não foi possível concluir a ação.",
     "mgmtEmpty": "Nenhum representante encontrado."
+  },
+  "opAdminCrm": {
+    "cardTitle": "CRM · Países",
+    "cardIntro": "Ative um país para carregar todas as suas cidades e disponibilizá-las no CRM.",
+    "colCountry": "País",
+    "colCities": "Cidades",
+    "colStatus": "Status",
+    "enabled": "Ativo",
+    "disabled": "Inativo",
+    "enable": "Ativar",
+    "disable": "Desativar",
+    "saving": "Salvando…",
+    "errorSave": "Não foi possível salvar.",
+    "seededInfo": "{count} cidades carregadas.",
+    "citiesCount": "{count} cidades"
   }
 }

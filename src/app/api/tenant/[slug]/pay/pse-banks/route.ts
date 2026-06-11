@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
@@ -39,8 +40,9 @@ export async function GET(
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
   }
   if (tenant.kushkiOnboardingStatus !== "active") {
+    const t = await getTranslations("pay");
     return NextResponse.json(
-      { error: "pse_not_available", message: "PSE no disponible aún para este comercio." },
+      { error: "pse_not_available", message: t("errPseNotAvailable") },
       { status: 400 },
     );
   }
@@ -62,8 +64,9 @@ export async function GET(
     console.error("[pse-banks]", err);
     // Si Kushki está caído devolvemos la cache previa si existe
     if (cached) return NextResponse.json({ banks: cached.banks });
+    const t = await getTranslations("pay");
     return NextResponse.json(
-      { error: "provider_error", message: "No pudimos cargar los bancos." },
+      { error: "provider_error", message: t("errBanksLoad") },
       { status: 502 },
     );
   }

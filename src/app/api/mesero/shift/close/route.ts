@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentMeseroShift } from "@/lib/meseroShift";
@@ -21,8 +22,10 @@ export async function POST() {
 
   const shift = await getCurrentMeseroShift(userId);
   if (!shift) {
+    // El que llama es el propio mesero — su cookie de idioma aplica.
+    const t = await getTranslations("meseroYo");
     return NextResponse.json(
-      { error: "no_open_shift", message: "No tienes turno abierto." },
+      { error: "no_open_shift", message: t("apiNoOpenShift") },
       { status: 400 },
     );
   }

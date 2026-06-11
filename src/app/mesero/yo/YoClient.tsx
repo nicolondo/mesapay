@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { fmtCOP, formatDate } from "@/lib/format";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
@@ -43,6 +43,7 @@ export function YoClient({
   shiftPolicy: ShiftPolicy;
   initial: Stats;
 }) {
+  const t = useTranslations("meseroYo");
   const locale = useLocale() as Locale;
   const [stats, setStats] = useState<Stats>(initial);
   const [busy, setBusy] = useState(false);
@@ -80,18 +81,14 @@ export function YoClient({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? "No pudimos abrir el turno");
+      setErr(j.message ?? j.error ?? t("errOpenShift"));
       return;
     }
     await refreshStats();
   }
 
   async function closeShift() {
-    if (
-      !confirm(
-        "¿Cerrar tu turno? Esto guarda tu resumen del día. Después no podrás seguir cobrando hasta abrir uno nuevo.",
-      )
-    ) {
+    if (!confirm(t("closeConfirm"))) {
       return;
     }
     setBusy(true);
@@ -100,7 +97,7 @@ export function YoClient({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? "No pudimos cerrar el turno");
+      setErr(j.message ?? j.error ?? t("errCloseShift"));
       return;
     }
     const j = (await r.json()) as { summary: CloseSummary };
@@ -112,13 +109,15 @@ export function YoClient({
   const sinceLabel = (() => {
     const d = new Date(stats.sinceIso);
     if (hasOpenShift) {
-      return `Desde las ${formatDate(d, {
-        locale,
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
+      return t("sinceTime", {
+        time: formatDate(d, {
+          locale,
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
     }
-    return "Hoy desde 00:00";
+    return t("sinceMidnight");
   })();
 
   return (
@@ -128,10 +127,10 @@ export function YoClient({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-              {hasOpenShift ? "Tu turno" : "Hoy"}
+              {hasOpenShift ? t("shiftKicker") : t("todayKicker")}
             </div>
             <div className="font-display text-2xl mt-0.5">
-              {hasOpenShift ? "Abierto" : "Sin turno abierto"}
+              {hasOpenShift ? t("shiftOpen") : t("shiftNone")}
             </div>
             <div className="text-xs text-muted mt-1">{sinceLabel}</div>
           </div>
@@ -143,7 +142,7 @@ export function YoClient({
               disabled={busy}
               className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50 shrink-0"
             >
-              Abrir turno
+              {t("openShift")}
             </button>
           )}
           {shiftPolicy === "by_waiter" && hasOpenShift && (
@@ -153,36 +152,33 @@ export function YoClient({
               disabled={busy}
               className="h-10 px-4 rounded-full border border-hairline text-ink text-sm font-medium disabled:opacity-50 shrink-0"
             >
-              Cerrar turno
+              {t("closeShift")}
             </button>
           )}
         </div>
 
         {shiftPolicy === "global" && (
           <p className="text-[11px] text-op-muted -mt-2">
-            El restaurante maneja un turno único. Las cifras de abajo
-            cuentan desde la medianoche del día actual.
+            {t("globalShiftNote")}
           </p>
         )}
 
         {/* Grid de stats — 2x2 en mobile */}
         <div className="grid grid-cols-2 gap-3">
-          <Stat label="Ventas" value={fmtCOP(stats.salesCents)} />
+          <Stat label={t("statSales")} value={fmtCOP(stats.salesCents)} />
           <Stat
-            label="Propinas"
+            label={t("statTips")}
             value={
               stats.tipsCents != null
                 ? fmtCOP(stats.tipsCents)
-                : "Compartidas"
+                : t("tipsShared")
             }
             hint={
-              stats.tipsCents == null
-                ? "El local reparte propinas al cierre"
-                : undefined
+              stats.tipsCents == null ? t("tipsSharedHint") : undefined
             }
           />
-          <Stat label="Mesas" value={String(stats.tableCount)} />
-          <Stat label="Pagos" value={String(stats.paymentCount)} />
+          <Stat label={t("statTables")} value={String(stats.tableCount)} />
+          <Stat label={t("statPayments")} value={String(stats.paymentCount)} />
         </div>
 
         {err && <div className="text-xs text-danger">{err}</div>}
@@ -235,11 +231,12 @@ function CloseSummarySheet({
   tipPolicy: TipPolicy;
   onClose: () => void;
 }) {
+  const t = useTranslations("meseroYo");
   const durationMinutes = Math.floor(summary.durationMs / 60_000);
   const hours = Math.floor(durationMinutes / 60);
   const mins = durationMinutes % 60;
   const durStr =
-    hours > 0 ? `${hours}h ${mins}min` : `${mins} min`;
+    hours > 0 ? t("durationHM", { hours, mins }) : t("durationM", { mins });
 
   return (
     <div
@@ -253,31 +250,31 @@ function CloseSummarySheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-              Turno cerrado
+              {t("summaryKicker")}
             </div>
-            <h2 className="font-display text-2xl mt-1">Resumen del turno</h2>
+            <h2 className="font-display text-2xl mt-1">{t("summaryTitle")}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="text-muted text-sm shrink-0"
-            aria-label="Cerrar"
+            aria-label={t("closeAria")}
           >
-            ✕
+            {"✕"}
           </button>
         </div>
 
         <div className="space-y-1.5">
-          <Row label="Duración" value={durStr} />
-          <Row label="Mesas atendidas" value={String(summary.tableCount)} />
-          <Row label="Pagos cobrados" value={String(summary.paymentCount)} />
-          <Row label="Ventas" value={fmtCOP(summary.salesCents)} />
+          <Row label={t("rowDuration")} value={durStr} />
+          <Row label={t("rowTables")} value={String(summary.tableCount)} />
+          <Row label={t("rowPayments")} value={String(summary.paymentCount)} />
+          <Row label={t("rowSales")} value={fmtCOP(summary.salesCents)} />
           <Row
-            label="Propinas"
+            label={t("rowTips")}
             value={
               tipPolicy === "by_waiter"
                 ? fmtCOP(summary.tipsCents)
-                : "Compartidas con el local"
+                : t("tipsSharedLong")
             }
             accent={tipPolicy === "by_waiter"}
           />
@@ -288,7 +285,7 @@ function CloseSummarySheet({
           onClick={onClose}
           className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium"
         >
-          Listo
+          {t("done")}
         </button>
       </div>
     </div>

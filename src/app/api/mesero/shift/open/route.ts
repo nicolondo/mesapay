@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
@@ -32,11 +33,12 @@ export async function POST() {
     select: { shiftPolicy: true },
   });
   if (resolveShiftPolicy(tenant?.shiftPolicy) !== "by_waiter") {
+    // El que llama es el propio mesero — su cookie de idioma aplica.
+    const t = await getTranslations("meseroYo");
     return NextResponse.json(
       {
         error: "shifts_global",
-        message:
-          "El restaurante maneja un turno único — pídele al operador para abrir.",
+        message: t("apiShiftsGlobal"),
       },
       { status: 400 },
     );

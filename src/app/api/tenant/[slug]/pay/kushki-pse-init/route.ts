@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { env } from "@/lib/env";
@@ -185,14 +186,15 @@ export async function POST(
     excludePending: true,
   });
   if (!cap.ok) {
+    const t = await getTranslations("pay");
     return NextResponse.json(
       {
         error: cap.reason,
         outstandingCents: cap.outstandingCents,
         message:
           cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
+            ? t("errAlreadyPaid")
+            : t("errOutstanding", { amount: fmtCOP(cap.outstandingCents) }),
       },
       { status: 409 },
     );

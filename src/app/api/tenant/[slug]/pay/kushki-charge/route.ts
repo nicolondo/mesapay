@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { publishOrderEvent } from "@/lib/events";
@@ -82,14 +83,15 @@ export async function POST(
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const cap = await validateNewPaymentAmount(order.id, foodPortion);
   if (!cap.ok) {
+    const t = await getTranslations("pay");
     return NextResponse.json(
       {
         error: cap.reason,
         outstandingCents: cap.outstandingCents,
         message:
           cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
+            ? t("errAlreadyPaid")
+            : t("errOutstanding", { amount: fmtCOP(cap.outstandingCents) }),
       },
       { status: 409 },
     );
@@ -156,27 +158,26 @@ export async function POST(
       err instanceof Error ? err.message.slice(0, 300) : "provider_error";
     console.error("[kushki-charge] FAILED", { detail });
     // Parse common Kushki codes para mensaje user-friendly.
-    let userMessage = "El pago falló. Probá con otra tarjeta o método.";
+    const tErr = await getTranslations("pay");
+    let userMessage = tErr("errChargeFailed");
     if (detail.includes('"code":"022"') || detail.includes("(022)")) {
-      userMessage = "Tarjeta declinada — CVV inválido.";
+      userMessage = tErr("errCardCvv");
     } else if (detail.includes('"code":"021"') || detail.includes("(021)")) {
-      userMessage = "Tarjeta declinada — fondos insuficientes.";
+      userMessage = tErr("errCardFunds");
     } else if (detail.includes('"code":"017"') || detail.includes("(017)")) {
-      userMessage = "Tarjeta inválida.";
+      userMessage = tErr("errCardInvalid");
     } else if (detail.includes('"code":"023"') || detail.includes("(023)")) {
-      userMessage = "Tarjeta bloqueada.";
+      userMessage = tErr("errCardBlocked");
     } else if (detail.includes('"code":"577"')) {
       // Token ya usado. Pasa cuando un charge anterior consumió el
       // token (con éxito o no) y el cliente intenta cobrarlo de nuevo.
       // Le pedimos al diner que cierre y reabra el form para forzar
       // una tokenización fresca.
-      userMessage =
-        "El intento anterior expiró. Cerrá esta ventana y volvé a ingresar los datos.";
+      userMessage = tErr("errTokenUsed");
     } else if (detail.includes('"code":"K040"')) {
-      userMessage =
-        "Credenciales del comercio no configuradas correctamente. Avisá al restaurante.";
+      userMessage = tErr("errMerchantConfig");
     } else if (detail.includes("K220")) {
-      userMessage = "Error procesando el cobro — reintentá.";
+      userMessage = tErr("errChargeRetry");
     }
     return NextResponse.json(
       {
@@ -217,7 +218,7 @@ export async function POST(
     return NextResponse.json({
       paymentId: pendingPayment.id,
       approved: false,
-      message: charge.message ?? "Pago rechazado",
+      message: charge.message ?? (await getTranslations("pay"))("errRejected"),
     });
   }
 

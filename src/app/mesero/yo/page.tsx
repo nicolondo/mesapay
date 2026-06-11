@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import {
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
  * snapshot para evitar un loading vacío al abrir el tab.
  */
 export default async function YoPage() {
+  const t = await getTranslations("meseroYo");
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/mesero/yo");
 
@@ -111,7 +113,7 @@ export default async function YoPage() {
 
   return (
     <div className="p-5 max-w-md mx-auto w-full space-y-5">
-      <div className="font-display text-3xl mb-1">Yo</div>
+      <div className="font-display text-3xl mb-1">{t("title")}</div>
 
       {/* Identidad */}
       <section className="rounded-2xl border border-hairline bg-paper p-5 flex items-center gap-4">
@@ -145,18 +147,20 @@ export default async function YoPage() {
       {/* Mesas asignadas */}
       <section className="rounded-2xl border border-hairline bg-paper p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-2">
-          Mis mesas
+          {t("myTablesTitle")}
         </div>
         {user.assignedTableNumbers.length === 0 ? (
           <p className="text-sm text-ink/80">
-            Atiendes <strong>todas</strong> las mesas del restaurante. El
-            operador puede asignarte una sección desde configuración.
+            {t.rich("allTables", {
+              b: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         ) : (
           <>
             <p className="text-xs text-muted mb-3">
-              Tu sección — {user.assignedTableNumbers.length}{" "}
-              {user.assignedTableNumbers.length === 1 ? "mesa" : "mesas"}.
+              {t("sectionCount", {
+                count: user.assignedTableNumbers.length,
+              })}
             </p>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(48px,1fr))] gap-1.5">
               {user.assignedTableNumbers.map((n) => (
@@ -177,7 +181,7 @@ export default async function YoPage() {
           type="submit"
           className="w-full h-12 rounded-2xl border border-hairline bg-paper text-ink text-sm font-medium"
         >
-          Cerrar sesión
+          {t("signOut")}
         </button>
       </form>
     </div>

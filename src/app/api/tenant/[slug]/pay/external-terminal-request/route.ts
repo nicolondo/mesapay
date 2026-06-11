@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP, fmtMiles } from "@/lib/format";
+import { getEmailTranslator } from "@/lib/emailIntl";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
@@ -60,14 +62,15 @@ export async function POST(
     excludePending: true,
   });
   if (!cap.ok) {
+    const t = await getTranslations("pay");
     return NextResponse.json(
       {
         error: cap.reason,
         outstandingCents: cap.outstandingCents,
         message:
           cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
+            ? t("errAlreadyPaid")
+            : t("errOutstanding", { amount: fmtCOP(cap.outstandingCents) }),
       },
       { status: 409 },
     );
@@ -134,11 +137,14 @@ export async function POST(
         })
       : null;
     if (!table || table.number < 0) return;
-    const where = table.label ?? `Mesa ${table.number}`;
+    // El push lo lee el mesero de la mesa, no quien dispara el cobro —
+    // sin idioma guardado por usuario, sale en el default (es) vía catálogo.
+    const { t } = await getEmailTranslator(null, "pushMesero");
+    const where = table.label ?? t("tableFallback", { number: table.number });
     const totalCop = parsed.data.amountCents / 100;
     await sendPushToMeserosForTable(tenant.id, table.number, {
-      title: `${where} pidió datáfono`,
-      body: `Cobro con tarjeta · ${fmtMiles(totalCop)} COP`,
+      title: t("terminalTitle", { where }),
+      body: t("terminalBody", { amount: fmtMiles(totalCop) }),
       tag: `external-terminal-${order.id}`,
       url: "/mesero/salon",
     });

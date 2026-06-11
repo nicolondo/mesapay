@@ -102,6 +102,7 @@ const MIGRATED = [
   "src/app/comercial/**/*.{ts,tsx}",
   "src/app/admin/comisiones/**/*.{ts,tsx}",
   "src/app/admin/restaurants/\\[id\\]/AdminSalesRep.tsx",
+  "src/app/mesero/yo/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

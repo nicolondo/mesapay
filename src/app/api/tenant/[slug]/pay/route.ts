@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP, fmtMiles } from "@/lib/format";
+import { getEmailTranslator } from "@/lib/emailIntl";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
@@ -80,14 +82,15 @@ export async function POST(
     excludePending: willOperatorSettle || willSweepCash,
   });
   if (!cap.ok) {
+    const t = await getTranslations("pay");
     return NextResponse.json(
       {
         error: cap.reason,
         outstandingCents: cap.outstandingCents,
         message:
           cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
+            ? t("errAlreadyPaid")
+            : t("errOutstanding", { amount: fmtCOP(cap.outstandingCents) }),
       },
       { status: 409 },
     );
@@ -262,10 +265,16 @@ export async function POST(
           })
         : null;
       if (!table || table.number < 0) return; // pickup pseudo-table
-      const where = table.label ?? `Mesa ${table.number}`;
+      // El push lo lee el mesero de la mesa, no quien dispara el cobro —
+      // sin idioma guardado por usuario, sale en el default (es) vía catálogo.
+      const { t: tp } = await getEmailTranslator(null, "pushMesero");
+      const where =
+        table.label ?? tp("tableFallback", { number: table.number });
       await sendPushToMeserosForTable(tenant.id, table.number, {
-        title: `${where} pidió cobrar`,
-        body: `Pago en efectivo · ${fmtMiles(parsed.data.amountCents / 100)} COP`,
+        title: tp("cashTitle", { where }),
+        body: tp("cashBody", {
+          amount: fmtMiles(parsed.data.amountCents / 100),
+        }),
         tag: `cash-${order.id}`,
         url: "/mesero/salon",
       });

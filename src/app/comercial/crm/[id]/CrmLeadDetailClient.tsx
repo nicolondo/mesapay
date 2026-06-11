@@ -1111,7 +1111,7 @@ function EmailSheet({
   lead: LeadData;
   contacts: ContactData[];
   comercialName: string;
-  onSent: () => void;
+  onSent: (newStage?: string) => void;
   onClose: () => void;
   hasEmailAccount: boolean;
 }) {
@@ -1217,7 +1217,7 @@ function EmailSheet({
         return;
       }
       setSuccess(true);
-      onSent();
+      onSent(typeof json.stage === "string" ? json.stage : undefined);
     } catch {
       setError(t("sendEmailError", { detail: "network error" }));
       setSending(false);
@@ -1967,9 +1967,13 @@ export function CrmLeadDetailClient({
           comercialName={currentUserName}
           hasEmailAccount={hasEmailAccount}
           onClose={() => setSheet(null)}
-          onSent={() => {
+          onSent={(newStage) => {
             startTransition(() => {
-              setLead((prev) => ({ ...prev, lastActivityAt: new Date().toISOString() }));
+              setLead((prev) => ({
+                ...prev,
+                lastActivityAt: new Date().toISOString(),
+                ...(newStage && newStage !== prev.stage ? { stage: newStage } : {}),
+              }));
               setSheet(null);
             });
           }}

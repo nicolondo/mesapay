@@ -251,8 +251,10 @@ export async function POST(
     );
   }
 
-  // 9. Record activity
+  // 9. Record activity. Auto-avance: el primer correo a un lead "nuevo" lo
+  // pasa a "contactado" (nunca retrocede etapas más avanzadas).
   const now = new Date();
+  const autoAdvance = lead.stage === "nuevo";
   await db.$transaction([
     db.crmActivity.create({
       data: {
@@ -266,11 +268,29 @@ export async function POST(
         },
       },
     }),
+    ...(autoAdvance
+      ? [
+          db.crmActivity.create({
+            data: {
+              leadId,
+              userId: ctx.userId,
+              type: "stage_change",
+              content: "etapa: nuevo → contactado (correo enviado)",
+            },
+          }),
+        ]
+      : []),
     db.crmLead.update({
       where: { id: leadId },
-      data: { lastActivityAt: now },
+      data: {
+        lastActivityAt: now,
+        ...(autoAdvance ? { stage: "contactado" as const } : {}),
+      },
     }),
   ]);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    stage: autoAdvance ? "contactado" : lead.stage,
+  });
 }

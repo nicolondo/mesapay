@@ -735,11 +735,15 @@ export function CrmPipelineClient({
     if (stage === "all" && storedQ === "" && storedAssigned === (initialAssignedTo ?? "")) return;
 
     filterGenRef.current++;
-    setActiveStage(stage);
-    setQ(storedQ);
-    setAssignedTo(storedAssigned);
-    fetchLeads({ stage, q: storedQ, assignedTo: storedAssigned, reset: true, includeCounts: true })
-      .then((nextCursor) => startFilteredKanbanLoad(stage, storedQ, storedAssigned, nextCursor));
+    // setState diferido: evita renders en cascada dentro del cuerpo del efecto.
+    const tid = setTimeout(() => {
+      setActiveStage(stage);
+      setQ(storedQ);
+      setAssignedTo(storedAssigned);
+      fetchLeads({ stage, q: storedQ, assignedTo: storedAssigned, reset: true, includeCounts: true })
+        .then((nextCursor) => startFilteredKanbanLoad(stage, storedQ, storedAssigned, nextCursor));
+    }, 0);
+    return () => clearTimeout(tid);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

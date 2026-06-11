@@ -29,8 +29,30 @@ type Status =
  *      /api/push/subscribe.
  *
  * Once subscribed the button hides itself. Nothing to do, no clutter.
+ *
+ * `copy` — optional pre-translated strings. When omitted, falls back
+ * to the default mesero Spanish copy (backward-compatible). Pass from
+ * a server layout using `getTranslations` to provide context-specific
+ * text (e.g. CRM variant).
  */
-export function PushSetup() {
+type PushCopy = {
+  body: string;
+  denied: string;
+  error: string;
+  enable: string;
+  enabling: string;
+};
+
+const MESERO_COPY: PushCopy = {
+  body: "Recibe avisos cuando una mesa te llame o pida cobrar.",
+  denied: "Las notificaciones están bloqueadas en este celular. Habílitalas desde los ajustes del navegador y vuelve a abrir la app.",
+  error: "No pudimos activar las notificaciones. Intenta de nuevo.",
+  enable: "Activar",
+  enabling: "Activando…",
+};
+
+export function PushSetup({ copy }: { copy?: PushCopy }) {
+  const strings = copy ?? MESERO_COPY;
   const [status, setStatus] = useState<Status>("default");
 
   useEffect(() => {
@@ -146,14 +168,11 @@ export function PushSetup() {
     <div className="border-b border-hairline bg-ivory px-4 py-2.5 flex items-center justify-between gap-3">
       <div className="text-[12px] text-ink/80 min-w-0">
         {status === "denied" ? (
-          <>
-            Las notificaciones están bloqueadas en este celular. Habílitalas
-            desde los ajustes del navegador y vuelve a abrir la app.
-          </>
+          <>{strings.denied}</>
         ) : status === "error" ? (
-          <>No pudimos activar las notificaciones. Intenta de nuevo.</>
+          <>{strings.error}</>
         ) : (
-          <>Recibe avisos cuando una mesa te llame o pida cobrar.</>
+          <>{strings.body}</>
         )}
       </div>
       {status !== "denied" && (
@@ -163,7 +182,7 @@ export function PushSetup() {
           disabled={status === "subscribing"}
           className="shrink-0 h-8 px-3 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-60"
         >
-          {status === "subscribing" ? "Activando…" : "Activar"}
+          {status === "subscribing" ? strings.enabling : strings.enable}
         </button>
       )}
     </div>

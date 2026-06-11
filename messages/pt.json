@@ -3259,6 +3259,11 @@
     "dndErrorStage": "Erro ao mover lead. Tente novamente.",
     "dndToastMoved": "Lead movido para {stage}",
     "kanbanLoadingAll": "Carregando leads…",
-    "kanbanCap": "Mostrando os primeiros 500 leads"
+    "kanbanCap": "Mostrando os primeiros 500 leads",
+    "pushBannerBody": "Receba lembretes de seus compromissos e acompanhamentos neste dispositivo.",
+    "pushBannerDenied": "As notificações estão bloqueadas. Ative-as nas configurações do navegador.",
+    "pushBannerError": "Não foi possível ativar as notificações. Tente novamente.",
+    "pushBannerEnable": "Ativar",
+    "pushBannerEnabling": "Ativando…"
   }
 }

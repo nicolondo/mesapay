@@ -114,8 +114,14 @@ export default async function ComercialLayout({
         </div>
       </header>
 
-      {/* Push opt-in — same unobtrusive banner as mesero PWA. */}
-      <PushSetup />
+      {/* Push opt-in — CRM-specific copy (reminders, not table alerts). */}
+      <PushSetup copy={{
+        body: tc("pushBannerBody"),
+        denied: tc("pushBannerDenied"),
+        error: tc("pushBannerError"),
+        enable: tc("pushBannerEnable"),
+        enabling: tc("pushBannerEnabling"),
+      }} />
 
       {/* Content — bottom-padded on mobile to clear fixed nav */}
       <main

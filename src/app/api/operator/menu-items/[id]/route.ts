@@ -55,7 +55,7 @@ const patchSchema = z.object({
   // item's tags and the registry never breaks the page.
   tags: z.array(z.string().regex(SLUG_REGEX)).max(MAX_TAGS_PER_ITEM).optional(),
   modifiers: z.array(modifierSchema).max(8).nullable().optional(),
-  prepMinutes: z.number().int().min(1).max(120).optional(),
+  prepMinutes: z.number().min(0.1).max(120).optional(),
   // Override the category's default station for this specific item.
   // null = inherit from category (the common case). The frontend sends
   // null when the operator picks "Usar la de la categoría".

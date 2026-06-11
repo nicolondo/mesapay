@@ -1743,7 +1743,7 @@
     "editDish": "Edit dish",
     "close": "Close",
     "errCheckNamePrice": "Check the name and the price.",
-    "errPrepRange": "Prep time between 1 and 120 minutes.",
+    "errPrepRange": "Prep time between 0.1 and 120 minutes.",
     "errModifierIncomplete": "The modifier \"{label}\" needs a label and at least one option.",
     "unnamed": "(no name)",
     "errGeneric": "Error",

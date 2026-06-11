@@ -9,7 +9,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(60),
   priceCents: z.number().int().min(0).max(100_000_000),
   description: z.string().trim().max(240).optional(),
-  prepMinutes: z.number().int().min(1).max(120).optional(),
+  prepMinutes: z.number().min(0.1).max(120).optional(),
 });
 
 export async function POST(req: Request) {

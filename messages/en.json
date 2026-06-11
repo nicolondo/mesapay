@@ -3246,6 +3246,8 @@
     "sendEmailContact": "Contact",
     "sendEmailChooseContact": "Choose contact…",
     "sendEmailSubjectPreview": "Subject:",
+    "sendEmailPreview": "Preview",
+    "sendEmailAttachmentsCount": "Template attachments: {count}",
     "sendEmailExtraNote": "Extra note (optional)",
     "sendEmailSubmit": "Send",
     "sendEmailSending": "Sending…",

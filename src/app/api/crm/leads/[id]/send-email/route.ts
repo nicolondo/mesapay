@@ -148,8 +148,11 @@ export async function POST(
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
-    subject = template.subject;
-    bodyHtml = template.bodyHtml;
+    // El cliente puede mandar el contenido ya previsualizado/editado junto
+    // con templateId (este último solo para resolver los adjuntos) — solo
+    // usamos el contenido de la plantilla si no vino en el request.
+    subject = subject ?? template.subject;
+    bodyHtml = bodyHtml ?? template.bodyHtml;
     attachmentIds = template.attachmentIds;
   }
 

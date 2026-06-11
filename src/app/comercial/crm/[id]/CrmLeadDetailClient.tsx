@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { waLink, CALLING_CODES } from "@/lib/crm/phone";
 import { renderTemplate } from "@/lib/crm/templateRender";
@@ -1269,6 +1270,7 @@ export function CrmLeadDetailClient({
   const t = useTranslations("crm");
   const fmt = useFormatter();
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const [lead, setLead] = useState<LeadData>(initialLead);
   const [contacts, setContacts] = useState<ContactData[]>(initialContacts);
@@ -1491,6 +1493,7 @@ export function CrmLeadDetailClient({
                 setSheet(null);
               }
             });
+            router.refresh();
           }} />
       )}
       {sheet === "nextAction" && (
@@ -1544,6 +1547,7 @@ export function CrmLeadDetailClient({
               setLead((prev) => ({ ...prev, assignedTo: { id: member.id, name: member.name, email: member.email } }));
               setSheet(null);
             });
+            router.refresh();
           }} />
       )}
       {sheet === "addAppointment" && (
@@ -1582,6 +1586,7 @@ export function CrmLeadDetailClient({
               setLead((prev) => ({ ...prev, restaurantId, stage: "ganado" }));
               // Keep sheet open to show success + admin link — sheet closes itself.
             });
+            router.refresh();
           }}
         />
       )}

@@ -425,6 +425,13 @@ export function CrmPipelineClient({
   const [dndSheet, setDndSheet] = useState<DndSheet>(null);
   const [dndToast, setDndToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
+  // ── Kanban full-load state (desktop only)
+  const KANBAN_CAP = 500;
+  const [kanbanLoadingAll, setKanbanLoadingAll] = useState(false);
+  const [kanbanHitCap, setKanbanHitCap] = useState(false);
+  // Ref so loadAllKanbanPages can check whether it's already running
+  const kanbanLoadingRef = useRef(false);
+
   function showDndToast(msg: string, ok: boolean) {
     setDndToast({ msg, ok });
     setTimeout(() => setDndToast(null), 3500);
@@ -434,7 +441,7 @@ export function CrmPipelineClient({
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, startTransition] = useTransition();
 
-  // ── Fetch function
+  // ── Fetch function — returns the nextCursor so callers can chain loadAllKanbanPages
   const fetchLeads = useCallback(
     async (opts: {
       stage?: Stage | "all";
@@ -445,7 +452,7 @@ export function CrmPipelineClient({
       includeCounts?: boolean;
       /** When true, does not flip the loading spinner (silent background refresh). */
       silent?: boolean;
-    }) => {
+    }): Promise<string | undefined> => {
       if (!opts.silent) setLoading(true);
       try {
         const params = new URLSearchParams();
@@ -458,6 +465,7 @@ export function CrmPipelineClient({
         const res = await fetch(`/api/crm/leads?${params.toString()}`);
         const json = await res.json();
         const newLeads: LeadCard[] = json.leads ?? [];
+        const nextCursor: string | undefined = json.nextCursor;
 
         startTransition(() => {
           if (opts.reset) {
@@ -465,16 +473,70 @@ export function CrmPipelineClient({
           } else {
             setLeads((prev) => [...prev, ...newLeads]);
           }
-          setCursor(json.nextCursor);
-          setHasMore(!!json.nextCursor);
+          setCursor(nextCursor);
+          setHasMore(!!nextCursor);
           if (opts.includeCounts && json.stageCounts) {
             setCounts(json.stageCounts);
           }
         });
+
+        return nextCursor;
       } finally {
         if (!opts.silent) setLoading(false);
       }
     },
+    [],
+  );
+
+  // ── Kanban: load ALL remaining pages after initial fetch (desktop only)
+  // Silently fetches sequential pages (no spinner on existing content) until
+  // nextCursor is null or KANBAN_CAP leads have been loaded.
+  // `startCursor` is the cursor returned by the preceding reset fetch.
+  const loadAllKanbanPages = useCallback(
+    async (opts: { stage: Stage | "all"; q: string; assignedTo: string; startCursor: string | undefined }) => {
+      if (!opts.startCursor) return; // nothing to load
+      if (kanbanLoadingRef.current) return;
+      kanbanLoadingRef.current = true;
+      setKanbanLoadingAll(true);
+      setKanbanHitCap(false);
+      try {
+        let localCursor: string | undefined = opts.startCursor;
+        let localTotal = 0;
+
+        // Seed localTotal from leads already loaded (page 1)
+        setLeads((current) => { localTotal = current.length; return current; });
+
+        while (localCursor && localTotal < KANBAN_CAP) {
+          const params = new URLSearchParams();
+          if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
+          if (opts.q) params.set("q", opts.q);
+          if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
+          params.set("cursor", localCursor);
+
+          const res = await fetch(`/api/crm/leads?${params.toString()}`);
+          const json = await res.json();
+          const newLeads: LeadCard[] = json.leads ?? [];
+          const nextCur: string | undefined = json.nextCursor;
+
+          startTransition(() => {
+            setLeads((prev) => [...prev, ...newLeads]);
+            setCursor(nextCur);
+            setHasMore(!!nextCur);
+          });
+
+          localCursor = nextCur;
+          localTotal += newLeads.length;
+        }
+
+        if (localTotal >= KANBAN_CAP && localCursor) {
+          setKanbanHitCap(true);
+        }
+      } finally {
+        kanbanLoadingRef.current = false;
+        setKanbanLoadingAll(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -491,15 +553,23 @@ export function CrmPipelineClient({
     lastRefreshRef.current = now;
     // Re-fetch page 1 with current filters + counts silently (no spinner over
     // existing content — data swaps in when the response lands).
-    fetchLeads({ stage: activeStage, q, assignedTo, reset: true, includeCounts: true, silent: true });
+    fetchLeads({ stage: activeStage, q, assignedTo, reset: true, includeCounts: true, silent: true })
+      .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: nextCursor }));
     // Also invalidate the Next.js router cache so back-nav gets fresh server data
     router.refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStage, q, assignedTo, dndSheet, fetchLeads, router]);
+  }, [activeStage, q, assignedTo, dndSheet, fetchLeads, loadAllKanbanPages, router]);
 
-  // On mount (covers back-nav with stale router-cache props)
+  // On mount: refreshAll handles page-1 + full kanban load
+  // We also kick off full kanban load immediately from initialLeads cursor
   useEffect(() => {
     refreshAll();
+    // Also load remaining pages from the initial server-side cursor
+    // (refreshAll's fetch is throttled, so we load from the initial cursor
+    //  synchronously for the case where refreshAll is skipped by the 5 s gate)
+    if (initialCursor) {
+      loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: initialCursor });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -520,7 +590,8 @@ export function CrmPipelineClient({
   // Stage chip click
   function handleStageClick(stage: Stage | "all") {
     setActiveStage(stage);
-    fetchLeads({ stage, q, assignedTo, reset: true });
+    fetchLeads({ stage, q, assignedTo, reset: true, includeCounts: true })
+      .then((nextCursor) => loadAllKanbanPages({ stage, q, assignedTo, startCursor: nextCursor }));
   }
 
   // Search input
@@ -528,7 +599,8 @@ export function CrmPipelineClient({
     setQ(val);
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
-      fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true });
+      fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true })
+        .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q: val, assignedTo, startCursor: nextCursor }));
     }, 350);
   }
 
@@ -538,7 +610,8 @@ export function CrmPipelineClient({
   // selector value = specific member id → restrict to that member
   function handleAssignedToChange(val: string) {
     setAssignedTo(val);
-    fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true });
+    fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true })
+      .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q, assignedTo: val, startCursor: nextCursor }));
   }
 
   // Load more
@@ -731,7 +804,7 @@ export function CrmPipelineClient({
       </div>
 
       {/* DESKTOP: Kanban view (lg+) */}
-      <div className="hidden lg:flex flex-1 overflow-x-auto px-4 pb-4 gap-3 items-start">
+      <div className="hidden lg:flex flex-1 overflow-x-auto px-4 pb-4 gap-3 items-stretch">
         {STAGES.map((s) => {
           const colLeads = leads.filter((l) => l.stage === s);
           return (
@@ -753,6 +826,21 @@ export function CrmPipelineClient({
           );
         })}
       </div>
+
+      {/* Kanban: subtle loading + cap note (desktop only) */}
+      {(kanbanLoadingAll || kanbanHitCap) && (
+        <div className="hidden lg:flex justify-center pb-3">
+          {kanbanLoadingAll && (
+            <span className="flex items-center gap-2 text-xs text-op-muted">
+              <Spinner />
+              {t("kanbanLoadingAll")}
+            </span>
+          )}
+          {kanbanHitCap && !kanbanLoadingAll && (
+            <span className="text-xs text-op-muted">{t("kanbanCap")}</span>
+          )}
+        </div>
+      )}
 
       {/* FAB */}
       <button
@@ -1038,17 +1126,17 @@ function KanbanColumn({
   return (
     <div
       className={
-        "w-64 shrink-0 flex flex-col gap-2 rounded-xl p-1 transition-colors " +
+        "w-64 shrink-0 flex flex-col gap-2 rounded-xl p-1 transition-colors self-stretch min-h-[200px] " +
         (isDragOver ? "ring-2 ring-terracotta bg-terracotta/5" : "")
       }
-      onDragOver={onDragOverColumn}
+      onDragOver={(e) => { e.preventDefault(); onDragOverColumn(e); }}
       onDragLeave={onDragLeaveColumn}
       onDrop={(e) => { e.preventDefault(); onDropColumn(); }}
     >
       {/* Column header */}
       <div
         className={
-          "flex items-center justify-between px-3 py-2 rounded-xl " +
+          "flex items-center justify-between px-3 py-2 rounded-xl shrink-0 " +
           stageColor(stage)
         }
       >
@@ -1060,7 +1148,7 @@ function KanbanColumn({
 
       {/* Cards */}
       {leads.length === 0 ? (
-        <div className="text-xs text-op-muted text-center py-4">{t("emptyLeads")}</div>
+        <div className="flex-1 text-xs text-op-muted text-center py-4">{t("emptyLeads")}</div>
       ) : (
         leads.map((lead) => (
           <div
@@ -1071,6 +1159,7 @@ function KanbanColumn({
               onCardDragStart(lead.id);
             }}
             onDragEnd={onCardDragEnd}
+            onDragOver={(e) => e.preventDefault()}
             className="rounded-xl border border-op-border bg-op-surface p-3 space-y-2 cursor-grab active:cursor-grabbing active:opacity-50 select-none transition-opacity"
           >
             <Link

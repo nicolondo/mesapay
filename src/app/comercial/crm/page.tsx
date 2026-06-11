@@ -19,12 +19,19 @@ const STAGES: CrmStage[] = [
   "perdido",
 ];
 
-export default async function CrmPipelinePage() {
+export default async function CrmPipelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ assignedTo?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/signin?callbackUrl=/comercial/crm");
 
   const ctx = await getCrmContext();
   if (!ctx) redirect("/");
+
+  const sp = await searchParams;
+  const initialAssignedTo = sp.assignedTo ?? "";
 
   const t = await getTranslations("crm");
 
@@ -105,10 +112,12 @@ export default async function CrmPipelinePage() {
       nextCursor={nextCursor}
       stageCounts={{ total: totalCount, ...stageCounts }}
       role={ctx.role}
+      userId={ctx.userId}
       userCountryCode={dbUser?.countryCode ?? null}
       teamMembers={teamMembers}
       showConfigHint={showConfigHint}
       configHintText={t("configureCountries")}
+      initialAssignedTo={initialAssignedTo}
     />
   );
 }

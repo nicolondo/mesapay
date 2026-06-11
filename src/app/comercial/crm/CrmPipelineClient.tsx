@@ -84,19 +84,25 @@ export function CrmPipelineClient({
   nextCursor: initialCursor,
   stageCounts,
   role,
+  userId,
   userCountryCode,
   teamMembers,
   showConfigHint,
   configHintText,
+  initialAssignedTo,
 }: {
   initialLeads: LeadCard[];
   nextCursor: string | undefined;
   stageCounts: StageCounts;
   role: string;
+  /** The current user's own ID — used so "Yo" option sends the right id. */
+  userId: string;
   userCountryCode: string | null;
   teamMembers: TeamMember[];
   showConfigHint: boolean;
   configHintText: string;
+  /** Pre-selected assignedTo value from query param (e.g. from /equipo link). */
+  initialAssignedTo?: string;
 }) {
   const t = useTranslations("crm");
   const relTime = useRelTime();
@@ -104,7 +110,10 @@ export function CrmPipelineClient({
   // ── Filters state
   const [activeStage, setActiveStage] = useState<Stage | "all">("all");
   const [q, setQ] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>("");
+  // "" = full visible scope (used for "Todo mi equipo")
+  // userId = only current user's leads (used for "Yo")
+  // specific member id = only that member's leads
+  const [assignedTo, setAssignedTo] = useState<string>(initialAssignedTo ?? "");
   const [leads, setLeads] = useState<LeadCard[]>(initialLeads);
   const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const [hasMore, setHasMore] = useState(!!initialCursor);
@@ -168,6 +177,9 @@ export function CrmPipelineClient({
   }
 
   // Assigned-to selector (gerente)
+  // selector value "" = "Todo mi equipo" → omit param → full visible scope
+  // selector value userId = "Yo" → restrict to own leads
+  // selector value = specific member id → restrict to that member
   function handleAssignedToChange(val: string) {
     setAssignedTo(val);
     fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true });
@@ -244,13 +256,15 @@ export function CrmPipelineClient({
               onChange={(e) => handleAssignedToChange(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none min-h-[44px]"
             >
-              <option value={""}>{t("viewSelectorMe")}</option>
+              {/* "" = omit assignedTo param → server returns full visible scope */}
+              <option value={""}>{t("viewSelectorTeam")}</option>
+              {/* Own id → restrict to current user's leads only */}
+              <option value={userId}>{t("viewSelectorMe")}</option>
               {teamMembers.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name ?? m.email}
                 </option>
               ))}
-              <option value={"__team__"}>{t("viewSelectorTeam")}</option>
             </select>
           )}
       </div>

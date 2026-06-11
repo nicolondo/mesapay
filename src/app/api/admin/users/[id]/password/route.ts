@@ -42,8 +42,8 @@ export async function POST(
     );
   }
 
-  const password = await bcrypt.hash(parsed.data.password, 10);
-  await db.user.update({ where: { id }, data: { password } });
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  await db.user.update({ where: { id }, data: { passwordHash } });
 
   await recordAuditEvent({
     kind: "user.password_set",

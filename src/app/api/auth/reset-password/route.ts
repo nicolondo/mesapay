@@ -31,9 +31,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const password = await bcrypt.hash(parsed.data.password, 10);
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await db.$transaction([
-    db.user.update({ where: { id: record.userId }, data: { password } }),
+    db.user.update({ where: { id: record.userId }, data: { passwordHash } }),
     db.passwordResetToken.update({
       where: { id: record.id },
       data: { usedAt: new Date() },

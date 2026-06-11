@@ -429,6 +429,8 @@ export function CrmPipelineClient({
   const [kanbanHitCap, setKanbanHitCap] = useState(false);
   // Ref so loadAllKanbanPages can check whether it's already running
   const kanbanLoadingRef = useRef(false);
+  // AbortController for the current kanban page-chain — replaced on every new filter-driven load
+  const kanbanAbortRef = useRef<AbortController | null>(null);
   // Ref to track whether a silent background refresh is in-flight
   const refreshInFlightRef = useRef(false);
 
@@ -505,14 +507,22 @@ export function CrmPipelineClient({
       /** Page-1 leads already fetched — when provided, accumulates silently
        *  and does a single setState with all pages concatenated. */
       seedLeads?: LeadCard[];
+      /** When true, aborts any in-flight load and starts fresh (used by
+       *  explicit filter changes: search, stage chip, assignedTo). */
+      force?: boolean;
+      /** AbortSignal from the caller — if aborted mid-loop, exits quietly. */
+      signal?: AbortSignal;
     }) => {
       if (!opts.startCursor) return; // nothing to load
-      if (kanbanLoadingRef.current) return;
+      // Guard: skip duplicate background loads; force overrides for filter changes
+      if (kanbanLoadingRef.current && !opts.force) return;
+      if (opts.signal?.aborted) return;
       kanbanLoadingRef.current = true;
       setKanbanLoadingAll(true);
       setKanbanHitCap(false);
       try {
         let localCursor: string | undefined = opts.startCursor;
+        const signal = opts.signal;
 
         if (opts.seedLeads !== undefined) {
           // ── Silent refresh path: accumulate all pages locally, single swap ──
@@ -520,13 +530,14 @@ export function CrmPipelineClient({
           let lastCursor: string | undefined = opts.startCursor;
 
           while (localCursor && accumulated.length < KANBAN_CAP) {
+            if (signal?.aborted) return;
             const params = new URLSearchParams();
             if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
             if (opts.q) params.set("q", opts.q);
             if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
             params.set("cursor", localCursor);
 
-            const res = await fetch(`/api/crm/leads?${params.toString()}`);
+            const res = await fetch(`/api/crm/leads?${params.toString()}`, { signal });
             const json = await res.json();
             const newLeads: LeadCard[] = json.leads ?? [];
             const nextCur: string | undefined = json.nextCursor;
@@ -536,6 +547,7 @@ export function CrmPipelineClient({
             lastCursor = nextCur;
           }
 
+          if (signal?.aborted) return;
           // Single state swap — no intermediate repaints
           startTransition(() => {
             setLeads(accumulated);
@@ -552,17 +564,19 @@ export function CrmPipelineClient({
           setLeads((current) => { localTotal = current.length; return current; });
 
           while (localCursor && localTotal < KANBAN_CAP) {
+            if (signal?.aborted) return;
             const params = new URLSearchParams();
             if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
             if (opts.q) params.set("q", opts.q);
             if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
             params.set("cursor", localCursor);
 
-            const res = await fetch(`/api/crm/leads?${params.toString()}`);
+            const res = await fetch(`/api/crm/leads?${params.toString()}`, { signal });
             const json = await res.json();
             const newLeads: LeadCard[] = json.leads ?? [];
             const nextCur: string | undefined = json.nextCursor;
 
+            if (signal?.aborted) return;
             startTransition(() => {
               setLeads((prev) => [...prev, ...newLeads]);
               setCursor(nextCur);
@@ -577,6 +591,10 @@ export function CrmPipelineClient({
             setKanbanHitCap(true);
           }
         }
+      } catch (err) {
+        // Fetch aborted — silently ignore
+        if (err instanceof Error && err.name === "AbortError") return;
+        throw err;
       } finally {
         kanbanLoadingRef.current = false;
         setKanbanLoadingAll(false);
@@ -678,11 +696,25 @@ export function CrmPipelineClient({
     };
   }, [refreshAll]);
 
+  /** Abort any in-flight kanban page-chain and start a fresh one with new filters. */
+  function startFilteredKanbanLoad(
+    stage: Stage | "all",
+    q: string,
+    assignedTo: string,
+    startCursor: string | undefined,
+  ) {
+    kanbanAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    kanbanAbortRef.current = ctrl;
+    kanbanLoadingRef.current = false; // allow the new load to proceed
+    loadAllKanbanPages({ stage, q, assignedTo, startCursor, force: true, signal: ctrl.signal });
+  }
+
   // Stage chip click
   function handleStageClick(stage: Stage | "all") {
     setActiveStage(stage);
     fetchLeads({ stage, q, assignedTo, reset: true, includeCounts: true })
-      .then((nextCursor) => loadAllKanbanPages({ stage, q, assignedTo, startCursor: nextCursor }));
+      .then((nextCursor) => startFilteredKanbanLoad(stage, q, assignedTo, nextCursor));
   }
 
   // Search input
@@ -690,8 +722,8 @@ export function CrmPipelineClient({
     setQ(val);
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
-      fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true })
-        .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q: val, assignedTo, startCursor: nextCursor }));
+      fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true, includeCounts: true })
+        .then((nextCursor) => startFilteredKanbanLoad(activeStage, val, assignedTo, nextCursor));
     }, 350);
   }
 
@@ -701,8 +733,8 @@ export function CrmPipelineClient({
   // selector value = specific member id → restrict to that member
   function handleAssignedToChange(val: string) {
     setAssignedTo(val);
-    fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true })
-      .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q, assignedTo: val, startCursor: nextCursor }));
+    fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true, includeCounts: true })
+      .then((nextCursor) => startFilteredKanbanLoad(activeStage, q, val, nextCursor));
   }
 
   // Load more

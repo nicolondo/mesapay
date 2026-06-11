@@ -6,7 +6,7 @@ import nodemailer from "nodemailer";
 import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
-import { renderTemplate } from "@/lib/crm/templateRender";
+import { renderTemplate, nl2brIfPlain } from "@/lib/crm/templateRender";
 
 const SendSchema = z.object({
   contactId: z.string(),
@@ -171,7 +171,9 @@ export async function POST(
   };
 
   const renderedSubject = renderTemplate(subject!, vars);
-  const renderedBody = renderTemplate(bodyHtml!, vars);
+  // Cuerpos en texto plano (sin bloques HTML): saltos de línea → <br>,
+  // si no el correo HTML llega como un muro de texto.
+  const renderedBody = nl2brIfPlain(renderTemplate(bodyHtml!, vars));
 
   // Append extraNote if provided
   const finalBody = extraNote

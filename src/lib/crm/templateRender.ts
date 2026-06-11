@@ -25,3 +25,15 @@ export function renderTemplate(
     return escapeHtml(value);
   });
 }
+
+/**
+ * Las plantillas suelen escribirse como texto plano con saltos de línea,
+ * pero el correo se envía como HTML — donde los \n colapsan en espacios.
+ * Si el cuerpo NO tiene estructura de bloques HTML, convertimos los saltos
+ * de línea en <br> para que el correo (y la vista previa) respeten el
+ * formato. Si ya trae bloques (<p>, <br>, <div>, …) se deja intacto.
+ */
+export function nl2brIfPlain(html: string): string {
+  if (/<\s*(br|p|div|table|ul|ol|h[1-6])\b/i.test(html)) return html;
+  return html.replace(/\r\n|\n/g, "<br>");
+}

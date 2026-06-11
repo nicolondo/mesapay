@@ -57,7 +57,12 @@ export default async function CrmEquipoPage() {
 
   const [leadsForMetrics, activitiesForMetrics] = await Promise.all([
     db.crmLead.findMany({
-      where: { assignedToUserId: { in: memberIds } },
+      // R5: Bound query to prevent full-table scans on large teams.
+      where: {
+        assignedToUserId: { in: memberIds },
+        createdAt: { gte: rangeStart },
+      },
+      take: 2000,
       select: { id: true, assignedToUserId: true, createdAt: true, stage: true },
     }),
     db.crmActivity.findMany({

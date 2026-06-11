@@ -4,6 +4,20 @@ import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 
+// Re-check private host at test time in case a row was created before this guard.
+function isPrivateHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  if (h === "localhost" || h === "::1") return true;
+  if (/^127\./.test(h)) return true;
+  if (/^10\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  if (/^0\./.test(h)) return true;
+  const m = h.match(/^172\.(\d+)\./);
+  if (m && parseInt(m[1], 10) >= 16 && parseInt(m[1], 10) <= 31) return true;
+  if (/^192\.168\./.test(h)) return true;
+  return false;
+}
+
 export async function POST() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -17,6 +31,11 @@ export async function POST() {
       { error: "no_account", detail: "Configura tu cuenta SMTP primero." },
       { status: 400 },
     );
+  }
+
+  // S3: Reject private/loopback hosts even for existing rows.
+  if (isPrivateHost(account.smtpHost)) {
+    return NextResponse.json({ error: "invalid_smtp_host" }, { status: 400 });
   }
 
   let smtpPass: string;

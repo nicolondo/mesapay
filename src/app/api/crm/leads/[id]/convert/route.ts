@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getCrmContext } from "@/lib/crm/access";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { normalizeSlug } from "@/lib/registerRestaurant";
+import { getPlanByTier } from "@/lib/planCatalog";
 import type { Plan } from "@prisma/client";
 
 const convertSchema = z.object({
@@ -75,61 +76,119 @@ export async function POST(
     );
   }
 
-  const { plan, monthlyPriceCents } = parsed.data;
+  const { plan } = parsed.data;
+  let { monthlyPriceCents } = parsed.data;
   const restaurantName = (parsed.data.name ?? lead.name).trim();
   const slugBase = parsed.data.slug ? normalizeSlug(parsed.data.slug) : normalizeSlug(restaurantName);
   const slug = await uniqueSlug(slugBase);
 
+  // C1: Enforce catalog floor price. trial is always 0; others must be ≥ catalog default.
+  const catalogEntry = await getPlanByTier(plan as Plan);
+  if (plan === "trial") {
+    monthlyPriceCents = 0;
+  } else if (monthlyPriceCents < catalogEntry.defaultPriceCents) {
+    monthlyPriceCents = catalogEntry.defaultPriceCents;
+  }
+
   const now = new Date();
 
-  const { restaurant } = await db.$transaction(async (tx) => {
-    // Create minimal restaurant (no owner user — CRM converts don't have
-    // credentials yet; an operator can be added later from admin).
-    const restaurant = await tx.restaurant.create({
+  // Capture non-null lead fields for use inside inner functions (TS closure narrowing).
+  const leadCountryCode = lead.countryCode;
+  const leadCityName = lead.city?.name;
+  const leadAssignedToUserId = lead.assignedToUserId;
+  const leadStage = lead.stage;
+
+  // C2: Wrap restaurant.create in try/catch; retry once on P2002 slug conflict.
+  async function createRestaurant(tx: Parameters<Parameters<typeof db.$transaction>[0]>[0], finalSlug: string) {
+    return tx.restaurant.create({
       data: {
-        slug,
+        slug: finalSlug,
         name: restaurantName,
         plan: plan as Plan,
         monthlyPriceCents,
-        country: lead.countryCode ?? undefined,
-        city: lead.city?.name ?? undefined,
+        country: leadCountryCode ?? undefined,
+        city: leadCityName ?? undefined,
         // Wire the commercial rep automatically.
-        salesRepUserId: lead.assignedToUserId,
+        salesRepUserId: leadAssignedToUserId,
         // salesRepCommissionBps: null → cascades to user's default (correct)
       },
     });
+  }
 
-    // Update lead: link restaurant + move to ganado.
-    await tx.crmLead.update({
-      where: { id },
-      data: {
-        restaurantId: restaurant.id,
-        stage: "ganado",
-        lastActivityAt: now,
-      },
+  function isP2002(err: unknown): boolean {
+    return (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code: string }).code === "P2002"
+    );
+  }
+
+  let restaurant: Awaited<ReturnType<typeof createRestaurant>>;
+  try {
+    const result = await db.$transaction(async (tx) => {
+      let rest: Awaited<ReturnType<typeof createRestaurant>>;
+      try {
+        rest = await createRestaurant(tx, slug);
+      } catch (err) {
+        if (isP2002(err)) {
+          // Retry once with a random suffix.
+          const retrySlug = `${slug.slice(0, 32)}-${randomBytes(2).toString("hex")}`;
+          try {
+            rest = await createRestaurant(tx, retrySlug);
+          } catch (err2) {
+            if (isP2002(err2)) {
+              throw Object.assign(new Error("slug_conflict"), { _slugConflict: true });
+            }
+            throw err2;
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      // Update lead: link restaurant + move to ganado.
+      await tx.crmLead.update({
+        where: { id },
+        data: {
+          restaurantId: rest.id,
+          stage: "ganado",
+          lastActivityAt: now,
+        },
+      });
+
+      // R1: activity content includes "ganado" so metrics.includes("ganado") matches.
+      await tx.crmActivity.create({
+        data: {
+          leadId: id,
+          userId: ctx.userId,
+          type: "stage_change",
+          content: `etapa: ${leadStage} → ganado (convertido en cliente)`,
+          meta: { from: leadStage, to: "ganado", restaurantId: rest.id },
+        },
+      });
+
+      return { restaurant: rest };
     });
-
-    // Record stage_change activity.
-    await tx.crmActivity.create({
-      data: {
-        leadId: id,
-        userId: ctx.userId,
-        type: "stage_change",
-        content: "Convertido en cliente ✓",
-        meta: { from: lead.stage, to: "ganado", restaurantId: restaurant.id },
-      },
-    });
-
-    return { restaurant };
-  });
+    restaurant = result.restaurant;
+  } catch (err) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "_slugConflict" in err
+    ) {
+      return NextResponse.json({ error: "slug_conflict" }, { status: 409 });
+    }
+    throw err;
+  }
 
   await recordAuditEvent({
     kind: "crm.lead.convert",
     restaurantId: restaurant.id,
     target: { type: "restaurant", id: restaurant.id },
-    summary: `Convirtió lead "${lead.name}" (${id}) en restaurante "${restaurant.name}" (${restaurant.id}) · plan ${plan}`,
+    summary: `Convirtió lead "${restaurantName}" (${id}) en restaurante "${restaurant.name}" (${restaurant.id}) · plan ${plan} · ${monthlyPriceCents} cents/mes`,
     diff: {
-      before: { stage: lead.stage, restaurantId: null },
+      before: { stage: leadStage, restaurantId: null },
       after: { stage: "ganado", restaurantId: restaurant.id },
     },
   });

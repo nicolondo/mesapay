@@ -76,12 +76,20 @@ export default async function CrmPipelinePage({
     },
   });
 
-  // Stage counts for chips
+  // R4: Replace 8 sequential count() calls with a single groupBy.
+  const stageGroups = await db.crmLead.groupBy({
+    by: ["stage"],
+    where: scopeFilter,
+    _count: { stage: true },
+  });
+
   const stageCounts: Record<string, number> = {};
+  for (const row of stageGroups) {
+    stageCounts[row.stage] = row._count.stage;
+  }
+  // Ensure all stages have a value (groupBy omits stages with 0 rows).
   for (const stage of STAGES) {
-    stageCounts[stage] = await db.crmLead.count({
-      where: { ...scopeFilter, stage },
-    });
+    stageCounts[stage] ??= 0;
   }
   const totalCount = Object.values(stageCounts).reduce((a, b) => a + b, 0);
 

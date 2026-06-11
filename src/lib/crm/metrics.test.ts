@@ -75,17 +75,18 @@ describe("computeTeamMetrics", () => {
     const leads = [
       { id: "l1", assignedToUserId: "u1", createdAt: inRange(25), stage: "ganado" },
     ];
+    // R1: convert route now emits "etapa: X → ganado (convertido en cliente)"
+    // which contains "ganado", so the count is 1.
     const activities = [
       {
         leadId: "l1", userId: "u1", type: "stage_change",
-        content: "Convertido en cliente ✓", createdAt: inRange(10),
+        content: "etapa: negociacion → ganado (convertido en cliente)", createdAt: inRange(10),
       },
     ];
-    // Note: "Convertido en cliente ✓" doesn't contain "ganado"
     const [m] = computeTeamMetrics(["u1"], leads, activities, rangeStart);
-    expect(m.ganados).toBe(0); // no "ganado" in content
+    expect(m.ganados).toBe(1);
 
-    // Now test with explicit "ganado" in content
+    // Also test plain "etapa: X → ganado" form (PATCH route, stage moved manually).
     const activities2 = [
       {
         leadId: "l1", userId: "u1", type: "stage_change",

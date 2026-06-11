@@ -5,6 +5,7 @@ import { getCrmContext } from "@/lib/crm/access";
 import { recordAuditEvent } from "@/lib/auditLog";
 import type { CrmStage } from "@prisma/client";
 
+// R2: "ganado" is only reachable via /convert; exclude it from direct PATCH.
 const VALID_STAGES: CrmStage[] = [
   "nuevo",
   "contactado",
@@ -12,7 +13,6 @@ const VALID_STAGES: CrmStage[] = [
   "demo_realizada",
   "propuesta_enviada",
   "negociacion",
-  "ganado",
   "perdido",
 ];
 
@@ -101,8 +101,9 @@ export async function PATCH(
   const body = parsed.data;
 
   // Stage change validation.
-  if (body.stage && body.stage !== lead.stage) {
-    if (body.stage === "perdido" && !body.lostReason) {
+  if (body.stage === "perdido") {
+    // R6: Require lostReason whenever stage is/becomes perdido without one already set.
+    if (!body.lostReason && !lead.lostReason) {
       return NextResponse.json(
         { error: "lostReason_required" },
         { status: 400 },

@@ -96,13 +96,13 @@ export async function POST(req: Request) {
   const { email, name, password, countryCode, commissionBps, managerId } =
     parsed.data;
 
-  // Determine managerId: gerente always assigns to self; admin can specify.
-  let resolvedManagerId: string;
+  // Determine managerId: gerente always assigns to self; admin can specify or leave null.
+  let resolvedManagerId: string | null;
   if (ctx.role === "gerente_comercial") {
     resolvedManagerId = ctx.userId;
   } else {
-    // Admin: use provided managerId or default to none (null = free comercial)
-    resolvedManagerId = managerId ?? ctx.userId;
+    // R3: Admin: use provided managerId or default to null (free/unassigned comercial).
+    resolvedManagerId = managerId ?? null;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);

@@ -228,6 +228,8 @@ function StageSheet({
   async function handleSave() {
     if (selectedStage === lead.stage) { onClose(); return; }
     if (selectedStage === "perdido" && !lostReason) { setError(t("lostReasonRequired")); return; }
+    // R2: "ganado" is only reachable via /convert — skip PATCH and hand off directly.
+    if (selectedStage === "ganado") { onSaved("ganado"); return; }
     setSaving(true);
     const res = await fetch(`/api/crm/leads/${lead.id}`, {
       method: "PATCH",

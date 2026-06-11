@@ -4,11 +4,33 @@ import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 
+// S3: Only well-known submission ports allowed.
+const ALLOWED_SMTP_PORTS = [465, 587, 2525] as const;
+
+// S3: Reject private/loopback SMTP hosts.
+function isPrivateHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  if (h === "localhost" || h === "::1") return true;
+  // IPv4 private/loopback ranges
+  if (/^127\./.test(h)) return true;
+  if (/^10\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  if (/^0\./.test(h)) return true;
+  // 172.16.0.0/12 → 172.16.x.x … 172.31.x.x
+  const m = h.match(/^172\.(\d+)\./);
+  if (m && parseInt(m[1], 10) >= 16 && parseInt(m[1], 10) <= 31) return true;
+  if (/^192\.168\./.test(h)) return true;
+  return false;
+}
+
 const PutSchema = z.object({
   fromName: z.string().min(1),
   email: z.string().email(),
   smtpHost: z.string().min(1),
-  smtpPort: z.number().int().min(1).max(65535),
+  smtpPort: z.number().int().refine(
+    (p) => (ALLOWED_SMTP_PORTS as readonly number[]).includes(p),
+    { message: "smtpPort must be one of 465, 587, or 2525" },
+  ),
   smtpUser: z.string().min(1),
   smtpPass: z.string().optional(), // if omitted on update, keep existing
 });
@@ -57,16 +79,15 @@ export async function PUT(req: Request) {
   const { fromName, email, smtpHost, smtpPort, smtpUser, smtpPass } =
     parsed.data;
 
+  // S3: Reject private/loopback SMTP hosts to prevent SSRF-style abuse.
+  if (isPrivateHost(smtpHost)) {
+    return NextResponse.json({ error: "invalid_smtp_host" }, { status: 400 });
+  }
+
   const existing = await db.crmEmailAccount.findUnique({
     where: { userId: ctx.userId },
-    select: { smtpPassEnc: true },
+    select: { smtpPassEnc: true, smtpHost: true, smtpPort: true, smtpUser: true },
   });
-
-  // Credentials changed → reset verifiedAt
-  const credentialsChanged =
-    smtpPass !== undefined ||
-    (existing &&
-      (existing.smtpPassEnc === undefined || smtpHost || smtpUser || email));
 
   let smtpPassEnc: string;
   if (smtpPass) {
@@ -80,8 +101,13 @@ export async function PUT(req: Request) {
     );
   }
 
-  // Reset verifiedAt when smtp credentials actually change
-  const shouldResetVerified = smtpPass !== undefined || !existing;
+  // S2: Reset verifiedAt when smtpHost, smtpPort, smtpUser, or smtpPass change.
+  const credentialsChanged =
+    !existing ||
+    smtpPass !== undefined ||
+    smtpHost !== existing.smtpHost ||
+    smtpPort !== existing.smtpPort ||
+    smtpUser !== existing.smtpUser;
 
   const account = await db.crmEmailAccount.upsert({
     where: { userId: ctx.userId },
@@ -102,7 +128,7 @@ export async function PUT(req: Request) {
       smtpPort,
       smtpUser,
       smtpPassEnc,
-      ...(shouldResetVerified ? { verifiedAt: null } : {}),
+      ...(credentialsChanged ? { verifiedAt: null } : {}),
     },
     select: {
       userId: true,
@@ -114,9 +140,6 @@ export async function PUT(req: Request) {
       verifiedAt: true,
     },
   });
-
-  // suppress unused var warning
-  void credentialsChanged;
 
   return NextResponse.json({ account: { ...account, hasPassword: true } });
 }

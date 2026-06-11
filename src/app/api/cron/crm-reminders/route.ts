@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { sendPushToUser } from "@/lib/push";
 
@@ -14,9 +15,23 @@ export const dynamic = "force-dynamic";
  * Llamar cada ~5 min via systemd timer o Vercel cron.
  */
 export async function GET(req: Request) {
-  const secret = req.headers.get("x-cron-secret");
+  const secret = req.headers.get("x-cron-secret") ?? "";
   const expected = process.env.CRON_SECRET ?? "";
-  if (!expected || secret !== expected) {
+  // M3: Use timing-safe comparison to prevent timing oracle on the secret.
+  // Handle length mismatch by always comparing same-length buffers (pad/truncate).
+  let authorized = false;
+  if (expected.length > 0 && secret.length > 0) {
+    const expectedBuf = Buffer.from(expected);
+    const secretBuf = Buffer.from(secret);
+    // timingSafeEqual requires same length — pad to max length with zeros.
+    const len = Math.max(expectedBuf.length, secretBuf.length);
+    const e = Buffer.alloc(len);
+    const s = Buffer.alloc(len);
+    expectedBuf.copy(e);
+    secretBuf.copy(s);
+    authorized = timingSafeEqual(e, s) && expectedBuf.length === secretBuf.length;
+  }
+  if (!authorized) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

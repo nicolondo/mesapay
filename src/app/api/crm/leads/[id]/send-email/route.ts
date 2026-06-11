@@ -25,14 +25,23 @@ function uploadDir() {
   return path.join(base, "crm");
 }
 
-/** Derive filesystem path from fileUrl (e.g. /uploads/crm/abc.pdf) */
-function filePathFromUrl(fileUrl: string): string {
+/** Derive filesystem path from fileUrl (e.g. /uploads/crm/abc.pdf).
+ *  S1: resolves the path and asserts it stays within the upload base dir.
+ *  Returns null if the path would escape the base (path traversal attempt). */
+function filePathFromUrl(fileUrl: string): string | null {
   // fileUrl is like /uploads/crm/filename.pdf
   // filesystem path is UPLOAD_DIR/crm/filename.pdf OR public/uploads/crm/filename.pdf
   const base =
     process.env.UPLOAD_DIR ?? path.join(process.cwd(), "public", "uploads");
   const segments = fileUrl.replace(/^\/uploads\//, "").split("/");
-  return path.join(base, ...segments);
+  const joined = path.join(base, ...segments);
+  const resolved = path.resolve(joined);
+  const allowedPrefix = path.resolve(base) + path.sep;
+  // Also allow exact base dir match (no trailing sep) — but uploads should always be files.
+  if (!resolved.startsWith(allowedPrefix)) {
+    return null;
+  }
+  return resolved;
 }
 
 export async function POST(
@@ -183,6 +192,7 @@ export async function POST(
     for (const doc of docs) {
       try {
         const filePath = filePathFromUrl(doc.fileUrl);
+        if (!filePath) continue; // S1: skip invalid/traversal paths
         const content = await readFile(filePath);
         const filename = doc.name + (doc.name.includes(".") ? "" : "." + doc.mime.split("/")[1]);
         attachments.push({ filename, content });

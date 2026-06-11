@@ -42,7 +42,8 @@ export default async function CrmLeadDetailPage({
     notFound();
   }
 
-  const [contacts, activities] = await Promise.all([
+  const now = new Date();
+  const [contacts, activities, appointments] = await Promise.all([
     db.crmContact.findMany({
       where: { leadId: id },
       orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
@@ -54,6 +55,12 @@ export default async function CrmLeadDetailPage({
       include: {
         user: { select: { id: true, name: true, email: true } },
       },
+    }),
+    // Upcoming appointments for this lead (status=scheduled, from now forward).
+    db.crmAppointment.findMany({
+      where: { leadId: id, status: "scheduled", startsAt: { gte: now } },
+      orderBy: { startsAt: "asc" },
+      take: 10,
     }),
   ]);
 
@@ -113,6 +120,15 @@ export default async function CrmLeadDetailPage({
     user: { id: a.user.id, name: a.user.name, email: a.user.email },
   }));
 
+  const appointmentsSerialized = appointments.map((a) => ({
+    id: a.id,
+    title: a.title,
+    startsAt: a.startsAt.toISOString(),
+    endsAt: a.endsAt.toISOString(),
+    notes: a.notes ?? null,
+    status: a.status,
+  }));
+
   const stageLabels: Record<string, string> = {
     nuevo: t("stageNuevo"),
     contactado: t("stageContactado"),
@@ -129,6 +145,7 @@ export default async function CrmLeadDetailPage({
       lead={leadSerialized}
       contacts={contactsSerialized}
       activities={activitiesSerialized}
+      appointments={appointmentsSerialized}
       teamMembers={teamMembers}
       role={ctx.role}
       userId={ctx.userId}

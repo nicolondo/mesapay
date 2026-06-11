@@ -47,6 +47,15 @@ export type ActivityData = {
   user: { id: string; name: string | null; email: string };
 };
 
+export type AppointmentData = {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  notes: string | null;
+  status: string;
+};
+
 type TeamMember = { id: string; name: string | null; email: string };
 
 const STAGES = [
@@ -623,6 +632,114 @@ function ReassignSheet({
   );
 }
 
+// ── Appointment sheet ──────────────────────────────────────────────────────
+
+function AppointmentSheet({
+  leadId,
+  onSaved,
+  onClose,
+}: {
+  leadId: string;
+  onSaved: (appt: AppointmentData) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("crm");
+  const [title, setTitle] = useState("");
+  const [dateVal, setDateVal] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [timeVal, setTimeVal] = useState(() => {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes() >= 30 ? 30 : 0).padStart(2, "0");
+    return `${hh}:${mm}`;
+  });
+  const [durationMins, setDurationMins] = useState(60);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!title.trim() || !dateVal || !timeVal) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const startsAt = new Date(`${dateVal}T${timeVal}:00`).toISOString();
+      const endsAt = new Date(
+        new Date(`${dateVal}T${timeVal}:00`).getTime() + durationMins * 60 * 1000,
+      ).toISOString();
+      const res = await fetch("/api/crm/appointments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ leadId, title: title.trim(), startsAt, endsAt, notes: notes.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(t("saveError")); setSaving(false); return; }
+      onSaved({
+        id: json.appointment.id,
+        title: json.appointment.title,
+        startsAt: json.appointment.startsAt,
+        endsAt: json.appointment.endsAt,
+        notes: json.appointment.notes ?? null,
+        status: json.appointment.status,
+      });
+    } catch {
+      setError(t("saveError")); setSaving(false);
+    }
+  }
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("appointNewTitle")} onClose={onClose} />
+        <div className="px-4 py-4 space-y-4 overflow-y-auto">
+          <div>
+            <FieldLabel required>{t("appointFieldTitle")}</FieldLabel>
+            <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <FieldLabel required>{t("appointFieldDate")}</FieldLabel>
+              <input type="date" required value={dateVal} onChange={(e) => setDateVal(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+            </div>
+            <div className="flex-1">
+              <FieldLabel required>{t("appointFieldTime")}</FieldLabel>
+              <input type="time" required value={timeVal} onChange={(e) => setTimeVal(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+            </div>
+          </div>
+          <div>
+            <FieldLabel>{t("appointFieldDuration")}</FieldLabel>
+            <div className="flex gap-2">
+              {([30, 60, 90] as const).map((d) => (
+                <button key={d} type="button" onClick={() => setDurationMins(d)}
+                  className={"flex-1 py-2.5 rounded-xl border-2 text-sm font-medium min-h-[44px] transition-all " +
+                    (durationMins === d ? "border-terracotta bg-terracotta/5 text-terracotta" : "border-op-border text-op-muted hover:border-op-text")}>
+                  {d === 30 ? t("appointDuration30") : d === 60 ? t("appointDuration60") : t("appointDuration90")}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <FieldLabel>{t("appointFieldNotes")}</FieldLabel>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-none" />
+          </div>
+          {error && <p className="text-sm text-terracotta">{error}</p>}
+          <button onClick={handleSave} disabled={saving || !title.trim() || !dateVal || !timeVal}
+            className="w-full py-3.5 rounded-xl bg-terracotta text-white font-medium disabled:opacity-50 min-h-[44px]">
+            {saving ? <span className="flex justify-center"><Spinner /></span> : t("appointSubmitCreate")}
+          </button>
+        </div>
+      </SheetContent>
+    </Overlay>
+  );
+}
+
 // ── Contact card ───────────────────────────────────────────────────────────
 
 function ContactCard({
@@ -703,6 +820,7 @@ export function CrmLeadDetailClient({
   lead: initialLead,
   contacts: initialContacts,
   activities: initialActivities,
+  appointments: initialAppointments,
   teamMembers,
   role,
   userId,
@@ -712,6 +830,7 @@ export function CrmLeadDetailClient({
   lead: LeadData;
   contacts: ContactData[];
   activities: ActivityData[];
+  appointments: AppointmentData[];
   teamMembers: TeamMember[];
   role: string;
   userId: string;
@@ -725,8 +844,9 @@ export function CrmLeadDetailClient({
   const [lead, setLead] = useState<LeadData>(initialLead);
   const [contacts, setContacts] = useState<ContactData[]>(initialContacts);
   const [activities, setActivities] = useState<ActivityData[]>(initialActivities);
+  const [appointments, setAppointments] = useState<AppointmentData[]>(initialAppointments);
 
-  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | null;
+  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | null;
   const [sheet, setSheet] = useState<SheetType>(null);
   const [editingContact, setEditingContact] = useState<ContactData | null>(null);
 
@@ -840,6 +960,57 @@ export function CrmLeadDetailClient({
           </section>
         )}
 
+        {/* ── Appointments ── */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">{t("appointSectionTitle")}</div>
+            <button onClick={() => setSheet("addAppointment")}
+              className="text-xs text-terracotta hover:underline min-h-[44px] px-2 flex items-center">
+              {"+ " + t("appointNewTitle")}
+            </button>
+          </div>
+          {appointments.length === 0 ? (
+            <p className="text-sm text-op-muted">{t("appointNoUpcoming")}</p>
+          ) : (
+            <div className="space-y-2">
+              {appointments.map((appt) => {
+                const starts = new Date(appt.startsAt);
+                // Bogota UTC-5
+                const b = new Date(starts.getTime() - 5 * 60 * 60 * 1000);
+                const hh = String(b.getUTCHours()).padStart(2, "0");
+                const mm = String(b.getUTCMinutes()).padStart(2, "0");
+                const timeStr = `${hh}:${mm}`;
+                const dateStr = starts.toLocaleDateString();
+                const statusColors: Record<string, string> = {
+                  scheduled: "bg-violet-100 text-violet-700",
+                  done: "bg-green-100 text-green-700",
+                  cancelled: "bg-rose-100 text-rose-600",
+                };
+                const statusLabels: Record<string, string> = {
+                  scheduled: t("appointStatusScheduled"),
+                  done: t("appointStatusDone"),
+                  cancelled: t("appointStatusCancelled"),
+                };
+                return (
+                  <div key={appt.id} className="rounded-xl border border-op-border bg-op-surface p-3 flex items-center gap-3">
+                    <div className="font-mono text-xs text-op-muted shrink-0 text-center">
+                      <div>{timeStr}</div>
+                      <div className="text-[10px]">{dateStr}</div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{appt.title}</div>
+                      {appt.notes && <div className="text-xs text-op-muted truncate">{appt.notes}</div>}
+                    </div>
+                    <span className={"font-mono text-[9px] tracking-wide uppercase px-1.5 py-0.5 rounded shrink-0 " + (statusColors[appt.status] ?? "bg-op-bg text-op-muted")}>
+                      {statusLabels[appt.status] ?? appt.status}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* ── Timeline ── */}
         <section>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-3">{t("sectionTimeline")}</div>
@@ -928,6 +1099,18 @@ export function CrmLeadDetailClient({
           onSaved={(member) => {
             startTransition(() => {
               setLead((prev) => ({ ...prev, assignedTo: { id: member.id, name: member.name, email: member.email } }));
+              setSheet(null);
+            });
+          }} />
+      )}
+      {sheet === "addAppointment" && (
+        <AppointmentSheet leadId={lead.id}
+          onClose={() => setSheet(null)}
+          onSaved={(appt) => {
+            startTransition(() => {
+              setAppointments((prev) => [appt, ...prev].sort(
+                (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+              ));
               setSheet(null);
             });
           }} />

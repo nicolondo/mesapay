@@ -1,5 +1,6 @@
 {
   "country": "MX",
+  "name": "México",
   "complete": false,
   "main": ["Ciudad de México", "Guadalajara", "Monterrey", "Puebla", "Tijuana"],
   "cities": [

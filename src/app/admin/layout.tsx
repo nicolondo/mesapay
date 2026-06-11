@@ -66,6 +66,7 @@ export default async function AdminLayout({
               <NavLink href="/admin/plans">{t("navPlans")}</NavLink>
               <NavLink href="/admin/audit">{t("navAudit")}</NavLink>
               <NavLink href="/admin/comisiones">{t("navComisiones")}</NavLink>
+              <NavLink href="/comercial">{t("navCrm")}</NavLink>
               <NavLink href="/admin/configuracion">{t("navConfig")}</NavLink>
             </nav>
           </div>

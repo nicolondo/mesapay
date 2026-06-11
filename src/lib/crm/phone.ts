@@ -2,6 +2,14 @@
 const CALLING_CODES: Record<string, string> = {
   CO: "57",
   MX: "52",
+  AR: "54",
+  BR: "55",
+  CL: "56",
+  PE: "51",
+  EC: "593",
+  PA: "507",
+  CR: "506",
+  ES: "34",
 };
 
 /**
@@ -12,7 +20,9 @@ const CALLING_CODES: Record<string, string> = {
  * 2. If the input started with "+" treat the digits as already having a calling
  *    code — keep as-is.
  * 3. If digits already start with the calling code for `countryCode` and total
- *    length is ≥ 11, keep as-is (prepend "+").
+ *    length is ≥ (code.length + 7), keep as-is (prepend "+").
+ *    This handles both 2-digit codes (CO=57, total≥11) and 3-digit codes
+ *    (EC=593, total≥10; PA=507, total≥10; CR=506, total≥10).
  * 4. Otherwise prepend the calling code digits.
  * 5. Return null if final digit count is < 7.
  */
@@ -31,8 +41,13 @@ export function normalizePhone(raw: string, countryCode: string): string | null 
   if (hadPlus) {
     // Caller asserts there is already a country code
     finalDigits = digits;
-  } else if (digits.startsWith(code) && digits.length >= 11) {
-    // Digits include the calling code already (e.g. "573001234567")
+  } else if (
+    digits.startsWith(code) &&
+    digits.length >= code.length + 7
+  ) {
+    // Digits include the calling code already (e.g. "573001234567" for CO,
+    // or "59399123456" for EC). The threshold ensures we don't false-positive
+    // on a local number that happens to start with the same digits.
     finalDigits = digits;
   } else {
     // Prefix with calling code

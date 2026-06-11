@@ -88,7 +88,34 @@ demo_realizada → propuesta_enviada → negociacion → ganado | perdido` (perd
 - Duplicados: warning al crear si nombre normalizado o teléfono ya existen (en el scope visible).
 - Métricas de gerente: leads nuevos / contactados / demos / conversión / tiempo de primera
   respuesta, por comercial. Nada más en v1.
-- Mobile-first (PWA), trilingüe, auditoría en reasignar/borrar/exportar.
+- Trilingüe, auditoría en reasignar/borrar/exportar.
+
+## 5b · UX móvil — REQUISITO DE PRIMERA CLASE (pedido explícito de Nicolás)
+
+Los comerciales pasan más tiempo en la calle que en oficina. **El CRM se diseña móvil-primero;
+el desktop es la adaptación, no al revés.** Compromisos concretos (verificables en cada PR):
+
+- **PWA instalable** "MP COMERCIAL" (mismo patrón que MP MESERO: manifest por rol, ícono,
+  splash, push). El comercial la instala como app en su celular.
+- **Bottom nav de 4 tabs** (zona del pulgar): Hoy · Pipeline · Calendario · Más.
+  FAB "+" para crear lead rápido: nombre + teléfono + ciudad → listo (3 campos, <30 s).
+- **Pipeline en móvil = lista con chips de etapa** (scroll horizontal de etapas arriba), NO
+  kanban de columnas (no funciona en 390px). Kanban solo ≥1024px. Cambio de etapa por
+  bottom sheet.
+- **Acciones de contacto a un tap y con dedo grande**: fila de botones WhatsApp (`wa.me`),
+  Llamar (`tel:`) y Correo en la card del lead y en la ficha. Tap targets ≥44px en todo el CRM.
+- **Formularios móviles**: bottom sheets (patrón existente del repo), teclado numérico para
+  teléfonos (`inputmode=tel`), combobox de ciudad con búsqueda optimizada táctil, prefijo
+  telefónico automático según el país del lead.
+- **Safe-areas y viewport**: reutilizar los fixes ya hechos para la PWA del mesero
+  (safe-area-inset solo standalone, fix dvh first-paint).
+- **Performance en red celular**: server components + paginación/scroll infinito en listas
+  (nunca cargar todos los leads), skeletons, imágenes mínimas. La pantalla "Hoy" debe abrir
+  útil en <2 s en 4G.
+- **Gate de calidad por fase**: ningún PR del CRM se mergea sin revisión visual a 390px
+  (viewport iPhone) de cada pantalla nueva. Es parte de la verificación, junto a test/lint/build.
+- **Fuera de v1**: offline-first con sincronización (complejidad alta; los comerciales operan
+  con datos móviles). La PWA degrada con un mensaje claro sin conexión. Candidato v2.
 
 ## 6 · Fuera de alcance v1 (explícito)
 

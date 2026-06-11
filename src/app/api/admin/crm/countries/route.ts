@@ -5,19 +5,38 @@ import { db } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/auditLog";
 import coData from "@/data/cities/co.json";
 import mxData from "@/data/cities/mx.json";
+import arData from "@/data/cities/ar.json";
+import brData from "@/data/cities/br.json";
+import clData from "@/data/cities/cl.json";
+import peData from "@/data/cities/pe.json";
+import ecData from "@/data/cities/ec.json";
+import paData from "@/data/cities/pa.json";
+import crData from "@/data/cities/cr.json";
+import esData from "@/data/cities/es.json";
 
 // ── Static dataset registry ──────────────────────────────────────────────────
 
 interface CityDataset {
   country: string;
+  name: string;
   main: string[];
   cities: string[];
 }
 
-const DATASETS: Record<string, CityDataset & { name: string }> = {
-  CO: { ...(coData as CityDataset), name: "Colombia" },
-  MX: { ...(mxData as CityDataset), name: "México" },
+const DATASETS: Record<string, CityDataset> = {
+  CO: coData as CityDataset,
+  MX: mxData as CityDataset,
+  AR: arData as CityDataset,
+  BR: brData as CityDataset,
+  CL: clData as CityDataset,
+  PE: peData as CityDataset,
+  EC: ecData as CityDataset,
+  PA: paData as CityDataset,
+  CR: crData as CityDataset,
+  ES: esData as CityDataset,
 };
+
+const VALID_CODES = Object.keys(DATASETS) as [string, ...string[]];
 
 // ── GET /api/admin/crm/countries ─────────────────────────────────────────────
 
@@ -54,7 +73,7 @@ export async function GET() {
 // ── POST /api/admin/crm/countries ────────────────────────────────────────────
 
 const schema = z.object({
-  code: z.enum(["CO", "MX"]),
+  code: z.enum(VALID_CODES as [string, ...string[]]),
   enabled: z.boolean(),
 });
 

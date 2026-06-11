@@ -45,6 +45,95 @@ describe("normalizePhone — MX", () => {
   });
 });
 
+describe("normalizePhone — AR", () => {
+  it("plain 10-digit mobile AR", () => {
+    expect(normalizePhone("11 2345 6789", "AR")).toBe("+541123456789");
+  });
+
+  it("already has +54 prefix", () => {
+    expect(normalizePhone("+54 11 2345 6789", "AR")).toBe("+541123456789");
+  });
+});
+
+describe("normalizePhone — BR", () => {
+  it("plain 11-digit mobile BR", () => {
+    expect(normalizePhone("11 9 1234 5678", "BR")).toBe("+5511912345678");
+  });
+
+  it("already has +55 prefix", () => {
+    expect(normalizePhone("+55 11 9 1234 5678", "BR")).toBe("+5511912345678");
+  });
+});
+
+describe("normalizePhone — CL", () => {
+  it("plain 9-digit mobile CL", () => {
+    expect(normalizePhone("9 1234 5678", "CL")).toBe("+56912345678");
+  });
+
+  it("already has +56 prefix", () => {
+    expect(normalizePhone("+56 9 1234 5678", "CL")).toBe("+56912345678");
+  });
+});
+
+describe("normalizePhone — PE", () => {
+  it("plain 9-digit mobile PE", () => {
+    expect(normalizePhone("9 1234 5678", "PE")).toBe("+51912345678");
+  });
+
+  it("already has +51 prefix", () => {
+    expect(normalizePhone("+51 912 345 678", "PE")).toBe("+51912345678");
+  });
+});
+
+describe("normalizePhone — EC (3-digit code 593)", () => {
+  it("already has +593 prefix — kept as-is", () => {
+    expect(normalizePhone("+593 99 123 4567", "EC")).toBe("+593991234567");
+  });
+
+  it("plain 9-digit mobile EC — gets prefixed", () => {
+    expect(normalizePhone("99 123 4567", "EC")).toBe("+59399123456" + "7");
+  });
+
+  it("digits already start with 593 and length ≥ 10", () => {
+    // 593 + 9 digits = 12 digits total (≥ 3+7 = 10)
+    expect(normalizePhone("593991234567", "EC")).toBe("+593991234567");
+  });
+});
+
+describe("normalizePhone — PA (3-digit code 507)", () => {
+  it("plain 8-digit number PA — gets prefixed", () => {
+    expect(normalizePhone("6123 4567", "PA")).toBe("+50761234567");
+  });
+
+  it("already has +507 prefix", () => {
+    expect(normalizePhone("+507 6123 4567", "PA")).toBe("+50761234567");
+  });
+
+  it("digits already start with 507 and length ≥ 10", () => {
+    expect(normalizePhone("50761234567", "PA")).toBe("+50761234567");
+  });
+});
+
+describe("normalizePhone — CR (3-digit code 506)", () => {
+  it("plain 8-digit number CR — gets prefixed", () => {
+    expect(normalizePhone("6123 4567", "CR")).toBe("+50661234567");
+  });
+
+  it("already has +506 prefix", () => {
+    expect(normalizePhone("+506 6123 4567", "CR")).toBe("+50661234567");
+  });
+});
+
+describe("normalizePhone — ES", () => {
+  it("plain 9-digit mobile ES", () => {
+    expect(normalizePhone("612 345 678", "ES")).toBe("+34612345678");
+  });
+
+  it("already has +34 prefix", () => {
+    expect(normalizePhone("+34 612 345 678", "ES")).toBe("+34612345678");
+  });
+});
+
 describe("normalizePhone — edge cases", () => {
   it("unknown country code returns null", () => {
     expect(normalizePhone("3001234567", "XX")).toBeNull();

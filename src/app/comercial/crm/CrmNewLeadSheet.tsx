@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { CALLING_CODES } from "@/lib/crm/phone";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -9,15 +10,12 @@ type City = { id: string; name: string; isMain: boolean };
 type Country = { code: string; name: string; enabled: boolean };
 type DupeLead = { id: string; name: string; countryCode: string; stage: string };
 
-const PHONE_PREFIXES: Record<string, string> = {
-  CO: "+57",
-  MX: "+52",
-};
-
-function getPrefix(countryCode: string | null): string {
-  if (!countryCode) return "";
-  return PHONE_PREFIXES[countryCode.toUpperCase()] ?? "";
-}
+// Phone prefix select options (derived from authoritative CALLING_CODES)
+const PHONE_PREFIX_OPTIONS = Object.entries(CALLING_CODES).map(([cc, code]) => ({
+  cc,
+  label: `+${code}`,
+  digits: code,
+}));
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -35,6 +33,11 @@ export function CrmNewLeadSheet({
   // Form state
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // selectedPrefixCc: the country code for the phone prefix select.
+  // Defaults to the lead's country (or first option if no country yet).
+  const [selectedPrefixCc, setSelectedPrefixCc] = useState<string>(
+    userCountryCode?.toUpperCase() ?? PHONE_PREFIX_OPTIONS[0]?.cc ?? "CO",
+  );
   const [contactName, setContactName] = useState("");
   const [cityId, setCityId] = useState("");
   const [citySearch, setCitySearch] = useState("");
@@ -122,10 +125,12 @@ export function CrmNewLeadSheet({
     setSubmitting(true);
     setError(null);
     try {
-      const prefix = getPrefix(countryCode);
+      const prefixDigits = CALLING_CODES[selectedPrefixCc] ?? "";
       const rawPhone = phone.startsWith("+")
         ? phone
-        : prefix + phone.replace(/\D/g, "");
+        : prefixDigits
+          ? `+${prefixDigits}${phone.replace(/\D/g, "")}`
+          : phone.replace(/\D/g, "");
 
       const body = {
         name: name.trim(),
@@ -186,8 +191,6 @@ export function CrmNewLeadSheet({
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
-
-  const prefix = getPrefix(countryCode);
 
   if (showDupeConfirm) {
     return (
@@ -303,11 +306,16 @@ export function CrmNewLeadSheet({
             <div>
               <FieldLabel>{t("fieldPhone")}</FieldLabel>
               <div className="flex gap-2 items-center">
-                {prefix && (
-                  <span className="font-mono text-sm text-op-muted border border-op-border rounded-xl px-3 py-2.5 bg-op-bg whitespace-nowrap min-h-[44px] flex items-center">
-                    {prefix}
-                  </span>
-                )}
+                <select
+                  aria-label={t("phonePrefixLabel")}
+                  value={selectedPrefixCc}
+                  onChange={(e) => setSelectedPrefixCc(e.target.value)}
+                  className="font-mono text-sm text-op-muted border border-op-border rounded-xl px-2 py-2.5 bg-op-bg whitespace-nowrap min-h-[44px] focus:outline-none focus:ring-1 focus:ring-terracotta"
+                >
+                  {PHONE_PREFIX_OPTIONS.map((opt) => (
+                    <option key={opt.cc} value={opt.cc}>{opt.label}</option>
+                  ))}
+                </select>
                 <input
                   type="tel"
                   inputMode="tel"

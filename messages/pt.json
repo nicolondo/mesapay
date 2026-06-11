@@ -2973,6 +2973,7 @@
     "citiesCount": "{count} cidades"
   },
   "crm": {
+    "phonePrefixLabel": "Código de discagem",
     "navHoy": "Hoje",
     "navPipeline": "Pipeline",
     "navCalendario": "Calendário",

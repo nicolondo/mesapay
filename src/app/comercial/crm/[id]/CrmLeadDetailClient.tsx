@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { waLink } from "@/lib/crm/phone";
+import { waLink, CALLING_CODES } from "@/lib/crm/phone";
 import { renderTemplate } from "@/lib/crm/templateRender";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -80,7 +80,24 @@ const LOST_REASONS = [
   "Otro",
 ] as const;
 
-const PHONE_PREFIXES: Record<string, string> = { CO: "+57", MX: "+52" };
+// Phone prefix select options (derived from authoritative CALLING_CODES)
+const PHONE_PREFIX_OPTIONS = Object.entries(CALLING_CODES).map(([cc, code]) => ({
+  cc,
+  label: `+${code}`,
+  digits: code,
+}));
+
+/** Detect the country code from a "+"-prefixed E.164 number, or fall back to defaultCc. */
+function detectPrefixCc(phone: string, defaultCc: string): string {
+  if (!phone.startsWith("+")) return defaultCc;
+  const digits = phone.slice(1).replace(/\D/g, "");
+  // Try longest match first (3-digit codes before 2-digit)
+  const sorted = [...PHONE_PREFIX_OPTIONS].sort((a, b) => b.digits.length - a.digits.length);
+  for (const opt of sorted) {
+    if (digits.startsWith(opt.digits)) return opt.cc;
+  }
+  return defaultCc;
+}
 
 // ── Color helpers ──────────────────────────────────────────────────────────
 
@@ -348,18 +365,29 @@ function ContactSheet({
   const isEdit = !!editingContact;
   const [name, setName] = useState(editingContact?.name ?? "");
   const [role, setRole] = useState(editingContact?.role ?? "");
+  // For edit mode: initialize with the full stored phone (including "+").
+  // The select shows the detected country code; the input holds whatever the user types.
+  // If the user types without "+", the selected code is prepended on submit.
+  // If the user types with "+", it is sent as-is (server-side passthrough).
   const [phone, setPhone] = useState(editingContact?.phone ?? "");
+  const [selectedPrefixCc, setSelectedPrefixCc] = useState<string>(() =>
+    detectPrefixCc(editingContact?.phone ?? "", countryCode?.toUpperCase() ?? "CO"),
+  );
   const [email, setEmail] = useState(editingContact?.email ?? "");
   const [isPrimary, setIsPrimary] = useState(editingContact?.isPrimary ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const prefix = PHONE_PREFIXES[countryCode?.toUpperCase() ?? ""] ?? "";
+  const selectedPrefix = CALLING_CODES[selectedPrefixCc] ? `+${CALLING_CODES[selectedPrefixCc]}` : "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setError(null);
-    const rawPhone = phone ? (phone.startsWith("+") ? phone : prefix + phone.replace(/\D/g, "")) : undefined;
+    const rawPhone = phone
+      ? phone.startsWith("+")
+        ? phone
+        : selectedPrefix + phone.replace(/\D/g, "")
+      : undefined;
     try {
       let res: Response;
       if (isEdit && editingContact) {
@@ -405,7 +433,16 @@ function ContactSheet({
           <div>
             <FieldLabel>{t("fieldPhone")}</FieldLabel>
             <div className="flex gap-2 items-center">
-              {prefix && <span className="font-mono text-sm text-op-muted border border-op-border rounded-xl px-3 py-2.5 bg-op-bg whitespace-nowrap min-h-[44px] flex items-center">{prefix}</span>}
+              <select
+                aria-label={t("phonePrefixLabel")}
+                value={selectedPrefixCc}
+                onChange={(e) => setSelectedPrefixCc(e.target.value)}
+                className="font-mono text-sm text-op-muted border border-op-border rounded-xl px-2 py-2.5 bg-op-bg whitespace-nowrap min-h-[44px] focus:outline-none focus:ring-1 focus:ring-terracotta"
+              >
+                {PHONE_PREFIX_OPTIONS.map((opt) => (
+                  <option key={opt.cc} value={opt.cc}>{opt.label}</option>
+                ))}
+              </select>
               <input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                 className="flex-1 px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
             </div>

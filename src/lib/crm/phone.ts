@@ -1,5 +1,5 @@
-/** Calling codes per country code */
-const CALLING_CODES: Record<string, string> = {
+/** Calling codes per country code (exported for UI select lists) */
+export const CALLING_CODES: Record<string, string> = {
   CO: "57",
   MX: "52",
   AR: "54",
@@ -17,8 +17,8 @@ const CALLING_CODES: Record<string, string> = {
  *
  * Rules:
  * 1. Strip all non-digit characters (except a leading "+").
- * 2. If the input started with "+" treat the digits as already having a calling
- *    code — keep as-is.
+ * 2. If the input started with "+" treat the digits as a complete international
+ *    number — return "+"+digits as-is. Requires ≥ 8 digits; else null.
  * 3. If digits already start with the calling code for `countryCode` and total
  *    length is ≥ (code.length + 7), keep as-is (prepend "+").
  *    This handles both 2-digit codes (CO=57, total≥11) and 3-digit codes
@@ -36,12 +36,17 @@ export function normalizePhone(raw: string, countryCode: string): string | null 
   const hadPlus = trimmed.startsWith("+");
   const digits = trimmed.replace(/\D/g, "");
 
+  // Fast path: explicit international format.
+  if (hadPlus) {
+    // Caller explicitly provided an international number — trust it as-is.
+    // Require ≥ 8 digits (shortest real E.164 country+subscriber: e.g. +1XXXXXXX).
+    if (digits.length < 8) return null;
+    return `+${digits}`;
+  }
+
   let finalDigits: string;
 
-  if (hadPlus) {
-    // Caller asserts there is already a country code
-    finalDigits = digits;
-  } else if (
+  if (
     digits.startsWith(code) &&
     digits.length >= code.length + 7
   ) {

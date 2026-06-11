@@ -433,6 +433,11 @@ export function CrmPipelineClient({
   const kanbanAbortRef = useRef<AbortController | null>(null);
   // Ref to track whether a silent background refresh is in-flight
   const refreshInFlightRef = useRef(false);
+  // Generación de filtros: se incrementa en cada cambio explícito (búsqueda,
+  // chip de etapa, assignedTo). Los loaders asíncronos la capturan al arrancar
+  // y descartan su resultado si cambió — evita que una carga vieja (mount o
+  // refresh silencioso sin filtro) pise la lista ya filtrada al llegar tarde.
+  const filterGenRef = useRef(0);
 
   function showDndToast(msg: string, ok: boolean) {
     setDndToast({ msg, ok });
@@ -455,6 +460,7 @@ export function CrmPipelineClient({
       /** When true, does not flip the loading spinner (silent background refresh). */
       silent?: boolean;
     }): Promise<string | undefined> => {
+      const gen = filterGenRef.current;
       if (!opts.silent) setLoading(true);
       try {
         const params = new URLSearchParams();
@@ -466,6 +472,8 @@ export function CrmPipelineClient({
 
         const res = await fetch(`/api/crm/leads?${params.toString()}`);
         const json = await res.json();
+        // Filtros cambiaron mientras esta respuesta volaba — descartar.
+        if (gen !== filterGenRef.current) return undefined;
         const newLeads: LeadCard[] = json.leads ?? [];
         const nextCursor: string | undefined = json.nextCursor;
 
@@ -517,6 +525,7 @@ export function CrmPipelineClient({
       // Guard: skip duplicate background loads; force overrides for filter changes
       if (kanbanLoadingRef.current && !opts.force) return;
       if (opts.signal?.aborted) return;
+      const gen = filterGenRef.current;
       kanbanLoadingRef.current = true;
       setKanbanLoadingAll(true);
       setKanbanHitCap(false);
@@ -548,6 +557,7 @@ export function CrmPipelineClient({
           }
 
           if (signal?.aborted) return;
+          if (gen !== filterGenRef.current) return; // filtros cambiaron — descartar
           // Single state swap — no intermediate repaints
           startTransition(() => {
             setLeads(accumulated);
@@ -577,6 +587,7 @@ export function CrmPipelineClient({
             const nextCur: string | undefined = json.nextCursor;
 
             if (signal?.aborted) return;
+            if (gen !== filterGenRef.current) return; // filtros cambiaron — descartar
             startTransition(() => {
               setLeads((prev) => [...prev, ...newLeads]);
               setCursor(nextCur);
@@ -621,6 +632,7 @@ export function CrmPipelineClient({
     if (now - lastRefreshRef.current < 60_000) return;
     lastRefreshRef.current = now;
     refreshInFlightRef.current = true;
+    const refreshGen = filterGenRef.current;
 
     // Re-fetch page 1 with current filters + counts silently (no spinner over
     // existing content — data swaps in when the full load completes).
@@ -634,6 +646,8 @@ export function CrmPipelineClient({
     })()}`)
       .then(async (res) => {
         const json = await res.json();
+        // Filtros cambiaron mientras el refresh volaba — descartar todo.
+        if (refreshGen !== filterGenRef.current) return;
         const page1Leads: LeadCard[] = json.leads ?? [];
         const nextCursor: string | undefined = json.nextCursor;
 
@@ -712,6 +726,7 @@ export function CrmPipelineClient({
 
   // Stage chip click
   function handleStageClick(stage: Stage | "all") {
+    filterGenRef.current++;
     setActiveStage(stage);
     fetchLeads({ stage, q, assignedTo, reset: true, includeCounts: true })
       .then((nextCursor) => startFilteredKanbanLoad(stage, q, assignedTo, nextCursor));
@@ -719,9 +734,13 @@ export function CrmPipelineClient({
 
   // Search input
   function handleSearchChange(val: string) {
+    // Invalida de inmediato cualquier carga en vuelo (mount/refresh sin filtro)
+    // para que no pise el resultado filtrado al llegar tarde.
+    filterGenRef.current++;
     setQ(val);
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
+      filterGenRef.current++;
       fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true, includeCounts: true })
         .then((nextCursor) => startFilteredKanbanLoad(activeStage, val, assignedTo, nextCursor));
     }, 350);
@@ -732,6 +751,7 @@ export function CrmPipelineClient({
   // selector value userId = "Yo" → restrict to own leads
   // selector value = specific member id → restrict to that member
   function handleAssignedToChange(val: string) {
+    filterGenRef.current++;
     setAssignedTo(val);
     fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true, includeCounts: true })
       .then((nextCursor) => startFilteredKanbanLoad(activeStage, q, val, nextCursor));

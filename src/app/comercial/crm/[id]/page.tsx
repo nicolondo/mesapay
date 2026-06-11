@@ -65,7 +65,9 @@ export default async function CrmLeadDetailPage({
   ]);
 
   // Team members for reassign sheet (gerente/admin only).
-  const [teamMembers, emailAccount] = await Promise.all([
+  // `me` desde DB (no de la sesión JWT) para que el cambio de nombre en
+  // Mi perfil aplique de inmediato en {{comercial}} sin re-login.
+  const [teamMembers, emailAccount, me] = await Promise.all([
     ctx.role === "gerente_comercial" || ctx.role === "platform_admin"
       ? db.user.findMany({
           where:
@@ -79,6 +81,10 @@ export default async function CrmLeadDetailPage({
     db.crmEmailAccount.findUnique({
       where: { userId: ctx.userId },
       select: { verifiedAt: true },
+    }),
+    db.user.findUnique({
+      where: { id: ctx.userId },
+      select: { name: true },
     }),
   ]);
 
@@ -157,7 +163,7 @@ export default async function CrmLeadDetailPage({
       role={ctx.role}
       userId={ctx.userId}
       countryCode={ctx.countryCode ?? lead.countryCode}
-      currentUserName={session.user.name ?? ""}
+      currentUserName={me?.name ?? session.user.name ?? ""}
       stageLabels={stageLabels}
       hasEmailAccount={!!emailAccount?.verifiedAt}
     />

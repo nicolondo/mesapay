@@ -37,6 +37,7 @@ export default async function MasPage() {
         <MasLink href="/comercial/mas/documentos" label={t("masDocs")} />
         <MasLink href="/comercial/mas/correo" label={t("masEmail")} />
         <MasLink href="/comercial/mas/plantillas" label={t("masTemplates")} />
+        <MasLink href="/comercial/mas/perfil" label={t("masProfile")} />
       </div>
 
       {/* Export CSV */}

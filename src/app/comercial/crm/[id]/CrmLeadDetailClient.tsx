@@ -842,11 +842,13 @@ function ContactCard({
   contact,
   leadId,
   onEdit,
+  onTemplate,
   t,
 }: {
   contact: ContactData;
   leadId: string;
   onEdit: () => void;
+  onTemplate: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: (key: string) => any;
 }) {
@@ -897,6 +899,15 @@ function ContactCard({
           </button>
         )}
         {contact.phone && (
+          <button onClick={onTemplate}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/10 text-[#128C7E] text-xs font-medium min-h-[44px] hover:bg-[#25D366]/20 transition-colors">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M10 2c-4.31 0-8 3.033-8 7 0 2.024.978 3.825 2.499 5.085a3.478 3.478 0 01-.522 1.756.75.75 0 00.584 1.143 5.976 5.976 0 003.936-1.108c.487.082.99.124 1.503.124 4.31 0 8-3.033 8-7s-3.69-7-8-7zm-4 5.75A.75.75 0 016.75 7h6.5a.75.75 0 010 1.5h-6.5A.75.75 0 016 7.75zm.75 2.25a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5h-3.5z" clipRule="evenodd" />
+            </svg>
+            {t("waTemplateBtn")}
+          </button>
+        )}
+        {contact.phone && (
           <a href={`tel:${contact.phone}`}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-op-bg border border-op-border text-xs font-medium min-h-[44px] hover:bg-op-surface transition-colors">
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -917,6 +928,149 @@ function ContactCard({
         )}
       </div>
     </div>
+  );
+}
+
+// ── WhatsApp template sheet ────────────────────────────────────────────────
+
+type WaTemplate = { id: string; name: string; body: string };
+
+function WhatsappSheet({
+  lead,
+  contact,
+  userId,
+  comercialName,
+  onSent,
+  onClose,
+}: {
+  lead: LeadData;
+  contact: ContactData;
+  userId: string;
+  comercialName: string;
+  onSent: (activity: ActivityData) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("crm");
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [templateId, setTemplateId] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const didLoad = useRef(false);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  useEffect(() => {
+    if (didLoad.current) return;
+    didLoad.current = true;
+    fetch("/api/crm/whatsapp-templates")
+      .then((r) => r.json())
+      .then((j) => setTemplates(j.templates ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    const tpl = templates.find((x) => x.id === id);
+    if (tpl) {
+      setMessage(
+        renderTemplate(tpl.body, {
+          nombre: contact.name,
+          comercio: lead.name,
+          ciudad: lead.city?.name ?? "",
+          comercial: comercialName,
+        }),
+      );
+    }
+  }
+
+  async function handleOpen() {
+    if (!contact.phone || !message.trim()) return;
+    setSending(true);
+    const tplName = templates.find((x) => x.id === templateId)?.name;
+    // Activity content is stored data (Spanish by convention), not UI copy.
+    const content = tplName
+      ? `WhatsApp a ${contact.name} — plantilla "${tplName}"`
+      : `WhatsApp a ${contact.name}`;
+    let activityId: string | null = null;
+    try {
+      const res = await fetch(`/api/crm/leads/${lead.id}/activities`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "whatsapp", content }),
+      });
+      const json = await res.json().catch(() => ({}));
+      activityId = json.activity?.id ?? null;
+    } catch {
+      // Logging is best-effort — still open WhatsApp.
+    }
+    openWhatsApp(contact.phone, message.trim());
+    onSent({
+      id: activityId ?? crypto.randomUUID(),
+      type: "whatsapp",
+      content,
+      createdAt: new Date().toISOString(),
+      user: { id: userId, name: comercialName || null, email: "" },
+    });
+  }
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("waSendTitle")} onClose={onClose} />
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+          <div className="rounded-xl border border-op-border bg-op-bg px-3 py-2.5">
+            <div className="text-sm font-medium">{contact.name}</div>
+            {contact.phone && (
+              <div className="text-xs text-op-muted font-mono tracking-tight">{contact.phone}</div>
+            )}
+          </div>
+
+          <div>
+            <FieldLabel>{t("waSendTemplate")}</FieldLabel>
+            {loadingTemplates ? (
+              <div className="py-2"><Spinner /></div>
+            ) : templates.length === 0 ? (
+              <div className="space-y-1">
+                <p className="text-sm text-op-muted">{t("waSendNoTemplates")}</p>
+                <Link href="/comercial/mas/plantillas"
+                  className="text-sm text-terracotta hover:underline min-h-[44px] inline-flex items-center">
+                  {t("waSendManageTemplates")}
+                </Link>
+              </div>
+            ) : (
+              <select value={templateId} onChange={(e) => handleTemplateChange(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]">
+                <option value="">{t("waSendChooseTemplate")}</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <FieldLabel>{t("waSendMessageLabel")}</FieldLabel>
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={8}
+              placeholder={t("waSendMessagePlaceholder")}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-y" />
+          </div>
+
+          <button onClick={handleOpen} disabled={sending || !message.trim() || !contact.phone}
+            className="w-full py-3.5 rounded-xl bg-[#128C7E] text-white font-medium disabled:opacity-50 min-h-[44px] flex items-center justify-center gap-2">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+            </svg>
+            {t("waSendOpenBtn")}
+          </button>
+        </div>
+      </SheetContent>
+    </Overlay>
   );
 }
 
@@ -1307,6 +1461,7 @@ export function CrmLeadDetailClient({
   role,
   userId,
   countryCode,
+  currentUserName,
   stageLabels,
   hasEmailAccount,
 }: {
@@ -1318,6 +1473,7 @@ export function CrmLeadDetailClient({
   role: string;
   userId: string;
   countryCode: string;
+  currentUserName: string;
   stageLabels: Record<string, string>;
   hasEmailAccount: boolean;
 }) {
@@ -1331,9 +1487,10 @@ export function CrmLeadDetailClient({
   const [activities, setActivities] = useState<ActivityData[]>(initialActivities);
   const [appointments, setAppointments] = useState<AppointmentData[]>(initialAppointments);
 
-  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | "convert" | null;
+  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | "whatsapp" | "convert" | null;
   const [sheet, setSheet] = useState<SheetType>(null);
   const [editingContact, setEditingContact] = useState<ContactData | null>(null);
+  const [waContact, setWaContact] = useState<ContactData | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -1387,7 +1544,8 @@ export function CrmLeadDetailClient({
           <div className="space-y-3">
             {contacts.map((c) => (
               <ContactCard key={c.id} contact={c} leadId={lead.id} t={t}
-                onEdit={() => { setEditingContact(c); setSheet("editContact"); }} />
+                onEdit={() => { setEditingContact(c); setSheet("editContact"); }}
+                onTemplate={() => { setWaContact(c); setSheet("whatsapp"); }} />
             ))}
           </div>
         )}
@@ -1767,6 +1925,23 @@ export function CrmLeadDetailClient({
             startTransition(() => {
               setLead((prev) => ({ ...prev, lastActivityAt: new Date().toISOString() }));
               setSheet(null);
+            });
+          }}
+        />
+      )}
+      {sheet === "whatsapp" && waContact && (
+        <WhatsappSheet
+          lead={lead}
+          contact={waContact}
+          userId={userId}
+          comercialName={currentUserName}
+          onClose={() => { setSheet(null); setWaContact(null); }}
+          onSent={(activity) => {
+            startTransition(() => {
+              setActivities((prev) => [activity, ...prev]);
+              setLead((prev) => ({ ...prev, lastActivityAt: new Date().toISOString() }));
+              setSheet(null);
+              setWaContact(null);
             });
           }}
         />

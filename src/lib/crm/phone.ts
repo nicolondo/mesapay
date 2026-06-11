@@ -63,14 +63,16 @@ export function normalizePhone(raw: string, countryCode: string): string | null 
   return `+${finalDigits}`;
 }
 
-/** Returns a WhatsApp direct-message URL for an E.164 number. */
-export function waLink(e164: string): string {
+/** Returns a WhatsApp direct-message URL for an E.164 number, optionally with a prefilled message. */
+export function waLink(e164: string, text?: string): string {
   const digits = e164.replace(/\D/g, "");
-  return `https://wa.me/${digits}`;
+  const query = text ? `?text=${encodeURIComponent(text)}` : "";
+  return `https://wa.me/${digits}${query}`;
 }
 
-/** Returns the native WhatsApp app URL scheme for an E.164 number. */
-export function waAppLink(e164: string): string {
+/** Returns the native WhatsApp app URL scheme for an E.164 number, optionally with a prefilled message. */
+export function waAppLink(e164: string, text?: string): string {
   const digits = e164.replace(/\D/g, "");
-  return `whatsapp://send?phone=${digits}`;
+  const query = text ? `&text=${encodeURIComponent(text)}` : "";
+  return `whatsapp://send?phone=${digits}${query}`;
 }

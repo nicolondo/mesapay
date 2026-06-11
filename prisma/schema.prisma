@@ -577,6 +577,7 @@ model User {
   crmEmailAccount   CrmEmailAccount?
   crmDocuments      CrmDocument[]
   crmEmailTemplates CrmEmailTemplate[]
+  crmWhatsappTemplates CrmWhatsappTemplate[]
 
   @@index([restaurantId])
   @@index([groupId])
@@ -1656,6 +1657,23 @@ model CrmEmailTemplate {
   owner         User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([ownerUserId])
+}
+
+/// Plantilla de mensaje de WhatsApp con variables {{nombre}} {{comercio}}
+/// {{ciudad}} {{comercial}}. `body` es texto plano que se renderiza en el
+/// cliente y se abre en WhatsApp como mensaje prellenado.
+/// scope: global | user
+model CrmWhatsappTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  body        String
+  scope       String   @default("global") // global | user
+  ownerUserId String?
+  owner       User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([ownerUserId])
 }

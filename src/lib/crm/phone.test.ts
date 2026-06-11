@@ -176,6 +176,22 @@ describe("waLink", () => {
   it("handles already-digit string", () => {
     expect(waLink("523312345678")).toBe("https://wa.me/523312345678");
   });
+
+  it("appends URL-encoded prefilled text", () => {
+    expect(waLink("+573001234567", "Hola, ¿cómo está?")).toBe(
+      "https://wa.me/573001234567?text=Hola%2C%20%C2%BFc%C3%B3mo%20est%C3%A1%3F",
+    );
+  });
+
+  it("encodes newlines and emoji in text", () => {
+    expect(waLink("+573001234567", "Hola 👋\nlínea 2")).toBe(
+      "https://wa.me/573001234567?text=Hola%20%F0%9F%91%8B%0Al%C3%ADnea%202",
+    );
+  });
+
+  it("empty text → no query string", () => {
+    expect(waLink("+573001234567", "")).toBe("https://wa.me/573001234567");
+  });
 });
 
 describe("waAppLink", () => {
@@ -189,5 +205,11 @@ describe("waAppLink", () => {
 
   it("strips all non-digit characters", () => {
     expect(waAppLink("+57 300 123-4567")).toBe("whatsapp://send?phone=573001234567");
+  });
+
+  it("appends URL-encoded prefilled text with &", () => {
+    expect(waAppLink("+573001234567", "Hola mundo")).toBe(
+      "whatsapp://send?phone=573001234567&text=Hola%20mundo",
+    );
   });
 });

@@ -3,32 +3,26 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-type DocOption = { id: string; name: string; scope: string };
-
-type Template = {
+type WaTemplate = {
   id: string;
   name: string;
-  subject: string;
-  bodyHtml: string;
-  attachmentIds: string[];
+  body: string;
   scope: string;
   ownerUserId: string | null;
 };
 
-function TemplateSheet({
+function WaTemplateSheet({
   template,
-  docs,
   userId,
   isAdmin,
   onSaved,
   onDeleted,
   onClose,
 }: {
-  template: Template | null; // null = create
-  docs: DocOption[];
+  template: WaTemplate | null; // null = create
   userId: string;
   isAdmin: boolean;
-  onSaved: (t: Template) => void;
+  onSaved: (t: WaTemplate) => void;
   onDeleted?: () => void;
   onClose: () => void;
 }) {
@@ -36,20 +30,10 @@ function TemplateSheet({
   const isEdit = !!template;
 
   const [name, setName] = useState(template?.name ?? "");
-  const [subject, setSubject] = useState(template?.subject ?? "");
-  const [bodyHtml, setBodyHtml] = useState(template?.bodyHtml ?? "");
-  const [attachmentIds, setAttachmentIds] = useState<string[]>(
-    template?.attachmentIds ?? [],
-  );
+  const [body, setBody] = useState(template?.body ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  function toggleAttachment(id: string) {
-    setAttachmentIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -58,8 +42,8 @@ function TemplateSheet({
 
     try {
       const url = isEdit
-        ? `/api/crm/templates/${template!.id}`
-        : "/api/crm/templates";
+        ? `/api/crm/whatsapp-templates/${template!.id}`
+        : "/api/crm/whatsapp-templates";
       const method = isEdit ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -67,9 +51,7 @@ function TemplateSheet({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          subject: subject.trim(),
-          bodyHtml: bodyHtml.trim(),
-          attachmentIds,
+          body: body.trim(),
           scope: "user",
         }),
       });
@@ -90,7 +72,7 @@ function TemplateSheet({
     if (!template) return;
     if (!confirm(t("templateDeleteConfirm"))) return;
     setDeleting(true);
-    const res = await fetch(`/api/crm/templates/${template.id}`, {
+    const res = await fetch(`/api/crm/whatsapp-templates/${template.id}`, {
       method: "DELETE",
     });
     if (res.ok) {
@@ -114,7 +96,7 @@ function TemplateSheet({
           <div className="w-10 h-1 rounded-full bg-op-border" />
         </div>
         <div className="flex items-center justify-between px-4 py-3 border-b border-op-border shrink-0">
-          <div className="font-display text-xl">{isEdit ? t("templateEditTitle") : t("templateNewTitle")}</div>
+          <div className="font-display text-xl">{isEdit ? t("templateEditTitle") : t("waTemplateNewTitle")}</div>
           <button onClick={onClose} className="p-2 rounded-lg text-op-muted hover:text-op-text min-h-[44px] min-w-[44px] flex items-center justify-center">
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -131,45 +113,15 @@ function TemplateSheet({
           </div>
           <div>
             <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-              {t("templateFieldSubject")}
-            </label>
-            <input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
-          </div>
-          <div>
-            <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-              {t("templateFieldBody")}
+              {t("waTemplateFieldBody")}
             </label>
             <p className="text-xs text-op-muted mb-1">{t("templateBodyHint")}</p>
             <textarea
-              required value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)}
-              rows={6}
-              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-y font-mono"
+              required value={body} onChange={(e) => setBody(e.target.value)}
+              rows={9}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-y"
             />
           </div>
-          {docs.length > 0 && (
-            <div>
-              <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-                {t("templateFieldAttachments")}
-              </label>
-              <div className="space-y-2">
-                {docs.map((doc) => (
-                  <label key={doc.id} className="flex items-center gap-3 cursor-pointer min-h-[44px] px-3 py-2 rounded-xl border border-op-border hover:bg-op-bg">
-                    <input
-                      type="checkbox"
-                      checked={attachmentIds.includes(doc.id)}
-                      onChange={() => toggleAttachment(doc.id)}
-                      className="w-4 h-4 rounded accent-terracotta"
-                    />
-                    <span className="text-sm flex-1">{doc.name}</span>
-                    <span className={"font-mono text-[9px] uppercase " + (doc.scope === "global" ? "text-violet-600" : "text-slate-500")}>
-                      {doc.scope}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
           {error && <p className="text-sm text-terracotta">{error}</p>}
           <div className="flex gap-3">
             {canDelete && (
@@ -189,23 +141,21 @@ function TemplateSheet({
   );
 }
 
-export function TemplatesClient({
+export function WhatsappTemplatesClient({
   initial,
-  docs,
   userId,
   isAdmin,
 }: {
-  initial: Template[];
-  docs: DocOption[];
+  initial: WaTemplate[];
   userId: string;
   isAdmin: boolean;
 }) {
   const t = useTranslations("crm");
-  const [templates, setTemplates] = useState<Template[]>(initial);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [templates, setTemplates] = useState<WaTemplate[]>(initial);
+  const [editingTemplate, setEditingTemplate] = useState<WaTemplate | null>(null);
   const [showNew, setShowNew] = useState(false);
 
-  function handleSaved(tpl: Template) {
+  function handleSaved(tpl: WaTemplate) {
     setTemplates((prev) => {
       const existing = prev.findIndex((x) => x.id === tpl.id);
       if (existing >= 0) {
@@ -231,7 +181,7 @@ export function TemplatesClient({
       </div>
 
       {templates.length === 0 ? (
-        <p className="text-sm text-op-muted py-8 text-center">{t("templatesEmpty")}</p>
+        <p className="text-sm text-op-muted py-8 text-center">{t("waTemplatesEmpty")}</p>
       ) : (
         <div className="rounded-2xl border border-op-border bg-op-surface divide-y divide-op-border">
           {templates.map((tpl) => (
@@ -242,7 +192,7 @@ export function TemplatesClient({
             >
               <div className="flex-1 min-w-0 mr-3">
                 <div className="text-sm font-medium">{tpl.name}</div>
-                <div className="text-xs text-op-muted truncate">{tpl.subject}</div>
+                <div className="text-xs text-op-muted truncate">{tpl.body}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {tpl.scope === "global" && (
@@ -260,9 +210,8 @@ export function TemplatesClient({
       )}
 
       {showNew && (
-        <TemplateSheet
+        <WaTemplateSheet
           template={null}
-          docs={docs}
           userId={userId}
           isAdmin={isAdmin}
           onSaved={handleSaved}
@@ -271,9 +220,8 @@ export function TemplatesClient({
       )}
 
       {editingTemplate && (
-        <TemplateSheet
+        <WaTemplateSheet
           template={editingTemplate}
-          docs={docs}
           userId={userId}
           isAdmin={isAdmin}
           onSaved={handleSaved}

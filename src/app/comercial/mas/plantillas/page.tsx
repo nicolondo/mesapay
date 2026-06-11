@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
-import { TemplatesClient } from "./TemplatesClient";
+import { PlantillasTabs } from "./PlantillasTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -9,36 +9,44 @@ export default async function PlantillasPage() {
   const ctx = await getCrmContext();
   if (!ctx) redirect("/signin?callbackUrl=/comercial/mas/plantillas");
 
-  const [templates, docs] = await Promise.all([
+  const visibleScope = {
+    OR: [
+      { scope: "global" },
+      { scope: "user", ownerUserId: ctx.userId },
+    ],
+  };
+
+  const [templates, waTemplates, docs] = await Promise.all([
     db.crmEmailTemplate.findMany({
-      where: {
-        OR: [
-          { scope: "global" },
-          { scope: "user", ownerUserId: ctx.userId },
-        ],
-      },
+      where: visibleScope,
+      orderBy: { createdAt: "desc" },
+    }),
+    db.crmWhatsappTemplate.findMany({
+      where: visibleScope,
       orderBy: { createdAt: "desc" },
     }),
     db.crmDocument.findMany({
-      where: {
-        OR: [
-          { scope: "global" },
-          { scope: "user", ownerUserId: ctx.userId },
-        ],
-      },
+      where: visibleScope,
       orderBy: { name: "asc" },
       select: { id: true, name: true, scope: true },
     }),
   ]);
 
   return (
-    <TemplatesClient
-      initial={templates.map((tpl) => ({
+    <PlantillasTabs
+      emailTemplates={templates.map((tpl) => ({
         id: tpl.id,
         name: tpl.name,
         subject: tpl.subject,
         bodyHtml: tpl.bodyHtml,
         attachmentIds: tpl.attachmentIds,
+        scope: tpl.scope,
+        ownerUserId: tpl.ownerUserId,
+      }))}
+      waTemplates={waTemplates.map((tpl) => ({
+        id: tpl.id,
+        name: tpl.name,
+        body: tpl.body,
         scope: tpl.scope,
         ownerUserId: tpl.ownerUserId,
       }))}

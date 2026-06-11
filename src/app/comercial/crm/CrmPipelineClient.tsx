@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { waLink } from "@/lib/crm/phone";
 import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
@@ -396,6 +397,7 @@ export function CrmPipelineClient({
 }) {
   const t = useTranslations("crm");
   const relTime = useRelTime();
+  const router = useRouter();
 
   // ── Filters state
   const [activeStage, setActiveStage] = useState<Stage | "all">("all");
@@ -438,14 +440,18 @@ export function CrmPipelineClient({
       assignedTo?: string;
       cursor?: string;
       reset?: boolean;
+      includeCounts?: boolean;
+      /** When true, does not flip the loading spinner (silent background refresh). */
+      silent?: boolean;
     }) => {
-      setLoading(true);
+      if (!opts.silent) setLoading(true);
       try {
         const params = new URLSearchParams();
         if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
         if (opts.q) params.set("q", opts.q);
         if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
         if (opts.cursor) params.set("cursor", opts.cursor);
+        if (opts.includeCounts) params.set("counts", "1");
 
         const res = await fetch(`/api/crm/leads?${params.toString()}`);
         const json = await res.json();
@@ -459,13 +465,55 @@ export function CrmPipelineClient({
           }
           setCursor(json.nextCursor);
           setHasMore(!!json.nextCursor);
+          if (opts.includeCounts && json.stageCounts) {
+            setCounts(json.stageCounts);
+          }
         });
       } finally {
-        setLoading(false);
+        if (!opts.silent) setLoading(false);
       }
     },
     [],
   );
+
+  // ── Silent background refresh (covers back-nav stale router-cache props)
+  // Throttled to at most once every 5 s; skipped while a dnd sheet is open or
+  // a drag is in progress (dragRef.current != null).
+  const lastRefreshRef = useRef<number>(0);
+
+  const refreshAll = useCallback(() => {
+    // Skip if a dnd sheet is open or a drag is active
+    if (dndSheet !== null || dragRef.current !== null) return;
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 5000) return;
+    lastRefreshRef.current = now;
+    // Re-fetch page 1 with current filters + counts silently (no spinner over
+    // existing content — data swaps in when the response lands).
+    fetchLeads({ stage: activeStage, q, assignedTo, reset: true, includeCounts: true, silent: true });
+    // Also invalidate the Next.js router cache so back-nav gets fresh server data
+    router.refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStage, q, assignedTo, dndSheet, fetchLeads, router]);
+
+  // On mount (covers back-nav with stale router-cache props)
+  useEffect(() => {
+    refreshAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // On window focus / visibilitychange (covers returning to tab/PWA)
+  useEffect(() => {
+    function handleFocus() { refreshAll(); }
+    function handleVisibility() {
+      if (!document.hidden) refreshAll();
+    }
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refreshAll]);
 
   // Stage chip click
   function handleStageClick(stage: Stage | "all") {

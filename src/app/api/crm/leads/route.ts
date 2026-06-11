@@ -33,6 +33,17 @@ const createSchema = z.object({
 
 // ── GET /api/crm/leads ──────────────────────────────────────────────────────
 
+const ALL_STAGES: CrmStage[] = [
+  "nuevo",
+  "contactado",
+  "demo_agendada",
+  "demo_realizada",
+  "propuesta_enviada",
+  "negociacion",
+  "ganado",
+  "perdido",
+];
+
 export async function GET(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -42,6 +53,7 @@ export async function GET(req: Request) {
   const q = searchParams.get("q") ?? "";
   const assignedTo = searchParams.get("assignedTo") ?? "";
   const cursor = searchParams.get("cursor") ?? undefined;
+  const includeCounts = searchParams.get("counts") === "1";
 
   // Build the where clause.
   const where: Prisma.CrmLeadWhereInput = {};
@@ -98,7 +110,39 @@ export async function GET(req: Request) {
   const nextCursor =
     leads.length === 30 ? leads[leads.length - 1].id : undefined;
 
-  return NextResponse.json({ leads, nextCursor });
+  if (!includeCounts) {
+    return NextResponse.json({ leads, nextCursor });
+  }
+
+  // counts=1: compute stage counts for the current scope+assignedTo (ignoring
+  // the stage filter so counts reflect all stages for the current view).
+  const countsWhere: Prisma.CrmLeadWhereInput = {};
+  if (ctx.visibleUserIds !== null) {
+    countsWhere.assignedToUserId = { in: ctx.visibleUserIds };
+  }
+  if (assignedTo) {
+    countsWhere.assignedToUserId = assignedTo;
+  }
+  if (q.trim()) {
+    countsWhere.name = { contains: q.trim(), mode: "insensitive" };
+  }
+
+  const stageGroups = await db.crmLead.groupBy({
+    by: ["stage"],
+    where: countsWhere,
+    _count: { stage: true },
+  });
+
+  const stageCounts: Record<string, number> = {};
+  for (const row of stageGroups) {
+    stageCounts[row.stage] = row._count.stage;
+  }
+  for (const s of ALL_STAGES) {
+    stageCounts[s] ??= 0;
+  }
+  const total = Object.values(stageCounts).reduce((a, b) => a + b, 0);
+
+  return NextResponse.json({ leads, nextCursor, stageCounts: { total, ...stageCounts } });
 }
 
 // ── POST /api/crm/leads ─────────────────────────────────────────────────────

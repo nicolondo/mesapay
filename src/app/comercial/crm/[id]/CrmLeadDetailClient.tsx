@@ -8,6 +8,17 @@ import { CALLING_CODES } from "@/lib/crm/phone";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { renderTemplate } from "@/lib/crm/templateRender";
 
+/** Abre el picker nativo al tocar cualquier parte de un input date/time
+ *  (sin esto, Chrome desktop solo lo abre al hacer clic en el iconito). */
+function openNativePicker(e: React.MouseEvent<HTMLInputElement>) {
+  try {
+    (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+  } catch {
+    // Algunos navegadores lanzan si no lo consideran un gesto válido —
+    // el input sigue funcionando de forma normal.
+  }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type LeadData = {
@@ -331,6 +342,7 @@ function NextActionSheet({
           <div>
             <FieldLabel>{t("nextActionDate")}</FieldLabel>
             <input type="date" value={dateVal} onChange={(e) => setDateVal(e.target.value)}
+              onClick={openNativePicker}
               className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
           </div>
           <div className="flex gap-3">
@@ -663,6 +675,7 @@ function ActivitySheet({
           <div>
             <FieldLabel>{t("nextActionDate")}</FieldLabel>
             <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)}
+              onClick={openNativePicker}
               className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
           </div>
           {error && <p className="text-sm text-terracotta">{error}</p>}
@@ -804,11 +817,13 @@ function AppointmentSheet({
             <div className="flex-1">
               <FieldLabel required>{t("appointFieldDate")}</FieldLabel>
               <input type="date" required value={dateVal} onChange={(e) => setDateVal(e.target.value)}
+                onClick={openNativePicker}
                 className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
             </div>
             <div className="flex-1">
               <FieldLabel required>{t("appointFieldTime")}</FieldLabel>
               <input type="time" required value={timeVal} onChange={(e) => setTimeVal(e.target.value)}
+                onClick={openNativePicker}
                 className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
             </div>
           </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
-import { waLink } from "@/lib/crm/phone";
+import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
 import { CrmNewLeadSheet } from "./CrmNewLeadSheet";
 
@@ -1018,7 +1018,7 @@ function LeadListCard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "whatsapp", content: "WhatsApp tap" }),
     }).catch(() => {});
-    window.open(waLink(primaryContact.phone), "_blank", "noopener,noreferrer");
+    openWhatsApp(primaryContact.phone);
   }
 
   return (
@@ -1224,7 +1224,7 @@ function KanbanWaButton({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "whatsapp", content: "WhatsApp tap" }),
     }).catch(() => {});
-    window.open(waLink(phone), "_blank", "noopener,noreferrer");
+    openWhatsApp(phone);
   }
 
   return (

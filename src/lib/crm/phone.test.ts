@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePhone, waLink } from "./phone";
+import { normalizePhone, waLink, waAppLink } from "./phone";
 
 describe("normalizePhone — CO", () => {
   it("plain 10-digit mobile CO", () => {
@@ -175,5 +175,19 @@ describe("waLink", () => {
 
   it("handles already-digit string", () => {
     expect(waLink("523312345678")).toBe("https://wa.me/523312345678");
+  });
+});
+
+describe("waAppLink", () => {
+  it("strips + and returns whatsapp:// scheme URL", () => {
+    expect(waAppLink("+573001234567")).toBe("whatsapp://send?phone=573001234567");
+  });
+
+  it("handles already-digit string", () => {
+    expect(waAppLink("523312345678")).toBe("whatsapp://send?phone=523312345678");
+  });
+
+  it("strips all non-digit characters", () => {
+    expect(waAppLink("+57 300 123-4567")).toBe("whatsapp://send?phone=573001234567");
   });
 });

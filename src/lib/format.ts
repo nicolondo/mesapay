@@ -2,13 +2,20 @@ import { defaultLocale, type Locale } from "@/i18n/config";
 
 // COP (Colombian peso) formatting — no decimals, . as thousand separator
 export function fmtCOP(cents: number): string {
-  const pesos = Math.round(cents / 100);
-  return "$" + pesos.toLocaleString("es-CO", { maximumFractionDigits: 0 });
+  return "$" + fmtMiles(cents / 100);
 }
 
 export function fmtCOPlong(cents: number): string {
-  const pesos = Math.round(cents / 100);
-  return "$" + pesos.toLocaleString("es-CO") + " COP";
+  return "$" + fmtMiles(cents / 100) + " COP";
+}
+
+/** Agrupación de miles es-CO sin "$" — para máscaras de input y plantillas
+ *  donde el símbolo o el "COP" van aparte. Recibe pesos (no centavos);
+ *  la agrupación es de la moneda (país del restaurante), no del idioma. */
+export function fmtMiles(pesos: number): string {
+  return Math.round(pesos).toLocaleString("es-CO", {
+    maximumFractionDigits: 0,
+  });
 }
 
 export function pesosToCents(pesos: number): number {
@@ -54,10 +61,14 @@ export function formatDate(
   opts?: { locale?: Locale; timeZone?: string } & Intl.DateTimeFormatOptions,
 ): string {
   const { locale, timeZone, ...dtOpts } = opts ?? {};
+  // Intl no permite mezclar dateStyle/timeStyle con opciones por componente
+  // (hour, day…) — tira TypeError. El default aplica solo cuando el caller
+  // no trae formato propio.
+  const fmt: Intl.DateTimeFormatOptions = Object.keys(dtOpts).length
+    ? dtOpts
+    : { dateStyle: "medium", timeStyle: "short" };
   return new Intl.DateTimeFormat(localeTag(locale), {
-    dateStyle: "medium",
-    timeStyle: "short",
+    ...fmt,
     timeZone: timeZone ?? "America/Bogota",
-    ...dtOpts,
   }).format(new Date(date));
 }

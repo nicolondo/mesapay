@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { fmtCOP } from "@/lib/format";
 import { env } from "@/lib/env";
 import {
   getPaymentProvider,
@@ -191,7 +192,7 @@ export async function POST(
         message:
           cap.reason === "order_already_paid"
             ? "Esta cuenta ya fue pagada."
-            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
       },
       { status: 409 },
     );

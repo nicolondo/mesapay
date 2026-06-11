@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatDate } from "@/lib/format";
+import { fmtBogotaDateTime } from "@/lib/bogota";
 
 export type ReservationRow = {
   id: string;
@@ -22,9 +25,6 @@ export type ReservationRow = {
 
 const OFFSET_MS = -5 * 60 * 60 * 1000;
 
-const fmtCOP = (cents: number) =>
-  "$" + Math.round(cents / 100).toLocaleString("es-CO");
-
 const DEPOSIT_META: Record<string, { labelKey: string; tint: string }> = {
   pending: { labelKey: "depositPending", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },
   paid: { labelKey: "depositPaid", tint: "bg-[#2E6B4C]/15 text-[#1E5339]" },
@@ -33,17 +33,17 @@ const DEPOSIT_META: Record<string, { labelKey: string; tint: string }> = {
   refunded: { labelKey: "depositRefunded", tint: "bg-op-bg text-op-muted" },
 };
 
-function fmtDayTime(iso: string): { day: string; time: string } {
+function fmtDayTime(iso: string, locale: Locale): { day: string; time: string } {
   const d = new Date(iso);
-  const b = new Date(d.getTime() + OFFSET_MS);
-  const day = b.toLocaleDateString("es-CO", {
+  // formatDate usa America/Bogota por defecto — mismo día calendario que
+  // fmtBogotaDateTime, del que tomamos la hora HH:MM.
+  const day = formatDate(d, {
+    locale,
     weekday: "short",
     day: "numeric",
     month: "short",
-    timeZone: "UTC",
   });
-  const time = `${String(b.getUTCHours()).padStart(2, "0")}:${String(b.getUTCMinutes()).padStart(2, "0")}`;
-  return { day, time };
+  return { day, time: fmtBogotaDateTime(d).time };
 }
 
 const STATUS_META: Record<string, { labelKey: string; tint: string }> = {
@@ -75,6 +75,7 @@ export function ReservasBoard({
   initialRows: ReservationRow[];
 }) {
   const t = useTranslations("opReservas");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [filter, setFilter] = useState<FilterKey>("active");
@@ -175,7 +176,7 @@ export function ReservasBoard({
       ) : (
         <ul className="space-y-2">
           {filtered.map((r) => {
-            const { day, time } = fmtDayTime(r.startsAtISO);
+            const { day, time } = fmtDayTime(r.startsAtISO, locale);
             const meta = STATUS_META[r.status];
             const busy = busyId === r.id;
             return (

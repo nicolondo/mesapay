@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatDate } from "@/lib/format";
 
 type Movement = {
   id: string;
@@ -39,6 +40,7 @@ export function WalletClient({
   initialPolicy: AutoPolicy;
 }) {
   const t = useTranslations("opWallet");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [, startTx] = useTransition();
   const [balance, setBalance] = useState<{
@@ -164,7 +166,7 @@ export function WalletClient({
                   <div className="text-sm truncate">{m.description}</div>
                   <div className="text-[11px] text-op-muted mt-0.5">
                     {humanKind(m.kind, t)} ·{" "}
-                    {new Date(m.occurredAt).toLocaleString("es-CO")}
+                    {formatDate(m.occurredAt, { locale })}
                   </div>
                 </div>
                 <div className="text-right">

@@ -1,6 +1,7 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getMeseroScope } from "@/lib/meseroScope";
 
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PaymentsPage() {
   const t = await getTranslations("opPayments");
+  const locale = (await getLocale()) as Locale;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -50,7 +52,7 @@ export default async function PaymentsPage() {
           <tbody className="divide-y divide-op-border">
             {payments.map((p) => (
               <tr key={p.id}>
-                <Td>{p.createdAt.toLocaleString("es-CO")}</Td>
+                <Td>{formatDate(p.createdAt, { locale })}</Td>
                 <Td className="font-mono">{p.order.shortCode}</Td>
                 <Td>
                   {counterMode

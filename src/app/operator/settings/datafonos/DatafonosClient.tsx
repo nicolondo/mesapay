@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 
 type Device = {
   id: string;
@@ -206,6 +208,7 @@ function DeviceCard({
   onPatch: (next: Partial<Device>) => void;
 }) {
   const t = useTranslations("opSettings");
+  const locale = useLocale() as Locale;
   const [busy, setBusy] = useState(false);
   const [serial, setSerial] = useState(device.serialNumber ?? "");
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -242,7 +245,7 @@ function DeviceCard({
           {device.lastSeenAt && (
             <div className="text-[11px] text-op-muted mt-0.5">
               {t("datafonosLastSeen", {
-                date: new Date(device.lastSeenAt).toLocaleString("es-CO"),
+                date: formatDate(device.lastSeenAt, { locale }),
               })}
             </div>
           )}

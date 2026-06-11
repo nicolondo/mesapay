@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 import type { MenuTag } from "@/lib/menuTags";
 import { MAX_MENU_TAGS, SLUG_REGEX } from "@/lib/menuTags";
 
@@ -9,6 +11,7 @@ type Row = MenuTag & { tmpId: string };
 
 export function TagsClient({ initial }: { initial: MenuTag[] }) {
   const tr = useTranslations("opSettings");
+  const locale = useLocale() as Locale;
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((t, i) => ({ ...t, tmpId: `${t.slug}-${i}` })),
   );
@@ -224,7 +227,9 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
           )}
           {savedAt && !error && (
             <span className="text-xs text-op-muted">
-              {tr("tagsSavedAt", { time: savedAt.toLocaleTimeString() })}
+              {tr("tagsSavedAt", {
+                time: formatDate(savedAt, { locale, timeStyle: "medium" }),
+              })}
             </span>
           )}
           <button

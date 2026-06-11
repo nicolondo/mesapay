@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
 import {
   type FloorPlan,
@@ -38,9 +40,6 @@ type FloorTable = {
   y: number;
 };
 
-const fmtCOP = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("es-CO");
-
 /** YYYY-MM-DD de hoy en hora local del browser. Suficiente para el
  *  date picker — el server reinterpreta en Bogotá. */
 function todayLocal(): string {
@@ -53,10 +52,11 @@ function addDays(dateStr: string, days: number): string {
   dt.setUTCDate(dt.getUTCDate() + days);
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
-function prettyDate(dateStr: string): string {
+function prettyDate(dateStr: string, locale: Locale): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.toLocaleDateString("es-CO", {
+  return formatDate(dt, {
+    locale,
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -90,6 +90,7 @@ export function ReservarClient({
   pseBanks: { code: string; name: string }[];
 }) {
   const tr = useTranslations("reservar");
+  const locale = useLocale() as Locale;
   const [date, setDate] = useState(todayLocal());
   const [partySize, setPartySize] = useState(2);
   const [slots, setSlots] = useState<AvailSlot[]>([]);
@@ -215,7 +216,7 @@ export function ReservarClient({
             {tr("seeYouAt", { name: tenantName })}
           </p>
           <p className="text-sm text-ink mb-6">
-            {prettyDate(date)} · {selectedSlot?.label} · {partySize}{" "}
+            {prettyDate(date, locale)} · {selectedSlot?.label} · {partySize}{" "}
             {partySize === 1 ? tr("person") : tr("people")}
           </p>
           <div className="rounded-2xl border border-hairline bg-paper p-4 mb-6">
@@ -251,7 +252,7 @@ export function ReservarClient({
             </div>
             <h1 className="font-display text-3xl">{tr("holdYourTable")}</h1>
             <p className="text-sm text-muted mt-2">
-              {prettyDate(date)} · {selectedSlot?.label} · {partySize}{" "}
+              {prettyDate(date, locale)} · {selectedSlot?.label} · {partySize}{" "}
               {partySize === 1 ? tr("person") : tr("people")}
             </p>
             <p className="text-sm text-ink mt-3">
@@ -347,7 +348,7 @@ export function ReservarClient({
         {/* Paso 2: slots */}
         <div className="mb-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            {tr("availableTimes", { date: prettyDate(date) })}
+            {tr("availableTimes", { date: prettyDate(date, locale) })}
           </div>
           {loading ? (
             <div className="grid grid-cols-3 gap-2">
@@ -571,7 +572,7 @@ export function ReservarClient({
                     amount: fmtCOP(t!.reservationDepositCents!),
                   });
                 return tr("reserveCta", {
-                  when: `${prettyDate(date)} ${selectedSlot.label}`,
+                  when: `${prettyDate(date, locale)} ${selectedSlot.label}`,
                 });
               })()}
             </button>

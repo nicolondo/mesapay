@@ -3,6 +3,7 @@
 // abort a signup or a successful payment.
 
 import { getEmailTranslator } from "./emailIntl";
+import { fmtCOP, fmtCOPlong, formatDate, pesosToCents } from "./format";
 
 type SendArgs = {
   to: string;
@@ -148,7 +149,8 @@ export async function renderMembershipReminderEmail(args: {
   );
 
   const endsAtLabel = periodEndsAt
-    ? periodEndsAt.toLocaleDateString("es-CO", {
+    ? formatDate(periodEndsAt, {
+        locale: lang,
         day: "2-digit",
         month: "long",
         year: "numeric",
@@ -221,7 +223,7 @@ export async function renderMembershipReminderEmail(args: {
     body,
     "",
     `${t("labelPlan")}: ${planName}`,
-    `${t("labelMonthly")}: $${monthlyPriceCop.toLocaleString("es-CO")} COP`,
+    `${t("labelMonthly")}: ${fmtCOPlong(pesosToCents(monthlyPriceCop))}`,
     `${t("labelDue")}: ${endsAtLabel}`,
     "",
     t("contactLine"),
@@ -273,7 +275,7 @@ export async function renderMembershipReminderEmail(args: {
                 </td>
                 <td align="right" style="padding:14px 0;width:50%;">
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("labelMonthly"))}</div>
-                  <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">$${monthlyPriceCop.toLocaleString("es-CO")}</div>
+                  <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">${fmtCOP(pesosToCents(monthlyPriceCop))}</div>
                 </td>
               </tr>
               <tr>

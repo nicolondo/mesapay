@@ -169,11 +169,6 @@ export default async function PseReturnPage({
     }
   }
 
-  // payment.amountCents YA es el TOTAL (food + tip).
-  const total = payment.amountCents;
-  const fmt = (cents: number) =>
-    "$" + (cents / 100).toLocaleString("es-CO");
-
   // Approved → mandamos al diner directo al /done. Esa es la página
   // canónica post-pago con los botones de factura electrónica /
   // tirilla por email. Renderear nuestro propio "Pago aprobado" sería

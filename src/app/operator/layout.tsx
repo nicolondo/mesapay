@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getTranslations, getLocale } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
-import { localeTag } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
@@ -191,9 +191,12 @@ export default async function OperatorLayout({
         <div className="print:hidden bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
           {tenant?.periodEndsAt
             ? t("membershipDueSoonDate", {
-                date: new Date(tenant.periodEndsAt).toLocaleDateString(
-                  localeTag((await getLocale()) as Locale),
-                ),
+                date: formatDate(tenant.periodEndsAt, {
+                  locale: (await getLocale()) as Locale,
+                  year: "numeric",
+                  month: "numeric",
+                  day: "numeric",
+                }),
               })
             : t("membershipDueSoon")}
         </div>

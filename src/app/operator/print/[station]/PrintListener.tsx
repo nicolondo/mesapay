@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 
 type Station = "kitchen" | "bar";
 
@@ -57,6 +59,7 @@ export function PrintListener({
   availableSubStations: string[];
 }) {
   const t = useTranslations("opPrint");
+  const locale = useLocale() as Locale;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [history, setHistory] = useState<PrintEntry[]>([]);
   const [connected, setConnected] = useState(false);
@@ -152,7 +155,7 @@ export function PrintListener({
   function renderAndPrint(ticket: Ticket) {
     const iframe = iframeRef.current;
     if (!iframe) return;
-    const html = buildTicketHtml(ticket, t);
+    const html = buildTicketHtml(ticket, t, locale);
     iframe.srcdoc = html;
     // The print() call needs to wait for the iframe to load, otherwise
     // we'd print an empty document. The iframe's onload fires once
@@ -303,7 +306,8 @@ export function PrintListener({
                   <span className="font-mono">{h.shortCode}</span>
                   <span className="text-op-muted">
                     {t("historyItemCount", { count: h.itemCount })} ·{" "}
-                    {new Date(h.printedAt).toLocaleTimeString("es-CO", {
+                    {formatDate(h.printedAt, {
+                      locale,
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
@@ -332,7 +336,7 @@ export function PrintListener({
  * so most browsers render at the printer's actual paper width and
  * skip the standard A4 margins.
  */
-function buildTicketHtml(ticket: Ticket, t: Tr): string {
+function buildTicketHtml(ticket: Ticket, t: Tr, locale: Locale): string {
   const width = ticket.paperWidthMm;
   const dest =
     ticket.order.orderType === "pickup"
@@ -346,7 +350,8 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
       : ticket.barSubStation
         ? t("ticketBarSub", { sub: ticket.barSubStation.toUpperCase() })
         : t("ticketBar");
-  const time = new Date(ticket.placedAt).toLocaleTimeString("es-CO", {
+  const time = formatDate(ticket.placedAt, {
+    locale,
     hour: "2-digit",
     minute: "2-digit",
   });

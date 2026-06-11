@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { fmtCOP, fmtMiles } from "@/lib/format";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
@@ -65,7 +66,7 @@ export async function POST(
         message:
           cap.reason === "order_already_paid"
             ? "Esta cuenta ya fue pagada."
-            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+            : `Quedan ${fmtCOP(cap.outstandingCents)} pendientes — intenta de nuevo con un monto menor.`,
       },
       { status: 409 },
     );
@@ -141,7 +142,7 @@ export async function POST(
     const totalCop = parsed.data.amountCents / 100;
     await sendPushToMeserosForTable(tenant.id, table.number, {
       title: `${where} pidió datáfono`,
-      body: `Cobro con tarjeta · ${totalCop.toLocaleString("es-CO")} COP`,
+      body: `Cobro con tarjeta · ${fmtMiles(totalCop)} COP`,
       tag: `terminal-${order.id}`,
       url: "/mesero/salon",
     });

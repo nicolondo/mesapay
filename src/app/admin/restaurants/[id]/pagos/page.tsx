@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import { fmtMiles } from "@/lib/format";
 import { AdminPagosConfig } from "./AdminPagosConfig";
 
 function fmtFull(d: Date): string {
@@ -281,10 +282,10 @@ export default async function AdminPagosPage({
                 </div>
                 <div className="font-mono tabular text-right">
                   {m.kind === "credit" ? "+" : "−"}
-                  {(m.amountCents / 100).toLocaleString("es-CO")}
+                  {fmtMiles(m.amountCents / 100)}
                   <div className="text-[10px] text-op-muted">
                     {tr("walletBalance", {
-                      balance: (m.balanceAfterCents / 100).toLocaleString("es-CO"),
+                      balance: fmtMiles(m.balanceAfterCents / 100),
                     })}
                   </div>
                 </div>

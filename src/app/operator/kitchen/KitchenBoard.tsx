@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
@@ -499,6 +501,7 @@ function ItemRow({
   onToggleServed: () => void;
 }) {
   const tr = useTranslations("kitchen");
+  const locale = useLocale() as Locale;
   return (
     <div className="flex items-start gap-2 py-0.5">
       <AdvanceControl
@@ -525,10 +528,11 @@ function ItemRow({
                 <span
                   className="inline-flex items-center gap-1 w-fit font-mono text-[10px] tracking-wider uppercase text-terracotta bg-terracotta/15 px-1.5 py-0.5 rounded"
                   title={tr("expediteTitle", {
-                    time: new Date(item.expediteRequestedAt).toLocaleTimeString(
-                      "es-CO",
-                      { hour: "2-digit", minute: "2-digit" },
-                    ),
+                    time: formatDate(item.expediteRequestedAt, {
+                      locale,
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
                   })}
                 >
                   <span aria-hidden>{"🔥"}</span>

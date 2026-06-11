@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, fmtMiles } from "@/lib/format";
 
 const METHOD_KEY: Record<string, string> = {
   demo_cash: "methodDemoCash",
@@ -459,7 +459,7 @@ function CashInput({
   const [digits, setDigits] = useState(
     value > 0 ? String(Math.round(value / 100)) : "",
   );
-  const display = digits ? Number(digits).toLocaleString("es-CO") : "";
+  const display = digits ? fmtMiles(Number(digits)) : "";
   return (
     <input
       type="text"

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { TableActions } from "../../tables/TableActions";
@@ -15,6 +16,7 @@ export default async function OperatorOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const t = await getTranslations("opOrders");
+  const locale = (await getLocale()) as Locale;
   const { id } = await params;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
@@ -82,7 +84,7 @@ export default async function OperatorOrderDetail({
               channel: counterMode
                 ? t("channelCounter")
                 : t("tableNumber", { number: order.table.number }),
-              datetime: fmtDateTime(order.createdAt),
+              datetime: fmtDateTime(order.createdAt, locale),
             })}
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
@@ -142,7 +144,10 @@ export default async function OperatorOrderDetail({
               >
                 <div className="flex items-center justify-between">
                   <div className="font-mono text-xs tracking-wider uppercase text-op-muted">
-                    {t("roundLabel", { seq: r.seq, time: fmtTime(r.placedAt) })}
+                    {t("roundLabel", {
+                      seq: r.seq,
+                      time: fmtTime(r.placedAt, locale),
+                    })}
                   </div>
                   <StatusPill status={r.status} />
                 </div>
@@ -282,7 +287,7 @@ export default async function OperatorOrderDetail({
                       ) : null}
                     </div>
                     <div className="text-[11px] text-op-muted">
-                      {fmtDateTime(p.createdAt)}
+                      {fmtDateTime(p.createdAt, locale)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
                   </div>
@@ -447,17 +452,15 @@ function methodLabel(m: string, t: (key: string) => string) {
   }
 }
 
-function fmtDateTime(d: Date) {
-  return new Date(d).toLocaleString("es-CO", {
+function fmtDateTime(d: Date, locale: Locale) {
+  return formatDate(d, {
+    locale,
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
-function fmtTime(d: Date) {
-  return new Date(d).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function fmtTime(d: Date, locale: Locale) {
+  return formatDate(d, { locale, hour: "2-digit", minute: "2-digit" });
 }

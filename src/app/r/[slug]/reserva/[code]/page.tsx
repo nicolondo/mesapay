@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { ManageReservationClient } from "./ManageReservationClient";
 
@@ -15,19 +17,16 @@ const STATUS_META: Record<string, { key: string; tint: string }> = {
   no_show: { key: "statusNoShow", tint: "bg-danger/15 text-danger" },
 };
 
-function prettyWhen(d: Date): string {
-  const b = new Date(d.getTime() - 5 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000); // identidad; usamos fmt local abajo
-  void b;
-  const f = fmtBogotaDateTime(d);
-  // f.date es YYYY-MM-DD; reconstruimos lindo.
-  const [y, m, dd] = f.date.split("-").map(Number);
-  const fecha = new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString("es-CO", {
+function prettyWhen(d: Date, locale: Locale): string {
+  // formatDate usa America/Bogota por defecto — mismo día calendario que
+  // fmtBogotaDateTime, del que conservamos la hora HH:MM.
+  const fecha = formatDate(d, {
+    locale,
     weekday: "long",
     day: "numeric",
     month: "long",
-    timeZone: "UTC",
   });
-  return `${fecha} · ${f.time}`;
+  return `${fecha} · ${fmtBogotaDateTime(d).time}`;
 }
 
 export default async function ManageReservationPage({
@@ -37,6 +36,7 @@ export default async function ManageReservationPage({
 }) {
   const { slug, code } = await params;
   const t = await getTranslations("reservar");
+  const locale = (await getLocale()) as Locale;
 
   const reservation = await db.reservation.findUnique({
     where: { confirmationCode: code },
@@ -81,7 +81,7 @@ export default async function ManageReservationPage({
               <tr>
                 <td className="text-muted py-1">{t("dateLabel")}</td>
                 <td className="text-right font-medium">
-                  {prettyWhen(reservation.startsAt)}
+                  {prettyWhen(reservation.startsAt, locale)}
                 </td>
               </tr>
               <tr>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, fmtMiles } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
@@ -968,7 +968,7 @@ function CashSettleModal({
               onClick={() => setReceivedSmart(String(bill))}
               className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
             >
-              {tr("cashReceivedBill", { bill: bill.toLocaleString("es-CO") })}
+              {tr("cashReceivedBill", { bill: fmtMiles(bill) })}
             </button>
           ))}
         </div>

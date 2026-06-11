@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, fmtMiles } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
@@ -1077,7 +1077,7 @@ function CashTenderSheet({
               <PresetBill
                 key={cop}
                 label={t("withAmount", {
-                  amount: "$" + cop.toLocaleString("es-CO"),
+                  amount: fmtCOP(cop * 100),
                 })}
                 tenderCents={tenderCents}
                 changeCents={tenderChange(tenderCents)}
@@ -1402,9 +1402,7 @@ function PseSheet({
             </div>
             <div className="font-display text-xl">
               {t("pay")}{" "}
-              <span className="tabular">
-                ${(amountCents / 100).toLocaleString("es-CO")}
-              </span>
+              <span className="tabular">{fmtCOP(amountCents)}</span>
             </div>
           </div>
           <button
@@ -1528,7 +1526,7 @@ function PseSheet({
             : busy
               ? t("connectingBank")
               : t("goToBank", {
-                  amount: "$" + (amountCents / 100).toLocaleString("es-CO"),
+                  amount: fmtCOP(amountCents),
                 })}
         </button>
         <p className="text-[11px] text-op-muted text-center mt-2">
@@ -1862,7 +1860,7 @@ function OperatorCashSheet({
 // with es-CO thousand dots while keeping the underlying digits clean.
 function formatMiles(digits: string): string {
   if (!digits) return "";
-  return Number(digits).toLocaleString("es-CO");
+  return fmtMiles(Number(digits));
 }
 
 function PresetBill({

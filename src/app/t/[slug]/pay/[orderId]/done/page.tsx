@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 
@@ -31,7 +32,7 @@ function methodLabel(m: string, t: DoneT) {
   return key ? t(key) : m;
 }
 
-function fmtRelative(d: Date, t: DoneT) {
+function fmtRelative(d: Date, t: DoneT, locale: Locale) {
   const diff = Date.now() - d.getTime();
   const s = Math.round(diff / 1000);
   if (s < 45) return t("relMoment");
@@ -39,10 +40,7 @@ function fmtRelative(d: Date, t: DoneT) {
   if (mins < 60) return t("relMin", { min: mins });
   const hours = Math.round(mins / 60);
   if (hours < 24) return t("relHours", { hours });
-  return d.toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDate(d, { locale, hour: "2-digit", minute: "2-digit" });
 }
 
 export default async function PayDone({
@@ -100,6 +98,7 @@ export default async function PayDone({
     : null;
 
   const t = await getTranslations("done");
+  const locale = (await getLocale()) as Locale;
 
   // Counter-mode keeps its status tracker: big code + live cook status.
   if (tenant.serviceMode === "counter") {
@@ -258,7 +257,7 @@ export default async function PayDone({
               </div>
               <div className="text-xs text-muted mt-0.5">
                 {methodLabel(myPayment.method, t)} ·{" "}
-                {fmtRelative(myPayment.createdAt, t)}
+                {fmtRelative(myPayment.createdAt, t, locale)}
               </div>
             </div>
           </div>
@@ -386,7 +385,7 @@ export default async function PayDone({
                         )}
                       </div>
                       <div className="text-[11px] text-muted">
-                        {fmtRelative(p.createdAt, t)}
+                        {fmtRelative(p.createdAt, t, locale)}
                       </div>
                     </div>
                     <div className="font-mono tabular text-sm">

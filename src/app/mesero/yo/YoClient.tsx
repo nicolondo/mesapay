@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fmtCOP } from "@/lib/format";
+import { useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatDate } from "@/lib/format";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
 
 type Stats = {
@@ -41,6 +43,7 @@ export function YoClient({
   shiftPolicy: ShiftPolicy;
   initial: Stats;
 }) {
+  const locale = useLocale() as Locale;
   const [stats, setStats] = useState<Stats>(initial);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<CloseSummary | null>(null);
@@ -109,7 +112,8 @@ export function YoClient({
   const sinceLabel = (() => {
     const d = new Date(stats.sinceIso);
     if (hasOpenShift) {
-      return `Desde las ${d.toLocaleTimeString("es-CO", {
+      return `Desde las ${formatDate(d, {
+        locale,
         hour: "2-digit",
         minute: "2-digit",
       })}`;

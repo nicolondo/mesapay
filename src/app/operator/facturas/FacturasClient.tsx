@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatDate } from "@/lib/format";
 
 type Req = {
   id: string;
@@ -248,6 +249,7 @@ function GeneratedCard({
   onReopen: () => void;
 }) {
   const t = useTranslations("opFacturas");
+  const locale = useLocale() as Locale;
   return (
     <li className="rounded-2xl border border-op-border bg-op-surface p-5">
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -274,7 +276,7 @@ function GeneratedCard({
         <div className="text-[11px] text-op-muted mt-1">
           {t("markedBy", {
             email: req.generatedByEmail ?? t("dash"),
-            date: new Date(req.generatedAt).toLocaleString("es-CO"),
+            date: formatDate(req.generatedAt, { locale }),
           })}
         </div>
       )}

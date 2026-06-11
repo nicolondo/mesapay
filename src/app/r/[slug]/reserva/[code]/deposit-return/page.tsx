@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { fmtCOP } from "@/lib/format";
 import { db } from "@/lib/db";
 import { getRestaurantPrivateKey } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
@@ -126,8 +127,6 @@ export default async function DepositReturnPage({
     }
   }
 
-  const fmt = (cents: number) => "$" + Math.round(cents / 100).toLocaleString("es-CO");
-
   return (
     <main className="min-h-dvh bg-bone text-ink flex flex-col items-center justify-center px-6 py-12">
       <div className="max-w-sm w-full text-center">
@@ -146,7 +145,7 @@ export default async function DepositReturnPage({
             <p className="text-sm text-muted mb-1">
               {reservation.depositCents
                 ? t("depositReceivedWithAmount", {
-                    amount: fmt(reservation.depositCents),
+                    amount: fmtCOP(reservation.depositCents),
                   })
                 : t("depositReceivedNoAmount")}
             </p>

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
@@ -399,7 +398,6 @@ export function CrmPipelineClient({
 }) {
   const t = useTranslations("crm");
   const relTime = useRelTime();
-  const router = useRouter();
 
   // ── Filters state
   const [activeStage, setActiveStage] = useState<Stage | "all">("all");
@@ -431,6 +429,8 @@ export function CrmPipelineClient({
   const [kanbanHitCap, setKanbanHitCap] = useState(false);
   // Ref so loadAllKanbanPages can check whether it's already running
   const kanbanLoadingRef = useRef(false);
+  // Ref to track whether a silent background refresh is in-flight
+  const refreshInFlightRef = useRef(false);
 
   function showDndToast(msg: string, ok: boolean) {
     setDndToast({ msg, ok });
@@ -492,8 +492,20 @@ export function CrmPipelineClient({
   // Silently fetches sequential pages (no spinner on existing content) until
   // nextCursor is null or KANBAN_CAP leads have been loaded.
   // `startCursor` is the cursor returned by the preceding reset fetch.
+  // `seedLeads` is the page-1 array already fetched (passed on refresh so we
+  //  can accumulate everything locally and do ONE setState at the end instead
+  //  of per-page repaints). On first mount, seedLeads is undefined and we fall
+  //  back to progressive appending (acceptable; cards not yet visible).
   const loadAllKanbanPages = useCallback(
-    async (opts: { stage: Stage | "all"; q: string; assignedTo: string; startCursor: string | undefined }) => {
+    async (opts: {
+      stage: Stage | "all";
+      q: string;
+      assignedTo: string;
+      startCursor: string | undefined;
+      /** Page-1 leads already fetched — when provided, accumulates silently
+       *  and does a single setState with all pages concatenated. */
+      seedLeads?: LeadCard[];
+    }) => {
       if (!opts.startCursor) return; // nothing to load
       if (kanbanLoadingRef.current) return;
       kanbanLoadingRef.current = true;
@@ -501,35 +513,69 @@ export function CrmPipelineClient({
       setKanbanHitCap(false);
       try {
         let localCursor: string | undefined = opts.startCursor;
-        let localTotal = 0;
 
-        // Seed localTotal from leads already loaded (page 1)
-        setLeads((current) => { localTotal = current.length; return current; });
+        if (opts.seedLeads !== undefined) {
+          // ── Silent refresh path: accumulate all pages locally, single swap ──
+          const accumulated: LeadCard[] = [...opts.seedLeads];
+          let lastCursor: string | undefined = opts.startCursor;
 
-        while (localCursor && localTotal < KANBAN_CAP) {
-          const params = new URLSearchParams();
-          if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
-          if (opts.q) params.set("q", opts.q);
-          if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
-          params.set("cursor", localCursor);
+          while (localCursor && accumulated.length < KANBAN_CAP) {
+            const params = new URLSearchParams();
+            if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
+            if (opts.q) params.set("q", opts.q);
+            if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
+            params.set("cursor", localCursor);
 
-          const res = await fetch(`/api/crm/leads?${params.toString()}`);
-          const json = await res.json();
-          const newLeads: LeadCard[] = json.leads ?? [];
-          const nextCur: string | undefined = json.nextCursor;
+            const res = await fetch(`/api/crm/leads?${params.toString()}`);
+            const json = await res.json();
+            const newLeads: LeadCard[] = json.leads ?? [];
+            const nextCur: string | undefined = json.nextCursor;
 
+            accumulated.push(...newLeads);
+            localCursor = nextCur;
+            lastCursor = nextCur;
+          }
+
+          // Single state swap — no intermediate repaints
           startTransition(() => {
-            setLeads((prev) => [...prev, ...newLeads]);
-            setCursor(nextCur);
-            setHasMore(!!nextCur);
+            setLeads(accumulated);
+            setCursor(lastCursor);
+            setHasMore(!!lastCursor);
           });
 
-          localCursor = nextCur;
-          localTotal += newLeads.length;
-        }
+          if (accumulated.length >= KANBAN_CAP && localCursor) {
+            setKanbanHitCap(true);
+          }
+        } else {
+          // ── First-mount path: progressive append (cards scroll in naturally) ──
+          let localTotal = 0;
+          setLeads((current) => { localTotal = current.length; return current; });
 
-        if (localTotal >= KANBAN_CAP && localCursor) {
-          setKanbanHitCap(true);
+          while (localCursor && localTotal < KANBAN_CAP) {
+            const params = new URLSearchParams();
+            if (opts.stage && opts.stage !== "all") params.set("stage", opts.stage);
+            if (opts.q) params.set("q", opts.q);
+            if (opts.assignedTo) params.set("assignedTo", opts.assignedTo);
+            params.set("cursor", localCursor);
+
+            const res = await fetch(`/api/crm/leads?${params.toString()}`);
+            const json = await res.json();
+            const newLeads: LeadCard[] = json.leads ?? [];
+            const nextCur: string | undefined = json.nextCursor;
+
+            startTransition(() => {
+              setLeads((prev) => [...prev, ...newLeads]);
+              setCursor(nextCur);
+              setHasMore(!!nextCur);
+            });
+
+            localCursor = nextCur;
+            localTotal += newLeads.length;
+          }
+
+          if (localTotal >= KANBAN_CAP && localCursor) {
+            setKanbanHitCap(true);
+          }
         }
       } finally {
         kanbanLoadingRef.current = false;
@@ -541,33 +587,78 @@ export function CrmPipelineClient({
   );
 
   // ── Silent background refresh (covers back-nav stale router-cache props)
-  // Throttled to at most once every 5 s; skipped while a dnd sheet is open or
-  // a drag is in progress (dragRef.current != null).
+  // Throttled to at most once every 60 s; skipped while a dnd sheet is open,
+  // a drag is in progress, or a refresh fetch is already in-flight.
   const lastRefreshRef = useRef<number>(0);
 
-  const refreshAll = useCallback(() => {
-    // Skip if a dnd sheet is open or a drag is active
-    if (dndSheet !== null || dragRef.current !== null) return;
-    const now = Date.now();
-    if (now - lastRefreshRef.current < 5000) return;
-    lastRefreshRef.current = now;
-    // Re-fetch page 1 with current filters + counts silently (no spinner over
-    // existing content — data swaps in when the response lands).
-    fetchLeads({ stage: activeStage, q, assignedTo, reset: true, includeCounts: true, silent: true })
-      .then((nextCursor) => loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: nextCursor }));
-    // Also invalidate the Next.js router cache so back-nav gets fresh server data
-    router.refresh();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStage, q, assignedTo, dndSheet, fetchLeads, loadAllKanbanPages, router]);
+  // Ref to current leads so the identity guard can compare without a dep
+  const leadsRef = useRef<LeadCard[]>(leads);
+  useEffect(() => { leadsRef.current = leads; }, [leads]);
 
-  // On mount: refreshAll handles page-1 + full kanban load
-  // We also kick off full kanban load immediately from initialLeads cursor
+  const refreshAll = useCallback(() => {
+    // Skip if a dnd sheet is open, a drag is active, or already fetching
+    if (dndSheet !== null || dragRef.current !== null) return;
+    if (refreshInFlightRef.current) return;
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 60_000) return;
+    lastRefreshRef.current = now;
+    refreshInFlightRef.current = true;
+
+    // Re-fetch page 1 with current filters + counts silently (no spinner over
+    // existing content — data swaps in when the full load completes).
+    fetch(`/api/crm/leads?${(() => {
+      const p = new URLSearchParams();
+      if (activeStage && activeStage !== "all") p.set("stage", activeStage);
+      if (q) p.set("q", q);
+      if (assignedTo) p.set("assignedTo", assignedTo);
+      p.set("counts", "1");
+      return p.toString();
+    })()}`)
+      .then(async (res) => {
+        const json = await res.json();
+        const page1Leads: LeadCard[] = json.leads ?? [];
+        const nextCursor: string | undefined = json.nextCursor;
+
+        if (json.stageCounts) {
+          startTransition(() => setCounts(json.stageCounts));
+        }
+
+        if (!nextCursor) {
+          // Only one page — identity guard before swapping
+          type Projection = { id: string; stage: string; lastActivityAt: string | null };
+          const project = (arr: LeadCard[]): Projection[] =>
+            arr.map((l) => ({ id: l.id, stage: l.stage, lastActivityAt: l.lastActivityAt ? String(l.lastActivityAt) : null }));
+          if (JSON.stringify(project(page1Leads)) !== JSON.stringify(project(leadsRef.current))) {
+            startTransition(() => {
+              setLeads(page1Leads);
+              setCursor(undefined);
+              setHasMore(false);
+            });
+          }
+        } else {
+          // Multi-page: accumulate silently via loadAllKanbanPages
+          await loadAllKanbanPages({
+            stage: activeStage,
+            q,
+            assignedTo,
+            startCursor: nextCursor,
+            seedLeads: page1Leads,
+          });
+        }
+      })
+      .catch(() => {/* silent — stale data stays */})
+      .finally(() => { refreshInFlightRef.current = false; });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStage, q, assignedTo, dndSheet, loadAllKanbanPages]);
+
+  // On mount: refreshAll fires (throttle gate is open at t=0) — it fetches
+  // page 1 + full kanban silently. The fallback loadAllKanbanPages call below
+  // covers the edge case where refreshAll is somehow skipped (gate closed),
+  // using the SSR cursor so the initial kanban still loads.
   useEffect(() => {
     refreshAll();
-    // Also load remaining pages from the initial server-side cursor
-    // (refreshAll's fetch is throttled, so we load from the initial cursor
-    //  synchronously for the case where refreshAll is skipped by the 5 s gate)
     if (initialCursor) {
+      // Runs only if refreshAll was skipped (kanbanLoadingRef guards double-run).
       loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: initialCursor });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { ComercialBottomNav } from "./ComercialBottomNav";
+import { PushSetup } from "@/app/mesero/PushSetup";
 
 /**
  * Layout server-gated para /comercial/*.
@@ -112,6 +113,9 @@ export default async function ComercialLayout({
           </form>
         </div>
       </header>
+
+      {/* Push opt-in — same unobtrusive banner as mesero PWA. */}
+      <PushSetup />
 
       {/* Content — bottom-padded on mobile to clear fixed nav */}
       <main

@@ -210,11 +210,11 @@ function NewAppointmentSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl"
+      <div className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl lg:rounded-2xl lg:max-w-lg lg:w-full lg:max-h-[85vh]"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 lg:hidden">
           <div className="w-10 h-1 rounded-full bg-op-border" />
         </div>
         <div className="flex items-center justify-between px-4 py-3 border-b border-op-border">
@@ -409,7 +409,7 @@ export function CrmCalendarioClient({
   return (
     <div className="flex-1 flex flex-col">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-op-border">
+      <div className="px-4 pt-4 pb-3 border-b border-op-border lg:max-w-6xl lg:mx-auto lg:w-full">
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="font-display text-xl">{t("calendarPageTitle")}</div>
           <button
@@ -456,7 +456,7 @@ export function CrmCalendarioClient({
       {!loading && (
         <>
           {/* ── MOBILE: list grouped by day ── */}
-          <div className="lg:hidden flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4">
+          <div className="lg:hidden flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4 lg:max-w-3xl lg:mx-auto lg:w-full">
             {days.map((day) => {
               const dayIso = toIso(day);
               const dayAppts = byDay[dayIso] ?? [];
@@ -492,7 +492,7 @@ export function CrmCalendarioClient({
           </div>
 
           {/* ── DESKTOP: 7-column weekly grid ── */}
-          <div className="hidden lg:flex flex-1 overflow-auto px-4 py-4 pb-4 gap-2">
+          <div className="hidden lg:flex flex-1 overflow-auto px-4 py-4 pb-4 gap-2 lg:max-w-6xl lg:mx-auto lg:w-full">
             {days.map((day) => {
               const dayIso = toIso(day);
               const dayAppts = byDay[dayIso] ?? [];

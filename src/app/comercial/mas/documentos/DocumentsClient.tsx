@@ -345,7 +345,7 @@ export function DocumentsClient({
     isAdmin || (doc.scope === "user" && doc.ownerUserId === userId);
 
   return (
-    <div className="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
+    <div className="flex-1 p-4 max-w-2xl mx-auto w-full space-y-4">
       <div className="flex items-center justify-between">
         <div className="font-display text-2xl tracking-[-0.015em]">
           {t("docsPageTitle")}

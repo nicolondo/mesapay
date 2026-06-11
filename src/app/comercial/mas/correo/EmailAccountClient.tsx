@@ -96,7 +96,7 @@ export function EmailAccountClient({ initial }: { initial: Account }) {
   }
 
   return (
-    <div className="flex-1 p-4 max-w-lg mx-auto w-full space-y-6">
+    <div className="flex-1 p-4 max-w-2xl mx-auto w-full space-y-6">
       <div className="font-display text-2xl tracking-[-0.015em]">
         {t("emailPageTitle")}
       </div>

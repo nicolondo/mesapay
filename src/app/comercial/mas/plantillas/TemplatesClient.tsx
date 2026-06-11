@@ -107,10 +107,10 @@ function TemplateSheet({
       (template?.scope === "user" && template?.ownerUserId === userId));
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
+      <div className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl lg:rounded-2xl lg:max-w-lg lg:w-full lg:max-h-[85vh]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex justify-center pt-3 pb-1 shrink-0 lg:hidden">
           <div className="w-10 h-1 rounded-full bg-op-border" />
         </div>
         <div className="flex items-center justify-between px-4 py-3 border-b border-op-border shrink-0">
@@ -220,7 +220,7 @@ export function TemplatesClient({
   }
 
   return (
-    <div className="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
+    <div className="flex-1 p-4 max-w-2xl mx-auto w-full space-y-4">
       <div className="flex items-center justify-between">
         <div className="font-display text-2xl tracking-[-0.015em]">
           {t("templatesPageTitle")}

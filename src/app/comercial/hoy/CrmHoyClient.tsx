@@ -320,14 +320,14 @@ export function CrmHoyClient({
   const SHOW = 5;
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col lg:max-w-5xl lg:mx-auto lg:w-full">
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="font-display text-xl">{t("hoyTitle")}</div>
       </div>
 
       {/* Bandejas */}
-      <div className="px-4 pb-6 space-y-3">
+      <div className="px-4 pb-6 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start lg:space-y-0 space-y-3">
         {/* 1. Citas de hoy */}
         {citasCount > 0 && (
           <BandejaSection

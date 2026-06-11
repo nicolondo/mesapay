@@ -123,9 +123,9 @@ export default async function ComercialLayout({
         enabling: tc("pushBannerEnabling"),
       }} />
 
-      {/* Content — bottom-padded on mobile to clear fixed nav */}
+      {/* Content — bottom-padded on mobile to clear fixed nav; no padding on desktop */}
       <main
-        className="flex flex-1 flex-col"
+        className="flex flex-1 flex-col lg:pb-0"
         style={{
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)",
         }}

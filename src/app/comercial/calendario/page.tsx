@@ -1,24 +1,70 @@
-import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { getCrmContext } from "@/lib/crm/access";
+import { bogotaTodayIso, bogotaDayRange, addDaysIso } from "@/lib/bogota";
+import { CrmCalendarioClient } from "./CrmCalendarioClient";
+import type { Prisma } from "@prisma/client";
 
-const CRM_ROLES = new Set(["comercial", "gerente_comercial", "platform_admin"]);
+export const dynamic = "force-dynamic";
 
 export default async function CalendarioPage() {
-  const session = await auth();
-  if (!session?.user || !CRM_ROLES.has(session.user.role ?? "")) {
-    redirect("/signin?callbackUrl=/comercial/calendario");
-  }
+  const ctx = await getCrmContext();
+  if (!ctx) redirect("/signin?callbackUrl=/comercial/calendario");
 
-  const t = await getTranslations("crm");
+  // Default: current week (Mon-Sun in Bogota).
+  const todayIso = bogotaTodayIso();
+  // Find Monday of this week.
+  const todayDate = new Date(`${todayIso}T05:00:00Z`); // Bogota midnight
+  const dayOfWeek = todayDate.getUTCDay(); // 0=Sun
+  const daysToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monIso = addDaysIso(todayIso, daysToMon);
+  const sunIso = addDaysIso(monIso, 7); // exclusive
+
+  const { start: weekStart } = bogotaDayRange(monIso);
+  const { start: weekEnd } = bogotaDayRange(sunIso);
+
+  const userFilter: Prisma.CrmAppointmentWhereInput =
+    ctx.visibleUserIds !== null
+      ? { userId: { in: ctx.visibleUserIds } }
+      : {};
+
+  const appointments = await db.crmAppointment.findMany({
+    where: {
+      ...userFilter,
+      startsAt: { gte: weekStart, lt: weekEnd },
+    },
+    orderBy: { startsAt: "asc" },
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      endsAt: true,
+      notes: true,
+      status: true,
+      leadId: true,
+      userId: true,
+      lead: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  const serialized = appointments.map((a) => ({
+    id: a.id,
+    title: a.title,
+    startsAt: a.startsAt.toISOString(),
+    endsAt: a.endsAt.toISOString(),
+    notes: a.notes ?? null,
+    status: a.status,
+    leadId: a.leadId,
+    lead: a.lead ? { id: a.lead.id, name: a.lead.name } : null,
+    user: { id: a.user.id, name: a.user.name, email: a.user.email },
+  }));
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-      <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
-        {"CRM"}
-      </div>
-      <div className="font-display text-2xl mb-2">{t("calendarTitle")}</div>
-      <p className="text-sm text-op-muted">{t("comingSoon")}</p>
-    </div>
+    <CrmCalendarioClient
+      initialAppointments={serialized}
+      initialFrom={weekStart.toISOString()}
+      initialTo={weekEnd.toISOString()}
+    />
   );
 }

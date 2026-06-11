@@ -260,6 +260,9 @@ model Restaurant {
   salesRepCommissionBps Int?
   commissionEntries     CommissionEntry[]
 
+  // CRM: leads asociados a este restaurante (cuando el lead se gana)
+  crmLeads CrmLead[]
+
   @@index([slug])
   @@index([groupId])
   @@index([salesRepUserId])
@@ -491,6 +494,10 @@ enum Role {
   // Sales rep que trae restaurantes y cobra comisión recurrente;
   // su portal es /comercial.
   comercial
+  // Gerente de equipo comercial: ve y gestiona los comerciales con
+  // managerId=él y sus leads; además opera su propio pipeline como
+  // un comercial normal. Jerarquía de exactamente 2 niveles.
+  gerente_comercial
 }
 
 enum CommissionStatus {
@@ -553,8 +560,27 @@ model User {
   /// tampoco acumula comisiones nuevas. null = activo.
   disabledAt DateTime?
 
+  // CRM: código ISO-2 del país del comercial. Cuando está presente, el
+  // campo país del lead queda bloqueado a este valor al crear.
+  countryCode String?
+  // CRM: gerente_comercial asignado a este comercial. Null = sin gerente
+  // (o es él mismo el gerente). Relación self "SalesTeam".
+  managerId   String?
+  manager     User?   @relation("SalesTeam", fields: [managerId], references: [id], onDelete: SetNull)
+  team        User[]  @relation("SalesTeam")
+
+  // CRM inverse relations
+  assignedCrmLeads  CrmLead[]        @relation("CrmAssigned")
+  createdCrmLeads   CrmLead[]        @relation("CrmCreated")
+  crmActivities     CrmActivity[]
+  crmAppointments   CrmAppointment[]
+  crmEmailAccount   CrmEmailAccount?
+  crmDocuments      CrmDocument[]
+  crmEmailTemplates CrmEmailTemplate[]
+
   @@index([restaurantId])
   @@index([groupId])
+  @@index([managerId])
 }
 
 // Web Push subscription registered by a mesero (or any staff) from
@@ -1482,4 +1508,194 @@ model SearchEvent {
 
   @@index([restaurantId, createdAt])
   @@index([restaurantId, term])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CRM MESAPAY
+//  Módulo de gestión comercial: leads, contactos, actividades, citas,
+//  documentos, plantillas de email y configuración de países/ciudades.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Etapas del pipeline comercial (espejo de Kommo validado).
+/// perdido exige lostReason en CrmLead.
+enum CrmStage {
+  nuevo
+  contactado
+  demo_agendada
+  demo_realizada
+  propuesta_enviada
+  negociacion
+  ganado
+  perdido
+}
+
+/// Lead comercial — el corazón del CRM.
+/// Un lead es un restaurante potencial que el comercial está trabajando.
+model CrmLead {
+  id           String    @id @default(cuid())
+  name         String
+  countryCode  String    // ISO-2 (CO, MX, …)
+  cityId       String?   // → CrmCity
+  city         CrmCity?  @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  address      String?
+  zone         String?   // barrio / zona comercial
+  businessType String?   // tipo de negocio (restaurante, cafetería, etc.)
+  stage        CrmStage  @default(nuevo)
+  priority     String    @default("b") // a | b | c
+  source       String?   // cómo llegó el lead: directo, referido, csv, etc.
+  planProposed String?   // plan que se le propone (trial, basic, pro)
+  unitsCount   Int?      // número de locales (para cadenas)
+
+  // Asignación + creación
+  assignedToUserId String
+  assignedTo       User   @relation("CrmAssigned", fields: [assignedToUserId], references: [id])
+  createdByUserId  String
+  createdBy        User   @relation("CrmCreated", fields: [createdByUserId], references: [id])
+
+  // Seguimiento temporal
+  nextActionAt     DateTime?
+  lastActivityAt   DateTime?
+
+  // Cierre
+  lostReason   String?
+  notes        String?
+  // Cuando se gana, se vincula al restaurante creado en MESAPAY
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts     CrmContact[]
+  activities   CrmActivity[]
+  appointments CrmAppointment[]
+
+  @@index([assignedToUserId, stage])
+  @@index([assignedToUserId, nextActionAt])
+  @@index([countryCode])
+}
+
+/// Contacto de un lead. Puede haber varios; uno es principal.
+model CrmContact {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  name      String
+  role      String?  // cargo: dueño, gerente, chef, etc.
+  phone     String?  // E.164
+  email     String?
+  isPrimary Boolean  @default(false)
+  notes     String?
+
+  @@index([leadId])
+}
+
+/// Actividad registrada en el timeline de un lead.
+/// type: note | call | whatsapp | email | visit | stage_change | appointment
+model CrmActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // note | call | whatsapp | email | visit | stage_change | appointment
+  content   String
+  meta      Json?    // metadata extra: asunto de email, de/para en stage_change, etc.
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+/// Cita agendada con el prospecto.
+/// status: scheduled | done | cancelled
+model CrmAppointment {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  startsAt   DateTime
+  endsAt     DateTime
+  notes      String?
+  remindedAt DateTime? // cuándo se envió el push-recordatorio
+  status     String   @default("scheduled") // scheduled | done | cancelled
+
+  @@index([userId, startsAt])
+  @@index([leadId])
+}
+
+/// Documento compartido (PDF, imagen) que los comerciales adjuntan a plantillas.
+/// scope: global (todos) | user (solo el dueño).
+model CrmDocument {
+  id           String   @id @default(cuid())
+  name         String
+  fileUrl      String
+  mime         String
+  size         Int      // bytes
+  scope        String   @default("global") // global | user
+  ownerUserId  String?
+  owner        User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([ownerUserId])
+}
+
+/// Plantilla de email con variables {{nombre}} {{comercio}} {{ciudad}} {{comercial}}.
+/// attachmentIds: IDs de CrmDocument que se adjuntan.
+/// scope: global | user
+model CrmEmailTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  subject       String
+  bodyHtml      String
+  attachmentIds String[] @default([]) // IDs de CrmDocument
+  scope         String   @default("global") // global | user
+  ownerUserId   String?
+  owner         User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ownerUserId])
+}
+
+/// Cuenta SMTP personal del comercial para enviar correos desde el CRM.
+/// smtpPassEnc: contraseña cifrada con AES (src/lib/crypto.ts).
+model CrmEmailAccount {
+  userId      String   @id // un usuario, una cuenta
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromName    String
+  email       String
+  smtpHost    String
+  smtpPort    Int
+  smtpUser    String
+  smtpPassEnc String   // AES-GCM ciphertext
+  verifiedAt  DateTime? // se setea cuando el test de envío pasa OK
+
+  @@index([userId])
+}
+
+/// País activo en el CRM. Cuando enabled=true se cargan las ciudades
+/// desde el dataset estático en src/data/cities/{code.toLowerCase()}.json.
+model CrmCountry {
+  code    String  @id // ISO-2 (CO, MX, …)
+  name    String
+  enabled Boolean @default(false)
+
+  cities CrmCity[]
+}
+
+/// Ciudad/municipio del país. isMain marca las top-5 que aparecen
+/// primero en el combobox del formulario de lead.
+model CrmCity {
+  id          String     @id @default(cuid())
+  countryCode String
+  country     CrmCountry @relation(fields: [countryCode], references: [code], onDelete: Cascade)
+  name        String
+  isMain      Boolean    @default(false)
+
+  leads CrmLead[]
+
+  @@unique([countryCode, name])
+  @@index([countryCode, name])
 }

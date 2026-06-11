@@ -302,7 +302,6 @@ function InvoiceFormSheet({
   const [rawComponents, setRawComponents] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
   // Saved profiles from previous orders on this device (any restaurant).
   // localStorage-only; nothing crosses to the server until the diner picks
   // one and submits it.
@@ -483,8 +482,10 @@ function InvoiceFormSheet({
     } catch {
       /* ignore */
     }
-    setDone(true);
+    // Cierra el sheet de una — el banner "Solicitud de factura enviada" de
+    // la página (estado pending tras el refresh) confirma el envío.
     router.refresh();
+    onClose();
   }
 
   return (
@@ -496,25 +497,7 @@ function InvoiceFormSheet({
         className="w-full md:max-w-lg bg-paper rounded-t-3xl md:rounded-3xl border border-hairline max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {done ? (
-          <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-ok/20 text-ok mx-auto flex items-center justify-center font-display text-3xl">
-              {"✓"}
-            </div>
-            <h2 className="font-display text-2xl mt-4">{t("invDoneTitle")}</h2>
-            <p className="text-sm text-muted mt-2">
-              {t("invDoneBody", { email })}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-6 h-11 px-6 rounded-full bg-ink text-bone text-sm font-medium"
-            >
-              {t("close")}
-            </button>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="p-5 border-b border-hairline flex items-start justify-between gap-3">
               <div>
                 <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
@@ -676,8 +659,7 @@ function InvoiceFormSheet({
                 {t("invPrivacy")}
               </p>
             </div>
-          </>
-        )}
+        </>
       </div>
     </div>
   );

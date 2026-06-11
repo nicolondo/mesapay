@@ -52,6 +52,44 @@ export function UsersPanel({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Acciones por usuario: cambiar contraseña inline + enviar reset por correo
+  const [pwdFor, setPwdFor] = useState<string | null>(null);
+  const [pwdValue, setPwdValue] = useState("");
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ userId: string; msg: string; ok: boolean } | null>(null);
+
+  async function savePassword(id: string) {
+    setRowBusy(id);
+    setNotice(null);
+    const res = await fetch(`/api/admin/users/${id}/password`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: pwdValue }),
+    });
+    setRowBusy(null);
+    if (!res.ok) {
+      setNotice({ userId: id, msg: t("usersPwdFailed"), ok: false });
+      return;
+    }
+    setPwdFor(null);
+    setPwdValue("");
+    setNotice({ userId: id, msg: t("usersPwdSaved"), ok: true });
+  }
+
+  async function sendReset(id: string, userEmail: string) {
+    if (!confirm(t("usersResetConfirm", { email: userEmail }))) return;
+    setRowBusy(id);
+    setNotice(null);
+    const res = await fetch(`/api/admin/users/${id}/reset-email`, { method: "POST" });
+    const j = await res.json().catch(() => ({}));
+    setRowBusy(null);
+    if (!res.ok || !j.sent) {
+      setNotice({ userId: id, msg: t("usersResetFailed"), ok: false });
+      return;
+    }
+    setNotice({ userId: id, msg: t("usersResetSent"), ok: true });
+  }
+
   async function createUser() {
     setBusy(true);
     setErr(null);
@@ -113,35 +151,80 @@ export function UsersPanel({
       ) : (
         <ul className="divide-y divide-op-border">
           {users.map((u) => (
-            <li
-              key={u.id}
-              className="py-2 flex items-center justify-between gap-3 text-sm"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="font-medium truncate">
-                    {u.name ?? u.email}
+            <li key={u.id} className="py-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium truncate">
+                      {u.name ?? u.email}
+                    </div>
+                    <span
+                      className={
+                        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
+                        ROLE_TINT[u.role as Role]
+                      }
+                    >
+                      {ROLE_LABEL[u.role as Role]}
+                    </span>
                   </div>
-                  <span
-                    className={
-                      "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
-                      ROLE_TINT[u.role as Role]
-                    }
-                  >
-                    {ROLE_LABEL[u.role as Role]}
-                  </span>
+                  <div className="font-mono text-[11px] text-op-muted truncate">
+                    {u.email}
+                  </div>
                 </div>
-                <div className="font-mono text-[11px] text-op-muted truncate">
-                  {u.email}
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPwdFor(pwdFor === u.id ? null : u.id);
+                      setPwdValue("");
+                      setNotice(null);
+                    }}
+                    className="text-[11px] text-op-muted hover:text-op-text hover:underline"
+                  >
+                    {t("usersPwdBtn")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => sendReset(u.id, u.email)}
+                    disabled={rowBusy === u.id}
+                    className="text-[11px] text-op-muted hover:text-op-text hover:underline disabled:opacity-50"
+                  >
+                    {t("usersResetBtn")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteUser(u.id, u.name ?? u.email)}
+                    className="text-[11px] text-danger hover:underline"
+                  >
+                    {t("usersDelete")}
+                  </button>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => deleteUser(u.id, u.name ?? u.email)}
-                className="text-[11px] text-danger hover:underline shrink-0"
-              >
-                {t("usersDelete")}
-              </button>
+              {pwdFor === u.id && (
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={pwdValue}
+                    onChange={(e) => setPwdValue(e.target.value)}
+                    placeholder={t("usersPwdPlaceholder")}
+                    autoComplete="new-password"
+                    className="h-9 px-3 rounded-lg border border-op-border bg-op-bg text-sm flex-1 max-w-xs focus:outline-none focus:border-terracotta"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => savePassword(u.id)}
+                    disabled={pwdValue.length < 8 || rowBusy === u.id}
+                    className="h-9 px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-50"
+                  >
+                    {t("usersPwdSave")}
+                  </button>
+                </div>
+              )}
+              {notice?.userId === u.id && (
+                <div className={"mt-1 text-[11px] " + (notice.ok ? "text-[#1E5339]" : "text-danger")}>
+                  {notice.msg}
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -578,10 +578,26 @@ model User {
   crmDocuments      CrmDocument[]
   crmEmailTemplates CrmEmailTemplate[]
   crmWhatsappTemplates CrmWhatsappTemplate[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([restaurantId])
   @@index([groupId])
   @@index([managerId])
+}
+
+/// Token de restablecimiento de contraseña (disparado desde admin).
+/// Se guarda el SHA-256 del token — el token plano solo viaja en el link
+/// del correo. Un solo uso (usedAt) y vence en 1 hora (expiresAt).
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // Web Push subscription registered by a mesero (or any staff) from

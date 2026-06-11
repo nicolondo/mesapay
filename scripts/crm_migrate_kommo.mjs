@@ -367,9 +367,13 @@ async function main() {
         },
       });
 
-      // Contacts
-      for (const kc of kommoContacts) {
-        const cName = (kc.name ?? "").trim() || name;
+      // Contacts — los embebidos son stubs ({id, is_main}); hay que
+      // traer el contacto completo para tener nombre/teléfono/email.
+      for (const stub of kommoContacts) {
+        const kc = await kommoGet(`/contacts/${stub.id}`).catch(() => null);
+        if (!kc) continue;
+        kc.is_main = stub.is_main;
+        const cName = [kc.first_name, kc.last_name].filter(Boolean).join(" ").trim() || (kc.name ?? "").trim() || name;
         const phones = kc._embedded?.phones ?? kc.custom_fields_values
           ?.filter((f) => f.field_type === "phone")
           ?.flatMap((f) => f.values.map((v) => v.value)) ?? [];

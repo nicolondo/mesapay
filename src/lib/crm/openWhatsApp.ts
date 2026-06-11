@@ -11,9 +11,9 @@ import { waAppLink, waLink } from "./phone";
  *
  * Works on both desktop and mobile.
  */
-export function openWhatsApp(e164: string): void {
-  const app = waAppLink(e164);
-  const web = waLink(e164);
+export function openWhatsApp(e164: string, text?: string): void {
+  const app = waAppLink(e164, text);
+  const web = waLink(e164, text);
 
   const timer = setTimeout(() => {
     cleanup();

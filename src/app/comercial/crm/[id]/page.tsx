@@ -157,6 +157,7 @@ export default async function CrmLeadDetailPage({
       role={ctx.role}
       userId={ctx.userId}
       countryCode={ctx.countryCode ?? lead.countryCode}
+      currentUserName={session.user.name ?? ""}
       stageLabels={stageLabels}
       hasEmailAccount={!!emailAccount?.verifiedAt}
     />

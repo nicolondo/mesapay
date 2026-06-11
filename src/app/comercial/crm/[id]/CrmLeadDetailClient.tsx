@@ -1334,6 +1334,8 @@ export function CrmLeadDetailClient({
   type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | "convert" | null;
   const [sheet, setSheet] = useState<SheetType>(null);
   const [editingContact, setEditingContact] = useState<ContactData | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function relTime(date: string | null): string {
     if (!date) return "";
@@ -1343,6 +1345,30 @@ export function CrmLeadDetailClient({
   function isOverdue(date: string | null): boolean {
     if (!date) return false;
     return new Date(date) < new Date();
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(t("deleteLeadConfirm", { name: lead.name }));
+    if (!confirmed) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/crm/leads/${lead.id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/comercial/crm");
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 409 || json.error === "converted_lead") {
+        setDeleteError(t("deleteLeadConverted"));
+      } else {
+        setDeleteError(t("deleteLeadError"));
+      }
+    } catch {
+      setDeleteError(t("deleteLeadError"));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -1534,6 +1560,22 @@ export function CrmLeadDetailClient({
             </div>
           )}
         </section>
+
+        {/* ── Danger zone ── */}
+        {!lead.restaurantId && lead.stage !== "ganado" && (
+          <section className="pt-4 border-t border-op-border">
+            {deleteError && (
+              <p className="text-sm text-rose-600 mb-3">{deleteError}</p>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full py-3.5 rounded-xl border border-rose-200 text-rose-600 text-sm font-medium min-h-[44px] hover:bg-rose-50 transition-colors disabled:opacity-50"
+            >
+              {deleting ? <span className="flex justify-center"><Spinner /></span> : t("deleteLeadBtn")}
+            </button>
+          </section>
+        )}
       </div>
 
       {/* ── Sticky add activity + send email ── */}

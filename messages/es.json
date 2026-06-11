@@ -3140,11 +3140,9 @@
     "calendarNewAppointment": "Nueva cita",
     "pushReminderTitle": "Cita próxima",
     "pushReminderBody": "{title} con {leadName} a las {time}",
-
     "masTemplates": "Plantillas de correo",
     "masDocumentsLink": "Documentos",
     "masEmailLink": "Mi correo",
-
     "docsPageTitle": "Documentos",
     "docsUploadBtn": "Subir documento",
     "docsEmptyList": "No hay documentos aún.",
@@ -3160,7 +3158,6 @@
     "docsDeleteError": "Error al borrar el documento.",
     "docsFileTooLarge": "El archivo supera los 15 MB.",
     "docsUnsupportedFormat": "Formato no soportado (PDF, PNG o JPG).",
-
     "emailPageTitle": "Mi correo",
     "emailFromName": "Nombre del remitente",
     "emailFromAddress": "Dirección de correo",
@@ -3183,7 +3180,6 @@
     "emailHelpStep1": "Ve a tu cuenta Google → Seguridad → Verificación en dos pasos (actívala si no la tienes).",
     "emailHelpStep2": "Busca «Contraseñas de aplicación» y crea una nueva para «Correo».",
     "emailHelpStep3": "Usa esa contraseña de 16 caracteres aquí. Servidor: smtp.gmail.com · Puerto: 587.",
-
     "templatesPageTitle": "Plantillas de correo",
     "templatesEmpty": "No hay plantillas aún.",
     "templateNewBtn": "Nueva plantilla",
@@ -3201,7 +3197,6 @@
     "templateGlobalBadge": "Global",
     "templateSaveError": "Error al guardar la plantilla.",
     "templateDeleteError": "Error al borrar la plantilla.",
-
     "emailIconLabel": "Correo",
     "sendEmailBtn": "Enviar correo",
     "sendEmailTitle": "Enviar correo",
@@ -3220,6 +3215,31 @@
     "sendEmailErrorNoContactEmail": "El contacto no tiene email.",
     "sendEmailNoAccountCta": "Configurar correo",
     "sendEmailSmtpFailed": "Error SMTP: {detail}",
-    "sendEmailError": "Error al enviar: {detail}"
+    "sendEmailError": "Error al enviar: {detail}",
+    "convertTitle": "Crear restaurante",
+    "convertFieldName": "Nombre del comercio",
+    "convertFieldSlug": "Identificador (slug)",
+    "convertFieldPlan": "Plan",
+    "convertFieldMonthly": "Mensualidad (centavos)",
+    "convertSubmit": "Crear restaurante",
+    "convertSuccess": "Restaurante creado",
+    "convertViewAdmin": "Ver en admin",
+    "convertAlreadyConverted": "Este lead ya tiene un restaurante vinculado.",
+    "convertError": "Error al convertir: {detail}",
+    "convertBadge": "Cliente ✓",
+    "convertPlanTrial": "Trial",
+    "convertPlanBasic": "Basic",
+    "convertPlanPro": "Pro",
+    "metricsTitle": "Métricas (30 días)",
+    "metricsLeadsNuevos": "Leads nuevos",
+    "metricsContactados": "Contactados",
+    "metricsDemos": "Demos",
+    "metricsGanados": "Ganados",
+    "metricsTasa": "Conversión",
+    "metricsRespuesta": "Resp. promedio",
+    "metricsRespuestaHrs": "{hrs} h",
+    "metricsNoData": "Sin actividad este período",
+    "exportBtn": "Exportar CSV",
+    "exportLeads": "Exportar leads"
   }
 }

@@ -25,6 +25,7 @@ export type LeadData = {
   nextActionAt: string | null;
   lastActivityAt: string | null;
   createdAt: string;
+  restaurantId: string | null;
   city: { id: string; name: string } | null;
   assignedTo: { id: string; name: string | null; email: string } | null;
   createdBy: { id: string; name: string | null; email: string } | null;
@@ -1035,6 +1036,162 @@ function EmailSheet({
   );
 }
 
+// ── Convert sheet ──────────────────────────────────────────────────────────
+
+function ConvertSheet({
+  lead,
+  role,
+  onConverted,
+  onClose,
+}: {
+  lead: LeadData;
+  role: string;
+  onConverted: (restaurantId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("crm");
+
+  // Suggest a slug from name.
+  function suggestSlug(name: string) {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40);
+  }
+
+  const [name, setName] = useState(lead.name);
+  const [slug, setSlug] = useState(() => suggestSlug(lead.name));
+  const [plan, setPlan] = useState<"trial" | "basic" | "pro">("trial");
+  const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ restaurantId: string } | null>(null);
+
+  function handleNameChange(v: string) {
+    setName(v);
+    setSlug(suggestSlug(v));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: slug.trim(),
+          plan,
+          monthlyPriceCents: monthlyPrice ? parseInt(monthlyPrice, 10) : 0,
+        }),
+      });
+      const json = await res.json();
+      if (res.status === 409) {
+        setError(t("convertAlreadyConverted"));
+        setSaving(false);
+        return;
+      }
+      if (!res.ok) {
+        setError(t("convertError", { detail: json.error ?? "error" }));
+        setSaving(false);
+        return;
+      }
+      setSuccess({ restaurantId: json.restaurantId });
+      onConverted(json.restaurantId);
+    } catch {
+      setError(t("convertError", { detail: "network error" }));
+      setSaving(false);
+    }
+  }
+
+  const PLANS = [
+    { value: "trial" as const, label: t("convertPlanTrial") },
+    { value: "basic" as const, label: t("convertPlanBasic") },
+    { value: "pro" as const, label: t("convertPlanPro") },
+  ];
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("convertTitle")} onClose={onClose} />
+        {success ? (
+          <div className="px-4 py-6 space-y-4">
+            <p className="text-sm text-green-600 font-medium">{t("convertSuccess")}</p>
+            {role === "platform_admin" && (
+              <a
+                href={`/admin/restaurants/${success.restaurantId}`}
+                className="block w-full py-3.5 rounded-xl bg-terracotta text-white text-sm font-medium text-center min-h-[44px]"
+              >
+                {t("convertViewAdmin")}
+              </a>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+            <div>
+              <FieldLabel required>{t("convertFieldName")}</FieldLabel>
+              <input
+                type="text" required value={name} onChange={(e) => handleNameChange(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+            </div>
+            <div>
+              <FieldLabel required>{t("convertFieldSlug")}</FieldLabel>
+              <input
+                type="text" required value={slug} onChange={(e) => setSlug(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+              <p className="text-xs text-op-muted mt-1">{"app.mesapay.co/t/" + (slug || "…")}</p>
+            </div>
+            <div>
+              <FieldLabel required>{t("convertFieldPlan")}</FieldLabel>
+              <div className="flex gap-2">
+                {PLANS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPlan(value)}
+                    className={
+                      "flex-1 py-2.5 rounded-xl border-2 text-sm font-medium min-h-[44px] transition-all " +
+                      (plan === value
+                        ? "border-terracotta bg-terracotta/5 text-terracotta"
+                        : "border-op-border text-op-muted hover:border-op-text")
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>{t("convertFieldMonthly")}</FieldLabel>
+              <input
+                type="number" min="0" value={monthlyPrice}
+                onChange={(e) => setMonthlyPrice(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+            </div>
+            {error && <p className="text-sm text-terracotta">{error}</p>}
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || !slug.trim()}
+              className="w-full py-3.5 rounded-xl bg-terracotta text-white font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {saving ? <span className="flex justify-center"><Spinner /></span> : t("convertSubmit")}
+            </button>
+          </form>
+        )}
+      </SheetContent>
+    </Overlay>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function CrmLeadDetailClient({
@@ -1069,7 +1226,7 @@ export function CrmLeadDetailClient({
   const [activities, setActivities] = useState<ActivityData[]>(initialActivities);
   const [appointments, setAppointments] = useState<AppointmentData[]>(initialAppointments);
 
-  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | null;
+  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | "convert" | null;
   const [sheet, setSheet] = useState<SheetType>(null);
   const [editingContact, setEditingContact] = useState<ContactData | null>(null);
 
@@ -1099,9 +1256,9 @@ export function CrmLeadDetailClient({
             <h1 className="font-display text-2xl leading-tight">{lead.name}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {lead.city ? <span className="text-xs text-op-muted">{lead.city.name}</span> : <span className="text-xs text-op-muted">{lead.countryCode}</span>}
-              <button onClick={() => setSheet("stage")}
-                className={"font-mono text-[10px] tracking-wide uppercase px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity " + stageColor(lead.stage)}>
-                {stageLabels[lead.stage] ?? lead.stage}
+              <button onClick={() => lead.restaurantId ? undefined : setSheet("stage")}
+                className={"font-mono text-[10px] tracking-wide uppercase px-2 py-0.5 rounded transition-opacity " + stageColor(lead.stage) + (lead.restaurantId ? " cursor-default" : " cursor-pointer hover:opacity-80")}>
+                {lead.restaurantId ? t("convertBadge") : (stageLabels[lead.stage] ?? lead.stage)}
               </button>
               {lead.lostReason && <span className="text-xs text-rose-600">{"· " + lead.lostReason}</span>}
             </div>
@@ -1278,7 +1435,12 @@ export function CrmLeadDetailClient({
           onSaved={(stage, lostReason) => {
             startTransition(() => {
               setLead((prev) => ({ ...prev, stage, lostReason: lostReason ?? prev.lostReason }));
-              setSheet(null);
+              // When moving to "ganado", open the convert sheet.
+              if (stage === "ganado" && !lead.restaurantId) {
+                setSheet("convert");
+              } else {
+                setSheet(null);
+              }
             });
           }} />
       )}
@@ -1357,6 +1519,19 @@ export function CrmLeadDetailClient({
             startTransition(() => {
               setLead((prev) => ({ ...prev, lastActivityAt: new Date().toISOString() }));
               setSheet(null);
+            });
+          }}
+        />
+      )}
+      {sheet === "convert" && (
+        <ConvertSheet
+          lead={lead}
+          role={role}
+          onClose={() => setSheet(null)}
+          onConverted={(restaurantId) => {
+            startTransition(() => {
+              setLead((prev) => ({ ...prev, restaurantId, stage: "ganado" }));
+              // Keep sheet open to show success + admin link — sheet closes itself.
             });
           }}
         />

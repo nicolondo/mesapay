@@ -100,6 +100,7 @@ export default async function CrmLeadDetailPage({
     nextActionAt: lead.nextActionAt?.toISOString() ?? null,
     lastActivityAt: lead.lastActivityAt?.toISOString() ?? null,
     createdAt: lead.createdAt.toISOString(),
+    restaurantId: lead.restaurantId ?? null,
     city: lead.city,
     assignedTo: lead.assignedTo,
     createdBy: lead.createdBy

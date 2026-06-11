@@ -852,7 +852,8 @@ model MenuItem {
   modifiers   Json?
   available   Boolean      @default(true)
   sortOrder   Int          @default(0)
-  prepMinutes Int          @default(10)
+  // Float: permite tiempos con decimales (ej. 1.5 min para bebidas).
+  prepMinutes Float        @default(10)
   // Override the category's default prep station for this specific item.
   // null = inherit from category.prepStation. Common case: "Bebidas" =
   // bar but "Jugo natural" overrides to kitchen because it requires prep.
@@ -1003,7 +1004,7 @@ model OrderItem {
   // mark ready manually. We snapshot (vs. reading from MenuItem live)
   // because editing the menu mid-service shouldn't shift the timer on
   // tickets that are already on the board.
-  prepMinutesSnapshot  Int          @default(10)
+  prepMinutesSnapshot  Float        @default(10)
   // When the item moved placed → in_kitchen. Drives the bar countdown
   // (remaining = prepMinutesSnapshot - (now - preparationStartedAt)).
   // Survives page reloads so the countdown picks up where it left off.

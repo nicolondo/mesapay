@@ -696,12 +696,13 @@ function NewItemForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const cents = Math.round(Number(price) * 100);
-    const mins = Math.round(Number(prepMinutes));
+    // 1 decimal: permite tiempos como 1.5 min sin acumular imprecisión float.
+    const mins = Math.round(Number(prepMinutes) * 10) / 10;
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr(tr("errCheckNamePrice"));
       return;
     }
-    if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
+    if (!Number.isFinite(mins) || mins < 0.1 || mins > 120) {
       setErr(tr("errPrepRange"));
       return;
     }
@@ -780,9 +781,9 @@ function NewItemForm({
             type="number"
             value={prepMinutes}
             onChange={(e) => setPrepMinutes(e.target.value)}
-            min={1}
+            min={0.1}
             max={120}
-            step={1}
+            step={0.1}
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
@@ -874,12 +875,13 @@ function ItemSheet({
 
   async function save() {
     const cents = Math.round(Number(priceCents) * 100);
-    const mins = Math.round(Number(prepMinutes));
+    // 1 decimal: permite tiempos como 1.5 min sin acumular imprecisión float.
+    const mins = Math.round(Number(prepMinutes) * 10) / 10;
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr(tr("errCheckNamePrice"));
       return;
     }
-    if (!Number.isFinite(mins) || mins < 1 || mins > 120) {
+    if (!Number.isFinite(mins) || mins < 0.1 || mins > 120) {
       setErr(tr("errPrepRange"));
       return;
     }
@@ -1040,9 +1042,9 @@ function ItemSheet({
                 type="number"
                 value={prepMinutes}
                 onChange={(e) => setPrepMinutes(e.target.value)}
-                min={1}
+                min={0.1}
                 max={120}
-                step={1}
+                step={0.1}
                 className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               />
             </label>

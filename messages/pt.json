@@ -1743,7 +1743,7 @@
     "editDish": "Editar prato",
     "close": "Fechar",
     "errCheckNamePrice": "Verifique o nome e o preço.",
-    "errPrepRange": "Tempo de preparo entre 1 e 120 minutos.",
+    "errPrepRange": "Tempo de preparo entre 0.1 e 120 minutos.",
     "errModifierIncomplete": "O modificador \"{label}\" precisa de um rótulo e pelo menos uma opção.",
     "unnamed": "(sem nome)",
     "errGeneric": "Erro",

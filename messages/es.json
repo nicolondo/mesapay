@@ -1743,7 +1743,7 @@
     "editDish": "Editar plato",
     "close": "Cerrar",
     "errCheckNamePrice": "Revisa el nombre y el precio.",
-    "errPrepRange": "Tiempo de preparación entre 1 y 120 minutos.",
+    "errPrepRange": "Tiempo de preparación entre 0.1 y 120 minutos.",
     "errModifierIncomplete": "El modificador \"{label}\" necesita etiqueta y al menos una opción.",
     "unnamed": "(sin nombre)",
     "errGeneric": "Error",

@@ -3264,6 +3264,10 @@
     "pushBannerDenied": "Notifications are blocked. Enable them from your browser settings.",
     "pushBannerError": "We couldn't enable notifications. Please try again.",
     "pushBannerEnable": "Enable",
-    "pushBannerEnabling": "Enabling…"
+    "pushBannerEnabling": "Enabling…",
+    "deleteLeadBtn": "Delete lead",
+    "deleteLeadConfirm": "Permanently delete lead \"{name}\"? This action cannot be undone.",
+    "deleteLeadConverted": "This lead is already linked to a restaurant and cannot be deleted.",
+    "deleteLeadError": "Failed to delete the lead. Please try again."
   }
 }

@@ -51,6 +51,7 @@ export type AuditKind =
   // CRM
   | "crm.lead.convert"
   | "crm.lead.reassign"
+  | "crm.lead.delete"
   | "crm.export"
   // Catch-all para events nuevos no listados (no rompe el type pero
   // empuja a registrar el kind correcto). Usar con moderación.
@@ -84,6 +85,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "group.legal_entity.delete": "Borró razón social",
   "crm.lead.convert": "Convirtió lead en restaurante",
   "crm.lead.reassign": "Reasignó lead",
+  "crm.lead.delete": "Eliminó lead",
   "crm.export": "Exportó leads CRM",
 };
 

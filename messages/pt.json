@@ -3264,6 +3264,10 @@
     "pushBannerDenied": "As notificações estão bloqueadas. Ative-as nas configurações do navegador.",
     "pushBannerError": "Não foi possível ativar as notificações. Tente novamente.",
     "pushBannerEnable": "Ativar",
-    "pushBannerEnabling": "Ativando…"
+    "pushBannerEnabling": "Ativando…",
+    "deleteLeadBtn": "Excluir lead",
+    "deleteLeadConfirm": "Excluir permanentemente o lead \"{name}\"? Esta ação não pode ser desfeita.",
+    "deleteLeadConverted": "Este lead já está vinculado a um restaurante e não pode ser excluído.",
+    "deleteLeadError": "Falha ao excluir o lead. Tente novamente."
   }
 }

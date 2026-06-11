@@ -217,3 +217,33 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+
+// ── DELETE /api/crm/leads/[id] ───────────────────────────────────────────────
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const ctx = await getCrmContext();
+  if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const lead = await getLeadInScope(id, ctx.visibleUserIds);
+  if (!lead) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  // Guard: converted leads (restaurantId set) or won leads cannot be deleted.
+  if (lead.restaurantId !== null || lead.stage === "ganado") {
+    return NextResponse.json({ error: "converted_lead" }, { status: 409 });
+  }
+
+  // All children (CrmContact, CrmActivity, CrmAppointment) cascade automatically.
+  await db.crmLead.delete({ where: { id } });
+
+  await recordAuditEvent({
+    kind: "crm.lead.delete",
+    summary: `Eliminó lead "${lead.name}" (${id})`,
+    target: { type: "crm_lead", id },
+  });
+
+  return NextResponse.json({ ok: true });
+}

@@ -818,6 +818,16 @@ function ContactCard({
             )}
           </div>
           {contact.role && <div className="text-xs text-op-muted mt-0.5">{contact.role}</div>}
+          {(contact.phone || contact.email) && (
+            <div className="mt-1 space-y-0.5">
+              {contact.phone && (
+                <div className="text-xs text-op-text font-mono tracking-tight">{contact.phone}</div>
+              )}
+              {contact.email && (
+                <div className="text-xs text-op-text break-all">{contact.email}</div>
+              )}
+            </div>
+          )}
         </div>
         <button onClick={onEdit} className="text-xs text-op-muted hover:text-op-text min-h-[44px] px-2 flex items-center">{t("editBtn")}</button>
       </div>

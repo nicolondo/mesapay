@@ -112,6 +112,63 @@ export async function sendWelcomeEmail(
 }
 
 /**
+ * Email de restablecimiento de contraseña (link de un solo uso, vence en
+ * 1 hora). Misma paleta MESAPAY del welcome email.
+ */
+export async function renderPasswordResetEmail(
+  name: string | null,
+  resetUrl: string,
+  locale?: string | null,
+): Promise<{ html: string; text: string; subject: string }> {
+  const { t, locale: lang } = await getEmailTranslator(locale, "emailReset");
+  const greeting = name ? t("greetingNamed", { name }) : t("greeting");
+  const subject = t("subject");
+
+  const text = [
+    greeting,
+    "",
+    t("intro"),
+    "",
+    t("ctaText", { url: resetUrl }),
+    "",
+    t("expires"),
+    t("ignore"),
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html lang="${lang}"><body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#1A1613;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF7F2;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFBF3;border:1px solid #EAE1D0;border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:32px 36px 28px 36px;">
+          <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#8B7B65;">MESAPAY</div>
+          <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:30px;line-height:1.1;margin:8px 0 16px 0;color:#1A1613;">${escapeHtml(t("title"))}</h1>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(greeting)}</p>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(t("intro"))}</p>
+          <p style="margin:24px 0;">
+            <a href="${resetUrl}" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:500;font-size:14px;">${escapeHtml(t("cta"))}</a>
+          </p>
+          <p style="font-size:12px;line-height:1.5;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("fallback"))}<br/><a href="${resetUrl}" style="color:#C9532E;word-break:break-all;">${resetUrl}</a></p>
+          <p style="font-size:12px;color:#8B7B65;margin:16px 0 0 0;">${escapeHtml(t("expires"))}<br/>${escapeHtml(t("ignore"))}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  return { html, text, subject };
+}
+
+export async function sendPasswordResetEmail(
+  user: { email: string; name: string | null },
+  resetUrl: string,
+  locale?: string | null,
+): Promise<boolean> {
+  const { html, text, subject } = await renderPasswordResetEmail(user.name, resetUrl, locale);
+  return sendEmail({ to: user.email, subject, html, text });
+}
+
+/**
  * Renderer del email de recordatorio de vencimiento. Cuatro umbrales
  * con copy y tono distinto:
  *   T-7      → heads-up suave

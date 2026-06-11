@@ -68,3 +68,9 @@ export function waLink(e164: string): string {
   const digits = e164.replace(/\D/g, "");
   return `https://wa.me/${digits}`;
 }
+
+/** Returns the native WhatsApp app URL scheme for an E.164 number. */
+export function waAppLink(e164: string): string {
+  const digits = e164.replace(/\D/g, "");
+  return `whatsapp://send?phone=${digits}`;
+}

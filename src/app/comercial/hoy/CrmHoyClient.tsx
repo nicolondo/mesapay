@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { waLink } from "@/lib/crm/phone";
+import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ function LeadCard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "whatsapp", content: "WhatsApp tap" }),
     }).catch(() => {});
-    window.open(waLink(primaryContact.phone), "_blank", "noopener,noreferrer");
+    openWhatsApp(primaryContact.phone);
   }
 
   return (

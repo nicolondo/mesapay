@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
-import { waLink, CALLING_CODES } from "@/lib/crm/phone";
+import { CALLING_CODES } from "@/lib/crm/phone";
+import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { renderTemplate } from "@/lib/crm/templateRender";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -856,7 +857,7 @@ function ContactCard({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "whatsapp", content: "WhatsApp tap" }),
     }).catch(() => {});
-    window.open(waLink(contact.phone), "_blank", "noopener,noreferrer");
+    openWhatsApp(contact.phone);
   }
 
   return (

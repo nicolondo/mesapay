@@ -19,11 +19,42 @@ export default async function AdminComisionesPage() {
 
   const t = await getTranslations("opAdminCommissions");
 
-  const comerciales = await db.user.findMany({
-    where: { role: "comercial" },
-    select: { id: true, name: true, email: true },
-    orderBy: { name: "asc" },
-  });
+  // Fetch comerciales with aggregates for the management table.
+  const [comercialesRaw, pendingTotals] = await Promise.all([
+    db.user.findMany({
+      where: { role: "comercial" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        commissionBps: true,
+        disabledAt: true,
+        _count: { select: { referredRestaurants: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+    db.commissionEntry.groupBy({
+      by: ["salesRepUserId"],
+      where: { status: "pending" },
+      _sum: { amountCents: true },
+    }),
+  ]);
+
+  // Map pendingTotals by userId for O(1) lookup.
+  const pendingByRep: Record<string, number> = {};
+  for (const row of pendingTotals) {
+    pendingByRep[row.salesRepUserId] = row._sum.amountCents ?? 0;
+  }
+
+  const comerciales = comercialesRaw.map((rep) => ({
+    id: rep.id,
+    name: rep.name,
+    email: rep.email,
+    commissionBps: rep.commissionBps,
+    disabledAt: rep.disabledAt?.toISOString() ?? null,
+    restaurantCount: rep._count.referredRestaurants,
+    pendingCents: pendingByRep[rep.id] ?? 0,
+  }));
 
   return (
     <div className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">

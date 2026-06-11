@@ -549,6 +549,10 @@ model User {
   referredRestaurants Restaurant[]      @relation("RestaurantSalesRep")
   commissionEntries   CommissionEntry[]
 
+  /// usuario desactivado: no puede iniciar sesión; un comercial desactivado
+  /// tampoco acumula comisiones nuevas. null = activo.
+  disabledAt DateTime?
+
   @@index([restaurantId])
   @@index([groupId])
 }

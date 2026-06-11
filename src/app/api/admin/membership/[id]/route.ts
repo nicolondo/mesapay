@@ -302,7 +302,7 @@ export async function POST(
         const [rep, platformCfg] = await Promise.all([
           tx.user.findUnique({
             where: { id: freshRest.salesRepUserId },
-            select: { commissionBps: true, role: true },
+            select: { commissionBps: true, role: true, disabledAt: true },
           }),
           tx.platformConfig.findUnique({
             where: { id: "singleton" },
@@ -311,7 +311,10 @@ export async function POST(
         ]);
 
         const platformBps = platformCfg?.salesCommissionBps ?? 1000;
-        commissionRepId = freshRest.salesRepUserId;
+        // Skip accrual for disabled reps (disabledAt != null).
+        if (rep?.disabledAt == null) {
+          commissionRepId = freshRest.salesRepUserId;
+        }
         commissionBps = resolveCommissionBps({
           restaurantBps: freshRest.salesRepCommissionBps,
           repBps: rep?.commissionBps ?? null,

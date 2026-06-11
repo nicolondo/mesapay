@@ -56,10 +56,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!parsed.success) return null;
         const user = await db.user.findUnique({
           where: { email: parsed.data.email.toLowerCase() },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            role: true,
+            restaurantId: true,
+            groupId: true,
+            disabledAt: true,
+          },
         });
         if (!user) return null;
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) return null;
+        // Block login for disabled users (e.g. deactivated comerciales).
+        if (user.disabledAt != null) return null;
         return {
           id: user.id,
           email: user.email,

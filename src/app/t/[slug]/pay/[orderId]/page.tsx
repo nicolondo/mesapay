@@ -89,6 +89,7 @@ export default async function PayPage({
       tenantName={tenant.name}
       orderId={order.id}
       shortCode={order.shortCode}
+      tableId={order.table.id}
       locationLabel={
         tenant.serviceMode === "counter"
           ? "Mostrador"

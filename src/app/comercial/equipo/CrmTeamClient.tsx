@@ -6,6 +6,16 @@ import { useTranslations } from "next-intl";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+type MemberMetrics = {
+  memberId: string;
+  leadsNuevos: number;
+  contactados: number;
+  demos: number;
+  ganados: number;
+  tasaConversion: number;
+  tiempoPrimeraRespuestaHrs: number | null;
+};
+
 type Member = {
   id: string;
   name: string | null;
@@ -16,6 +26,7 @@ type Member = {
   role: string;
   createdAt: string;
   leadCount: number;
+  metrics?: MemberMetrics;
 };
 
 const PHONE_PREFIXES_COUNTRIES = [
@@ -88,6 +99,46 @@ function Spinner() {
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
+  );
+}
+
+// ── Metrics card ──────────────────────────────────────────────────────────
+
+function MetricsCard({ metrics }: { metrics: MemberMetrics }) {
+  const t = useTranslations("crm");
+  const hasData = metrics.leadsNuevos > 0 || metrics.contactados > 0 || metrics.demos > 0 || metrics.ganados > 0;
+  if (!hasData) {
+    return (
+      <div className="rounded-xl bg-op-bg border border-op-border px-3 py-2 text-xs text-op-muted">
+        {t("metricsNoData")}
+      </div>
+    );
+  }
+  const pct = (metrics.tasaConversion * 100).toFixed(0);
+  const stats = [
+    { label: t("metricsLeadsNuevos"), value: String(metrics.leadsNuevos) },
+    { label: t("metricsContactados"), value: String(metrics.contactados) },
+    { label: t("metricsDemos"), value: String(metrics.demos) },
+    { label: t("metricsGanados"), value: String(metrics.ganados) },
+    { label: t("metricsTasa"), value: `${pct}%` },
+    ...(metrics.tiempoPrimeraRespuestaHrs !== null
+      ? [{ label: t("metricsRespuesta"), value: t("metricsRespuestaHrs", { hrs: metrics.tiempoPrimeraRespuestaHrs.toFixed(1) }) }]
+      : []),
+  ];
+  return (
+    <div className="rounded-xl bg-op-bg border border-op-border overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-op-border">
+        <span className="font-mono text-[9px] tracking-wider uppercase text-op-muted">{t("metricsTitle")}</span>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-op-border">
+        {stats.map(({ label, value }) => (
+          <div key={label} className="px-2 py-2 text-center">
+            <div className="font-display text-lg leading-tight">{value}</div>
+            <div className="font-mono text-[9px] tracking-wide uppercase text-op-muted mt-0.5 leading-tight">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -409,6 +460,9 @@ export function CrmTeamClient({
                   {t("editBtn")}
                 </button>
               </div>
+
+              {/* Metrics */}
+              {m.metrics && <MetricsCard metrics={m.metrics} />}
 
               {/* Link to their pipeline */}
               <Link

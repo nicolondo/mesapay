@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
 import { CrmTeamClient } from "./CrmTeamClient";
+import { computeTeamMetrics } from "@/lib/crm/metrics";
 import { Role } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,32 @@ export default async function CrmEquipoPage() {
   });
   const countMap = Object.fromEntries(counts.map((r) => [r.assignedToUserId, r._count.id]));
 
+  // ── Metrics (last 30 days) ────────────────────────────────────────────────
+  const rangeStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const memberIds = members.map((m) => m.id);
+
+  const [leadsForMetrics, activitiesForMetrics] = await Promise.all([
+    db.crmLead.findMany({
+      where: { assignedToUserId: { in: memberIds } },
+      select: { id: true, assignedToUserId: true, createdAt: true, stage: true },
+    }),
+    db.crmActivity.findMany({
+      where: {
+        lead: { assignedToUserId: { in: memberIds } },
+        createdAt: { gte: rangeStart },
+      },
+      select: { leadId: true, userId: true, type: true, content: true, createdAt: true },
+    }),
+  ]);
+
+  const metrics = computeTeamMetrics(
+    memberIds,
+    leadsForMetrics,
+    activitiesForMetrics,
+    rangeStart,
+  );
+  const metricsMap = Object.fromEntries(metrics.map((m) => [m.memberId, m]));
+
   const membersWithCounts = members.map((m) => ({
     id: m.id,
     name: m.name,
@@ -60,6 +87,15 @@ export default async function CrmEquipoPage() {
     role: m.role,
     createdAt: m.createdAt.toISOString(),
     leadCount: countMap[m.id] ?? 0,
+    metrics: metricsMap[m.id] ?? {
+      memberId: m.id,
+      leadsNuevos: 0,
+      contactados: 0,
+      demos: 0,
+      ganados: 0,
+      tasaConversion: 0,
+      tiempoPrimeraRespuestaHrs: null,
+    },
   }));
 
   return (

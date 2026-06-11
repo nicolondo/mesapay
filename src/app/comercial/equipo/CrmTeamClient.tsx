@@ -147,9 +147,11 @@ function MetricsCard({ metrics }: { metrics: MemberMetrics }) {
 function CreateSheet({
   onCreated,
   onClose,
+  viewerRole,
 }: {
   onCreated: (members: Member[]) => void;
   onClose: () => void;
+  viewerRole: string;
 }) {
   const t = useTranslations("crm");
   const [email, setEmail] = useState("");
@@ -157,8 +159,11 @@ function CreateSheet({
   const [password, setPassword] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [commissionBps, setCommissionBps] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"comercial" | "gerente_comercial">("comercial");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isAdmin = viewerRole === "platform_admin";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -174,6 +179,7 @@ function CreateSheet({
           password,
           countryCode: countryCode || undefined,
           commissionBps: commissionBps ? parseInt(commissionBps, 10) : undefined,
+          role: isAdmin ? selectedRole : "comercial",
         }),
       });
       const json = await res.json();
@@ -253,6 +259,19 @@ function CreateSheet({
               </p>
             )}
           </div>
+          {isAdmin && (
+            <div>
+              <FieldLabel required>{t("fieldRole")}</FieldLabel>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as "comercial" | "gerente_comercial")}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              >
+                <option value="comercial">{t("roleComercial")}</option>
+                <option value="gerente_comercial">{t("roleGerenteComercial")}</option>
+              </select>
+            </div>
+          )}
           {error && <p className="text-sm text-terracotta">{error}</p>}
           <button
             type="submit" disabled={saving || !email.trim() || !name.trim() || password.length < 8}
@@ -385,8 +404,6 @@ export function CrmTeamClient({
   const [sheet, setSheet] = useState<"create" | "edit" | null>(null);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
-  // Suppress unused variable warning if role is not yet used for conditional UI
-  void role;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -433,6 +450,11 @@ export function CrmTeamClient({
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">
                     {m.name ?? m.email}
+                    {m.role === "gerente_comercial" && (
+                      <span className="font-mono text-[9px] tracking-wider uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                        {t("roleGerenteBadge")}
+                      </span>
+                    )}
                     {m.disabled && (
                       <span className="font-mono text-[9px] tracking-wider uppercase bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
                         {t("disabledBadge")}
@@ -482,6 +504,7 @@ export function CrmTeamClient({
       {/* Sheets */}
       {sheet === "create" && (
         <CreateSheet
+          viewerRole={role}
           onClose={() => setSheet(null)}
           onCreated={(newMembers) => {
             startTransition(() => {

@@ -18,6 +18,8 @@ const createSchema = z.object({
   commissionBps: z.number().int().min(0).max(5000).optional(),
   /** Admin only: assign to a specific manager. Defaults to caller for gerente. */
   managerId: z.string().optional(),
+  /** Role to assign. gerente_comercial callers may only create comercial. */
+  role: z.enum(["comercial", "gerente_comercial"]).default("comercial"),
 });
 
 // ── GET /api/crm/team ────────────────────────────────────────────────────────
@@ -93,15 +95,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const { email, name, password, countryCode, commissionBps, managerId } =
+  const { email, name, password, countryCode, commissionBps, managerId, role: requestedRole } =
     parsed.data;
 
-  // Determine managerId: gerente always assigns to self; admin can specify or leave null.
+  // gerente_comercial can only create comercial, never another gerente.
+  if (ctx.role === "gerente_comercial" && requestedRole === "gerente_comercial") {
+    return NextResponse.json({ error: "only_comercial" }, { status: 403 });
+  }
+
+  // Determine managerId:
+  // - gerente always assigns to self (and can only create comercial)
+  // - admin creating a gerente: managerId is always null
+  // - admin creating a comercial: use provided managerId or default to null
   let resolvedManagerId: string | null;
   if (ctx.role === "gerente_comercial") {
     resolvedManagerId = ctx.userId;
+  } else if (requestedRole === "gerente_comercial") {
+    resolvedManagerId = null;
   } else {
-    // R3: Admin: use provided managerId or default to null (free/unassigned comercial).
+    // platform_admin creating a comercial: use provided managerId or null (unassigned).
     resolvedManagerId = managerId ?? null;
   }
 
@@ -113,7 +125,7 @@ export async function POST(req: Request) {
         email,
         name,
         passwordHash,
-        role: "comercial",
+        role: requestedRole,
         managerId: resolvedManagerId,
         countryCode: countryCode ?? null,
         commissionBps: commissionBps ?? null,
@@ -132,8 +144,8 @@ export async function POST(req: Request) {
 
     await recordAuditEvent({
       kind: "crm.team.create",
-      summary: `Creó comercial ${email} (managerId=${resolvedManagerId})`,
-      diff: { after: { email, name, role: "comercial", managerId: resolvedManagerId } },
+      summary: `Creó ${requestedRole} ${email} (managerId=${resolvedManagerId})`,
+      diff: { after: { email, name, role: requestedRole, managerId: resolvedManagerId } },
     });
 
     return NextResponse.json({ ok: true, user }, { status: 201 });

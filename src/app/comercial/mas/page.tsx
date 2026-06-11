@@ -34,8 +34,9 @@ export default async function MasPage() {
         {(role === "gerente_comercial" || role === "platform_admin") && (
           <MasLink href="/comercial/equipo" label={t("masTeam")} />
         )}
-        <MasLink href="/comercial/documentos" label={t("masDocs")} />
-        <MasLink href="/comercial/correo" label={t("masEmail")} />
+        <MasLink href="/comercial/mas/documentos" label={t("masDocs")} />
+        <MasLink href="/comercial/mas/correo" label={t("masEmail")} />
+        <MasLink href="/comercial/mas/plantillas" label={t("masTemplates")} />
       </div>
 
       {/* Import CSV section */}

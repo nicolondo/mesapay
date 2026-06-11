@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { waLink } from "@/lib/crm/phone";
+import { renderTemplate } from "@/lib/crm/templateRender";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -814,6 +815,226 @@ function ContactCard({
   );
 }
 
+// ── Email sheet ────────────────────────────────────────────────────────────
+
+type EmailTemplate = {
+  id: string;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  attachmentIds: string[];
+};
+
+function EmailSheet({
+  lead,
+  contacts,
+  onSent,
+  onClose,
+  hasEmailAccount,
+}: {
+  lead: LeadData;
+  contacts: ContactData[];
+  onSent: () => void;
+  onClose: () => void;
+  hasEmailAccount: boolean;
+}) {
+  const t = useTranslations("crm");
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
+  const [templateId, setTemplateId] = useState("");
+  const [subject, setSubject] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [contactId, setContactId] = useState("");
+  const [extraNote, setExtraNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const didLoad = useRef(false);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  useEffect(() => {
+    if (didLoad.current) return;
+    didLoad.current = true;
+    fetch("/api/crm/templates")
+      .then((r) => r.json())
+      .then((j) => setTemplates(j.templates ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  function handleTemplateChange(id: string) {
+    setTemplateId(id);
+    const tpl = templates.find((x) => x.id === id);
+    if (tpl) {
+      setSubject(tpl.subject);
+      setBodyHtml(tpl.bodyHtml);
+    }
+  }
+
+  const contactsWithEmail = contacts.filter((c) => c.email);
+
+  // Rendered preview of subject with lead vars
+  const subjectPreview = subject
+    ? renderTemplate(subject, {
+        nombre: contacts.find((c) => c.id === contactId)?.name ?? "",
+        comercio: lead.name,
+        ciudad: lead.city?.name ?? lead.countryCode ?? "",
+        comercial: "",
+      })
+    : "";
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!contactId) return;
+    setSending(true);
+    setError(null);
+
+    try {
+      const body: Record<string, unknown> = { contactId };
+      if (templateId) {
+        body.templateId = templateId;
+      } else {
+        body.subject = subject;
+        body.bodyHtml = bodyHtml;
+      }
+      if (extraNote.trim()) body.extraNote = extraNote.trim();
+
+      const res = await fetch(`/api/crm/leads/${lead.id}/send-email`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (json.error === "no_email_account" || json.error === "account_not_verified") {
+          setError(t(json.error === "no_email_account" ? "sendEmailErrorNoAccount" : "sendEmailErrorNotVerified"));
+        } else if (json.error === "smtp_failed") {
+          setError(t("sendEmailSmtpFailed", { detail: json.detail ?? "SMTP error" }));
+        } else {
+          setError(t("sendEmailError", { detail: json.detail ?? json.error ?? "error" }));
+        }
+        setSending(false);
+        return;
+      }
+      setSuccess(true);
+      onSent();
+    } catch {
+      setError(t("sendEmailError", { detail: "network error" }));
+      setSending(false);
+    }
+  }
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("sendEmailTitle")} onClose={onClose} />
+        {!hasEmailAccount ? (
+          <div className="px-4 py-6 space-y-4">
+            <p className="text-sm text-op-muted">{t("sendEmailErrorNoAccount")}</p>
+            <Link
+              href="/comercial/mas/correo"
+              className="block w-full py-3.5 rounded-xl bg-terracotta text-white text-sm font-medium text-center min-h-[44px]"
+            >
+              {t("sendEmailNoAccountCta")}
+            </Link>
+          </div>
+        ) : success ? (
+          <div className="px-4 py-6">
+            <p className="text-sm text-green-600">{t("sendEmailSuccess")}</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+            {/* Contact selector */}
+            <div>
+              <FieldLabel required>{t("sendEmailContact")}</FieldLabel>
+              {contactsWithEmail.length === 0 ? (
+                <p className="text-sm text-op-muted">{t("sendEmailErrorNoContactEmail")}</p>
+              ) : (
+                <select
+                  required
+                  value={contactId}
+                  onChange={(e) => setContactId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+                >
+                  <option value={""}>{t("sendEmailChooseContact")}</option>
+                  {contactsWithEmail.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} — {c.email}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Template selector */}
+            {!loadingTemplates && (
+              <div>
+                <FieldLabel>{t("sendEmailSelectTemplate")}</FieldLabel>
+                <select
+                  value={templateId}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+                >
+                  <option value={""}>{t("sendEmailChooseTemplate")}</option>
+                  {templates.map((tpl) => (
+                    <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Manual compose (if no template) */}
+            {!templateId && (
+              <>
+                <div>
+                  <FieldLabel required>{t("templateFieldSubject")}</FieldLabel>
+                  <input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+                </div>
+                <div>
+                  <FieldLabel required>{t("templateFieldBody")}</FieldLabel>
+                  <textarea required value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} rows={5}
+                    className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-none font-mono" />
+                </div>
+              </>
+            )}
+
+            {/* Subject preview when template selected */}
+            {templateId && subjectPreview && (
+              <div className="px-3 py-2 rounded-xl bg-op-bg border border-op-border">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-0.5">{t("sendEmailSubjectPreview")}</div>
+                <div className="text-sm">{subjectPreview}</div>
+              </div>
+            )}
+
+            {/* Extra note */}
+            <div>
+              <FieldLabel>{t("sendEmailExtraNote")}</FieldLabel>
+              <textarea value={extraNote} onChange={(e) => setExtraNote(e.target.value)} rows={2}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-none" />
+            </div>
+
+            {error && <p className="text-sm text-terracotta">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={sending || !contactId || contactsWithEmail.length === 0}
+              className="w-full py-3.5 rounded-xl bg-terracotta text-white font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {sending ? t("sendEmailSending") : t("sendEmailSubmit")}
+            </button>
+          </form>
+        )}
+      </SheetContent>
+    </Overlay>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function CrmLeadDetailClient({
@@ -826,6 +1047,7 @@ export function CrmLeadDetailClient({
   userId,
   countryCode,
   stageLabels,
+  hasEmailAccount,
 }: {
   lead: LeadData;
   contacts: ContactData[];
@@ -836,6 +1058,7 @@ export function CrmLeadDetailClient({
   userId: string;
   countryCode: string;
   stageLabels: Record<string, string>;
+  hasEmailAccount: boolean;
 }) {
   const t = useTranslations("crm");
   const fmt = useFormatter();
@@ -846,7 +1069,7 @@ export function CrmLeadDetailClient({
   const [activities, setActivities] = useState<ActivityData[]>(initialActivities);
   const [appointments, setAppointments] = useState<AppointmentData[]>(initialAppointments);
 
-  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | null;
+  type SheetType = "stage" | "nextAction" | "addContact" | "editContact" | "editBiz" | "addActivity" | "reassign" | "addAppointment" | "email" | null;
   const [sheet, setSheet] = useState<SheetType>(null);
   const [editingContact, setEditingContact] = useState<ContactData | null>(null);
 
@@ -1031,11 +1254,20 @@ export function CrmLeadDetailClient({
         </section>
       </div>
 
-      {/* ── Sticky add activity ── */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] left-0 right-0 px-4 lg:static lg:border-t lg:border-op-border lg:px-4 lg:py-3 z-20">
+      {/* ── Sticky add activity + send email ── */}
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] left-0 right-0 px-4 lg:static lg:border-t lg:border-op-border lg:px-4 lg:py-3 z-20 flex gap-2">
         <button onClick={() => setSheet("addActivity")}
-          className="w-full py-3 rounded-xl bg-op-surface border border-terracotta text-terracotta text-sm font-medium min-h-[44px] hover:bg-terracotta hover:text-white transition-colors shadow-lg lg:shadow-none">
+          className="flex-1 py-3 rounded-xl bg-op-surface border border-terracotta text-terracotta text-sm font-medium min-h-[44px] hover:bg-terracotta hover:text-white transition-colors shadow-lg lg:shadow-none">
           {"+ " + t("addActivityBtn")}
+        </button>
+        <button onClick={() => setSheet("email")}
+          className="py-3 px-4 rounded-xl bg-op-surface border border-op-border text-op-muted text-sm font-medium min-h-[44px] hover:border-terracotta hover:text-terracotta transition-colors shadow-lg lg:shadow-none"
+          title={t("sendEmailBtn")}
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+          </svg>
         </button>
       </div>
 
@@ -1114,6 +1346,20 @@ export function CrmLeadDetailClient({
               setSheet(null);
             });
           }} />
+      )}
+      {sheet === "email" && (
+        <EmailSheet
+          lead={lead}
+          contacts={contacts}
+          hasEmailAccount={hasEmailAccount}
+          onClose={() => setSheet(null)}
+          onSent={() => {
+            startTransition(() => {
+              setLead((prev) => ({ ...prev, lastActivityAt: new Date().toISOString() }));
+              setSheet(null);
+            });
+          }}
+        />
       )}
     </div>
   );

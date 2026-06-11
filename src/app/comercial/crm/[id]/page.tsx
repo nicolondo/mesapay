@@ -65,9 +65,9 @@ export default async function CrmLeadDetailPage({
   ]);
 
   // Team members for reassign sheet (gerente/admin only).
-  const teamMembers =
+  const [teamMembers, emailAccount] = await Promise.all([
     ctx.role === "gerente_comercial" || ctx.role === "platform_admin"
-      ? await db.user.findMany({
+      ? db.user.findMany({
           where:
             ctx.role === "gerente_comercial"
               ? { managerId: ctx.userId }
@@ -75,7 +75,12 @@ export default async function CrmLeadDetailPage({
           select: { id: true, name: true, email: true },
           orderBy: { name: "asc" },
         })
-      : [];
+      : Promise.resolve([]),
+    db.crmEmailAccount.findUnique({
+      where: { userId: ctx.userId },
+      select: { verifiedAt: true },
+    }),
+  ]);
 
   // Serialise lead for client (Date → string).
   const leadSerialized = {
@@ -151,6 +156,7 @@ export default async function CrmLeadDetailPage({
       userId={ctx.userId}
       countryCode={ctx.countryCode ?? lead.countryCode}
       stageLabels={stageLabels}
+      hasEmailAccount={!!emailAccount?.verifiedAt}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
@@ -1150,7 +1151,15 @@ function LeadListCard({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: (key: string, vars?: Record<string, any>) => string;
 }) {
+  const router = useRouter();
   const primaryContact = lead.contacts[0] ?? null;
+
+  // Todo el card navega al lead — salvo que el toque haya sido en un
+  // botón o link (WhatsApp, Llamar), que manejan lo suyo.
+  function handleCardClick(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest("a,button")) return;
+    router.push(`/comercial/crm/${lead.id}`);
+  }
 
   function handleWhatsApp(e: React.MouseEvent) {
     e.preventDefault();
@@ -1165,7 +1174,8 @@ function LeadListCard({
   }
 
   return (
-    <div className="rounded-2xl border border-op-border bg-op-surface p-4 space-y-3">
+    <div onClick={handleCardClick}
+      className="rounded-2xl border border-op-border bg-op-surface p-4 space-y-3 cursor-pointer">
       {/* Header: name + priority dot + stage */}
       <div className="flex items-start justify-between gap-2">
         <Link
@@ -1266,6 +1276,17 @@ function KanbanColumn({
   onCardDragStart: (leadId: string) => void;
   onCardDragEnd: () => void;
 }) {
+  const router = useRouter();
+  // Evita navegar cuando el click llega justo después de soltar un drag
+  // (la mayoría de navegadores lo suprimen, pero no todos).
+  const justDraggedRef = useRef(false);
+
+  function handleCardClick(e: React.MouseEvent, leadId: string) {
+    if (justDraggedRef.current) return;
+    if ((e.target as HTMLElement).closest("a,button")) return;
+    router.push(`/comercial/crm/${leadId}`);
+  }
+
   return (
     <div
       className={
@@ -1299,21 +1320,21 @@ function KanbanColumn({
             draggable
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
+              justDraggedRef.current = true;
               onCardDragStart(lead.id);
             }}
-            onDragEnd={onCardDragEnd}
+            onDragEnd={() => {
+              // El click fantasma post-drag llega en el mismo tick — soltar el flag después.
+              setTimeout(() => { justDraggedRef.current = false; }, 0);
+              onCardDragEnd();
+            }}
             onDragOver={(e) => e.preventDefault()}
+            onClick={(e) => handleCardClick(e, lead.id)}
             className="rounded-xl border border-op-border bg-op-surface p-3 space-y-2 cursor-grab active:cursor-grabbing active:opacity-50 select-none transition-opacity"
           >
             <Link
               href={`/comercial/crm/${lead.id}`}
               className="font-medium text-sm hover:text-terracotta flex items-center gap-1.5"
-              onClick={(e) => {
-                // Prevent navigation during drag
-                if (e.currentTarget.closest("[draggable]")?.getAttribute("draggable") === "true") {
-                  // Allow normal clicks (no drag in progress)
-                }
-              }}
             >
               <span
                 className={"w-2 h-2 rounded-full shrink-0 " + priorityDot(lead.priority)}

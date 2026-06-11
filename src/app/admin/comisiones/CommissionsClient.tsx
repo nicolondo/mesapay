@@ -54,11 +54,9 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
   const router = useRouter();
   const [, startTx] = useTransition();
 
-  // Local copy of comerciales (refreshed via router.refresh which re-runs page).
-  // We keep a local copy so we can optimistically update state after actions.
-  const [comerciales, setComerciales] = useState<RepDetail[]>(initialComerciales);
-  // Sync if parent prop changes (e.g. after router.refresh).
-  useEffect(() => { setComerciales(initialComerciales); }, [initialComerciales]);
+  // Use the prop directly — router.refresh() will cause the page to re-run
+  // server-side and pass fresh props down to this component.
+  const comerciales = initialComerciales;
 
   // ── Nuevo comercial form ─────────────────────────────────────────────────────
   const [showNewRep, setShowNewRep] = useState(false);

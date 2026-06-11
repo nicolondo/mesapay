@@ -15,6 +15,22 @@ const contactSchema = z.object({
   role: z.string().max(100).optional(),
 });
 
+const unitNamesSchema = z
+  .array(z.string().trim().min(1).max(80))
+  .max(100)
+  .optional()
+  .transform((arr) => {
+    if (!arr) return arr;
+    // dedupe case-insensitive while preserving original casing of first occurrence
+    const seen = new Set<string>();
+    return arr.filter((n) => {
+      const key = n.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
+
 const createSchema = z.object({
   name: z.string().min(1).max(300),
   countryCode: z.string().length(2).toUpperCase().optional(),
@@ -26,6 +42,7 @@ const createSchema = z.object({
   source: z.string().max(100).optional(),
   planProposed: z.string().max(100).optional(),
   unitsCount: z.number().int().positive().optional(),
+  unitNames: unitNamesSchema,
   notes: z.string().max(5000).optional(),
   contact: contactSchema.optional(),
   assignedToUserId: z.string().optional(),
@@ -97,6 +114,8 @@ export async function GET(req: Request) {
       lastActivityAt: true,
       nextActionAt: true,
       createdAt: true,
+      unitsCount: true,
+      unitNames: true,
       city: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true, email: true } },
       contacts: {
@@ -244,6 +263,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ dupes: dupes.slice(0, 5) });
   }
 
+  // Auto-count rule: when unitNames provided and non-empty, override unitsCount.
+  const resolvedUnitNames = body.unitNames ?? [];
+  const resolvedUnitsCount =
+    resolvedUnitNames.length > 0
+      ? resolvedUnitNames.length
+      : (body.unitsCount ?? null);
+
   // Create the lead (+ optional contact) in a transaction.
   const lead = await db.$transaction(async (tx) => {
     const newLead = await tx.crmLead.create({
@@ -257,7 +283,8 @@ export async function POST(req: Request) {
         priority: body.priority ?? "b",
         source: body.source ?? null,
         planProposed: body.planProposed ?? null,
-        unitsCount: body.unitsCount ?? null,
+        unitsCount: resolvedUnitsCount,
+        unitNames: resolvedUnitNames,
         notes: body.notes ?? null,
         assignedToUserId,
         createdByUserId: ctx.userId,

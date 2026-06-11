@@ -1545,6 +1545,7 @@ model CrmLead {
   source       String?   // cómo llegó el lead: directo, referido, csv, etc.
   planProposed String?   // plan que se le propone (trial, basic, pro)
   unitsCount   Int?      // número de locales (para cadenas)
+  unitNames    String[]  @default([]) // nombres de los restaurantes/marcas del grupo
 
   // Asignación + creación
   assignedToUserId String

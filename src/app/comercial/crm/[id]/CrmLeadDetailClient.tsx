@@ -21,6 +21,7 @@ export type LeadData = {
   source: string | null;
   planProposed: string | null;
   unitsCount: number | null;
+  unitNames: string[];
   notes: string | null;
   lostReason: string | null;
   nextActionAt: string | null;
@@ -483,16 +484,44 @@ function BizSheet({
   const [zone, setZone] = useState(lead.zone ?? "");
   const [businessType, setBusinessType] = useState(lead.businessType ?? "");
   const [planProposed, setPlanProposed] = useState(lead.planProposed ?? "");
+  // unitNames textarea: one name per line
+  const [unitNamesText, setUnitNamesText] = useState(
+    (lead.unitNames ?? []).join("\n"),
+  );
+  // unitsCount is manually editable only when list is empty
   const [unitsCount, setUnitsCount] = useState(String(lead.unitsCount ?? ""));
   const [source, setSource] = useState(lead.source ?? "");
   const [notes, setNotes] = useState(lead.notes ?? "");
   const [saving, setSaving] = useState(false);
 
+  // Parse the textarea into a trimmed, non-empty array
+  const parsedUnitNames = unitNamesText
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const hasUnitNames = parsedUnitNames.length > 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const patch = { address: address || null, zone: zone || null, businessType: businessType || null, planProposed: planProposed || null, unitsCount: unitsCount ? parseInt(unitsCount, 10) : null, source: source || null, notes: notes || null };
-    const res = await fetch(`/api/crm/leads/${lead.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+    const patch: Partial<LeadData> & { unitNames?: string[] } = {
+      address: address || null,
+      zone: zone || null,
+      businessType: businessType || null,
+      planProposed: planProposed || null,
+      source: source || null,
+      notes: notes || null,
+      unitNames: parsedUnitNames,
+      // auto-count from list; if list empty, use manual value
+      unitsCount: hasUnitNames
+        ? parsedUnitNames.length
+        : (unitsCount ? parseInt(unitsCount, 10) : null),
+    };
+    const res = await fetch(`/api/crm/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
     if (res.ok) { onSaved(patch); } else { setSaving(false); }
   }
 
@@ -515,10 +544,34 @@ function BizSheet({
                 className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
             </div>
           ))}
+          {/* Restaurantes del grupo */}
+          <div>
+            <FieldLabel>{t("fieldUnitNames")}</FieldLabel>
+            <textarea
+              value={unitNamesText}
+              onChange={(e) => setUnitNamesText(e.target.value)}
+              rows={4}
+              placeholder={"Carmen\nX.O\nMoshi\nDon Diablo"}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-none font-mono"
+            />
+          </div>
+          {/* Número de restaurantes — disabled/auto when list present */}
           <div>
             <FieldLabel>{t("fieldUnitsCount")}</FieldLabel>
-            <input type="number" min="1" value={unitsCount} onChange={(e) => setUnitsCount(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+            <input
+              type="number"
+              min="1"
+              value={hasUnitNames ? String(parsedUnitNames.length) : unitsCount}
+              disabled={hasUnitNames}
+              onChange={(e) => { if (!hasUnitNames) setUnitsCount(e.target.value); }}
+              className={
+                "w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px] " +
+                (hasUnitNames ? "opacity-50 cursor-not-allowed" : "")
+              }
+            />
+            {hasUnitNames && (
+              <p className="text-[10px] text-op-muted mt-1">{t("unitNamesHint")}</p>
+            )}
           </div>
           <div>
             <FieldLabel>{t("fieldNotes")}</FieldLabel>
@@ -1359,7 +1412,6 @@ export function CrmLeadDetailClient({
               { label: t("fieldZone"), value: lead.zone },
               { label: t("fieldBusinessType"), value: lead.businessType },
               { label: t("fieldPlanProposed"), value: lead.planProposed },
-              { label: t("fieldUnitsCount"), value: lead.unitsCount?.toString() },
               { label: t("fieldSource"), value: lead.source },
               { label: t("fieldNotes"), value: lead.notes },
             ].map(({ label, value }) => value ? (
@@ -1368,7 +1420,28 @@ export function CrmLeadDetailClient({
                 <span className="text-op-text break-words min-w-0">{value}</span>
               </div>
             ) : null)}
-            {!lead.address && !lead.zone && !lead.businessType && !lead.planProposed && !lead.notes && (
+            {/* Group unit names as chips (preferred) or plain count */}
+            {(lead.unitNames ?? []).length > 0 ? (
+              <div className="flex gap-2">
+                <span className="text-op-muted shrink-0 w-28">{t("unitNamesChipsLabel")}</span>
+                <div className="flex flex-wrap gap-1 min-w-0">
+                  {(lead.unitNames ?? []).map((name) => (
+                    <span
+                      key={name}
+                      className="font-mono text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : lead.unitsCount ? (
+              <div className="flex gap-2">
+                <span className="text-op-muted shrink-0 w-28">{t("fieldUnitsCount")}</span>
+                <span className="text-op-text">{lead.unitsCount}</span>
+              </div>
+            ) : null}
+            {!lead.address && !lead.zone && !lead.businessType && !lead.planProposed && !lead.notes && (lead.unitNames ?? []).length === 0 && !lead.unitsCount && (
               <p className="text-op-muted">{t("noBizData")}</p>
             )}
             <div className="flex gap-2 pt-1">

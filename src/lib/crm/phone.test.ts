@@ -149,6 +149,25 @@ describe("normalizePhone — edge cases", () => {
   });
 });
 
+describe("normalizePhone — cross-country explicit + prefix", () => {
+  it("MX number with + passed to CO context → returned as-is (not prefixed)", () => {
+    // +52 1 55 2536 4567 has a leading '+' so it must NOT be prefixed with CO's 57
+    expect(normalizePhone("+52 1 55 2536 4567", "CO")).toBe("+5215525364567");
+  });
+
+  it("CO number with + passed to CO context → unchanged", () => {
+    expect(normalizePhone("+57 300 1234567", "CO")).toBe("+573001234567");
+  });
+
+  it("plain CO mobile without + → gets CO prefix (regression)", () => {
+    expect(normalizePhone("300 123 4567", "CO")).toBe("+573001234567");
+  });
+
+  it("US number with + passed to CO context → returned as-is", () => {
+    expect(normalizePhone("+1 305 555 0100", "CO")).toBe("+13055550100");
+  });
+});
+
 describe("waLink", () => {
   it("strips + and returns wa.me URL", () => {
     expect(waLink("+573001234567")).toBe("https://wa.me/573001234567");

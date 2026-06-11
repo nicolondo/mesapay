@@ -2973,6 +2973,7 @@
     "citiesCount": "{count} cities"
   },
   "crm": {
+    "phonePrefixLabel": "Country calling code",
     "navHoy": "Today",
     "navPipeline": "Pipeline",
     "navCalendario": "Calendar",

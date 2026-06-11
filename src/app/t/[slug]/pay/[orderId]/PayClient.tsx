@@ -35,6 +35,7 @@ export function PayClient({
   tenantName,
   orderId,
   shortCode,
+  tableId,
   locationLabel,
   subtotalCents,
   paidCents,
@@ -58,6 +59,7 @@ export function PayClient({
   tenantName: string;
   orderId: string;
   shortCode: string;
+  tableId: string;
   locationLabel: string;
   subtotalCents: number;
   paidCents: number;
@@ -165,6 +167,29 @@ export function PayClient({
   }, [items]);
 
   const [myGuest, setMyGuest] = useState<string>(guestTotals[0]?.name ?? "");
+
+  // "Lo mío": preseleccionar a la persona de ESTE dispositivo. El menú
+  // guarda el nombre del comensal en localStorage (misma clave que
+  // MenuClient: mesapay.guestName.<tableId>); si coincide con uno de
+  // los invitados de la orden, arrancamos con él en vez del primero.
+  // Solo flujo de cliente: en operatorMode el mesero cobra por otros.
+  useEffect(() => {
+    if (operatorMode) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(`mesapay.guestName.${tableId}`);
+    } catch {
+      return;
+    }
+    const name = saved?.trim();
+    if (!name) return;
+    const match =
+      guestTotals.find((g) => g.name === name) ??
+      guestTotals.find((g) => g.name.toLowerCase() === name.toLowerCase());
+    if (match) setMyGuest(match.name);
+    // Solo al montar: si el usuario cambia la selección a mano, no se la pisamos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const paidFoodCents = Math.max(0, paidCents - paidTipCents);
   const outstandingSubtotalCents = Math.max(0, subtotalCents - paidFoodCents);

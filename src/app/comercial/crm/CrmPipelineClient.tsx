@@ -43,6 +43,29 @@ const STAGES = [
 
 type Stage = (typeof STAGES)[number];
 
+// ── Persistencia de filtros del pipeline (sessionStorage) ──────────────────
+// Al entrar a un lead y volver, la página se remonta y el estado en memoria
+// se pierde — guardamos etapa/búsqueda/comercial para restaurarlos al montar.
+const FILTERS_KEY = "crm.pipeline.filters";
+
+type StoredFilters = { stage?: string; q?: string; assignedTo?: string };
+
+function readStoredFilters(): StoredFilters {
+  try {
+    return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? "{}") as StoredFilters;
+  } catch {
+    return {};
+  }
+}
+
+function persistFilters(patch: StoredFilters) {
+  try {
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ ...readStoredFilters(), ...patch }));
+  } catch {
+    // sessionStorage no disponible — seguimos sin persistencia.
+  }
+}
+
 const LOST_REASONS = [
   "Precio",
   "No ve valor",
@@ -697,6 +720,29 @@ export function CrmPipelineClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Restaura los filtros guardados (etapa / búsqueda / comercial) al montar —
+  // p. ej. al volver de un lead. Va DESPUÉS del efecto de refreshAll: el bump
+  // de filterGenRef invalida esa carga sin filtros y la nuestra es la que
+  // aplica. El query param (?assignedTo= desde Equipo) tiene prioridad.
+  useEffect(() => {
+    const f = readStoredFilters();
+    const stage: Stage | "all" =
+      f.stage === "all" || (STAGES as readonly string[]).includes(f.stage ?? "")
+        ? (f.stage as Stage | "all")
+        : "all";
+    const storedQ = f.q ?? "";
+    const storedAssigned = initialAssignedTo ?? f.assignedTo ?? "";
+    if (stage === "all" && storedQ === "" && storedAssigned === (initialAssignedTo ?? "")) return;
+
+    filterGenRef.current++;
+    setActiveStage(stage);
+    setQ(storedQ);
+    setAssignedTo(storedAssigned);
+    fetchLeads({ stage, q: storedQ, assignedTo: storedAssigned, reset: true, includeCounts: true })
+      .then((nextCursor) => startFilteredKanbanLoad(stage, storedQ, storedAssigned, nextCursor));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // On window focus / visibilitychange (covers returning to tab/PWA)
   useEffect(() => {
     function handleFocus() { refreshAll(); }
@@ -728,6 +774,7 @@ export function CrmPipelineClient({
   // Stage chip click
   function handleStageClick(stage: Stage | "all") {
     filterGenRef.current++;
+    persistFilters({ stage });
     setActiveStage(stage);
     fetchLeads({ stage, q, assignedTo, reset: true, includeCounts: true })
       .then((nextCursor) => startFilteredKanbanLoad(stage, q, assignedTo, nextCursor));
@@ -742,6 +789,7 @@ export function CrmPipelineClient({
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => {
       filterGenRef.current++;
+      persistFilters({ q: val });
       fetchLeads({ stage: activeStage, q: val, assignedTo, reset: true, includeCounts: true })
         .then((nextCursor) => startFilteredKanbanLoad(activeStage, val, assignedTo, nextCursor));
     }, 350);
@@ -753,6 +801,7 @@ export function CrmPipelineClient({
   // selector value = specific member id → restrict to that member
   function handleAssignedToChange(val: string) {
     filterGenRef.current++;
+    persistFilters({ assignedTo: val });
     setAssignedTo(val);
     fetchLeads({ stage: activeStage, q, assignedTo: val, reset: true, includeCounts: true })
       .then((nextCursor) => startFilteredKanbanLoad(activeStage, q, val, nextCursor));

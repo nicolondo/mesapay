@@ -457,7 +457,7 @@ function Overlay({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end"
+      className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center"
       role="dialog"
       aria-modal="true"
     >
@@ -482,7 +482,7 @@ function SheetContent({
   return (
     <div
       ref={innerRef}
-      className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl"
+      className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl lg:rounded-2xl lg:max-w-lg lg:w-full lg:max-h-[85vh]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {children}
@@ -492,7 +492,7 @@ function SheetContent({
 
 function SheetHandle() {
   return (
-    <div className="flex justify-center pt-3 pb-1">
+    <div className="flex justify-center pt-3 pb-1 lg:hidden">
       <div className="w-10 h-1 rounded-full bg-op-border" />
     </div>
   );

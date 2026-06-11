@@ -97,7 +97,7 @@ function Overlay({ onClose, children }: { onClose: () => void; children: React.R
     return () => { document.body.style.overflow = ""; };
   }, []);
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       {children}
     </div>
@@ -107,7 +107,7 @@ function Overlay({ onClose, children }: { onClose: () => void; children: React.R
 function SheetContent({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl overflow-y-auto"
+      className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl overflow-y-auto lg:rounded-2xl lg:max-w-lg lg:w-full lg:max-h-[85vh]"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {children}
@@ -117,7 +117,7 @@ function SheetContent({ children }: { children: React.ReactNode }) {
 
 function SheetHandle() {
   return (
-    <div className="flex justify-center pt-3 pb-1 shrink-0">
+    <div className="flex justify-center pt-3 pb-1 shrink-0 lg:hidden">
       <div className="w-10 h-1 rounded-full bg-op-border" />
     </div>
   );
@@ -823,7 +823,7 @@ export function CrmPipelineClient({
       )}
 
       {/* Top bar: title + search */}
-      <div className="px-4 pt-4 pb-3 space-y-3">
+      <div className="px-4 pt-4 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full">
         <div className="flex items-center justify-between">
           <div className="font-display text-xl">{t("pageTitle")}</div>
         </div>
@@ -872,7 +872,7 @@ export function CrmPipelineClient({
       </div>
 
       {/* Stage chips — horizontal scroll */}
-      <div className="overflow-x-auto scrollbar-none px-4 pb-3">
+      <div className="overflow-x-auto scrollbar-none px-4 pb-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full">
         <div className="flex gap-2 min-w-max">
           <StageChip
             label={t("stageAll")}

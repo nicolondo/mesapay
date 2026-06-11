@@ -616,11 +616,8 @@ function ActivitySheet({
   const t = useTranslations("crm");
   const [actType, setActType] = useState<"note" | "call" | "whatsapp" | "visit">("note");
   const [content, setContent] = useState("");
-  // Default: hoy (fecha local del navegador), editable.
-  const [nextDate, setNextDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  // Sin fecha por defecto: agendar un próximo seguimiento es opcional.
+  const [nextDate, setNextDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -1104,7 +1104,11 @@ function EmailSheet({
   const [templateId, setTemplateId] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
-  const [contactId, setContactId] = useState("");
+  // Preselecciona el contacto principal (o el primero con email).
+  const [contactId, setContactId] = useState(() => {
+    const withEmail = contacts.filter((c) => c.email);
+    return (withEmail.find((c) => c.isPrimary) ?? withEmail[0])?.id ?? "";
+  });
   const [extraNote, setExtraNote] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

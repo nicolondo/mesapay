@@ -3245,6 +3245,12 @@
     "metricsRespuestaHrs": "{hrs} h",
     "metricsNoData": "Sem atividade neste período",
     "exportBtn": "Exportar CSV",
-    "exportLeads": "Exportar leads"
+    "exportLeads": "Exportar leads",
+    "dndConvertTitle": "Criar restaurante",
+    "dndConvertSuccess": "Lead convertido em cliente",
+    "dndLostTitle": "Motivo de perda",
+    "dndLostConfirm": "Confirmar",
+    "dndErrorStage": "Erro ao mover lead. Tente novamente.",
+    "dndToastMoved": "Lead movido para {stage}"
   }
 }

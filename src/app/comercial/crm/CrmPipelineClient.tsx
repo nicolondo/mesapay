@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { waLink } from "@/lib/crm/phone";
+import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
 import { CrmNewLeadSheet } from "./CrmNewLeadSheet";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -38,6 +39,15 @@ const STAGES = [
 ] as const;
 
 type Stage = (typeof STAGES)[number];
+
+const LOST_REASONS = [
+  "Precio",
+  "No ve valor",
+  "Ya tiene proveedor",
+  "Cerró",
+  "Quedó frío",
+  "Otro",
+] as const;
 
 // ── Stage helpers ──────────────────────────────────────────────────────────
 
@@ -77,12 +87,292 @@ function useRelTime() {
   );
 }
 
+// ── Sheet primitives (needed for DnD sheets) ───────────────────────────────
+
+function Overlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      {children}
+    </div>
+  );
+}
+
+function SheetContent({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl overflow-y-auto"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SheetHandle() {
+  return (
+    <div className="flex justify-center pt-3 pb-1 shrink-0">
+      <div className="w-10 h-1 rounded-full bg-op-border" />
+    </div>
+  );
+}
+
+function SheetHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-op-border shrink-0">
+      <div className="font-display text-xl">{title}</div>
+      <button onClick={onClose} className="p-2 rounded-lg text-op-muted hover:text-op-text min-h-[44px] min-w-[44px] flex items-center justify-center">
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
+      {children}
+      {required && <span className="text-terracotta ml-0.5">{"*"}</span>}
+    </label>
+  );
+}
+
+// ── DndConvertSheet ────────────────────────────────────────────────────────
+
+function DndConvertSheet({
+  lead,
+  role,
+  onConverted,
+  onClose,
+}: {
+  lead: LeadCard;
+  role: string;
+  onConverted: (restaurantId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("crm");
+
+  function suggestSlug(name: string) {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40);
+  }
+
+  const [name, setName] = useState(lead.name);
+  const [slug, setSlug] = useState(() => suggestSlug(lead.name));
+  const [plan, setPlan] = useState<"trial" | "basic" | "pro">("trial");
+  const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ restaurantId: string } | null>(null);
+
+  function handleNameChange(v: string) {
+    setName(v);
+    setSlug(suggestSlug(v));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: slug.trim(),
+          plan,
+          monthlyPriceCents: monthlyPrice ? parseInt(monthlyPrice, 10) : 0,
+        }),
+      });
+      const json = await res.json();
+      if (res.status === 409) {
+        setError(t("convertAlreadyConverted"));
+        setSaving(false);
+        return;
+      }
+      if (!res.ok) {
+        setError(t("convertError", { detail: json.error ?? "error" }));
+        setSaving(false);
+        return;
+      }
+      setSuccess({ restaurantId: json.restaurantId });
+      onConverted(json.restaurantId);
+    } catch {
+      setError(t("convertError", { detail: "network error" }));
+      setSaving(false);
+    }
+  }
+
+  const PLANS = [
+    { value: "trial" as const, label: t("convertPlanTrial") },
+    { value: "basic" as const, label: t("convertPlanBasic") },
+    { value: "pro" as const, label: t("convertPlanPro") },
+  ];
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("dndConvertTitle")} onClose={onClose} />
+        {success ? (
+          <div className="px-4 py-6 space-y-4">
+            <p className="text-sm text-green-600 font-medium">{t("dndConvertSuccess")}</p>
+            {role === "platform_admin" && (
+              <a
+                href={`/admin/restaurants/${success.restaurantId}`}
+                className="block w-full py-3.5 rounded-xl bg-terracotta text-white text-sm font-medium text-center min-h-[44px]"
+              >
+                {t("convertViewAdmin")}
+              </a>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+            <div>
+              <FieldLabel required>{t("convertFieldName")}</FieldLabel>
+              <input
+                type="text" required value={name} onChange={(e) => handleNameChange(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+            </div>
+            <div>
+              <FieldLabel required>{t("convertFieldSlug")}</FieldLabel>
+              <input
+                type="text" required value={slug} onChange={(e) => setSlug(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+              <p className="text-xs text-op-muted mt-1">{"app.mesapay.co/t/" + (slug || "…")}</p>
+            </div>
+            <div>
+              <FieldLabel required>{t("convertFieldPlan")}</FieldLabel>
+              <div className="flex gap-2">
+                {PLANS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPlan(value)}
+                    className={
+                      "flex-1 py-2.5 rounded-xl border-2 text-sm font-medium min-h-[44px] transition-all " +
+                      (plan === value
+                        ? "border-terracotta bg-terracotta/5 text-terracotta"
+                        : "border-op-border text-op-muted hover:border-op-text")
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>{t("convertFieldMonthly")}</FieldLabel>
+              <input
+                type="number" min="0" value={monthlyPrice}
+                onChange={(e) => setMonthlyPrice(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+              />
+            </div>
+            {error && <p className="text-sm text-terracotta">{error}</p>}
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || !slug.trim()}
+              className="w-full py-3.5 rounded-xl bg-terracotta text-white font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {saving ? <span className="flex justify-center"><Spinner /></span> : t("convertSubmit")}
+            </button>
+          </form>
+        )}
+      </SheetContent>
+    </Overlay>
+  );
+}
+
+// ── DndLostReasonSheet ─────────────────────────────────────────────────────
+
+function DndLostReasonSheet({
+  lead,
+  onConfirmed,
+  onClose,
+}: {
+  lead: LeadCard;
+  onConfirmed: (lostReason: string) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("crm");
+  const [lostReason, setLostReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConfirm() {
+    if (!lostReason) { setError(t("lostReasonRequired")); return; }
+    setSaving(true);
+    const res = await fetch(`/api/crm/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stage: "perdido", lostReason }),
+    });
+    if (res.ok) {
+      onConfirmed(lostReason);
+    } else {
+      setError(t("dndErrorStage"));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Overlay onClose={onClose}>
+      <SheetContent>
+        <SheetHandle />
+        <SheetHeader title={t("dndLostTitle")} onClose={onClose} />
+        <div className="px-4 py-4 space-y-4">
+          <FieldLabel required>{t("lostReasonLabel")}</FieldLabel>
+          <select
+            value={lostReason}
+            onChange={(e) => { setLostReason(e.target.value); setError(null); }}
+            className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+          >
+            <option value="">{"—"}</option>
+            {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          {error && <p className="text-sm text-terracotta">{error}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl border border-op-border text-sm font-medium min-h-[44px] text-op-muted"
+            >
+              {t("dupesCancel")}
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={saving}
+              className="flex-1 py-3.5 rounded-xl bg-terracotta text-white font-medium disabled:opacity-50 min-h-[44px]"
+            >
+              {saving ? <span className="flex justify-center"><Spinner /></span> : t("dndLostConfirm")}
+            </button>
+          </div>
+        </div>
+      </SheetContent>
+    </Overlay>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function CrmPipelineClient({
   initialLeads,
   nextCursor: initialCursor,
-  stageCounts,
+  stageCounts: initialStageCounts,
   role,
   userId,
   userCountryCode,
@@ -115,10 +405,26 @@ export function CrmPipelineClient({
   // specific member id = only that member's leads
   const [assignedTo, setAssignedTo] = useState<string>(initialAssignedTo ?? "");
   const [leads, setLeads] = useState<LeadCard[]>(initialLeads);
+  const [counts, setCounts] = useState<StageCounts>(initialStageCounts);
   const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const [hasMore, setHasMore] = useState(!!initialCursor);
   const [loading, setLoading] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
+
+  // ── DnD state (desktop kanban only)
+  const dragRef = useRef<{ leadId: string; fromStage: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  type DndSheet =
+    | { kind: "convert"; lead: LeadCard }
+    | { kind: "lost"; lead: LeadCard }
+    | null;
+  const [dndSheet, setDndSheet] = useState<DndSheet>(null);
+  const [dndToast, setDndToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showDndToast(msg: string, ok: boolean) {
+    setDndToast({ msg, ok });
+    setTimeout(() => setDndToast(null), 3500);
+  }
 
   // Debounce ref for search
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -195,6 +501,56 @@ export function CrmPipelineClient({
   function onLeadCreated() {
     setShowNewLead(false);
     fetchLeads({ stage: activeStage, q, assignedTo, reset: true });
+  }
+
+  // ── DnD drop handler (desktop only)
+  function handleDrop(toStage: string) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const { leadId, fromStage } = drag;
+    dragRef.current = null;
+    setDropTarget(null);
+
+    if (fromStage === toStage) return; // no-op
+
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+
+    if (toStage === "ganado") {
+      setDndSheet({ kind: "convert", lead });
+      return;
+    }
+
+    if (toStage === "perdido") {
+      setDndSheet({ kind: "lost", lead });
+      return;
+    }
+
+    // Optimistic update for all other stages
+    const prevLeads = leads;
+    const prevCounts = counts;
+    setLeads(applyDrop(leads, leadId, fromStage, toStage));
+    setCounts(applyDropCounts(counts, fromStage, toStage));
+
+    fetch(`/api/crm/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stage: toStage }),
+    })
+      .then((res) => {
+        if (res.ok) {
+          showDndToast(t("dndToastMoved", { stage: stageLabel[toStage] ?? toStage }), true);
+        } else {
+          setLeads(prevLeads);
+          setCounts(prevCounts);
+          showDndToast(t("dndErrorStage"), false);
+        }
+      })
+      .catch(() => {
+        setLeads(prevLeads);
+        setCounts(prevCounts);
+        showDndToast(t("dndErrorStage"), false);
+      });
   }
 
   // ── Stage label map
@@ -274,7 +630,7 @@ export function CrmPipelineClient({
         <div className="flex gap-2 min-w-max">
           <StageChip
             label={t("stageAll")}
-            count={stageCounts.total ?? 0}
+            count={counts.total ?? 0}
             active={activeStage === "all"}
             onClick={() => handleStageClick("all")}
           />
@@ -282,7 +638,7 @@ export function CrmPipelineClient({
             <StageChip
               key={s}
               label={stageLabel[s] ?? s}
-              count={stageCounts[s] ?? 0}
+              count={counts[s] ?? 0}
               active={activeStage === s}
               onClick={() => handleStageClick(s)}
             />
@@ -328,7 +684,6 @@ export function CrmPipelineClient({
       <div className="hidden lg:flex flex-1 overflow-x-auto px-4 pb-4 gap-3 items-start">
         {STAGES.map((s) => {
           const colLeads = leads.filter((l) => l.stage === s);
-          const count = stageCounts[s] ?? 0;
           return (
             <KanbanColumn
               key={s}
@@ -337,7 +692,13 @@ export function CrmPipelineClient({
               leads={colLeads}
               relTime={relTime}
               t={t}
-              kanbanColumnHeader={t("kanbanColumnHeader", { count })}
+              kanbanColumnHeader={t("kanbanColumnHeader", { count: counts[s] ?? 0 })}
+              isDragOver={dropTarget === s}
+              onDragOverColumn={(e) => { e.preventDefault(); setDropTarget(s); }}
+              onDragLeaveColumn={() => setDropTarget(null)}
+              onDropColumn={() => handleDrop(s)}
+              onCardDragStart={(leadId) => { dragRef.current = { leadId, fromStage: s }; }}
+              onCardDragEnd={() => { dragRef.current = null; setDropTarget(null); }}
             />
           );
         })}
@@ -364,6 +725,62 @@ export function CrmPipelineClient({
           userCountryCode={userCountryCode}
           onClose={() => setShowNewLead(false)}
           onCreated={onLeadCreated}
+        />
+      )}
+
+      {/* DnD toast */}
+      {dndToast && (
+        <div
+          className={
+            "fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl shadow-lg text-sm font-medium whitespace-nowrap " +
+            (dndToast.ok ? "bg-green-600 text-white" : "bg-rose-600 text-white")
+          }
+        >
+          {dndToast.msg}
+        </div>
+      )}
+
+      {/* DnD sheets */}
+      {dndSheet?.kind === "convert" && (
+        <DndConvertSheet
+          lead={dndSheet.lead}
+          role={role}
+          onClose={() => setDndSheet(null)}
+          onConverted={(_restaurantId) => {
+            const fromStage = dndSheet.lead.stage;
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === dndSheet.lead.id
+                  ? { ...l, stage: "ganado" }
+                  : l,
+              ),
+            );
+            setCounts((prev) => applyDropCounts(prev, fromStage, "ganado"));
+            setDndSheet(null);
+            showDndToast(t("dndToastMoved", { stage: stageLabel["ganado"] ?? "ganado" }), true);
+          }}
+        />
+      )}
+      {dndSheet?.kind === "lost" && (
+        <DndLostReasonSheet
+          lead={dndSheet.lead}
+          onClose={() => setDndSheet(null)}
+          onConfirmed={(lostReason) => {
+            const fromStage = dndSheet.lead.stage;
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === dndSheet.lead.id
+                  ? { ...l, stage: "perdido", lostReason }
+                  : l,
+              ),
+            );
+            setCounts((prev) => applyDropCounts(prev, fromStage, "perdido"));
+            setDndSheet(null);
+            showDndToast(
+              t("dndToastMoved", { stage: stageLabel["perdido"] ?? "perdido" }),
+              true,
+            );
+          }}
         />
       )}
     </div>
@@ -508,16 +925,37 @@ function KanbanColumn({
   relTime,
   t,
   kanbanColumnHeader,
+  isDragOver,
+  onDragOverColumn,
+  onDragLeaveColumn,
+  onDropColumn,
+  onCardDragStart,
+  onCardDragEnd,
 }: {
   stage: string;
   label: string;
   leads: LeadCard[];
   relTime: (d: Date | string | null) => string;
-  t: (key: string) => string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  t: (key: string, vars?: Record<string, any>) => string;
   kanbanColumnHeader: string;
+  isDragOver: boolean;
+  onDragOverColumn: (e: React.DragEvent) => void;
+  onDragLeaveColumn: () => void;
+  onDropColumn: () => void;
+  onCardDragStart: (leadId: string) => void;
+  onCardDragEnd: () => void;
 }) {
   return (
-    <div className="w-64 shrink-0 flex flex-col gap-2">
+    <div
+      className={
+        "w-64 shrink-0 flex flex-col gap-2 rounded-xl p-1 transition-colors " +
+        (isDragOver ? "ring-2 ring-terracotta bg-terracotta/5" : "")
+      }
+      onDragOver={onDragOverColumn}
+      onDragLeave={onDragLeaveColumn}
+      onDrop={(e) => { e.preventDefault(); onDropColumn(); }}
+    >
       {/* Column header */}
       <div
         className={
@@ -538,11 +976,23 @@ function KanbanColumn({
         leads.map((lead) => (
           <div
             key={lead.id}
-            className="rounded-xl border border-op-border bg-op-surface p-3 space-y-2"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              onCardDragStart(lead.id);
+            }}
+            onDragEnd={onCardDragEnd}
+            className="rounded-xl border border-op-border bg-op-surface p-3 space-y-2 cursor-grab active:cursor-grabbing active:opacity-50 select-none transition-opacity"
           >
             <Link
               href={`/comercial/crm/${lead.id}`}
               className="font-medium text-sm hover:text-terracotta flex items-center gap-1.5"
+              onClick={(e) => {
+                // Prevent navigation during drag
+                if (e.currentTarget.closest("[draggable]")?.getAttribute("draggable") === "true") {
+                  // Allow normal clicks (no drag in progress)
+                }
+              }}
             >
               <span
                 className={"w-2 h-2 rounded-full shrink-0 " + priorityDot(lead.priority)}

@@ -1103,12 +1103,14 @@ type EmailTemplate = {
 function EmailSheet({
   lead,
   contacts,
+  comercialName,
   onSent,
   onClose,
   hasEmailAccount,
 }: {
   lead: LeadData;
   contacts: ContactData[];
+  comercialName: string;
   onSent: () => void;
   onClose: () => void;
   hasEmailAccount: boolean;
@@ -1147,26 +1149,42 @@ function EmailSheet({
       .finally(() => setLoadingTemplates(false));
   }, []);
 
+  // Si el usuario editó el contenido tras elegir plantilla, no lo pisamos
+  // al cambiar de contacto.
+  const editedRef = useRef(false);
+
+  function buildVars(forContactId: string) {
+    return {
+      nombre: contacts.find((c) => c.id === forContactId)?.name ?? "",
+      comercio: lead.name,
+      ciudad: lead.city?.name ?? lead.countryCode ?? "",
+      comercial: comercialName,
+    };
+  }
+
   function handleTemplateChange(id: string) {
     setTemplateId(id);
     const tpl = templates.find((x) => x.id === id);
     if (tpl) {
-      setSubject(tpl.subject);
-      setBodyHtml(tpl.bodyHtml);
+      // Previsualización editable: variables resueltas con el contacto actual.
+      setSubject(renderTemplate(tpl.subject, buildVars(contactId)));
+      setBodyHtml(renderTemplate(tpl.bodyHtml, buildVars(contactId)));
+      editedRef.current = false;
+    }
+  }
+
+  function handleContactChange(id: string) {
+    setContactId(id);
+    // Re-renderiza la plantilla con el nuevo contacto si no hubo ediciones manuales.
+    const tpl = templates.find((x) => x.id === templateId);
+    if (tpl && !editedRef.current) {
+      setSubject(renderTemplate(tpl.subject, buildVars(id)));
+      setBodyHtml(renderTemplate(tpl.bodyHtml, buildVars(id)));
     }
   }
 
   const contactsWithEmail = contacts.filter((c) => c.email);
-
-  // Rendered preview of subject with lead vars
-  const subjectPreview = subject
-    ? renderTemplate(subject, {
-        nombre: contacts.find((c) => c.id === contactId)?.name ?? "",
-        comercio: lead.name,
-        ciudad: lead.city?.name ?? lead.countryCode ?? "",
-        comercial: "",
-      })
-    : "";
+  const selectedTemplate = templates.find((x) => x.id === templateId);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -1175,13 +1193,10 @@ function EmailSheet({
     setError(null);
 
     try {
-      const body: Record<string, unknown> = { contactId };
-      if (templateId) {
-        body.templateId = templateId;
-      } else {
-        body.subject = subject;
-        body.bodyHtml = bodyHtml;
-      }
+      // Siempre va el contenido visible (posiblemente editado); el templateId
+      // se incluye solo para que el server adjunte los archivos de la plantilla.
+      const body: Record<string, unknown> = { contactId, subject, bodyHtml };
+      if (templateId) body.templateId = templateId;
       if (extraNote.trim()) body.extraNote = extraNote.trim();
 
       const res = await fetch(`/api/crm/leads/${lead.id}/send-email`, {
@@ -1239,7 +1254,7 @@ function EmailSheet({
                 <select
                   required
                   value={contactId}
-                  onChange={(e) => setContactId(e.target.value)}
+                  onChange={(e) => handleContactChange(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
                 >
                   <option value={""}>{t("sendEmailChooseContact")}</option>
@@ -1267,27 +1282,37 @@ function EmailSheet({
               </div>
             )}
 
-            {/* Manual compose (if no template) */}
-            {!templateId && (
-              <>
-                <div>
-                  <FieldLabel required>{t("templateFieldSubject")}</FieldLabel>
-                  <input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
-                </div>
-                <div>
-                  <FieldLabel required>{t("templateFieldBody")}</FieldLabel>
-                  <textarea required value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} rows={5}
-                    className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-none font-mono" />
-                </div>
-              </>
+            {/* Asunto + cuerpo: siempre editables — la plantilla los pre-llena
+                ya renderizados con las variables del contacto/lead. */}
+            <div>
+              <FieldLabel required>{t("templateFieldSubject")}</FieldLabel>
+              <input type="text" required value={subject}
+                onChange={(e) => { setSubject(e.target.value); editedRef.current = true; }}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]" />
+            </div>
+            <div>
+              <FieldLabel required>{t("templateFieldBody")}</FieldLabel>
+              <textarea required value={bodyHtml}
+                onChange={(e) => { setBodyHtml(e.target.value); editedRef.current = true; }}
+                rows={templateId ? 8 : 5}
+                className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta resize-y font-mono" />
+            </div>
+
+            {/* Adjuntos de la plantilla seleccionada */}
+            {selectedTemplate && selectedTemplate.attachmentIds.length > 0 && (
+              <p className="text-xs text-op-muted">
+                {t("sendEmailAttachmentsCount", { count: selectedTemplate.attachmentIds.length })}
+              </p>
             )}
 
-            {/* Subject preview when template selected */}
-            {templateId && subjectPreview && (
-              <div className="px-3 py-2 rounded-xl bg-op-bg border border-op-border">
-                <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-0.5">{t("sendEmailSubjectPreview")}</div>
-                <div className="text-sm">{subjectPreview}</div>
+            {/* Vista previa renderizada del cuerpo */}
+            {bodyHtml.trim() && (
+              <div className="px-3 py-2.5 rounded-xl bg-op-bg border border-op-border">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">{t("sendEmailPreview")}</div>
+                <div
+                  className="text-sm break-words [&_p]:my-1 [&_a]:text-terracotta [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4"
+                  dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                />
               </div>
             )}
 
@@ -1939,6 +1964,7 @@ export function CrmLeadDetailClient({
         <EmailSheet
           lead={lead}
           contacts={contacts}
+          comercialName={currentUserName}
           hasEmailAccount={hasEmailAccount}
           onClose={() => setSheet(null)}
           onSent={() => {

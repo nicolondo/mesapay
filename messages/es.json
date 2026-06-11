@@ -3246,6 +3246,8 @@
     "sendEmailContact": "Contacto",
     "sendEmailChooseContact": "Elegir contacto…",
     "sendEmailSubjectPreview": "Asunto:",
+    "sendEmailPreview": "Vista previa",
+    "sendEmailAttachmentsCount": "Adjuntos de la plantilla: {count}",
     "sendEmailExtraNote": "Nota extra (opcional)",
     "sendEmailSubmit": "Enviar",
     "sendEmailSending": "Enviando…",

@@ -281,3 +281,17 @@ select {
     );
   }
 }
+
+/* iOS Safari: los inputs date/time traen un ancho mínimo intrínseco del
+   user-agent que ignora width:100% y desborda su contenedor en pantallas
+   angostas (ej. "Próximo seguimiento" en el sheet del CRM). min-width:0
+   les permite encoger al ancho disponible; appearance:none elimina el
+   sizing nativo de WebKit que causa el desborde. El icono de calendario
+   de Chrome desktop no se ve afectado. */
+input[type="date"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}

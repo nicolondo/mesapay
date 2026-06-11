@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderTemplate } from "./templateRender";
+import { renderTemplate, nl2brIfPlain } from "./templateRender";
 
 describe("renderTemplate", () => {
   it("replaces a basic variable", () => {
@@ -38,6 +38,34 @@ describe("renderTemplate", () => {
   it("leaves non-matching text untouched", () => {
     expect(renderTemplate("Sin variables aquí", { nombre: "X" })).toBe(
       "Sin variables aquí",
+    );
+  });
+});
+
+describe("nl2brIfPlain", () => {
+  it("converts newlines to <br> in plain text", () => {
+    expect(nl2brIfPlain("Hola\n\n¿Cómo estás?\nChao")).toBe(
+      "Hola<br><br>¿Cómo estás?<br>Chao",
+    );
+  });
+
+  it("converts CRLF newlines too", () => {
+    expect(nl2brIfPlain("a\r\nb")).toBe("a<br>b");
+  });
+
+  it("leaves real HTML with <p> blocks untouched", () => {
+    const html = "<p>Hola</p>\n<p>Chao</p>";
+    expect(nl2brIfPlain(html)).toBe(html);
+  });
+
+  it("leaves HTML that already uses <br> untouched", () => {
+    const html = "Hola<br>Chao\ncon salto crudo";
+    expect(nl2brIfPlain(html)).toBe(html);
+  });
+
+  it("converts when only inline tags are present", () => {
+    expect(nl2brIfPlain("Hola <b>Juan</b>\nChao")).toBe(
+      "Hola <b>Juan</b><br>Chao",
     );
   });
 });

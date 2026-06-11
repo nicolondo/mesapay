@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { CALLING_CODES } from "@/lib/crm/phone";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
-import { renderTemplate } from "@/lib/crm/templateRender";
+import { renderTemplate, nl2brIfPlain } from "@/lib/crm/templateRender";
 
 /** Abre el picker nativo al tocar cualquier parte de un input date/time
  *  (sin esto, Chrome desktop solo lo abre al hacer clic en el iconito). */
@@ -1311,7 +1311,7 @@ function EmailSheet({
                 <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">{t("sendEmailPreview")}</div>
                 <div
                   className="text-sm break-words [&_p]:my-1 [&_a]:text-terracotta [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4"
-                  dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                  dangerouslySetInnerHTML={{ __html: nl2brIfPlain(bodyHtml) }}
                 />
               </div>
             )}

@@ -21,8 +21,11 @@ export function ComercialBottomNav({ role }: { role: string }) {
   }
 
   return (
+    // En flujo (no fixed): el layout bloquea el scroll del body y <main>
+    // scrollea, así esta barra queda anclada abajo sin los brincos de
+    // `position: fixed` en iOS/PWA.
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 bg-op-surface/95 backdrop-blur border-t border-op-border z-40"
+      className="lg:hidden shrink-0 bg-op-surface border-t border-op-border z-40"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label={t("navMas")}
     >

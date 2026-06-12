@@ -48,7 +48,11 @@ export default async function ComercialLayout({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-op-bg text-op-text">
+    // h-dvh + overflow-hidden: el body NO scrollea — scrollea <main>. Con el
+    // body bloqueado, iOS no tiene scroll elástico a nivel ventana y el nav
+    // inferior (en flujo, abajo) queda físicamente anclado: era `fixed` y en
+    // iOS/PWA "se subía" con el rebote del scroll mostrando contenido debajo.
+    <div className="flex flex-col h-dvh overflow-hidden bg-op-bg text-op-text">
       {/* Compact header */}
       <header
         className="staff-safe-top sticky top-0 z-30 border-b border-op-border bg-op-surface flex items-center justify-between px-4 pb-3 lg:px-6"
@@ -123,13 +127,8 @@ export default async function ComercialLayout({
         enabling: tc("pushBannerEnabling"),
       }} />
 
-      {/* Content — bottom-padded on mobile to clear fixed nav; no padding on desktop */}
-      <main
-        className="flex flex-1 flex-col lg:pb-0"
-        style={{
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)",
-        }}
-      >
+      {/* Content — el scroller real. El nav va después, en flujo. */}
+      <main className="flex flex-1 flex-col overflow-y-auto overscroll-contain">
         {children}
       </main>
 

@@ -3337,7 +3337,8 @@
     "deleteLeadConverted": "Este lead já está vinculado a um restaurante e não pode ser excluído.",
     "deleteLeadError": "Falha ao excluir o lead. Tente novamente.",
     "navPrevLead": "Lead anterior (←)",
-    "navNextLead": "Próximo lead (→)"
+    "navNextLead": "Próximo lead (→)",
+    "clearSearch": "Limpar busca"
   },
   "card": {
     "role": "Gerente Geral",

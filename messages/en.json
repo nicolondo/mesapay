@@ -3337,7 +3337,8 @@
     "deleteLeadConverted": "This lead is already linked to a restaurant and cannot be deleted.",
     "deleteLeadError": "Failed to delete the lead. Please try again.",
     "navPrevLead": "Previous lead (←)",
-    "navNextLead": "Next lead (→)"
+    "navNextLead": "Next lead (→)",
+    "clearSearch": "Clear search"
   },
   "card": {
     "role": "General Manager",

@@ -945,8 +945,22 @@ export function CrmPipelineClient({
             value={q}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+            className="w-full pl-9 pr-11 py-2 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
+          {/* ✕ propio: el botón nativo de type=search no se ve en móvil. */}
+          {q !== "" && (
+            <button
+              type="button"
+              onClick={() => handleSearchChange("")}
+              aria-label={t("clearSearch")}
+              title={t("clearSearch")}
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full text-op-muted hover:text-op-text"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Gerente: view selector */}

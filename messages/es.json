@@ -3337,7 +3337,8 @@
     "deleteLeadConverted": "Este lead ya tiene un restaurante vinculado y no puede eliminarse.",
     "deleteLeadError": "Error al eliminar el lead. Intenta de nuevo.",
     "navPrevLead": "Lead anterior (←)",
-    "navNextLead": "Lead siguiente (→)"
+    "navNextLead": "Lead siguiente (→)",
+    "clearSearch": "Borrar búsqueda"
   },
   "card": {
     "role": "Gerente General",

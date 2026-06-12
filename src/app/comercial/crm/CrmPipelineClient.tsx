@@ -912,8 +912,8 @@ export function CrmPipelineClient({
           <div className="font-display text-xl">{t("pageTitle")}</div>
         </div>
 
-        {/* Search */}
-        <div className="relative">
+        {/* Search — en desktop no ocupa todo el ancho de la pantalla */}
+        <div className="relative lg:max-w-md">
           <svg
             viewBox="0 0 20 20"
             fill="currentColor"

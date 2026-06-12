@@ -58,6 +58,14 @@ function readStoredFilters(): StoredFilters {
   }
 }
 
+/** Une páginas de leads sin duplicar ids. Cargas concurrentes (mount +
+ *  clear + búsqueda) pueden traer la misma página dos veces, y las keys
+ *  duplicadas corrompen la reconciliación de React (tarjetas fantasma). */
+function mergeLeads(prev: LeadCard[], incoming: LeadCard[]): LeadCard[] {
+  const ids = new Set(prev.map((l) => l.id));
+  return [...prev, ...incoming.filter((l) => !ids.has(l.id))];
+}
+
 function persistFilters(patch: StoredFilters) {
   try {
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ ...readStoredFilters(), ...patch }));
@@ -505,7 +513,7 @@ export function CrmPipelineClient({
           if (opts.reset) {
             setLeads(newLeads);
           } else {
-            setLeads((prev) => [...prev, ...newLeads]);
+            setLeads((prev) => mergeLeads(prev, newLeads));
           }
           setCursor(nextCursor);
           setHasMore(!!nextCursor);
@@ -584,7 +592,7 @@ export function CrmPipelineClient({
           if (gen !== filterGenRef.current) return; // filtros cambiaron — descartar
           // Single state swap — no intermediate repaints
           startTransition(() => {
-            setLeads(accumulated);
+            setLeads(mergeLeads([], accumulated));
             setCursor(lastCursor);
             setHasMore(!!lastCursor);
           });
@@ -613,7 +621,7 @@ export function CrmPipelineClient({
             if (signal?.aborted) return;
             if (gen !== filterGenRef.current) return; // filtros cambiaron — descartar
             startTransition(() => {
-              setLeads((prev) => [...prev, ...newLeads]);
+              setLeads((prev) => mergeLeads(prev, newLeads));
               setCursor(nextCur);
               setHasMore(!!nextCur);
             });
@@ -887,15 +895,22 @@ export function CrmPipelineClient({
 
   // ── Render ─────────────────────────────────────────────────────────────
 
-  // Defensa en profundidad para la búsqueda: la vista NUNCA muestra un lead
-  // que no coincida con lo escrito en el buscador, aunque alguna carga vieja
-  // (mount, refresh, bundle stale en una pestaña abierta) haya dejado datos
-  // sin filtrar en `leads`. Misma regla que el server: contains, insensible
-  // a mayúsculas.
+  // Defensa en profundidad para la búsqueda y el render:
+  // 1. DEDUPE por id — las cargas concurrentes (mount + clear + búsqueda)
+  //    pueden dejar el mismo lead repetido en `leads`; con keys duplicadas
+  //    la reconciliación de React queda corrupta y deja TARJETAS FANTASMA
+  //    en el DOM que ningún re-render limpia (bug reproducido en vivo:
+  //    buscar "blue" mostraba leads viejos triplicados).
+  // 2. La vista NUNCA muestra un lead que no coincida con la búsqueda,
+  //    venga de donde venga el dato (misma regla que el server: contains,
+  //    insensible a mayúsculas).
   const qNorm = q.trim().toLowerCase();
-  const visibleLeads = qNorm
-    ? leads.filter((l) => l.name.toLowerCase().includes(qNorm))
-    : leads;
+  const seenIds = new Set<string>();
+  const visibleLeads = leads.filter((l) => {
+    if (seenIds.has(l.id)) return false;
+    seenIds.add(l.id);
+    return !qNorm || l.name.toLowerCase().includes(qNorm);
+  });
 
   return (
     <div className="flex-1 flex flex-col">

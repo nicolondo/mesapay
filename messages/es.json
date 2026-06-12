@@ -3336,5 +3336,23 @@
     "deleteLeadConfirm": "¿Eliminar permanentemente el lead \"{name}\"? Esta acción no se puede deshacer.",
     "deleteLeadConverted": "Este lead ya tiene un restaurante vinculado y no puede eliminarse.",
     "deleteLeadError": "Error al eliminar el lead. Intenta de nuevo."
+  },
+  "card": {
+    "role": "Gerente General",
+    "tagline": "Tus clientes piden y pagan desde la mesa con un QR — sin app, con la comanda directa a cocina.",
+    "phoneLabel": "WhatsApp",
+    "emailLabel": "Correo",
+    "webLabel": "Web",
+    "waBtn": "Escribir por WhatsApp",
+    "waPrefill": "Hola Nicolás, vi tu tarjeta de MESAPAY y quiero más información.",
+    "saveContact": "Guardar contacto",
+    "shareBtn": "Compartir tarjeta",
+    "shareCopied": "Enlace copiado ✓",
+    "shareText": "Tarjeta digital de Nicolás Londoño — MESAPAY",
+    "knowMesapay": "Conoce MESAPAY →",
+    "qrLabel": "Tarjeta digital",
+    "qrAlt": "Código QR de la tarjeta de Nicolás",
+    "qrHint": "Escanea el código para abrir mi tarjeta: ahí puedes guardar el contacto o escribirme directo.",
+    "viewCard": "Ver tarjeta →"
   }
 }

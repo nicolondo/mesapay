@@ -88,6 +88,32 @@ export default async function CrmLeadDetailPage({
     }),
   ]);
 
+  // Vecinos en la misma etapa (mismo orden que el pipeline) para navegar
+  // con ← / → desde el detalle. A la escala actual (cientos de leads) traer
+  // los ids es trivial; si crece, se cambia por cursores.
+  const stageLeadIds = await db.crmLead.findMany({
+    where: {
+      stage: lead.stage,
+      ...(ctx.visibleUserIds !== null
+        ? { assignedToUserId: { in: ctx.visibleUserIds } }
+        : {}),
+    },
+    orderBy: [
+      { lastActivityAt: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
+    select: { id: true },
+    take: 1000,
+  });
+  const stageIdx = stageLeadIds.findIndex((l) => l.id === id);
+  const prevLeadId = stageIdx > 0 ? stageLeadIds[stageIdx - 1].id : null;
+  const nextLeadId =
+    stageIdx >= 0 && stageIdx < stageLeadIds.length - 1
+      ? stageLeadIds[stageIdx + 1].id
+      : null;
+  const stagePos =
+    stageIdx >= 0 ? { index: stageIdx + 1, total: stageLeadIds.length } : null;
+
   // Serialise lead for client (Date → string).
   const leadSerialized = {
     id: lead.id,
@@ -166,6 +192,9 @@ export default async function CrmLeadDetailPage({
       currentUserName={me?.name ?? session.user.name ?? ""}
       stageLabels={stageLabels}
       hasEmailAccount={!!emailAccount?.verifiedAt}
+      prevLeadId={prevLeadId}
+      nextLeadId={nextLeadId}
+      stagePos={stagePos}
     />
   );
 }

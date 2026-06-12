@@ -3335,7 +3335,9 @@
     "deleteLeadBtn": "Excluir lead",
     "deleteLeadConfirm": "Excluir permanentemente o lead \"{name}\"? Esta ação não pode ser desfeita.",
     "deleteLeadConverted": "Este lead já está vinculado a um restaurante e não pode ser excluído.",
-    "deleteLeadError": "Falha ao excluir o lead. Tente novamente."
+    "deleteLeadError": "Falha ao excluir o lead. Tente novamente.",
+    "navPrevLead": "Lead anterior (←)",
+    "navNextLead": "Próximo lead (→)"
   },
   "card": {
     "role": "Gerente Geral",

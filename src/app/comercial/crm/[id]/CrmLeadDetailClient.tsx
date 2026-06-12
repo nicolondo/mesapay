@@ -1509,6 +1509,9 @@ export function CrmLeadDetailClient({
   currentUserName,
   stageLabels,
   hasEmailAccount,
+  prevLeadId,
+  nextLeadId,
+  stagePos,
 }: {
   lead: LeadData;
   contacts: ContactData[];
@@ -1521,6 +1524,10 @@ export function CrmLeadDetailClient({
   currentUserName: string;
   stageLabels: Record<string, string>;
   hasEmailAccount: boolean;
+  /** Vecinos en la misma etapa (orden del pipeline) para navegar con ← / →. */
+  prevLeadId: string | null;
+  nextLeadId: string | null;
+  stagePos: { index: number; total: number } | null;
 }) {
   const t = useTranslations("crm");
   const fmt = useFormatter();
@@ -1538,6 +1545,29 @@ export function CrmLeadDetailClient({
   const [waContact, setWaContact] = useState<ContactData | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // ← / → : ir al lead anterior/siguiente de la misma etapa. Se ignora si hay
+  // un sheet abierto o si el foco está en un campo de texto.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (sheet !== null) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+      )
+        return;
+      const target = e.key === "ArrowLeft" ? prevLeadId : nextLeadId;
+      if (target) router.push(`/comercial/crm/${target}`);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sheet, prevLeadId, nextLeadId, router]);
 
   function relTime(date: string | null): string {
     if (!date) return "";
@@ -1817,6 +1847,38 @@ export function CrmLeadDetailClient({
               {lead.lostReason && <span className="text-xs text-rose-600">{"· " + lead.lostReason}</span>}
             </div>
           </div>
+          {/* ← / → : vecinos de la misma etapa (también clickeable) */}
+          {stagePos && (
+            <div className="hidden lg:flex items-center gap-1 shrink-0 mt-1">
+              <button
+                type="button"
+                onClick={() => prevLeadId && router.push(`/comercial/crm/${prevLeadId}`)}
+                disabled={!prevLeadId}
+                aria-label={t("navPrevLead")}
+                title={t("navPrevLead")}
+                className="w-8 h-8 rounded-lg border border-op-border text-op-muted hover:text-op-text hover:border-op-text disabled:opacity-30 disabled:hover:border-op-border flex items-center justify-center"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <span className="font-mono text-[10px] text-op-muted tabular-nums px-1">
+                {stagePos.index}/{stagePos.total}
+              </span>
+              <button
+                type="button"
+                onClick={() => nextLeadId && router.push(`/comercial/crm/${nextLeadId}`)}
+                disabled={!nextLeadId}
+                aria-label={t("navNextLead")}
+                title={t("navNextLead")}
+                className="w-8 h-8 rounded-lg border border-op-border text-op-muted hover:text-op-text hover:border-op-text disabled:opacity-30 disabled:hover:border-op-border flex items-center justify-center"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
         {/* Next action (mobile only — desktop sidebar has it) */}
         <div className="mt-3 lg:hidden">

@@ -3335,7 +3335,9 @@
     "deleteLeadBtn": "Delete lead",
     "deleteLeadConfirm": "Permanently delete lead \"{name}\"? This action cannot be undone.",
     "deleteLeadConverted": "This lead is already linked to a restaurant and cannot be deleted.",
-    "deleteLeadError": "Failed to delete the lead. Please try again."
+    "deleteLeadError": "Failed to delete the lead. Please try again.",
+    "navPrevLead": "Previous lead (←)",
+    "navNextLead": "Next lead (→)"
   },
   "card": {
     "role": "General Manager",

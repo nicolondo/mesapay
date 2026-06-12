@@ -3335,7 +3335,9 @@
     "deleteLeadBtn": "Eliminar lead",
     "deleteLeadConfirm": "¿Eliminar permanentemente el lead \"{name}\"? Esta acción no se puede deshacer.",
     "deleteLeadConverted": "Este lead ya tiene un restaurante vinculado y no puede eliminarse.",
-    "deleteLeadError": "Error al eliminar el lead. Intenta de nuevo."
+    "deleteLeadError": "Error al eliminar el lead. Intenta de nuevo.",
+    "navPrevLead": "Lead anterior (←)",
+    "navNextLead": "Lead siguiente (→)"
   },
   "card": {
     "role": "Gerente General",

@@ -887,6 +887,16 @@ export function CrmPipelineClient({
 
   // ── Render ─────────────────────────────────────────────────────────────
 
+  // Defensa en profundidad para la búsqueda: la vista NUNCA muestra un lead
+  // que no coincida con lo escrito en el buscador, aunque alguna carga vieja
+  // (mount, refresh, bundle stale en una pestaña abierta) haya dejado datos
+  // sin filtrar en `leads`. Misma regla que el server: contains, insensible
+  // a mayúsculas.
+  const qNorm = q.trim().toLowerCase();
+  const visibleLeads = qNorm
+    ? leads.filter((l) => l.name.toLowerCase().includes(qNorm))
+    : leads;
+
   return (
     <div className="flex-1 flex flex-col">
       {/* Config hint */}
@@ -968,12 +978,12 @@ export function CrmPipelineClient({
 
       {/* MOBILE: List view (<lg) */}
       <div className="lg:hidden flex-1 px-4 pb-4 space-y-3">
-        {leads.length === 0 && !loading ? (
+        {visibleLeads.length === 0 && !loading ? (
           <p className="text-sm text-op-muted py-6 text-center">
             {t("emptyLeads")}
           </p>
         ) : (
-          leads.map((lead) => (
+          visibleLeads.map((lead) => (
             <LeadListCard
               key={lead.id}
               lead={lead}
@@ -1003,7 +1013,7 @@ export function CrmPipelineClient({
       {/* DESKTOP: Kanban view (lg+) */}
       <div className="hidden lg:flex flex-1 overflow-x-auto px-4 pb-4 gap-3 items-stretch">
         {STAGES.map((s) => {
-          const colLeads = leads.filter((l) => l.stage === s);
+          const colLeads = visibleLeads.filter((l) => l.stage === s);
           return (
             <KanbanColumn
               key={s}

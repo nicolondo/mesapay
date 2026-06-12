@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
@@ -57,6 +57,20 @@ function readStoredFilters(): StoredFilters {
     return {};
   }
 }
+
+// Cache en memoria del último estado del pipeline. El módulo no se descarga
+// al navegar lead ↔ pipeline, así que al volver el primer pintado ya muestra
+// la lista final (sin el parpadeo SSR → kanban completo → filtros del
+// remount). La revalidación llega en silencio justo después.
+let pipelineCache: {
+  leads: LeadCard[];
+  counts: StageCounts;
+  cursor: string | undefined;
+  hasMore: boolean;
+  stage: Stage | "all";
+  q: string;
+  assignedTo: string;
+} | null = null;
 
 /** Une páginas de leads sin duplicar ids. Cargas concurrentes (mount +
  *  clear + búsqueda) pueden traer la misma página dos veces, y las keys
@@ -470,6 +484,9 @@ export function CrmPipelineClient({
   // y descartan su resultado si cambió — evita que una carga vieja (mount o
   // refresh silencioso sin filtro) pise la lista ya filtrada al llegar tarde.
   const filterGenRef = useRef(0);
+  // true cuando el pre-paint aplicó pipelineCache: los efectos de mount y de
+  // restauración se saltan (el cache ya trae datos + filtros correctos).
+  const cacheAppliedRef = useRef(false);
 
   function showDndToast(msg: string, ok: boolean) {
     setDndToast({ msg, ok });
@@ -719,7 +736,42 @@ export function CrmPipelineClient({
   // page 1 + full kanban silently. The fallback loadAllKanbanPages call below
   // covers the edge case where refreshAll is somehow skipped (gate closed),
   // using the SSR cursor so the initial kanban still loads.
+  // Pre-paint: si hay cache (volvemos de un lead), pinta YA el estado final —
+  // useLayoutEffect corre ANTES de que el navegador pinte, así el usuario
+  // nunca ve la transición SSR → kanban → filtros (el parpadeo del remount).
+  // La revalidación silenciosa sale en un timeout inmediatamente después.
+  useLayoutEffect(() => {
+    const c = pipelineCache;
+    if (!c) return;
+    cacheAppliedRef.current = true;
+    // Invalida las cargas del mount (corren con filtros default del SSR).
+    filterGenRef.current++;
+    /* eslint-disable react-hooks/set-state-in-effect -- aplicar el cache
+       ANTES del primer pintado es exactamente el objetivo de este efecto. */
+    setLeads(c.leads);
+    setCounts(c.counts);
+    setCursor(c.cursor);
+    setHasMore(!!c.cursor && c.hasMore);
+    setActiveStage(c.stage);
+    setQ(c.q);
+    setAssignedTo(c.assignedTo);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const gen = filterGenRef.current;
+    setTimeout(() => {
+      if (gen !== filterGenRef.current) return; // el usuario ya tocó filtros
+      fetchLeads({ stage: c.stage, q: c.q, assignedTo: c.assignedTo, reset: true, includeCounts: true, silent: true })
+        .then((nextCursor) => startFilteredKanbanLoad(c.stage, c.q, c.assignedTo, nextCursor));
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Escribe el cache en cada cambio — asignación barata a una variable de módulo.
   useEffect(() => {
+    pipelineCache = { leads, counts, cursor, hasMore, stage: activeStage, q, assignedTo };
+  }, [leads, counts, cursor, hasMore, activeStage, q, assignedTo]);
+
+  useEffect(() => {
+    if (cacheAppliedRef.current) return; // el pre-paint ya revalida por su cuenta
     refreshAll();
     if (initialCursor) {
       // Runs only if refreshAll was skipped (kanbanLoadingRef guards double-run).
@@ -733,6 +785,7 @@ export function CrmPipelineClient({
   // de filterGenRef invalida esa carga sin filtros y la nuestra es la que
   // aplica. El query param (?assignedTo= desde Equipo) tiene prioridad.
   useEffect(() => {
+    if (cacheAppliedRef.current) return; // el cache ya trae filtros + datos
     const f = readStoredFilters();
     const stage: Stage | "all" =
       f.stage === "all" || (STAGES as readonly string[]).includes(f.stage ?? "")

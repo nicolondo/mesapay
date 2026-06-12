@@ -3,6 +3,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { StaleBuildReload } from "@/components/StaleBuildReload";
+import { getBuildId } from "@/lib/buildId";
 
 // Origen público del sitio. metadataBase hace que las URLs relativas de
 // Open Graph (ej. "/og.png") se resuelvan absolutas (https://mesapay.co/og.png),
@@ -125,6 +127,8 @@ export default async function RootLayout({
         <NextIntlClientProvider>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
+        {/* Recarga pestañas con bundle viejo tras un deploy (ver componente). */}
+        <StaleBuildReload buildId={getBuildId()} />
       </body>
     </html>
   );

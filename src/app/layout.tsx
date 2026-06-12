@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "MESAPAY",
   description: "Ordena y paga desde tu mesa",
   applicationName: "MESAPAY",
+  // Manifest genérico vía route handler (no la convención app/manifest.ts):
+  // así los layouts de sección (/comercial, /mesero, …) lo overridean con su
+  // propio manifest y cada página tiene UN solo <link rel="manifest">.
+  manifest: "/api/manifest/app",
   appleWebApp: {
     capable: true,
     title: "MESAPAY",

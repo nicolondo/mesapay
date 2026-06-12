@@ -18,12 +18,25 @@ import { NextResponse } from "next/server";
  * standalone mode would otherwise open the browser, which is jarring.
  */
 
-type Kind = "mesero" | "cocina" | "bar" | "comercial";
+type Kind = "mesero" | "cocina" | "bar" | "comercial" | "app";
 
 const VARIANTS: Record<
   Kind,
   { name: string; shortName: string; start: string; scope: string }
 > = {
+  // Manifest genérico del sitio (diners / landing). Antes vivía como
+  // convención de archivo (src/app/manifest.ts), pero esa convención
+  // inyecta su <link rel="manifest"> en TODAS las páginas — quedaban dos
+  // manifests en /comercial, /mesero, etc. y iOS tomaba el primero (este),
+  // instalando "MESAPAY → /" en vez de la app de la sección. Como variante
+  // del route handler, el metadata.manifest de cada layout lo overridea
+  // limpio y cada página queda con UN solo manifest.
+  app: {
+    name: "MESAPAY",
+    shortName: "MESAPAY",
+    start: "/",
+    scope: "/",
+  },
   mesero: {
     name: "MP MESERO",
     shortName: "MP MESERO",

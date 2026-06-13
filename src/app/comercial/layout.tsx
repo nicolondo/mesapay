@@ -48,17 +48,23 @@ export default async function ComercialLayout({
   };
 
   return (
-    // h-dvh + overflow-hidden: el body NO scrollea — scrollea <main>. Con el
-    // body bloqueado, iOS no tiene scroll elástico a nivel ventana y el nav
-    // inferior (en flujo, abajo) queda físicamente anclado: era `fixed` y en
-    // iOS/PWA "se subía" con el rebote del scroll mostrando contenido debajo.
-    <div className="flex flex-col h-dvh overflow-hidden bg-op-bg text-op-text">
-      {/* Compact header — solo desktop. En móvil la navegación vive en la
-          barra inferior (+ "Más" para cerrar sesión), así el logo no ocupa
-          espacio arriba y solo el buscador queda fijo. */}
+    // fixed inset-0: ancla el shell exactamente al viewport. Con h-dvh el
+    // <body> (más alto) se asomaba bajo el nav inferior en la PWA de iOS.
+    // El body NO scrollea — scrollea <main>; el nav (en flujo, abajo) queda
+    // anclado sin el rebote de position:fixed.
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-op-bg text-op-text">
+      {/* Scroller. En móvil el header (logo + Salir) va DENTRO y se va con
+          el scroll; solo el buscador del pipeline queda fijo. En desktop el
+          header es sticky arriba. paddingTop env() despeja el notch en la
+          PWA standalone (0 en desktop y Safari móvil). */}
+      <main
+        className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+      {/* Header: logo + nav (desktop) + Salir. Sticky solo en desktop; en
+          móvil se va con el scroll. */}
       <header
-        className="hidden lg:flex staff-safe-top sticky top-0 z-30 border-b border-op-border bg-op-surface items-center justify-between px-4 pb-3 lg:px-6"
-        style={{ "--staff-safe-base-pt": "0.75rem" } as React.CSSProperties}
+        className="lg:sticky lg:top-0 z-30 border-b border-op-border bg-op-surface flex items-center justify-between px-4 py-3 lg:px-6"
       >
         <div className="shrink-0">
           <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
@@ -129,14 +135,6 @@ export default async function ComercialLayout({
         enabling: tc("pushBannerEnabling"),
       }} />
 
-      {/* Content — el scroller real. El nav va después, en flujo.
-          paddingTop con safe-area: en móvil sin header (PWA standalone con
-          notch) el contenido y el buscador sticky despejan el notch.
-          env() = 0 en desktop y en Safari móvil, así que no agrega gap. */}
-      <main
-        className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
         {children}
       </main>
 

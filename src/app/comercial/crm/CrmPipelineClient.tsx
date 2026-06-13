@@ -1029,8 +1029,9 @@ export function CrmPipelineClient({
         <div className="font-display text-xl">{t("pageTitle")}</div>
       </div>
 
-      {/* Barra sticky: SOLO buscador + selector — siempre visible al scrollear. */}
-      <div className="px-4 pt-2 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full sticky top-0 z-20 bg-op-bg">
+      {/* Buscador + selector. Sticky SOLO en móvil (en desktop el header ya
+          es sticky; lg:static evita que se solapen). */}
+      <div className="px-4 pt-2 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full sticky top-0 z-20 bg-op-bg lg:static">
         {/* Search — en desktop no ocupa todo el ancho de la pantalla */}
         <div className="relative lg:max-w-md">
           <svg

@@ -73,6 +73,24 @@ let pipelineCache: {
   scrollTop: number;
 } | null = null;
 
+// Al entrar a un lead, el detalle hace main.scrollTop = 0 mientras el listener
+// de scroll del pipeline TODAVÍA está montado (la limpieza de efectos pasivos
+// corre después de los efectos de layout). Ese scroll-a-0 disparaba un evento
+// que el listener guardaba como nueva posición → al volver "restauraba" a 0.
+// Congelamos la captura desde que se toca un lead hasta que el pipeline vuelve
+// a montarse y lee la posición guardada.
+let pipelineScrollFrozen = false;
+
+// Captura la posición de scroll actual y congela la captura. Se llama justo
+// antes de navegar a un lead, así la posición guardada es la real (el listener
+// solo refresca en cambios de estado, no en cada scroll) y queda blindada
+// contra el scroll-a-0 del detalle.
+function freezePipelineScroll() {
+  const m = document.querySelector("main");
+  if (m && pipelineCache) pipelineCache.scrollTop = m.scrollTop;
+  pipelineScrollFrozen = true;
+}
+
 /** Une páginas de leads sin duplicar ids. Cargas concurrentes (mount +
  *  clear + búsqueda) pueden traer la misma página dos veces, y las keys
  *  duplicadas corrompen la reconciliación de React (tarjetas fantasma). */
@@ -752,6 +770,10 @@ export function CrmPipelineClient({
   // nunca ve la transición SSR → kanban → filtros (el parpadeo del remount).
   // La revalidación silenciosa sale en un timeout inmediatamente después.
   useLayoutEffect(() => {
+    // El pipeline vuelve a estar montado: la captura de scroll se descongela
+    // (se había congelado al tocar un lead para que el scroll-a-0 del detalle
+    // no pisara la posición guardada).
+    pipelineScrollFrozen = false;
     const c = pipelineCache;
     if (!c) return;
     cacheAppliedRef.current = true;
@@ -809,7 +831,7 @@ export function CrmPipelineClient({
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        if (pipelineCache) pipelineCache.scrollTop = el.scrollTop;
+        if (!pipelineScrollFrozen && pipelineCache) pipelineCache.scrollTop = el.scrollTop;
       });
     };
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -1355,6 +1377,7 @@ function LeadListCard({
   // botón o link (WhatsApp, Llamar), que manejan lo suyo.
   function handleCardClick(e: React.MouseEvent) {
     if ((e.target as HTMLElement).closest("a,button")) return;
+    freezePipelineScroll();
     router.push(`/comercial/crm/${lead.id}`);
   }
 
@@ -1377,6 +1400,7 @@ function LeadListCard({
       <div className="flex items-start justify-between gap-2">
         <Link
           href={`/comercial/crm/${lead.id}`}
+          onClick={freezePipelineScroll}
           className="font-medium text-sm flex-1 min-w-0 hover:text-terracotta"
         >
           <span className="flex items-center gap-1.5">
@@ -1481,6 +1505,7 @@ function KanbanColumn({
   function handleCardClick(e: React.MouseEvent, leadId: string) {
     if (justDraggedRef.current) return;
     if ((e.target as HTMLElement).closest("a,button")) return;
+    freezePipelineScroll();
     router.push(`/comercial/crm/${leadId}`);
   }
 
@@ -1531,6 +1556,7 @@ function KanbanColumn({
           >
             <Link
               href={`/comercial/crm/${lead.id}`}
+              onClick={freezePipelineScroll}
               className="font-medium text-sm hover:text-terracotta flex items-center gap-1.5"
             >
               <span

@@ -53,9 +53,11 @@ export default async function ComercialLayout({
     // inferior (en flujo, abajo) queda físicamente anclado: era `fixed` y en
     // iOS/PWA "se subía" con el rebote del scroll mostrando contenido debajo.
     <div className="flex flex-col h-dvh overflow-hidden bg-op-bg text-op-text">
-      {/* Compact header */}
+      {/* Compact header — solo desktop. En móvil la navegación vive en la
+          barra inferior (+ "Más" para cerrar sesión), así el logo no ocupa
+          espacio arriba y solo el buscador queda fijo. */}
       <header
-        className="staff-safe-top sticky top-0 z-30 border-b border-op-border bg-op-surface flex items-center justify-between px-4 pb-3 lg:px-6"
+        className="hidden lg:flex staff-safe-top sticky top-0 z-30 border-b border-op-border bg-op-surface items-center justify-between px-4 pb-3 lg:px-6"
         style={{ "--staff-safe-base-pt": "0.75rem" } as React.CSSProperties}
       >
         <div className="shrink-0">
@@ -127,8 +129,14 @@ export default async function ComercialLayout({
         enabling: tc("pushBannerEnabling"),
       }} />
 
-      {/* Content — el scroller real. El nav va después, en flujo. */}
-      <main className="flex flex-1 flex-col overflow-y-auto overscroll-contain">
+      {/* Content — el scroller real. El nav va después, en flujo.
+          paddingTop con safe-area: en móvil sin header (PWA standalone con
+          notch) el contenido y el buscador sticky despejan el notch.
+          env() = 0 en desktop y en Safari móvil, así que no agrega gap. */}
+      <main
+        className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         {children}
       </main>
 

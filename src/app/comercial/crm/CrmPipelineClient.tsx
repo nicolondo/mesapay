@@ -70,6 +70,7 @@ let pipelineCache: {
   stage: Stage | "all";
   q: string;
   assignedTo: string;
+  scrollTop: number;
 } | null = null;
 
 /** Une páginas de leads sin duplicar ids. Cargas concurrentes (mount +
@@ -487,6 +488,16 @@ export function CrmPipelineClient({
   // true cuando el pre-paint aplicó pipelineCache: los efectos de mount y de
   // restauración se saltan (el cache ya trae datos + filtros correctos).
   const cacheAppliedRef = useRef(false);
+  // Raíz del pipeline — desde aquí encontramos el contenedor de scroll real
+  // (<main> del layout) para guardar/restaurar la posición al volver de un lead.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const scrollElRef = useRef<HTMLElement | null>(null);
+  const getScrollEl = useCallback((): HTMLElement | null => {
+    if (scrollElRef.current) return scrollElRef.current;
+    const el = rootRef.current?.closest("main") as HTMLElement | null;
+    scrollElRef.current = el;
+    return el;
+  }, []);
 
   function showDndToast(msg: string, ok: boolean) {
     setDndToast({ msg, ok });
@@ -756,6 +767,22 @@ export function CrmPipelineClient({
     setQ(c.q);
     setAssignedTo(c.assignedTo);
     /* eslint-enable react-hooks/set-state-in-effect */
+    // Restaura el scroll una vez que las cards están en el DOM: reintenta por
+    // rAF hasta que el contenedor sea lo bastante alto (la lista se pinta en
+    // el commit siguiente a este efecto).
+    const wantTop = c.scrollTop;
+    if (wantTop > 0) {
+      let tries = 0;
+      const restore = () => {
+        const el = getScrollEl();
+        if (el && el.scrollHeight - el.clientHeight >= wantTop) {
+          el.scrollTop = wantTop;
+        } else if (tries++ < 30) {
+          requestAnimationFrame(restore);
+        }
+      };
+      requestAnimationFrame(restore);
+    }
     const gen = filterGenRef.current;
     setTimeout(() => {
       if (gen !== filterGenRef.current) return; // el usuario ya tocó filtros
@@ -767,8 +794,30 @@ export function CrmPipelineClient({
 
   // Escribe el cache en cada cambio — asignación barata a una variable de módulo.
   useEffect(() => {
-    pipelineCache = { leads, counts, cursor, hasMore, stage: activeStage, q, assignedTo };
+    pipelineCache = {
+      leads, counts, cursor, hasMore, stage: activeStage, q, assignedTo,
+      scrollTop: scrollElRef.current?.scrollTop ?? pipelineCache?.scrollTop ?? 0,
+    };
   }, [leads, counts, cursor, hasMore, activeStage, q, assignedTo]);
+
+  // Mantiene pipelineCache.scrollTop al día — listener pasivo, throttled por rAF.
+  useEffect(() => {
+    const el = getScrollEl();
+    if (!el) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (pipelineCache) pipelineCache.scrollTop = el.scrollTop;
+      });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [getScrollEl]);
 
   useEffect(() => {
     if (cacheAppliedRef.current) return; // el pre-paint ya revalida por su cuenta
@@ -966,7 +1015,7 @@ export function CrmPipelineClient({
   });
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div ref={rootRef} className="flex-1 flex flex-col">
       {/* Config hint */}
       {showConfigHint && (
         <div className="mx-4 mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
@@ -974,8 +1023,9 @@ export function CrmPipelineClient({
         </div>
       )}
 
-      {/* Top bar: title + search */}
-      <div className="px-4 pt-4 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full">
+      {/* Top bar: title + search — sticky para que el buscador esté siempre
+          a la vista al hacer scroll de la lista. */}
+      <div className="px-4 pt-4 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full sticky top-0 z-20 bg-op-bg">
         <div className="flex items-center justify-between">
           <div className="font-display text-xl">{t("pageTitle")}</div>
         </div>

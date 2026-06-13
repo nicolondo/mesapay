@@ -48,11 +48,12 @@ export default async function ComercialLayout({
   };
 
   return (
-    // fixed inset-0: ancla el shell exactamente al viewport. Con h-dvh el
-    // <body> (más alto) se asomaba bajo el nav inferior en la PWA de iOS.
-    // El body NO scrollea — scrollea <main>; el nav (en flujo, abajo) queda
-    // anclado sin el rebote de position:fixed.
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-op-bg text-op-text">
+    // crm-app-shell: 100dvh en navegador, 100vh en PWA standalone (ver
+    // globals.css). En la PWA de iOS, dvh/fixed dejaban un hueco abajo —
+    // el <body> (bone) se asomaba bajo el nav. 100vh en standalone cubre
+    // toda la pantalla. El body NO scrollea — scrollea <main>; el nav (en
+    // flujo, abajo) queda pegado al borde.
+    <div className="crm-app-shell flex flex-col overflow-hidden bg-op-bg text-op-text">
       {/* Scroller. En móvil el header (logo + Salir) va DENTRO y se va con
           el scroll; solo el buscador del pipeline queda fijo. En desktop el
           header es sticky arriba. paddingTop env() despeja el notch en la

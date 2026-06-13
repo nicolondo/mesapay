@@ -295,3 +295,21 @@ input[type="time"] {
   -webkit-appearance: none;
   appearance: none;
 }
+
+/* App-shell de altura completa para el portal comercial.
+ *
+ * En el navegador usamos 100dvh (la altura dinámica que se ajusta cuando
+ * la barra de URL de Safari aparece/desaparece). PERO en la PWA instalada
+ * (standalone) iOS deja un hueco abajo con dvh/fixed: el shell no llega al
+ * borde físico y el <body> (bone) se asoma bajo el menú inferior. En
+ * standalone 100vh SÍ cubre toda la pantalla (incl. la zona del home
+ * indicator), así que el nav queda pegado al borde y su padding
+ * safe-area-bottom rellena la zona del indicador. */
+.crm-app-shell {
+  height: 100dvh;
+}
+@media all and (display-mode: standalone) {
+  .crm-app-shell {
+    height: 100vh;
+  }
+}

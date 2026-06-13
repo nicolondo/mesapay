@@ -1545,6 +1545,8 @@ export function CrmLeadDetailClient({
   const [waContact, setWaContact] = useState<ContactData | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Confirmación in-app: window.confirm() congela la PWA en iOS standalone.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // ← / → : ir al lead anterior/siguiente de la misma etapa. Se ignora si hay
   // un sheet abierto o si el foco está en un campo de texto.
@@ -1580,13 +1582,12 @@ export function CrmLeadDetailClient({
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(t("deleteLeadConfirm", { name: lead.name }));
-    if (!confirmed) return;
     setDeleting(true);
     setDeleteError(null);
     try {
       const res = await fetch(`/api/crm/leads/${lead.id}`, { method: "DELETE" });
       if (res.ok) {
+        setConfirmingDelete(false);
         router.push("/comercial/crm");
         return;
       }
@@ -1596,8 +1597,10 @@ export function CrmLeadDetailClient({
       } else {
         setDeleteError(t("deleteLeadError"));
       }
+      setConfirmingDelete(false);
     } catch {
       setDeleteError(t("deleteLeadError"));
+      setConfirmingDelete(false);
     } finally {
       setDeleting(false);
     }
@@ -1794,11 +1797,11 @@ export function CrmLeadDetailClient({
           <p className="text-sm text-rose-600 mb-3">{deleteError}</p>
         )}
         <button
-          onClick={handleDelete}
+          onClick={() => { setDeleteError(null); setConfirmingDelete(true); }}
           disabled={deleting}
           className="w-full py-3.5 rounded-xl border border-rose-200 text-rose-600 text-sm font-medium min-h-[44px] hover:bg-rose-50 transition-colors disabled:opacity-50"
         >
-          {deleting ? <span className="flex justify-center"><Spinner /></span> : t("deleteLeadBtn")}
+          {t("deleteLeadBtn")}
         </button>
       </section>
     );
@@ -2071,6 +2074,37 @@ export function CrmLeadDetailClient({
             router.refresh();
           }}
         />
+      )}
+      {confirmingDelete && (
+        <Overlay onClose={() => !deleting && setConfirmingDelete(false)}>
+          <SheetContent>
+            <SheetHandle />
+            <div className="px-5 pt-2 pb-6">
+              <h2 className="font-display text-xl text-ink">{t("deleteLeadConfirmTitle")}</h2>
+              <p className="text-sm text-op-muted mt-2">
+                {t("deleteLeadConfirm", { name: lead.name })}
+              </p>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={deleting}
+                  className="flex-1 py-3.5 rounded-xl border border-op-border text-op-text text-sm font-medium min-h-[44px] disabled:opacity-50"
+                >
+                  {t("cancelBtn")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 py-3.5 rounded-xl bg-rose-600 text-white text-sm font-medium min-h-[44px] disabled:opacity-50"
+                >
+                  {deleting ? <span className="flex justify-center"><Spinner /></span> : t("deleteLeadBtn")}
+                </button>
+              </div>
+            </div>
+          </SheetContent>
+        </Overlay>
       )}
     </div>
   );

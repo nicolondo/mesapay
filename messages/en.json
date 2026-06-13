@@ -3338,7 +3338,9 @@
     "deleteLeadError": "Failed to delete the lead. Please try again.",
     "navPrevLead": "Previous lead (←)",
     "navNextLead": "Next lead (→)",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "deleteLeadConfirmTitle": "Delete lead",
+    "cancelBtn": "Cancel"
   },
   "card": {
     "role": "General Manager",

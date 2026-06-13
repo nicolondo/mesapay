@@ -3338,7 +3338,9 @@
     "deleteLeadError": "Error al eliminar el lead. Intenta de nuevo.",
     "navPrevLead": "Lead anterior (←)",
     "navNextLead": "Lead siguiente (→)",
-    "clearSearch": "Borrar búsqueda"
+    "clearSearch": "Borrar búsqueda",
+    "deleteLeadConfirmTitle": "Eliminar lead",
+    "cancelBtn": "Cancelar"
   },
   "card": {
     "role": "Gerente General",

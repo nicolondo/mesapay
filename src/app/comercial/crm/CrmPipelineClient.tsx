@@ -1023,13 +1023,14 @@ export function CrmPipelineClient({
         </div>
       )}
 
-      {/* Top bar: title + search — sticky para que el buscador esté siempre
-          a la vista al hacer scroll de la lista. */}
-      <div className="px-4 pt-4 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full sticky top-0 z-20 bg-op-bg">
-        <div className="flex items-center justify-between">
-          <div className="font-display text-xl">{t("pageTitle")}</div>
-        </div>
+      {/* Título — NO sticky: en móvil se va con el scroll, solo el buscador
+          queda fijo arriba. */}
+      <div className="px-4 pt-4 pb-1 lg:max-w-screen-2xl lg:mx-auto lg:w-full">
+        <div className="font-display text-xl">{t("pageTitle")}</div>
+      </div>
 
+      {/* Barra sticky: SOLO buscador + selector — siempre visible al scrollear. */}
+      <div className="px-4 pt-2 pb-3 space-y-3 lg:max-w-screen-2xl lg:mx-auto lg:w-full sticky top-0 z-20 bg-op-bg">
         {/* Search — en desktop no ocupa todo el ancho de la pantalla */}
         <div className="relative lg:max-w-md">
           <svg

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Children, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 
@@ -79,7 +80,11 @@ function BandejaSection({
   const [open, setOpen] = useState(defaultOpen);
   const [showAll, setShowAll] = useState(false);
 
-  const hasMore = count > SHOW_INITIAL;
+  // El recorte vive AQUÍ (antes el padre ya recortaba a 5 → "Ver todo" no
+  // hacía nada). Mostramos 5 por defecto y todas las cargadas al expandir.
+  const items = Children.toArray(children);
+  const visible = showAll ? items : items.slice(0, SHOW_INITIAL);
+  const hasMore = items.length > SHOW_INITIAL;
 
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
@@ -116,14 +121,14 @@ function BandejaSection({
 
       {open && (
         <div className="divide-y divide-op-border">
-          {children}
+          {visible}
 
           {hasMore && !showAll && (
             <button
               onClick={() => setShowAll(true)}
               className="w-full py-3 text-xs text-op-muted hover:text-op-text min-h-[44px] flex items-center justify-center"
             >
-              {t("hoyShowAll", { count })}
+              {t("hoyShowAll", { count: items.length })}
             </button>
           )}
           {showAll && hasMore && (
@@ -286,6 +291,31 @@ export function CrmHoyClient({
   totalLeads: number;
 }) {
   const t = useTranslations("crm");
+  const router = useRouter();
+
+  // Revalida la página (server component) al volver — p. ej. tras cambiar la
+  // fecha de próxima acción en un lead, sale de "Hoy" lo que ya no toca hoy.
+  // router.refresh() es soft (sin parpadeo). Se dispara al montar y al volver
+  // a la pestaña; throttle para no refetch en ráfaga.
+  const lastRefreshRef = useRef(0);
+  useEffect(() => {
+    function refresh() {
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 1500) return;
+      lastRefreshRef.current = now;
+      router.refresh();
+    }
+    refresh(); // al montar (incl. back-nav desde un lead)
+    function onVisible() { if (!document.hidden) refresh(); }
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", refresh); // bfcache (Safari)
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [router]);
 
   const totalPending =
     sinContactarCount + esperandoCount + vencidosCount + citasCount;
@@ -317,8 +347,6 @@ export function CrmHoyClient({
     );
   }
 
-  const SHOW = 5;
-
   return (
     <div className="flex-1 flex flex-col lg:max-w-5xl lg:mx-auto lg:w-full">
       {/* Header */}
@@ -335,7 +363,7 @@ export function CrmHoyClient({
             count={citasCount}
             defaultOpen
           >
-            {citas.slice(0, SHOW).map((appt) => (
+            {citas.map((appt) => (
               <AppointmentCard key={appt.id} appt={appt} />
             ))}
           </BandejaSection>
@@ -348,7 +376,7 @@ export function CrmHoyClient({
             count={vencidosCount}
             defaultOpen
           >
-            {vencidos.slice(0, SHOW).map((lead) => {
+            {vencidos.map((lead) => {
               const days = lead.nextActionAt
                 ? -daysUntil(lead.nextActionAt)
                 : 0;
@@ -375,7 +403,7 @@ export function CrmHoyClient({
             count={esperandoCount}
             defaultOpen
           >
-            {esperando.slice(0, SHOW).map((lead) => {
+            {esperando.map((lead) => {
               const days = daysSince(lead.lastActivityAt);
               return (
                 <LeadCard
@@ -396,7 +424,7 @@ export function CrmHoyClient({
             count={sinContactarCount}
             defaultOpen={false}
           >
-            {sinContactar.slice(0, SHOW).map((lead) => {
+            {sinContactar.map((lead) => {
               const days = daysSince(lead.createdAt);
               return (
                 <LeadCard

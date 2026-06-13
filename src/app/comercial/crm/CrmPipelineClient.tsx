@@ -772,14 +772,14 @@ export function CrmPipelineClient({
     // el commit siguiente a este efecto).
     const wantTop = c.scrollTop;
     if (wantTop > 0) {
-      let tries = 0;
+      // Reaplica el scroll durante ~12 frames: si el contenido aún no es lo
+      // bastante alto se clampa, pero al crecer (cache + revalidación) los
+      // frames siguientes lo dejan en su sitio. Defiende contra reflows.
+      let frames = 0;
       const restore = () => {
         const el = getScrollEl();
-        if (el && el.scrollHeight - el.clientHeight >= wantTop) {
-          el.scrollTop = wantTop;
-        } else if (tries++ < 30) {
-          requestAnimationFrame(restore);
-        }
+        if (el) el.scrollTop = wantTop;
+        if (frames++ < 12) requestAnimationFrame(restore);
       };
       requestAnimationFrame(restore);
     }

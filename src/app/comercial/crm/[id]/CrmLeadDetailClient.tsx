@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { CALLING_CODES } from "@/lib/crm/phone";
@@ -1533,6 +1533,14 @@ export function CrmLeadDetailClient({
   const fmt = useFormatter();
   const [, startTransition] = useTransition();
   const router = useRouter();
+
+  // El <main> del layout es un scroller compartido que persiste entre el
+  // pipeline y el detalle. Al entrar a un lead conservaba el scroll del
+  // pipeline (el lead aparecía "más abajo"). Forzamos arriba al montar y al
+  // cambiar de lead (navegación con ← →).
+  useLayoutEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0 });
+  }, [initialLead.id]);
 
   const [lead, setLead] = useState<LeadData>(initialLead);
   const [contacts, setContacts] = useState<ContactData[]>(initialContacts);

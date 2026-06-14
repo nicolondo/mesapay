@@ -99,12 +99,27 @@ export default async function OrdersPage({
     { count: 0, paidCount: 0, paidSum: 0 },
   );
 
+  // Derivados una sola vez: la tabla (desktop) y las tarjetas (móvil) leen lo
+  // mismo.
+  const rows = orders.map((o) => ({
+    id: o.id,
+    shortCode: o.shortCode,
+    status: o.status,
+    createdAt: o.createdAt,
+    items: o.items.reduce((s, i) => s + i.qty, 0),
+    subtotalCents: o.subtotalCents,
+    paid: o.payments.reduce((s, p) => s + p.amountCents, 0),
+    place: counterMode
+      ? t("channelCounter")
+      : t("tableNumber", { number: o.table.number }),
+  }));
+
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full">
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto w-full">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-display text-3xl">{t("title")}</div>
+          <div className="font-display text-2xl lg:text-3xl">{t("title")}</div>
           <p className="text-sm text-op-muted mt-1">
             {t("summary", {
               count: totals.count,
@@ -130,14 +145,17 @@ export default async function OrdersPage({
           paramName="period"
           currentParams={{ status, q }}
         />
-        <form className="ml-auto flex items-center gap-2" action="/operator/orders">
+        <form
+          className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto"
+          action="/operator/orders"
+        >
           <input type="hidden" name="status" value={status} />
           <input type="hidden" name="period" value={period} />
           <input
             name="q"
             defaultValue={q}
             placeholder={t("searchPlaceholder")}
-            className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-sm w-48"
+            className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-sm flex-1 min-w-0 sm:w-48 sm:flex-none"
           />
           <button
             type="submit"
@@ -148,7 +166,8 @@ export default async function OrdersPage({
         </form>
       </div>
 
-      <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+      {/* Desktop: tabla. La tabla de 8 columnas no cabe en móvil. */}
+      <div className="hidden lg:block bg-op-surface border border-op-border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-op-bg">
             <tr className="text-left">
@@ -163,48 +182,40 @@ export default async function OrdersPage({
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => {
-              const paid = o.payments.reduce((s, p) => s + p.amountCents, 0);
-              const items = o.items.reduce((s, i) => s + i.qty, 0);
-              return (
-                <tr
-                  key={o.id}
-                  className="border-t border-op-border hover:bg-op-bg/40"
-                >
-                  <Td>
-                    <div>{fmtDate(o.createdAt)}</div>
-                    <div className="text-[10px] text-op-muted">
-                      {fmtTime(o.createdAt)}
-                    </div>
-                  </Td>
-                  <Td className="font-mono">{o.shortCode}</Td>
-                  <Td>
-                    {counterMode
-                      ? t("channelCounter")
-                      : t("tableNumber", { number: o.table.number })}
-                  </Td>
-                  <Td>
-                    <StatusPill status={o.status} />
-                  </Td>
-                  <Td align="right">{items}</Td>
-                  <Td align="right" className="font-mono tabular">
-                    {fmtCOP(o.subtotalCents)}
-                  </Td>
-                  <Td align="right" className="font-mono tabular">
-                    {paid === 0 ? "—" : fmtCOP(paid)}
-                  </Td>
-                  <Td align="right">
-                    <Link
-                      href={`/operator/orders/${o.id}`}
-                      className="text-terracotta hover:underline"
-                    >
-                      {t("view")} <span aria-hidden>{"→"}</span>
-                    </Link>
-                  </Td>
-                </tr>
-              );
-            })}
-            {orders.length === 0 && (
+            {rows.map((r) => (
+              <tr
+                key={r.id}
+                className="border-t border-op-border hover:bg-op-bg/40"
+              >
+                <Td>
+                  <div>{fmtDate(r.createdAt)}</div>
+                  <div className="text-[10px] text-op-muted">
+                    {fmtTime(r.createdAt)}
+                  </div>
+                </Td>
+                <Td className="font-mono">{r.shortCode}</Td>
+                <Td>{r.place}</Td>
+                <Td>
+                  <StatusPill status={r.status} />
+                </Td>
+                <Td align="right">{r.items}</Td>
+                <Td align="right" className="font-mono tabular">
+                  {fmtCOP(r.subtotalCents)}
+                </Td>
+                <Td align="right" className="font-mono tabular">
+                  {r.paid === 0 ? "—" : fmtCOP(r.paid)}
+                </Td>
+                <Td align="right">
+                  <Link
+                    href={`/operator/orders/${r.id}`}
+                    className="text-terracotta hover:underline"
+                  >
+                    {t("view")} <span aria-hidden>{"→"}</span>
+                  </Link>
+                </Td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
@@ -217,6 +228,66 @@ export default async function OrdersPage({
           </tbody>
         </table>
       </div>
+
+      {/* Móvil: lista de tarjetas. Toda la tarjeta enlaza al detalle. */}
+      <div className="lg:hidden space-y-2">
+        {rows.map((r) => (
+          <Link
+            key={r.id}
+            href={`/operator/orders/${r.id}`}
+            className="block bg-op-surface border border-op-border rounded-2xl p-4 active:bg-op-bg/40"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-sm font-medium">
+                {r.shortCode}
+              </span>
+              <StatusPill status={r.status} />
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-2 text-sm">
+              <span className="truncate">{r.place}</span>
+              <span className="text-[11px] text-op-muted shrink-0">
+                {fmtDate(r.createdAt)} · {fmtTime(r.createdAt)}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-op-border pt-3">
+              <CardStat label={t("colItems")} value={String(r.items)} />
+              <CardStat
+                label={t("colSubtotal")}
+                value={fmtCOP(r.subtotalCents)}
+              />
+              <CardStat
+                label={t("colPaid")}
+                value={r.paid === 0 ? "—" : fmtCOP(r.paid)}
+                align="right"
+              />
+            </div>
+          </Link>
+        ))}
+        {rows.length === 0 && (
+          <div className="text-center py-10 text-sm text-op-muted">
+            {t("empty")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CardStat({
+  label,
+  value,
+  align,
+}: {
+  label: string;
+  value: string;
+  align?: "right";
+}) {
+  return (
+    <div className={align === "right" ? "text-right" : ""}>
+      <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-op-muted">
+        {label}
+      </div>
+      <div className="font-mono text-sm tabular mt-0.5">{value}</div>
     </div>
   );
 }

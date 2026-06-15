@@ -42,6 +42,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
   }
 
+  // Camino "texto": el cliente extrae el texto del PDF en el navegador
+  // (estilo markitdown) y manda SOLO el texto. Barato en tokens y sin pelear
+  // con el tamaño del archivo (no se sube el binario). Se usa cuando el PDF
+  // tiene capa de texto; los escaneados caen al camino de archivo (abajo).
+  if ((req.headers.get("content-type") ?? "").includes("application/json")) {
+    const body = await req.json().catch(() => null);
+    let text = typeof body?.text === "string" ? body.text.trim() : "";
+    if (!text) {
+      return NextResponse.json({ error: "no_text" }, { status: 400 });
+    }
+    if (text.length > 200_000) text = text.slice(0, 200_000);
+    const tags = await getRestaurantMenuTags(restaurantId);
+    const extraction = await extractMenuFromDocument(
+      { kind: "html", text },
+      tags.map((t) => t.slug),
+    );
+    const existingCategories = await db.category.findMany({
+      where: { restaurantId },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, slug: true, label: true, kind: true },
+    });
+    return NextResponse.json({
+      ok: true,
+      extraction,
+      existingCategories,
+      contentType: "text/extracted",
+    });
+  }
+
   const form = await req.formData().catch(() => null);
   if (!form) {
     return NextResponse.json({ error: "invalid_form" }, { status: 400 });
@@ -52,7 +81,7 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { error: "file_too_large", message: "Máximo 45 MB." },
+      { error: "file_too_large", message: "Máximo 32 MB." },
       { status: 413 },
     );
   }

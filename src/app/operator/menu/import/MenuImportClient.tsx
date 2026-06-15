@@ -48,6 +48,26 @@ type EditableItem = ExtractedItem & {
   selected: boolean;
 };
 
+// Tope de tamaño SOLO para el camino de archivo (cuando subimos el binario):
+// la API de IA limita PDFs a 32 MB y el body de nginx también. El camino
+// "texto" (markitdown) no pasa por acá — manda texto, no el binario.
+const MAX_IMPORT_BYTES = 32 * 1024 * 1024;
+
+/**
+ * Extrae el texto de un PDF EN EL NAVEGADOR (estilo markitdown), sin subir el
+ * binario. Concatena el texto de todas las páginas. Un PDF con capa de texto
+ * real devuelve miles de caracteres; uno escaneado (solo imágenes) devuelve
+ * poco o nada y el llamador cae al camino de archivo (sube el binario para
+ * que la IA lo lea como imagen). `unpdf` corre sin worker, apto para browser.
+ */
+async function extractPdfText(f: File): Promise<string> {
+  const { getDocumentProxy, extractText } = await import("unpdf");
+  const buf = new Uint8Array(await f.arrayBuffer());
+  const pdf = await getDocumentProxy(buf);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return Array.isArray(text) ? text.join("\n") : (text ?? "");
+}
+
 export function MenuImportClient({
   tenantName,
   initialCategories,
@@ -154,23 +174,91 @@ export function MenuImportClient({
 
   async function onFileChosen(f: File) {
     setError(null);
-    // Tope de tamaño ANTES de subir: un archivo muy pesado (la API de IA
-    // limita PDFs a 32 MB) hace fallar el upload con un error críptico
-    // ("invalid_form"). Mejor avisar claro acá y no intentar subirlo.
-    const MAX_IMPORT_BYTES = 32 * 1024 * 1024;
+    // Marca de tiempo para medir cuánto tardó el server (se muestra en los
+    // mensajes de error de diagnóstico). Date.now() es "impuro", pero esto es
+    // un event handler (el usuario eligió un archivo), nunca corre en render;
+    // la regla react-hooks/purity no distingue bien la cadena de helpers.
+    // eslint-disable-next-line react-hooks/purity
+    const startedAt = Date.now();
+
+    // PDFs: primero intentamos el camino "texto" (markitdown). Extraemos el
+    // texto EN EL NAVEGADOR y mandamos SOLO el texto — barato en tokens y sin
+    // pelear con el límite de tamaño (no se sube el binario de 40+ MB). Si el
+    // PDF está escaneado (sin capa de texto) caemos al camino de archivo.
+    if (f.type === "application/pdf") {
+      setFile(f);
+      setFilePreviewUrl(URL.createObjectURL(f));
+      setSourceUrl(null);
+      setStage("extracting");
+      let text = "";
+      try {
+        text = await extractPdfText(f);
+      } catch {
+        // unpdf no pudo parsear (PDF raro/corrupto) → probamos el binario.
+        text = "";
+      }
+      // Umbral conservador: capa de texto real → miles de chars; escaneado →
+      // casi nada. Bajo el umbral subimos el binario para que la IA lo lea
+      // como imagen (ahí sí aplica el tope de tamaño).
+      if (text.trim().length >= 200) {
+        await handleImportFromText(text, startedAt);
+        return;
+      }
+      if (f.size > MAX_IMPORT_BYTES) {
+        setError(tr("errFileTooBig", { mb: Math.round(f.size / (1024 * 1024)) }));
+        setStage("upload");
+        return;
+      }
+      await handleUploadFile(f, startedAt);
+      return;
+    }
+
+    // Imágenes (JPG/PNG/WebP): camino de archivo directo. Sí sube el binario,
+    // así que aplica el tope de tamaño antes de intentar.
     if (f.size > MAX_IMPORT_BYTES) {
-      setError(
-        tr("errFileTooBig", { mb: Math.round(f.size / (1024 * 1024)) }),
-      );
+      setError(tr("errFileTooBig", { mb: Math.round(f.size / (1024 * 1024)) }));
       return;
     }
     setFile(f);
     setFilePreviewUrl(URL.createObjectURL(f));
     setSourceUrl(null);
     setStage("extracting");
+    await handleUploadFile(f, startedAt);
+  }
+
+  // Camino "texto" (markitdown): manda el texto ya extraído al endpoint JSON.
+  // No sube binario, así que no hay tope de tamaño que pelear. `startedAt` lo
+  // captura el event handler (onFileChosen) y se pasa como parámetro — así la
+  // regla react-hooks/purity no marca un Date.now() "durante render".
+  async function handleImportFromText(text: string, startedAt: number) {
+    let res: Response | null = null;
+    try {
+      res = await fetch("/api/operator/menu/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+    } catch (err) {
+      // eslint-disable-next-line react-hooks/purity -- event handler, no render
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      setError(
+        tr("errConnect", {
+          secs,
+          detail: err instanceof Error ? err.message : "",
+        }),
+      );
+      setStage("upload");
+      return;
+    }
+    await handleImportResponse(res, startedAt);
+  }
+
+  // Camino de archivo (respaldo): sube el binario. Lo usan las imágenes y los
+  // PDFs escaneados (sin capa de texto). El tope de tamaño lo valida quien
+  // llama, antes de invocar esto. `startedAt` lo pasa el event handler.
+  async function handleUploadFile(f: File, startedAt: number) {
     const fd = new FormData();
     fd.append("file", f);
-    const startedAt = Date.now();
     let res: Response | null = null;
     try {
       res = await fetch("/api/operator/menu/import", {
@@ -182,6 +270,7 @@ export function MenuImportClient({
       // (DNS failure, connection reset, offline). We DON'T fall here on
       // nginx returning 413/502/504 — those resolve fetch() with a non-OK
       // status, handled below.
+      // eslint-disable-next-line react-hooks/purity -- event handler, no render
       const secs = Math.round((Date.now() - startedAt) / 1000);
       setError(
         tr("errConnect", {
@@ -192,9 +281,13 @@ export function MenuImportClient({
       setStage("upload");
       return;
     }
-    // Parse the body once, tolerantly — nginx error pages aren't JSON,
-    // and surfacing the raw text is the only way the diagnosis is
-    // possible without browser devtools.
+    await handleImportResponse(res, startedAt);
+  }
+
+  // Parseo tolerante de la respuesta (compartido por ambos caminos: texto y
+  // archivo). Las páginas de error de nginx no son JSON, así que mostramos el
+  // texto crudo — la única forma de diagnosticar sin devtools del navegador.
+  async function handleImportResponse(res: Response, startedAt: number) {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
     const ct = res.headers.get("content-type") ?? "";
     let body: { message?: string; error?: string } | string;

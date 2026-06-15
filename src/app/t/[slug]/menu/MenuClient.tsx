@@ -354,17 +354,27 @@ export function MenuClient({
   // counter (instead of Date.now) so the linter doesn't flag impurity.
   const spyMuteTokenRef = useRef<number>(0);
 
-  // Botón de la categoría ACTIVA dentro del popup de lista vertical. Al abrir
-  // el popup lo centramos en la categoría que el comensal está viendo, en vez
-  // de quedar arriba de todo — así navega más fácil en cartas largas.
+  // Botón de la categoría ACTIVA dentro del popup de lista vertical + su
+  // contenedor scrolleable. Al abrir el popup lo centramos en la categoría que
+  // el comensal está viendo (queda resaltada y a la vista), en vez de quedar
+  // arriba de todo — así navega más fácil en cartas largas.
   const catListActiveRef = useRef<HTMLButtonElement | null>(null);
+  const catListScrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!showCatList) return;
     // Un tick para que el popup monte (y el lock de scroll se aplique) antes
-    // de centrar. block:"center" scrollea el contenedor del popup; el body
-    // está bloqueado, así que la página no se mueve.
+    // de centrar. Scrolleamos el contenedor por scrollTop (más confiable que
+    // scrollIntoView, que a veces apunta al ancestro equivocado).
     const t = setTimeout(() => {
-      catListActiveRef.current?.scrollIntoView({ block: "center" });
+      const c = catListScrollRef.current;
+      const b = catListActiveRef.current;
+      if (!c || !b) return;
+      const delta =
+        b.getBoundingClientRect().top -
+        c.getBoundingClientRect().top -
+        c.clientHeight / 2 +
+        b.clientHeight / 2;
+      c.scrollTop = Math.max(0, c.scrollTop + delta);
     }, 0);
     return () => clearTimeout(t);
   }, [showCatList]);
@@ -393,6 +403,13 @@ export function MenuClient({
     const chip = chipRefs.current.get(slug);
     const scroller = chipsScrollerRef.current;
     if (!chip || !scroller) return;
+    // Si la categoría activa es la PRIMERA, llevamos la tira de chips
+    // totalmente a la izquierda (scrollLeft 0). Antes, al volver arriba, la
+    // tira quedaba a medio scroll y el primer chip no alineaba con el borde.
+    if (scopedCategories[0]?.slug === slug) {
+      scroller.scrollTo({ left: 0, behavior: "smooth" });
+      return;
+    }
     const chipRect = chip.getBoundingClientRect();
     const scrollerRect = scroller.getBoundingClientRect();
     const pad = 16;
@@ -1206,7 +1223,7 @@ export function MenuClient({
                 </svg>
               </button>
             </div>
-            <div className="overflow-y-auto p-2">
+            <div ref={catListScrollRef} className="overflow-y-auto p-2">
               {scopedCategories.map((c) => (
                 <button
                   key={c.id}
@@ -2216,13 +2233,39 @@ function ItemSheet({
     else if (dx > 0 && hasPrev) onPrev();
   }
 
+  // Mientras el gesto es claramente horizontal (cambiar de plato), bloqueamos
+  // el scroll vertical (preventDefault) para que la página/sheet no se mueva.
+  // Hay que usar un listener nativo NO pasivo: el onTouchMove de React es
+  // pasivo y no permite preventDefault.
+  useEffect(() => {
+    const el = sheetScrollRef.current;
+    if (!el) return;
+    function onMove(e: TouchEvent) {
+      const start = touchStartRef.current;
+      const t = e.touches[0];
+      if (!start || !t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
+      }
+    }
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onMove);
+  }, []);
+
   return (
     <div
       // Full-screen on mobile (no transparent gap above the photo) and
       // a centred card on desktop. The mobile sheet stops behaving
       // like a "bottom drawer" — diners expect a takeover view, not a
       // sliver of carta visible at the top.
-      className="fixed inset-0 z-50 bg-black/40 md:flex md:items-center md:justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
+      // Móvil: fondo bg-paper (no oscuro). Al pasar de plato (swipe) el sheet
+      // se remonta y hace su fade/slide; con fondo oscuro se veía la carta
+      // detrás durante el fade → un "blink". Con fondo paper el fade ocurre
+      // sobre paper (mismo color del sheet) → transición limpia. En desktop
+      // sí dejamos el oscurecido detrás de la tarjeta centrada.
+      className="fixed inset-0 z-50 bg-paper md:bg-black/40 md:flex md:items-center md:justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
       onClick={onClose}
     >
       <div

@@ -1839,7 +1839,22 @@
     "subcategoryNone": "— none (top level) —",
     "subcategoryOfTitle": "Make this category a subcategory of another",
     "errChangeParent": "Couldn't change the subcategory.",
-    "categoryWithParent": "{parent} › {child}"
+    "categoryWithParent": "{parent} › {child}",
+    "bulkCopyModifiers": "Copy modifiers",
+    "modsCopyTitle": "Copy modifiers",
+    "modsCopyIntro": "Choose which product to copy the modifiers from. They'll be applied to the {count} selected products.",
+    "modsCopySearch": "Search products…",
+    "modsCopyNoSource": "No product has modifiers to copy yet.",
+    "modsCopyNoResults": "No results.",
+    "modsCopySourceMeta": "{category} · {count} groups",
+    "modsCopyPreviewTitle": "Will be copied",
+    "modsCopyGroupMeta": "{type} · {count} options",
+    "modsCopyModeReplace": "Replace",
+    "modsCopyModeMerge": "Merge",
+    "modsCopyModeReplaceHint": "Replaces any modifiers the product already has.",
+    "modsCopyModeMergeHint": "Adds the missing ones, without duplicating by label.",
+    "modsCopyApply": "Apply to {count} products",
+    "modsCopyApplying": "Applying…"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

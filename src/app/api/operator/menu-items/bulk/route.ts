@@ -1,15 +1,27 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { generateMenuDescriptions } from "@/lib/menuDescribe";
+import { normalizeModifiers, rekeyModifiers } from "@/lib/modifiers";
 
 // Acciones masivas sobre platos seleccionados en el editor de carta. Todo se
 // hace EN INTERSECCIÓN con el restaurante activo: un payload armado a mano no
 // puede tocar platos de otro comercio.
 
 const idsSchema = z.array(z.string().min(1)).min(1).max(1000);
+
+// Normaliza una etiqueta para comparar grupos de modificadores al COMBINAR:
+// sin mayúsculas, sin acentos, sin espacios extra.
+function normLabel(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
 
 const schema = z.discriminatedUnion("action", [
   // Genera descripciones con IA pero NO las guarda: el operador las revisa y
@@ -38,6 +50,14 @@ const schema = z.discriminatedUnion("action", [
     itemIds: idsSchema,
     // null = heredar de la categoría (igual que el PATCH por plato).
     prepStation: z.enum(["kitchen", "bar", "counter"]).nullable(),
+  }),
+  // Copia el set de modificadores de un producto origen a los seleccionados.
+  // replace = sobrescribe; merge = anexa sin duplicar grupos por etiqueta.
+  z.object({
+    action: z.literal("copy-modifiers"),
+    itemIds: idsSchema,
+    sourceItemId: z.string().min(1),
+    mode: z.enum(["replace", "merge"]),
   }),
   z.object({ action: z.literal("delete"), itemIds: idsSchema }),
 ]);
@@ -142,6 +162,68 @@ export async function POST(req: Request) {
       data: { prepStation: data.prepStation },
     });
     return NextResponse.json({ ok: true, count: res.count });
+  }
+
+  if (data.action === "copy-modifiers") {
+    const source = await db.menuItem.findFirst({
+      where: { id: data.sourceItemId, restaurantId },
+      select: { modifiers: true },
+    });
+    if (!source) {
+      return NextResponse.json({ error: "invalid_source" }, { status: 400 });
+    }
+    const sourceMods = normalizeModifiers(source.modifiers);
+    if (sourceMods.length === 0) {
+      return NextResponse.json(
+        { error: "source_no_modifiers" },
+        { status: 400 },
+      );
+    }
+    // El origen nunca se modifica a sí mismo.
+    const targetIds = data.itemIds.filter((id) => id !== data.sourceItemId);
+    if (targetIds.length === 0) {
+      return NextResponse.json({ ok: true, count: 0, results: [] });
+    }
+    const targets = await db.menuItem.findMany({
+      where: { id: { in: targetIds }, restaurantId },
+      select: { id: true, modifiers: true },
+    });
+    const updates = targets.map((t) => {
+      let next;
+      if (data.mode === "replace") {
+        // Ids nuevos: cada plato es dueño de los suyos.
+        next = rekeyModifiers(sourceMods);
+      } else {
+        // merge: anexa solo los grupos cuya etiqueta no exista ya en el
+        // destino, con ids que no choquen con los actuales.
+        const current = normalizeModifiers(t.modifiers);
+        const have = new Set(current.map((m) => normLabel(m.label)));
+        const toAdd = sourceMods.filter((m) => !have.has(normLabel(m.label)));
+        const appended = rekeyModifiers(
+          toAdd,
+          current.map((m) => m.id),
+        );
+        next = [...current, ...appended];
+      }
+      return { id: t.id, modifiers: next };
+    });
+    await db.$transaction(
+      updates.map((u) =>
+        db.menuItem.update({
+          where: { id: u.id },
+          data: {
+            modifiers: u.modifiers as unknown as Prisma.InputJsonValue,
+          },
+        }),
+      ),
+    );
+    // Devolvemos los modifiers resultantes por plato para que el editor
+    // parchee su estado local sin recargar.
+    return NextResponse.json({
+      ok: true,
+      count: updates.length,
+      results: updates,
+    });
   }
 
   // delete: los platos con pedidos históricos se ARCHIVAN (available=false) en

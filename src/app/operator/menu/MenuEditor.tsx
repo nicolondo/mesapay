@@ -117,6 +117,14 @@ export function MenuEditor({
         .map((i) => (arch.has(i.id) ? { ...i, available: false } : i)),
     );
   }
+  function applyBulkModifiers(results: { id: string; modifiers: ModifierDef[] }[]) {
+    const map = new Map(results.map((r) => [r.id, r.modifiers]));
+    setItems((prev) =>
+      prev.map((i) =>
+        map.has(i.id) ? { ...i, modifiers: map.get(i.id) ?? i.modifiers } : i,
+      ),
+    );
+  }
 
   async function doClearMenu() {
     setClearBusy(true);
@@ -506,6 +514,7 @@ export function MenuEditor({
 
       <BulkActionBar
         selectedItems={selectedItems}
+        allItems={items}
         categories={categories}
         visibleCount={visibleItemIds.length}
         allVisibleSelected={allVisibleSelected}
@@ -516,6 +525,7 @@ export function MenuEditor({
         onDescriptionsApplied={applyBulkDescriptions}
         onCategoryApplied={applyBulkCategory}
         onStationApplied={applyBulkStation}
+        onModifiersApplied={applyBulkModifiers}
         onDeleted={applyBulkDelete}
       />
     </div>

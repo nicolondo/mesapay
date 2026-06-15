@@ -19,7 +19,14 @@ export function isAllowedMenuPhotoUrl(u: string): boolean {
     if (url.protocol !== "https:") return false;
     const h = url.hostname.toLowerCase();
     return (
-      h === "images.cluvi.com" ||
+      // Cualquier subdominio de cluvi.com / cluvi.co — el importador de Cluvi
+      // (menuImportCluvi) acepta imágenes de todo *.cluvi.(co|com), así que la
+      // validación de guardado debe aceptar lo mismo (antes solo permitía
+      // images.cluvi.com y rechazaba fotos servidas desde otros subdominios).
+      h === "cluvi.com" ||
+      h.endsWith(".cluvi.com") ||
+      h === "cluvi.co" ||
+      h.endsWith(".cluvi.co") ||
       h.endsWith(".getjusto.com") ||
       h.endsWith(".shopify.com") ||
       h.endsWith(".myshopify.com") ||

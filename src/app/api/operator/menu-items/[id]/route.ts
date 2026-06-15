@@ -41,16 +41,11 @@ const patchSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   categoryId: z.string().min(1).optional(),
   available: z.boolean().optional(),
-  // Foto: /uploads/... local O una URL de CDN confiable (Cluvi/Shopify/
-  // Justo) que deja el import cuando la descarga falla. Antes solo aceptaba
-  // /uploads/ → editar un plato importado con foto de CDN se rechazaba.
-  photoUrl: z
-    .string()
-    .trim()
-    .max(2000)
-    .refine(isAllowedMenuPhotoUrl, { message: "untrusted photo url" })
-    .nullable()
-    .optional(),
+  // Foto: el host se valida ABAJO, y solo si la foto cambió respecto a la ya
+  // guardada. Re-validar una URL ya almacenada al editar otro campo (p.ej.
+  // descripción o modificadores) la rechazaba sin motivo. Acá solo un tope de
+  // tamaño generoso (URLs firmadas de CDN pueden ser largas).
+  photoUrl: z.string().trim().max(4000).nullable().optional(),
   // Tags are now a per-restaurant registry (see /operator/settings/etiquetas),
   // so we only enforce shape here — that they look like slugs. The
   // diner-side renderer ignores unknown slugs, so a desync between an
@@ -101,6 +96,23 @@ export async function PATCH(
         field: issue?.path.join(".") || null,
         issues: parsed.error.issues,
       },
+      { status: 400 },
+    );
+  }
+
+  // Validamos el host de la foto SOLO si cambió respecto a la guardada. Una
+  // foto que el operador no tocó (la dejó tal cual al editar descripción o
+  // modificadores) nunca se rechaza, aunque su URL sea de un host/longitud
+  // que hoy no aceptaríamos: ya estaba almacenada. Una foto NUEVA distinta de
+  // null sí pasa por el allowlist (subidas dan /uploads/, que es válido).
+  if (
+    parsed.data.photoUrl !== undefined &&
+    parsed.data.photoUrl !== null &&
+    parsed.data.photoUrl !== g.item.photoUrl &&
+    !isAllowedMenuPhotoUrl(parsed.data.photoUrl)
+  ) {
+    return NextResponse.json(
+      { error: "invalid", field: "photoUrl", issues: [] },
       { status: 400 },
     );
   }

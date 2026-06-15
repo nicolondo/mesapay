@@ -1778,6 +1778,25 @@ function QuickAddButton({
   );
 }
 
+/**
+ * Placeholder elegante cuando un plato no tiene foto. Muchos ítems (bebidas,
+ * licores) no traen imagen; un recuadro vacío se ve incompleto. En su lugar
+ * mostramos la inicial del plato en la tipografía display, muy tenue, sobre
+ * el mismo tono crema — se lee como un detalle intencional, no como una foto
+ * faltante. `sizeClass` ajusta el tamaño de la letra según el recuadro.
+ */
+function PhotoFallback({ name, sizeClass }: { name: string; sizeClass: string }) {
+  const letter = (name.trim()[0] || "·").toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className={"font-display leading-none select-none text-ink/15 " + sizeClass}
+    >
+      {letter}
+    </span>
+  );
+}
+
 function ItemRowList({
   item,
   menuTags,
@@ -1800,14 +1819,16 @@ function ItemRowList({
       <div className="flex gap-4 items-center">
         <button
           onClick={onOpen}
-          className="w-20 h-20 shrink-0 rounded-xl bg-cream bg-cover bg-center block self-start"
+          className="w-20 h-20 shrink-0 rounded-xl bg-cream bg-cover bg-center self-start flex items-center justify-center overflow-hidden"
           style={
             item.photoUrl
               ? { backgroundImage: `url(${item.photoUrl})` }
               : undefined
           }
           aria-label={t("viewDetail")}
-        />
+        >
+          {!item.photoUrl && <PhotoFallback name={item.name} sizeClass="text-3xl" />}
+        </button>
         <button onClick={onOpen} className="flex-1 min-w-0 text-left self-start">
           <div className="font-display text-lg leading-tight">{item.name}</div>
           <div className="font-mono text-sm tabular text-muted mt-0.5">
@@ -1851,12 +1872,13 @@ function ItemCardGrid({
     <div id={`menu-item-${item.id}`} className="flex flex-col scroll-mt-28">
       <button
         onClick={onOpen}
-        className="relative w-full aspect-square rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
+        className="relative w-full aspect-square rounded-2xl bg-cream bg-cover bg-center overflow-hidden flex items-center justify-center"
         style={
           item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
         }
         aria-label={item.name}
       >
+        {!item.photoUrl && <PhotoFallback name={item.name} sizeClass="text-6xl" />}
         {item.tags.includes("firma") && (
           <div className="absolute top-2 left-2 bg-ink/85 text-paper font-mono text-[9px] tracking-[0.12em] uppercase px-1.5 py-0.5 rounded">
             {t("houseSpecial")}
@@ -1914,12 +1936,14 @@ function ItemCardEditorial({
     <div id={`menu-item-${item.id}`} className="flex flex-col scroll-mt-28">
       <button
         onClick={onOpen}
-        className="w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden"
+        className="w-full aspect-[4/3] rounded-2xl bg-cream bg-cover bg-center overflow-hidden flex items-center justify-center"
         style={
           item.photoUrl ? { backgroundImage: `url(${item.photoUrl})` } : undefined
         }
         aria-label={item.name}
-      />
+      >
+        {!item.photoUrl && <PhotoFallback name={item.name} sizeClass="text-7xl" />}
+      </button>
       <div className="mt-3 flex items-center gap-3">
         <button onClick={onOpen} className="text-left flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-3 mb-1">

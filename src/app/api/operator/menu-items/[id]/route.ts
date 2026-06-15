@@ -22,6 +22,7 @@ const modOptSchema = z.union([
   z.object({
     label: z.string().trim().min(1).max(60),
     priceDeltaCents: z.number().int().min(-1_000_000).max(1_000_000).optional(),
+    description: z.string().trim().max(200).optional(),
   }),
 ]);
 

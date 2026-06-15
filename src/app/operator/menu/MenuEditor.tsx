@@ -1787,6 +1787,19 @@ function ModifiersEditor({
   );
 }
 
+function NoteIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 3.5h10M3 7h10M3 10.5h6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function OptionsEditor({
   opts,
   defaultOpt,
@@ -1800,6 +1813,18 @@ function OptionsEditor({
 }) {
   const tr = useTranslations("opMenuEditor");
   const [draft, setDraft] = useState("");
+  // Qué opciones tienen abierto el campo de descripción (por label, que es
+  // estable — la etiqueta no se renombra inline). Las que ya tienen
+  // descripción se muestran abiertas igual.
+  const [openDesc, setOpenDesc] = useState<Set<string>>(new Set());
+  function toggleDesc(label: string) {
+    setOpenDesc((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
   function addDraft() {
     const v = draft.trim();
@@ -1830,13 +1855,24 @@ function OptionsEditor({
     } else {
       delta = Math.round(pesos * 100);
     }
-    const next = opts.map((o, i) =>
-      i === ix
-        ? delta === undefined
-          ? { label: o.label }
-          : { label: o.label, priceDeltaCents: delta }
-        : o,
-    );
+    const next = opts.map((o, i): ModOpt => {
+      if (i !== ix) return o;
+      const opt: ModOpt = { label: o.label };
+      if (delta !== undefined) opt.priceDeltaCents = delta;
+      if (o.description) opt.description = o.description; // preservar
+      return opt;
+    });
+    onChange(next, defaultOpt);
+  }
+
+  function setOptDescription(ix: number, raw: string) {
+    const next = opts.map((o, i): ModOpt => {
+      if (i !== ix) return o;
+      const opt: ModOpt = { label: o.label };
+      if (o.priceDeltaCents != null) opt.priceDeltaCents = o.priceDeltaCents;
+      if (raw.trim()) opt.description = raw;
+      return opt;
+    });
     onChange(next, defaultOpt);
   }
 
@@ -1851,48 +1887,76 @@ function OptionsEditor({
             <div
               key={o.label}
               className={
-                "flex items-center gap-2 rounded-lg border px-2 py-1.5 " +
+                "rounded-lg border " +
                 (isDefault
                   ? "bg-ink/5 border-ink/30"
                   : "bg-op-surface border-op-border")
               }
             >
-              <span className="flex-1 text-sm truncate">{o.label}</span>
-              <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
-                <span aria-hidden>{"+"}</span>
-                <input
-                  type="number"
-                  value={deltaPesos}
-                  onChange={(e) => setOptPrice(i, e.target.value)}
-                  placeholder="0"
-                  step={100}
-                  className="w-20 h-7 px-2 rounded border border-op-border bg-op-bg text-right tabular text-xs"
-                  title={tr("optionPriceTitle")}
-                />
-              </div>
-              {canDefault && !isDefault && (
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <span className="flex-1 text-sm truncate">{o.label}</span>
+                {/* Ícono para agregar/editar la descripción de la opción
+                    (se muestra al comensal). Si ya hay descripción, queda
+                    resaltado y el campo aparece abierto. */}
                 <button
                   type="button"
-                  onClick={() => onChange(opts, o.label)}
-                  className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1.5 shrink-0"
-                  title={tr("setDefaultTitle")}
+                  onClick={() => toggleDesc(o.label)}
+                  aria-label={tr("optionDescAdd")}
+                  title={tr("optionDescAdd")}
+                  className={
+                    "w-7 h-7 rounded-full inline-flex items-center justify-center shrink-0 hover:bg-op-border/40 " +
+                    (o.description ? "text-terracotta" : "text-op-muted")
+                  }
                 >
-                  {tr("default")}
+                  <NoteIcon />
                 </button>
+                <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
+                  <span aria-hidden>{"+"}</span>
+                  <input
+                    type="number"
+                    value={deltaPesos}
+                    onChange={(e) => setOptPrice(i, e.target.value)}
+                    placeholder="0"
+                    step={100}
+                    className="w-20 h-7 px-2 rounded border border-op-border bg-op-bg text-right tabular text-xs"
+                    title={tr("optionPriceTitle")}
+                  />
+                </div>
+                {canDefault && !isDefault && (
+                  <button
+                    type="button"
+                    onClick={() => onChange(opts, o.label)}
+                    className="text-[9px] uppercase tracking-wider text-op-muted hover:text-ink px-1.5 shrink-0"
+                    title={tr("setDefaultTitle")}
+                  >
+                    {tr("default")}
+                  </button>
+                )}
+                {isDefault && (
+                  <span className="text-[9px] uppercase tracking-wider text-ink shrink-0 px-1.5">
+                    {tr("default")}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeAt(i)}
+                  className="w-6 h-6 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center text-op-muted shrink-0"
+                  aria-label={tr("removeOption", { label: o.label })}
+                >
+                  <span aria-hidden>{"×"}</span>
+                </button>
+              </div>
+              {(openDesc.has(o.label) || !!o.description) && (
+                <div className="px-2 pb-2">
+                  <input
+                    value={o.description ?? ""}
+                    onChange={(e) => setOptDescription(i, e.target.value)}
+                    maxLength={200}
+                    placeholder={tr("optionDescPlaceholder")}
+                    className="w-full h-8 px-2 rounded border border-op-border bg-op-bg text-xs"
+                  />
+                </div>
               )}
-              {isDefault && (
-                <span className="text-[9px] uppercase tracking-wider text-ink shrink-0 px-1.5">
-                  {tr("default")}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => removeAt(i)}
-                className="w-6 h-6 rounded-full hover:bg-op-border/40 inline-flex items-center justify-center text-op-muted shrink-0"
-                aria-label={tr("removeOption", { label: o.label })}
-              >
-                <span aria-hidden>{"×"}</span>
-              </button>
             </div>
           );
         })}

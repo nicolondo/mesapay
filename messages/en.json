@@ -1862,7 +1862,9 @@
     "modsCopyApplying": "Applying…",
     "prepEqSeconds": "= {seconds} s",
     "prepEqMinutes": "= {minutes} min",
-    "prepEqMinSec": "= {minutes} min {seconds} s"
+    "prepEqMinSec": "= {minutes} min {seconds} s",
+    "optionDescAdd": "Add description",
+    "optionDescPlaceholder": "Option description (shown to the diner)"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

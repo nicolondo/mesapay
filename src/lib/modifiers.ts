@@ -29,6 +29,9 @@
 export type ModOpt = {
   label: string;
   priceDeltaCents?: number;
+  // Descripción opcional de la opción (p.ej. "Michelada: con limón, sal y
+  // salsa"). Se muestra al comensal debajo de la opción al elegir.
+  description?: string;
 };
 
 export type ModifierDef = {
@@ -64,11 +67,17 @@ export function normalizeOpts(raw: unknown): ModOpt[] {
         typeof rawDelta === "number" && Number.isFinite(rawDelta)
           ? Math.trunc(rawDelta)
           : undefined;
-      out.push(
-        priceDeltaCents !== undefined && priceDeltaCents !== 0
-          ? { label, priceDeltaCents }
-          : { label },
-      );
+      const rawDesc = (o as { description?: unknown }).description;
+      const description =
+        typeof rawDesc === "string" && rawDesc.trim()
+          ? rawDesc.trim().slice(0, 200)
+          : undefined;
+      const opt: ModOpt = { label };
+      if (priceDeltaCents !== undefined && priceDeltaCents !== 0) {
+        opt.priceDeltaCents = priceDeltaCents;
+      }
+      if (description) opt.description = description;
+      out.push(opt);
     }
   }
   return out;

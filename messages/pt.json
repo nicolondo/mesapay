@@ -1862,7 +1862,9 @@
     "modsCopyApplying": "Aplicando…",
     "prepEqSeconds": "= {seconds} s",
     "prepEqMinutes": "= {minutes} min",
-    "prepEqMinSec": "= {minutes} min {seconds} s"
+    "prepEqMinSec": "= {minutes} min {seconds} s",
+    "optionDescAdd": "Adicionar descrição",
+    "optionDescPlaceholder": "Descrição da opção (visível para o cliente)"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

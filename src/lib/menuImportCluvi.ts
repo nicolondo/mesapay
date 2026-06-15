@@ -78,9 +78,15 @@ type CluviMenuResponse = {
 };
 
 const FETCH_TIMEOUT_MS = 15_000;
-// Fixed, public CDN host that serves the menu JSON. Hardcoded (not
-// derived from user input) so there's no SSRF surface on the host.
-const API_HOST = "https://cached.cluvi.com";
+// Fixed, public hosts. Hardcoded (never derived from user input) so there's
+// no SSRF surface on the host:
+//  - cached.cluvi.com / services.cluvi.com sirven el JSON del menú. El SPA
+//    usa el primero si `instance.menu_cached`, si no el segundo; probamos
+//    ambos en orden.
+//  - exp2.cluvi.com resuelve el slug/subdominio de la tienda a su id numérico
+//    de supplier (lo que la app hace en su acción GetSupplier).
+const MENU_HOSTS = ["https://cached.cluvi.com", "https://services.cluvi.com"];
+const RESOLVE_HOST = "https://exp2.cluvi.com";
 
 // Same promo / catch-all filter idea as the Justo + Shopify importers:
 // buckets that dilute the real menu structure.
@@ -183,14 +189,35 @@ function pickImage(img: CluviImage): string | null {
   return img.w_768 ?? img.w_576 ?? img.w_992 ?? img.thumb ?? img.blog ?? img.w_1200 ?? null;
 }
 
+/** Sanea un slug derivado del host/path del usuario: solo [a-z0-9-]. */
+function cleanSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 60);
+}
+
+type StoreRef = {
+  // Id numérico de supplier, si la URL ya lo trae (camino /newmenu/<id>).
+  storeId?: string;
+  // Slugs candidatos a resolver (subdominio y/o primer segmento del path),
+  // en orden de prioridad. Solo se usan si no hay storeId.
+  slugs: string[];
+  type: string;
+  subtype: string;
+};
+
 /**
- * Parse the storefront URL into the API coordinates. Cluvi storefronts
- * look like `/newmenu/<storeId>/<type>/<subtype>`. Defaults keep us on
- * the dine-in carta when the path omits type/subtype.
+ * Parse the storefront URL into the API coordinates. Two shapes:
+ *  - Deep link `/newmenu/<storeId>/<type>/<subtype>` → trae el id numérico.
+ *  - Raíz / subdominio (`https://oni.cluvi.co/`, `cluvi.co/oni`) → no trae id;
+ *    devolvemos los slugs candidatos para resolverlos contra exp2.cluvi.com
+ *    (lo mismo que hace el SPA en su acción GetSupplier).
+ * Defaults keep us on the dine-in carta when the path omits type/subtype.
  */
-function parseStoreRef(
-  url: string,
-): { storeId: string; type: string; subtype: string } | null {
+function parseStoreRef(url: string): StoreRef | null {
   let host = "";
   let path = "";
   try {
@@ -203,24 +230,44 @@ function parseStoreRef(
   if (!/(^|\.)cluvi\.(co|com)$/.test(host)) return null;
 
   const m = path.match(/\/newmenu\/(\d+)(?:\/([\w-]+))?(?:\/([\w-]+))?/i);
-  if (!m) return null;
-  return {
-    storeId: m[1],
-    type: m[2] || "on_table",
-    subtype: m[3] || "basic",
-  };
+  if (m) {
+    return {
+      storeId: m[1],
+      slugs: [],
+      type: m[2] || "on_table",
+      subtype: m[3] || "basic",
+    };
+  }
+
+  // Subdominio: oni.cluvi.co → "oni" (descartamos www y el ápice cluvi.co).
+  const slugs: string[] = [];
+  const subMatch = host.match(/^(.*?)\.?cluvi\.(co|com)$/);
+  const sub = cleanSlug((subMatch?.[1] ?? "").split(".")[0]);
+  if (sub && sub !== "www") slugs.push(sub);
+  // Primer segmento del path: cluvi.co/oni → "oni".
+  let firstSeg = "";
+  try {
+    firstSeg = cleanSlug(
+      decodeURIComponent(path.split("/").filter(Boolean)[0] ?? ""),
+    );
+  } catch {
+    firstSeg = "";
+  }
+  if (firstSeg && firstSeg !== "newmenu" && !slugs.includes(firstSeg)) {
+    slugs.push(firstSeg);
+  }
+
+  if (slugs.length === 0) return null;
+  return { slugs, type: "on_table", subtype: "basic" };
 }
 
-async function fetchMenuJson(
-  ref: { storeId: string; type: string; subtype: string },
-): Promise<CluviMenuResponse | null> {
-  const apiUrl = `${API_HOST}/v1/menu/${ref.storeId}/${ref.type}/${ref.subtype}.json?lang=es`;
-  const safe = await checkUrlSafe(apiUrl);
+async function fetchJson(url: string): Promise<unknown | null> {
+  const safe = await checkUrlSafe(url);
   if (!safe.ok) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(apiUrl, {
+    const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
       headers: {
@@ -232,12 +279,50 @@ async function fetchMenuJson(
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("json")) return null;
-    return (await res.json()) as CluviMenuResponse;
+    return await res.json();
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Resuelve un slug de tienda (subdominio o segmento del path) a su id
+ * numérico de supplier. Cluvi expone el objeto supplier en dos rutas
+ * (probamos ambas, igual que el bundle del SPA). El cuerpo es el supplier
+ * con `id`.
+ */
+async function resolveSlugToStoreId(slug: string): Promise<string | null> {
+  const urls = [
+    `${RESOLVE_HOST}/domain/suppliers/${slug}.json`,
+    `${RESOLVE_HOST}/api/suppliers/${slug}.json`,
+  ];
+  for (const u of urls) {
+    const data = await fetchJson(u);
+    if (!data || typeof data !== "object") continue;
+    const obj = data as { id?: unknown; supplier?: { id?: unknown } };
+    const id = obj.id ?? obj.supplier?.id;
+    if (typeof id === "number" && Number.isFinite(id)) return String(id);
+    if (typeof id === "string" && /^\d+$/.test(id)) return id;
+  }
+  return null;
+}
+
+async function fetchMenuJson(ref: {
+  storeId: string;
+  type: string;
+  subtype: string;
+}): Promise<CluviMenuResponse | null> {
+  // El SPA elige cached o services según `instance.menu_cached`; como no
+  // tenemos ese flag, probamos cached primero (CDN, más rápido) y caemos a
+  // services si no responde.
+  for (const apiHost of MENU_HOSTS) {
+    const apiUrl = `${apiHost}/v1/menu/${ref.storeId}/${ref.type}/${ref.subtype}.json?lang=es`;
+    const data = (await fetchJson(apiUrl)) as CluviMenuResponse | null;
+    if (data?.menu?.products?.length) return data;
+  }
+  return null;
 }
 
 /**
@@ -251,7 +336,22 @@ export async function tryImportCluvi(
   const ref = parseStoreRef(originUrl);
   if (!ref) return null;
 
-  const data = await fetchMenuJson(ref);
+  // Si la URL no trae id numérico (raíz/subdominio), lo resolvemos desde el
+  // slug. Probamos los candidatos (subdominio, luego segmento del path).
+  let storeId = ref.storeId ?? null;
+  if (!storeId) {
+    for (const slug of ref.slugs) {
+      storeId = await resolveSlugToStoreId(slug);
+      if (storeId) break;
+    }
+  }
+  if (!storeId) return null;
+
+  const data = await fetchMenuJson({
+    storeId,
+    type: ref.type,
+    subtype: ref.subtype,
+  });
   const categories = data?.menu?.categories;
   const products = data?.menu?.products;
   if (!Array.isArray(categories) || !Array.isArray(products)) return null;

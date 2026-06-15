@@ -26,6 +26,8 @@ export function MisMesasClient({ tables }: { tables: MesaPick[] }) {
   const [, startTx] = useTransition();
 
   const mineCount = tables.filter((t) => t.mine).length;
+  // Mesas que no atiende ningún mesero todavía — "faltan por asignar".
+  const unassigned = tables.filter((t) => !t.mine && !t.holderName);
 
   async function tap(t: MesaPick) {
     // Bloqueada: ocupada y la atiende otro mesero.
@@ -72,19 +74,44 @@ export function MisMesasClient({ tables }: { tables: MesaPick[] }) {
         otro mesero no se puede tomar.
       </p>
 
+      {/* Aviso: mesas que todavía no tiene ningún mesero. Toca un número
+          para tomarla de una. */}
+      {unassigned.length > 0 && (
+        <div className="mb-3 rounded-xl border border-terracotta/40 bg-terracotta/5 px-3 py-2.5">
+          <div className="text-xs font-medium text-terracotta">
+            {unassigned.length === 1
+              ? "1 mesa sin mesero asignado"
+              : `${unassigned.length} mesas sin mesero asignado`}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {unassigned.map((t) => (
+              <button
+                key={t.number}
+                type="button"
+                disabled={busy === t.number}
+                onClick={() => tap(t)}
+                className="h-7 px-2.5 rounded-full border border-terracotta/50 text-terracotta text-xs font-medium tabular disabled:opacity-50 active:bg-terracotta/10"
+              >
+                {t.number}
+                {t.occupied ? " ·" : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tables.length === 0 ? (
         <p className="text-sm text-ink/80">No hay mesas creadas todavía.</p>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1.5">
           {tables.map((t) => {
+            const unassignedTable = !t.mine && !t.holderName;
             const blocked = !t.mine && !!t.holderName && t.occupied;
             const sub = t.mine
               ? "Tuya"
               : t.holderName
                 ? t.holderName
-                : t.occupied
-                  ? "Ocupada"
-                  : "Libre";
+                : "Sin mesero";
             return (
               <button
                 key={t.number}
@@ -96,9 +123,11 @@ export function MisMesasClient({ tables }: { tables: MesaPick[] }) {
                   "h-14 rounded-xl border flex flex-col items-center justify-center px-1 transition-colors disabled:opacity-50 " +
                   (t.mine
                     ? "bg-ink text-bone border-ink"
-                    : blocked
-                      ? "bg-ivory border-hairline text-muted cursor-not-allowed"
-                      : "bg-paper border-hairline text-ink active:bg-ivory")
+                    : unassignedTable
+                      ? "bg-terracotta/5 border-terracotta/40 text-ink active:bg-terracotta/10"
+                      : blocked
+                        ? "bg-ivory border-hairline text-muted cursor-not-allowed"
+                        : "bg-paper border-hairline text-ink active:bg-ivory")
                 }
               >
                 <span className="text-base font-medium tabular leading-none">
@@ -107,7 +136,11 @@ export function MisMesasClient({ tables }: { tables: MesaPick[] }) {
                 <span
                   className={
                     "text-[9px] leading-tight mt-0.5 truncate max-w-full " +
-                    (t.mine ? "text-bone/80" : "text-muted")
+                    (t.mine
+                      ? "text-bone/80"
+                      : unassignedTable
+                        ? "text-terracotta"
+                        : "text-muted")
                   }
                 >
                   {sub}

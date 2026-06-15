@@ -426,6 +426,20 @@ export function MenuClient({
     }
   }
 
+  // iOS: matar el "rubber-band" del scroll del documento. Sin esto, al llegar
+  // al final de la carta y seguir arrastrando, la página rebota mostrando el
+  // fondo (bone) — se siente como que "sigue bajando y queda en blanco".
+  // overscroll-behavior en el elemento que scrollea (html) lo evita. Scoped a
+  // esta vista: se restaura al desmontar para no afectar otras rutas.
+  useEffect(() => {
+    const el = document.documentElement;
+    const prev = el.style.overscrollBehaviorY;
+    el.style.overscrollBehaviorY = "none";
+    return () => {
+      el.style.overscrollBehaviorY = prev;
+    };
+  }, []);
+
   const nameKey = `mesapay.guestName.${tableId}`;
   const cartKey = `mesapay.cart.${tableId}`;
   const CART_TTL_MS = 6 * 60 * 60 * 1000; // discard carts older than 6h
@@ -1230,6 +1244,14 @@ export function MenuClient({
                   type="button"
                   ref={activeCat === c.slug ? catListActiveRef : undefined}
                   onClick={() => {
+                    // Muteamos el scroll-spy YA: al cerrar el popup, el lock de
+                    // scroll restaura la posición con window.scrollTo, lo que
+                    // dispara un evento de scroll. Sin mutear, el spy lo
+                    // procesa y pisa la categoría recién elegida con la de la
+                    // posición anterior (bug: el popup mostraba la categoría
+                    // vieja). El mute cubre ese scroll hasta que scrollToCategory
+                    // re-mutea para el salto suave.
+                    spyMuteTokenRef.current += 1;
                     setActiveCat(c.slug);
                     setShowCatList(false);
                     // Diferir el salto: el lock de scroll restaura la

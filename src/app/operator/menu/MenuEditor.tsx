@@ -286,9 +286,14 @@ export function MenuEditor({
                 <CategoryHeader
                   cat={c}
                   menus={menus}
-                  // Same rationale as NewCategoryForm — kind only makes
-                  // sense for the food menu (it drives "Fuertes juntos").
-                  showKind={c.menuId === menus[0]?.id}
+                  // El toggle "plato fuerte" se muestra para TODA categoría,
+                  // incluidas las de cartas no-default (vinos, cócteles).
+                  // Antes se ocultaba ahí, lo que dejaba trabadas categorías
+                  // mal clasificadas como "plato fuerte" (p.ej. importadas):
+                  // sin forma de corregirlas. El kind igual se ve en
+                  // Estaciones y afecta "Fuertes juntos", así que hay que
+                  // poder editarlo siempre.
+                  showKind
                   onPatch={(patch) => replaceCategory({ ...c, ...patch })}
                   onDeleted={() => removeCategory(c.id)}
                 />

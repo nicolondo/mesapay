@@ -104,7 +104,7 @@ function kindFromName(
 ): "starter" | "main" | "side" | "drink" | "dessert" | "other" {
   const s = name.toLowerCase();
   if (
-    /bebida|cerveza|vino|licor|whisky|whiskey|ron|vodka|tequila|mezcal|ginebra|gin|aguardiente|c[oó]ctel|coctel|cocktail|martini|jugo|gaseosa|aromat|caf[eé]|limonada|smoothie|t[eé]\b|infusi|agua\b/i.test(
+    /bebida|cerveza|vino|licor|whisky|whiskey|ron|vodka|tequila|mezcal|mezcla|ginebra|gin|aguardiente|c[oó]ctel|coctel|cocktail|mocktail|sangr[íi]a|sangrias|martini|jugo|gaseosa|aromat|caf[eé]|limonada|smoothie|mojito|aperitiv|digestiv|t[eé]\b|infusi|agua\b/i.test(
       s,
     )
   )

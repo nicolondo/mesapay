@@ -1838,7 +1838,8 @@
     "subcategoryOfLabel": "Subcat. de",
     "subcategoryNone": "— nenhuma (principal) —",
     "subcategoryOfTitle": "Tornar esta categoria subcategoria de outra",
-    "errChangeParent": "Não foi possível alterar a subcategoria."
+    "errChangeParent": "Não foi possível alterar a subcategoria.",
+    "categoryWithParent": "{parent} › {child}"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

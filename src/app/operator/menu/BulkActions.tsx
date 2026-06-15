@@ -343,6 +343,35 @@ function CategorySheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Opciones ordenadas jerárquicamente (principal y debajo sus subcategorías,
+  // etiquetadas "Principal › Subcategoría") para distinguirlas en el selector.
+  const categoryOptions: { id: string; label: string }[] = [];
+  for (const top of categories.filter((c) => !c.parentId)) {
+    categoryOptions.push({ id: top.id, label: top.label });
+    for (const child of categories.filter((c) => c.parentId === top.id)) {
+      categoryOptions.push({
+        id: child.id,
+        label: tr("categoryWithParent", {
+          parent: top.label,
+          child: child.label,
+        }),
+      });
+    }
+  }
+  const seenCatOpt = new Set(categoryOptions.map((o) => o.id));
+  for (const c of categories) {
+    if (seenCatOpt.has(c.id)) continue;
+    const parent = c.parentId
+      ? categories.find((x) => x.id === c.parentId)
+      : null;
+    categoryOptions.push({
+      id: c.id,
+      label: parent
+        ? tr("categoryWithParent", { parent: parent.label, child: c.label })
+        : c.label,
+    });
+  }
+
   async function apply() {
     if (!categoryId) return;
     setBusy(true);
@@ -372,7 +401,7 @@ function CategorySheet({
           onChange={(e) => setCategoryId(e.target.value)}
           className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
         >
-          {categories.map((c) => (
+          {categoryOptions.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>

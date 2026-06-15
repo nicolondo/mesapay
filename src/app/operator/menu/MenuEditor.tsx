@@ -1134,6 +1134,37 @@ function ItemSheet({
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Opciones de categoría ordenadas jerárquicamente: cada categoría principal
+  // seguida de sus subcategorías, etiquetadas "Principal › Subcategoría" para
+  // que se vea cuál es cuál en el selector.
+  const categoryOptions: { id: string; label: string }[] = [];
+  for (const top of categories.filter((c) => !c.parentId)) {
+    categoryOptions.push({ id: top.id, label: top.label });
+    for (const child of categories.filter((c) => c.parentId === top.id)) {
+      categoryOptions.push({
+        id: child.id,
+        label: tr("categoryWithParent", {
+          parent: top.label,
+          child: child.label,
+        }),
+      });
+    }
+  }
+  // Defensivo: cualquier categoría no incluida (no debería pasar) al final.
+  const seenCatOpt = new Set(categoryOptions.map((o) => o.id));
+  for (const c of categories) {
+    if (seenCatOpt.has(c.id)) continue;
+    const parent = c.parentId
+      ? categories.find((x) => x.id === c.parentId)
+      : null;
+    categoryOptions.push({
+      id: c.id,
+      label: parent
+        ? tr("categoryWithParent", { parent: parent.label, child: c.label })
+        : c.label,
+    });
+  }
+
   async function onPhotoPick(file: File) {
     setUploading(true);
     setErr(null);
@@ -1402,7 +1433,7 @@ function ItemSheet({
               onChange={(e) => setCategoryId(e.target.value)}
               className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
             >
-              {categories.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>

@@ -570,6 +570,18 @@ export function MenuClient({
   activeCatRef.current = activeCat;
   useEffect(() => {
     if (scopedCategories.length === 0) return;
+    // El "activo" debe ser siempre una categoría HOJA (la cepa que el comensal
+    // está leyendo), nunca un encabezado de grupo padre (p.ej. "Vino Tinto"):
+    // el padre solo es una etiqueta, sus ítems viven en las subcategorías. Sin
+    // esto, al estar en "Carmenere" el chip/popup resaltaba "Red Wines".
+    const parentIds = new Set(
+      scopedCategories.filter((c) => c.parentId).map((c) => c.parentId),
+    );
+    const isGroupHeader = (c: { id: string }) => parentIds.has(c.id);
+    const firstLeafSlug =
+      scopedCategories.find((c) => !isGroupHeader(c))?.slug ??
+      scopedCategories[0]?.slug ??
+      null;
     let rafId: number | null = null;
     function evaluate() {
       rafId = null;
@@ -587,7 +599,7 @@ export function MenuClient({
       // Malbec on screen, but the chip says the next category. Fixed
       // by short-circuiting the algorithm in this exact range.
       if (window.scrollY < 16) {
-        bestSlug = scopedCategories[0]?.slug ?? null;
+        bestSlug = firstLeafSlug;
       } else {
         // Trigger line about a third of the way down the visible
         // content area (capped at 200px). Earlier we used header+16,
@@ -607,6 +619,9 @@ export function MenuClient({
         // more robust to changes.
         let bestTop = -Infinity;
         for (const c of scopedCategories) {
+          // Saltamos los encabezados de grupo: el activo es la hoja (cepa) que
+          // se está leyendo, no su color/grupo padre.
+          if (isGroupHeader(c)) continue;
           const el = document.getElementById(`cat-${c.slug}`);
           if (!el) continue;
           const top = el.getBoundingClientRect().top;
@@ -616,8 +631,8 @@ export function MenuClient({
           }
         }
         // Edge case: top of page, before any section has crossed yet —
-        // default to the first one so the chip strip isn't blank.
-        if (!bestSlug) bestSlug = scopedCategories[0]?.slug ?? null;
+        // default to the first leaf so the chip strip isn't blank.
+        if (!bestSlug) bestSlug = firstLeafSlug;
       }
       if (bestSlug && bestSlug !== activeCatRef.current) {
         setActiveCat(bestSlug);

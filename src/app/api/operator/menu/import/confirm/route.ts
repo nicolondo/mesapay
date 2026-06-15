@@ -31,15 +31,40 @@ const itemSchema = z.object({
     }),
   ]),
   tags: z.array(z.string()).default([]),
-  // Local /uploads/menu-import/... URL produced by the URL-import flow.
-  // We don't accept arbitrary URLs here — if it doesn't start with our
-  // upload prefix we ignore it (defense in depth).
+  // Foto: o un /uploads/... local (descargado por el flujo de import) o una
+  // URL https de un CDN de plataforma de menús confiable (Cluvi/Shopify/
+  // Justo). Esto último cubre el caso en que la descarga server-side falla
+  // (el CDN limita la IP del servidor): guardamos la URL remota y el
+  // navegador del comensal la carga directo (la foto se pinta como CSS
+  // background-image, sin SSRF de nuestro lado). Cualquier otra URL se
+  // rechaza — defensa en profundidad.
   photoUrl: z
     .string()
-    .startsWith("/uploads/")
+    .max(2000)
+    .refine(isAllowedPhotoUrl, { message: "untrusted photo url" })
     .nullable()
     .optional(),
 });
+
+// Hosts de CDN de las plataformas desde las que importamos cartas. El
+// match por sufijo es seguro: solo la marca controla sus subdominios.
+function isAllowedPhotoUrl(u: string): boolean {
+  if (u.startsWith("/uploads/")) return true;
+  try {
+    const url = new URL(u);
+    if (url.protocol !== "https:") return false;
+    const h = url.hostname.toLowerCase();
+    return (
+      h === "images.cluvi.com" ||
+      h.endsWith(".getjusto.com") ||
+      h.endsWith(".shopify.com") ||
+      h.endsWith(".myshopify.com") ||
+      h.endsWith(".shopifycdn.com")
+    );
+  } catch {
+    return false;
+  }
+}
 
 const schema = z.object({
   // Las cartas de bares grandes (con su lista de licores) pasan de 200

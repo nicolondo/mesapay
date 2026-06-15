@@ -144,3 +144,22 @@ export async function downloadMenuImages(
   await Promise.all(workers);
   return result;
 }
+
+/**
+ * Like downloadMenuImages, but when a download fails we keep the original
+ * (CDN) URL instead of dropping the photo. The diner menu renders photos
+ * as a CSS background-image, so a remote CDN URL works directly in the
+ * browser — a remote photo beats no photo. This matters when the CDN
+ * rate-limits our server IP or the download otherwise fails server-side
+ * (e.g. Cluvi/Shopify/Justo image hosts). Order preserved; null stays null.
+ *
+ * The import-confirm endpoint only persists external URLs from a trusted
+ * host allowlist, so the values returned here are safe to store as-is.
+ */
+export async function localizeImagesWithFallback(
+  urls: (string | null | undefined)[],
+  restaurantId: string,
+): Promise<(string | null)[]> {
+  const local = await downloadMenuImages(urls, restaurantId);
+  return urls.map((u, i) => local[i] ?? u ?? null);
+}

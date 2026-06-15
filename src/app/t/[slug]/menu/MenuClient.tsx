@@ -360,22 +360,38 @@ export function MenuClient({
   // arriba de todo — así navega más fácil en cartas largas.
   const catListActiveRef = useRef<HTMLButtonElement | null>(null);
   const catListScrollRef = useRef<HTMLDivElement | null>(null);
+  const catListWasOpenRef = useRef(false);
   useEffect(() => {
-    if (!showCatList) return;
-    // Un tick para que el popup monte (y el lock de scroll se aplique) antes
-    // de centrar. Scrolleamos el contenedor por scrollTop (más confiable que
-    // scrollIntoView, que a veces apunta al ancestro equivocado).
+    if (showCatList) {
+      catListWasOpenRef.current = true;
+      // Un tick para que el popup monte (y el lock de scroll se aplique) antes
+      // de centrar. Scrolleamos el contenedor por scrollTop (más confiable que
+      // scrollIntoView, que a veces apunta al ancestro equivocado).
+      const t = setTimeout(() => {
+        const c = catListScrollRef.current;
+        const b = catListActiveRef.current;
+        if (!c || !b) return;
+        const delta =
+          b.getBoundingClientRect().top -
+          c.getBoundingClientRect().top -
+          c.clientHeight / 2 +
+          b.clientHeight / 2;
+        c.scrollTop = Math.max(0, c.scrollTop + delta);
+      }, 0);
+      return () => clearTimeout(t);
+    }
+    // Al CERRAR el popup: el lock de scroll restaura la posición con
+    // window.scrollTo, que dispara el scroll-spy. En categorías CORTAS el spy
+    // re-deriva la categoría de al lado (su título también está cerca de la
+    // línea de disparo) y se perdía la categoría activa al reabrir. Muteamos
+    // el spy un instante para cubrir ese scroll de restauración y preservar
+    // la categoría activa. (No corre en el montaje inicial.)
+    if (!catListWasOpenRef.current) return;
+    catListWasOpenRef.current = false;
+    const token = (spyMuteTokenRef.current += 1);
     const t = setTimeout(() => {
-      const c = catListScrollRef.current;
-      const b = catListActiveRef.current;
-      if (!c || !b) return;
-      const delta =
-        b.getBoundingClientRect().top -
-        c.getBoundingClientRect().top -
-        c.clientHeight / 2 +
-        b.clientHeight / 2;
-      c.scrollTop = Math.max(0, c.scrollTop + delta);
-    }, 0);
+      if (spyMuteTokenRef.current === token) spyMuteTokenRef.current = 0;
+    }, 350);
     return () => clearTimeout(t);
   }, [showCatList]);
 

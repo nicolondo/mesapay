@@ -175,7 +175,9 @@
     "sending": "Enviando…",
     "send": "Enviar",
     "starAria": "{n, plural, one {# estrela} other {# estrelas}}",
-    "orderAgain": "Voltar ao cardápio"
+    "orderAgain": "Voltar ao cardápio",
+    "etaMax": "+{min} min",
+    "etaHeadlineMax": "Seu pedido sai em mais de {min} min"
   },
   "pay": {
     "pay": "Pagar",

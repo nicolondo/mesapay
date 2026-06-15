@@ -16,6 +16,12 @@ function minutesUntil(etaAtISO: string, now: number): number {
   return Math.ceil((new Date(etaAtISO).getTime() - now) / 60_000);
 }
 
+// Tope de lo que mostramos al comensal. El modelo de cola serial de la
+// cocina puede dar números absurdos cuando hay un backlog de rondas (test o
+// real); por encima de esto mostramos "Más de N min" en vez de asustar con
+// "~218 min". No cambia el cálculo, solo la presentación.
+const MAX_ETA_MIN = 45;
+
 export function EtaBadge({ etaAtISO }: { etaAtISO: string }) {
   const t = useTranslations("order");
   const now = useTickingNow();
@@ -25,7 +31,9 @@ export function EtaBadge({ etaAtISO }: { etaAtISO: string }) {
       ? t("etaAlmost")
       : diffMin <= 3
         ? t("etaFewMin")
-        : t("etaMin", { min: diffMin });
+        : diffMin > MAX_ETA_MIN
+          ? t("etaMax", { min: MAX_ETA_MIN })
+          : t("etaMin", { min: diffMin });
 
   return (
     <span className="px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-terracotta/10 text-terracotta">
@@ -43,7 +51,9 @@ export function OrderEta({ etaAtISO }: { etaAtISO: string }) {
       ? t("etaHeadlineAlmost")
       : diffMin <= 3
         ? t("etaHeadlineFew")
-        : t("etaHeadlineMin", { min: diffMin });
+        : diffMin > MAX_ETA_MIN
+          ? t("etaHeadlineMax", { min: MAX_ETA_MIN })
+          : t("etaHeadlineMin", { min: diffMin });
   const sub =
     diffMin <= 1 ? t("etaSubAlmost") : t("etaSubDefault");
   return (

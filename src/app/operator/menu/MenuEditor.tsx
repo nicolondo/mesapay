@@ -184,6 +184,32 @@ export function MenuEditor({
     visibleItemIds.length > 0 &&
     visibleItemIds.every((id) => selectedIds.has(id));
 
+  // Orden jerárquico: cada categoría top-level seguida de sus subcategorías
+  // (un solo nivel). Una subcategoría siempre vive en el mismo menú que su
+  // padre, así que si la hija es visible su padre también lo es.
+  const orderedVisible: { c: Cat; isChild: boolean }[] = [];
+  for (const top of visibleCategories.filter((x) => !x.parentId)) {
+    orderedVisible.push({ c: top, isChild: false });
+    for (const child of visibleCategories.filter((x) => x.parentId === top.id)) {
+      orderedVisible.push({ c: child, isChild: true });
+    }
+  }
+  // Defensivo: cualquier categoría visible que no quedó incluida (no debería
+  // pasar) se muestra al nivel superior para no perder sus platos.
+  const seenOrdered = new Set(orderedVisible.map((o) => o.c.id));
+  for (const c of visibleCategories) {
+    if (!seenOrdered.has(c.id)) orderedVisible.push({ c, isChild: false });
+  }
+  // Posibles padres de una categoría: top-level del mismo menú, excepto ella.
+  function parentOptionsFor(cat: Cat): Cat[] {
+    return categories.filter(
+      (x) => !x.parentId && x.menuId === cat.menuId && x.id !== cat.id,
+    );
+  }
+  function categoryHasChildren(catId: string): boolean {
+    return categories.some((x) => x.parentId === catId);
+  }
+
   return (
     <div
       className={
@@ -328,10 +354,15 @@ export function MenuEditor({
       )}
 
       <div className="space-y-8">
-        {visibleCategories.map((c) => {
+        {orderedVisible.map(({ c, isChild }) => {
           const rows = byCat.get(c.id) ?? [];
           return (
-            <section key={c.id}>
+            <section
+              key={c.id}
+              className={
+                isChild ? "ml-4 sm:ml-6 border-l-2 border-op-border/60 pl-4" : ""
+              }
+            >
               <div className="flex items-center justify-between mb-3 gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <CategorySelectCheckbox
@@ -347,6 +378,9 @@ export function MenuEditor({
                   <CategoryHeader
                     cat={c}
                     menus={menus}
+                    isChild={isChild}
+                    parentOptions={parentOptionsFor(c)}
+                    hasChildren={categoryHasChildren(c.id)}
                   // El toggle "plato fuerte" se muestra para TODA categoría,
                   // incluidas las de cartas no-default (vinos, cócteles).
                   // Antes se ocultaba ahí, lo que dejaba trabadas categorías
@@ -637,6 +671,9 @@ function NewCategoryForm({
       prepStation: "kitchen",
       // Parent overwrites this with the active menu if it has one.
       menuId: menuId ?? "",
+      // Las categorías nuevas se crean al nivel superior; se pueden anidar
+      // después con el selector "Subcat. de" en el encabezado.
+      parentId: null,
     });
   }
 
@@ -701,6 +738,9 @@ function CategoryHeader({
   cat,
   menus,
   showKind,
+  isChild,
+  parentOptions,
+  hasChildren,
   onPatch,
   onDeleted,
 }: {
@@ -709,6 +749,14 @@ function CategoryHeader({
   // Hide the kind dropdown for categories that live in a non-default
   // menu (vinos, cócteles, etc.). See NewCategoryForm for the why.
   showKind: boolean;
+  // Es una subcategoría (cuelga de otra). Render más chico + indentado.
+  isChild: boolean;
+  // Posibles padres (top-level del mismo menú). Si vacío, no se muestra el
+  // selector "Subcategoría de".
+  parentOptions: Cat[];
+  // Si esta categoría ya tiene subcategorías, no puede volverse hija (un solo
+  // nivel) → el selector queda deshabilitado.
+  hasChildren: boolean;
   onPatch: (patch: Partial<Cat>) => void;
   onDeleted: () => void;
 }) {
@@ -769,6 +817,25 @@ function CategoryHeader({
     onPatch({ menuId });
   }
 
+  // Anidar/desanidar como subcategoría. parentId null = volver a top-level.
+  async function changeParent(parentId: string | null) {
+    const res = await fetch(`/api/operator/categories/${cat.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ parentId }),
+    });
+    if (!res.ok) {
+      alert(tr("errChangeParent"));
+      return;
+    }
+    // Al anidar, la hija hereda el menú del padre — reflejamos ambos para que
+    // el reordenamiento jerárquico sea inmediato (sin recargar).
+    const parentMenuId = parentId
+      ? parentOptions.find((p) => p.id === parentId)?.menuId
+      : undefined;
+    onPatch({ parentId, ...(parentMenuId ? { menuId: parentMenuId } : {}) });
+  }
+
   async function del() {
     const ok = window.confirm(tr("confirmDeleteCategory", { label: cat.label }));
     if (!ok) return;
@@ -815,8 +882,10 @@ function CategoryHeader({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className="font-display text-2xl">{cat.label}</div>
-      {showKind && (
+      <div className={"font-display " + (isChild ? "text-lg" : "text-2xl")}>
+        {cat.label}
+      </div>
+      {showKind && !isChild && (
         <label
           className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
           title={tr("mainCourseTitle")}
@@ -830,7 +899,9 @@ function CategoryHeader({
           <span>{tr("mainCourses")}</span>
         </label>
       )}
-      {menus.length > 1 && (
+      {/* Mover de menú: solo para categorías de nivel superior; las
+          subcategorías siguen el menú de su padre. */}
+      {menus.length > 1 && !isChild && (
         <select
           value={cat.menuId}
           onChange={(e) => changeMenu(e.target.value)}
@@ -843,6 +914,28 @@ function CategoryHeader({
             </option>
           ))}
         </select>
+      )}
+      {/* Anidar como subcategoría de otra. Oculto si no hay candidatos
+          (ej. única categoría del menú). Deshabilitado si esta ya tiene
+          subcategorías (un solo nivel). */}
+      {parentOptions.length > 0 && (
+        <label className="inline-flex items-center gap-1 text-[11px] text-op-muted">
+          <span>{tr("subcategoryOfLabel")}</span>
+          <select
+            value={cat.parentId ?? ""}
+            onChange={(e) => changeParent(e.target.value || null)}
+            disabled={hasChildren}
+            title={tr("subcategoryOfTitle")}
+            className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px] disabled:opacity-50"
+          >
+            <option value="">{tr("subcategoryNone")}</option>
+            {parentOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <button
         onClick={() => setEditing(true)}

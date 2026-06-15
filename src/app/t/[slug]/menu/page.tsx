@@ -197,6 +197,7 @@ export default async function MenuPage({
         slug: c.slug,
         label: tr("Category", c.id, "label", c.label),
         menuId: c.menuId ?? menus[0]?.id ?? "",
+        parentId: c.parentId ?? null,
       }))}
       items={tenant.menuItems.map((m) => {
         const r = ratingByItem.get(m.id);

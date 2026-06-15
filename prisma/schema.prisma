@@ -830,11 +830,20 @@ model Category {
   // shows on the default tab of /operator/bar.
   barSubStation String?
 
+  // Subcategorías (un solo nivel). Una categoría puede colgar de otra
+  // ("Malbec" dentro de "Vino Tinto"). La regla de un solo nivel se valida en
+  // la API (un padre no puede tener padre). Al borrar el padre, los hijos
+  // quedan en el nivel superior (parentId → null), no se borran.
+  parentId String?
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryChildren")
+
   items MenuItem[]
 
   @@unique([restaurantId, slug])
   @@index([restaurantId])
   @@index([menuId])
+  @@index([parentId])
 }
 
 model MenuItem {

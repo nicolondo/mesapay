@@ -163,6 +163,7 @@ export default async function PickupPage({
         // Pickup doesn't surface menu tabs (it's already a focused
         // single-flow experience), but the type requires the field.
         menuId: c.menuId ?? "",
+        parentId: c.parentId ?? null,
       }))}
       items={tenant.menuItems.map((m) => {
         const r = ratingByItem.get(m.id);

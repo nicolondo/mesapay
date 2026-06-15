@@ -147,6 +147,7 @@ export default async function MeseroPedirPage({
         slug: c.slug,
         label: c.label,
         menuId: c.menuId ?? menus[0]?.id ?? "",
+        parentId: c.parentId ?? null,
       }))}
       items={items.map((m) => {
         const r = ratingByItem.get(m.id);

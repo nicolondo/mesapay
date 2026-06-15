@@ -354,6 +354,21 @@ export function MenuClient({
   // counter (instead of Date.now) so the linter doesn't flag impurity.
   const spyMuteTokenRef = useRef<number>(0);
 
+  // Botón de la categoría ACTIVA dentro del popup de lista vertical. Al abrir
+  // el popup lo centramos en la categoría que el comensal está viendo, en vez
+  // de quedar arriba de todo — así navega más fácil en cartas largas.
+  const catListActiveRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!showCatList) return;
+    // Un tick para que el popup monte (y el lock de scroll se aplique) antes
+    // de centrar. block:"center" scrollea el contenedor del popup; el body
+    // está bloqueado, así que la página no se mueve.
+    const t = setTimeout(() => {
+      catListActiveRef.current?.scrollIntoView({ block: "center" });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [showCatList]);
+
   function scrollToCategory(slug: string) {
     const el = document.getElementById(`cat-${slug}`);
     if (!el) return;
@@ -1179,6 +1194,7 @@ export function MenuClient({
                 <button
                   key={c.id}
                   type="button"
+                  ref={activeCat === c.slug ? catListActiveRef : undefined}
                   onClick={() => {
                     setActiveCat(c.slug);
                     setShowCatList(false);

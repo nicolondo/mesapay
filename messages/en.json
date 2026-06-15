@@ -1781,7 +1781,13 @@
     "default": "default",
     "removeOption": "Remove {label}",
     "addOptionPlaceholder": "Add option and press Enter",
-    "add": "Add"
+    "add": "Add",
+    "clearMenu": "Clear menu",
+    "clearConfirmTitle": "Clear the menu?",
+    "clearConfirmBody": "This will delete {count} dishes from the menu. Dishes with recorded orders are hidden, not deleted. This can’t be undone.",
+    "clearConfirmCancel": "Cancel",
+    "clearConfirmConfirm": "Yes, clear",
+    "clearing": "Clearing…"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

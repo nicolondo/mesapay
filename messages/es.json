@@ -1781,7 +1781,13 @@
     "default": "default",
     "removeOption": "Quitar {label}",
     "addOptionPlaceholder": "Añadir opción y Enter",
-    "add": "Añadir"
+    "add": "Añadir",
+    "clearMenu": "Vaciar carta",
+    "clearConfirmTitle": "¿Vaciar la carta?",
+    "clearConfirmBody": "Se borrarán {count} platos de la carta. Los platos con pedidos registrados quedan ocultos, no se borran. Esta acción no se puede deshacer.",
+    "clearConfirmCancel": "Cancelar",
+    "clearConfirmConfirm": "Sí, vaciar",
+    "clearing": "Vaciando…"
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

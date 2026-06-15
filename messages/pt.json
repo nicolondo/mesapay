@@ -1854,7 +1854,10 @@
     "modsCopyModeReplaceHint": "Substitui os modificadores que o produto já tiver.",
     "modsCopyModeMergeHint": "Adiciona os que faltam, sem duplicar por etiqueta.",
     "modsCopyApply": "Aplicar a {count} produtos",
-    "modsCopyApplying": "Aplicando…"
+    "modsCopyApplying": "Aplicando…",
+    "prepEqSeconds": "= {seconds} s",
+    "prepEqMinutes": "= {minutes} min",
+    "prepEqMinSec": "= {minutes} min {seconds} s"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

@@ -532,6 +532,40 @@ export function MenuEditor({
   );
 }
 
+/**
+ * Parsea el tiempo de preparación que escribe el operador (en MINUTOS).
+ * Acepta coma o punto como separador decimal (locales es-CO/es-MX) y redondea
+ * a décimas de minuto: 0.5 = 30 s, 0.1 = 6 s. Devuelve null si no es un número
+ * positivo (la validación de la UI lo rechaza con un mensaje claro).
+ */
+function parsePrepMinutes(raw: string): number | null {
+  const n = Number(raw.trim().replace(/,/g, "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 10) / 10;
+}
+
+/**
+ * Muestra el equivalente en segundos/minutos del valor escrito, para que el
+ * operador vea que "0.5" = 30 s sin tener que adivinar.
+ */
+function PrepHint({ raw }: { raw: string }) {
+  const tr = useTranslations("opMenuEditor");
+  const mins = parsePrepMinutes(raw);
+  if (mins == null) return null;
+  const totalSec = Math.round(mins * 60);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  const text =
+    m === 0
+      ? tr("prepEqSeconds", { seconds: s })
+      : s === 0
+        ? tr("prepEqMinutes", { minutes: m })
+        : tr("prepEqMinSec", { minutes: m, seconds: s });
+  return (
+    <span className="mt-1 font-mono text-[10px] text-op-muted">{text}</span>
+  );
+}
+
 function CategorySelectCheckbox({
   rows,
   selectedIds,
@@ -983,13 +1017,14 @@ function NewItemForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const cents = Math.round(Number(price) * 100);
-    // 1 decimal: permite tiempos como 1.5 min sin acumular imprecisión float.
-    const mins = Math.round(Number(prepMinutes) * 10) / 10;
+    // Acepta coma o punto y redondea a décimas de minuto (6 s). null si está
+    // vacío o no es válido — la validación de abajo lo rechaza.
+    const mins = parsePrepMinutes(prepMinutes);
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr(tr("errCheckNamePrice"));
       return;
     }
-    if (!Number.isFinite(mins) || mins < 0.1 || mins > 120) {
+    if (mins == null || mins < 0.1 || mins > 120) {
       setErr(tr("errPrepRange"));
       return;
     }
@@ -1065,14 +1100,14 @@ function NewItemForm({
             {tr("fieldPrep")}
           </span>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={prepMinutes}
             onChange={(e) => setPrepMinutes(e.target.value)}
-            min={0.1}
-            max={120}
-            step={0.1}
+            placeholder="0.5"
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
+          <PrepHint raw={prepMinutes} />
         </label>
       </div>
       <label className="flex flex-col">
@@ -1193,13 +1228,14 @@ function ItemSheet({
 
   async function save() {
     const cents = Math.round(Number(priceCents) * 100);
-    // 1 decimal: permite tiempos como 1.5 min sin acumular imprecisión float.
-    const mins = Math.round(Number(prepMinutes) * 10) / 10;
+    // Acepta coma o punto y redondea a décimas de minuto (6 s). null si está
+    // vacío o no es válido — la validación de abajo lo rechaza.
+    const mins = parsePrepMinutes(prepMinutes);
     if (!name.trim() || !Number.isFinite(cents) || cents < 0) {
       setErr(tr("errCheckNamePrice"));
       return;
     }
-    if (!Number.isFinite(mins) || mins < 0.1 || mins > 120) {
+    if (mins == null || mins < 0.1 || mins > 120) {
       setErr(tr("errPrepRange"));
       return;
     }
@@ -1364,14 +1400,14 @@ function ItemSheet({
                 {tr("fieldPrep")}
               </span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={prepMinutes}
                 onChange={(e) => setPrepMinutes(e.target.value)}
-                min={0.1}
-                max={120}
-                step={0.1}
+                placeholder="0.5"
                 className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               />
+              <PrepHint raw={prepMinutes} />
             </label>
           </div>
 

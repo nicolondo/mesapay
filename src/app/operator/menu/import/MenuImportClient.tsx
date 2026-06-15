@@ -154,6 +154,16 @@ export function MenuImportClient({
 
   async function onFileChosen(f: File) {
     setError(null);
+    // Tope de tamaño ANTES de subir: un archivo muy pesado (la API de IA
+    // limita PDFs a 32 MB) hace fallar el upload con un error críptico
+    // ("invalid_form"). Mejor avisar claro acá y no intentar subirlo.
+    const MAX_IMPORT_BYTES = 32 * 1024 * 1024;
+    if (f.size > MAX_IMPORT_BYTES) {
+      setError(
+        tr("errFileTooBig", { mb: Math.round(f.size / (1024 * 1024)) }),
+      );
+      return;
+    }
     setFile(f);
     setFilePreviewUrl(URL.createObjectURL(f));
     setSourceUrl(null);

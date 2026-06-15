@@ -1857,7 +1857,8 @@
     "doneTitle": "¡{count} platos importados!",
     "doneBody": "Ya están en tu carta. Podés ajustar precios, fotos y categorías cuando quieras.",
     "viewMyMenu": "Ver mi carta",
-    "importAnother": "Importar otra"
+    "importAnother": "Importar otra",
+    "errFileTooBig": "El archivo pesa {mb} MB. El máximo es 32 MB — comprimí el PDF o subí las páginas como imágenes (JPG/PNG)."
   },
   "opReports": {
     "noRestaurant": "Sin restaurante.",

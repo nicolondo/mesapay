@@ -1713,7 +1713,10 @@
     "errDelete": "Couldn't delete.",
     "errAtLeastOne": "There must be at least one menu.",
     "confirmDelete": "Delete \"{label}\"?",
-    "confirmDeleteWithCats": "Delete \"{label}\"? Its {count, plural, one {# category} other {# categories}} will be moved to the first remaining menu."
+    "confirmDeleteWithCats": "Delete \"{label}\"? Its {count, plural, one {# category} other {# categories}} will be moved to the first remaining menu.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "errReorder": "Couldn't change the order. Try again."
   },
   "opMenuEditor": {
     "noRestaurant": "No restaurant.",

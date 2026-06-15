@@ -1713,7 +1713,10 @@
     "errDelete": "Não foi possível excluir.",
     "errAtLeastOne": "Deve haver pelo menos um cardápio.",
     "confirmDelete": "Excluir \"{label}\"?",
-    "confirmDeleteWithCats": "Excluir \"{label}\"? Suas {count, plural, one {# categoria} other {# categorias}} serão movidas para o primeiro cardápio restante."
+    "confirmDeleteWithCats": "Excluir \"{label}\"? Suas {count, plural, one {# categoria} other {# categorias}} serão movidas para o primeiro cardápio restante.",
+    "moveUp": "Subir",
+    "moveDown": "Descer",
+    "errReorder": "Não foi possível mudar a ordem. Tente de novo."
   },
   "opMenuEditor": {
     "noRestaurant": "Sem restaurante.",

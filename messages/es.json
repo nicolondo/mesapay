@@ -1713,7 +1713,10 @@
     "errDelete": "No se pudo borrar.",
     "errAtLeastOne": "Debe haber al menos un menú.",
     "confirmDelete": "¿Borrar \"{label}\"?",
-    "confirmDeleteWithCats": "¿Borrar \"{label}\"? Sus {count, plural, one {# categoría} other {# categorías}} se moverán al primer menú restante."
+    "confirmDeleteWithCats": "¿Borrar \"{label}\"? Sus {count, plural, one {# categoría} other {# categorías}} se moverán al primer menú restante.",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "errReorder": "No se pudo cambiar el orden. Intentá de nuevo."
   },
   "opMenuEditor": {
     "noRestaurant": "Sin restaurante.",

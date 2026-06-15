@@ -111,6 +111,40 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
     }
   }
 
+  async function moveMenu(index: number, dir: "up" | "down") {
+    const j = dir === "up" ? index - 1 : index + 1;
+    if (j < 0 || j >= menus.length) return;
+    const prev = menus;
+    const reordered = [...menus];
+    [reordered[index], reordered[j]] = [reordered[j], reordered[index]];
+    // Renumeramos por posición y persistimos solo las cartas que cambiaron.
+    const withOrder = reordered.map((m, i) => ({ ...m, sortOrder: i }));
+    const oldOrder = new Map(prev.map((m) => [m.id, m.sortOrder]));
+    const changed = withOrder.filter((m) => oldOrder.get(m.id) !== m.sortOrder);
+    setMenus(withOrder); // optimista
+    setBusyId("__reorder__");
+    try {
+      const results = await Promise.all(
+        changed.map((m) =>
+          fetch(`/api/operator/menus/${m.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sortOrder: m.sortOrder }),
+          }),
+        ),
+      );
+      if (results.some((r) => !r.ok)) {
+        setMenus(prev); // revertir si algo falló
+        alert(t("errReorder"));
+      }
+    } catch {
+      setMenus(prev);
+      alert(t("errReorder"));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("title")}</div>
@@ -121,12 +155,17 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
       </p>
 
       <div className="space-y-2 mb-6">
-        {menus.map((m) => (
+        {menus.map((m, i) => (
           <MenuRow
             key={m.id}
             menu={m}
             disabled={busyId !== null}
             busy={busyId === m.id}
+            showArrows={menus.length > 1}
+            onMoveUp={i > 0 ? () => moveMenu(i, "up") : undefined}
+            onMoveDown={
+              i < menus.length - 1 ? () => moveMenu(i, "down") : undefined
+            }
             onRename={(label) => renameMenu(m.id, label)}
             onDelete={
               menus.length > 1 ? () => deleteMenu(m.id) : undefined
@@ -168,12 +207,18 @@ function MenuRow({
   menu,
   disabled,
   busy,
+  showArrows,
+  onMoveUp,
+  onMoveDown,
   onRename,
   onDelete,
 }: {
   menu: Menu;
   disabled: boolean;
   busy: boolean;
+  showArrows: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onRename: (label: string) => void;
   onDelete?: () => void;
 }) {
@@ -183,6 +228,28 @@ function MenuRow({
 
   return (
     <div className="bg-op-surface border border-op-border rounded-xl p-4 flex items-center gap-4">
+      {showArrows && (
+        <div className="flex flex-col -my-1 shrink-0">
+          <button
+            type="button"
+            aria-label={t("moveUp")}
+            onClick={onMoveUp}
+            disabled={disabled || !onMoveUp}
+            className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+          >
+            <span aria-hidden>↑</span>
+          </button>
+          <button
+            type="button"
+            aria-label={t("moveDown")}
+            onClick={onMoveDown}
+            disabled={disabled || !onMoveDown}
+            className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+          >
+            <span aria-hidden>↓</span>
+          </button>
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         {editing ? (
           <input

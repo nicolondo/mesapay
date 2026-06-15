@@ -9,7 +9,7 @@ import { checkUrlSafe } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
 import { tryImportJusto } from "@/lib/menuImportJusto";
-import { tryImportCluvi } from "@/lib/menuImportCluvi";
+import { tryImportCluvi, findEmbeddedCluviUrl } from "@/lib/menuImportCluvi";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -238,6 +238,38 @@ export async function POST(req: Request) {
       { error: "read_failed", message: "No pudimos leer el contenido." },
       { status: 502 },
     );
+  }
+
+  // Dominio propio que EMBEBE/enlaza su carta de Cluvi (WordPress, Wix, etc.
+  // p.ej. burdorestaurante.co tiene un iframe a burdo.cluvi.co). Antes de
+  // correr AI sobre la página de marketing, buscamos el link a *.cluvi.co en
+  // el HTML e importamos directo de Cluvi.
+  if (
+    contentType === "text/html" ||
+    contentType === "application/xhtml+xml"
+  ) {
+    try {
+      const embedded = findEmbeddedCluviUrl(buffer.toString("utf-8"));
+      if (embedded) {
+        const cluvi = await tryImportCluvi(embedded, restaurantId);
+        if (cluvi) {
+          const existingCategories = await db.category.findMany({
+            where: { restaurantId },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, slug: true, label: true, kind: true },
+          });
+          return NextResponse.json({
+            ok: true,
+            extraction: cluvi.extraction,
+            existingCategories,
+            sourceUrl: cluvi.sourceUrl,
+            contentType: "application/cluvi",
+          });
+        }
+      }
+    } catch {
+      // Cualquier fallo del path Cluvi-embebido → seguimos al flujo AI.
+    }
   }
 
   const restaurantTags = await getRestaurantMenuTags(restaurantId);

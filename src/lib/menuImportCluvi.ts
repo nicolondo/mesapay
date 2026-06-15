@@ -261,6 +261,29 @@ function parseStoreRef(url: string): StoreRef | null {
   return { slugs, type: "on_table", subtype: "basic" };
 }
 
+/**
+ * Muchos restaurantes tienen su web propia (WordPress, Wix, etc.) que
+ * EMBEBE o enlaza su carta de Cluvi (p.ej. burdorestaurante.co tiene un
+ * iframe a https://burdo.cluvi.co/burdo/menu-digital/home). Si el usuario
+ * pega ese dominio propio, escaneamos el HTML buscando un link/iframe a una
+ * tienda Cluvi (*.cluvi.co) y, si lo hay, importamos directo de ahí.
+ *
+ * Devuelve la URL de tienda Cluvi más probable, o null.
+ */
+export function findEmbeddedCluviUrl(html: string): string | null {
+  // Solo storefronts .co (la infra de Cluvi vive en .com: images./cached./
+  // services./exp2./tracking.cluvi.com — esas NO son tiendas).
+  const re = /https?:\/\/(?:[a-z0-9-]+\.)*cluvi\.co\/[^\s"'<>)]*/gi;
+  const found = (html.match(re) ?? []).map((u) => u.replace(/&amp;/g, "&"));
+  if (found.length === 0) return null;
+  // Preferimos URLs que parezcan de menú/carta sobre reservas (bookings) u
+  // otras secciones; si no hay, la primera sirve igual (parseStoreRef sólo
+  // necesita el slug del subdominio).
+  return (
+    found.find((u) => /menu|newmenu|carta|menu-digital/i.test(u)) ?? found[0]
+  );
+}
+
 async function fetchJson(url: string): Promise<unknown | null> {
   const safe = await checkUrlSafe(url);
   if (!safe.ok) return null;

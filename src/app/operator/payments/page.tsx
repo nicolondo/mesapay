@@ -33,9 +33,10 @@ export default async function PaymentsPage() {
   const counterMode = tenant?.serviceMode === "counter";
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="font-display text-3xl mb-4">{t("title")}</div>
-      <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+    <div className="p-4 lg:p-6 max-w-5xl mx-auto w-full">
+      <div className="font-display text-2xl lg:text-3xl mb-4">{t("title")}</div>
+      {/* Desktop: tabla. Las 6 columnas no caben en móvil. */}
+      <div className="hidden lg:block bg-op-surface border border-op-border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-op-bg">
             <tr className="text-left">
@@ -78,8 +79,60 @@ export default async function PaymentsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Móvil: lista de tarjetas. */}
+      <div className="lg:hidden space-y-2">
+        {payments.map((p) => (
+          <div
+            key={p.id}
+            className="bg-op-surface border border-op-border rounded-2xl p-4"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-sm font-medium">
+                {p.order.shortCode}
+              </span>
+              <span className="font-mono tabular text-base font-semibold">
+                {fmtCOP(p.amountCents)}
+              </span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
+              <span className="truncate">{methodLabel(p.method, t)}</span>
+              <span className={statusTint(p.status) + " shrink-0"}>
+                {statusLabel(p.status, t)}
+              </span>
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-op-muted">
+              <span className="truncate">
+                {counterMode
+                  ? t("channelCounter")
+                  : t("tableNumber", { number: p.order.table.number })}
+              </span>
+              <span className="shrink-0">
+                {fmtDate(p.createdAt)} · {fmtTime(p.createdAt)}
+              </span>
+            </div>
+          </div>
+        ))}
+        {payments.length === 0 && (
+          <div className="text-center py-10 text-sm text-op-muted">
+            {t("empty")}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+function fmtDate(d: Date) {
+  return new Date(d).toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+function fmtTime(d: Date) {
+  return new Date(d).toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (

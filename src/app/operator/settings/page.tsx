@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
+import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import {
   resolveTipPolicy,
   resolveShiftPolicy,
@@ -30,9 +31,16 @@ export default async function SettingsPage() {
       taxId: true,
       dianResolution: true,
       reservationsEnabled: true,
+      enabledPaymentMethods: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
+
+  // La tarjeta de datáfonos solo aplica si el comercio tiene activado el
+  // cobro por datáfono Kushki (kushki_card_terminal).
+  const showDatafonos = resolveEnabledPaymentMethods(
+    tenant.enabledPaymentMethods,
+  ).includes("kushki_card_terminal");
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -148,28 +156,30 @@ export default async function SettingsPage() {
           badge={t("badgeTranslate")}
           tint="bg-paper text-op-muted"
         />
-        {/* Siempre visible: el comercio entra acá para dar de alta su
-            primer datáfono y cargar el serial (Cloud Terminal API). */}
-        <SettingCard
-          href="/operator/settings/datafonos"
-          title={t("cardDevicesTitle")}
-          subtitle={t("cardDevicesSubtitle")}
-          badge={
-            deviceCount === 0
-              ? t("badgeDevicesEmpty")
-              : deviceAssigned === 0
-                ? t("badgeDevicesUnassigned", { count: deviceCount })
-                : t("badgeDevicesAssigned", {
-                    assigned: deviceAssigned,
-                    total: deviceCount,
-                  })
-          }
-          tint={
-            deviceAssigned > 0
-              ? "bg-ok/15 text-ok"
-              : "bg-paper text-op-muted"
-          }
-        />
+        {/* Solo cuando el comercio cobra por datáfono Kushki: ahí entra a
+            dar de alta su datáfono y cargar el serial (Cloud Terminal API). */}
+        {showDatafonos && (
+          <SettingCard
+            href="/operator/settings/datafonos"
+            title={t("cardDevicesTitle")}
+            subtitle={t("cardDevicesSubtitle")}
+            badge={
+              deviceCount === 0
+                ? t("badgeDevicesEmpty")
+                : deviceAssigned === 0
+                  ? t("badgeDevicesUnassigned", { count: deviceCount })
+                  : t("badgeDevicesAssigned", {
+                      assigned: deviceAssigned,
+                      total: deviceCount,
+                    })
+            }
+            tint={
+              deviceAssigned > 0
+                ? "bg-ok/15 text-ok"
+                : "bg-paper text-op-muted"
+            }
+          />
+        )}
         <SettingCard
           href="/operator/settings/staff-policies"
           title={t("cardPoliciesTitle")}

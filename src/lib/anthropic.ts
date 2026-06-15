@@ -68,6 +68,12 @@ const ExtractedCategory = z.object({
   label: z.string().min(1).max(80),
   kind: CategoryKind,
   sortOrder: z.number().int().min(0).max(100).default(0),
+  // Subcategoría (un solo nivel): slug de la categoría PADRE cuando la carta
+  // tiene estructura de dos niveles (ej. vinos: "Vino Tinto" → cepas; bebidas:
+  // "Gaseosas / Jugos"). null/omitido = categoría de nivel superior.
+  // `.optional()` (no `.default`) para que los demás importadores planos
+  // (Cluvi/Justo/Shopify) no tengan que setearlo.
+  parentSlug: z.string().max(60).nullable().optional(),
 });
 
 const MenuExtractionSchema = z.object({
@@ -102,7 +108,8 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "slug": "para-empezar",            // kebab-case, sin tildes, sin espacios
       "label": "Para empezar",            // como aparece en la carta o un nombre claro
       "kind": "starter" | "main" | "side" | "drink" | "dessert" | "other",
-      "sortOrder": 0                      // 0..N en el orden que aparecen
+      "sortOrder": 0,                     // 0..N en el orden que aparecen
+      "parentSlug": null                  // o el slug del grupo PADRE (un nivel)
     }
   ],
   "items": [
@@ -123,6 +130,7 @@ Reglas estrictas:
 - priceCents en CENTAVOS, multiplica por 100 el precio. "$25.000" -> 2500000.
 - Si no hay precio claro, omite el plato.
 - categorySlug debe coincidir con un slug en "categories". Crea categorías si la carta no las tiene explícitas — agrúpalas por sentido común (entradas, principales, postres, bebidas, etc.).
+- parentSlug (jerarquía, OPCIONAL — UN SOLO NIVEL): si la carta tiene grupos con subgrupos claros, crea UNA categoría por grupo (nivel superior, parentSlug null) y UNA por subgrupo con parentSlug = slug del grupo. Ejemplos: una carta de vinos con secciones "VINOS TINTOS / BLANCOS / ROSADOS / ESPUMANTES / CAVAS" y dentro cepas (Cabernet Sauvignon, Malbec, Carmenère, Chardonnay…) → crea "Vino Tinto" (parentSlug null) y "Cabernet Sauvignon" (parentSlug "vino-tinto"), etc.; o "Bebidas" con "Gaseosas / Jugos / Cervezas". Los items van SIEMPRE en la subcategoría (la hoja, p.ej. la cepa), nunca directo en el grupo padre. Una subcategoría NO puede tener su propia subcategoría. Si la carta es plana (sin subgrupos), deja parentSlug null en todas.
 - kind: starter (entradas), main (fuertes), side (acompañamientos), drink (bebidas), dessert (postres), other.
 ${tagsRule}
 - description: tal cual aparece, o null si no hay.

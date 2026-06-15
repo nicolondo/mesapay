@@ -37,6 +37,19 @@ type ExtractedCategory = {
   label: string;
   kind: CategoryKind;
   sortOrder: number;
+  // Subcategoría: slug de la categoría padre (color → cepa). null = top-level.
+  parentSlug?: string | null;
+};
+
+// Choice de categoría para los selectores del review. `parentLabel` permite
+// mostrar la jerarquía ("Vino Tinto › Cabernet Sauvignon").
+type CategoryChoice = {
+  key: string;
+  slug: string;
+  label: string;
+  kind: CategoryKind;
+  isNew: boolean;
+  parentLabel: string | null;
 };
 
 // Per-item local state — extends the extracted shape with edit + selection.
@@ -114,16 +127,23 @@ export function MenuImportClient({
   // Build the union of categories the user can pick from when reviewing.
   // Existing categories (real DB rows) keep their id; extracted ones are
   // referenced by slug and created on confirm.
-  const allCategoryChoices = useMemo(() => {
-    const fromExisting = initialCategories.map((c) => ({
+  const allCategoryChoices = useMemo<CategoryChoice[]>(() => {
+    // Etiqueta por slug para resolver el nombre del padre (color) de una
+    // subcategoría (cepa), venga de un extraído o de una categoría existente.
+    const labelBySlug = new Map<string, string>();
+    for (const c of initialCategories) labelBySlug.set(c.slug, c.label);
+    for (const c of extractedCats) labelBySlug.set(c.slug, c.label);
+
+    const fromExisting: CategoryChoice[] = initialCategories.map((c) => ({
       key: `existing:${c.id}`,
       label: c.label,
       slug: c.slug,
       kind: c.kind,
       isNew: false,
+      parentLabel: null,
     }));
     const existingSlugs = new Set(initialCategories.map((c) => c.slug));
-    const fromExtracted = extractedCats
+    const fromExtracted: CategoryChoice[] = extractedCats
       .filter((c) => !existingSlugs.has(c.slug))
       .map((c) => ({
         key: `new:${c.slug}`,
@@ -131,6 +151,7 @@ export function MenuImportClient({
         slug: c.slug,
         kind: c.kind,
         isNew: true,
+        parentLabel: c.parentSlug ? (labelBySlug.get(c.parentSlug) ?? null) : null,
       }));
     return [...fromExisting, ...fromExtracted];
   }, [initialCategories, extractedCats, tr]);
@@ -376,6 +397,26 @@ export function MenuImportClient({
       setBusyConfirm(false);
       return;
     }
+    // Lista explícita de categorías NUEVAS a crear, incluyendo las PADRE
+    // (color) que no tienen platos propios — así el server puede armar la
+    // jerarquía color → cepa. Solo incluimos las que usan los items
+    // seleccionados, más sus padres.
+    const existingSlugs = new Set(initialCategories.map((c) => c.slug));
+    const usedSlugs = new Set(selected.map((i) => i.categorySlug));
+    const neededSlugs = new Set(usedSlugs);
+    for (const slug of usedSlugs) {
+      const ec = extractedCats.find((c) => c.slug === slug);
+      if (ec?.parentSlug) neededSlugs.add(ec.parentSlug);
+    }
+    const newCategories = extractedCats
+      .filter((c) => neededSlugs.has(c.slug) && !existingSlugs.has(c.slug))
+      .map((c) => ({
+        slug: c.slug,
+        label: c.label,
+        kind: c.kind,
+        parentSlug: c.parentSlug ?? null,
+      }));
+
     const payload = {
       items: selected.map((it) => {
         const existing = initialCategories.find(
@@ -401,6 +442,8 @@ export function MenuImportClient({
           photoUrl: it.photoUrl ?? null,
         };
       }),
+      // Categorías nuevas con su jerarquía (incl. padres sin platos).
+      ...(newCategories.length > 0 ? { categories: newCategories } : {}),
       // Tell the server which menu the new categories should land in.
       // Server validates ownership; when omitted it falls back to Carta.
       ...(targetMenuId ? { menuId: targetMenuId } : {}),
@@ -772,13 +815,7 @@ function ReviewState({
   sourceUrl: string | null;
   items: EditableItem[];
   extractionNotes: string | null;
-  categoryChoices: {
-    key: string;
-    slug: string;
-    label: string;
-    kind: CategoryKind;
-    isNew: boolean;
-  }[];
+  categoryChoices: CategoryChoice[];
   menuTags: MenuTag[];
   onPatch: (id: string, patch: Partial<EditableItem>) => void;
   onToggleTag: (id: string, tag: Tag) => void;
@@ -847,7 +884,12 @@ function ReviewState({
                 <div className="flex items-baseline justify-between mb-2">
                   <div>
                     <div className="font-display text-xl">
-                      {cat?.label ?? catSlug}
+                      {cat?.parentLabel
+                        ? tr("categoryWithParent", {
+                            parent: cat.parentLabel,
+                            child: cat.label,
+                          })
+                        : (cat?.label ?? catSlug)}
                     </div>
                     {cat?.isNew && (
                       <span className="inline-block mt-0.5 text-[10px] font-mono tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
@@ -979,13 +1021,7 @@ function ReviewCard({
   onToggleTag,
 }: {
   item: EditableItem;
-  categoryChoices: {
-    key: string;
-    slug: string;
-    label: string;
-    kind: CategoryKind;
-    isNew: boolean;
-  }[];
+  categoryChoices: CategoryChoice[];
   menuTags: MenuTag[];
   onPatch: (patch: Partial<EditableItem>) => void;
   onToggleTag: (t: Tag) => void;
@@ -1075,7 +1111,12 @@ function ReviewCard({
               >
                 {categoryChoices.map((c) => (
                   <option key={c.key} value={c.slug}>
-                    {c.label}
+                    {c.parentLabel
+                      ? tr("categoryWithParent", {
+                          parent: c.parentLabel,
+                          child: c.label,
+                        })
+                      : c.label}
                   </option>
                 ))}
               </select>

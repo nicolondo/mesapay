@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
 import { KitchenBoard } from "../kitchen/KitchenBoard";
+import { BarSubTabs } from "./BarSubTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -81,21 +81,11 @@ export default async function BarPage({
   return (
     <>
       {hasSubStations && (
-        <div className="px-6 pt-4 pb-0 flex gap-2 overflow-x-auto scroll-hide">
-          <BarTab
-            href="/operator/bar"
-            label={t("barTabAll")}
-            active={!activeSub}
-          />
-          {tenant.barSubStations.map((s) => (
-            <BarTab
-              key={s}
-              href={`/operator/bar?sub=${encodeURIComponent(s)}`}
-              label={s}
-              active={activeSub === s}
-            />
-          ))}
-        </div>
+        <BarSubTabs
+          subStations={tenant.barSubStations}
+          activeSub={activeSub}
+          allLabel={t("barTabAll")}
+        />
       )}
       <KitchenBoard
         mode="bar"
@@ -142,29 +132,5 @@ export default async function BarPage({
       }))}
       />
     </>
-  );
-}
-
-function BarTab({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={
-        "shrink-0 px-4 h-9 inline-flex items-center rounded-full text-sm font-medium border transition-colors " +
-        (active
-          ? "bg-ink text-bone border-ink"
-          : "bg-op-surface text-op-text border-op-border hover:bg-op-bg")
-      }
-    >
-      {label}
-    </Link>
   );
 }

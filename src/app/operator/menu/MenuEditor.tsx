@@ -860,7 +860,7 @@ function NewItemForm({
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          maxLength={240}
+          maxLength={500}
           rows={2}
           className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
         />
@@ -1129,7 +1129,7 @@ function ItemSheet({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={240}
+              maxLength={500}
               rows={3}
               className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
             />

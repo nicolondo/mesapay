@@ -872,7 +872,14 @@ export function MenuClient({
 
   return (
     <div
-      className="flex flex-1 flex-col pb-36"
+      className={
+        "flex flex-1 flex-col " +
+        // pb-36 reserva espacio para el dock fijo (carrito / orden activa) y
+        // que el último plato no quede tapado. Sin dock ese padding es puro
+        // vacío al final de la carta — en móvil se sentía como "sigue bajando
+        // y queda en blanco". Lo dejamos chico cuando no hay dock.
+        (cart.length > 0 || activeOrder ? "pb-36" : "pb-12")
+      }
       style={
         // CSS var consumida por los modales del menú (cart sheet,
         // item sheet, etc.) para reservar espacio inferior cuando

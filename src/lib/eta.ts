@@ -25,6 +25,13 @@ export type EtaResult = {
 };
 
 const MIN_REMAINING_MS = 60 * 1000;
+// Una ronda que lleva más de esto en placed/in_kitchen sin avanzar a "ready"
+// se considera ABANDONADA: pedido olvidado, ronda colgada o dato de prueba
+// que nunca se sirvió. NO la metemos en la fila FIFO — si no, su tiempo de
+// prep se sumaba al estimado de TODOS los pedidos nuevos e inflaba el ETA a
+// valores absurdos (p.ej. ~227 min por una pila de rondas zombi). Sigue
+// recibiendo un ETA propio (su prep, sin la cola) para no romper la UI.
+const STALE_PENDING_MS = 90 * 60 * 1000;
 
 function roundPrepMs(r: EtaRoundInput): number {
   if (r.itemPrepMinutes.length === 0) return 0;
@@ -58,6 +65,16 @@ export function computeRoundEtas(
       remainingMs = Math.max(prepMs - elapsed, MIN_REMAINING_MS);
     } else {
       remainingMs = prepMs;
+    }
+    // Ronda colgada (lleva demasiado en la fila sin avanzar): le damos un ETA
+    // propio (su prep, desde ahora) pero NO la acumulamos — así no empuja el
+    // estimado del resto de la cola.
+    if (now.getTime() - r.placedAt.getTime() > STALE_PENDING_MS) {
+      out.set(r.id, {
+        etaAt: new Date(now.getTime() + remainingMs),
+        minutesFromNow: Math.max(1, Math.ceil(remainingMs / 60_000)),
+      });
+      continue;
     }
     const etaAt = new Date(now.getTime() + accMs + remainingMs);
     out.set(r.id, {

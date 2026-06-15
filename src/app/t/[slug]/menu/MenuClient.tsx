@@ -2109,6 +2109,12 @@ function ItemSheet({
         {/* Barrita de agarre (solo móvil): indica que se puede deslizar
             hacia abajo para cerrar. Flota sobre la foto, no bloquea taps. */}
         <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-10 rounded-full bg-white/75 shadow pointer-events-none" />
+        {/* min-h fuerza que el sheet sea scrolleable (>= pantalla + 1px) para
+            que overscroll-contain corte el swipe-abajo y NO arrastre la lista,
+            también en platos sin foto (contenido corto, antes no scrolleaba).
+            min-h solo suma espacio si el contenido es más bajo que la pantalla,
+            así los platos altos (con foto) no cambian. */}
+        <div className="min-h-[calc(100dvh_+_1px)] md:min-h-0">
         {item.photoUrl && (
           <div
             // Square photo, full width. On a 390px phone that's a
@@ -2248,6 +2254,7 @@ function ItemSheet({
               {t("addWithPrice", { price: fmtCOP(unitPrice * qty) })}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

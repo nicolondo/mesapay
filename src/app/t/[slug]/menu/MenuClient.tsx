@@ -180,6 +180,40 @@ function fuzzyNormalize(s: string): string {
   return out;
 }
 
+/**
+ * Bloquea el scroll del fondo mientras un overlay (sheet) está abierto.
+ * position:fixed es la única forma confiable en iOS — overflow:hidden en
+ * el body no frena el scroll táctil. Preserva la posición y la restaura al
+ * cerrar. La carta scrollea en la ventana, así que bloqueamos el body.
+ */
+function useLockBodyScroll(locked: boolean) {
+  useEffect(() => {
+    if (!locked || typeof document === "undefined") return;
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.width = prev.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [locked]);
+}
+
 export function MenuClient({
   tenant,
   tableId,
@@ -269,6 +303,8 @@ export function MenuClient({
   );
   // Popup con la lista vertical de todas las categorías (atajo de salto).
   const [showCatList, setShowCatList] = useState(false);
+  // Mientras el popup de categorías está abierto, el fondo no scrollea.
+  useLockBodyScroll(showCatList);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openItem, setOpenItem] = useState<MenuItem | null>(null);
   const [showActiveSheet, setShowActiveSheet] = useState(false);
@@ -1118,7 +1154,10 @@ export function MenuClient({
                   onClick={() => {
                     setActiveCat(c.slug);
                     setShowCatList(false);
-                    scrollToCategory(c.slug);
+                    // Diferir el salto: el lock de scroll restaura la
+                    // posición al cerrar; corremos scrollToCategory después,
+                    // ya con el body desbloqueado, para que no se pise.
+                    setTimeout(() => scrollToCategory(c.slug), 60);
                   }}
                   className={
                     "w-full text-left px-4 h-12 rounded-xl flex items-center text-[15px] transition-colors " +

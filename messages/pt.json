@@ -1478,7 +1478,14 @@
     "kindSide": "Acompanhamento",
     "kindDrink": "Bebida",
     "kindDessert": "Sobremesa",
-    "kindOther": "Outro"
+    "kindOther": "Outro",
+    "bulkCartaTitle": "Mudar um cardápio inteiro de estação",
+    "bulkCartaHint": "Manda todas as categorias de um cardápio para a mesma estação num toque.",
+    "bulkCartaApply": "Aplicar",
+    "bulkCartaApplying": "Aplicando…",
+    "bulkCartaDone": "Pronto: {count} categorias atualizadas.",
+    "bulkCartaNoChange": "Esse cardápio já está todo nessa estação.",
+    "bulkCartaError": "Não foi possível atualizar. Tente de novo."
   },
   "opReservasCfg": {
     "noRestaurant": "Sem restaurante.",

@@ -21,7 +21,10 @@ type Category = {
   kind: CategoryKind;
   prepStation: Station;
   barSubStation: string | null;
+  menuId: string | null;
 };
+
+type MenuRef = { id: string; label: string };
 
 // Logic-only list of station values; labels/help resolved via i18n in
 // render (the constant can't call the translation hook).
@@ -34,6 +37,7 @@ export function StationsClient({
   barPrintEnabled: initialBarPrint,
   printPaperWidthMm: initialPaperWidth,
   categories: initialCategories,
+  menus,
 }: {
   hasBar: boolean;
   barSubStations: string[];
@@ -41,6 +45,7 @@ export function StationsClient({
   barPrintEnabled: boolean;
   printPaperWidthMm: 58 | 80;
   categories: Category[];
+  menus: MenuRef[];
 }) {
   const t = useTranslations("opStations");
   const router = useRouter();
@@ -57,6 +62,57 @@ export function StationsClient({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savingBar, setSavingBar] = useState(false);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
+  // Cambio masivo de estación por carta.
+  const defaultMenuId = menus[0]?.id ?? "";
+  const [bulkMenuId, setBulkMenuId] = useState<string>(defaultMenuId);
+  const [bulkStation, setBulkStation] = useState<Station>("bar");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+
+  // Categorías con null en menuId pertenecen al menú default (la primera
+  // carta). Lo resolvemos para agrupar/filtrar por carta de forma estable.
+  function effMenuId(c: Category): string {
+    return c.menuId ?? defaultMenuId;
+  }
+
+  async function applyCartaToStation() {
+    const targets = categories.filter(
+      (c) => effMenuId(c) === bulkMenuId && c.prepStation !== bulkStation,
+    );
+    if (targets.length === 0) {
+      setBulkMsg(t("bulkCartaNoChange"));
+      return;
+    }
+    setBulkBusy(true);
+    setBulkMsg(null);
+    // Optimista: cambiamos toda la carta localmente de una.
+    setCategories((prev) =>
+      prev.map((c) =>
+        effMenuId(c) === bulkMenuId ? { ...c, prepStation: bulkStation } : c,
+      ),
+    );
+    try {
+      await Promise.all(
+        targets.map((c) =>
+          fetch("/api/operator/settings/stations", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              kind: "categoryStation",
+              categoryId: c.id,
+              prepStation: bulkStation,
+            }),
+          }),
+        ),
+      );
+      setBulkMsg(t("bulkCartaDone", { count: targets.length }));
+    } catch {
+      setCategories(initialCategories);
+      setBulkMsg(t("bulkCartaError"));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function saveSubStations() {
     const list = subStationsInput
@@ -478,6 +534,52 @@ export function StationsClient({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Cambio masivo por carta */}
+      {categories.length > 0 && (
+        <div className="bg-op-surface border border-op-border rounded-2xl p-4 mb-4">
+          <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
+            {t("bulkCartaTitle")}
+          </div>
+          <p className="text-xs text-op-muted mb-3">{t("bulkCartaHint")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {menus.length > 1 && (
+              <select
+                value={bulkMenuId}
+                onChange={(e) => setBulkMenuId(e.target.value)}
+                className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              >
+                {menus.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span className="text-sm text-op-muted">{"→"}</span>
+            <select
+              value={bulkStation}
+              onChange={(e) => setBulkStation(e.target.value as Station)}
+              className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+            >
+              {STATION_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {stationLabel(s, t)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={applyCartaToStation}
+              disabled={bulkBusy}
+              className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            >
+              {bulkBusy ? t("bulkCartaApplying") : t("bulkCartaApply")}
+            </button>
+          </div>
+          {bulkMsg && <div className="mt-2 text-xs text-ok">{bulkMsg}</div>}
         </div>
       )}
 

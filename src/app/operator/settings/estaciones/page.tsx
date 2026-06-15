@@ -10,7 +10,7 @@ export default async function StationsSettingsPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
-  const [tenant, categories] = await Promise.all([
+  const [tenant, categories, menus] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -32,7 +32,13 @@ export default async function StationsSettingsPage() {
         kind: true,
         prepStation: true,
         barSubStation: true,
+        menuId: true,
       },
+    }),
+    db.menu.findMany({
+      where: { restaurantId },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, label: true },
     }),
   ]);
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -44,6 +50,7 @@ export default async function StationsSettingsPage() {
       kitchenPrintEnabled={tenant.kitchenPrintEnabled}
       barPrintEnabled={tenant.barPrintEnabled}
       printPaperWidthMm={tenant.printPaperWidthMm as 58 | 80}
+      menus={menus}
       categories={categories.map((c) => ({
         id: c.id,
         label: c.label,
@@ -51,6 +58,7 @@ export default async function StationsSettingsPage() {
         kind: c.kind,
         prepStation: c.prepStation,
         barSubStation: c.barSubStation,
+        menuId: c.menuId,
       }))}
     />
   );

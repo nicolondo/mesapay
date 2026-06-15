@@ -1805,7 +1805,8 @@
     "clearConfirmBody": "Isso vai apagar {count} pratos do cardápio. Pratos com pedidos registrados ficam ocultos, não são apagados. Esta ação não pode ser desfeita.",
     "clearConfirmCancel": "Cancelar",
     "clearConfirmConfirm": "Sim, limpar",
-    "clearing": "Limpando…"
+    "clearing": "Limpando…",
+    "errInvalidField": "Não foi possível salvar: verifique o campo “{field}” (pode estar muito longo ou vazio)."
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

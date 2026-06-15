@@ -980,8 +980,15 @@ function ItemSheet({
     });
     setBusy(false);
     if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? tr("errGeneric"));
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        field?: string | null;
+      };
+      setErr(
+        j.field
+          ? tr("errInvalidField", { field: j.field })
+          : (j.error ?? tr("errGeneric")),
+      );
       return;
     }
     // Hand the updated item back to the parent — they patch local

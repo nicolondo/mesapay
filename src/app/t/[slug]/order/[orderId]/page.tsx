@@ -384,9 +384,18 @@ export default async function OrderView({
               {t("pay")}
             </Link>
           </div>
+        ) : order.status === "cancelled" ? (
+          // Orden cancelada: el cliente puede volver a la carta y arrancar un
+          // pedido nuevo (no se reanuda la cancelada — el menú la excluye).
+          <Link
+            href={`/t/${slug}/menu?table=${order.table.qrToken}`}
+            className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
+          >
+            {t("orderAgain")}
+          </Link>
         ) : (
           <span className="h-11 px-4 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] inline-flex items-center text-sm font-medium">
-            {order.status === "paid" ? t("paidPill") : t("cancelledPill")}
+            {t("paidPill")}
           </span>
         )}
       </div>

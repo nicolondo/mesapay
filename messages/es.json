@@ -174,7 +174,8 @@
     "ratingPlaceholder": "Cuéntanos algo (opcional)",
     "sending": "Enviando…",
     "send": "Enviar",
-    "starAria": "{n, plural, one {# estrella} other {# estrellas}}"
+    "starAria": "{n, plural, one {# estrella} other {# estrellas}}",
+    "orderAgain": "Volver a la carta"
   },
   "pay": {
     "pay": "Pagar",

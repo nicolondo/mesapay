@@ -174,7 +174,8 @@
     "ratingPlaceholder": "Conte algo (opcional)",
     "sending": "Enviando…",
     "send": "Enviar",
-    "starAria": "{n, plural, one {# estrela} other {# estrelas}}"
+    "starAria": "{n, plural, one {# estrela} other {# estrelas}}",
+    "orderAgain": "Voltar ao cardápio"
   },
   "pay": {
     "pay": "Pagar",

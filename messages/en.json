@@ -1842,7 +1842,11 @@
     "errReadSite": "We couldn't read the site.",
     "errNetworkSite": "Network failure while querying the site.",
     "errSelectAtLeastOne": "Select at least one dish to import.",
-    "errImport": "We couldn't import the dishes."
+    "errImport": "We couldn't import the dishes.",
+    "doneTitle": "{count} dishes imported!",
+    "doneBody": "They’re now in your menu. You can adjust prices, photos and categories anytime.",
+    "viewMyMenu": "View my menu",
+    "importAnother": "Import another"
   },
   "opReports": {
     "noRestaurant": "No restaurant.",

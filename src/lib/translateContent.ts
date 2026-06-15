@@ -114,65 +114,82 @@ export async function getContentTranslations(
 
   try {
     const targetLang = LANG_NAME[locale as Exclude<Locale, "es">];
-    const payload = missing.map((m, i) => ({ i, text: m.text }));
-    const msg = await anthropic.messages.create({
-      // Mismo modelo que el resto de la app (env default Haiku 4.5). El alias
-      // viejo "claude-3-5-haiku-latest" quedó retirado → las traducciones
-      // fallaban en silencio y caían al español (0 filas en Translation).
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content:
-            `You are translating a restaurant menu from Spanish to ${targetLang}. ` +
-            `Translate EVERY "text" naturally and concisely for a menu — INCLUDING ` +
-            `section/category names and descriptive phrases (e.g. "Fuertes" → main ` +
-            `dishes, "Manos a la Tortilla", "Mexicano al Centro"). ` +
-            `Keep a word unchanged ONLY if it is a true proper name (a brand, a ` +
-            `person, the restaurant name) or an international dish loanword that is ` +
-            `identical in ${targetLang} (e.g. Taco, Quesadilla, Burrito, Molcajete, ` +
-            `Malbec, Tartar, WOK). Never leave a descriptive Spanish phrase ` +
-            `untranslated. Do NOT add notes or explanations. ` +
-            `Return ONLY a JSON array of {"i": number, "t": string}, no prose.\n\n` +
-            JSON.stringify(payload),
-        },
-      ],
-    });
-    const raw = msg.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-    const json = raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1);
-    const translated: { i: number; t: string }[] = JSON.parse(json);
+    const prompt =
+      `You are translating a restaurant menu from Spanish to ${targetLang}. ` +
+      `Translate EVERY "text" naturally and concisely for a menu — INCLUDING ` +
+      `section/category names and descriptive phrases (e.g. "Fuertes" → main ` +
+      `dishes, "Manos a la Tortilla", "Mexicano al Centro"). ` +
+      `Keep a word unchanged ONLY if it is a true proper name (a brand, a ` +
+      `person, the restaurant name) or an international dish loanword that is ` +
+      `identical in ${targetLang} (e.g. Taco, Quesadilla, Burrito, Molcajete, ` +
+      `Malbec, Tartar, WOK). Never leave a descriptive Spanish phrase ` +
+      `untranslated. You MUST return one entry for EVERY input index. ` +
+      `Do NOT add notes or explanations. ` +
+      `Return ONLY a JSON array of {"i": number, "t": string}, no prose.\n\n`;
+
+    // Llama a la IA con un lote y devuelve el array {i,t} parseado (o []).
+    async function callAI(
+      batch: TranslatableItem[],
+    ): Promise<{ i: number; t: string }[]> {
+      const payload = batch.map((m, i) => ({ i, text: m.text }));
+      const msg = await anthropic!.messages.create({
+        // Mismo modelo que el resto de la app (env default Haiku 4.5).
+        model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+        // 8192 para que un lote de descripciones largas no se trunque (antes
+        // 4096 cortaba el array y la cola quedaba sin traducir).
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt + JSON.stringify(payload) }],
+      });
+      const raw = msg.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+      try {
+        const json = raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1);
+        const arr = JSON.parse(json);
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
 
     const writes = [];
-    for (const { i, t } of translated) {
-      const it = missing[i];
-      if (!it || typeof t !== "string" || !t.trim()) continue;
-      out.set(key(it), t);
-      writes.push(
-        db.translation.upsert({
-          where: {
-            entityType_entityId_field_locale: {
+    // El modelo a veces corta el array antes de tiempo y deja ítems sin
+    // traducir. Reintentamos SOLO los que faltan (hasta 2 pasadas); lo que
+    // igual no vuelva queda en el original (cache-fallback).
+    let pending = missing;
+    for (let attempt = 0; attempt < 2 && pending.length > 0; attempt++) {
+      const translated = await callAI(pending);
+      const got = new Set<number>();
+      for (const { i, t } of translated) {
+        const it = pending[i];
+        if (!it || typeof t !== "string" || !t.trim()) continue;
+        got.add(i);
+        out.set(key(it), t);
+        writes.push(
+          db.translation.upsert({
+            where: {
+              entityType_entityId_field_locale: {
+                entityType: it.entityType,
+                entityId: it.entityId,
+                field: it.field,
+                locale,
+              },
+            },
+            create: {
               entityType: it.entityType,
               entityId: it.entityId,
               field: it.field,
               locale,
+              value: t,
+              source: "machine",
+              sourceHash: hash(it.text),
             },
-          },
-          create: {
-            entityType: it.entityType,
-            entityId: it.entityId,
-            field: it.field,
-            locale,
-            value: t,
-            source: "machine",
-            sourceHash: hash(it.text),
-          },
-          update: { value: t, source: "machine", sourceHash: hash(it.text) },
-        }),
-      );
+            update: { value: t, source: "machine", sourceHash: hash(it.text) },
+          }),
+        );
+      }
+      pending = pending.filter((_, idx) => !got.has(idx));
     }
     if (writes.length) await db.$transaction(writes);
   } catch (err) {

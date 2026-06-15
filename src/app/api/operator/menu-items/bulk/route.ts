@@ -69,7 +69,15 @@ export async function POST(req: Request) {
   if (data.action === "generate-descriptions") {
     const items = await db.menuItem.findMany({
       where: { id: { in: data.itemIds }, restaurantId },
-      select: { id: true, name: true, category: { select: { label: true } } },
+      select: {
+        id: true,
+        name: true,
+        // Categoría (hoja) + su padre (grupo/color) para darle a la IA el
+        // contexto de subcategoría además de la categoría.
+        category: {
+          select: { label: true, parent: { select: { label: true } } },
+        },
+      },
     });
     try {
       const map = await generateMenuDescriptions(
@@ -77,6 +85,7 @@ export async function POST(req: Request) {
           id: it.id,
           name: it.name,
           categoryLabel: it.category?.label ?? "",
+          parentCategoryLabel: it.category?.parent?.label ?? null,
         })),
       );
       // Devolvemos una propuesta por plato (vacía si el modelo no la generó).

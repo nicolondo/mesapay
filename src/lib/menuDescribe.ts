@@ -17,7 +17,12 @@ import { env } from "@/lib/env";
 export type DescribeInput = {
   id: string;
   name: string;
+  // Categoría del producto (la hoja: p.ej. la cepa "Cabernet Sauvignon").
   categoryLabel: string;
+  // Categoría PADRE/grupo si el producto está en una subcategoría (p.ej. el
+  // color "Vino Tinto"). Da contexto a la IA: una "Cabernet Sauvignon" bajo
+  // "Vino Tinto" es un vino, no un plato.
+  parentCategoryLabel?: string | null;
 };
 
 const CHUNK = 25;
@@ -31,13 +36,16 @@ export async function generateMenuDescriptions(
   const c = getClient();
 
   const prompt =
-    `Sos un copywriter de menús de restaurante. Para CADA plato te paso su ` +
-    `nombre y su categoría. Escribí una descripción breve, apetitosa y en ` +
-    `ESPAÑOL (máximo 180 caracteres, sin punto final obligatorio). Reglas: ` +
-    `no inventes ingredientes ni preparaciones que no estén implícitos en el ` +
-    `nombre; no repitas el nombre tal cual; nada de emojis ni comillas. ` +
-    `Devolvé SOLO un arreglo JSON de {"i": number, "t": string}, con UNA ` +
-    `entrada por CADA índice de entrada.\n\n`;
+    `Sos un copywriter de menús de restaurante. Para CADA ítem te paso su ` +
+    `nombre, su categoría y, si aplica, el grupo (categoría principal) al que ` +
+    `pertenece. USÁ AMBOS para entender qué es: por ejemplo "Cabernet ` +
+    `Sauvignon" dentro del grupo "Vino Tinto" es un VINO (describilo como vino: ` +
+    `cuerpo, notas, con qué marida), no como un plato. Escribí una descripción ` +
+    `breve, apetitosa y en ESPAÑOL (máximo 180 caracteres, sin punto final ` +
+    `obligatorio). Reglas: no inventes datos que no estén implícitos en el ` +
+    `nombre/categoría/grupo; no repitas el nombre tal cual; nada de emojis ni ` +
+    `comillas. Devolvé SOLO un arreglo JSON de {"i": number, "t": string}, ` +
+    `con UNA entrada por CADA índice de entrada.\n\n`;
 
   async function callAI(
     batch: DescribeInput[],
@@ -46,6 +54,8 @@ export async function generateMenuDescriptions(
       i,
       name: m.name,
       category: m.categoryLabel,
+      // Solo cuando el ítem está en una subcategoría (tiene grupo padre).
+      ...(m.parentCategoryLabel ? { group: m.parentCategoryLabel } : {}),
     }));
     const msg = await c.messages.create({
       model: env.ANTHROPIC_MODEL,

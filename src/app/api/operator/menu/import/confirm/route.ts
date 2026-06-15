@@ -47,11 +47,33 @@ const itemSchema = z.object({
     .optional(),
 });
 
+const categoryKindEnum = z.enum([
+  "starter",
+  "main",
+  "side",
+  "drink",
+  "dessert",
+  "other",
+]);
+
+const newCategorySchema = z.object({
+  slug: z.string().trim().min(1).max(60),
+  label: z.string().trim().min(1).max(80),
+  kind: categoryKindEnum,
+  // slug del padre (color) para subcategorías (cepas). null = top-level.
+  parentSlug: z.string().trim().min(1).max(60).nullable().optional(),
+});
+
 const schema = z.object({
   // Las cartas de bares grandes (con su lista de licores) pasan de 200
   // platos — son-y-melona tiene 223. Subimos el tope; el operador revisa
   // cada ítem en pantalla antes de confirmar.
   items: z.array(itemSchema).min(1).max(1000),
+  // Lista explícita de categorías NUEVAS a crear, incluyendo las PADRE
+  // (color) que no tienen platos propios. Permite armar la jerarquía
+  // color → cepa del import de vinos. Opcional: si falta, las categorías se
+  // infieren de los items (plano, comportamiento histórico).
+  categories: z.array(newCategorySchema).max(500).optional(),
   // Optional target menu (e.g. "Vinos") for any *new* categories the
   // import creates. Existing categories matched by slug keep their
   // current menu. Omitted → default menu (Carta).
@@ -90,15 +112,32 @@ export async function POST(req: Request) {
   }
 
   // Collect distinct "new category" slugs so we create each only once.
-  const newCategoriesBySlug = new Map<
-    string,
-    { label: string; kind: "starter" | "main" | "side" | "drink" | "dessert" | "other" }
-  >();
+  type NewCatInfo = {
+    label: string;
+    kind: "starter" | "main" | "side" | "drink" | "dessert" | "other";
+    parentSlug: string | null;
+  };
+  const newCategoriesBySlug = new Map<string, NewCatInfo>();
+  // Fuente autoritativa: la lista explícita (incluye las PADRE sin platos y
+  // el parentSlug de cada cepa).
+  for (const c of parsed.data.categories ?? []) {
+    newCategoriesBySlug.set(c.slug, {
+      label: c.label,
+      kind: c.kind,
+      parentSlug: c.parentSlug ?? null,
+    });
+  }
+  // Completar con las categorías que aparezcan en items y no vinieran en la
+  // lista (back-compat con imports planos sin `categories`).
   for (const it of parsed.data.items) {
-    if (it.categoryRef.kind === "new") {
+    if (
+      it.categoryRef.kind === "new" &&
+      !newCategoriesBySlug.has(it.categoryRef.slug)
+    ) {
       newCategoriesBySlug.set(it.categoryRef.slug, {
         label: it.categoryRef.label,
         kind: it.categoryRef.categoryKind,
+        parentSlug: null,
       });
     }
   }
@@ -138,17 +177,31 @@ export async function POST(req: Request) {
     // we can reuse them if a "new" entry collides.
     const existing = await tx.category.findMany({
       where: { restaurantId },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, parentId: true },
     });
-    for (const c of existing) slugToId.set(c.slug, c.id);
+    const existingParentId = new Map<string, string | null>();
+    for (const c of existing) {
+      slugToId.set(c.slug, c.id);
+      existingParentId.set(c.slug, c.parentId);
+    }
 
-    for (const [slug, info] of newCategoriesBySlug) {
-      if (slugToId.has(slug)) continue;
-      // Smart default: when an imported menu has a drink category, send
-      // it to the bar station out of the gate. Operators with no
-      // bartender (hasBar=false) will see them fall through to the
-      // waiter view, so this is safe even before they configure it.
-      const prepStation = info.kind === "drink" ? "bar" : "kitchen";
+    // ¿El slug es categoría top-level? (existente sin padre, o nueva sin
+    // parentSlug). Garantiza UN SOLO nivel: una cepa no puede colgar de otra
+    // cepa.
+    const isTopLevel = (slug: string): boolean => {
+      if (existingParentId.has(slug)) return existingParentId.get(slug) === null;
+      const nc = newCategoriesBySlug.get(slug);
+      return !!nc && nc.parentSlug == null;
+    };
+
+    // Smart default: when an imported menu has a drink category, send it to
+    // the bar station out of the gate. Operators with no bartender
+    // (hasBar=false) see them fall through to the waiter view, so it's safe.
+    const createCat = async (
+      slug: string,
+      info: NewCatInfo,
+      parentId: string | null,
+    ) => {
       const created = await tx.category.create({
         data: {
           restaurantId,
@@ -156,11 +209,27 @@ export async function POST(req: Request) {
           slug,
           label: info.label,
           kind: info.kind,
-          prepStation,
+          prepStation: info.kind === "drink" ? "bar" : "kitchen",
           sortOrder: nextSort++,
+          parentId,
         },
       });
       slugToId.set(slug, created.id);
+    };
+
+    // Pasada 1: categorías top-level (sin parentSlug) — incluye los colores.
+    for (const [slug, info] of newCategoriesBySlug) {
+      if (slugToId.has(slug) || info.parentSlug) continue;
+      await createCat(slug, info, null);
+    }
+    // Pasada 2: subcategorías (cepas). El padre debe ser top-level; si no, la
+    // dejamos al nivel superior (un solo nivel de anidamiento).
+    for (const [slug, info] of newCategoriesBySlug) {
+      if (slugToId.has(slug) || !info.parentSlug) continue;
+      const parentId = isTopLevel(info.parentSlug)
+        ? (slugToId.get(info.parentSlug) ?? null)
+        : null;
+      await createCat(slug, info, parentId);
     }
 
     let nextItemSort = (

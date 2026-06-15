@@ -869,7 +869,8 @@
     "deliveredToTable": "Entregado a Mesa {number}",
     "stationBar": "Barra",
     "stationCounter": "Refri",
-    "badgeMainsTogether": "Fuertes juntos"
+    "badgeMainsTogether": "Fuertes juntos",
+    "stillCooking": "Aún en preparación ({count})"
   },
   "opPayments": {
     "noRestaurant": "Sin restaurante.",

@@ -1125,7 +1125,17 @@
     "shareLinksTitle": "Links para compartilhar",
     "shareLinksHint": "Mesmo link codificado no QR de cada mesa. Útil se quiser enviá-lo por chat ou colá-lo em outro lugar.",
     "copied": "Copiado",
-    "copy": "Copiar"
+    "copy": "Copiar",
+    "bulkToggleSingle": "Uma",
+    "bulkToggleMany": "Várias",
+    "bulkFrom": "De",
+    "bulkTo": "Até",
+    "bulkSkipNote": "Pula as que já existem",
+    "bulkCreate": "Criar mesas",
+    "bulkCreating": "Criando…",
+    "bulkInvalidRange": "O intervalo não é válido.",
+    "bulkTooMany": "No máximo 200 mesas por vez.",
+    "bulkResult": "Pronto: {created} criadas, {skipped} já existiam."
   },
   "opSettings": {
     "tip_shared": "Compartilhadas",

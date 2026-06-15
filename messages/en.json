@@ -1125,7 +1125,17 @@
     "shareLinksTitle": "Links to share",
     "shareLinksHint": "Same link encoded in each table's QR. Handy if you want to send it by chat or paste it elsewhere.",
     "copied": "Copied",
-    "copy": "Copy"
+    "copy": "Copy",
+    "bulkToggleSingle": "One",
+    "bulkToggleMany": "Several",
+    "bulkFrom": "From",
+    "bulkTo": "To",
+    "bulkSkipNote": "Skips numbers that already exist",
+    "bulkCreate": "Create tables",
+    "bulkCreating": "Creating…",
+    "bulkInvalidRange": "The range isn’t valid.",
+    "bulkTooMany": "Up to 200 tables at a time.",
+    "bulkResult": "Done: {created} created, {skipped} already existed."
   },
   "opSettings": {
     "tip_shared": "Shared",

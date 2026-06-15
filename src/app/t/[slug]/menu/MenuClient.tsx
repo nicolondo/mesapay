@@ -27,7 +27,14 @@ type Tenant = {
   // MESAPAY (resuelto via /lib/branding.ts).
   logoUrl?: string | null;
 };
-type Category = { id: string; slug: string; label: string; menuId: string };
+type Category = {
+  id: string;
+  slug: string;
+  label: string;
+  menuId: string;
+  // Subcategoría: id de la categoría padre (top-level) o null. Un solo nivel.
+  parentId: string | null;
+};
 type MenuTab = {
   id: string;
   slug: string;
@@ -294,10 +301,24 @@ export function MenuClient({
   // Categories shown in the chip strip + sections, scoped to the
   // active menu when tabs are visible. When there's a single menu, the
   // filter is a no-op so legacy single-menu restaurants render the
-  // same as before.
-  const scopedCategories = showMenuTabs
-    ? categories.filter((c) => c.menuId === activeMenuId)
-    : categories;
+  // same as before. Orden jerárquico: cada categoría top-level seguida de
+  // sus subcategorías (las cepas debajo del color), para que las secciones y
+  // los chips salgan en ese orden.
+  const scopedCategories = useMemo(() => {
+    const base = showMenuTabs
+      ? categories.filter((c) => c.menuId === activeMenuId)
+      : categories;
+    const ordered: Category[] = [];
+    for (const top of base.filter((c) => !c.parentId)) {
+      ordered.push(top);
+      for (const child of base.filter((c) => c.parentId === top.id)) {
+        ordered.push(child);
+      }
+    }
+    const seen = new Set(ordered.map((c) => c.id));
+    for (const c of base) if (!seen.has(c.id)) ordered.push(c);
+    return ordered;
+  }, [categories, showMenuTabs, activeMenuId]);
   const [activeCat, setActiveCat] = useState<string>(
     scopedCategories[0]?.slug ?? "",
   );
@@ -1167,10 +1188,16 @@ export function MenuClient({
                     setTimeout(() => scrollToCategory(c.slug), 60);
                   }}
                   className={
-                    "w-full text-left px-4 h-12 rounded-xl flex items-center text-[15px] transition-colors " +
+                    "w-full text-left h-12 rounded-xl flex items-center text-[15px] transition-colors " +
+                    // Subcategorías indentadas para mostrar la jerarquía
+                    // (color → cepa) en el salto rápido.
+                    (c.parentId ? "pl-9 pr-4 text-[14px]" : "px-4") +
+                    " " +
                     (activeCat === c.slug
                       ? "bg-ink text-bone"
-                      : "text-ink hover:bg-ink/5")
+                      : c.parentId
+                        ? "text-ink-3 hover:bg-ink/5"
+                        : "text-ink hover:bg-ink/5")
                   }
                 >
                   {c.label}
@@ -1195,16 +1222,36 @@ export function MenuClient({
         )}
         {scopedCategories.map((c) => {
           const rows = itemsByCat.get(c.id) ?? [];
-          if (!rows.length) return null;
+          const isChild = !!c.parentId;
+          // Una categoría padre (p.ej. "Vino Tinto") con subcategorías que
+          // tienen platos se muestra como encabezado de grupo aunque ella
+          // misma no tenga platos directos.
+          const childItemCount = scopedCategories
+            .filter((x) => x.parentId === c.id)
+            .reduce((s, ch) => s + (itemsByCat.get(ch.id)?.length ?? 0), 0);
+          const isGroupHeader = !isChild && childItemCount > 0;
+          if (!rows.length && !isGroupHeader) return null;
           return (
-            <section key={c.id} id={`cat-${c.slug}`} className="scroll-mt-28">
+            <section
+              key={c.id}
+              id={`cat-${c.slug}`}
+              className={"scroll-mt-28 " + (isChild ? "ml-3 sm:ml-4" : "")}
+            >
               <div className="flex items-baseline justify-between mb-3">
-                <div className="font-display text-2xl">{c.label}</div>
-                <div className="font-mono text-[10px] tracking-[0.1em] text-muted">
-                  {String(rows.length).padStart(2, "0")}
+                <div
+                  className={
+                    "font-display " + (isChild ? "text-lg text-ink-3" : "text-2xl")
+                  }
+                >
+                  {c.label}
                 </div>
+                {rows.length > 0 && (
+                  <div className="font-mono text-[10px] tracking-[0.1em] text-muted">
+                    {String(rows.length).padStart(2, "0")}
+                  </div>
+                )}
               </div>
-              {layout === "list" && (
+              {layout === "list" && rows.length > 0 && (
                 <ul className="divide-y divide-hairline border-t border-hairline">
                   {rows.map((it) => (
                     <ItemRowList
@@ -1217,7 +1264,7 @@ export function MenuClient({
                   ))}
                 </ul>
               )}
-              {layout === "grid" && (
+              {layout === "grid" && rows.length > 0 && (
                 <div className="grid grid-cols-2 gap-4 gap-y-6">
                   {rows.map((it) => (
                     <ItemCardGrid
@@ -1229,7 +1276,7 @@ export function MenuClient({
                   ))}
                 </div>
               )}
-              {layout === "editorial" && (
+              {layout === "editorial" && rows.length > 0 && (
                 <div className="flex flex-col gap-6">
                   {rows.map((it, i) => (
                     <ItemCardEditorial

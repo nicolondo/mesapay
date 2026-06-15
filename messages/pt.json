@@ -1834,7 +1834,11 @@
     "deleteSheetConfirm": "Excluir {count}",
     "bulkErr": "Não foi possível concluir a ação. Tente de novo.",
     "selectDishAria": "Selecionar prato",
-    "selectCategoryAria": "Selecionar todos da categoria"
+    "selectCategoryAria": "Selecionar todos da categoria",
+    "subcategoryOfLabel": "Subcat. de",
+    "subcategoryNone": "— nenhuma (principal) —",
+    "subcategoryOfTitle": "Tornar esta categoria subcategoria de outra",
+    "errChangeParent": "Não foi possível alterar a subcategoria."
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

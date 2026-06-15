@@ -14,6 +14,9 @@ const createSchema = z.object({
   // (Carta) when omitted so the legacy "+ Nueva categoría" button on
   // the menu editor keeps working without changes.
   menuId: z.string().min(1).optional(),
+  // Optional: crear la categoría ya anidada bajo otra (subcategoría). El
+  // padre debe ser top-level del mismo restaurante; la hija hereda su menú.
+  parentId: z.string().min(1).optional(),
 });
 
 function slugify(s: string) {
@@ -61,11 +64,27 @@ export async function POST(req: Request) {
     orderBy: { sortOrder: "desc" },
   });
 
-  // Resolve target menu. If caller didn't pick one, drop the new
-  // category into the restaurant's default menu (Carta). Defensive
-  // check: a menuId from the request must belong to this restaurant.
+  // Si se crea como subcategoría, validamos el padre (top-level, mismo
+  // restaurante) y la hija hereda su menú — ignoramos cualquier menuId del
+  // request, el padre manda.
+  let parentId: string | null = null;
   let menuId = parsed.data.menuId ?? null;
-  if (menuId) {
+  if (parsed.data.parentId) {
+    const parent = await db.category.findUnique({
+      where: { id: parsed.data.parentId },
+      select: { restaurantId: true, parentId: true, menuId: true },
+    });
+    if (!parent || parent.restaurantId !== restaurantId) {
+      return NextResponse.json({ error: "invalid_parent" }, { status: 400 });
+    }
+    if (parent.parentId) {
+      return NextResponse.json({ error: "parent_is_child" }, { status: 400 });
+    }
+    parentId = parsed.data.parentId;
+    menuId = parent.menuId;
+  } else if (menuId) {
+    // Resolve target menu. Defensive check: a menuId from the request must
+    // belong to this restaurant.
     const menu = await db.menu.findUnique({
       where: { id: menuId },
       select: { restaurantId: true },
@@ -74,6 +93,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_menu" }, { status: 400 });
     }
   } else {
+    // If caller didn't pick one, drop the new category into the
+    // restaurant's default menu (Carta).
     const fallback = await ensureDefaultMenu(restaurantId);
     menuId = fallback.id;
   }
@@ -82,6 +103,7 @@ export async function POST(req: Request) {
     data: {
       restaurantId,
       menuId,
+      parentId,
       label: parsed.data.label,
       slug,
       sortOrder: (last?.sortOrder ?? 0) + 10,

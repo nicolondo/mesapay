@@ -19,6 +19,9 @@ export type Cat = {
   kind: CategoryKind;
   prepStation: PrepStation;
   menuId: string;
+  // Subcategoría: id de la categoría padre (top-level) o null si es de nivel
+  // superior. Un solo nivel de anidamiento.
+  parentId: string | null;
 };
 
 export type MenuRef = { id: string; label: string; slug: string };

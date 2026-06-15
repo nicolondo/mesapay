@@ -1,56 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import type { MenuTag } from "@/lib/menuTags";
-
-type CategoryKind =
-  | "starter"
-  | "main"
-  | "side"
-  | "drink"
-  | "dessert"
-  | "other";
-type PrepStation = "kitchen" | "bar" | "counter";
-type Cat = {
-  id: string;
-  label: string;
-  slug: string;
-  kind: CategoryKind;
-  prepStation: PrepStation;
-  menuId: string;
-};
-type MenuRef = { id: string; label: string; slug: string };
+import { BulkActionBar } from "./BulkActions";
+import type {
+  Cat,
+  CategoryKind,
+  Item,
+  MenuRef,
+  ModifierDef,
+  ModOpt,
+  PrepStation,
+} from "./types";
 
 // CategoryKind enum survives in the schema and the API, but the editor
 // only exposes the one distinction that drives product behaviour: is
 // this the category of platos fuertes (used by Fuertes-juntos mode)?
 // The other slugs (starter / side / drink / dessert) are accepted by
 // the API for historical reasons but no longer surfaced anywhere — the
-// editor only writes "main" or "other".
-
-type ModOpt = { label: string; priceDeltaCents?: number };
-type ModifierDef = {
-  id: string;
-  label: string;
-  type: "radio" | "checkbox";
-  opts: ModOpt[];
-  default?: string;
-};
-type Item = {
-  id: string;
-  categoryId: string;
-  name: string;
-  description: string;
-  priceCents: number;
-  available: boolean;
-  photoUrl: string | null;
-  tags: string[];
-  modifiers: ModifierDef[];
-  prepMinutes: number;
-  prepStation: PrepStation | null;
-};
+// editor only writes "main" or "other". The shared shapes live in ./types
+// so the bulk-actions UI uses the same definitions.
 
 // Tags are now configured per restaurant in /operator/settings/etiquetas
 // and arrive via the `menuTags` prop. The hardcoded list that used to
@@ -88,6 +59,64 @@ export function MenuEditor({
   // "Vaciar carta" — borra todos los platos para re-importar desde cero.
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
+
+  // Selección para acciones masivas (descripción IA, mover, estación, borrar).
+  // Guardamos ids; los platos reales se resuelven contra `items`.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
+  function toggleItemSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function setManySelected(ids: string[], value: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (value) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelectedIds(new Set<string>());
+  }
+
+  // Aplicación local de los resultados de cada acción masiva (sin recargar).
+  function applyBulkDescriptions(updates: { id: string; description: string }[]) {
+    const map = new Map(updates.map((u) => [u.id, u.description]));
+    setItems((prev) =>
+      prev.map((i) =>
+        map.has(i.id) ? { ...i, description: map.get(i.id) ?? i.description } : i,
+      ),
+    );
+  }
+  function applyBulkCategory(ids: string[], categoryId: string) {
+    const set = new Set(ids);
+    setItems((prev) =>
+      prev.map((i) => (set.has(i.id) ? { ...i, categoryId } : i)),
+    );
+  }
+  function applyBulkStation(ids: string[], prepStation: PrepStation | null) {
+    const set = new Set(ids);
+    setItems((prev) =>
+      prev.map((i) => (set.has(i.id) ? { ...i, prepStation } : i)),
+    );
+  }
+  function applyBulkDelete(deletedIds: string[], archivedIds: string[]) {
+    const del = new Set(deletedIds);
+    const arch = new Set(archivedIds);
+    setItems((prev) =>
+      prev
+        .filter((i) => !del.has(i.id))
+        .map((i) => (arch.has(i.id) ? { ...i, available: false } : i)),
+    );
+  }
 
   async function doClearMenu() {
     setClearBusy(true);
@@ -146,8 +175,24 @@ export function MenuEditor({
     ? categories.filter((c) => c.menuId === activeMenuId)
     : categories;
 
+  // Platos visibles en la pestaña activa — base de "seleccionar toda la carta"
+  // y de los platos que la barra de acciones masivas opera.
+  const visibleItems = visibleCategories.flatMap((c) => byCat.get(c.id) ?? []);
+  const visibleItemIds = visibleItems.map((i) => i.id);
+  const selectedItems = items.filter((i) => selectedIds.has(i.id));
+  const allVisibleSelected =
+    visibleItemIds.length > 0 &&
+    visibleItemIds.every((id) => selectedIds.has(id));
+
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
+    <div
+      className={
+        "p-6 max-w-5xl mx-auto w-full " +
+        // Espacio extra abajo para que la barra fija de acciones no tape los
+        // últimos platos.
+        (selectedIds.size > 0 ? "pb-28" : "")
+      }
+    >
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
         <div className="font-display text-3xl">{tr("title")}</div>
         <div className="flex items-center gap-2">
@@ -226,7 +271,12 @@ export function MenuEditor({
             return (
               <button
                 key={m.id}
-                onClick={() => setActiveMenuId(m.id)}
+                onClick={() => {
+                  setActiveMenuId(m.id);
+                  // La selección es por pestaña; al cambiar de carta la
+                  // limpiamos para no operar sobre platos que no se ven.
+                  clearSelection();
+                }}
                 className={
                   "h-9 px-4 rounded-full text-sm font-medium border " +
                   (active
@@ -282,10 +332,21 @@ export function MenuEditor({
           const rows = byCat.get(c.id) ?? [];
           return (
             <section key={c.id}>
-              <div className="flex items-center justify-between mb-3">
-                <CategoryHeader
-                  cat={c}
-                  menus={menus}
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CategorySelectCheckbox
+                    rows={rows}
+                    selectedIds={selectedIds}
+                    onToggleAll={(value) =>
+                      setManySelected(
+                        rows.map((r) => r.id),
+                        value,
+                      )
+                    }
+                  />
+                  <CategoryHeader
+                    cat={c}
+                    menus={menus}
                   // El toggle "plato fuerte" se muestra para TODA categoría,
                   // incluidas las de cartas no-default (vinos, cócteles).
                   // Antes se ocultaba ahí, lo que dejaba trabadas categorías
@@ -296,8 +357,9 @@ export function MenuEditor({
                   showKind
                   onPatch={(patch) => replaceCategory({ ...c, ...patch })}
                   onDeleted={() => removeCategory(c.id)}
-                />
-                <div className="flex items-center gap-3">
+                  />
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setAddingItemInCat(c.id)}
                     className="h-8 px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
@@ -331,9 +393,17 @@ export function MenuEditor({
                     key={it.id}
                     className={
                       "p-4 flex items-start gap-3 hover:bg-op-bg/50 " +
+                      (selectedIds.has(it.id) ? "bg-terracotta/5 " : "") +
                       (it.available ? "" : "opacity-60")
                     }
                   >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(it.id)}
+                      onChange={() => toggleItemSelected(it.id)}
+                      aria-label={tr("selectDishAria")}
+                      className="w-4 h-4 mt-1 shrink-0"
+                    />
                     <div
                       className="w-14 h-14 shrink-0 rounded-lg bg-op-bg bg-cover bg-center"
                       style={
@@ -399,7 +469,56 @@ export function MenuEditor({
           }}
         />
       )}
+
+      <BulkActionBar
+        selectedItems={selectedItems}
+        categories={categories}
+        visibleCount={visibleItemIds.length}
+        allVisibleSelected={allVisibleSelected}
+        onSelectAllVisible={() =>
+          setManySelected(visibleItemIds, !allVisibleSelected)
+        }
+        onClear={clearSelection}
+        onDescriptionsApplied={applyBulkDescriptions}
+        onCategoryApplied={applyBulkCategory}
+        onStationApplied={applyBulkStation}
+        onDeleted={applyBulkDelete}
+      />
     </div>
+  );
+}
+
+function CategorySelectCheckbox({
+  rows,
+  selectedIds,
+  onToggleAll,
+}: {
+  rows: Item[];
+  selectedIds: Set<string>;
+  onToggleAll: (value: boolean) => void;
+}) {
+  const tr = useTranslations("opMenuEditor");
+  const ref = useRef<HTMLInputElement>(null);
+  const total = rows.length;
+  const selected = rows.filter((r) => selectedIds.has(r.id)).length;
+  const allSelected = total > 0 && selected === total;
+  const someSelected = selected > 0 && selected < total;
+  // El estado "indeterminado" (algunos, no todos) es una propiedad del DOM,
+  // no del HTML, así que se setea por ref.
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = someSelected;
+  }, [someSelected]);
+  if (total === 0) return null;
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={allSelected}
+      onChange={(e) => onToggleAll(e.target.checked)}
+      title={tr("selectCategoryAria")}
+      aria-label={tr("selectCategoryAria")}
+      className="w-4 h-4 shrink-0"
+    />
   );
 }
 

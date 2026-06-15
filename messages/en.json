@@ -174,7 +174,8 @@
     "ratingPlaceholder": "Tell us something (optional)",
     "sending": "Sending…",
     "send": "Send",
-    "starAria": "{n, plural, one {# star} other {# stars}}"
+    "starAria": "{n, plural, one {# star} other {# stars}}",
+    "orderAgain": "Back to the menu"
   },
   "pay": {
     "pay": "Pay",

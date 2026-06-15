@@ -35,9 +35,15 @@ export default async function KitchenPage() {
     orderBy: { placedAt: "asc" },
   });
 
+  // Hora del servidor al renderizar — el tablero la usa para corregir el
+  // reloj del dispositivo (server component, captura intencional del tiempo).
+  // eslint-disable-next-line react-hooks/purity
+  const serverNowMs = Date.now();
+
   return (
     <KitchenBoard
       tenantSlug={tenant!.slug}
+      serverNow={serverNowMs}
       serviceMode={tenant!.serviceMode}
       rounds={rounds.map((r) => ({
         id: r.id,

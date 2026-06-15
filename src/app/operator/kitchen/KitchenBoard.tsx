@@ -193,22 +193,20 @@ export function KitchenBoard({
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
 
-  // Bar countdown + auto-listo. Llevamos UN solo reloj para todo el tablero
-  // (un único interval, no uno por tarjeta) para que la cuenta regresiva
-  // visible y el auto-avance NUNCA se desincronicen. `nowMs` se corrige
-  // contra el reloj del servidor (serverNow): así un dispositivo con la hora
-  // mal no congela el contador ni bloquea el auto-PATCH a "listo" — antes se
-  // comparaba el timestamp del server contra el reloj local crudo. Solo
-  // corre en el bar; cada segundo fuerza un re-render que mueve el contador.
+  // Reloj ÚNICO del tablero (un solo interval, no uno por tarjeta), corregido
+  // contra el reloj del servidor (serverNow). De acá toman la hora la cuenta
+  // regresiva del bar, la antigüedad ("hace N min"), el pase y la ETA. Sin la
+  // corrección, un dispositivo con la hora atrasada comparaba un timestamp del
+  // server contra su reloj local crudo y mostraba mal: una ronda vieja como
+  // "<1m" o la cuenta regresiva congelada. Corre en AMBOS tableros.
   // Inicial = hora del servidor al renderizar (mismo valor en SSR y cliente,
   // sin desfase de hidratación). Luego el interval la actualiza cada segundo.
   const [nowMs, setNowMs] = useState(() => serverNow ?? 0);
   useEffect(() => {
-    if (boardMode !== "bar") return;
     const offset = serverNow != null ? serverNow - Date.now() : 0;
     const t = setInterval(() => setNowMs(Date.now() + offset), 1000);
     return () => clearInterval(t);
-  }, [boardMode, serverNow]);
+  }, [serverNow]);
 
   // Track which items we've already fired an auto-advance for, so SSE
   // round-trips don't trigger a second PATCH while we're waiting for
@@ -361,12 +359,12 @@ export function KitchenBoard({
                           </span>
                         )}
                         {r.order.orderType === "pickup" && r.order.readyEta && !isReadyCol && (
-                          <EtaBadge readyEta={r.order.readyEta} />
+                          <EtaBadge readyEta={r.order.readyEta} nowMs={nowMs} />
                         )}
                         {isReadyCol && r.readyAt ? (
-                          <PassTimer readyAt={r.readyAt} />
+                          <PassTimer readyAt={r.readyAt} nowMs={nowMs} />
                         ) : (
-                          <AgeTimer placedAt={r.placedAt} />
+                          <AgeTimer placedAt={r.placedAt} nowMs={nowMs} />
                         )}
                       </div>
                     </div>
@@ -768,14 +766,9 @@ function CircleIcon() {
   );
 }
 
-function AgeTimer({ placedAt }: { placedAt: string }) {
+function AgeTimer({ placedAt, nowMs }: { placedAt: string; nowMs: number }) {
   const tr = useTranslations("kitchen");
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(t);
-  }, []);
-  const mins = Math.floor((now - new Date(placedAt).getTime()) / 60000);
+  const mins = Math.floor((nowMs - new Date(placedAt).getTime()) / 60000);
   const tint =
     mins >= 15 ? "text-danger" : mins >= 8 ? "text-[#C98A2E]" : "text-op-muted";
   return (
@@ -785,16 +778,11 @@ function AgeTimer({ placedAt }: { placedAt: string }) {
   );
 }
 
-function EtaBadge({ readyEta }: { readyEta: string }) {
+function EtaBadge({ readyEta, nowMs }: { readyEta: string; nowMs: number }) {
   // Shows the customer-promised ETA so the cook can pace against it.
   // Red once we're past it — that's the signal to push the order.
   const tr = useTranslations("kitchen");
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(t);
-  }, []);
-  const mins = Math.round((new Date(readyEta).getTime() - now) / 60000);
+  const mins = Math.round((new Date(readyEta).getTime() - nowMs) / 60000);
   const late = mins < 0;
   const tint = late
     ? "text-danger border-danger/40 bg-danger/10"
@@ -991,14 +979,9 @@ function CancelControl({
   );
 }
 
-function PassTimer({ readyAt }: { readyAt: string }) {
+function PassTimer({ readyAt, nowMs }: { readyAt: string; nowMs: number }) {
   const tr = useTranslations("kitchen");
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(t);
-  }, []);
-  const mins = Math.floor((now - new Date(readyAt).getTime()) / 60000);
+  const mins = Math.floor((nowMs - new Date(readyAt).getTime()) / 60000);
   const tint =
     mins >= 5 ? "text-danger" : mins >= 2 ? "text-[#C98A2E]" : "text-ok";
   return (

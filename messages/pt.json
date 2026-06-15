@@ -1842,7 +1842,11 @@
     "errReadSite": "Não conseguimos ler o site.",
     "errNetworkSite": "Falha de rede ao consultar o site.",
     "errSelectAtLeastOne": "Selecione pelo menos um prato para importar.",
-    "errImport": "Não conseguimos importar os pratos."
+    "errImport": "Não conseguimos importar os pratos.",
+    "doneTitle": "{count} pratos importados!",
+    "doneBody": "Já estão no seu cardápio. Você pode ajustar preços, fotos e categorias quando quiser.",
+    "viewMyMenu": "Ver meu cardápio",
+    "importAnother": "Importar outra"
   },
   "opReports": {
     "noRestaurant": "Sem restaurante.",

@@ -156,7 +156,9 @@ function htmlToText(html: string | null | undefined): string | null {
       return Number.isFinite(code) ? String.fromCharCode(code) : "";
     })
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    // El endpoint de confirmación limita la descripción a 500 chars.
+    .slice(0, 500);
   return s || null;
 }
 

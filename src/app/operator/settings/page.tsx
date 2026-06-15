@@ -42,6 +42,10 @@ export default async function SettingsPage() {
     tenant.enabledPaymentMethods,
   ).includes("kushki_card_terminal");
 
+  // Wallet y dispersiones solo aplican cuando Pagos está "Listo para cobrar"
+  // (onboarding Kushki activo): antes de eso no hay saldo que mover.
+  const showWallet = tenant.kushkiOnboardingStatus === "active";
+
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
     where: {
@@ -127,21 +131,15 @@ export default async function SettingsPage() {
           badge={t(status.statusKey)}
           tint={status.tint}
         />
-        <SettingCard
-          href="/operator/wallet"
-          title={t("cardWalletTitle")}
-          subtitle={t("cardWalletSubtitle")}
-          badge={
-            tenant.kushkiMerchantId
-              ? t("badgeWalletAvailable")
-              : t("badgeWalletBlocked")
-          }
-          tint={
-            tenant.kushkiMerchantId
-              ? "bg-ok/15 text-ok"
-              : "bg-op-bg text-op-muted"
-          }
-        />
+        {showWallet && (
+          <SettingCard
+            href="/operator/wallet"
+            title={t("cardWalletTitle")}
+            subtitle={t("cardWalletSubtitle")}
+            badge={t("badgeWalletAvailable")}
+            tint="bg-ok/15 text-ok"
+          />
+        )}
         <SettingCard
           href="/operator/settings/etiquetas"
           title={t("cardTagsTitle")}

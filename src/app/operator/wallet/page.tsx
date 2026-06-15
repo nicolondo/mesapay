@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -52,6 +53,13 @@ export default async function WalletPage() {
     },
   });
   if (!tenant) return <div className="p-6">{t("notFound")}</div>;
+
+  // Wallet y dispersiones solo aplican cuando Pagos está "Listo para cobrar"
+  // (onboarding Kushki activo). Antes de eso no hay saldo que mover → volver
+  // a ajustes (también evita verla entrando por URL directa).
+  if (tenant.kushkiOnboardingStatus !== "active") {
+    redirect("/operator/settings");
+  }
 
   const movements = await db.walletMovement.findMany({
     where: { restaurantId },

@@ -1839,7 +1839,22 @@
     "subcategoryNone": "— ninguna (principal) —",
     "subcategoryOfTitle": "Hacer esta categoría subcategoría de otra",
     "errChangeParent": "No se pudo cambiar la subcategoría.",
-    "categoryWithParent": "{parent} › {child}"
+    "categoryWithParent": "{parent} › {child}",
+    "bulkCopyModifiers": "Copiar modificadores",
+    "modsCopyTitle": "Copiar modificadores",
+    "modsCopyIntro": "Elegí de qué producto copiar los modificadores. Se aplicarán a los {count} productos seleccionados.",
+    "modsCopySearch": "Buscar producto…",
+    "modsCopyNoSource": "Ningún producto tiene modificadores para copiar todavía.",
+    "modsCopyNoResults": "Sin resultados.",
+    "modsCopySourceMeta": "{category} · {count} grupos",
+    "modsCopyPreviewTitle": "Se copiarán",
+    "modsCopyGroupMeta": "{type} · {count} opciones",
+    "modsCopyModeReplace": "Reemplazar",
+    "modsCopyModeMerge": "Combinar",
+    "modsCopyModeReplaceHint": "Reemplaza los modificadores que el producto ya tenga.",
+    "modsCopyModeMergeHint": "Agrega los que falten, sin duplicar por etiqueta.",
+    "modsCopyApply": "Aplicar a {count} productos",
+    "modsCopyApplying": "Aplicando…"
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

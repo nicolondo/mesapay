@@ -98,6 +98,33 @@ export function normalizeModifiers(raw: unknown): ModifierDef[] {
 }
 
 /**
+ * Reassign fresh, unique ids to a list of modifier groups. Used when COPYING
+ * a product's modifiers onto OTHER products (bulk action): every item must
+ * own its own modifier ids — OrderItem.modifierSelections is keyed by them —
+ * and when merging, the appended groups must not collide with the
+ * destination's existing ids (`existingIds`).
+ *
+ * Only the group `id` changes. `default` references an option LABEL (not the
+ * group id), so it is preserved untouched.
+ */
+export function rekeyModifiers(
+  mods: ModifierDef[],
+  existingIds?: Iterable<string>,
+): ModifierDef[] {
+  const used = new Set<string>(existingIds ?? []);
+  let counter = 0;
+  return mods.map((m) => {
+    let id: string;
+    do {
+      counter += 1;
+      id = `mod-${counter}`;
+    } while (used.has(id));
+    used.add(id);
+    return { ...m, id };
+  });
+}
+
+/**
  * Convert a selection record into a flat array of selected option
  * labels in `modifier order`. Used by the kitchen / bar / serve
  * boards to render the chosen options inline.

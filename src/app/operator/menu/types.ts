@@ -26,7 +26,11 @@ export type Cat = {
 
 export type MenuRef = { id: string; label: string; slug: string };
 
-export type ModOpt = { label: string; priceDeltaCents?: number };
+export type ModOpt = {
+  label: string;
+  priceDeltaCents?: number;
+  description?: string;
+};
 
 export type ModifierDef = {
   id: string;

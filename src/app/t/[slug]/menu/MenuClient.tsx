@@ -41,7 +41,7 @@ type MenuTab = {
   label: string;
   description: string | null;
 };
-type ModOpt = { label: string; priceDeltaCents?: number };
+type ModOpt = { label: string; priceDeltaCents?: number; description?: string };
 type ModifierDef = {
   id: string;
   label: string;
@@ -2421,37 +2421,86 @@ function ItemSheet({
                   {m.type === "checkbox" ? t("modifierMany") : t("modifierOne")}
                 </div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {m.opts.map((opt) => {
-                  const active = isOptSelected(m.id, opt.label);
-                  const delta = opt.priceDeltaCents ?? 0;
-                  return (
-                    <button
-                      key={opt.label}
-                      onClick={() => toggleOpt(m, opt.label)}
-                      className={
-                        "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
-                        (active
-                          ? "bg-ink text-bone border-ink"
-                          : "bg-ivory text-ink border-hairline")
-                      }
-                    >
-                      <span>{opt.label}</span>
-                      {delta !== 0 && (
-                        <span
-                          className={
-                            "font-mono text-[11px] " +
-                            (active ? "text-bone/80" : "text-muted")
-                          }
-                        >
-                          {delta > 0 ? "+" : "−"}
-                          {fmtCOP(Math.abs(delta))}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              {m.opts.some((o) => o.description) ? (
+                // Cuando alguna opción tiene descripción, lista vertical:
+                // etiqueta + precio arriba y la descripción debajo (no entra
+                // en un chip compacto).
+                <div className="flex flex-col gap-2">
+                  {m.opts.map((opt) => {
+                    const active = isOptSelected(m.id, opt.label);
+                    const delta = opt.priceDeltaCents ?? 0;
+                    return (
+                      <button
+                        key={opt.label}
+                        onClick={() => toggleOpt(m, opt.label)}
+                        className={
+                          "w-full text-left px-3 py-2 rounded-xl text-sm border " +
+                          (active
+                            ? "bg-ink text-bone border-ink"
+                            : "bg-ivory text-ink border-hairline")
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{opt.label}</span>
+                          {delta !== 0 && (
+                            <span
+                              className={
+                                "font-mono text-[11px] shrink-0 " +
+                                (active ? "text-bone/80" : "text-muted")
+                              }
+                            >
+                              {delta > 0 ? "+" : "−"}
+                              {fmtCOP(Math.abs(delta))}
+                            </span>
+                          )}
+                        </div>
+                        {opt.description && (
+                          <div
+                            className={
+                              "text-xs mt-0.5 leading-snug " +
+                              (active ? "text-bone/80" : "text-muted")
+                            }
+                          >
+                            {opt.description}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex gap-2 flex-wrap">
+                  {m.opts.map((opt) => {
+                    const active = isOptSelected(m.id, opt.label);
+                    const delta = opt.priceDeltaCents ?? 0;
+                    return (
+                      <button
+                        key={opt.label}
+                        onClick={() => toggleOpt(m, opt.label)}
+                        className={
+                          "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
+                          (active
+                            ? "bg-ink text-bone border-ink"
+                            : "bg-ivory text-ink border-hairline")
+                        }
+                      >
+                        <span>{opt.label}</span>
+                        {delta !== 0 && (
+                          <span
+                            className={
+                              "font-mono text-[11px] " +
+                              (active ? "text-bone/80" : "text-muted")
+                            }
+                          >
+                            {delta > 0 ? "+" : "−"}
+                            {fmtCOP(Math.abs(delta))}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
 

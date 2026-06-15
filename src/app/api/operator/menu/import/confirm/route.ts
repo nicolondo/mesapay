@@ -8,7 +8,10 @@ import { ensureDefaultMenu } from "@/lib/menus";
 const itemSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).nullable(),
-  priceCents: z.number().int().min(0).max(100_000_000),
+  // Tope alto: las cartas reales (importadas de Cluvi/Justo/Shopify)
+  // incluyen botellas de licor premium que superan el millón. Queda bien
+  // por debajo del máximo de un Int de Postgres (~2.147M).
+  priceCents: z.number().int().min(0).max(2_000_000_000),
   // Either an id of an existing category or a slug of a new one (we
   // create it before the item if the slug doesn't match an existing id).
   categoryRef: z.union([
@@ -39,7 +42,10 @@ const itemSchema = z.object({
 });
 
 const schema = z.object({
-  items: z.array(itemSchema).min(1).max(200),
+  // Las cartas de bares grandes (con su lista de licores) pasan de 200
+  // platos — son-y-melona tiene 223. Subimos el tope; el operador revisa
+  // cada ítem en pantalla antes de confirmar.
+  items: z.array(itemSchema).min(1).max(1000),
   // Optional target menu (e.g. "Vinos") for any *new* categories the
   // import creates. Existing categories matched by slug keep their
   // current menu. Omitted → default menu (Carta).

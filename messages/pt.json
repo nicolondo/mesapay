@@ -1781,7 +1781,13 @@
     "default": "padrão",
     "removeOption": "Remover {label}",
     "addOptionPlaceholder": "Adicionar opção e Enter",
-    "add": "Adicionar"
+    "add": "Adicionar",
+    "clearMenu": "Limpar cardápio",
+    "clearConfirmTitle": "Limpar o cardápio?",
+    "clearConfirmBody": "Isso vai apagar {count} pratos do cardápio. Pratos com pedidos registrados ficam ocultos, não são apagados. Esta ação não pode ser desfeita.",
+    "clearConfirmCancel": "Cancelar",
+    "clearConfirmConfirm": "Sim, limpar",
+    "clearing": "Limpando…"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

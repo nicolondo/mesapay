@@ -14,7 +14,7 @@
  */
 
 import type { MenuExtraction } from "@/lib/anthropic";
-import { downloadMenuImages } from "@/lib/menuImportImages";
+import { localizeImagesWithFallback } from "@/lib/menuImportImages";
 import { checkUrlSafe } from "@/lib/ssrf";
 
 type ShopifyVariant = {
@@ -276,13 +276,15 @@ export async function tryImportShopify(
     });
   }
 
-  // Download all photos in parallel (existing helper handles SSRF + caps).
-  const localUrls = await downloadMenuImages(
+  // Download all photos, cayendo a la URL de cdn.shopify.com si la
+  // descarga server-side falla. El menú del comensal pinta la foto como
+  // background-image, así que la URL remota sirve igual desde el navegador.
+  const localized = await localizeImagesWithFallback(
     itemsOut.map((it) => it.photoUrl),
     restaurantId,
   );
   for (let i = 0; i < itemsOut.length; i++) {
-    itemsOut[i].photoUrl = localUrls[i];
+    itemsOut[i].photoUrl = localized[i];
   }
 
   const categoriesOut = Array.from(categoriesBySlug.values()).sort(

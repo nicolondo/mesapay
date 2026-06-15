@@ -10,7 +10,8 @@ import { getRestaurantMenuTags } from "@/lib/menuTags";
 // land before we trim / re-encode; the model API call itself may
 // still 4xx if the PDF is too big once base64'd. Most cartas land
 // under 10 MB so this only matters for the edge case.
-const MAX_BYTES = 45 * 1024 * 1024;
+// Anthropic limita PDFs a 32 MB; más que eso el modelo lo rechaza igual.
+const MAX_BYTES = 32 * 1024 * 1024;
 const ALLOWED_MIMES = new Set([
   "application/pdf",
   "image/jpeg",

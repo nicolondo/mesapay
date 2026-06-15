@@ -103,8 +103,13 @@ function kindFromName(
   name: string,
 ): "starter" | "main" | "side" | "drink" | "dessert" | "other" {
   const s = name.toLowerCase();
+  // Palabras cortas/ambiguas: exigen límite de palabra para no matchear
+  // dentro de otra (ej. "ron" en "chicharRONes", "gin" en "imaGINar").
+  if (/\b(ron|gin|vino|licor|jugo|agua|t[eé]|mezcla|copa|sidra)s?\b/i.test(s))
+    return "drink";
+  // Términos largos: el substring es seguro.
   if (
-    /bebida|cerveza|vino|licor|whisky|whiskey|ron|vodka|tequila|mezcal|mezcla|ginebra|gin|aguardiente|c[oó]ctel|coctel|cocktail|mocktail|sangr[íi]a|sangrias|martini|jugo|gaseosa|aromat|caf[eé]|limonada|smoothie|mojito|aperitiv|digestiv|t[eé]\b|infusi|agua\b/i.test(
+    /bebida|cerveza|whisky|whiskey|vodka|tequila|mezcal|ginebra|aguardiente|c[oó]ctel|coctel|cocktail|mocktail|sangr[íi]a|martini|gaseosa|aromat|limonada|smoothie|mojito|aperitiv|digestiv|infusi|caf[eé]|champ|espumante|vermut|negroni|aperol/i.test(
       s,
     )
   )

@@ -1857,7 +1857,8 @@
     "doneTitle": "{count} dishes imported!",
     "doneBody": "They’re now in your menu. You can adjust prices, photos and categories anytime.",
     "viewMyMenu": "View my menu",
-    "importAnother": "Import another"
+    "importAnother": "Import another",
+    "errFileTooBig": "The file is {mb} MB. The max is 32 MB — compress the PDF or upload the pages as images (JPG/PNG)."
   },
   "opReports": {
     "noRestaurant": "No restaurant.",

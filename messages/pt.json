@@ -869,7 +869,8 @@
     "deliveredToTable": "Entregue à Mesa {number}",
     "stationBar": "Bar",
     "stationCounter": "Geladeira",
-    "badgeMainsTogether": "Pratos principais juntos"
+    "badgeMainsTogether": "Pratos principais juntos",
+    "stillCooking": "Ainda em preparo ({count})"
   },
   "opPayments": {
     "noRestaurant": "Sem restaurante.",

@@ -869,7 +869,8 @@
     "deliveredToTable": "Delivered to Table {number}",
     "stationBar": "Bar",
     "stationCounter": "Cooler",
-    "badgeMainsTogether": "Mains together"
+    "badgeMainsTogether": "Mains together",
+    "stillCooking": "Still being prepared ({count})"
   },
   "opPayments": {
     "noRestaurant": "No restaurant.",

@@ -1155,6 +1155,14 @@ function LooseItemsCard({
   const tr = useTranslations("serve");
   const isPickup = r.order.orderType === "pickup";
 
+  // Otros ítems del MISMO pedido/ronda que todavía no están listos (siguen en
+  // cocina/barra). Los mostramos como nota al pie para que el mesero sepa que
+  // falta algo de ese pedido y no se lleve sólo lo listo dando la mesa por
+  // completa.
+  const cooking = r.items.filter(
+    (i) => i.kitchenStatus !== "ready" && !i.servedAt,
+  );
+
   // Selection state. Default: all items checked.
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(items.map((i) => i.id)),
@@ -1313,6 +1321,31 @@ function LooseItemsCard({
                 : tr("delivered")
               : tr("deliverCount", { count: selectedItems.length })}
       </button>
+
+      {cooking.length > 0 && (
+        <div className="mt-3 pt-2 border-t border-dashed border-op-border/60">
+          <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
+            {tr("stillCooking", { count: cooking.length })}
+          </div>
+          <ul className="space-y-0.5">
+            {cooking.map((i) => (
+              <li
+                key={i.id}
+                className="text-xs text-op-muted flex items-start gap-1.5"
+              >
+                <span aria-hidden className="mt-px">
+                  {"⏳"}
+                </span>
+                <span>
+                  <span className="font-mono">{i.qty}</span>
+                  {"× "}
+                  {i.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </li>
   );
 }

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { MAX_TAGS_PER_ITEM, SLUG_REGEX } from "@/lib/menuTags";
+import { isAllowedMenuPhotoUrl } from "@/lib/menuPhotoUrl";
 
 // Accept both shapes for the option list:
 //   "Pollo"                            (legacy, no price delta)
@@ -40,15 +41,14 @@ const patchSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   categoryId: z.string().min(1).optional(),
   available: z.boolean().optional(),
-  // Photos always come from our own upload endpoint or from the menu-
-  // import downloader, which both write under /uploads/. We refused
-  // arbitrary URLs anyway (hotlinking risk + diner privacy), and the
-  // old .url() rule incorrectly rejected those local paths — making
-  // every edit on a photographed item fail.
+  // Foto: /uploads/... local O una URL de CDN confiable (Cluvi/Shopify/
+  // Justo) que deja el import cuando la descarga falla. Antes solo aceptaba
+  // /uploads/ → editar un plato importado con foto de CDN se rechazaba.
   photoUrl: z
     .string()
     .trim()
-    .startsWith("/uploads/")
+    .max(2000)
+    .refine(isAllowedMenuPhotoUrl, { message: "untrusted photo url" })
     .nullable()
     .optional(),
   // Tags are now a per-restaurant registry (see /operator/settings/etiquetas),

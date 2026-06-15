@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { ensureDefaultMenu } from "@/lib/menus";
+import { isAllowedMenuPhotoUrl } from "@/lib/menuPhotoUrl";
 
 const itemSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -41,30 +42,10 @@ const itemSchema = z.object({
   photoUrl: z
     .string()
     .max(2000)
-    .refine(isAllowedPhotoUrl, { message: "untrusted photo url" })
+    .refine(isAllowedMenuPhotoUrl, { message: "untrusted photo url" })
     .nullable()
     .optional(),
 });
-
-// Hosts de CDN de las plataformas desde las que importamos cartas. El
-// match por sufijo es seguro: solo la marca controla sus subdominios.
-function isAllowedPhotoUrl(u: string): boolean {
-  if (u.startsWith("/uploads/")) return true;
-  try {
-    const url = new URL(u);
-    if (url.protocol !== "https:") return false;
-    const h = url.hostname.toLowerCase();
-    return (
-      h === "images.cluvi.com" ||
-      h.endsWith(".getjusto.com") ||
-      h.endsWith(".shopify.com") ||
-      h.endsWith(".myshopify.com") ||
-      h.endsWith(".shopifycdn.com")
-    );
-  } catch {
-    return false;
-  }
-}
 
 const schema = z.object({
   // Las cartas de bares grandes (con su lista de licores) pasan de 200

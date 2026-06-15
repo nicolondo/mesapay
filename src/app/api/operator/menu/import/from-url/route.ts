@@ -9,6 +9,7 @@ import { checkUrlSafe } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
 import { tryImportJusto } from "@/lib/menuImportJusto";
+import { tryImportCluvi } from "@/lib/menuImportCluvi";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -64,6 +65,31 @@ export async function POST(req: Request) {
       { error: "unsafe_url", message: safe.reason },
       { status: 400 },
     );
+  }
+
+  // Fast path: Cluvi (cluvi.co) — muchísimos restaurantes colombianos
+  // tienen su carta ahí. La tienda es una SPA Vite cuyo menú vive en una
+  // API JSON pública (cached.cluvi.com/v1/menu/...). La leemos directo,
+  // mejor que correr AI sobre el shell vacío. El gate de host es
+  // instantáneo, así que para URLs que no son de Cluvi sale enseguida.
+  try {
+    const cluvi = await tryImportCluvi(url, restaurantId);
+    if (cluvi) {
+      const existingCategories = await db.category.findMany({
+        where: { restaurantId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, slug: true, label: true, kind: true },
+      });
+      return NextResponse.json({
+        ok: true,
+        extraction: cluvi.extraction,
+        existingCategories,
+        sourceUrl: cluvi.sourceUrl,
+        contentType: "application/cluvi",
+      });
+    }
+  } catch {
+    // Si el path de Cluvi falla por lo que sea, caemos al flujo genérico.
   }
 
   // Fast path: many Colombian restaurants run their carta on Shopify

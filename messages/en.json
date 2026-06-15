@@ -175,7 +175,9 @@
     "sending": "Sending…",
     "send": "Send",
     "starAria": "{n, plural, one {# star} other {# stars}}",
-    "orderAgain": "Back to the menu"
+    "orderAgain": "Back to the menu",
+    "etaMax": "+{min} min",
+    "etaHeadlineMax": "Your order is out in more than {min} min"
   },
   "pay": {
     "pay": "Pay",

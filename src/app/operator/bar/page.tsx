@@ -69,6 +69,10 @@ export default async function BarPage({
   });
 
   const hasSubStations = tenant.barSubStations.length > 0;
+  // Hora del servidor al renderizar — el bar la usa para corregir el reloj
+  // del dispositivo (server component, captura intencional del tiempo actual).
+  // eslint-disable-next-line react-hooks/purity
+  const serverNowMs = Date.now();
 
   return (
     <>
@@ -91,6 +95,7 @@ export default async function BarPage({
       )}
       <KitchenBoard
         mode="bar"
+        serverNow={serverNowMs}
         tenantSlug={tenant.slug}
         serviceMode={tenant.serviceMode}
         rounds={rounds.map((r) => ({

@@ -80,11 +80,16 @@ export function KitchenBoard({
   serviceMode,
   rounds,
   mode: boardMode = "kitchen",
+  serverNow,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
   rounds: Round[];
   mode?: BoardMode;
+  // Hora del servidor al renderizar (ms). El bar la usa para corregir el
+  // reloj del dispositivo y que la cuenta regresiva no se congele si la
+  // tablet tiene la hora desfasada.
+  serverNow?: number;
 }) {
   const tr = useTranslations("kitchen");
   const COLUMNS = boardMode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
@@ -188,44 +193,45 @@ export function KitchenBoard({
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
 
-  // Bar countdown: when an item is "in preparación" we count down from
-  // prepMinutesSnapshot. The bar UI shows the remaining time, and once
-  // it hits 0 we auto-PATCH the item to ready. The tick lives at 1s
-  // resolution so the visible countdown is smooth without hammering
-  // the server — actual advance calls fire at most once per item.
-  // We only run this effect when this board is the bar.
-  const [tick, setTick] = useState(0);
+  // Bar countdown + auto-listo. Llevamos UN solo reloj para todo el tablero
+  // (un único interval, no uno por tarjeta) para que la cuenta regresiva
+  // visible y el auto-avance NUNCA se desincronicen. `nowMs` se corrige
+  // contra el reloj del servidor (serverNow): así un dispositivo con la hora
+  // mal no congela el contador ni bloquea el auto-PATCH a "listo" — antes se
+  // comparaba el timestamp del server contra el reloj local crudo. Solo
+  // corre en el bar; cada segundo fuerza un re-render que mueve el contador.
+  // Inicial = hora del servidor al renderizar (mismo valor en SSR y cliente,
+  // sin desfase de hidratación). Luego el interval la actualiza cada segundo.
+  const [nowMs, setNowMs] = useState(() => serverNow ?? 0);
   useEffect(() => {
     if (boardMode !== "bar") return;
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    const offset = serverNow != null ? serverNow - Date.now() : 0;
+    const t = setInterval(() => setNowMs(Date.now() + offset), 1000);
     return () => clearInterval(t);
-  }, [boardMode]);
+  }, [boardMode, serverNow]);
 
   // Track which items we've already fired an auto-advance for, so SSE
   // round-trips don't trigger a second PATCH while we're waiting for
   // the server to confirm.
   const autoAdvancedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (boardMode !== "bar") return;
-    const now = Date.now();
+    if (boardMode !== "bar" || nowMs === 0) return;
     for (const r of rounds) {
       for (const i of r.items) {
         if (effectiveItemStatus(i) !== "in_kitchen") continue;
         if (!i.preparationStartedAt) continue;
         if (autoAdvancedRef.current.has(i.id)) continue;
         const startedMs = new Date(i.preparationStartedAt).getTime();
-        const elapsedMs = now - startedMs;
-        if (elapsedMs >= i.prepMinutesSnapshot * 60_000) {
+        if (nowMs - startedMs >= i.prepMinutesSnapshot * 60_000) {
           autoAdvancedRef.current.add(i.id);
           advanceItems([i.id], "ready");
         }
       }
     }
-    // We intentionally key on `tick` so this runs every second without
-    // listing every item; effectiveItemStatus reads from closures
-    // fresh each tick.
+    // Keyed on `nowMs` so this re-checks every second; effectiveItemStatus
+    // and advanceItems are read fresh from closures each run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick, rounds, boardMode]);
+  }, [nowMs, rounds, boardMode]);
 
   async function cancelRound(
     roundId: string,
@@ -398,6 +404,7 @@ export function KitchenBoard({
                                 boardMode === "bar" &&
                                 status === "in_kitchen"
                               }
+                              nowMs={nowMs}
                               onAdvance={() => {
                                 if (advancePending) return;
                                 const to = NEXT_STATUS[status];
@@ -486,6 +493,7 @@ function ItemRow({
   canServe,
   advancePending,
   showCountdown,
+  nowMs,
   onAdvance,
   onToggleServed,
 }: {
@@ -495,6 +503,7 @@ function ItemRow({
   canServe: boolean;
   advancePending: boolean;
   showCountdown: boolean;
+  nowMs: number;
   onAdvance: () => void;
   onToggleServed: () => void;
 }) {
@@ -577,6 +586,7 @@ function ItemRow({
           <Countdown
             startedAt={item.preparationStartedAt}
             prepMinutes={item.prepMinutesSnapshot}
+            nowMs={nowMs}
           />
         )}
       </div>
@@ -596,18 +606,18 @@ function ItemRow({
 function Countdown({
   startedAt,
   prepMinutes,
+  nowMs,
 }: {
   startedAt: string;
   prepMinutes: number;
+  // Reloj compartido del tablero (corregido contra el servidor), actualizado
+  // cada segundo por el board. No usamos un interval propio acá para que el
+  // contador no se desincronice del auto-listo ni dependa del reloj local.
+  nowMs: number;
 }) {
   const tr = useTranslations("kitchen");
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
   const totalMs = prepMinutes * 60_000;
-  const elapsedMs = Math.max(0, now - new Date(startedAt).getTime());
+  const elapsedMs = Math.max(0, nowMs - new Date(startedAt).getTime());
   const remainingMs = Math.max(0, totalMs - elapsedMs);
   const mins = Math.floor(remainingMs / 60_000);
   const secs = Math.floor((remainingMs % 60_000) / 1000);

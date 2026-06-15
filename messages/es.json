@@ -1728,6 +1728,7 @@
     "mainCourseTitle": "Activa el modo ‘Fuertes juntos’ — la cocina retiene estos platos hasta que TODOS estén listos para servir a la mesa juntos.",
     "categoryMenuTitle": "Menú al que pertenece esta categoría",
     "errChangeKind": "No se pudo cambiar el tipo.",
+    "errRename": "No se pudo cambiar el nombre.",
     "errChangeMenu": "No se pudo cambiar de menú.",
     "errDeleteCategory": "No se pudo eliminar.",
     "confirmDeleteCategory": "¿Eliminar la categoría \"{label}\"?",

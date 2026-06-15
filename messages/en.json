@@ -1728,6 +1728,7 @@
     "mainCourseTitle": "Enables ‘Mains together’ mode — the kitchen holds these dishes until ALL of them are ready to serve at the table together.",
     "categoryMenuTitle": "Menu this category belongs to",
     "errChangeKind": "Couldn't change the type.",
+    "errRename": "Couldn't change the name.",
     "errChangeMenu": "Couldn't change the menu.",
     "errDeleteCategory": "Couldn't delete.",
     "confirmDeleteCategory": "Delete the category \"{label}\"?",

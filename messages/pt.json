@@ -1728,6 +1728,7 @@
     "mainCourseTitle": "Ativa o modo ‘Principais juntos’ — a cozinha retém estes pratos até que TODOS estejam prontos para servir à mesa juntos.",
     "categoryMenuTitle": "Cardápio ao qual esta categoria pertence",
     "errChangeKind": "Não foi possível alterar o tipo.",
+    "errRename": "Não foi possível alterar o nome.",
     "errChangeMenu": "Não foi possível mudar de cardápio.",
     "errDeleteCategory": "Não foi possível excluir.",
     "confirmDeleteCategory": "Excluir a categoria \"{label}\"?",

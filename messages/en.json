@@ -1805,7 +1805,8 @@
     "clearConfirmBody": "This will delete {count} dishes from the menu. Dishes with recorded orders are hidden, not deleted. This can’t be undone.",
     "clearConfirmCancel": "Cancel",
     "clearConfirmConfirm": "Yes, clear",
-    "clearing": "Clearing…"
+    "clearing": "Clearing…",
+    "errInvalidField": "Couldn’t save: check the “{field}” field (it may be too long or empty)."
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

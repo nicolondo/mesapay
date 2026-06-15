@@ -1805,7 +1805,8 @@
     "clearConfirmBody": "Se borrarán {count} platos de la carta. Los platos con pedidos registrados quedan ocultos, no se borran. Esta acción no se puede deshacer.",
     "clearConfirmCancel": "Cancelar",
     "clearConfirmConfirm": "Sí, vaciar",
-    "clearing": "Vaciando…"
+    "clearing": "Vaciando…",
+    "errInvalidField": "No se pudo guardar: revisá el campo «{field}» (puede estar muy largo o vacío)."
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

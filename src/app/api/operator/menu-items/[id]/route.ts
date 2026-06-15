@@ -35,7 +35,9 @@ const modifierSchema = z.object({
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   priceCents: z.number().int().min(0).max(100_000_000).optional(),
-  description: z.string().trim().max(240).nullable().optional(),
+  // 500 para alinear con el importador de carta (descripciones largas de
+  // PDFs/Cluvi). El menú del comensal trunca con line-clamp igual.
+  description: z.string().trim().max(500).nullable().optional(),
   categoryId: z.string().min(1).optional(),
   available: z.boolean().optional(),
   // Photos always come from our own upload endpoint or from the menu-
@@ -90,7 +92,17 @@ export async function PATCH(
   const body = await req.json().catch(() => null);
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
+    // Devolvemos el campo que falló para que el editor no muestre un
+    // "invalid" opaco.
+    const issue = parsed.error.issues[0];
+    return NextResponse.json(
+      {
+        error: "invalid",
+        field: issue?.path.join(".") || null,
+        issues: parsed.error.issues,
+      },
+      { status: 400 },
+    );
   }
 
   if (parsed.data.categoryId) {

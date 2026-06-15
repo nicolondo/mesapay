@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -43,13 +44,16 @@ export default async function BarPage({
   const activeSub =
     sub && tenant.barSubStations.includes(sub) ? sub : null;
 
-  const itemsWhere: {
-    station: "bar";
-    barSubStation?: string | null;
-    cancelledAt: null;
-  } = { station: "bar", cancelledAt: null };
+  const itemsWhere: Prisma.OrderItemWhereInput = {
+    station: "bar",
+    cancelledAt: null,
+  };
   if (activeSub) {
-    itemsWhere.barSubStation = activeSub;
+    // Filtramos por la sub-estación ACTUAL de la categoría del producto (vía
+    // la relación menuItem → category), NO por el snapshot OrderItem.barSub-
+    // Station. Así reasignar categorías re-agrupa al instante y los pedidos
+    // enviados antes de asignar la sub-estación también se filtran bien.
+    itemsWhere.menuItem = { category: { barSubStation: activeSub } };
   }
 
   const rounds = await db.round.findMany({

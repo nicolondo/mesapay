@@ -10,6 +10,7 @@ import {
   resolveTipPolicy,
 } from "@/lib/staffPolicies";
 import { YoClient } from "./YoClient";
+import { MisMesasClient, type MesaPick } from "./MisMesasClient";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,49 @@ export default async function YoPage() {
     };
   }
 
+  // Picker de auto-asignación de mesas (solo mesero). Trae todas las mesas
+  // del local + quién las tiene + si están ocupadas, para que el mesero
+  // pueda tomarlas/soltarlas desde su perfil.
+  let meseroTables: MesaPick[] = [];
+  if (user.role === "mesero" && user.restaurantId) {
+    const rid = user.restaurantId;
+    const [tables, activeOrders, holders] = await Promise.all([
+      db.table.findMany({
+        where: { restaurantId: rid, number: { gte: 0 } },
+        orderBy: { number: "asc" },
+        select: { number: true, label: true },
+      }),
+      db.order.findMany({
+        where: { restaurantId: rid, status: { notIn: ["paid", "cancelled"] } },
+        select: { table: { select: { number: true } } },
+      }),
+      db.user.findMany({
+        where: { restaurantId: rid, role: "mesero" },
+        select: { id: true, name: true, email: true, assignedTableNumbers: true },
+      }),
+    ]);
+    const occupied = new Set<number>();
+    for (const o of activeOrders) if (o.table) occupied.add(o.table.number);
+    const mineSet = new Set(user.assignedTableNumbers);
+    meseroTables = tables.map((t) => {
+      const mine = mineSet.has(t.number);
+      let holderName: string | null = null;
+      if (!mine) {
+        const h = holders.find(
+          (u) => u.id !== user.id && u.assignedTableNumbers.includes(t.number),
+        );
+        if (h) holderName = h.name?.trim() || h.email.split("@")[0];
+      }
+      return {
+        number: t.number,
+        label: t.label,
+        occupied: occupied.has(t.number),
+        mine,
+        holderName,
+      };
+    });
+  }
+
   const displayName = user.name?.trim() || user.email.split("@")[0];
   const initials = (user.name?.trim() || user.email)
     .split(/\s+/)
@@ -142,22 +186,20 @@ export default async function YoPage() {
         />
       )}
 
-      {/* Mesas asignadas */}
-      <section className="rounded-2xl border border-hairline bg-paper p-5">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-2">
-          Mis mesas
-        </div>
-        {user.assignedTableNumbers.length === 0 ? (
-          <p className="text-sm text-ink/80">
-            Atiendes <strong>todas</strong> las mesas del restaurante. El
-            operador puede asignarte una sección desde configuración.
-          </p>
-        ) : (
-          <>
-            <p className="text-xs text-muted mb-3">
-              Tu sección — {user.assignedTableNumbers.length}{" "}
-              {user.assignedTableNumbers.length === 1 ? "mesa" : "mesas"}.
+      {/* Mis mesas — interactivo para mesero (auto-asignación); read-only
+          para operator/admin que entren por dogfooding. */}
+      {user.role === "mesero" ? (
+        <MisMesasClient tables={meseroTables} />
+      ) : (
+        <section className="rounded-2xl border border-hairline bg-paper p-5">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-2">
+            Mis mesas
+          </div>
+          {user.assignedTableNumbers.length === 0 ? (
+            <p className="text-sm text-ink/80">
+              Atiendes <strong>todas</strong> las mesas del restaurante.
             </p>
+          ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(48px,1fr))] gap-1.5">
               {user.assignedTableNumbers.map((n) => (
                 <div
@@ -168,9 +210,9 @@ export default async function YoPage() {
                 </div>
               ))}
             </div>
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      )}
 
       <form action={doSignOut}>
         <button

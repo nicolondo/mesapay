@@ -1114,7 +1114,7 @@ export function MenuClient({
               when there's only one menu so most restaurants don't
               see any new chrome. */}
           {showMenuTabs && (
-            <div className="mt-3 flex gap-2 -mx-5 px-5 overflow-x-auto scroll-hide">
+            <div className="mt-[3px] sm:mt-3 flex gap-2 -mx-5 px-5 overflow-x-auto scroll-hide">
               {menus.map((m) => {
                 const active = m.id === activeMenuId;
                 return (
@@ -1141,7 +1141,7 @@ export function MenuClient({
           )}
 
           {/* Category chips + opener de la lista completa (a la derecha) */}
-          <div className="mt-3 flex items-center gap-2 -mx-5 px-5">
+          <div className="mt-[3px] sm:mt-3 flex items-center gap-2 -mx-5 px-5">
             <div
               ref={chipsScrollerRef}
               className="flex gap-2 overflow-x-auto scroll-hide flex-1 min-w-0"

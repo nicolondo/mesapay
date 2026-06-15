@@ -1288,7 +1288,13 @@ export function MenuClient({
                     // Diferir el salto: el lock de scroll restaura la
                     // posición al cerrar; corremos scrollToCategory después,
                     // ya con el body desbloqueado, para que no se pise.
-                    setTimeout(() => scrollToCategory(c.slug), 60);
+                    // Además deslizamos la tira de chips para que la categoría
+                    // elegida quede visible y resaltada al lado del botón —
+                    // el spy está muteado, así que no lo hace por su cuenta.
+                    setTimeout(() => {
+                      scrollToCategory(c.slug);
+                      ensureChipVisible(c.slug);
+                    }, 60);
                   }}
                   className={
                     "w-full text-left h-12 rounded-xl flex items-center text-[15px] transition-colors " +

@@ -2098,7 +2098,10 @@ function ItemSheet({
     >
       <div
         ref={sheetScrollRef}
-        className="relative bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto slide-up"
+        // overscroll-contain: al deslizar hacia abajo para cerrar estando
+        // arriba de todo, el overscroll NO se encadena a la lista de atrás
+        // (antes ese mismo gesto la scrolleaba hacia arriba al cerrar).
+        className="relative bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto overscroll-contain slide-up"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}

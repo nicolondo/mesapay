@@ -2194,7 +2194,13 @@ function ItemSheet({
         // overscroll-contain: al deslizar hacia abajo para cerrar estando
         // arriba de todo, el overscroll NO se encadena a la lista de atrás
         // (antes ese mismo gesto la scrolleaba hacia arriba al cerrar).
-        className="relative bg-paper w-full h-[100dvh] md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl overflow-auto overscroll-contain slide-up"
+        // Móvil: el sheet llena el overlay (absolute inset-0) en vez de
+        // h-[100dvh]. En iOS, 100dvh se mide contra el viewport dinámico y,
+        // si la barra de URL está en transición al abrir, a veces queda más
+        // corto que la pantalla → el sheet "quedaba más arriba" y se veía la
+        // lista debajo. Atándolo al overlay (que es fixed inset-0) cubre
+        // siempre toda la pantalla, sin depender de la medición de dvh.
+        className="absolute inset-0 bg-paper w-full overflow-auto overscroll-contain slide-up md:relative md:inset-auto md:h-auto md:max-w-xl md:max-h-[92dvh] md:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
@@ -2207,7 +2213,7 @@ function ItemSheet({
             también en platos sin foto (contenido corto, antes no scrolleaba).
             min-h solo suma espacio si el contenido es más bajo que la pantalla,
             así los platos altos (con foto) no cambian. */}
-        <div className="min-h-[calc(100dvh_+_1px)] md:min-h-0">
+        <div className="min-h-[calc(100%_+_1px)] md:min-h-0">
         {item.photoUrl && (
           <div
             // Square photo, full width. On a 390px phone that's a

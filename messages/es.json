@@ -1478,7 +1478,14 @@
     "kindSide": "Acompañamiento",
     "kindDrink": "Bebida",
     "kindDessert": "Postre",
-    "kindOther": "Otro"
+    "kindOther": "Otro",
+    "bulkCartaTitle": "Cambiar toda una carta de estación",
+    "bulkCartaHint": "Manda todas las categorías de una carta a la misma estación de un solo toque.",
+    "bulkCartaApply": "Aplicar",
+    "bulkCartaApplying": "Aplicando…",
+    "bulkCartaDone": "Listo: {count} categorías actualizadas.",
+    "bulkCartaNoChange": "Esa carta ya está toda en esa estación.",
+    "bulkCartaError": "No se pudo actualizar. Intenta de nuevo."
   },
   "opReservasCfg": {
     "noRestaurant": "Sin restaurante.",

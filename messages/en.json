@@ -1478,7 +1478,14 @@
     "kindSide": "Side",
     "kindDrink": "Drink",
     "kindDessert": "Dessert",
-    "kindOther": "Other"
+    "kindOther": "Other",
+    "bulkCartaTitle": "Move a whole menu to a station",
+    "bulkCartaHint": "Send every category in a menu to the same station in one tap.",
+    "bulkCartaApply": "Apply",
+    "bulkCartaApplying": "Applying…",
+    "bulkCartaDone": "Done: {count} categories updated.",
+    "bulkCartaNoChange": "That menu is already all on that station.",
+    "bulkCartaError": "Couldn’t update. Try again."
   },
   "opReservasCfg": {
     "noRestaurant": "No restaurant.",

@@ -634,6 +634,23 @@ export function MenuClient({
     return out;
   }, [scopedCategories, itemsByCat]);
 
+  // Secciones renderizables (filtra categorías vacías) con su tipo, para dar
+  // espaciado VARIABLE: las subcategorías quedan pegadas a su grupo y los
+  // grupos top-level separados entre sí.
+  const menuSections = useMemo(() => {
+    return scopedCategories
+      .map((c) => {
+        const rows = itemsByCat.get(c.id) ?? [];
+        const isChild = !!c.parentId;
+        const childItemCount = scopedCategories
+          .filter((x) => x.parentId === c.id)
+          .reduce((s, ch) => s + (itemsByCat.get(ch.id)?.length ?? 0), 0);
+        const isGroupHeader = !isChild && childItemCount > 0;
+        return { c, rows, isChild, isGroupHeader };
+      })
+      .filter((s) => s.rows.length > 0 || s.isGroupHeader);
+  }, [scopedCategories, itemsByCat]);
+
   const openItemIndex = openItem
     ? flatVisibleItems.findIndex((it) => it.id === openItem.id)
     : -1;
@@ -1225,7 +1242,7 @@ export function MenuClient({
       )}
 
       {/* Menu by category */}
-      <div className="max-w-2xl w-full mx-auto px-5 mt-4 space-y-10">
+      <div className="max-w-2xl w-full mx-auto px-5 mt-4">
         {searching && visibleCount === 0 && (
           <div className="py-16 text-center text-muted text-sm">
             {tMenu.rich("noResults", {
@@ -1236,24 +1253,27 @@ export function MenuClient({
             })}
           </div>
         )}
-        {scopedCategories.map((c) => {
-          const rows = itemsByCat.get(c.id) ?? [];
-          const isChild = !!c.parentId;
-          // Una categoría padre (p.ej. "Vino Tinto") con subcategorías que
-          // tienen platos se muestra como encabezado de grupo aunque ella
-          // misma no tenga platos directos.
-          const childItemCount = scopedCategories
-            .filter((x) => x.parentId === c.id)
-            .reduce((s, ch) => s + (itemsByCat.get(ch.id)?.length ?? 0), 0);
-          const isGroupHeader = !isChild && childItemCount > 0;
-          if (!rows.length && !isGroupHeader) return null;
+        {menuSections.map(({ c, rows, isChild, isGroupHeader }, idx) => {
+          // Espaciado superior variable: la primera sección sin margen; las
+          // subcategorías pegadas a su grupo (mt-4); los grupos/categorías
+          // top-level bien separados (mt-10).
+          const topGap = idx === 0 ? "" : isChild ? " mt-4" : " mt-10";
           return (
             <section
               key={c.id}
               id={`cat-${c.slug}`}
-              className={"scroll-mt-28 " + (isChild ? "ml-3 sm:ml-4" : "")}
+              className={
+                "scroll-mt-28" +
+                (isChild ? " ml-3 sm:ml-4" : "") +
+                topGap
+              }
             >
-              <div className="flex items-baseline justify-between mb-3">
+              <div
+                className={
+                  "flex items-baseline justify-between " +
+                  (isGroupHeader ? "mb-2" : "mb-3")
+                }
+              >
                 <div
                   className={
                     "font-display " + (isChild ? "text-lg text-ink-3" : "text-2xl")

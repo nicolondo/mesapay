@@ -2145,6 +2145,16 @@ function ModifiersEditor({
     onChange(modifiers.filter((_, i) => i !== ix));
   }
 
+  // Reordena los grupos de modificadores (↑/↓). El orden se refleja tal cual en
+  // la carta del comensal. Es estado local: se persiste al guardar el plato.
+  function move(ix: number, dir: "up" | "down") {
+    const j = dir === "up" ? ix - 1 : ix + 1;
+    if (j < 0 || j >= modifiers.length) return;
+    const next = [...modifiers];
+    [next[ix], next[j]] = [next[j], next[ix]];
+    onChange(next);
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -2167,7 +2177,7 @@ function ModifiersEditor({
       <div className="space-y-3">
         {modifiers.map((m, i) => (
           <div
-            key={i}
+            key={m.id}
             className="border border-op-border rounded-lg p-3 bg-op-bg/50 space-y-2"
           >
             <div className="flex gap-2 items-end">
@@ -2209,6 +2219,28 @@ function ModifiersEditor({
                   <option value="checkbox">{tr("modifierTypeMultiple")}</option>
                 </select>
               </label>
+              {modifiers.length > 1 && (
+                <div className="flex flex-col shrink-0 self-end mb-1">
+                  <button
+                    type="button"
+                    aria-label={tr("moveModifierUp")}
+                    onClick={() => move(i, "up")}
+                    disabled={i <= 0}
+                    className="h-4 w-5 leading-none text-sm text-op-muted hover:text-ink disabled:opacity-25"
+                  >
+                    <span aria-hidden>↑</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={tr("moveModifierDown")}
+                    onClick={() => move(i, "down")}
+                    disabled={i >= modifiers.length - 1}
+                    className="h-4 w-5 leading-none text-sm text-op-muted hover:text-ink disabled:opacity-25"
+                  >
+                    <span aria-hidden>↓</span>
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => remove(i)}
@@ -2300,6 +2332,15 @@ function OptionsEditor({
     onChange(next, nextDefault);
   }
 
+  // Reordena las opciones dentro del modificador (↑/↓). Mantiene el default.
+  function moveOpt(ix: number, dir: "up" | "down") {
+    const j = dir === "up" ? ix - 1 : ix + 1;
+    if (j < 0 || j >= opts.length) return;
+    const next = [...opts];
+    [next[ix], next[j]] = [next[j], next[ix]];
+    onChange(next, defaultOpt);
+  }
+
   function setOptPrice(ix: number, raw: string) {
     // The price field is in COP-pesos (whole numbers), to match the
     // dish-price input above it. Empty / non-numeric clears the delta.
@@ -2349,6 +2390,28 @@ function OptionsEditor({
               }
             >
               <div className="flex items-center gap-2 px-2 py-1.5">
+                {opts.length > 1 && (
+                  <div className="flex flex-col shrink-0 -my-0.5">
+                    <button
+                      type="button"
+                      aria-label={tr("moveOptionUp")}
+                      onClick={() => moveOpt(i, "up")}
+                      disabled={i <= 0}
+                      className="h-3.5 w-4 leading-none text-[11px] text-op-muted hover:text-ink disabled:opacity-25"
+                    >
+                      <span aria-hidden>↑</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={tr("moveOptionDown")}
+                      onClick={() => moveOpt(i, "down")}
+                      disabled={i >= opts.length - 1}
+                      className="h-3.5 w-4 leading-none text-[11px] text-op-muted hover:text-ink disabled:opacity-25"
+                    >
+                      <span aria-hidden>↓</span>
+                    </button>
+                  </div>
+                )}
                 <span className="flex-1 text-sm truncate">{o.label}</span>
                 {/* Ícono para agregar/editar la descripción de la opción
                     (se muestra al comensal). Si ya hay descripción, queda

@@ -15,11 +15,11 @@ bien.
 **Único hallazgo real:** un *warning* (no un error) de Google Maps en
 `/signup/restaurant`. No rompe nada.
 
-**Limitación importante:** no se pudo probar la superficie **autenticada**
-(operator / admin / group / comercial / mesero / terminal) porque requiere login
-y base de datos, y `.env.local` apunta a la **DB de producción** — entrar ahí o
-escribir datos sin supervisión es inseguro. Ahí es donde más probablemente se
-escondan bugs reales. Ver "Próximo paso #1".
+**Actualización (prueba autenticada local):** con Docker disponible, monté una DB
+local desechable y probé la superficie **autenticada**. Resultado: **operator
+(12 páginas) y admin (8 páginas) renderizan sin un solo error de consola** en
+Chromium, y el fix del *app-shell* del header pasó también en **WebKit (el motor
+de Safari/iOS)**. **No aparecieron bugs reales.** Ver sección "Prueba autenticada".
 
 ---
 
@@ -88,31 +88,50 @@ No rompen nada; se podrían envolver en `useState`/`useEffect` para limpiar el w
 
 ---
 
-## 3. Lo que NO se pudo auditar (gap real)
+## 3. Prueba autenticada (DB local desechable)
 
-La superficie **autenticada** — que es la más compleja y donde más probablemente
-haya bugs (incluido el reciente refactor del *app-shell* de operador):
+Con Docker arriba, levanté un Postgres desechable (`mesapay-e2e`, puerto 5544,
+datos efímeros), `prisma db push` + `db:seed` (restaurante Casa Teresita + cuentas
+`mesapay123`), corrí la app con `DATABASE_URL` local explícito + `KUSHKI_MODE=mock`
+(cero llamadas externas) y ejecuté el smoke autenticado (`e2e/operator-smoke.spec.ts`).
+Todo contra la DB local — **nunca se tocó producción**.
 
-- `/operator/*` (carta, cocina, bar, salón, pagos, settings, wallet, reportes…)
-- `/admin/*`, `/group/*`, `/comercial/*`
-- `/mesero/*`, `/terminal`
-- Flujos dinámicos: pago de comensal `/t/[slug]/pay/[orderId]`, factura `/factura/[id]`, reserva `/r/[slug]/reserva/[code]`.
+- **Operator (12 páginas) → ✅ sin errores de consola** (Chromium/escritorio):
+  `/operator`, `/operator/menu`, `/menus`, `/kitchen`, `/serve`, `/payments`,
+  `/orders`, `/tables`, `/reservas`, `/facturas`, `/reports`, `/settings`.
+- **Admin (8 páginas) → ✅ sin errores de consola**: `/admin`, `/restaurants`,
+  `/restaurants/new`, `/groups`, `/plans`, `/audit`, `/comisiones`, `/configuracion`.
+- **Fix de iOS validado:** el guard "el header sigue visible tras hacer scroll"
+  pasó en **WebKit** (motor de Safari/iOS) y en Chromium. Confirma que el
+  *app-shell* del PR #139 funciona en el motor real de iOS.
+- **0 bugs reales encontrados** en la superficie autenticada.
 
-No se probaron porque requieren login + DB, y el único `DATABASE_URL` disponible
-en este equipo apunta a **producción** (`.env.local` → `187.124.91.12`). Entrar o
-escribir datos en prod sin supervisión no es seguro.
+### Falsos positivos descartados (artefactos de entorno, no bugs)
+- **`/api/version` "access control checks"** en WebKit sobre `http://localhost`
+  (HMR de Turbopack). **Verificado contra prod (HTTPS): no ocurre** — el
+  `StaleBuildReload` funciona bien en iOS Safari real.
+- **Login en WebKit sobre `http://localhost`**: Safari no persiste la cookie de
+  sesión `Secure` sobre http (Chromium sí en localhost). Por eso las pruebas
+  autenticadas en WebKit local se omiten (necesitan HTTPS). Prod (HTTPS) no se
+  ve afectado. Las pruebas autenticadas locales corren en Chromium.
+
+## 4. Lo que aún NO se cubrió (gap restante)
+
+Ya cubierto: operator + admin (renderizado/consola). Falta aún:
+
+- `/group/*`, `/comercial/*`, `/mesero/*`, `/terminal` (no incluidos en el smoke; fáciles de agregar al mismo spec).
+- **Flujos dinámicos con interacción** (lo más valioso a futuro): tomar un pedido como comensal en `/t/[slug]/menu` y **seleccionar modificadores** (la zona del bug histórico de iOS), el pago `/t/[slug]/pay/[orderId]`, factura `/factura/[id]` y reserva `/r/[slug]/reserva/[code]`. Requieren crear datos (orden/reserva) en la DB local — seguro de hacer, pero es una interacción a escribir, no solo navegación.
 
 ---
 
 ## Recomendaciones priorizadas
 
-1. **Montar entorno local para E2E autenticado** (alto valor). Levantar una DB
-   local (Docker o Postgres en `:5433` como dice `.env`), `npm run db:seed`
-   (cuentas con password `mesapay123`) y correr el smoke autenticado ya escrito:
-   `PLAYWRIGHT_BASE_URL=http://localhost:3300 npx playwright test operator-smoke`.
-   Ese spec recorre 12 páginas de operador y verifica que el header quede fijo al
-   scrollear (guard del fix de iOS). Con esto cubrimos la mitad del sistema que
-   hoy es ciega.
+1. **Extender el E2E autenticado a flujos con interacción** (alto valor). El
+   entorno local ya está scripteado (ver cabecera de `e2e/operator-smoke.spec.ts`).
+   El siguiente paso de mayor valor es un spec que tome un pedido y seleccione
+   modificadores en `/t/[slug]/menu` (la zona del bug histórico de iOS), corra el
+   pago y la factura. Para WebKit autenticado hace falta HTTPS local (mkcert) por
+   la cookie `Secure`; las pruebas autenticadas locales corren hoy en Chromium.
 2. **Migrar Google Maps** en `AddressAutocomplete.tsx`: `loading=async` +
    `importLibrary("places")` y eventualmente `PlaceAutocompleteElement`. Con
    prueba del campo de dirección en `/signup/restaurant`.

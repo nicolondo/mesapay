@@ -27,6 +27,11 @@ const bodySchema = z
     restaurantId: z.string().min(1).optional(),
     // Por defecto solo informa (dry run). Hay que mandar apply:true para escribir.
     apply: z.boolean().optional(),
+    // Diagnóstico: vuelca la estructura de modificadores (id, tipo, opciones)
+    // de cada producto para entender un cruce de selección. Filtrable por
+    // nombre (case-insensitive, p.ej. "clásica").
+    inspect: z.boolean().optional(),
+    nameContains: z.string().min(1).optional(),
   })
   .optional();
 
@@ -42,14 +47,58 @@ export async function POST(req: Request) {
   }
   const restaurantId = parsed.data?.restaurantId;
   const apply = parsed.data?.apply === true;
+  const inspect = parsed.data?.inspect === true;
+  const nameContains = parsed.data?.nameContains;
 
   const items = await db.menuItem.findMany({
     where: {
       modifiers: { not: Prisma.DbNull },
       ...(restaurantId ? { restaurantId } : {}),
+      ...(nameContains
+        ? { name: { contains: nameContains, mode: "insensitive" } }
+        : {}),
     },
     select: { id: true, name: true, modifiers: true },
   });
+
+  // Modo diagnóstico: devolvemos la estructura cruda de cada modificador para
+  // ver tipos, ids y etiquetas de opciones (y si hay opciones repetidas).
+  if (inspect) {
+    const report = items
+      .filter((it) => Array.isArray(it.modifiers))
+      .map((it) => {
+        const mods = (it.modifiers as Array<Record<string, unknown>>).map(
+          (m) => {
+            const opts = Array.isArray(m.opts)
+              ? (m.opts as unknown[]).map((o) =>
+                  o && typeof o === "object"
+                    ? String((o as Record<string, unknown>).label ?? "")
+                    : String(o),
+                )
+              : [];
+            const dupOpts = opts.filter((l, i) => opts.indexOf(l) !== i);
+            return {
+              id: typeof m.id === "string" ? m.id : null,
+              type: typeof m.type === "string" ? m.type : null,
+              label: typeof m.label === "string" ? m.label : null,
+              optCount: opts.length,
+              opts,
+              dupOpts: [...new Set(dupOpts)],
+            };
+          },
+        );
+        const ids = mods.map((m) => m.id).filter(Boolean) as string[];
+        const dupIds = ids.filter((id, i) => ids.indexOf(id) !== i);
+        return {
+          itemId: it.id,
+          name: it.name,
+          modifierCount: mods.length,
+          dupModifierIds: [...new Set(dupIds)],
+          modifiers: mods,
+        };
+      });
+    return NextResponse.json({ ok: true, mode: "inspect", count: report.length, report });
+  }
 
   let scanned = 0;
   const changed: { id: string; name: string; remaps: string[] }[] = [];

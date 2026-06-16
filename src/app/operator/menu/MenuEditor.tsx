@@ -250,6 +250,57 @@ export function MenuEditor({
   for (const c of visibleCategories) {
     if (!seenOrdered.has(c.id)) orderedVisible.push({ c, isChild: false });
   }
+  // Lista plana de platos en el MISMO orden que se ven en pantalla (respeta
+  // orden de categorías, subcategorías y el filtro de búsqueda). La usamos para
+  // saltar al plato anterior/siguiente con las flechas del teclado al editar.
+  const orderedEditItems = orderedVisible.flatMap(({ c }) => {
+    const catRows = byCat.get(c.id) ?? [];
+    return searching ? catRows.filter(matchesItem) : catRows;
+  });
+  const editIdx = editingItem
+    ? orderedEditItems.findIndex((it) => it.id === editingItem.id)
+    : -1;
+  const prevEditItem = editIdx > 0 ? orderedEditItems[editIdx - 1] : null;
+  const nextEditItem =
+    editIdx >= 0 && editIdx < orderedEditItems.length - 1
+      ? orderedEditItems[editIdx + 1]
+      : null;
+
+  // Atajos de teclado mientras el sheet de editar producto está abierto:
+  //  - Esc cierra.
+  //  - ←/↑ va al plato anterior, →/↓ al siguiente.
+  // No secuestramos las flechas si el foco está en un campo editable (ahí el
+  // usuario espera mover el cursor); Esc cierra siempre.
+  useEffect(() => {
+    if (!editingItem) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setEditingItem(null);
+        return;
+      }
+      const el = document.activeElement as HTMLElement | null;
+      const typing =
+        !!el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable);
+      if (typing) return;
+      if ((e.key === "ArrowLeft" || e.key === "ArrowUp") && prevEditItem) {
+        e.preventDefault();
+        setEditingItem(prevEditItem);
+      } else if (
+        (e.key === "ArrowRight" || e.key === "ArrowDown") &&
+        nextEditItem
+      ) {
+        e.preventDefault();
+        setEditingItem(nextEditItem);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [editingItem, prevEditItem, nextEditItem]);
+
   // Posibles padres de una categoría: top-level del mismo menú, excepto ella.
   function parentOptionsFor(cat: Cat): Cat[] {
     return categories.filter(
@@ -679,6 +730,9 @@ export function MenuEditor({
 
       {editingItem && (
         <ItemSheet
+          // key por id: al saltar de plato con las flechas, remonta el sheet
+          // para que sus campos se reinicialicen con el plato nuevo.
+          key={editingItem.id}
           item={editingItem}
           categories={categories}
           menuTags={menuTags}

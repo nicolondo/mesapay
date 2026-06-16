@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { LandscapeLock } from "@/components/LandscapeLock";
 
 /** Ver `src/app/mesero/layout.tsx` para el racional. */
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default async function BarLayout({
 
   return (
     <div className="min-h-screen bg-paper">
+      <LandscapeLock />
       {/* Same safe-area pattern as the mesero / cocina layouts. */}
       <header
         className="staff-safe-top sticky top-0 z-30 border-b border-hairline bg-bone flex items-center justify-between px-4 pb-2"

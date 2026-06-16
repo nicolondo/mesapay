@@ -1888,7 +1888,9 @@
     "moveModifierUp": "Subir modificador",
     "moveModifierDown": "Bajar modificador",
     "moveOptionUp": "Subir opción",
-    "moveOptionDown": "Bajar opción"
+    "moveOptionDown": "Bajar opción",
+    "moreActions": "Más acciones",
+    "categoryDishCount": "{count, plural, one {# plato} other {# platos}}"
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

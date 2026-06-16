@@ -1888,7 +1888,9 @@
     "moveModifierUp": "Move modifier up",
     "moveModifierDown": "Move modifier down",
     "moveOptionUp": "Move option up",
-    "moveOptionDown": "Move option down"
+    "moveOptionDown": "Move option down",
+    "moreActions": "More actions",
+    "categoryDishCount": "{count, plural, one {# dish} other {# dishes}}"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

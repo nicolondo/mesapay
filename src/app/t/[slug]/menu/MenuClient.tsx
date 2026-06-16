@@ -586,6 +586,13 @@ export function MenuClient({
     function evaluate() {
       rafId = null;
       if (spyMuteTokenRef.current !== 0) return;
+      // Si un overlay bloqueó el scroll del body (useLockBodyScroll pone
+      // position:fixed para el popup de categorías o el sheet de plato),
+      // window.scrollY queda en 0 artificialmente. Evaluar acá dispararía el
+      // override de "scrollY<16" y forzaría la primera categoría, pisando la
+      // que el comensal estaba viendo (bug: abrir el popup en Postres mostraba
+      // "Pa compartir" resaltada). No evaluamos con el body bloqueado.
+      if (document.body.style.position === "fixed") return;
       const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
       let bestSlug: string | null = null;
       // Hard override at the very top of the page: when the user
@@ -2195,38 +2202,40 @@ function ItemSheet({
   onAdd: (sel: Selections, qty: number, notes?: string) => void;
 }) {
   const t = useTranslations("menu");
-  // La selección se rastrea por ÍNDICE de opción dentro de cada modificador, no
-  // por etiqueta: dos opciones pueden compartir el mismo texto (p.ej. cartas
-  // importadas o categorías convertidas en modificador con nombres repetidos) y
-  // si las identificáramos por etiqueta, tocar una marcaría/desmarcaría la otra.
-  // El índice es único. Al "Agregar" lo convertimos al formato por etiquetas que
-  // el servidor/carrito/cocina ya esperan (buildSelections).
-  const [picked, setPicked] = useState<Record<string, number[]>>(() => {
-    const d: Record<string, number[]> = {};
-    for (const m of item.modifiers ?? []) {
+  // La selección se rastrea por ÍNDICE: cada modificador por su posición en el
+  // array, y dentro de él cada opción por su índice. NO por id/etiqueta, porque
+  // dos modificadores pueden traer el mismo id, o dos opciones el mismo texto
+  // (cartas importadas, categorías convertidas en modificador): si los
+  // identificáramos por id/etiqueta, tocar una marcaría la del otro
+  // modificador/opción. El índice es único. Al "Agregar" lo convertimos al
+  // formato por etiquetas que el servidor/carrito/cocina ya esperan
+  // (buildSelections). [picked[mi] = índices de opción elegidos del modificador
+  // en la posición mi].
+  const mods = item.modifiers ?? [];
+  const [picked, setPicked] = useState<number[][]>(() =>
+    mods.map((m) => {
       const i = m.default ? m.opts.findIndex((o) => o.label === m.default) : -1;
-      d[m.id] = i >= 0 ? [i] : [];
-    }
-    return d;
-  });
+      return i >= 0 ? [i] : [];
+    }),
+  );
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
 
-  function isOptSelected(modId: string, idx: number): boolean {
-    return (picked[modId] ?? []).includes(idx);
+  function isOptSelected(mi: number, oi: number): boolean {
+    return (picked[mi] ?? []).includes(oi);
   }
-  function toggleOpt(mod: ModifierDef, idx: number) {
+  function toggleOpt(mi: number, mod: ModifierDef, oi: number) {
     setPicked((prev) => {
-      const cur = prev[mod.id] ?? [];
+      const next = prev.map((arr) => arr);
+      const cur = next[mi] ?? [];
       if (mod.type === "radio") {
-        return { ...prev, [mod.id]: [idx] }; // reemplaza
+        next[mi] = [oi]; // reemplaza
+      } else {
+        next[mi] = cur.includes(oi)
+          ? cur.filter((x) => x !== oi)
+          : [...cur, oi];
       }
-      return {
-        ...prev,
-        [mod.id]: cur.includes(idx)
-          ? cur.filter((x) => x !== idx)
-          : [...cur, idx],
-      };
+      return next;
     });
   }
 
@@ -2235,8 +2244,8 @@ function ItemSheet({
   // vacía, igual que antes, para distinguir "sin elegir" de "no aplica").
   function buildSelections(): Selections {
     const out: Selections = {};
-    for (const m of item.modifiers ?? []) {
-      const idxs = picked[m.id] ?? [];
+    mods.forEach((m, mi) => {
+      const idxs = picked[mi] ?? [];
       if (m.type === "radio") {
         const opt = idxs.length > 0 ? m.opts[idxs[0]] : undefined;
         if (opt) out[m.id] = opt.label;
@@ -2245,7 +2254,7 @@ function ItemSheet({
           .map((i) => m.opts[i]?.label)
           .filter((x): x is string => typeof x === "string");
       }
-    }
+    });
     return out;
   }
 
@@ -2253,12 +2262,12 @@ function ItemSheet({
   // live as they tap options so the Add button doesn't lie about the
   // amount the cart will pick up.
   let unitPrice = item.priceCents;
-  for (const m of item.modifiers ?? []) {
-    for (const idx of picked[m.id] ?? []) {
-      const opt = m.opts[idx];
+  mods.forEach((m, mi) => {
+    for (const oi of picked[mi] ?? []) {
+      const opt = m.opts[oi];
       if (opt?.priceDeltaCents) unitPrice += opt.priceDeltaCents;
     }
-  }
+  });
   unitPrice = Math.max(0, unitPrice);
 
   // Horizontal swipe to flip between dishes. We only commit on
@@ -2422,8 +2431,8 @@ function ItemSheet({
           </div>
           <p className="text-ink-3 mt-3 leading-relaxed">{item.description}</p>
 
-          {item.modifiers?.map((m) => (
-            <div key={m.id} className="mt-6">
+          {mods.map((m, mi) => (
+            <div key={mi} className="mt-6">
               <div className="flex items-baseline justify-between mb-2">
                 <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
                   {m.label}
@@ -2438,12 +2447,12 @@ function ItemSheet({
                 // en un chip compacto).
                 <div className="flex flex-col gap-2">
                   {m.opts.map((opt, idx) => {
-                    const active = isOptSelected(m.id, idx);
+                    const active = isOptSelected(mi, idx);
                     const delta = opt.priceDeltaCents ?? 0;
                     return (
                       <button
                         key={idx}
-                        onClick={() => toggleOpt(m, idx)}
+                        onClick={() => toggleOpt(mi, m, idx)}
                         className={
                           "w-full text-left px-3 py-2 rounded-xl text-sm border " +
                           (active
@@ -2482,12 +2491,12 @@ function ItemSheet({
               ) : (
                 <div className="flex gap-2 flex-wrap">
                   {m.opts.map((opt, idx) => {
-                    const active = isOptSelected(m.id, idx);
+                    const active = isOptSelected(mi, idx);
                     const delta = opt.priceDeltaCents ?? 0;
                     return (
                       <button
                         key={idx}
-                        onClick={() => toggleOpt(m, idx)}
+                        onClick={() => toggleOpt(mi, m, idx)}
                         className={
                           "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
                           (active

@@ -103,7 +103,30 @@ export function normalizeModifier(raw: unknown): ModifierDef | null {
 /** Normalise a full modifier list, dropping anything malformed. */
 export function normalizeModifiers(raw: unknown): ModifierDef[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map(normalizeModifier).filter((m): m is ModifierDef => !!m);
+  const mods = raw.map(normalizeModifier).filter((m): m is ModifierDef => !!m);
+  // Garantizar ids únicos. Dos modificadores con el mismo id (p.ej. datos
+  // importados) rompen el picker del comensal —la selección se indexa por id,
+  // así que tocar una opción de uno marca la del otro— y la comanda, que
+  // resuelve `selections[m.id]`. Mantenemos el id de la primera aparición y
+  // reasignamos las siguientes de forma DETERMINISTA, para que el comensal y
+  // la cocina (ambos pasan por aquí) coincidan en las claves. normalizeModifier
+  // devuelve objetos nuevos, así que mutar id es seguro.
+  const seen = new Set<string>();
+  for (const m of mods) {
+    if (!seen.has(m.id)) {
+      seen.add(m.id);
+      continue;
+    }
+    let n = 2;
+    let id = `${m.id}-${n}`;
+    while (seen.has(id)) {
+      n += 1;
+      id = `${m.id}-${n}`;
+    }
+    seen.add(id);
+    m.id = id;
+  }
+  return mods;
 }
 
 /**

@@ -557,9 +557,13 @@ export function MenuEditor({
                 isChild ? "ml-4 sm:ml-6 border-l-2 border-op-border/60 pl-4" : ""
               }
             >
-              <div className="flex items-center mb-3 gap-2">
+              {/* En desktop el encabezado de categoría es de 2 filas (título +
+                  controles inline), así que alineamos check/flechas al tope
+                  (lg:items-start) para que queden con el título; en chicas es
+                  una sola fila → items-center. */}
+              <div className="flex items-center lg:items-start mb-3 gap-2">
                 {showArrows && (
-                  <div className="flex flex-col -my-1 shrink-0">
+                  <div className="flex flex-col -my-1 shrink-0 lg:mt-1">
                     <button
                       type="button"
                       aria-label={tr("moveCatUp")}
@@ -1192,118 +1196,47 @@ function CategoryHeader({
   const showParentSelect = parentOptions.length > 0;
 
   return (
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      {/* Título + contador */}
-      <div className="flex items-baseline gap-2 min-w-0 flex-1">
-        <div
-          className={
-            "font-display truncate " +
-            (isChild ? "text-base sm:text-lg" : "text-xl sm:text-2xl")
-          }
-        >
-          {cat.label}
+    <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+      {/* Línea 1: título + contador (izq) y acción primaria + overflow (der) */}
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-baseline gap-2 min-w-0 flex-1">
+          <div
+            className={
+              "font-display truncate " +
+              (isChild ? "text-base sm:text-lg" : "text-xl sm:text-2xl")
+            }
+          >
+            {cat.label}
+          </div>
+          <span className="text-xs text-op-muted shrink-0 whitespace-nowrap">
+            {tr("categoryDishCount", { count: itemCount })}
+          </span>
         </div>
-        <span className="text-xs text-op-muted shrink-0 whitespace-nowrap">
-          {tr("categoryDishCount", { count: itemCount })}
-        </span>
-      </div>
-
-      {/* DESKTOP (lg+): controles inline, a la vista para editar rápido. En
-          pantallas chicas viven en el menú "•••" de abajo (md y menos). */}
-      <div className="hidden lg:flex items-center gap-2 shrink-0">
-        {showKind && !isChild && (
-          <label
-            className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
-            title={tr("mainCourseTitle")}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={onAddDish}
+            className="h-9 sm:h-8 px-3.5 sm:px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
           >
-            <input
-              type="checkbox"
-              checked={cat.kind === "main"}
-              onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
-              className="w-3 h-3"
-            />
-            <span>{tr("mainCourses")}</span>
-          </label>
-        )}
-        {showMenuSelect && (
-          <select
-            value={cat.menuId}
-            onChange={(e) => changeMenu(e.target.value)}
-            title={tr("categoryMenuTitle")}
-            className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
-          >
-            {menus.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {showParentSelect && (
-          <label className="inline-flex items-center gap-1 text-[11px] text-op-muted">
-            <span>{tr("subcategoryOfLabel")}</span>
-            <select
-              value={cat.parentId ?? ""}
-              onChange={(e) => changeParent(e.target.value || null)}
-              disabled={hasChildren}
-              title={tr("subcategoryOfTitle")}
-              className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px] disabled:opacity-50"
+            {tr("addDish")}
+          </button>
+          {/* Overflow "•••": solo en pantallas chicas. En desktop los controles
+              viven inline en la línea 2 de abajo. */}
+          <div className="relative lg:hidden">
+            <button
+              type="button"
+              aria-label={tr("moreActions")}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+              className="h-9 w-9 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
             >
-              <option value="">{tr("subcategoryNone")}</option>
-              {parentOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {onConvert && (
-          <button
-            onClick={onConvert}
-            className="text-xs text-op-muted hover:text-terracotta"
-          >
-            {tr("convertToModifier")}
-          </button>
-        )}
-        <button
-          onClick={() => setEditing(true)}
-          className="text-xs text-op-muted hover:text-ink"
-        >
-          {tr("rename")}
-        </button>
-        <button
-          onClick={del}
-          className="text-xs text-op-muted hover:text-danger"
-        >
-          {tr("delete")}
-        </button>
-      </div>
-
-      {/* Acciones: primaria (+ Plato) siempre + overflow (•••) solo en chicas */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          onClick={onAddDish}
-          className="h-9 sm:h-8 px-3.5 sm:px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
-        >
-          {tr("addDish")}
-        </button>
-        <div className="relative lg:hidden">
-          <button
-            type="button"
-            aria-label={tr("moreActions")}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-            className="h-9 w-9 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
-          >
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <circle cx="10" cy="4" r="1.6" />
-              <circle cx="10" cy="10" r="1.6" />
-              <circle cx="10" cy="16" r="1.6" />
-            </svg>
-          </button>
-          {menuOpen && (
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <circle cx="10" cy="4" r="1.6" />
+                <circle cx="10" cy="10" r="1.6" />
+                <circle cx="10" cy="16" r="1.6" />
+              </svg>
+            </button>
+            {menuOpen && (
             <>
               {/* Backdrop para cerrar al tocar afuera (confiable en móvil). */}
               <div
@@ -1401,7 +1334,81 @@ function CategoryHeader({
               </div>
             </>
           )}
+          </div>
         </div>
+      </div>
+
+      {/* Línea 2 (lg+): controles inline en su propia fila, así el título de
+          arriba nunca se aplasta. En pantallas chicas estas acciones viven en
+          el menú "•••" de la línea 1. */}
+      <div className="hidden lg:flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {showKind && !isChild && (
+          <label
+            className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
+            title={tr("mainCourseTitle")}
+          >
+            <input
+              type="checkbox"
+              checked={cat.kind === "main"}
+              onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
+              className="w-3 h-3"
+            />
+            <span>{tr("mainCourses")}</span>
+          </label>
+        )}
+        {showMenuSelect && (
+          <select
+            value={cat.menuId}
+            onChange={(e) => changeMenu(e.target.value)}
+            title={tr("categoryMenuTitle")}
+            className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+          >
+            {menus.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {showParentSelect && (
+          <label className="inline-flex items-center gap-1 text-[11px] text-op-muted">
+            <span>{tr("subcategoryOfLabel")}</span>
+            <select
+              value={cat.parentId ?? ""}
+              onChange={(e) => changeParent(e.target.value || null)}
+              disabled={hasChildren}
+              title={tr("subcategoryOfTitle")}
+              className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px] disabled:opacity-50"
+            >
+              <option value="">{tr("subcategoryNone")}</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {onConvert && (
+          <button
+            onClick={onConvert}
+            className="text-xs text-op-muted hover:text-terracotta"
+          >
+            {tr("convertToModifier")}
+          </button>
+        )}
+        <button
+          onClick={() => setEditing(true)}
+          className="text-xs text-op-muted hover:text-ink"
+        >
+          {tr("rename")}
+        </button>
+        <button
+          onClick={del}
+          className="text-xs text-op-muted hover:text-danger"
+        >
+          {tr("delete")}
+        </button>
       </div>
     </div>
   );

@@ -313,3 +313,19 @@ input[type="time"] {
     height: 100vh;
   }
 }
+
+/* Editor de carta (/operator/menu) optimizado para móvil:
+ * - touch-action: manipulation quita el delay de ~300ms y el zoom por
+ *   doble-tap en todos los controles.
+ * - En pantallas chicas, inputs/selects/textarea a 16px: iOS Safari hace
+ *   auto-zoom al enfocar un campo con font-size < 16px, lo que descoloca la
+ *   página. 16px lo evita. (Los sheets se renderizan dentro de
+ *   .op-menu-editor, así que el selector descendiente los cubre.) */
+.op-menu-editor :is(button, a, [role="button"], input, select, textarea) {
+  touch-action: manipulation;
+}
+@media (max-width: 640px) {
+  .op-menu-editor :is(input, select, textarea) {
+    font-size: 16px;
+  }
+}

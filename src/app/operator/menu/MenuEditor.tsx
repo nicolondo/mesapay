@@ -319,7 +319,7 @@ export function MenuEditor({
   return (
     <div
       className={
-        "px-4 py-5 sm:p-6 max-w-5xl mx-auto w-full " +
+        "op-menu-editor px-4 py-5 sm:p-6 max-w-5xl mx-auto w-full " +
         // Espacio extra abajo para que la barra fija de acciones no tape los
         // últimos platos.
         (selectedIds.size > 0 ? "pb-28" : "")
@@ -484,7 +484,7 @@ export function MenuEditor({
                         aria-label={tr("moveCatUp")}
                         onClick={() => moveCategory(c, "up")}
                         disabled={reordering || sibIdx <= 0}
-                        className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+                        className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
                       >
                         <span aria-hidden>↑</span>
                       </button>
@@ -493,7 +493,7 @@ export function MenuEditor({
                         aria-label={tr("moveCatDown")}
                         onClick={() => moveCategory(c, "down")}
                         disabled={reordering || sibIdx >= sibs.length - 1}
-                        className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+                        className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
                       >
                         <span aria-hidden>↓</span>
                       </button>
@@ -535,7 +535,7 @@ export function MenuEditor({
                 <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setAddingItemInCat(c.id)}
-                    className="h-8 px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
+                    className="h-9 sm:h-8 px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
                   >
                     {tr("addDish")}
                   </button>
@@ -613,7 +613,7 @@ export function MenuEditor({
                       />
                       <button
                         onClick={() => setEditingItem(it)}
-                        className="text-xs text-terracotta hover:underline px-1 py-0.5"
+                        className="text-xs text-terracotta hover:underline px-2 py-2 -my-1.5 sm:py-0.5 sm:my-0"
                       >
                         {tr("edit")}
                       </button>
@@ -786,7 +786,7 @@ function AvailabilityToggle({
           : tr("soldOutTitle")
       }
       className={
-        "h-7 px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
+        "h-9 sm:h-7 px-3.5 sm:px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
         (available
           ? "bg-ok/10 text-[#1E5339] border-ok/30 hover:bg-ok/20"
           : "bg-danger/10 text-danger border-danger/30 hover:bg-danger/20")
@@ -1143,20 +1143,20 @@ function CategoryHeader({
       {onConvert && (
         <button
           onClick={onConvert}
-          className="text-xs py-0.5 text-op-muted hover:text-terracotta"
+          className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-terracotta"
         >
           {tr("convertToModifier")}
         </button>
       )}
       <button
         onClick={() => setEditing(true)}
-        className="text-xs py-0.5 text-op-muted hover:text-ink"
+        className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-ink"
       >
         {tr("rename")}
       </button>
       <button
         onClick={del}
-        className="text-xs py-0.5 text-op-muted hover:text-danger"
+        className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-danger"
       >
         {tr("delete")}
       </button>

@@ -475,46 +475,47 @@ export function MenuEditor({
                 isChild ? "ml-4 sm:ml-6 border-l-2 border-op-border/60 pl-4" : ""
               }
             >
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {showArrows && (
-                    <div className="flex flex-col -my-1 shrink-0">
-                      <button
-                        type="button"
-                        aria-label={tr("moveCatUp")}
-                        onClick={() => moveCategory(c, "up")}
-                        disabled={reordering || sibIdx <= 0}
-                        className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
-                      >
-                        <span aria-hidden>↑</span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={tr("moveCatDown")}
-                        onClick={() => moveCategory(c, "down")}
-                        disabled={reordering || sibIdx >= sibs.length - 1}
-                        className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
-                      >
-                        <span aria-hidden>↓</span>
-                      </button>
-                    </div>
-                  )}
-                  <CategorySelectCheckbox
-                    rows={rows}
-                    selectedIds={selectedIds}
-                    onToggleAll={(value) =>
-                      setManySelected(
-                        rows.map((r) => r.id),
-                        value,
-                      )
-                    }
-                  />
-                  <CategoryHeader
-                    cat={c}
-                    menus={menus}
-                    isChild={isChild}
-                    parentOptions={parentOptionsFor(c)}
-                    hasChildren={categoryHasChildren(c.id)}
+              <div className="flex items-center mb-3 gap-2">
+                {showArrows && (
+                  <div className="flex flex-col -my-1 shrink-0">
+                    <button
+                      type="button"
+                      aria-label={tr("moveCatUp")}
+                      onClick={() => moveCategory(c, "up")}
+                      disabled={reordering || sibIdx <= 0}
+                      className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
+                    >
+                      <span aria-hidden>↑</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={tr("moveCatDown")}
+                      onClick={() => moveCategory(c, "down")}
+                      disabled={reordering || sibIdx >= sibs.length - 1}
+                      className="h-7 w-9 sm:h-5 sm:w-6 leading-none text-lg sm:text-base text-op-muted hover:text-ink disabled:opacity-25"
+                    >
+                      <span aria-hidden>↓</span>
+                    </button>
+                  </div>
+                )}
+                <CategorySelectCheckbox
+                  rows={rows}
+                  selectedIds={selectedIds}
+                  onToggleAll={(value) =>
+                    setManySelected(
+                      rows.map((r) => r.id),
+                      value,
+                    )
+                  }
+                />
+                <CategoryHeader
+                  cat={c}
+                  menus={menus}
+                  isChild={isChild}
+                  parentOptions={parentOptionsFor(c)}
+                  hasChildren={categoryHasChildren(c.id)}
+                  itemCount={rows.length}
+                  onAddDish={() => setAddingItemInCat(c.id)}
                   // El toggle "plato fuerte" se muestra para TODA categoría,
                   // incluidas las de cartas no-default (vinos, cócteles).
                   // Antes se ocultaba ahí, lo que dejaba trabadas categorías
@@ -530,16 +531,7 @@ export function MenuEditor({
                       ? () => setConvertingCat(c)
                       : undefined
                   }
-                  />
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={() => setAddingItemInCat(c.id)}
-                    className="h-9 sm:h-8 px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
-                  >
-                    {tr("addDish")}
-                  </button>
-                </div>
+                />
               </div>
 
               {addingItemInCat === c.id && (
@@ -581,7 +573,11 @@ export function MenuEditor({
                       aria-label={tr("selectDishAria")}
                       className="w-4 h-4 mt-1 shrink-0"
                     />
-                    <div
+                    {/* Foto + contenido: tocar abre la edición del plato. */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(it)}
+                      aria-label={tr("edit")}
                       className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-lg bg-op-bg bg-cover bg-center"
                       style={
                         it.photoUrl
@@ -589,7 +585,18 @@ export function MenuEditor({
                           : undefined
                       }
                     />
-                    <div className="min-w-0 sm:flex-1">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditingItem(it)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setEditingItem(it);
+                        }
+                      }}
+                      className="min-w-0 sm:flex-1 cursor-pointer"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="font-medium leading-snug line-clamp-2 sm:truncate">
                           {it.name}
@@ -604,18 +611,29 @@ export function MenuEditor({
                         </div>
                       )}
                     </div>
-                    <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-3">
+                    <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
                       <AvailabilityToggle
                         item={it}
                         onChanged={(available) =>
                           patchItem(it.id, { available })
                         }
                       />
+                      {/* Chevron: afford­ancia explícita de "abrir/editar". */}
                       <button
+                        type="button"
                         onClick={() => setEditingItem(it)}
-                        className="text-xs text-terracotta hover:underline px-2 py-2 -my-1.5 sm:py-0.5 sm:my-0"
+                        aria-label={tr("edit")}
+                        className="h-9 w-9 -mr-1 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
                       >
-                        {tr("edit")}
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                          <path
+                            d="M6 3.5L10.5 8L6 12.5"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </button>
                     </div>
                   </li>
@@ -935,12 +953,18 @@ function CategoryHeader({
   isChild,
   parentOptions,
   hasChildren,
+  itemCount,
+  onAddDish,
   onPatch,
   onDeleted,
   onConvert,
 }: {
   cat: Cat;
   menus: MenuRef[];
+  // Cantidad de platos en la categoría (para el contador del encabezado).
+  itemCount: number;
+  // Abre el formulario para agregar un plato a esta categoría.
+  onAddDish: () => void;
   // Hide the kind dropdown for categories that live in a non-default
   // menu (vinos, cócteles, etc.). See NewCategoryForm for the why.
   showKind: boolean;
@@ -962,6 +986,9 @@ function CategoryHeader({
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(cat.label);
   const [busy, setBusy] = useState(false);
+  // Menú de acciones secundarias (•••). Antes estaban todas inline y
+  // amontonaban el encabezado (sobre todo en móvil).
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function save() {
     const trimmed = label.trim();
@@ -1078,88 +1105,150 @@ function CategoryHeader({
     );
   }
 
+  // Filas de selectores que viven dentro del menú (mover de carta, subcat de).
+  const showMenuSelect = menus.length > 1 && !isChild;
+  const showParentSelect = parentOptions.length > 0;
+
   return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <div
-        className={
-          "font-display " +
-          (isChild ? "text-base sm:text-lg" : "text-xl sm:text-2xl")
-        }
-      >
-        {cat.label}
+    <div className="flex items-center gap-2 min-w-0 flex-1">
+      {/* Título + contador */}
+      <div className="flex items-baseline gap-2 min-w-0">
+        <div
+          className={
+            "font-display truncate " +
+            (isChild ? "text-base sm:text-lg" : "text-xl sm:text-2xl")
+          }
+        >
+          {cat.label}
+        </div>
+        <span className="text-xs text-op-muted shrink-0 whitespace-nowrap">
+          {tr("categoryDishCount", { count: itemCount })}
+        </span>
       </div>
-      {showKind && !isChild && (
-        <label
-          className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
-          title={tr("mainCourseTitle")}
-        >
-          <input
-            type="checkbox"
-            checked={cat.kind === "main"}
-            onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
-            className="w-3 h-3"
-          />
-          <span>{tr("mainCourses")}</span>
-        </label>
-      )}
-      {/* Mover de menú: solo para categorías de nivel superior; las
-          subcategorías siguen el menú de su padre. */}
-      {menus.length > 1 && !isChild && (
-        <select
-          value={cat.menuId}
-          onChange={(e) => changeMenu(e.target.value)}
-          title={tr("categoryMenuTitle")}
-          className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
-        >
-          {menus.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      )}
-      {/* Anidar como subcategoría de otra. Oculto si no hay candidatos
-          (ej. única categoría del menú). Deshabilitado si esta ya tiene
-          subcategorías (un solo nivel). */}
-      {parentOptions.length > 0 && (
-        <label className="inline-flex items-center gap-1 text-[11px] text-op-muted">
-          <span>{tr("subcategoryOfLabel")}</span>
-          <select
-            value={cat.parentId ?? ""}
-            onChange={(e) => changeParent(e.target.value || null)}
-            disabled={hasChildren}
-            title={tr("subcategoryOfTitle")}
-            className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px] disabled:opacity-50"
-          >
-            <option value="">{tr("subcategoryNone")}</option>
-            {parentOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {onConvert && (
+
+      {/* Acciones a la derecha: primaria (+ Plato) + overflow (•••) */}
+      <div className="ml-auto flex items-center gap-1.5 shrink-0">
         <button
-          onClick={onConvert}
-          className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-terracotta"
+          onClick={onAddDish}
+          className="h-9 sm:h-8 px-3.5 sm:px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
         >
-          {tr("convertToModifier")}
+          {tr("addDish")}
         </button>
-      )}
-      <button
-        onClick={() => setEditing(true)}
-        className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-ink"
-      >
-        {tr("rename")}
-      </button>
-      <button
-        onClick={del}
-        className="text-xs py-1.5 sm:py-0.5 text-op-muted hover:text-danger"
-      >
-        {tr("delete")}
-      </button>
+        <div className="relative">
+          <button
+            type="button"
+            aria-label={tr("moreActions")}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+            className="h-9 w-9 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <circle cx="10" cy="4" r="1.6" />
+              <circle cx="10" cy="10" r="1.6" />
+              <circle cx="10" cy="16" r="1.6" />
+            </svg>
+          </button>
+          {menuOpen && (
+            <>
+              {/* Backdrop para cerrar al tocar afuera (confiable en móvil). */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 z-50 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-op-border bg-op-surface shadow-xl p-1.5 text-sm"
+              >
+                {showKind && !isChild && (
+                  <label className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-op-bg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cat.kind === "main"}
+                      onChange={(e) =>
+                        changeKind(e.target.checked ? "main" : "other")
+                      }
+                      className="w-4 h-4"
+                    />
+                    <span>{tr("mainCourses")}</span>
+                  </label>
+                )}
+                {showMenuSelect && (
+                  <div className="px-2.5 py-2">
+                    <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                      {tr("categoryMenuTitle")}
+                    </div>
+                    <select
+                      value={cat.menuId}
+                      onChange={(e) => changeMenu(e.target.value)}
+                      className="w-full h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+                    >
+                      {menus.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {showParentSelect && (
+                  <div className="px-2.5 py-2">
+                    <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                      {tr("subcategoryOfLabel")}
+                    </div>
+                    <select
+                      value={cat.parentId ?? ""}
+                      onChange={(e) => changeParent(e.target.value || null)}
+                      disabled={hasChildren}
+                      className="w-full h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-50"
+                    >
+                      <option value="">{tr("subcategoryNone")}</option>
+                      {parentOptions.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {(showKind || showMenuSelect || showParentSelect) && (
+                  <div className="my-1 border-t border-op-border" />
+                )}
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setEditing(true);
+                  }}
+                  className="w-full text-left px-2.5 py-2.5 rounded-lg hover:bg-op-bg"
+                >
+                  {tr("rename")}
+                </button>
+                {onConvert && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onConvert();
+                    }}
+                    className="w-full text-left px-2.5 py-2.5 rounded-lg hover:bg-op-bg"
+                  >
+                    {tr("convertToModifier")}
+                  </button>
+                )}
+                <div className="my-1 border-t border-op-border" />
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    del();
+                  }}
+                  className="w-full text-left px-2.5 py-2.5 rounded-lg text-danger hover:bg-danger/10"
+                >
+                  {tr("delete")}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

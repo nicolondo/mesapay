@@ -76,9 +76,6 @@ export function MenuEditor({
   const [activeMenuId, setActiveMenuId] = useState<string>(
     menus[0]?.id ?? "",
   );
-  // "Vaciar carta" — borra todos los platos para re-importar desde cero.
-  const [confirmingClear, setConfirmingClear] = useState(false);
-  const [clearBusy, setClearBusy] = useState(false);
 
   // Selección para acciones masivas (descripción IA, mover, estación, borrar).
   // Guardamos ids; los platos reales se resuelven contra `items`.
@@ -169,22 +166,6 @@ export function MenuEditor({
       setCategories((prev) => prev.filter((c) => c.id !== removed));
     }
     setConvertingCat(null);
-  }
-
-  async function doClearMenu() {
-    setClearBusy(true);
-    try {
-      const res = await fetch("/api/operator/menu/clear", { method: "POST" });
-      if (!res.ok) {
-        setClearBusy(false);
-        return;
-      }
-      setItems([]);
-      setCategories([]);
-      setConfirmingClear(false);
-    } finally {
-      setClearBusy(false);
-    }
   }
 
   // CRUD helpers passed to children. They return synchronously — the
@@ -377,49 +358,8 @@ export function MenuEditor({
               {tr("newCategory")}
             </button>
           )}
-          {items.length > 0 && (
-            <button
-              onClick={() => setConfirmingClear(true)}
-              className="h-10 px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 whitespace-nowrap"
-            >
-              {tr("clearMenu")}
-            </button>
-          )}
         </div>
       </div>
-
-      {confirmingClear && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
-          onClick={() => !clearBusy && setConfirmingClear(false)}
-        >
-          <div
-            className="bg-op-surface text-op-text w-full max-w-md rounded-2xl p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-display text-2xl">{tr("clearConfirmTitle")}</div>
-            <p className="text-sm text-op-muted">
-              {tr("clearConfirmBody", { count: items.length })}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                onClick={() => setConfirmingClear(false)}
-                disabled={clearBusy}
-                className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
-              >
-                {tr("clearConfirmCancel")}
-              </button>
-              <button
-                onClick={doClearMenu}
-                disabled={clearBusy}
-                className="h-10 px-5 rounded-full bg-danger text-bone text-sm font-medium disabled:opacity-50"
-              >
-                {clearBusy ? tr("clearing") : tr("clearConfirmConfirm")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {hasMultipleMenus && (
         <div className="mb-5 flex gap-2 flex-wrap">

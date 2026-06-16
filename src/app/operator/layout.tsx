@@ -283,28 +283,31 @@ export default async function OperatorLayout({
                   ))}
                 </nav>
               </div>
-              <div className="hidden md:flex items-center gap-3 text-sm shrink-0">
-                {session.user.role === "platform_admin" && (
-                  <Link
-                    href="/admin"
-                    className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
-                  >
-                    {t("adminLink")}
-                  </Link>
-                )}
-                <span className="text-op-muted">{session.user.email}</span>
-                {signOutDesktop}
+              {/* Cluster derecho: links (desktop), selector de idioma y el
+                  menú (hamburguesa) juntos. Agrupados para que el switcher
+                  quede pegado al menú y no flotando al centro en móvil. */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="hidden md:flex items-center gap-3 text-sm">
+                  {session.user.role === "platform_admin" && (
+                    <Link
+                      href="/admin"
+                      className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+                    >
+                      {t("adminLink")}
+                    </Link>
+                  )}
+                  <span className="text-op-muted">{session.user.email}</span>
+                  {signOutDesktop}
+                </div>
+                <LocaleSwitcher className="shrink-0" />
+                <OperatorMobileMenu
+                  tenantName={tenant?.name ?? t("noRestaurant")}
+                  userEmail={session.user.email}
+                  isAdmin={session.user.role === "platform_admin"}
+                  items={navItems}
+                  signOutAction={signOutMobile}
+                />
               </div>
-              {/* Selector de idioma — visible en desktop y móvil para que el
-                  comercio pueda cambiar es/en/pt desde el panel. */}
-              <LocaleSwitcher className="shrink-0" />
-              <OperatorMobileMenu
-                tenantName={tenant?.name ?? t("noRestaurant")}
-                userEmail={session.user.email}
-                isAdmin={session.user.role === "platform_admin"}
-                items={navItems}
-                signOutAction={signOutMobile}
-              />
             </div>
           </header>
         );

@@ -348,9 +348,11 @@ export function MenuEditor({
         (selectedIds.size > 0 ? "pb-28" : "")
       }
     >
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+      {/* Móvil: título arriba y los botones apilados a ancho completo (así el
+          texto no se parte dentro de un pill angosto). Desktop: en línea. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="font-display text-2xl sm:text-3xl">{tr("title")}</div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           <a
             // Pass the active menu so the import wizard lands the new
             // dishes in the tab the operator was looking at. Without
@@ -362,14 +364,14 @@ export function MenuEditor({
                 ? `/operator/menu/import?menu=${encodeURIComponent(activeMenuId)}`
                 : "/operator/menu/import"
             }
-            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center gap-1.5 hover:bg-op-bg"
+            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-op-bg w-full sm:w-auto"
           >
             <span aria-hidden>🧠</span> {tr("importWithAi")}
           </a>
           {!addingCategory && (
             <button
               onClick={() => setAddingCategory(true)}
-              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
+              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium w-full sm:w-auto"
             >
               {tr("newCategory")}
             </button>
@@ -377,7 +379,7 @@ export function MenuEditor({
           {items.length > 0 && (
             <button
               onClick={() => setConfirmingClear(true)}
-              className="h-10 px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10"
+              className="h-10 px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 w-full sm:w-auto"
             >
               {tr("clearMenu")}
             </button>

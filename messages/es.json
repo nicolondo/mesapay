@@ -1890,7 +1890,10 @@
     "moveOptionUp": "Subir opción",
     "moveOptionDown": "Bajar opción",
     "moreActions": "Más acciones",
-    "categoryDishCount": "{count, plural, one {# plato} other {# platos}}"
+    "categoryDishCount": "{count, plural, one {# plato} other {# platos}}",
+    "searchPlaceholder": "Buscar plato…",
+    "clearSearch": "Borrar búsqueda",
+    "searchNoResults": "Sin resultados para “{query}”."
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

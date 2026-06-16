@@ -27,6 +27,18 @@ import type {
 // and arrive via the `menuTags` prop. The hardcoded list that used to
 // live here is gone — we render whatever the operator picked.
 
+// Normalización para la búsqueda del editor: minúsculas + sin acentos +
+// espacios colapsados. Misma transformación sobre query y texto, así "cafe"
+// matchea "Café". (Equivalente al fuzzyNormalize del menú del comensal.)
+function searchNormalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function MenuEditor({
   menus,
   menuTags,
@@ -54,6 +66,9 @@ export function MenuEditor({
   // Mientras se persiste un reordenamiento de categorías, deshabilitamos las
   // flechas para evitar swaps encimados.
   const [reordering, setReordering] = useState(false);
+  // Búsqueda de platos por nombre/descripción (sin acentos). Vacía = vista
+  // normal; con texto, filtra los platos y oculta categorías sin coincidencias.
+  const [query, setQuery] = useState("");
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingItemInCat, setAddingItemInCat] = useState<string | null>(null);
@@ -226,6 +241,14 @@ export function MenuEditor({
   const visibleItems = visibleCategories.flatMap((c) => byCat.get(c.id) ?? []);
   const visibleItemIds = visibleItems.map((i) => i.id);
   const selectedItems = items.filter((i) => selectedIds.has(i.id));
+
+  // Búsqueda: filtra por nombre + descripción (sin acentos). Cuando hay query,
+  // las categorías sin coincidencias no se muestran (ver el map de abajo).
+  const searching = query.trim().length > 0;
+  const nq = searchNormalize(query);
+  const matchesItem = (it: Item) =>
+    searchNormalize(`${it.name} ${it.description ?? ""}`).includes(nq);
+  const searchHasResults = searching && visibleItems.some(matchesItem);
   const allVisibleSelected =
     visibleItemIds.length > 0 &&
     visibleItemIds.every((id) => selectedIds.has(id));
@@ -424,7 +447,56 @@ export function MenuEditor({
         </div>
       )}
 
-      {addingCategory && (
+      {/* Búsqueda de platos. Filtra por nombre/descripción sin acentos y oculta
+          las categorías sin coincidencias. */}
+      {(items.length > 0 || searching) && (
+        <div className="mb-5 relative">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-op-muted"
+            width="16"
+            height="16"
+            viewBox="0 0 20 20"
+            fill="none"
+            aria-hidden
+          >
+            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.75" />
+            <path
+              d="M14 14l4 4"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+          </svg>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={tr("searchPlaceholder")}
+            className="w-full h-11 pl-9 pr-10 rounded-xl border border-op-border bg-op-surface text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label={tr("clearSearch")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path
+                  d="M5 5l10 10M15 5L5 15"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Mientras se busca, ocultamos los formularios de alta para no mezclar
+          con los resultados filtrados. */}
+      {addingCategory && !searching && (
         <div className="mb-5">
           <NewCategoryForm
             menuId={hasMultipleMenus ? activeMenuId : undefined}
@@ -451,7 +523,7 @@ export function MenuEditor({
         </div>
       )}
 
-      {visibleCategories.length === 0 && !addingCategory && (
+      {visibleCategories.length === 0 && !addingCategory && !searching && (
         <div className="text-sm text-op-muted border border-dashed border-op-border rounded-xl p-8 text-center">
           {hasMultipleMenus
             ? tr("emptyMultiMenu")
@@ -459,15 +531,25 @@ export function MenuEditor({
         </div>
       )}
 
+      {searching && !searchHasResults && (
+        <div className="text-sm text-op-muted border border-dashed border-op-border rounded-xl p-8 text-center">
+          {tr("searchNoResults", { query: query.trim() })}
+        </div>
+      )}
+
       <div className="space-y-8">
         {orderedVisible.map(({ c, isChild }) => {
-          const rows = byCat.get(c.id) ?? [];
+          const allRows = byCat.get(c.id) ?? [];
+          // Al buscar, filtramos los platos de la categoría; si no queda
+          // ninguno, la categoría no se muestra.
+          const rows = searching ? allRows.filter(matchesItem) : allRows;
+          if (searching && rows.length === 0) return null;
           // Flechas de orden: solo dentro del grupo de hermanas (top-level
           // entre sí, o hijas de un mismo padre). La primera no sube, la
-          // última no baja.
+          // última no baja. Mientras se busca no tiene sentido reordenar.
           const sibs = siblingsOf(c);
           const sibIdx = sibs.findIndex((s) => s.id === c.id);
-          const showArrows = sibs.length > 1;
+          const showArrows = !searching && sibs.length > 1;
           return (
             <section
               key={c.id}

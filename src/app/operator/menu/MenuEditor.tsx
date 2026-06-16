@@ -2045,14 +2045,16 @@ function ItemSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-40 bg-black/50 flex items-end justify-center sm:items-center p-0 sm:p-4"
       onClick={onClose}
     >
+      {/* Móvil: hoja inferior a ancho completo (rounded-top). Desktop: tarjeta
+          centrada. max-h en dvh para que iOS no la corte con la barra de URL. */}
       <div
-        className="bg-op-surface text-op-text w-full max-w-xl max-h-[92vh] rounded-2xl overflow-auto"
+        className="bg-op-surface text-op-text w-full sm:max-w-xl max-h-[92dvh] rounded-t-2xl sm:rounded-2xl overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="font-display text-2xl">{tr("editDish")}</div>
             <button
@@ -2064,8 +2066,10 @@ function ItemSheet({
             </button>
           </div>
 
-          <div className="flex gap-3">
-            <label className="flex-1 flex flex-col">
+          {/* Móvil: nombre en su propia fila; precio y tiempo comparten una
+              fila debajo. Desktop: los tres en línea. */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <label className="flex flex-col sm:flex-1">
               <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
                 {tr("fieldName")}
               </span>
@@ -2076,33 +2080,35 @@ function ItemSheet({
                 className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
               />
             </label>
-            <label className="w-32 flex flex-col">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {tr("fieldPrice")}
-              </span>
-              <input
-                type="number"
-                value={priceCents}
-                onChange={(e) => setPriceCents(e.target.value)}
-                min={0}
-                step={100}
-                className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              />
-            </label>
-            <label className="w-24 flex flex-col">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {tr("fieldPrep")}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={prepMinutes}
-                onChange={(e) => setPrepMinutes(e.target.value)}
-                placeholder="0.5"
-                className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              />
-              <PrepHint raw={prepMinutes} />
-            </label>
+            <div className="flex gap-3">
+              <label className="flex-1 sm:w-32 sm:flex-none flex flex-col">
+                <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                  {tr("fieldPrice")}
+                </span>
+                <input
+                  type="number"
+                  value={priceCents}
+                  onChange={(e) => setPriceCents(e.target.value)}
+                  min={0}
+                  step={100}
+                  className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                />
+              </label>
+              <label className="flex-1 sm:w-24 sm:flex-none flex flex-col">
+                <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                  {tr("fieldPrep")}
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={prepMinutes}
+                  onChange={(e) => setPrepMinutes(e.target.value)}
+                  placeholder="0.5"
+                  className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                />
+                <PrepHint raw={prepMinutes} />
+              </label>
+            </div>
           </div>
 
           <label className="flex flex-col">
@@ -2441,8 +2447,10 @@ function ModifiersEditor({
             key={m.id}
             className="border border-op-border rounded-lg p-3 bg-op-bg/50 space-y-2"
           >
-            <div className="flex gap-2 items-end">
-              <label className="flex-1 flex flex-col">
+            {/* Móvil: la etiqueta ocupa toda la fila y tipo/flechas/✕ caen a la
+                siguiente; desktop: todo en línea. */}
+            <div className="flex flex-wrap gap-2 items-end">
+              <label className="basis-full sm:basis-auto sm:flex-1 flex flex-col">
                 <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
                   {tr("modifierLabel")}
                 </span>

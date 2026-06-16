@@ -48,6 +48,8 @@ type ModifierDef = {
   type: "radio" | "checkbox";
   opts: ModOpt[];
   default?: string;
+  // Grupo obligatorio: hay que elegir al menos una opción para agregar al pedido.
+  required?: boolean;
 };
 
 // A selection value is either a single label (radio) or a list of
@@ -2232,6 +2234,14 @@ function ItemSheet({
   );
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
+  // Validación de grupos obligatorios. Solo mostramos el error tras intentar
+  // agregar (patrón inline-validation: no regañar antes de tiempo).
+  const [showReqErrors, setShowReqErrors] = useState(false);
+
+  // Un grupo `required` sin ninguna opción elegida bloquea el "Agregar".
+  function isReqMissing(mi: number): boolean {
+    return !!mods[mi]?.required && (picked[mi]?.length ?? 0) === 0;
+  }
 
   function isOptSelected(mi: number, oi: number): boolean {
     return (picked[mi] ?? []).includes(oi);
@@ -2319,6 +2329,20 @@ function ItemSheet({
       }
     });
     return out;
+  }
+
+  // "Agregar": si falta resolver algún grupo obligatorio, no agregamos —
+  // marcamos los errores y llevamos el scroll al primero sin resolver.
+  function handleAdd() {
+    const firstMissing = mods.findIndex((_, mi) => isReqMissing(mi));
+    if (firstMissing >= 0) {
+      setShowReqErrors(true);
+      sheetScrollRef.current
+        ?.querySelector(`#mg-${firstMissing}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    onAdd(buildSelections(), qty, notes || undefined);
   }
 
   // Effective unit price reflects the diner's current picks. Updates
@@ -2495,12 +2519,26 @@ function ItemSheet({
           <p className="text-ink-3 mt-3 leading-relaxed">{item.description}</p>
 
           {mods.map((m, mi) => (
-            <div key={mi} className="mt-6">
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-                  {m.label}
+            <div key={mi} id={`mg-${mi}`} className="mt-6 scroll-mt-4">
+              <div className="flex items-baseline justify-between mb-2 gap-2">
+                <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted flex items-baseline gap-2 min-w-0">
+                  <span className="truncate">{m.label}</span>
+                  {m.required && (
+                    <span
+                      className={
+                        "shrink-0 normal-case tracking-normal " +
+                        (showReqErrors && isReqMissing(mi)
+                          ? "text-danger font-medium"
+                          : "text-muted-2")
+                      }
+                    >
+                      {showReqErrors && isReqMissing(mi)
+                        ? t("requiredChoose")
+                        : t("required")}
+                    </span>
+                  )}
                 </div>
-                <div className="font-mono text-[10px] tracking-wider uppercase text-muted-2">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-muted-2 shrink-0">
                   {m.type === "checkbox" ? t("modifierMany") : t("modifierOne")}
                 </div>
               </div>
@@ -2623,7 +2661,7 @@ function ItemSheet({
               </button>
             </div>
             <button
-              onClick={() => onAdd(buildSelections(), qty, notes || undefined)}
+              onClick={handleAdd}
               className="flex-1 h-11 rounded-full bg-ink text-bone font-medium"
             >
               {t("addWithPrice", { price: fmtCOP(unitPrice * qty) })}

@@ -41,6 +41,8 @@ export type ModifierDef = {
   type: "radio" | "checkbox";
   opts: ModOpt[];
   default?: string;
+  // Grupo obligatorio: el comensal debe elegir al menos una opción para agregar.
+  required?: boolean;
 };
 
 export type Item = {

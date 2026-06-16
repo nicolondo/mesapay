@@ -40,6 +40,10 @@ export type ModifierDef = {
   type: "radio" | "checkbox";
   opts: ModOpt[];
   default?: string;
+  // Si es true, el comensal DEBE elegir al menos una opción de este grupo antes
+  // de poder agregar el plato al pedido. Se valida en el cliente (la hoja del
+  // plato) — el quick-add ya manda a la hoja cuando hay grupos sin resolver.
+  required?: boolean;
 };
 
 /**
@@ -97,6 +101,7 @@ export function normalizeModifier(raw: unknown): ModifierDef | null {
   if (typeof r.default === "string" && r.default.trim()) {
     def.default = r.default;
   }
+  if (r.required === true) def.required = true;
   return def;
 }
 

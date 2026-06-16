@@ -2471,6 +2471,16 @@ function ModifiersEditor({
               </button>
             </div>
 
+            <label className="flex items-center gap-2 text-xs text-op-text select-none">
+              <input
+                type="checkbox"
+                checked={!!m.required}
+                onChange={(e) => update(i, { required: e.target.checked })}
+                className="w-4 h-4 shrink-0"
+              />
+              {tr("modifierRequired")}
+            </label>
+
             <OptionsEditor
               opts={m.opts}
               defaultOpt={m.default}

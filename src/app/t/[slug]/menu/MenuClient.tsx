@@ -2238,6 +2238,35 @@ function ItemSheet({
   // agregar (patrón inline-validation: no regañar antes de tiempo).
   const [showReqErrors, setShowReqErrors] = useState(false);
 
+  // Teclado (sobre todo en desktop): Esc cierra; ←/↑ va al plato anterior y
+  // →/↓ al siguiente. No secuestramos las flechas si el foco está en un campo
+  // (p.ej. las notas) para no romper el cursor; Esc cierra siempre.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      const el = document.activeElement as HTMLElement | null;
+      const typing =
+        !!el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable);
+      if (typing) return;
+      if ((e.key === "ArrowLeft" || e.key === "ArrowUp") && hasPrev) {
+        e.preventDefault();
+        onPrev();
+      } else if ((e.key === "ArrowRight" || e.key === "ArrowDown") && hasNext) {
+        e.preventDefault();
+        onNext();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [hasPrev, hasNext, onPrev, onNext, onClose]);
+
   // Un grupo `required` sin ninguna opción elegida bloquea el "Agregar".
   function isReqMissing(mi: number): boolean {
     return !!mods[mi]?.required && (picked[mi]?.length ?? 0) === 0;

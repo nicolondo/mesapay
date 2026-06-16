@@ -20,7 +20,9 @@ import { normalizeModifiers, rekeyModifiers } from "@/lib/modifiers";
 
 const optSchema = z.object({
   label: z.string().trim().min(1).max(60),
-  priceDeltaCents: z.number().int().min(-1_000_000).max(1_000_000),
+  // Mismo rango que el precio base (hasta $1.000.000 en COP). El tope viejo de
+  // $10.000 rechazaba adiciones legítimas (p.ej. proteína a $12.900 COP).
+  priceDeltaCents: z.number().int().min(-100_000_000).max(100_000_000),
 });
 
 const bodySchema = z.object({

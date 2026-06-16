@@ -1454,6 +1454,11 @@ function NewItemForm({
   );
 }
 
+// Formatos de imagen que aceptamos al subir/soltar una foto de producto.
+// Debe coincidir con el `accept` del input y con la validación del endpoint
+// /api/operator/uploads.
+const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 function ItemSheet({
   item,
   categories,
@@ -1488,6 +1493,7 @@ function ItemSheet({
   );
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   // Opciones de categoría ordenadas jerárquicamente: cada categoría principal
@@ -1522,6 +1528,12 @@ function ItemSheet({
   }
 
   async function onPhotoPick(file: File) {
+    // Validamos el tipo en el cliente para no gastar una subida con un PDF u
+    // otro archivo arrastrado por error; el endpoint igual lo revalida.
+    if (!ACCEPTED_PHOTO_TYPES.includes(file.type)) {
+      setErr(tr("errPhotoType"));
+      return;
+    }
     setUploading(true);
     setErr(null);
     const form = new FormData();
@@ -1535,6 +1547,14 @@ function ItemSheet({
     }
     const { url } = await res.json();
     setPhotoUrl(url);
+  }
+
+  function onPhotoDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) onPhotoPick(file);
   }
 
   async function save() {
@@ -1739,9 +1759,26 @@ function ItemSheet({
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
               {tr("fieldPhoto")}
             </span>
-            <div className="flex items-center gap-3">
+            {/* Toda la fila es zona de drop: se puede arrastrar una imagen
+                desde el escritorio y soltarla encima. El botón de click sigue
+                disponible como alternativa. */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (!uploading) setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onPhotoDrop}
+              className={
+                "relative flex items-center gap-3 rounded-lg -m-2 p-2 transition-colors " +
+                (dragOver ? "ring-2 ring-terracotta bg-terracotta/5" : "")
+              }
+            >
               <div
-                className="w-20 h-20 rounded-lg bg-op-bg border border-op-border bg-cover bg-center shrink-0"
+                className={
+                  "w-20 h-20 rounded-lg bg-op-bg bg-cover bg-center shrink-0 border " +
+                  (photoUrl ? "border-op-border" : "border-dashed border-op-border")
+                }
                 style={
                   photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined
                 }
@@ -1778,6 +1815,11 @@ function ItemSheet({
                   {tr("photoHint")}
                 </div>
               </div>
+              {dragOver && (
+                <div className="pointer-events-none absolute inset-0 rounded-lg bg-op-surface/85 flex items-center justify-center text-sm font-medium text-terracotta">
+                  {tr("dropPhotoHere")}
+                </div>
+              )}
             </div>
           </div>
 

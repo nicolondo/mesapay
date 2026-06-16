@@ -2100,7 +2100,7 @@ function ItemSheet({
                   className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
                 />
               </label>
-              <label className="flex-1 sm:w-24 sm:flex-none flex flex-col">
+              <label className="w-24 shrink-0 flex flex-col">
                 <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
                   {tr("fieldPrep")}
                 </span>

@@ -1135,7 +1135,19 @@ function ConvertCategorySheet({
     );
     setBusy(false);
     if (!res.ok) {
-      setErr(tr("bulkErr"));
+      // Mostramos el motivo concreto cuando lo conocemos; el resto cae al
+      // mensaje genérico (auth, sin restaurante, ids inválidos, red).
+      const code = await res
+        .json()
+        .then((b) => (b && typeof b.error === "string" ? b.error : null))
+        .catch(() => null);
+      setErr(
+        code === "too_many_modifiers"
+          ? tr("convertErrTooMany")
+          : code === "invalid"
+            ? tr("convertErrInvalid")
+            : tr("bulkErr"),
+      );
       return;
     }
     const j = (await res.json()) as ConvertResult;

@@ -2195,44 +2195,58 @@ function ItemSheet({
   onAdd: (sel: Selections, qty: number, notes?: string) => void;
 }) {
   const t = useTranslations("menu");
-  const [selections, setSelections] = useState<Selections>(() => {
-    const d: Selections = {};
+  // La selección se rastrea por ÍNDICE de opción dentro de cada modificador, no
+  // por etiqueta: dos opciones pueden compartir el mismo texto (p.ej. cartas
+  // importadas o categorías convertidas en modificador con nombres repetidos) y
+  // si las identificáramos por etiqueta, tocar una marcaría/desmarcaría la otra.
+  // El índice es único. Al "Agregar" lo convertimos al formato por etiquetas que
+  // el servidor/carrito/cocina ya esperan (buildSelections).
+  const [picked, setPicked] = useState<Record<string, number[]>>(() => {
+    const d: Record<string, number[]> = {};
     for (const m of item.modifiers ?? []) {
-      if (m.default) {
-        // checkbox default seeds as a one-element array so we can keep
-        // toggling more options on; radio stays a string.
-        d[m.id] = m.type === "checkbox" ? [m.default] : m.default;
-      } else if (m.type === "checkbox") {
-        // Empty array for an unset checkbox modifier — distinguishes
-        // "no selection yet" from "modifier doesn't apply".
-        d[m.id] = [];
-      }
+      const i = m.default ? m.opts.findIndex((o) => o.label === m.default) : -1;
+      d[m.id] = i >= 0 ? [i] : [];
     }
     return d;
   });
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
 
-  function isOptSelected(modId: string, optLabel: string): boolean {
-    const v = selections[modId];
-    if (v == null) return false;
-    if (typeof v === "string") return v === optLabel;
-    return v.includes(optLabel);
+  function isOptSelected(modId: string, idx: number): boolean {
+    return (picked[modId] ?? []).includes(idx);
   }
-  function toggleOpt(mod: ModifierDef, optLabel: string) {
-    setSelections((prev) => {
-      const next = { ...prev };
+  function toggleOpt(mod: ModifierDef, idx: number) {
+    setPicked((prev) => {
+      const cur = prev[mod.id] ?? [];
       if (mod.type === "radio") {
-        next[mod.id] = optLabel; // replace
-      } else {
-        const cur = prev[mod.id];
-        const arr = Array.isArray(cur) ? cur : cur ? [cur as string] : [];
-        next[mod.id] = arr.includes(optLabel)
-          ? arr.filter((x) => x !== optLabel)
-          : [...arr, optLabel];
+        return { ...prev, [mod.id]: [idx] }; // reemplaza
       }
-      return next;
+      return {
+        ...prev,
+        [mod.id]: cur.includes(idx)
+          ? cur.filter((x) => x !== idx)
+          : [...cur, idx],
+      };
     });
+  }
+
+  // Convierte la selección por índice al formato por etiquetas. Radio = una sola
+  // etiqueta (o se omite si no hay pick); checkbox = lista de etiquetas (puede ir
+  // vacía, igual que antes, para distinguir "sin elegir" de "no aplica").
+  function buildSelections(): Selections {
+    const out: Selections = {};
+    for (const m of item.modifiers ?? []) {
+      const idxs = picked[m.id] ?? [];
+      if (m.type === "radio") {
+        const opt = idxs.length > 0 ? m.opts[idxs[0]] : undefined;
+        if (opt) out[m.id] = opt.label;
+      } else {
+        out[m.id] = idxs
+          .map((i) => m.opts[i]?.label)
+          .filter((x): x is string => typeof x === "string");
+      }
+    }
+    return out;
   }
 
   // Effective unit price reflects the diner's current picks. Updates
@@ -2240,11 +2254,8 @@ function ItemSheet({
   // amount the cart will pick up.
   let unitPrice = item.priceCents;
   for (const m of item.modifiers ?? []) {
-    const v = selections[m.id];
-    if (v == null) continue;
-    const labels = typeof v === "string" ? [v] : v;
-    for (const lab of labels) {
-      const opt = m.opts.find((o) => o.label === lab);
+    for (const idx of picked[m.id] ?? []) {
+      const opt = m.opts[idx];
       if (opt?.priceDeltaCents) unitPrice += opt.priceDeltaCents;
     }
   }
@@ -2426,13 +2437,13 @@ function ItemSheet({
                 // etiqueta + precio arriba y la descripción debajo (no entra
                 // en un chip compacto).
                 <div className="flex flex-col gap-2">
-                  {m.opts.map((opt) => {
-                    const active = isOptSelected(m.id, opt.label);
+                  {m.opts.map((opt, idx) => {
+                    const active = isOptSelected(m.id, idx);
                     const delta = opt.priceDeltaCents ?? 0;
                     return (
                       <button
-                        key={opt.label}
-                        onClick={() => toggleOpt(m, opt.label)}
+                        key={idx}
+                        onClick={() => toggleOpt(m, idx)}
                         className={
                           "w-full text-left px-3 py-2 rounded-xl text-sm border " +
                           (active
@@ -2470,13 +2481,13 @@ function ItemSheet({
                 </div>
               ) : (
                 <div className="flex gap-2 flex-wrap">
-                  {m.opts.map((opt) => {
-                    const active = isOptSelected(m.id, opt.label);
+                  {m.opts.map((opt, idx) => {
+                    const active = isOptSelected(m.id, idx);
                     const delta = opt.priceDeltaCents ?? 0;
                     return (
                       <button
-                        key={opt.label}
-                        onClick={() => toggleOpt(m, opt.label)}
+                        key={idx}
+                        onClick={() => toggleOpt(m, idx)}
                         className={
                           "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
                           (active
@@ -2534,7 +2545,7 @@ function ItemSheet({
               </button>
             </div>
             <button
-              onClick={() => onAdd(selections, qty, notes || undefined)}
+              onClick={() => onAdd(buildSelections(), qty, notes || undefined)}
               className="flex-1 h-11 rounded-full bg-ink text-bone font-medium"
             >
               {t("addWithPrice", { price: fmtCOP(unitPrice * qty) })}

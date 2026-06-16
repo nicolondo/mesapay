@@ -319,14 +319,14 @@ export function MenuEditor({
   return (
     <div
       className={
-        "p-6 max-w-5xl mx-auto w-full " +
+        "px-4 py-5 sm:p-6 max-w-5xl mx-auto w-full " +
         // Espacio extra abajo para que la barra fija de acciones no tape los
         // últimos platos.
         (selectedIds.size > 0 ? "pb-28" : "")
       }
     >
       <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
-        <div className="font-display text-3xl">{tr("title")}</div>
+        <div className="font-display text-2xl sm:text-3xl">{tr("title")}</div>
         <div className="flex items-center gap-2">
           <a
             // Pass the active menu so the import wizard lands the new
@@ -565,7 +565,11 @@ export function MenuEditor({
                   <li
                     key={it.id}
                     className={
-                      "p-4 flex items-start gap-3 hover:bg-op-bg/50 " +
+                      // Móvil: grid de 3 columnas (check · foto · contenido) con
+                      // las acciones bajando a una 2ª fila a la derecha, así el
+                      // nombre y el precio usan todo el ancho. Desktop: una sola
+                      // fila (flex) como siempre.
+                      "p-3 sm:p-4 grid grid-cols-[auto_auto_1fr] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
                       (selectedIds.has(it.id) ? "bg-terracotta/5 " : "") +
                       (it.available ? "" : "opacity-60")
                     }
@@ -578,16 +582,18 @@ export function MenuEditor({
                       className="w-4 h-4 mt-1 shrink-0"
                     />
                     <div
-                      className="w-14 h-14 shrink-0 rounded-lg bg-op-bg bg-cover bg-center"
+                      className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-lg bg-op-bg bg-cover bg-center"
                       style={
                         it.photoUrl
                           ? { backgroundImage: `url(${it.photoUrl})` }
                           : undefined
                       }
                     />
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 sm:flex-1">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="font-medium truncate">{it.name}</div>
+                        <div className="font-medium leading-snug line-clamp-2 sm:truncate">
+                          {it.name}
+                        </div>
                         <div className="font-mono text-sm tabular shrink-0">
                           {fmtCOP(it.priceCents)}
                         </div>
@@ -598,7 +604,7 @@ export function MenuEditor({
                         </div>
                       )}
                     </div>
-                    <div className="shrink-0 flex items-center gap-3">
+                    <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-3">
                       <AvailabilityToggle
                         item={it}
                         onChanged={(available) =>
@@ -607,7 +613,7 @@ export function MenuEditor({
                       />
                       <button
                         onClick={() => setEditingItem(it)}
-                        className="text-xs text-terracotta hover:underline"
+                        className="text-xs text-terracotta hover:underline px-1 py-0.5"
                       >
                         {tr("edit")}
                       </button>
@@ -1074,7 +1080,12 @@ function CategoryHeader({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className={"font-display " + (isChild ? "text-lg" : "text-2xl")}>
+      <div
+        className={
+          "font-display " +
+          (isChild ? "text-base sm:text-lg" : "text-xl sm:text-2xl")
+        }
+      >
         {cat.label}
       </div>
       {showKind && !isChild && (
@@ -1132,20 +1143,20 @@ function CategoryHeader({
       {onConvert && (
         <button
           onClick={onConvert}
-          className="text-[11px] text-op-muted hover:text-terracotta"
+          className="text-xs py-0.5 text-op-muted hover:text-terracotta"
         >
           {tr("convertToModifier")}
         </button>
       )}
       <button
         onClick={() => setEditing(true)}
-        className="text-[11px] text-op-muted hover:text-ink"
+        className="text-xs py-0.5 text-op-muted hover:text-ink"
       >
         {tr("rename")}
       </button>
       <button
         onClick={del}
-        className="text-[11px] text-op-muted hover:text-danger"
+        className="text-xs py-0.5 text-op-muted hover:text-danger"
       >
         {tr("delete")}
       </button>

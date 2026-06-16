@@ -100,17 +100,20 @@ export function normalizeModifier(raw: unknown): ModifierDef | null {
   return def;
 }
 
-/** Normalise a full modifier list, dropping anything malformed. */
-export function normalizeModifiers(raw: unknown): ModifierDef[] {
-  if (!Array.isArray(raw)) return [];
-  const mods = raw.map(normalizeModifier).filter((m): m is ModifierDef => !!m);
-  // Garantizar ids únicos. Dos modificadores con el mismo id (p.ej. datos
-  // importados) rompen el picker del comensal —la selección se indexa por id,
-  // así que tocar una opción de uno marca la del otro— y la comanda, que
-  // resuelve `selections[m.id]`. Mantenemos el id de la primera aparición y
-  // reasignamos las siguientes de forma DETERMINISTA, para que el comensal y
-  // la cocina (ambos pasan por aquí) coincidan en las claves. normalizeModifier
-  // devuelve objetos nuevos, así que mutar id es seguro.
+/**
+ * Garantiza ids únicos en una lista de modificadores, mutando en sitio. Dos
+ * modificadores con el mismo id (p.ej. datos importados) rompen el picker del
+ * comensal —la selección se indexa por id, así que tocar una opción de uno
+ * marca la del otro— y la comanda, que resuelve `selections[m.id]`. Mantenemos
+ * el id de la PRIMERA aparición y reasignamos las repetidas de forma
+ * DETERMINISTA (`-2`, `-3`…), para que todo consumidor (comensal, precio,
+ * cocina, migración) llegue al mismo resultado a partir de los mismos datos.
+ *
+ * Genérico sobre `{ id: string }` para poder usarse tanto con ModifierDef[]
+ * (lectura) como con los objetos del payload del editor o del JSON crudo en la
+ * migración (escritura).
+ */
+export function dedupeModifierIds<T extends { id: string }>(mods: T[]): T[] {
   const seen = new Set<string>();
   for (const m of mods) {
     if (!seen.has(m.id)) {
@@ -127,6 +130,14 @@ export function normalizeModifiers(raw: unknown): ModifierDef[] {
     m.id = id;
   }
   return mods;
+}
+
+/** Normalise a full modifier list, dropping anything malformed. */
+export function normalizeModifiers(raw: unknown): ModifierDef[] {
+  if (!Array.isArray(raw)) return [];
+  const mods = raw.map(normalizeModifier).filter((m): m is ModifierDef => !!m);
+  // normalizeModifier devuelve objetos nuevos, así que mutar id es seguro.
+  return dedupeModifierIds(mods);
 }
 
 /**

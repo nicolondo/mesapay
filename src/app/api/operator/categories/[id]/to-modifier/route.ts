@@ -4,7 +4,11 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { normalizeModifiers, rekeyModifiers } from "@/lib/modifiers";
+import {
+  dedupeModifierIds,
+  normalizeModifiers,
+  rekeyModifiers,
+} from "@/lib/modifiers";
 
 /**
  * Convierte una categoría (p.ej. "Vegetales", con sus productos como ítems
@@ -83,7 +87,9 @@ export async function POST(
     [{ id: "new", label: data.label, type: data.type, opts: data.options }],
     current.map((m) => m.id),
   );
-  const nextModifiers = [...current, newMod];
+  // current ya viene deduplicado y newMod usa un id que no choca con los
+  // existentes; el dedupe final es un seguro explícito ante datos raros.
+  const nextModifiers = dedupeModifierIds([...current, newMod]);
   if (nextModifiers.length > 8) {
     return NextResponse.json({ error: "too_many_modifiers" }, { status: 400 });
   }

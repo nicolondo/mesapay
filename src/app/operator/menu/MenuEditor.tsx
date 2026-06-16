@@ -1194,7 +1194,7 @@ function CategoryHeader({
   return (
     <div className="flex items-center gap-2 min-w-0 flex-1">
       {/* Título + contador */}
-      <div className="flex items-baseline gap-2 min-w-0">
+      <div className="flex items-baseline gap-2 min-w-0 flex-1">
         <div
           className={
             "font-display truncate " +
@@ -1208,15 +1208,87 @@ function CategoryHeader({
         </span>
       </div>
 
-      {/* Acciones a la derecha: primaria (+ Plato) + overflow (•••) */}
-      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+      {/* DESKTOP (lg+): controles inline, a la vista para editar rápido. En
+          pantallas chicas viven en el menú "•••" de abajo (md y menos). */}
+      <div className="hidden lg:flex items-center gap-2 shrink-0">
+        {showKind && !isChild && (
+          <label
+            className="inline-flex items-center gap-1.5 h-7 px-2 rounded-full border border-op-border bg-op-bg text-[11px] cursor-pointer hover:bg-op-surface"
+            title={tr("mainCourseTitle")}
+          >
+            <input
+              type="checkbox"
+              checked={cat.kind === "main"}
+              onChange={(e) => changeKind(e.target.checked ? "main" : "other")}
+              className="w-3 h-3"
+            />
+            <span>{tr("mainCourses")}</span>
+          </label>
+        )}
+        {showMenuSelect && (
+          <select
+            value={cat.menuId}
+            onChange={(e) => changeMenu(e.target.value)}
+            title={tr("categoryMenuTitle")}
+            className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px]"
+          >
+            {menus.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {showParentSelect && (
+          <label className="inline-flex items-center gap-1 text-[11px] text-op-muted">
+            <span>{tr("subcategoryOfLabel")}</span>
+            <select
+              value={cat.parentId ?? ""}
+              onChange={(e) => changeParent(e.target.value || null)}
+              disabled={hasChildren}
+              title={tr("subcategoryOfTitle")}
+              className="h-7 px-1.5 rounded border border-op-border bg-op-bg text-[11px] disabled:opacity-50"
+            >
+              <option value="">{tr("subcategoryNone")}</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {onConvert && (
+          <button
+            onClick={onConvert}
+            className="text-xs text-op-muted hover:text-terracotta"
+          >
+            {tr("convertToModifier")}
+          </button>
+        )}
+        <button
+          onClick={() => setEditing(true)}
+          className="text-xs text-op-muted hover:text-ink"
+        >
+          {tr("rename")}
+        </button>
+        <button
+          onClick={del}
+          className="text-xs text-op-muted hover:text-danger"
+        >
+          {tr("delete")}
+        </button>
+      </div>
+
+      {/* Acciones: primaria (+ Plato) siempre + overflow (•••) solo en chicas */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={onAddDish}
           className="h-9 sm:h-8 px-3.5 sm:px-4 rounded-full bg-op-surface border border-op-border text-xs font-medium"
         >
           {tr("addDish")}
         </button>
-        <div className="relative">
+        <div className="relative lg:hidden">
           <button
             type="button"
             aria-label={tr("moreActions")}

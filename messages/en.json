@@ -1877,7 +1877,9 @@
     "convertDeleteSource": "Delete the products and category afterwards",
     "convertApply": "Add to {name}",
     "convertApplyNoTarget": "Pick a product",
-    "convertApplying": "Adding…"
+    "convertApplying": "Adding…",
+    "convertErrTooMany": "This product already has the maximum number of modifiers (8).",
+    "convertErrInvalid": "Check the option names and prices."
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

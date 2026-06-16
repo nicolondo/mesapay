@@ -1877,7 +1877,9 @@
     "convertDeleteSource": "Excluir os produtos e a categoria depois",
     "convertApply": "Adicionar a {name}",
     "convertApplyNoTarget": "Escolha um produto",
-    "convertApplying": "Adicionando…"
+    "convertApplying": "Adicionando…",
+    "convertErrTooMany": "Este produto já tem o número máximo de modificadores (8).",
+    "convertErrInvalid": "Revise os nomes e preços das opções."
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

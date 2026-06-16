@@ -1881,7 +1881,10 @@
     "convertApplyNoTarget": "Elegí un producto",
     "convertApplying": "Agregando…",
     "convertErrTooMany": "El producto ya tiene el máximo de modificadores (8).",
-    "convertErrInvalid": "Revisá los nombres y precios de las opciones."
+    "convertErrInvalid": "Revisá los nombres y precios de las opciones.",
+    "moveCatUp": "Subir categoría",
+    "moveCatDown": "Bajar categoría",
+    "errReorderCat": "No pudimos cambiar el orden. Intentá de nuevo."
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",

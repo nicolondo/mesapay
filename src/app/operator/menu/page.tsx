@@ -47,6 +47,7 @@ export default async function MenuAdminPage() {
         // Null shouldn't happen after ensureDefaultMenu, but be safe.
         menuId: c.menuId ?? menus[0]?.id ?? "",
         parentId: c.parentId ?? null,
+        sortOrder: c.sortOrder,
       }))}
       items={items.map((i) => ({
         id: i.id,

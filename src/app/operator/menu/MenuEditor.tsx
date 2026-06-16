@@ -1844,6 +1844,14 @@ function ItemSheet({
   onDeleted: (archivedAsUnavailable: boolean) => void;
 }) {
   const tr = useTranslations("opMenuEditor");
+  // Al abrir (y al saltar de plato con flechas, que remonta por `key`), movemos
+  // el foco al panel. Si no, el foco queda en la fila de fondo que se clickeó y
+  // su anillo de foco azul se ve por detrás del sheet. tabIndex=-1 + outline-none
+  // → el panel puede recibir foco sin mostrar borde.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    cardRef.current?.focus({ preventScroll: true });
+  }, []);
   const [name, setName] = useState(item.name);
   const [priceCents, setPriceCents] = useState(String(item.priceCents / 100));
   const [description, setDescription] = useState(item.description);
@@ -2056,7 +2064,9 @@ function ItemSheet({
           que la hoja quedaba anclada por debajo de la barra de Safari y se veía
           un hueco abajo.) max-h en dvh para que iOS no la corte con la barra. */}
       <div
-        className="bg-op-surface text-op-text w-full sm:max-w-xl max-h-[92dvh] rounded-2xl overflow-auto"
+        ref={cardRef}
+        tabIndex={-1}
+        className="bg-op-surface text-op-text w-full sm:max-w-xl max-h-[92dvh] rounded-2xl overflow-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 sm:p-6 space-y-4">

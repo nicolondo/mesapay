@@ -2259,7 +2259,12 @@ function ItemSheet({
   // el click sintético posterior (venga al botón que venga). En desktop (mouse,
   // sin touch) sigue andando el onClick normal.
   const optTapRef = useRef<{ x: number; y: number } | null>(null);
-  const suppressOptClick = useRef(false);
+  // Marca de tiempo del último touchend sobre una opción. El click sintético de
+  // iOS llega ~300ms después; ignoramos TODO click dentro de esta ventana. Es
+  // una ventana (no un flag que se "consume"), así que toques rápidos seguidos
+  // —incluso en botones distintos— no dejan colarse un click que haría
+  // doble-toggle (síntoma: parpadea y vuelve al estado anterior).
+  const lastOptTouchEndRef = useRef(0);
   function optTouchStart(e: React.TouchEvent) {
     const tp = e.touches[0];
     optTapRef.current = tp ? { x: tp.clientX, y: tp.clientY } : null;
@@ -2272,12 +2277,9 @@ function ItemSheet({
   ) {
     const s = optTapRef.current;
     optTapRef.current = null;
-    // Suprimimos SIEMPRE el click sintético que sigue a este touch (puede caer
-    // en un botón equivocado tras el micro-scroll). Se rearma solo.
-    suppressOptClick.current = true;
-    setTimeout(() => {
-      suppressOptClick.current = false;
-    }, 700);
+    // Usamos el timestamp del evento (no Date.now): es un valor puro y
+    // monotónico, comparable con el del click sintético posterior.
+    lastOptTouchEndRef.current = e.timeStamp;
     if (!s) return;
     const tp = e.changedTouches[0];
     if (!tp) return;
@@ -2287,13 +2289,16 @@ function ItemSheet({
     }
     toggleOpt(mi, mod, oi);
   }
-  function optClick(mi: number, mod: ModifierDef, oi: number) {
-    // En táctil ya lo manejó touchend; este click viene del navegador y puede
-    // estar mal dirigido → lo ignoramos. En desktop no hay touch previo.
-    if (suppressOptClick.current) {
-      suppressOptClick.current = false;
-      return;
-    }
+  function optClick(
+    e: React.MouseEvent,
+    mi: number,
+    mod: ModifierDef,
+    oi: number,
+  ) {
+    // Si hubo un toque hace muy poco, este click es el sintético de iOS (que
+    // además puede venir mal dirigido) → lo ignoramos. En desktop (mouse, sin
+    // touch reciente) sí togglea. Comparamos timestamps del mismo origen.
+    if (e.timeStamp - lastOptTouchEndRef.current < 700) return;
     toggleOpt(mi, mod, oi);
   }
 
@@ -2510,7 +2515,7 @@ function ItemSheet({
                     return (
                       <button
                         key={idx}
-                        onClick={() => optClick(mi, m, idx)}
+                        onClick={(e) => optClick(e, mi, m, idx)}
                         onTouchStart={optTouchStart}
                         onTouchEnd={(e) => optTouchEnd(e, mi, m, idx)}
                         style={{ touchAction: "manipulation" }}
@@ -2557,7 +2562,7 @@ function ItemSheet({
                     return (
                       <button
                         key={idx}
-                        onClick={() => optClick(mi, m, idx)}
+                        onClick={(e) => optClick(e, mi, m, idx)}
                         onTouchStart={optTouchStart}
                         onTouchEnd={(e) => optTouchEnd(e, mi, m, idx)}
                         style={{ touchAction: "manipulation" }}

@@ -1994,13 +1994,15 @@ function ItemSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/50 flex items-end justify-center sm:items-center p-0 sm:p-4"
+      className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* Móvil: hoja inferior a ancho completo (rounded-top). Desktop: tarjeta
-          centrada. max-h en dvh para que iOS no la corte con la barra de URL. */}
+      {/* Tarjeta centrada en todos los tamaños. (Antes era hoja inferior con
+          items-end, pero en iOS `fixed inset-0` usa el viewport "grande", así
+          que la hoja quedaba anclada por debajo de la barra de Safari y se veía
+          un hueco abajo.) max-h en dvh para que iOS no la corte con la barra. */}
       <div
-        className="bg-op-surface text-op-text w-full sm:max-w-xl max-h-[92dvh] rounded-t-2xl sm:rounded-2xl overflow-auto"
+        className="bg-op-surface text-op-text w-full sm:max-w-xl max-h-[92dvh] rounded-2xl overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 sm:p-6 space-y-4">

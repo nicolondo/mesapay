@@ -5,7 +5,11 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { generateMenuDescriptions } from "@/lib/menuDescribe";
-import { normalizeModifiers, rekeyModifiers } from "@/lib/modifiers";
+import {
+  dedupeModifierIds,
+  normalizeModifiers,
+  rekeyModifiers,
+} from "@/lib/modifiers";
 
 // Acciones masivas sobre platos seleccionados en el editor de carta. Todo se
 // hace EN INTERSECCIÓN con el restaurante activo: un payload armado a mano no
@@ -203,7 +207,7 @@ export async function POST(req: Request) {
           toAdd,
           current.map((m) => m.id),
         );
-        next = [...current, ...appended];
+        next = dedupeModifierIds([...current, ...appended]);
       }
       return { id: t.id, modifiers: next };
     });

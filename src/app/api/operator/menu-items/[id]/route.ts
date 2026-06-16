@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { MAX_TAGS_PER_ITEM, SLUG_REGEX } from "@/lib/menuTags";
 import { isAllowedMenuPhotoUrl } from "@/lib/menuPhotoUrl";
+import { dedupeModifierIds } from "@/lib/modifiers";
 
 // Accept both shapes for the option list:
 //   "Pollo"                            (legacy, no price delta)
@@ -138,10 +139,15 @@ export async function PATCH(
   if (parsed.data.photoUrl !== undefined) data.photoUrl = parsed.data.photoUrl;
   if (parsed.data.tags !== undefined) data.tags = parsed.data.tags;
   if (parsed.data.modifiers !== undefined) {
+    // Garantizar ids de modificador únicos antes de persistir: si llegan
+    // repetidos (datos viejos reabiertos en el editor, etc.) el picker del
+    // comensal y la comanda los confunden. dedupeModifierIds muta in situ.
     data.modifiers =
       parsed.data.modifiers === null
         ? Prisma.DbNull
-        : (parsed.data.modifiers as unknown as Prisma.InputJsonValue);
+        : (dedupeModifierIds(
+            parsed.data.modifiers,
+          ) as unknown as Prisma.InputJsonValue);
   }
   if (parsed.data.prepMinutes !== undefined) data.prepMinutes = parsed.data.prepMinutes;
   if (parsed.data.prepStation !== undefined) data.prepStation = parsed.data.prepStation;

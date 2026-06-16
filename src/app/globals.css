@@ -314,6 +314,37 @@ input[type="time"] {
   }
 }
 
+/* App-shell del panel de operador (/operator/*).
+ *
+ * Antes el shell crecía con el contenido (min-h-screen) y el header era
+ * `position: sticky`. En iOS el sticky relativo al scroll del documento
+ * falla en ciertos casos (con `body { display:flex }` + `html { height:100% }`),
+ * y el header se iba con el scroll y no volvía. Aquí acotamos el shell al
+ * viewport y dejamos que scrollee <main>; el header queda FUERA del área de
+ * scroll, así que siempre está visible sin depender de sticky.
+ *
+ * Misma lógica dvh/standalone que .crm-app-shell. En impresión (tickets,
+ * reportes) deshacemos la altura fija y el overflow para que fluya y se
+ * imprima TODO el contenido, no solo lo visible. */
+.op-app-shell {
+  height: 100dvh;
+}
+@media all and (display-mode: standalone) {
+  .op-app-shell {
+    height: 100vh;
+  }
+}
+@media print {
+  .op-app-shell {
+    height: auto;
+    overflow: visible;
+  }
+  .op-app-shell > main {
+    overflow: visible;
+    height: auto;
+  }
+}
+
 /* Editor de carta (/operator/menu) optimizado para móvil:
  * - touch-action: manipulation quita el delay de ~300ms y el zoom por
  *   doble-tap en todos los controles.

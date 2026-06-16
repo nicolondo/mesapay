@@ -35,6 +35,8 @@ const modifierSchema = z.object({
   type: z.enum(["radio", "checkbox"]),
   opts: z.array(modOptSchema).min(1).max(12),
   default: z.string().trim().max(60).optional(),
+  // Grupo obligatorio: el comensal debe elegir al menos una opción para agregar.
+  required: z.boolean().optional(),
 });
 
 const patchSchema = z.object({

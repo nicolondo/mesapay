@@ -73,6 +73,13 @@ export async function GET(
   }
   const v = VARIANTS[kind as Kind];
 
+  // Cocina y bar son tableros (KDS) pensados para tablet en horizontal; el resto
+  // (mesero, comercial, diner) son UIs de celular en vertical. NOTA: iOS/iPadOS
+  // ignora `orientation` del manifest — ahí manda el bloqueo de rotación del
+  // dispositivo. En Android sí se respeta (reinstalar la PWA para que aplique).
+  const orientation =
+    kind === "cocina" || kind === "bar" ? "landscape" : "portrait";
+
   const body = {
     name: v.name,
     short_name: v.shortName,
@@ -80,7 +87,7 @@ export async function GET(
     start_url: v.start,
     scope: v.scope,
     display: "standalone",
-    orientation: "portrait",
+    orientation,
     background_color: "#F5EFE4",
     theme_color: "#0F0F0F",
     icons: [

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { LandscapeLock } from "@/components/LandscapeLock";
 
 /** Ver `src/app/mesero/layout.tsx` para el racional. */
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default async function CocinaLayout({
 
   return (
     <div className="min-h-screen bg-paper">
+      <LandscapeLock />
       {/* Same safe-area pattern as the mesero layout — pushes the
           header below the iOS status bar so the title doesn't sit
           under the system clock when launched as an installed PWA. */}

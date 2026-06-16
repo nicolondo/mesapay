@@ -1014,7 +1014,12 @@ export function MenuClient({
       }
     >
       {operatorMode && (
-        <div className="bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
+        <div
+          className="bg-ink text-bone px-5 pb-2 text-xs flex items-center justify-between gap-3"
+          // En iOS con viewport-fit=cover este bloque (cuando se ve, arriba de
+          // todo) se metería bajo la barra de estado/notch. Sumamos el inset.
+          style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.5rem)" }}
+        >
           <span>
             <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
               {tMenu("waiterMode")}
@@ -1036,6 +1041,13 @@ export function MenuClient({
       <header
         ref={headerRef}
         className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline"
+        // El comensal siempre corre como pestaña de Safari (no standalone), así
+        // que NO usamos .staff-safe-top (gateado a standalone). Con
+        // viewport-fit=cover, al minimizarse la barra de Safari el inset crece y
+        // el header sticky (top:0) se metía bajo el reloj/notch, ocultando el
+        // logo. Sumamos el inset acá (0 en desktop/Android → sin hueco). El bg
+        // bone/blur cubre la franja del notch.
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="max-w-2xl mx-auto px-5 pt-3 pb-3">
           <div className="flex items-center justify-between gap-3">

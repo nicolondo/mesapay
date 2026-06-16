@@ -1884,7 +1884,11 @@
     "convertErrInvalid": "Revise os nomes e preços das opções.",
     "moveCatUp": "Mover categoria para cima",
     "moveCatDown": "Mover categoria para baixo",
-    "errReorderCat": "Não foi possível mudar a ordem. Tente de novo."
+    "errReorderCat": "Não foi possível mudar a ordem. Tente de novo.",
+    "moveModifierUp": "Mover modificador para cima",
+    "moveModifierDown": "Mover modificador para baixo",
+    "moveOptionUp": "Mover opção para cima",
+    "moveOptionDown": "Mover opção para baixo"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

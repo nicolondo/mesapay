@@ -1431,10 +1431,12 @@ export function MenuClient({
       {/* Item detail sheet */}
       {openItem && (
         <ItemSheet
-          // Keying by id remounts the sheet when the diner swipes —
-          // selections/qty/notes auto-reset to the new item's defaults
-          // instead of leaking across plates.
-          key={openItem.id}
+          // SIN `key` por id a propósito: no remontamos el sheet al cambiar de
+          // plato. Antes el remonte reproducía la animación de entrada (slide-up)
+          // y recargaba la imagen → se veía "parpadear" toda la hoja. Ahora el
+          // sheet sigue montado y resetea su estado en sitio cuando cambia
+          // `item` (ver el useEffect de reset adentro); la imagen se intercambia
+          // in situ, sin recarga visible → transición smooth.
           item={openItem}
           hasPrev={!!prevItem}
           hasNext={!!nextItem}
@@ -2449,17 +2451,34 @@ function ItemSheet({
     return () => el.removeEventListener("touchmove", onMove);
   }, []);
 
+  // El sheet ya NO se remonta al cambiar de plato (sin `key` en el padre), así
+  // que reseteamos a mano la selección/cantidad/notas y subimos el scroll cuando
+  // cambia `item`. Antes esto lo hacía el remonte — pero el remonte era lo que
+  // causaba el parpadeo. La imagen (background-image) se intercambia in situ.
+  useEffect(() => {
+    const ms = item.modifiers ?? [];
+    setPicked(
+      ms.map((m) => {
+        const i = m.default ? m.opts.findIndex((o) => o.label === m.default) : -1;
+        return i >= 0 ? [i] : [];
+      }),
+    );
+    setQty(1);
+    setNotes("");
+    setShowReqErrors(false);
+    sheetScrollRef.current?.scrollTo({ top: 0 });
+  }, [item]);
+
   return (
     <div
       // Full-screen on mobile (no transparent gap above the photo) and
       // a centred card on desktop. The mobile sheet stops behaving
       // like a "bottom drawer" — diners expect a takeover view, not a
       // sliver of carta visible at the top.
-      // Móvil: fondo bg-paper (no oscuro). Al pasar de plato (swipe) el sheet
-      // se remonta y hace su fade/slide; con fondo oscuro se veía la carta
-      // detrás durante el fade → un "blink". Con fondo paper el fade ocurre
-      // sobre paper (mismo color del sheet) → transición limpia. En desktop
-      // sí dejamos el oscurecido detrás de la tarjeta centrada.
+      // Móvil: fondo bg-paper (no oscuro). El slide-up de entrada corre solo al
+      // ABRIR (ya no se remonta al cambiar de plato), pero sobre paper —mismo
+      // color del sheet— cualquier transición queda limpia, sin ver la carta
+      // detrás. En desktop sí dejamos el oscurecido detrás de la tarjeta.
       className="fixed inset-0 z-50 bg-paper md:bg-black/40 md:flex md:items-center md:justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
       onClick={onClose}
     >

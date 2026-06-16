@@ -1890,7 +1890,10 @@
     "moveOptionUp": "Move option up",
     "moveOptionDown": "Move option down",
     "moreActions": "More actions",
-    "categoryDishCount": "{count, plural, one {# dish} other {# dishes}}"
+    "categoryDishCount": "{count, plural, one {# dish} other {# dishes}}",
+    "searchPlaceholder": "Search dish…",
+    "clearSearch": "Clear search",
+    "searchNoResults": "No results for “{query}”."
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

@@ -2251,6 +2251,52 @@ function ItemSheet({
     });
   }
 
+  // --- Selección de opciones a prueba de iOS WebKit ---
+  // En iOS, si el sheet (scrollable) hace un micro-scroll al tocar, el `click`
+  // sintético se redispatcha al botón VECINO bajo el dedo → "se selecciona
+  // otro". El touchstart/touchend, en cambio, SIEMPRE pertenecen al botón que
+  // se tocó. Así que en táctil resolvemos la selección en touchend y suprimimos
+  // el click sintético posterior (venga al botón que venga). En desktop (mouse,
+  // sin touch) sigue andando el onClick normal.
+  const optTapRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressOptClick = useRef(false);
+  function optTouchStart(e: React.TouchEvent) {
+    const tp = e.touches[0];
+    optTapRef.current = tp ? { x: tp.clientX, y: tp.clientY } : null;
+  }
+  function optTouchEnd(
+    e: React.TouchEvent,
+    mi: number,
+    mod: ModifierDef,
+    oi: number,
+  ) {
+    const s = optTapRef.current;
+    optTapRef.current = null;
+    // Suprimimos SIEMPRE el click sintético que sigue a este touch (puede caer
+    // en un botón equivocado tras el micro-scroll). Se rearma solo.
+    suppressOptClick.current = true;
+    setTimeout(() => {
+      suppressOptClick.current = false;
+    }, 700);
+    if (!s) return;
+    const tp = e.changedTouches[0];
+    if (!tp) return;
+    // Si el dedo se movió, fue scroll/swipe, no un tap → no seleccionamos.
+    if (Math.abs(tp.clientX - s.x) > 10 || Math.abs(tp.clientY - s.y) > 10) {
+      return;
+    }
+    toggleOpt(mi, mod, oi);
+  }
+  function optClick(mi: number, mod: ModifierDef, oi: number) {
+    // En táctil ya lo manejó touchend; este click viene del navegador y puede
+    // estar mal dirigido → lo ignoramos. En desktop no hay touch previo.
+    if (suppressOptClick.current) {
+      suppressOptClick.current = false;
+      return;
+    }
+    toggleOpt(mi, mod, oi);
+  }
+
   // Convierte la selección por índice al formato por etiquetas. Radio = una sola
   // etiqueta (o se omite si no hay pick); checkbox = lista de etiquetas (puede ir
   // vacía, igual que antes, para distinguir "sin elegir" de "no aplica").
@@ -2464,7 +2510,10 @@ function ItemSheet({
                     return (
                       <button
                         key={idx}
-                        onClick={() => toggleOpt(mi, m, idx)}
+                        onClick={() => optClick(mi, m, idx)}
+                        onTouchStart={optTouchStart}
+                        onTouchEnd={(e) => optTouchEnd(e, mi, m, idx)}
+                        style={{ touchAction: "manipulation" }}
                         className={
                           "w-full text-left px-3 py-2 rounded-xl text-sm border " +
                           (active
@@ -2508,7 +2557,10 @@ function ItemSheet({
                     return (
                       <button
                         key={idx}
-                        onClick={() => toggleOpt(mi, m, idx)}
+                        onClick={() => optClick(mi, m, idx)}
+                        onTouchStart={optTouchStart}
+                        onTouchEnd={(e) => optTouchEnd(e, mi, m, idx)}
+                        style={{ touchAction: "manipulation" }}
                         className={
                           "h-9 px-3 rounded-full text-sm border inline-flex items-center gap-1.5 " +
                           (active

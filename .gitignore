@@ -57,3 +57,8 @@ next-env.d.ts
 *.ai
 /mesapay icon.png
 /SVG/
+
+# Playwright (e2e) — artifacts are transient; crawler/config/specs ARE committed
+/test-results/
+/playwright-report/
+/e2e/reports/

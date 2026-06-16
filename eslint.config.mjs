@@ -129,6 +129,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design handoff bundle (claude.ai/design prototype) — NOT imported by the
+    // app, never shipped. Linting it floods `npm run lint` with ~150 false
+    // positives (undefined mockup components, etc.) and drowns real signal.
+    "reference/**",
+    // Playwright crawler/specs are tooling, not app code.
+    "e2e/**",
   ]),
 ]);
 

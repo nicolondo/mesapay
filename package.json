@@ -8,6 +8,8 @@
     "start": "next start -p 3300",
     "lint": "eslint",
     "test": "vitest run",
+    "crawl": "node e2e/crawl.mjs",
+    "e2e": "playwright test",
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
@@ -39,6 +41,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/google.maps": "^3.64.1",

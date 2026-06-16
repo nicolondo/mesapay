@@ -1866,7 +1866,18 @@
     "prepEqMinutes": "= {minutes} min",
     "prepEqMinSec": "= {minutes} min {seconds} s",
     "optionDescAdd": "Adicionar descrição",
-    "optionDescPlaceholder": "Descrição da opção (visível para o cliente)"
+    "optionDescPlaceholder": "Descrição da opção (visível para o cliente)",
+    "convertToModifier": "Converter em modificador",
+    "convertTitle": "Converter categoria em modificador",
+    "convertLabelDefault": "Adição de {category}",
+    "convertLabelField": "Rótulo do modificador",
+    "convertOptionsHeading": "Opções (dos produtos)",
+    "convertTargetHeading": "Adicionar a este produto",
+    "convertSearch": "Buscar produto…",
+    "convertDeleteSource": "Excluir os produtos e a categoria depois",
+    "convertApply": "Adicionar a {name}",
+    "convertApplyNoTarget": "Escolha um produto",
+    "convertApplying": "Adicionando…"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",

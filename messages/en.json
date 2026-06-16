@@ -1866,7 +1866,18 @@
     "prepEqMinutes": "= {minutes} min",
     "prepEqMinSec": "= {minutes} min {seconds} s",
     "optionDescAdd": "Add description",
-    "optionDescPlaceholder": "Option description (shown to the diner)"
+    "optionDescPlaceholder": "Option description (shown to the diner)",
+    "convertToModifier": "Turn into modifier",
+    "convertTitle": "Turn category into a modifier",
+    "convertLabelDefault": "Add {category}",
+    "convertLabelField": "Modifier label",
+    "convertOptionsHeading": "Options (from the products)",
+    "convertTargetHeading": "Add to this product",
+    "convertSearch": "Search products…",
+    "convertDeleteSource": "Delete the products and category afterwards",
+    "convertApply": "Add to {name}",
+    "convertApplyNoTarget": "Pick a product",
+    "convertApplying": "Adding…"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

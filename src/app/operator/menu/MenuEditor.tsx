@@ -48,6 +48,8 @@ export function MenuEditor({
   // hurts a lot when editing a long menu (every delete/save loses
   // their place in the list).
   const [items, setItems] = useState<Item[]>(initialItems);
+  // Categoría que se está convirtiendo en modificador (sheet abierto).
+  const [convertingCat, setConvertingCat] = useState<Cat | null>(null);
   const [categories, setCategories] = useState<Cat[]>(initialCategories);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
@@ -124,6 +126,31 @@ export function MenuEditor({
         map.has(i.id) ? { ...i, modifiers: map.get(i.id) ?? i.modifiers } : i,
       ),
     );
+  }
+  function applyConvert(r: {
+    targetItemId: string;
+    modifiers: ModifierDef[];
+    deletedItemIds: string[];
+    archivedItemIds: string[];
+    deletedCategoryId: string | null;
+  }) {
+    const del = new Set(r.deletedItemIds);
+    const arch = new Set(r.archivedItemIds);
+    setItems((prev) =>
+      prev
+        .filter((i) => !del.has(i.id))
+        .map((i) => {
+          let it = i;
+          if (i.id === r.targetItemId) it = { ...it, modifiers: r.modifiers };
+          if (arch.has(i.id)) it = { ...it, available: false };
+          return it;
+        }),
+    );
+    if (r.deletedCategoryId) {
+      const removed = r.deletedCategoryId;
+      setCategories((prev) => prev.filter((c) => c.id !== removed));
+    }
+    setConvertingCat(null);
   }
 
   async function doClearMenu() {
@@ -399,6 +426,11 @@ export function MenuEditor({
                   showKind
                   onPatch={(patch) => replaceCategory({ ...c, ...patch })}
                   onDeleted={() => removeCategory(c.id)}
+                  onConvert={
+                    items.some((i) => i.categoryId === c.id)
+                      ? () => setConvertingCat(c)
+                      : undefined
+                  }
                   />
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -528,6 +560,16 @@ export function MenuEditor({
         onModifiersApplied={applyBulkModifiers}
         onDeleted={applyBulkDelete}
       />
+
+      {convertingCat && (
+        <ConvertCategorySheet
+          category={convertingCat}
+          sourceItems={items.filter((i) => i.categoryId === convertingCat.id)}
+          targets={items.filter((i) => i.categoryId !== convertingCat.id)}
+          onClose={() => setConvertingCat(null)}
+          onApplied={applyConvert}
+        />
+      )}
     </div>
   );
 }
@@ -787,6 +829,7 @@ function CategoryHeader({
   hasChildren,
   onPatch,
   onDeleted,
+  onConvert,
 }: {
   cat: Cat;
   menus: MenuRef[];
@@ -803,6 +846,9 @@ function CategoryHeader({
   hasChildren: boolean;
   onPatch: (patch: Partial<Cat>) => void;
   onDeleted: () => void;
+  // Convierte la categoría en un modificador para asignar a un producto. Solo
+  // se pasa cuando la categoría tiene productos (si no, no hay qué convertir).
+  onConvert?: () => void;
 }) {
   const tr = useTranslations("opMenuEditor");
   const [editing, setEditing] = useState(false);
@@ -981,6 +1027,14 @@ function CategoryHeader({
           </select>
         </label>
       )}
+      {onConvert && (
+        <button
+          onClick={onConvert}
+          className="text-[11px] text-op-muted hover:text-terracotta"
+        >
+          {tr("convertToModifier")}
+        </button>
+      )}
       <button
         onClick={() => setEditing(true)}
         className="text-[11px] text-op-muted hover:text-ink"
@@ -993,6 +1047,251 @@ function CategoryHeader({
       >
         {tr("delete")}
       </button>
+    </div>
+  );
+}
+
+type ConvertResult = {
+  targetItemId: string;
+  modifiers: ModifierDef[];
+  deletedItemIds: string[];
+  archivedItemIds: string[];
+  deletedCategoryId: string | null;
+};
+
+function ConvertCategorySheet({
+  category,
+  sourceItems,
+  targets,
+  onClose,
+  onApplied,
+}: {
+  category: Cat;
+  sourceItems: Item[];
+  targets: Item[];
+  onClose: () => void;
+  onApplied: (r: ConvertResult) => void;
+}) {
+  const tr = useTranslations("opMenuEditor");
+  const [label, setLabel] = useState(() =>
+    tr("convertLabelDefault", { category: category.label }),
+  );
+  const [type, setType] = useState<"radio" | "checkbox">("checkbox");
+  const [opts, setOpts] = useState(() =>
+    sourceItems.map((it) => ({
+      id: it.id,
+      include: true,
+      name: it.name,
+      priceCop: String(Math.round(it.priceCents / 100)),
+    })),
+  );
+  const [query, setQuery] = useState("");
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [deleteSource, setDeleteSource] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const filteredTargets = (() => {
+    const norm = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const q = norm(query.trim());
+    const list = q ? targets.filter((t) => norm(t.name).includes(q)) : targets;
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  })();
+  const target = targets.find((t) => t.id === targetId) ?? null;
+  const includedOpts = opts.filter((o) => o.include && o.name.trim());
+
+  function updateOpt(
+    id: string,
+    patch: Partial<{ include: boolean; name: string; priceCop: string }>,
+  ) {
+    setOpts((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  }
+
+  async function apply() {
+    if (!target || includedOpts.length === 0) return;
+    setBusy(true);
+    setErr(null);
+    const options = includedOpts.map((o) => {
+      const pesos = Number(o.priceCop.trim().replace(/,/g, "."));
+      return {
+        label: o.name.trim().slice(0, 60),
+        priceDeltaCents: Number.isFinite(pesos) ? Math.round(pesos * 100) : 0,
+      };
+    });
+    const res = await fetch(
+      `/api/operator/categories/${category.id}/to-modifier`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          targetItemId: target.id,
+          label: label.trim().slice(0, 60) || category.label,
+          type,
+          options,
+          deleteSource,
+        }),
+      },
+    );
+    setBusy(false);
+    if (!res.ok) {
+      setErr(tr("bulkErr"));
+      return;
+    }
+    const j = (await res.json()) as ConvertResult;
+    onApplied({
+      targetItemId: j.targetItemId,
+      modifiers: j.modifiers,
+      deletedItemIds: j.deletedItemIds ?? [],
+      archivedItemIds: j.archivedItemIds ?? [],
+      deletedCategoryId: j.deletedCategoryId ?? null,
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        className="bg-op-surface text-op-text w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[88vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="font-display text-2xl shrink-0">
+          {tr("convertTitle")}
+        </div>
+
+        <div className="flex-1 overflow-y-auto -mx-2 px-2 space-y-4">
+          <label className="flex flex-col">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+              {tr("convertLabelField")}
+            </span>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              maxLength={60}
+              className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+            />
+          </label>
+
+          <label className="flex flex-col">
+            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+              {tr("modifierType")}
+            </span>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as "radio" | "checkbox")}
+              className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+            >
+              <option value="checkbox">{tr("modifierTypeMultiple")}</option>
+              <option value="radio">{tr("modifierTypeSingle")}</option>
+            </select>
+          </label>
+
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+              {tr("convertOptionsHeading")}
+            </div>
+            <div className="space-y-1.5">
+              {opts.map((o) => (
+                <div
+                  key={o.id}
+                  className={
+                    "flex items-center gap-2 rounded-lg border px-2 py-1.5 " +
+                    (o.include
+                      ? "bg-op-bg border-op-border"
+                      : "bg-op-bg/40 border-op-border/50 opacity-60")
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={o.include}
+                    onChange={(e) => updateOpt(o.id, { include: e.target.checked })}
+                    className="w-4 h-4 shrink-0"
+                  />
+                  <input
+                    value={o.name}
+                    onChange={(e) => updateOpt(o.id, { name: e.target.value })}
+                    maxLength={60}
+                    className="flex-1 h-8 px-2 rounded border border-op-border bg-op-surface text-sm min-w-0"
+                  />
+                  <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
+                    <span aria-hidden>{"+"}</span>
+                    <input
+                      type="number"
+                      value={o.priceCop}
+                      onChange={(e) => updateOpt(o.id, { priceCop: e.target.value })}
+                      step={100}
+                      className="w-20 h-8 px-2 rounded border border-op-border bg-op-surface text-right tabular text-xs"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+              {tr("convertTargetHeading")}
+            </div>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={tr("convertSearch")}
+              className="h-9 px-3 rounded-lg border border-op-border bg-op-bg text-sm w-full mb-2"
+            />
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {filteredTargets.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTargetId(t.id)}
+                  className={
+                    "w-full text-left px-3 py-2 rounded-lg border text-sm " +
+                    (t.id === targetId
+                      ? "border-terracotta bg-terracotta/5"
+                      : "border-op-border hover:bg-op-bg")
+                  }
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={deleteSource}
+              onChange={(e) => setDeleteSource(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm">{tr("convertDeleteSource")}</span>
+          </label>
+        </div>
+
+        {err && <p className="text-sm text-danger shrink-0">{err}</p>}
+        <div className="flex items-center justify-end gap-2 pt-1 shrink-0">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          >
+            {tr("cancel")}
+          </button>
+          <button
+            onClick={apply}
+            disabled={busy || !target || includedOpts.length === 0}
+            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          >
+            {busy
+              ? tr("convertApplying")
+              : target
+                ? tr("convertApply", { name: target.name })
+                : tr("convertApplyNoTarget")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

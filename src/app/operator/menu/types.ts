@@ -19,6 +19,9 @@ export type Cat = {
   kind: CategoryKind;
   prepStation: PrepStation;
   menuId: string;
+  // Orden dentro de su grupo de hermanas (las flechas ↑/↓ del editor lo
+  // persisten). El menú del comensal ordena por este campo.
+  sortOrder: number;
   // Subcategoría: id de la categoría padre (top-level) o null si es de nivel
   // superior. Un solo nivel de anidamiento.
   parentId: string | null;

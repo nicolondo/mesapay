@@ -51,6 +51,9 @@ export function MenuEditor({
   // Categoría que se está convirtiendo en modificador (sheet abierto).
   const [convertingCat, setConvertingCat] = useState<Cat | null>(null);
   const [categories, setCategories] = useState<Cat[]>(initialCategories);
+  // Mientras se persiste un reordenamiento de categorías, deshabilitamos las
+  // flechas para evitar swaps encimados.
+  const [reordering, setReordering] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingItemInCat, setAddingItemInCat] = useState<string | null>(null);
@@ -186,7 +189,15 @@ export function MenuEditor({
     );
   }
   function addCategory(cat: Cat) {
-    setCategories((prev) => [...prev, cat]);
+    setCategories((prev) => {
+      // El servidor crea la categoría al final (max sortOrder + 10). Replicamos
+      // ese valor localmente entre las top-level de la misma carta para que el
+      // orden optimista coincida con el que tendrá tras recargar.
+      const siblingMax = prev
+        .filter((c) => c.menuId === cat.menuId && !c.parentId)
+        .reduce((m, c) => Math.max(m, c.sortOrder), 0);
+      return [...prev, { ...cat, sortOrder: siblingMax + 10 }];
+    });
   }
   function replaceCategory(cat: Cat) {
     setCategories((prev) => prev.map((c) => (c.id === cat.id ? cat : c)));
@@ -243,6 +254,66 @@ export function MenuEditor({
   }
   function categoryHasChildren(catId: string): boolean {
     return categories.some((x) => x.parentId === catId);
+  }
+
+  // Hermanas de una categoría = mismas que comparten nivel: las top-level entre
+  // sí, o las hijas de un mismo padre. visibleCategories ya está filtrado por la
+  // carta activa, así que el orden del array es el orden mostrado.
+  function siblingsOf(cat: Cat): Cat[] {
+    return visibleCategories.filter(
+      (x) => (x.parentId ?? null) === (cat.parentId ?? null),
+    );
+  }
+
+  // Mueve una categoría dentro de su grupo de hermanas (↑/↓). Reordena de forma
+  // optimista (reubica las dos en el array, que es lo que define el orden
+  // mostrado) y persiste el sortOrder de las que cambiaron. Si algún PATCH
+  // falla, revierte y avisa.
+  async function moveCategory(cat: Cat, dir: "up" | "down") {
+    const sibs = siblingsOf(cat);
+    const idx = sibs.findIndex((s) => s.id === cat.id);
+    const j = dir === "up" ? idx - 1 : idx + 1;
+    if (j < 0 || j >= sibs.length) return;
+    const other = sibs[j];
+
+    // Renumeramos el grupo por su nuevo orden y vemos cuáles cambian.
+    const swapped = [...sibs];
+    [swapped[idx], swapped[j]] = [swapped[j], swapped[idx]];
+    const newOrder = new Map(swapped.map((s, i) => [s.id, i]));
+    const changed = sibs.filter((s) => newOrder.get(s.id) !== s.sortOrder);
+
+    const prev = categories;
+    const next = (() => {
+      const arr = prev.map((c) =>
+        newOrder.has(c.id) ? { ...c, sortOrder: newOrder.get(c.id)! } : c,
+      );
+      const ia = arr.findIndex((x) => x.id === cat.id);
+      const ib = arr.findIndex((x) => x.id === other.id);
+      [arr[ia], arr[ib]] = [arr[ib], arr[ia]];
+      return arr;
+    })();
+    setCategories(next); // optimista
+    setReordering(true);
+    try {
+      const results = await Promise.all(
+        changed.map((s) =>
+          fetch(`/api/operator/categories/${s.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sortOrder: newOrder.get(s.id) }),
+          }),
+        ),
+      );
+      if (results.some((r) => !r.ok)) {
+        setCategories(prev);
+        alert(tr("errReorderCat"));
+      }
+    } catch {
+      setCategories(prev);
+      alert(tr("errReorderCat"));
+    } finally {
+      setReordering(false);
+    }
   }
 
   return (
@@ -391,6 +462,12 @@ export function MenuEditor({
       <div className="space-y-8">
         {orderedVisible.map(({ c, isChild }) => {
           const rows = byCat.get(c.id) ?? [];
+          // Flechas de orden: solo dentro del grupo de hermanas (top-level
+          // entre sí, o hijas de un mismo padre). La primera no sube, la
+          // última no baja.
+          const sibs = siblingsOf(c);
+          const sibIdx = sibs.findIndex((s) => s.id === c.id);
+          const showArrows = sibs.length > 1;
           return (
             <section
               key={c.id}
@@ -400,6 +477,28 @@ export function MenuEditor({
             >
               <div className="flex items-center justify-between mb-3 gap-2">
                 <div className="flex items-center gap-2 min-w-0">
+                  {showArrows && (
+                    <div className="flex flex-col -my-1 shrink-0">
+                      <button
+                        type="button"
+                        aria-label={tr("moveCatUp")}
+                        onClick={() => moveCategory(c, "up")}
+                        disabled={reordering || sibIdx <= 0}
+                        className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+                      >
+                        <span aria-hidden>↑</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={tr("moveCatDown")}
+                        onClick={() => moveCategory(c, "down")}
+                        disabled={reordering || sibIdx >= sibs.length - 1}
+                        className="h-5 w-6 leading-none text-base text-op-muted hover:text-ink disabled:opacity-25"
+                      >
+                        <span aria-hidden>↓</span>
+                      </button>
+                    </div>
+                  )}
                   <CategorySelectCheckbox
                     rows={rows}
                     selectedIds={selectedIds}
@@ -757,6 +856,9 @@ function NewCategoryForm({
       prepStation: "kitchen",
       // Parent overwrites this with the active menu if it has one.
       menuId: menuId ?? "",
+      // El padre (addCategory) recalcula el sortOrder real al final del grupo;
+      // este valor es solo para satisfacer el tipo Cat.
+      sortOrder: 0,
       // Las categorías nuevas se crean al nivel superior; se pueden anidar
       // después con el selector "Subcat. de" en el encabezado.
       parentId: null,

@@ -1881,7 +1881,10 @@
     "convertApplyNoTarget": "Pick a product",
     "convertApplying": "Adding…",
     "convertErrTooMany": "This product already has the maximum number of modifiers (8).",
-    "convertErrInvalid": "Check the option names and prices."
+    "convertErrInvalid": "Check the option names and prices.",
+    "moveCatUp": "Move category up",
+    "moveCatDown": "Move category down",
+    "errReorderCat": "We couldn't change the order. Try again."
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",

@@ -77,6 +77,19 @@ type CluviMenuResponse = {
   } | null;
 };
 
+// Config del dominio (host-scoped). Para un LINKTREE (varias sedes) trae la
+// lista `suppliers`, cada una con su id numérico y su clase de carta on-table.
+type CluviSupplier = {
+  id?: number | string | null;
+  slug?: string | null;
+  on_table_class?: string | null;
+};
+type CluviDomainConfig = {
+  slug?: string | null;
+  linktree?: boolean | null;
+  suppliers?: CluviSupplier[] | null;
+};
+
 const FETCH_TIMEOUT_MS = 15_000;
 // Fixed, public hosts. Hardcoded (never derived from user input) so there's
 // no SSRF surface on the host:
@@ -284,20 +297,36 @@ export function findEmbeddedCluviUrl(html: string): string | null {
   );
 }
 
-async function fetchJson(url: string): Promise<unknown | null> {
+async function fetchJson(
+  url: string,
+  // Algunos endpoints de Cluvi (p.ej. /domain/config.json) son host-scoped:
+  // exp2 resuelve QUÉ dominio según el Referer/Origin del storefront, no por la
+  // URL. Cuando pasamos `referer`, lo mandamos para que devuelva la config
+  // correcta de esa tienda.
+  referer?: string,
+): Promise<unknown | null> {
   const safe = await checkUrlSafe(url);
   if (!safe.ok) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const headers: Record<string, string> = {
+    "user-agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    accept: "application/json",
+  };
+  if (referer) {
+    headers.referer = referer;
+    try {
+      headers.origin = new URL(referer).origin;
+    } catch {
+      /* referer sin origin parseable — mandamos solo referer */
+    }
+  }
   try {
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        accept: "application/json",
-      },
+      headers,
     });
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "";
@@ -332,6 +361,26 @@ async function resolveSlugToStoreId(slug: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Config del dominio (host-scoped). exp2 devuelve —según el Referer/Origin del
+ * storefront— el objeto del dominio con su lista de `suppliers`. Es lo que
+ * resuelve los linktrees (subdominios con varias sedes) que el resolver por
+ * slug no cubre (devuelve `{}`).
+ */
+async function fetchDomainConfig(
+  originUrl: string,
+): Promise<CluviDomainConfig | null> {
+  let origin: string;
+  try {
+    origin = new URL(originUrl).origin;
+  } catch {
+    return null;
+  }
+  const data = await fetchJson(`${RESOLVE_HOST}/domain/config.json`, origin + "/");
+  if (!data || typeof data !== "object") return null;
+  return data as CluviDomainConfig;
+}
+
 async function fetchMenuJson(ref: {
   storeId: string;
   type: string;
@@ -359,22 +408,63 @@ export async function tryImportCluvi(
   const ref = parseStoreRef(originUrl);
   if (!ref) return null;
 
-  // Si la URL no trae id numérico (raíz/subdominio), lo resolvemos desde el
-  // slug. Probamos los candidatos (subdominio, luego segmento del path).
-  let storeId = ref.storeId ?? null;
-  if (!storeId) {
+  // Lista ordenada de tiendas candidatas; gana la primera con carta no vacía.
+  const candidates: {
+    storeId: string;
+    type: string;
+    subtype: string;
+    slug?: string;
+  }[] = [];
+
+  if (ref.storeId) {
+    // Deep link /newmenu/<id>/...: la URL ya trae la tienda exacta.
+    candidates.push({
+      storeId: ref.storeId,
+      type: ref.type,
+      subtype: ref.subtype,
+    });
+  } else {
+    // 1) Resolución directa por slug (dominios de una sola sede).
     for (const slug of ref.slugs) {
-      storeId = await resolveSlugToStoreId(slug);
-      if (storeId) break;
+      const id = await resolveSlugToStoreId(slug);
+      if (id) {
+        candidates.push({ storeId: id, type: ref.type, subtype: ref.subtype });
+        break;
+      }
+    }
+    // 2) Config del dominio (host-scoped). Cubre los LINKTREE: un subdominio
+    //    como office-burger-2.cluvi.co no resuelve a una tienda única, pero su
+    //    config trae la lista de sedes. Importamos la primera con carta (las
+    //    cadenas comparten el mismo menú entre sedes).
+    if (candidates.length === 0) {
+      const cfg = await fetchDomainConfig(originUrl);
+      for (const s of cfg?.suppliers ?? []) {
+        const id = s?.id != null ? String(s.id) : "";
+        if (!/^\d+$/.test(id)) continue;
+        candidates.push({
+          storeId: id,
+          type: "on_table",
+          subtype: (s.on_table_class || "basic").toString(),
+          slug: s.slug ?? undefined,
+        });
+      }
     }
   }
-  if (!storeId) return null;
 
-  const data = await fetchMenuJson({
-    storeId,
-    type: ref.type,
-    subtype: ref.subtype,
-  });
+  if (candidates.length === 0) return null;
+
+  // Probamos en orden y nos quedamos con la primera tienda con productos.
+  // Acotado a 8 para no pegarle a decenas de endpoints si el linktree es enorme.
+  let data: CluviMenuResponse | null = null;
+  let pickedSlug: string | undefined;
+  for (const c of candidates.slice(0, 8)) {
+    const d = await fetchMenuJson(c);
+    if (d?.menu?.products?.length) {
+      data = d;
+      pickedSlug = c.slug;
+      break;
+    }
+  }
   const categories = data?.menu?.categories;
   const products = data?.menu?.products;
   if (!Array.isArray(categories) || !Array.isArray(products)) return null;
@@ -477,7 +567,10 @@ export async function tryImportCluvi(
       items: itemsOut,
       notes:
         `Importado directo desde Cluvi: ${itemsOut.length} platos, ` +
-        `${categoriesOut.length} categorías.`,
+        `${categoriesOut.length} categorías.` +
+        (pickedSlug && candidates.length > 1
+          ? ` Era un linktree con ${candidates.length} sedes — se tomó la carta de "${pickedSlug}".`
+          : ""),
     },
     sourceUrl,
   };

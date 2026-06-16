@@ -593,6 +593,10 @@ export function MenuEditor({
                       value,
                     )
                   }
+                  // En desktop el encabezado es de 2 filas y la fila se alinea
+                  // al tope; bajamos el check para centrarlo con el título
+                  // (text-2xl ≈ 32px de alto, check 16px → ~8px).
+                  className="lg:mt-2"
                 />
                 <CategoryHeader
                   cat={c}
@@ -821,10 +825,12 @@ function CategorySelectCheckbox({
   rows,
   selectedIds,
   onToggleAll,
+  className,
 }: {
   rows: Item[];
   selectedIds: Set<string>;
   onToggleAll: (value: boolean) => void;
+  className?: string;
 }) {
   const tr = useTranslations("opMenuEditor");
   const ref = useRef<HTMLInputElement>(null);
@@ -846,7 +852,7 @@ function CategorySelectCheckbox({
       onChange={(e) => onToggleAll(e.target.checked)}
       title={tr("selectCategoryAria")}
       aria-label={tr("selectCategoryAria")}
-      className="w-4 h-4 shrink-0"
+      className={"w-4 h-4 shrink-0 " + (className ?? "")}
     />
   );
 }

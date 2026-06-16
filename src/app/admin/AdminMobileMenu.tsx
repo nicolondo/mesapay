@@ -111,11 +111,11 @@ export function AdminMobileMenu({
             </div>
 
             <nav className="flex flex-col p-3 gap-1">
-              <DrawerLink href="/admin" pathname={pathname}>
-                {t("navSummary")}
-              </DrawerLink>
               <DrawerLink href="/admin/restaurants" pathname={pathname}>
                 {t("navRestaurants")}
+              </DrawerLink>
+              <DrawerLink href="/admin/resumen" pathname={pathname}>
+                {t("navSummary")}
               </DrawerLink>
               <DrawerLink href="/admin/groups" pathname={pathname}>
                 {t("navGroups")}

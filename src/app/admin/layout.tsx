@@ -60,8 +60,8 @@ export default async function AdminLayout({
             {/* Inline nav hidden on small screens — see AdminMobileMenu
                 for the hamburger drawer that takes its place. */}
             <nav className="hidden md:flex gap-1">
-              <NavLink href="/admin">{t("navSummary")}</NavLink>
               <NavLink href="/admin/restaurants">{t("navRestaurants")}</NavLink>
+              <NavLink href="/admin/resumen">{t("navSummary")}</NavLink>
               <NavLink href="/admin/groups">{t("navGroups")}</NavLink>
               <NavLink href="/admin/plans">{t("navPlans")}</NavLink>
               <NavLink href="/admin/audit">{t("navAudit")}</NavLink>

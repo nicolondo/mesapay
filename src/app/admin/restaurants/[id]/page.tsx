@@ -27,6 +27,7 @@ import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AdminAiConfig } from "./AdminAiConfig";
 import { AdminSalesRep } from "./AdminSalesRep";
+import { DangerZonePanel } from "./DangerZonePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -441,6 +442,8 @@ export default async function RestaurantDetail({
           createdAt: u.createdAt.toISOString(),
         }))}
       />
+
+      <DangerZonePanel restaurantId={id} slug={rest.slug} />
     </div>
   );
 }

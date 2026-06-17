@@ -1,23 +1,38 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentMeseroShift } from "@/lib/meseroShift";
+import { isCashMethod } from "@/lib/shift";
+
+const schema = z.object({
+  // Efectivo físico que el mesero contó en su caja al cerrar. Cap =
+  // $100M COP en cents, igual que el cierre global.
+  declaredCashCents: z.number().int().min(0).max(10_000_000_000),
+});
 
 /**
- * Cierra el turno personal abierto del mesero. Calcula y devuelve el
- * resumen (propinas, ventas, mesas atendidas, duración) para que la
- * UI muestre un summary modal al cerrar.
- *
- * No pedimos arqueo de caja como en el shift global — el mesero no
- * tiene un drawer propio. Sus pagos en efectivo van al pool del
- * restaurante (cuyo arqueo lo hace el operador).
+ * Cierra el turno personal abierto del mesero con arqueo de su propia
+ * caja: declara el efectivo contado y se calcula lo esperado (base +
+ * efectivo cobrado por él) y la diferencia. Devuelve el resumen para
+ * que la UI muestre un summary modal al cerrar.
  */
-export async function POST() {
+export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "mesero") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const userId = session.user.id;
+
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid", message: "El monto declarado no es válido." },
+      { status: 400 },
+    );
+  }
+  const { declaredCashCents } = parsed.data;
 
   const shift = await getCurrentMeseroShift(userId);
   if (!shift) {
@@ -39,6 +54,7 @@ export async function POST() {
     select: {
       amountCents: true,
       tipCents: true,
+      method: true,
       orderId: true,
       order: { select: { tableId: true } },
     },
@@ -49,6 +65,14 @@ export async function POST() {
     (s, p) => s + (p.amountCents - p.tipCents),
     0,
   );
+  // Solo el efectivo entra al arqueo de la caja del mesero. Tarjeta /
+  // datáfono no pasan por su cajón.
+  const cashCollectedCents = payments.reduce(
+    (s, p) => (isCashMethod(p.method) ? s + p.amountCents : s),
+    0,
+  );
+  const expectedCashCents = shift.openingCashCents + cashCollectedCents;
+  const cashDiffCents = declaredCashCents - expectedCashCents;
   const tableSet = new Set<string>();
   for (const p of payments) if (p.order?.tableId) tableSet.add(p.order.tableId);
   const durationMs = now.getTime() - shift.openedAt.getTime();
@@ -59,11 +83,9 @@ export async function POST() {
       status: "closed",
       closedAt: now,
       closedById: userId,
-      // Arqueo no aplica para shift personal — dejamos null para no
-      // ensuciar el modelo del shift global del restaurante.
-      declaredCashCents: null,
-      expectedCashCents: null,
-      cashDiffCents: null,
+      declaredCashCents,
+      expectedCashCents,
+      cashDiffCents,
     },
   });
 
@@ -78,6 +100,11 @@ export async function POST() {
       salesCents,
       paymentCount: payments.length,
       tableCount: tableSet.size,
+      openingCashCents: shift.openingCashCents,
+      cashCollectedCents,
+      expectedCashCents,
+      declaredCashCents,
+      cashDiffCents,
     },
   });
 }

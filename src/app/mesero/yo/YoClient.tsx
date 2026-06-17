@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { fmtCOP } from "@/lib/format";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
 
@@ -11,7 +11,12 @@ type Stats = {
   salesCents: number;
   paymentCount: number;
   tableCount: number;
-  shift: { id: string; openedAtIso: string } | null;
+  shift: {
+    id: string;
+    openedAtIso: string;
+    openingCashCents: number;
+    cashCollectedCents: number;
+  } | null;
 };
 
 type CloseSummary = {
@@ -23,6 +28,11 @@ type CloseSummary = {
   salesCents: number;
   paymentCount: number;
   tableCount: number;
+  openingCashCents: number;
+  cashCollectedCents: number;
+  expectedCashCents: number;
+  declaredCashCents: number;
+  cashDiffCents: number;
 };
 
 /**
@@ -42,9 +52,10 @@ export function YoClient({
   initial: Stats;
 }) {
   const [stats, setStats] = useState<Stats>(initial);
-  const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<CloseSummary | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  // Sheet de arqueo: "open" pide la base inicial, "close" pide el
+  // efectivo contado. Cada sheet maneja su propio fetch + busy + error.
+  const [sheet, setSheet] = useState<"open" | "close" | null>(null);
 
   // Refresh moderado: cada 30s. Si está caro lo subimos a 60s.
   useEffect(() => {
@@ -68,41 +79,6 @@ export function YoClient({
         setStats(j);
       }
     } catch {}
-  }
-
-  async function openShift() {
-    setBusy(true);
-    setErr(null);
-    const r = await fetch("/api/mesero/shift/open", { method: "POST" });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? "No pudimos abrir el turno");
-      return;
-    }
-    await refreshStats();
-  }
-
-  async function closeShift() {
-    if (
-      !confirm(
-        "¿Cerrar tu turno? Esto guarda tu resumen del día. Después no podrás seguir cobrando hasta abrir uno nuevo.",
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    const r = await fetch("/api/mesero/shift/close", { method: "POST" });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? "No pudimos cerrar el turno");
-      return;
-    }
-    const j = (await r.json()) as { summary: CloseSummary };
-    setSummary(j.summary);
-    await refreshStats();
   }
 
   const hasOpenShift = !!stats.shift;
@@ -135,9 +111,8 @@ export function YoClient({
           {shiftPolicy === "by_waiter" && !hasOpenShift && (
             <button
               type="button"
-              onClick={openShift}
-              disabled={busy}
-              className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50 shrink-0"
+              onClick={() => setSheet("open")}
+              className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium shrink-0"
             >
               Abrir turno
             </button>
@@ -145,9 +120,8 @@ export function YoClient({
           {shiftPolicy === "by_waiter" && hasOpenShift && (
             <button
               type="button"
-              onClick={closeShift}
-              disabled={busy}
-              className="h-10 px-4 rounded-full border border-hairline text-ink text-sm font-medium disabled:opacity-50 shrink-0"
+              onClick={() => setSheet("close")}
+              className="h-10 px-4 rounded-full border border-hairline text-ink text-sm font-medium shrink-0"
             >
               Cerrar turno
             </button>
@@ -180,9 +154,32 @@ export function YoClient({
           <Stat label="Mesas" value={String(stats.tableCount)} />
           <Stat label="Pagos" value={String(stats.paymentCount)} />
         </div>
-
-        {err && <div className="text-xs text-danger">{err}</div>}
       </section>
+
+      {/* Sheet: abrir turno → pedir base inicial */}
+      {sheet === "open" && (
+        <OpenShiftSheet
+          onClose={() => setSheet(null)}
+          onDone={() => {
+            setSheet(null);
+            void refreshStats();
+          }}
+        />
+      )}
+
+      {/* Sheet: cerrar turno → arqueo (contar efectivo) */}
+      {sheet === "close" && stats.shift && (
+        <CloseShiftSheet
+          openingCashCents={stats.shift.openingCashCents}
+          cashCollectedCents={stats.shift.cashCollectedCents}
+          onClose={() => setSheet(null)}
+          onDone={(s) => {
+            setSheet(null);
+            setSummary(s);
+            void refreshStats();
+          }}
+        />
+      )}
 
       {/* Resumen al cerrar turno */}
       {summary && (
@@ -279,6 +276,29 @@ function CloseSummarySheet({
           />
         </div>
 
+        {/* Arqueo de la caja del mesero */}
+        <div className="space-y-1.5 border-t border-hairline pt-3">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+            Arqueo de tu caja
+          </div>
+          <Row label="Base inicial" value={fmtCOP(summary.openingCashCents)} />
+          <Row
+            label="Efectivo cobrado"
+            value={fmtCOP(summary.cashCollectedCents)}
+          />
+          <Row
+            label="Esperado en caja"
+            value={fmtCOP(summary.expectedCashCents)}
+          />
+          <Row label="Contaste" value={fmtCOP(summary.declaredCashCents)} />
+          <Row
+            label="Diferencia"
+            value={diffLabel(summary.cashDiffCents)}
+            accent
+            tone={diffTone(summary.cashDiffCents)}
+          />
+        </div>
+
         <button
           type="button"
           onClick={onClose}
@@ -295,22 +315,235 @@ function Row({
   label,
   value,
   accent,
+  tone,
 }: {
   label: string;
   value: string;
   accent?: boolean;
+  // Color semántico del valor (para la diferencia del arqueo).
+  tone?: "ok" | "bad" | "muted";
 }) {
+  const toneClass =
+    tone === "bad"
+      ? "text-red-700"
+      : tone === "ok"
+        ? "text-emerald-700"
+        : tone === "muted"
+          ? "text-op-muted"
+          : "";
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-sm text-op-muted">{label}</span>
       <span
         className={
           "font-mono tabular " +
-          (accent ? "font-display text-lg" : "text-sm")
+          (accent ? "font-display text-lg " : "text-sm ") +
+          toneClass
         }
       >
         {value}
       </span>
     </div>
+  );
+}
+
+// Diferencia de arqueo: 0 = "Sin descuadre", + sobra, − falta.
+function diffLabel(cents: number): string {
+  if (cents === 0) return "Sin descuadre";
+  return (cents > 0 ? "+" : "−") + fmtCOP(Math.abs(cents));
+}
+function diffTone(cents: number): "ok" | "bad" | "muted" {
+  if (cents === 0) return "muted";
+  return cents > 0 ? "ok" : "bad";
+}
+
+/**
+ * Campo de monto en pesos enteros (COP no usa decimales). Maneja
+ * `valueCents` por fuera; el input muestra/parsea pesos.
+ */
+function CashInput({
+  valueCents,
+  onChange,
+  autoFocus,
+}: {
+  valueCents: number;
+  onChange: (cents: number) => void;
+  autoFocus?: boolean;
+}) {
+  const pesos = Math.round(valueCents / 100);
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-hairline bg-ivory px-3 h-12">
+      <span className="text-muted font-display text-lg">$</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoFocus={autoFocus}
+        value={pesos ? pesos.toLocaleString("es-CO") : ""}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, "");
+          const n = digits ? parseInt(digits, 10) : 0;
+          onChange(n * 100);
+        }}
+        placeholder="0"
+        className="flex-1 bg-transparent outline-none font-display text-xl tabular min-w-0"
+      />
+    </div>
+  );
+}
+
+/** Cáscara común de los sheets de arqueo (mismo estilo que el resumen). */
+function SheetShell({
+  eyebrow,
+  title,
+  onClose,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              {eyebrow}
+            </div>
+            <h2 className="font-display text-2xl mt-1">{title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted text-sm shrink-0"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function OpenShiftSheet({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [cents, setCents] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    const r = await fetch("/api/mesero/shift/open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ openingCashCents: cents }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(j.message ?? j.error ?? "No pudimos abrir el turno");
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <SheetShell
+      eyebrow="Abrir turno"
+      title="¿Con cuánta base inicias?"
+      onClose={onClose}
+    >
+      <p className="text-xs text-muted">
+        Cuenta el efectivo con el que arrancas tu caja para dar vueltos. Si no
+        manejas base, déjalo en $0.
+      </p>
+      <CashInput valueCents={cents} onChange={setCents} autoFocus />
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy}
+        className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
+      >
+        {busy ? "Abriendo…" : "Abrir turno"}
+      </button>
+    </SheetShell>
+  );
+}
+
+function CloseShiftSheet({
+  openingCashCents,
+  cashCollectedCents,
+  onClose,
+  onDone,
+}: {
+  openingCashCents: number;
+  cashCollectedCents: number;
+  onClose: () => void;
+  onDone: (summary: CloseSummary) => void;
+}) {
+  const expected = openingCashCents + cashCollectedCents;
+  const [declared, setDeclared] = useState(expected);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const diff = declared - expected;
+
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    const r = await fetch("/api/mesero/shift/close", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ declaredCashCents: declared }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(j.message ?? j.error ?? "No pudimos cerrar el turno");
+      return;
+    }
+    const j = (await r.json()) as { summary: CloseSummary };
+    onDone(j.summary);
+  }
+
+  return (
+    <SheetShell eyebrow="Cerrar turno" title="Arqueo de tu caja" onClose={onClose}>
+      <div className="space-y-1.5">
+        <Row label="Base inicial" value={fmtCOP(openingCashCents)} />
+        <Row label="Efectivo cobrado" value={fmtCOP(cashCollectedCents)} />
+        <Row label="Esperado en caja" value={fmtCOP(expected)} accent />
+      </div>
+      <div>
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+          ¿Cuánto contaste?
+        </div>
+        <CashInput valueCents={declared} onChange={setDeclared} autoFocus />
+      </div>
+      <Row label="Diferencia" value={diffLabel(diff)} accent tone={diffTone(diff)} />
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy}
+        className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
+      >
+        {busy ? "Cerrando…" : "Cerrar turno"}
+      </button>
+    </SheetShell>
   );
 }

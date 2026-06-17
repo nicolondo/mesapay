@@ -9,6 +9,7 @@ import {
   resolveTipPolicy,
   resolveShiftPolicy,
 } from "@/lib/staffPolicies";
+import { isCashMethod } from "@/lib/shift";
 
 /**
  * Stats personales del mesero para la vista "Yo". Cubre:
@@ -61,6 +62,7 @@ export async function GET() {
       id: true,
       amountCents: true,
       tipCents: true,
+      method: true,
       orderId: true,
       settledAt: true,
       order: { select: { tableId: true } },
@@ -70,6 +72,12 @@ export async function GET() {
   const tipsCents = payments.reduce((s, p) => s + p.tipCents, 0);
   const salesCents = payments.reduce(
     (s, p) => s + (p.amountCents - p.tipCents),
+    0,
+  );
+  // Efectivo cobrado por el mesero en la ventana — alimenta el arqueo
+  // personal al cerrar (esperado = base inicial + efectivo cobrado).
+  const cashCollectedCents = payments.reduce(
+    (s, p) => (isCashMethod(p.method) ? s + p.amountCents : s),
     0,
   );
   const paymentCount = payments.length;
@@ -87,6 +95,10 @@ export async function GET() {
       ? {
           id: openShift.id,
           openedAtIso: openShift.openedAt.toISOString(),
+          // Para el arqueo al cerrar: base con la que abrió + efectivo
+          // cobrado hasta ahora → esperado en su caja.
+          openingCashCents: openShift.openingCashCents,
+          cashCollectedCents,
         }
       : null,
     // En shared el cliente no debe mostrar "Tus propinas: $X" porque

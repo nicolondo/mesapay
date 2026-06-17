@@ -432,16 +432,28 @@ export function TableDetailSheet({
                       <span>{tr("addDishes")}</span>
                     </Link>
                   )}
-                  {canCharge && (
-                    <a
-                      href={`/t/${tenantSlug}/pay/${orderId}?op=1`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
-                    >
-                      {tr("chargeBill")}
-                    </a>
-                  )}
+                  {canCharge &&
+                    (isMeseroView ? (
+                      // En la PWA del mesero navegamos in-app (scope
+                      // /mesero/) — un <a target="_blank"> hacia /t/* no
+                      // hace nada en standalone iOS. Mismo patrón que
+                      // "Agregar platos" → /mesero/pedir/[tableId].
+                      <Link
+                        href={`/mesero/cobrar/${orderId}`}
+                        className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                      >
+                        {tr("chargeBill")}
+                      </Link>
+                    ) : (
+                      <a
+                        href={`/t/${tenantSlug}/pay/${orderId}?op=1`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                      >
+                        {tr("chargeBill")}
+                      </a>
+                    ))}
                   {canMove && (
                     <button
                       type="button"

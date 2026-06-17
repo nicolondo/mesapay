@@ -95,10 +95,32 @@ export async function buildShiftReport(
   });
   if (!shift) return null;
 
-  // Pagos pinneados al shift al cerrar. Sólo approved cuentan para
-  // el reporte (los declined/pending no entran).
+  // Cómo se delimita el set de pagos del turno:
+  //  - Turno GLOBAL del local (userId == null): los pagos quedan
+  //    "pinneados" con shiftId al cerrar (lo hace el operador). El
+  //    reporte sigue ese pin.
+  //  - Turno PERSONAL de un mesero (userId != null): NO se pinnea
+  //    shiftId — un mismo pago vive a la vez en el turno del local y
+  //    en el del mesero, y shiftId es un solo FK (no puede apuntar a
+  //    los dos a la vez). Para el reporte personal lo resolvemos como
+  //    "lo que ESE mesero cobró dentro de su ventana de turno"
+  //    (collectedByUserId + settledAt en [openedAt, closedAt]), igual
+  //    que el resumen que ve el mesero al cerrar en su PWA. Sin esto el
+  //    reporte personal salía en $0 porque no había ningún pago con su
+  //    shiftId.
+  const paymentWhere =
+    shift.userId == null
+      ? { shiftId: shift.id, status: "approved" as const }
+      : {
+          collectedByUserId: shift.userId,
+          status: "approved" as const,
+          settledAt: {
+            gte: shift.openedAt,
+            ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+          },
+        };
   const payments = await db.payment.findMany({
-    where: { shiftId: shift.id, status: "approved" },
+    where: paymentWhere,
     include: {
       order: {
         select: {
@@ -285,25 +307,56 @@ export async function listShiftsWithSummary(
   const hasMore = shifts.length > limit;
   const slice = hasMore ? shifts.slice(0, limit) : shifts;
 
-  // Aggregate de pagos por shift en UNA sola query.
-  const ids = slice.map((s) => s.id);
-  const aggs = ids.length
+  // Mismo criterio que buildShiftReport (ver allí el racional):
+  //  - Turnos GLOBALES: sus pagos están pinneados por shiftId → una
+  //    sola query groupBy los suma a todos.
+  //  - Turnos PERSONALES de mesero: no hay pin; sumamos lo que cobró
+  //    ese mesero dentro de su ventana (collectedByUserId + settledAt).
+  //    Sin esto los turnos personales salían en $0 en la lista.
+  const aggByShift = new Map<
+    string,
+    { grossCents: number; tipCents: number; paymentCount: number }
+  >();
+
+  const globalIds = slice.filter((s) => s.userId == null).map((s) => s.id);
+  const globalAggs = globalIds.length
     ? await db.payment.groupBy({
         by: ["shiftId"],
-        where: { shiftId: { in: ids }, status: "approved" },
+        where: { shiftId: { in: globalIds }, status: "approved" },
         _sum: { amountCents: true, tipCents: true },
         _count: { _all: true },
       })
     : [];
-  const aggByShift = new Map(
-    aggs.map((a) => [
-      a.shiftId,
-      {
+  for (const a of globalAggs) {
+    if (!a.shiftId) continue;
+    aggByShift.set(a.shiftId, {
+      grossCents: a._sum.amountCents ?? 0,
+      tipCents: a._sum.tipCents ?? 0,
+      paymentCount: a._count._all,
+    });
+  }
+
+  const personalShifts = slice.filter((s) => s.userId != null);
+  await Promise.all(
+    personalShifts.map(async (s) => {
+      const a = await db.payment.aggregate({
+        where: {
+          collectedByUserId: s.userId!,
+          status: "approved",
+          settledAt: {
+            gte: s.openedAt,
+            ...(s.closedAt ? { lte: s.closedAt } : {}),
+          },
+        },
+        _sum: { amountCents: true, tipCents: true },
+        _count: { _all: true },
+      });
+      aggByShift.set(s.id, {
         grossCents: a._sum.amountCents ?? 0,
         tipCents: a._sum.tipCents ?? 0,
         paymentCount: a._count._all,
-      },
-    ]),
+      });
+    }),
   );
 
   return {

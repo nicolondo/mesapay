@@ -67,7 +67,7 @@ export default async function ReportsPage({
         },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
   });
 
   const paidOrders = await db.order.findMany({

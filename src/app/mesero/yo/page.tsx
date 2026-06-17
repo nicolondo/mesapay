@@ -9,6 +9,7 @@ import {
   resolveShiftPolicy,
   resolveTipPolicy,
 } from "@/lib/staffPolicies";
+import { isCashMethod } from "@/lib/shift";
 import { YoClient } from "./YoClient";
 import { MisMesasClient, type MesaPick } from "./MisMesasClient";
 
@@ -55,7 +56,12 @@ export default async function YoPage() {
     salesCents: number;
     paymentCount: number;
     tableCount: number;
-    shift: { id: string; openedAtIso: string } | null;
+    shift: {
+      id: string;
+      openedAtIso: string;
+      openingCashCents: number;
+      cashCollectedCents: number;
+    } | null;
   } | null = null;
   if (user.role === "mesero" && user.restaurantId) {
     const openShift =
@@ -72,10 +78,15 @@ export default async function YoPage() {
       select: {
         amountCents: true,
         tipCents: true,
+        method: true,
         order: { select: { tableId: true } },
       },
     });
     const tipsCentsRaw = payments.reduce((s, p) => s + p.tipCents, 0);
+    const cashCollectedCents = payments.reduce(
+      (s, p) => (isCashMethod(p.method) ? s + p.amountCents : s),
+      0,
+    );
     const tableSet = new Set<string>();
     for (const p of payments)
       if (p.order?.tableId) tableSet.add(p.order.tableId);
@@ -90,7 +101,12 @@ export default async function YoPage() {
       paymentCount: payments.length,
       tableCount: tableSet.size,
       shift: openShift
-        ? { id: openShift.id, openedAtIso: openShift.openedAt.toISOString() }
+        ? {
+            id: openShift.id,
+            openedAtIso: openShift.openedAt.toISOString(),
+            openingCashCents: openShift.openingCashCents,
+            cashCollectedCents,
+          }
         : null,
     };
   }

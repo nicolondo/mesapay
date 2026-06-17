@@ -35,8 +35,16 @@ export function isCashMethod(m: PaymentMethod): boolean {
 }
 
 export async function getCurrentShift(restaurantId: string): Promise<Shift | null> {
+  // `userId: null` = SOLO el turno global del restaurante (el que abre/
+  // cierra el operador). Sin este filtro, findFirst podía devolver el
+  // turno PERSONAL de un mesero (Shift.userId != null, abierto desde su
+  // PWA en shiftPolicy="by_waiter") por ser el más reciente — y entonces
+  // el cierre del operador pinneaba TODOS los pagos del local a ese turno
+  // personal, dejando un Z-report rotulado "Turno de Mesero X" pero con
+  // cobros de todos los meseros. Los turnos personales se consultan
+  // aparte con getCurrentMeseroShift(userId).
   return db.shift.findFirst({
-    where: { restaurantId, status: "open" },
+    where: { restaurantId, status: "open", userId: null },
     orderBy: { openedAt: "desc" },
   });
 }

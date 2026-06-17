@@ -43,6 +43,28 @@ export function MesasAttrsClient({
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patchData } : r)));
   }
 
+  async function del(r: MesaRow) {
+    const name = r.label ?? t("mesasRowDefault", { number: r.number });
+    if (!window.confirm(t("mesasDeleteConfirm", { name }))) return;
+    setSavingId(r.id);
+    const res = await fetch(`/api/operator/tables/${r.id}`, {
+      method: "DELETE",
+    });
+    setSavingId(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      const msg =
+        j.error === "open_order"
+          ? t("mesasDeleteOpenOrder")
+          : j.error === "has_history"
+            ? t("mesasDeleteHasHistory")
+            : t("mesasDeleteFailed");
+      window.alert(msg);
+      return;
+    }
+    setRows((rs) => rs.filter((x) => x.id !== r.id));
+  }
+
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
       {/* Header (desktop) */}
@@ -60,13 +82,39 @@ export function MesasAttrsClient({
             key={r.id}
             className="px-4 py-3 grid grid-cols-2 md:grid-cols-[1fr_80px_120px_120px_80px] gap-3 items-center"
           >
-            <div className="col-span-2 md:col-span-1 font-medium text-sm">
-              {r.label ?? t("mesasRowDefault", { number: r.number })}
-              {savingId === r.id && (
-                <span className="ml-2 text-[10px] text-op-muted">
-                  {t("mesasSaving")}
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-op-muted shrink-0 w-7 text-right">
+                  {r.number}
                 </span>
-              )}
+                {/* El nombre de la mesa = label. El número es la identidad
+                    (vive en el QR) y no se edita; el placeholder muestra el
+                    nombre por defecto cuando no hay label. */}
+                <input
+                  value={r.label ?? ""}
+                  onChange={(e) => setLocal(r.id, { label: e.target.value })}
+                  onBlur={() =>
+                    patch(r.id, { label: (r.label ?? "").trim() || null })
+                  }
+                  placeholder={t("mesasRowDefault", { number: r.number })}
+                  maxLength={40}
+                  className="flex-1 h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm font-medium min-w-0"
+                />
+                {savingId === r.id && (
+                  <span className="text-[10px] text-op-muted shrink-0">
+                    {t("mesasSaving")}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => del(r)}
+                  title={t("mesasDelete")}
+                  aria-label={t("mesasDelete")}
+                  className="text-[11px] text-op-muted hover:text-danger shrink-0 px-1"
+                >
+                  {t("mesasDelete")}
+                </button>
+              </div>
             </div>
 
             {/* Capacidad */}

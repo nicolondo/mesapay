@@ -110,14 +110,18 @@ export async function DELETE(
   });
   if (openOrders > 0) {
     return NextResponse.json(
-      { error: "La mesa tiene un pedido abierto" },
+      { error: "open_order", message: "La mesa tiene un pedido abierto" },
       { status: 409 },
     );
   }
   const pastOrders = await db.order.count({ where: { tableId: id } });
   if (pastOrders > 0) {
     return NextResponse.json(
-      { error: "La mesa tiene historial de pedidos. Archívala en vez de borrarla." },
+      {
+        error: "has_history",
+        message:
+          "La mesa tiene historial de pedidos. Archívala en vez de borrarla.",
+      },
       { status: 409 },
     );
   }

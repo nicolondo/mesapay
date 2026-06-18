@@ -851,6 +851,11 @@ function CashSettleModal({
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // El mesero intentó cobrar sin turno abierto → mostramos el bloqueo
+  // con opción de abrir turno (declarando base) y reintentar el cobro.
+  const [noShift, setNoShift] = useState(false);
+  const [baseCop, setBaseCop] = useState("0");
+  const [opening, setOpening] = useState(false);
 
   const receivedCents = Math.round(Number(receivedCop || 0) * 100);
   const changeCents = Math.round(Number(changeCop || 0) * 100);
@@ -909,10 +914,39 @@ function CashSettleModal({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? tr("cashSettleError"));
+      if (j.error === "mesero_no_shift") {
+        // Mesero sin turno abierto → ofrecemos abrirlo en vez de un
+        // error críptico.
+        setNoShift(true);
+        setErr(null);
+        return;
+      }
+      setErr(j.message ?? j.error ?? tr("cashSettleError"));
       return;
     }
     onDone();
+  }
+
+  // Abre el turno personal del mesero (con base declarada) y reintenta
+  // el cobro.
+  async function openShiftAndRetry() {
+    setOpening(true);
+    setErr(null);
+    const r = await fetch("/api/mesero/shift/open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        openingCashCents: Math.round(Number(baseCop || 0) * 100),
+      }),
+    });
+    setOpening(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(j.message ?? j.error ?? tr("cashOpenShiftError"));
+      return;
+    }
+    setNoShift(false);
+    await submit();
   }
 
   return (
@@ -1052,15 +1086,50 @@ function CashSettleModal({
           <div className="text-[11px] text-op-muted">{tr("cashTipExplainer")}</div>
         )}
 
-        {err && <div className="text-danger text-sm">{err}</div>}
-
-        <button
-          onClick={submit}
-          disabled={busy || short}
-          className="w-full h-12 rounded-full bg-ok text-bone text-sm font-medium disabled:opacity-60"
-        >
-          {busy ? tr("cashRegistering") : tr("cashConfirm")}
-        </button>
+        {noShift ? (
+          <div className="rounded-xl border border-danger/40 bg-danger/5 p-4 space-y-3">
+            <div className="text-sm font-medium">{tr("cashNoShiftTitle")}</div>
+            <p className="text-xs text-op-muted">{tr("cashNoShiftBody")}</p>
+            <label className="block">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+                {tr("cashOpenBase")}
+              </span>
+              <div className="flex items-center gap-2 rounded-lg border border-op-border bg-op-surface px-3 h-11 mt-1">
+                <span className="text-op-muted">$</span>
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="numeric"
+                  value={baseCop ? Number(baseCop).toLocaleString("es-CO") : ""}
+                  onChange={(e) =>
+                    setBaseCop(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="0"
+                  className="flex-1 bg-transparent outline-none font-display text-lg tabular min-w-0"
+                />
+              </div>
+            </label>
+            {err && <div className="text-danger text-sm">{err}</div>}
+            <button
+              onClick={openShiftAndRetry}
+              disabled={opening}
+              className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            >
+              {opening ? tr("cashOpening") : tr("cashOpenShift")}
+            </button>
+          </div>
+        ) : (
+          <>
+            {err && <div className="text-danger text-sm">{err}</div>}
+            <button
+              onClick={submit}
+              disabled={busy || short}
+              className="w-full h-12 rounded-full bg-ok text-bone text-sm font-medium disabled:opacity-60"
+            >
+              {busy ? tr("cashRegistering") : tr("cashConfirm")}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

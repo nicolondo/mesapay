@@ -471,7 +471,16 @@ export default async function ReportsPage({
                   return (
                     <tr key={s.id} className="border-t border-op-border">
                       <Td className="font-mono tabular">
-                        {closed ? `${closed.date} ${closed.time}` : t("emptyDash")}
+                        <div>
+                          {closed
+                            ? `${closed.date} ${closed.time}`
+                            : t("emptyDash")}
+                        </div>
+                        <div className="text-[10px] text-op-muted normal-case tracking-normal">
+                          {s.user
+                            ? s.user.name ?? s.user.email
+                            : t("recentOwnerLocal")}
+                        </div>
                       </Td>
                       <Td>
                         {hours > 0 ? t("durationHm", { hours, mins }) : t("durationM", { mins })}

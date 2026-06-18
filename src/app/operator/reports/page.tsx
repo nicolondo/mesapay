@@ -277,6 +277,7 @@ export default async function ReportsPage({
             initial={cashSnap}
             snapshotUrl="/api/operator/cash/snapshot"
             movementUrl="/api/operator/cash/movement"
+            baseUrl="/api/operator/shifts/base"
             tenantSlug={tenant?.slug ?? ""}
           />
         </div>

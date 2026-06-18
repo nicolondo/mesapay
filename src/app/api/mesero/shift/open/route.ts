@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { resolveShiftPolicy } from "@/lib/staffPolicies";
+import {
+  resolveShiftPolicy,
+  resolveMeseroShiftWithoutLocal,
+} from "@/lib/staffPolicies";
 import {
   getCurrentMeseroShift,
 } from "@/lib/meseroShift";
@@ -47,7 +50,7 @@ export async function POST(req: Request) {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { shiftPolicy: true },
+    select: { shiftPolicy: true, meseroShiftWithoutLocal: true },
   });
   if (resolveShiftPolicy(tenant?.shiftPolicy) !== "by_waiter") {
     return NextResponse.json(
@@ -65,18 +68,53 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, shiftId: existing.id, alreadyOpen: true });
   }
 
-  // El turno personal solo puede abrirse si el local ya abrió SU turno
-  // general. Si no, los cobros del mesero quedarían fuera de todo turno
-  // del local y el arqueo general no cuadra (el cierre general no los
-  // ve). Bloqueamos y pedimos que el operador abra primero. El cliente
-  // muestra el mensaje a partir del `error` code.
-  const localShift = await getCurrentShift(restaurantId);
+  // El turno personal solo tiene sentido dentro de un turno general del
+  // local: la base del mesero sale del cajón general y el cierre general
+  // los liquida. Si el local no abrió, dos comportamientos configurables:
+  //   - "block":     no lo dejamos; el operador debe abrir primero.
+  //   - "auto_open": abrimos el turno general con base 0 (y el del mesero
+  //                  queda en 0 también, por la regla base_mesero ≤ base_local).
+  let localShift = await getCurrentShift(restaurantId);
+  let localAutoOpened = false;
   if (!localShift) {
+    const fallback = resolveMeseroShiftWithoutLocal(
+      tenant?.meseroShiftWithoutLocal,
+    );
+    if (fallback === "block") {
+      return NextResponse.json(
+        {
+          error: "local_shift_closed",
+          message:
+            "El local todavía no abrió su turno. Pedile al encargado que abra el turno general; en cuanto lo haga vas a poder abrir el tuyo.",
+        },
+        { status: 409 },
+      );
+    }
+    localShift = await db.shift.create({
+      data: {
+        restaurantId,
+        openedById: userId,
+        openingCashCents: 0,
+        status: "open",
+      },
+    });
+    localAutoOpened = true;
+  }
+
+  // Regla: la base del mesero nunca puede superar la del local. Si el
+  // local arranca en 0 (incl. auto_open), el mesero también arranca en 0.
+  // En auto_open forzamos 0 (no rechazamos: queremos que pueda empezar).
+  let meseroBase = parsed.data.openingCashCents;
+  if (localAutoOpened) {
+    meseroBase = 0;
+  } else if (meseroBase > localShift.openingCashCents) {
     return NextResponse.json(
       {
-        error: "local_shift_closed",
-        message:
-          "El local todavía no abrió su turno. Pedile al encargado que abra el turno general; en cuanto lo haga vas a poder abrir el tuyo.",
+        error: "base_exceeds_local",
+        maxCents: localShift.openingCashCents,
+        message: `Tu base no puede superar la base del local ($${Math.round(
+          localShift.openingCashCents / 100,
+        ).toLocaleString("es-CO")}).`,
       },
       { status: 409 },
     );
@@ -87,11 +125,16 @@ export async function POST(req: Request) {
       restaurantId,
       userId,
       openedById: userId,
-      openingCashCents: parsed.data.openingCashCents,
+      openingCashCents: meseroBase,
       status: "open",
     },
   });
 
   publishOrderEvent(restaurantId, { type: "cash.updated" });
-  return NextResponse.json({ ok: true, shiftId: shift.id, alreadyOpen: false });
+  return NextResponse.json({
+    ok: true,
+    shiftId: shift.id,
+    alreadyOpen: false,
+    localAutoOpened,
+  });
 }

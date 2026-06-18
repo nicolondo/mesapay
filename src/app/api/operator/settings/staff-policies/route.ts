@@ -3,7 +3,11 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { TIP_POLICIES, SHIFT_POLICIES } from "@/lib/staffPolicies";
+import {
+  TIP_POLICIES,
+  SHIFT_POLICIES,
+  MESERO_SHIFT_WITHOUT_LOCAL,
+} from "@/lib/staffPolicies";
 import { recordAuditEvent } from "@/lib/auditLog";
 
 const putBody = z.object({
@@ -15,6 +19,8 @@ const putBody = z.object({
   // Hora de corte del día contable (0-23). Un comercio que cierra a las
   // 2-3am pone 5 para que la madrugada cuente para la jornada anterior.
   businessDayCutoffHour: z.number().int().min(0).max(23).optional(),
+  // Qué hacer si el mesero abre turno sin que el local abriera el suyo.
+  meseroShiftWithoutLocal: z.enum(MESERO_SHIFT_WITHOUT_LOCAL).optional(),
 });
 
 /**
@@ -56,6 +62,7 @@ export async function PUT(req: Request) {
       shiftPolicy: true,
       walkoutDangerMinutes: true,
       businessDayCutoffHour: true,
+      meseroShiftWithoutLocal: true,
     },
   });
 
@@ -73,6 +80,9 @@ export async function PUT(req: Request) {
       }),
       ...(parsed.data.businessDayCutoffHour !== undefined && {
         businessDayCutoffHour: parsed.data.businessDayCutoffHour,
+      }),
+      ...(parsed.data.meseroShiftWithoutLocal !== undefined && {
+        meseroShiftWithoutLocal: parsed.data.meseroShiftWithoutLocal,
       }),
     },
   });

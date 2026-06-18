@@ -5,6 +5,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import {
   resolveTipPolicy,
   resolveShiftPolicy,
+  resolveMeseroShiftWithoutLocal,
 } from "@/lib/staffPolicies";
 import { StaffPoliciesClient } from "./StaffPoliciesClient";
 
@@ -22,6 +23,7 @@ export default async function StaffPoliciesPage() {
       shiftPolicy: true,
       walkoutDangerMinutes: true,
       businessDayCutoffHour: true,
+      meseroShiftWithoutLocal: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -44,6 +46,9 @@ export default async function StaffPoliciesPage() {
         initialShiftPolicy={resolveShiftPolicy(tenant.shiftPolicy)}
         initialWalkoutDangerMinutes={tenant.walkoutDangerMinutes ?? 20}
         initialBusinessDayCutoffHour={tenant.businessDayCutoffHour ?? 5}
+        initialMeseroShiftWithoutLocal={resolveMeseroShiftWithoutLocal(
+          tenant.meseroShiftWithoutLocal,
+        )}
       />
     </div>
   );

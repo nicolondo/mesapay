@@ -49,21 +49,23 @@ export async function getCurrentShift(restaurantId: string): Promise<Shift | nul
   });
 }
 
+export type RecentShift = Shift & {
+  user: { name: string | null; email: string } | null;
+};
+
 export async function getRecentShifts(
   restaurantId: string,
   limit = 20,
-): Promise<Shift[]> {
-  // Solo turnos GLOBALES del local (userId: null). La tabla "Cierres
-  // recientes" de /operator/reports muestra columnas de arqueo de caja
-  // (fondo/esperado/contado/diferencia) que solo existen en el cierre
-  // global del operador. Los turnos PERSONALES de mesero no tienen
-  // arqueo, así que mezclarlos acá los pintaba como filas vacías
-  // ($0 · — · — · —). Los cierres personales se ven en la lista
-  // completa /operator/shifts (listShiftsWithSummary).
+): Promise<RecentShift[]> {
+  // Cierres recientes del local: turnos GLOBALES (operador) Y PERSONALES
+  // de mesero. Desde que el cierre de mesero hace arqueo (base/esperado/
+  // contado/diferencia), ambos tienen datos que mostrar; `user` distingue
+  // de quién es cada cierre (null = turno global del local).
   return db.shift.findMany({
-    where: { restaurantId, status: "closed", userId: null },
+    where: { restaurantId, status: "closed" },
     orderBy: { closedAt: "desc" },
     take: limit,
+    include: { user: { select: { name: true, email: true } } },
   });
 }
 

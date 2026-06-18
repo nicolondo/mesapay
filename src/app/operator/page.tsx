@@ -7,6 +7,7 @@ import { LiveRefresh } from "./LiveRefresh";
 import { CashBox } from "@/components/CashBox";
 import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
+import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,12 @@ export default async function OperatorHome() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true, serviceMode: true, shiftPolicy: true },
+    select: {
+      slug: true,
+      serviceMode: true,
+      shiftPolicy: true,
+      businessDayCutoffHour: true,
+    },
   });
   const counterMode = tenant?.serviceMode === "counter";
   // Snapshot inicial de caja (el CashBox refresca en vivo por SSE).
@@ -32,11 +38,14 @@ export default async function OperatorHome() {
     resolveShiftPolicy(tenant?.shiftPolicy),
   );
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // "Hoy" = día contable del comercio (hora de corte configurable, ej. 5am):
+  // un cobro a las 2am cuenta para la jornada que arrancó la tarde anterior,
+  // no para el nuevo día calendario.
+  const cutoff = tenant?.businessDayCutoffHour ?? 0;
+  const today = bogotaDayRange(bogotaBusinessTodayIso(cutoff), cutoff).start;
 
-  const weekStart = new Date(today);
-  weekStart.setDate(weekStart.getDate() - 6);
+  // Inicio de la ventana de 7 jornadas (incluye hoy): hoy − 6 días.
+  const weekStart = new Date(today.getTime() - 6 * 86400000);
 
   const [
     openOrdersCount,

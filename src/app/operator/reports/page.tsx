@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
-import { addDaysIso, bogotaDayRange, bogotaTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
+import { addDaysIso, bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import {
   computeOpenShiftMetrics,
@@ -39,18 +39,25 @@ export default async function ReportsPage({
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
   const sp = await searchParams;
-  const dateIso = validIso(sp.date) ?? bogotaTodayIso();
-  const { start, end } = bogotaDayRange(dateIso);
-  const todayIso = bogotaTodayIso();
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: {
+      serviceMode: true,
+      shiftPolicy: true,
+      slug: true,
+      businessDayCutoffHour: true,
+    },
+  });
+  const counterMode = tenant?.serviceMode === "counter";
+  // Día contable: arranca a la hora de corte del comercio (ej. 5am)
+  // para que la noche de trabajo no se parta en medianoche.
+  const cutoff = tenant?.businessDayCutoffHour ?? 0;
+  const dateIso = validIso(sp.date) ?? bogotaBusinessTodayIso(cutoff);
+  const { start, end } = bogotaDayRange(dateIso, cutoff);
+  const todayIso = bogotaBusinessTodayIso(cutoff);
   const prevDay = addDaysIso(dateIso, -1);
   const nextDay = addDaysIso(dateIso, 1);
   const isToday = dateIso === todayIso;
-
-  const tenant = await db.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { serviceMode: true, shiftPolicy: true, slug: true },
-  });
-  const counterMode = tenant?.serviceMode === "counter";
   // Snapshot inicial de caja — el CashBox refresca en vivo por SSE.
   const cashSnap = await buildCashSnapshot(
     restaurantId,
@@ -201,6 +208,13 @@ export default async function ReportsPage({
           <p className="text-sm text-op-muted mt-1">
             {t("subtitle")}
           </p>
+          {cutoff > 0 && (
+            <p className="text-xs text-op-muted/80 mt-1">
+              {t("dayWindowHint", {
+                from: String(cutoff).padStart(2, "0"),
+              })}
+            </p>
+          )}
         </div>
         <div className="flex items-end gap-3">
           <form action="/operator/reports" className="flex items-end gap-2">

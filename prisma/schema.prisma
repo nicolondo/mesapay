@@ -235,6 +235,11 @@ model Restaurant {
   //                 corte aunque la caja sea una sola.
   tipPolicy   String @default("shared")
   shiftPolicy String @default("global")
+  // Hora de corte del día contable (hora Bogotá, 0–23). El día de
+  // reportes/caja arranca a esta hora — para comercios que cierran de
+  // madrugada (corte 5 = 05:00, así lo de 00:00–05:00 cuenta como el
+  // día anterior). 0 = medianoche.
+  businessDayCutoffHour Int @default(5)
 
   users               User[]
   tables              Table[]

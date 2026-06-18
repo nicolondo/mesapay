@@ -38,7 +38,7 @@ export async function GET() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { tipPolicy: true, shiftPolicy: true },
+    select: { tipPolicy: true, shiftPolicy: true, businessDayCutoffHour: true },
   });
   if (!tenant) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
@@ -50,7 +50,10 @@ export async function GET() {
     shiftPolicy === "by_waiter"
       ? await getCurrentMeseroShift(userId)
       : null;
-  const sinceDate = startOfMeseroDay(openShift?.openedAt ?? null);
+  const sinceDate = startOfMeseroDay(
+    openShift?.openedAt ?? null,
+    tenant.businessDayCutoffHour ?? 0,
+  );
 
   const payments = await db.payment.findMany({
     where: {

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import {
   computeOpenShiftMetrics,
   getCurrentShift,
   listOpenOrders,
 } from "@/lib/shift";
+import { buildCashSnapshot } from "@/lib/cashBox";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +32,16 @@ export async function GET() {
 
   const metrics = await computeOpenShiftMetrics(restaurantId, shift);
   const openOrders = await listOpenOrders(restaurantId, shift.openedAt);
+  // Esperado en el cajón = saldo de la caja general (descuenta egresos/
+  // bases y suma devoluciones). Ver src/lib/cashBox.ts.
+  const tenantPolicy = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { shiftPolicy: true },
+  });
+  const snap = await buildCashSnapshot(
+    restaurantId,
+    resolveShiftPolicy(tenantPolicy?.shiftPolicy),
+  );
 
   return NextResponse.json({
     open: true,
@@ -48,6 +61,6 @@ export async function GET() {
         ? o.table.label ?? `Mesa ${o.table.number}`
         : "Para llevar",
     })),
-    expectedCashCents: shift.openingCashCents + metrics.cashCents,
+    expectedCashCents: snap.general.balanceCents,
   });
 }

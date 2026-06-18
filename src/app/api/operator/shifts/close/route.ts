@@ -10,6 +10,8 @@ import {
   listOpenOrders,
 } from "@/lib/shift";
 import { publishOrderEvent } from "@/lib/events";
+import { buildCashSnapshot } from "@/lib/cashBox";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 const schema = z.object({
   // Efectivo físico contado por el cajero. Puede ser cero si abrieron sin
@@ -81,7 +83,18 @@ export async function POST(req: Request) {
   }
 
   const metrics = await computeOpenShiftMetrics(restaurantId, shift);
-  const expectedCashCents = shift.openingCashCents + metrics.cashCents;
+  // Esperado en el cajón = saldo de la caja general (descuenta egresos
+  // e ingresos y, en by_waiter, las bases entregadas a meseros + las
+  // devoluciones). No basta opening + cash: ignoraría los egresos.
+  const tenantPolicy = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { shiftPolicy: true },
+  });
+  const snap = await buildCashSnapshot(
+    restaurantId,
+    resolveShiftPolicy(tenantPolicy?.shiftPolicy),
+  );
+  const expectedCashCents = snap.general.balanceCents;
   const cashDiffCents = declaredCashCents - expectedCashCents;
 
   // Pin payments + close shift atomically so we never end up with a closed

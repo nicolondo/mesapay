@@ -7,6 +7,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -54,6 +55,22 @@ export async function POST(
   }
   if (payment.method !== "demo_cash") {
     return NextResponse.json({ error: "not a cash payment" }, { status: 400 });
+  }
+  // En by_waiter el mesero no puede cobrar sin turno propio abierto.
+  if (
+    await meseroNeedsShiftToCharge(
+      session.user.id,
+      session.user.role,
+      payment.order.restaurantId,
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: "mesero_no_shift",
+        message: "No tenés turno abierto. Abrí tu turno para cobrar.",
+      },
+      { status: 409 },
+    );
   }
   if (payment.status !== "pending") {
     return NextResponse.json({ error: "already settled" }, { status: 409 });

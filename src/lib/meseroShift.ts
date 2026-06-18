@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 /**
  * Helpers compartidos para el turno personal del mesero — separado del
@@ -21,6 +22,27 @@ export async function getCurrentMeseroShift(userId: string) {
     where: { userId, status: "open" },
     orderBy: { openedAt: "desc" },
   });
+}
+
+/**
+ * ¿El mesero está intentando cobrar SIN turno personal abierto?
+ * Solo aplica a rol `mesero` con `shiftPolicy="by_waiter"` — un operador/
+ * admin no tiene turno personal. Cobrar sin turno descuadra el arqueo
+ * (el cobro no queda dentro de ningún turno), así que las rutas de cobro
+ * y la UI lo bloquean y ofrecen abrir el turno.
+ */
+export async function meseroNeedsShiftToCharge(
+  userId: string | undefined,
+  role: string | undefined,
+  restaurantId: string,
+): Promise<boolean> {
+  if (role !== "mesero" || !userId) return false;
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { shiftPolicy: true },
+  });
+  if (resolveShiftPolicy(tenant?.shiftPolicy) !== "by_waiter") return false;
+  return !(await getCurrentMeseroShift(userId));
 }
 
 /**

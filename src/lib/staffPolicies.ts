@@ -18,8 +18,8 @@ export const DEFAULT_SHIFT_POLICY: ShiftPolicy = "global";
 // Qué pasa cuando un mesero intenta abrir su turno y el local todavía no
 // abrió el turno general (solo aplica a shiftPolicy="by_waiter"):
 //   - "block":     no lo dejamos; pedimos que el operador abra primero.
-//   - "auto_open": abrimos el turno del local automáticamente con base 0
-//                  y el del mesero también con base 0 (luego se editan).
+//   - "auto_open": abrimos el turno del local automáticamente con la misma
+//                  base que declara el mesero (luego se editan desde caja).
 export const MESERO_SHIFT_WITHOUT_LOCAL = ["block", "auto_open"] as const;
 export type MeseroShiftWithoutLocal =
   (typeof MESERO_SHIFT_WITHOUT_LOCAL)[number];

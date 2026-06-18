@@ -241,8 +241,8 @@ model Restaurant {
   // día anterior). 0 = medianoche.
   businessDayCutoffHour Int @default(5)
   // Qué hacer si un mesero abre su turno sin que el local haya abierto el
-  // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el
-  // del local con base 0 y el del mesero también). Ver staffPolicies.ts.
+  // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
+  // local con la misma base que declara el mesero). Ver staffPolicies.ts.
   meseroShiftWithoutLocal String @default("block")
 
   users               User[]

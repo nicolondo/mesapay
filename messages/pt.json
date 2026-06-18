@@ -366,7 +366,7 @@
     "invCorrectData": "Corrigir dados",
     "invNeedReceipt": "Precisa de comprovante?",
     "invReceiptIntro": "Um comprovante simples só pede o e-mail. Se precisar de nota em nome de empresa ou com documento, peça à parte.",
-    "invSendEmail": "Enviar comprovante ao meu e-mail",
+    "invSendEmail": "Enviar fatura genérica ao meu e-mail",
     "invToName": "Nota fiscal eletrônica no meu nome ou empresa",
     "invErrEmail": "E-mail inválido",
     "invErrGenerate": "Não conseguimos gerar seu comprovante",

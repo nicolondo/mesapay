@@ -366,7 +366,7 @@
     "invCorrectData": "Edit details",
     "invNeedReceipt": "Need a receipt?",
     "invReceiptIntro": "A simple receipt only asks for your email. If you need an invoice under a company name or ID, request it separately.",
-    "invSendEmail": "Email me the receipt",
+    "invSendEmail": "Email me a generic invoice",
     "invToName": "Electronic invoice under my name or company",
     "invErrEmail": "Invalid email",
     "invErrGenerate": "We couldn't generate your receipt",

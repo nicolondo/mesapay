@@ -366,7 +366,7 @@
     "invCorrectData": "Corregir datos",
     "invNeedReceipt": "¿Necesitas comprobante?",
     "invReceiptIntro": "Una tirilla simple solo te pide el correo. Si necesitas una factura a nombre de empresa o con cédula, pídela aparte.",
-    "invSendEmail": "Mandar tirilla a mi correo",
+    "invSendEmail": "Mandar factura genérica a mi correo",
     "invToName": "Factura electrónica a mi nombre o empresa",
     "invErrEmail": "Email inválido",
     "invErrGenerate": "No pudimos generar tu tirilla",

@@ -72,8 +72,10 @@ export async function POST(req: Request) {
   // local: la base del mesero sale del cajón general y el cierre general
   // los liquida. Si el local no abrió, dos comportamientos configurables:
   //   - "block":     no lo dejamos; el operador debe abrir primero.
-  //   - "auto_open": abrimos el turno general con base 0 (y el del mesero
-  //                  queda en 0 también, por la regla base_mesero ≤ base_local).
+  //   - "auto_open": abrimos el turno general con la MISMA base que declara
+  //                  el mesero (la plata que trae como fondo). Ambos turnos
+  //                  quedan con esa base; la regla mesero ≤ local se cumple
+  //                  por igualdad.
   let localShift = await getCurrentShift(restaurantId);
   let localAutoOpened = false;
   if (!localShift) {
@@ -94,20 +96,17 @@ export async function POST(req: Request) {
       data: {
         restaurantId,
         openedById: userId,
-        openingCashCents: 0,
+        openingCashCents: parsed.data.openingCashCents,
         status: "open",
       },
     });
     localAutoOpened = true;
   }
 
-  // Regla: la base del mesero nunca puede superar la del local. Si el
-  // local arranca en 0 (incl. auto_open), el mesero también arranca en 0.
-  // En auto_open forzamos 0 (no rechazamos: queremos que pueda empezar).
-  let meseroBase = parsed.data.openingCashCents;
-  if (localAutoOpened) {
-    meseroBase = 0;
-  } else if (meseroBase > localShift.openingCashCents) {
+  // Regla: la base del mesero nunca puede superar la del local. En auto_open
+  // el local arrancó con la misma base, así que se cumple por igualdad.
+  const meseroBase = parsed.data.openingCashCents;
+  if (!localAutoOpened && meseroBase > localShift.openingCashCents) {
     return NextResponse.json(
       {
         error: "base_exceeds_local",

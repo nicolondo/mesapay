@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentMeseroShift } from "@/lib/meseroShift";
 import { isCashMethod } from "@/lib/shift";
+import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
   // Efectivo físico que el mesero contó en su caja al cerrar. Cap =
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
     },
   });
 
+  publishOrderEvent(shift.restaurantId, { type: "cash.updated" });
   return NextResponse.json({
     ok: true,
     summary: {

@@ -9,6 +9,7 @@ import {
   isCashMethod,
   listOpenOrders,
 } from "@/lib/shift";
+import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
   // Efectivo físico contado por el cajero. Puede ser cero si abrieron sin
@@ -130,6 +131,8 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
+
+  publishOrderEvent(restaurantId, { type: "cash.updated" });
 
   return NextResponse.json({
     ok: true,

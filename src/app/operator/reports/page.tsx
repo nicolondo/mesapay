@@ -11,6 +11,9 @@ import {
   listOpenOrders,
 } from "@/lib/shift";
 import { ShiftPanel } from "./ShiftPanel";
+import { CashBox } from "@/components/CashBox";
+import { buildCashSnapshot } from "@/lib/cashBox";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +48,14 @@ export default async function ReportsPage({
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { serviceMode: true },
+    select: { serviceMode: true, shiftPolicy: true, slug: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Snapshot inicial de caja — el CashBox refresca en vivo por SSE.
+  const cashSnap = await buildCashSnapshot(
+    restaurantId,
+    resolveShiftPolicy(tenant?.shiftPolicy),
+  );
 
   const payments = await db.payment.findMany({
     where: {
@@ -248,6 +256,17 @@ export default async function ReportsPage({
       </div>
 
       {isToday && <ShiftPanel initial={shiftPanelInitial} />}
+
+      {isToday && (
+        <div className="mb-3">
+          <CashBox
+            initial={cashSnap}
+            snapshotUrl="/api/operator/cash/snapshot"
+            movementUrl="/api/operator/cash/movement"
+            tenantSlug={tenant?.slug ?? ""}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <Stat label={t("statCharged")} value={fmtCOP(paymentsTotal)} hint={t("statChargedHint", { count: payments.length })} />

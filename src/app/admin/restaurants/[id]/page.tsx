@@ -28,6 +28,9 @@ import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AdminAiConfig } from "./AdminAiConfig";
 import { AdminSalesRep } from "./AdminSalesRep";
 import { DangerZonePanel } from "./DangerZonePanel";
+import { CashBox } from "@/components/CashBox";
+import { buildCashSnapshot } from "@/lib/cashBox";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +123,12 @@ export default async function RestaurantDetail({
     ]);
 
   if (!rest) notFound();
+
+  // Snapshot inicial de caja (el CashBox refresca en vivo por SSE).
+  const cashSnap = await buildCashSnapshot(
+    rest.id,
+    resolveShiftPolicy(rest.shiftPolicy),
+  );
 
   // Label del plan actual sale del catálogo editable (fallback al
   // tier crudo si por alguna razón no está en el catálogo).
@@ -442,6 +451,15 @@ export default async function RestaurantDetail({
           createdAt: u.createdAt.toISOString(),
         }))}
       />
+
+      <div className="mb-4">
+        <CashBox
+          initial={cashSnap}
+          snapshotUrl={`/api/admin/restaurants/${id}/cash/snapshot`}
+          movementUrl={`/api/admin/restaurants/${id}/cash/movement`}
+          tenantSlug={rest.slug}
+        />
+      </div>
 
       <DangerZonePanel restaurantId={id} slug={rest.slug} />
     </div>

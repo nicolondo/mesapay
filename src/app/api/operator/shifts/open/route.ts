@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrentShift } from "@/lib/shift";
+import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
   // Fondo de caja inicial. Cero es válido (puedes abrir un turno con
@@ -51,5 +52,6 @@ export async function POST(req: Request) {
     },
   });
 
+  publishOrderEvent(restaurantId, { type: "cash.updated" });
   return NextResponse.json({ ok: true, shiftId: shift.id });
 }

@@ -6,6 +6,7 @@ import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import {
   getCurrentMeseroShift,
 } from "@/lib/meseroShift";
+import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
   // Base inicial de la caja del mesero — el efectivo con el que
@@ -73,5 +74,6 @@ export async function POST(req: Request) {
     },
   });
 
+  publishOrderEvent(restaurantId, { type: "cash.updated" });
   return NextResponse.json({ ok: true, shiftId: shift.id, alreadyOpen: false });
 }

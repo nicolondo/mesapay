@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { LiveRefresh } from "./LiveRefresh";
+import { CashBox } from "@/components/CashBox";
+import { buildCashSnapshot } from "@/lib/cashBox";
+import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +23,14 @@ export default async function OperatorHome() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true, serviceMode: true },
+    select: { slug: true, serviceMode: true, shiftPolicy: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Snapshot inicial de caja (el CashBox refresca en vivo por SSE).
+  const cashSnap = await buildCashSnapshot(
+    restaurantId,
+    resolveShiftPolicy(tenant?.shiftPolicy),
+  );
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -100,6 +108,16 @@ export default async function OperatorHome() {
   return (
     <div className="p-6 max-w-6xl mx-auto w-full">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
+
+      <div className="mb-4">
+        <CashBox
+          initial={cashSnap}
+          snapshotUrl="/api/operator/cash/snapshot"
+          movementUrl="/api/operator/cash/movement"
+          tenantSlug={tenant?.slug ?? ""}
+        />
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi label={tr("kpiSalesToday")} value={fmtCOP(salesTodayCents)} />
         <Kpi label={tr("kpiPaidOrders")} value={String(todayPaidCount)} />

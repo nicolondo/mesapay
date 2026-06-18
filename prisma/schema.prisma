@@ -253,6 +253,7 @@ model Restaurant {
   invoiceRequests     InvoiceRequest[]
   simpleInvoices      SimpleInvoice[]
   shifts              Shift[]
+  cashMovements       CashMovement[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -540,6 +541,7 @@ model User {
 
   shiftsOpened Shift[] @relation("ShiftsOpened")
   shiftsClosed Shift[] @relation("ShiftsClosed")
+  cashMovements CashMovement[] @relation("CashMovementCreator")
   // Shifts donde este user es el dueño (modo by_waiter). Distinto a
   // shiftsOpened/Closed que pueden referenciar al operador que
   // abrió/cerró un turno de OTRO mesero (admin operativo).
@@ -1219,11 +1221,42 @@ model Shift {
   cashDiffCents     Int?
   notes             String?
 
-  payments Payment[]
+  payments      Payment[]
+  cashMovements CashMovement[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, openedAt])
   @@index([userId, status])
+}
+
+enum CashMovementKind {
+  egreso // sale efectivo del cajón del local (retiro con concepto)
+  ingreso // entra efectivo (ajuste / depósito) para cuadrar
+}
+
+/**
+ * Movimiento manual de efectivo de la caja general del local — egresos
+ * (retiros con concepto) e ingresos (ajustes). Lo registra el operador
+ * o el admin. El saldo de la caja NO se persiste: se calcula en vivo
+ * (ver src/lib/cashBox.ts) a partir de base + cobros − egresos + ingresos.
+ */
+model CashMovement {
+  id           String           @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Turno global vigente al registrar (acota el movimiento al arqueo de
+  // ese cierre). Null si no había turno global abierto.
+  shiftId      String?
+  shift        Shift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  kind         CashMovementKind
+  amountCents  Int // siempre > 0; el signo lo da el kind
+  concept      String
+  createdById  String
+  createdBy    User             @relation("CashMovementCreator", fields: [createdById], references: [id])
+  occurredAt   DateTime         @default(now())
+
+  @@index([restaurantId, occurredAt])
+  @@index([shiftId])
 }
 
 // === Kushki integration ====================================================

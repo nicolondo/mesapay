@@ -36,7 +36,11 @@ export type OrderEvent =
       orderId: string;
       station: "kitchen" | "bar";
       barSubStation: string | null;
-    };
+    }
+  // La caja del comercio cambió: egreso/ingreso registrado, o un turno
+  // (general o de mesero) se abrió/cerró. Lo consumen las vistas de caja
+  // en tiempo real (operator Cierre, admin) para re-fetchear el snapshot.
+  | { type: "cash.updated" };
 
 const bus = new Map<string, Set<Listener>>(); // tenantId -> listeners
 

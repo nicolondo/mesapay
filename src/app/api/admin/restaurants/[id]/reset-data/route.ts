@@ -130,6 +130,8 @@ export async function POST(
       ).count;
     }
     if (sel.shifts) {
+      // Egresos/ingresos de caja viven en el dominio de cierres/caja.
+      await tx.cashMovement.deleteMany({ where: { restaurantId: id } });
       counts.shifts = (
         await tx.shift.deleteMany({ where: { restaurantId: id } })
       ).count;

@@ -467,7 +467,16 @@ function CloseShiftSheet({
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
           {t("cashCountedPhysically")}
         </span>
-        <CashInput value={declared} onChange={setDeclaredRaw} autoFocus />
+        {/* key={expected} remonta el input cuando cambia el esperado
+            (carga del snapshot / toggle de meseros) para que el valor
+            prellenado siga al esperado. No cambia al tipear (expected
+            es estable), así no interrumpe la edición. */}
+        <CashInput
+          key={expected}
+          value={declared}
+          onChange={setDeclaredRaw}
+          autoFocus
+        />
       </label>
 
       <div

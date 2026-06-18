@@ -1339,7 +1339,7 @@
     "policiesNoLocalBlockTitle": "Don't allow it",
     "policiesNoLocalBlockSubtitle": "The waiter can't open their shift until the manager opens the venue's general shift. They get a message asking for it.",
     "policiesNoLocalAutoTitle": "Auto-open the venue",
-    "policiesNoLocalAutoSubtitle": "When the waiter opens their shift, the venue's shift opens too with the same float the waiter declares. Floats are adjusted afterward from the cash view.",
+    "policiesNoLocalAutoSubtitle": "When the waiter opens their shift, the venue's shift opens too. Each waiter's float is added to the venue's float (which has none of its own). Floats are adjusted afterward from the cash view.",
     "policiesNoLocalFootnote": "Always-on rule: a waiter's float can never exceed the venue's; if the venue is at $0, so are the waiters.",
     "policiesSaveFailed": "Couldn't save.",
     "policiesSaved": "Saved.",

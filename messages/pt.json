@@ -1339,7 +1339,7 @@
     "policiesNoLocalBlockTitle": "Não permitir",
     "policiesNoLocalBlockSubtitle": "O garçom não pode abrir o turno até o responsável abrir o turno geral do estabelecimento. Ele vê uma mensagem pedindo isso.",
     "policiesNoLocalAutoTitle": "Abrir o estabelecimento automaticamente",
-    "policiesNoLocalAutoSubtitle": "Ao o garçom abrir o turno, o do estabelecimento abre também com o mesmo fundo que o garçom informa. Os fundos são ajustados depois pelo caixa.",
+    "policiesNoLocalAutoSubtitle": "Ao o garçom abrir o turno, o do estabelecimento abre também. O fundo de cada garçom é somado ao fundo do estabelecimento (que não tem fundo próprio). Os fundos são ajustados depois pelo caixa.",
     "policiesNoLocalFootnote": "Regra sempre ativa: o fundo de um garçom nunca pode superar o do estabelecimento; se o estabelecimento está em R$0, os garçons também.",
     "policiesSaveFailed": "Não foi possível salvar.",
     "policiesSaved": "Salvo.",

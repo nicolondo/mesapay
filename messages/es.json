@@ -1339,7 +1339,7 @@
     "policiesNoLocalBlockTitle": "No dejar abrir",
     "policiesNoLocalBlockSubtitle": "El mesero no puede abrir su turno hasta que el encargado abra el turno general del local. Se le muestra un mensaje para pedirlo.",
     "policiesNoLocalAutoTitle": "Abrir el local automáticamente",
-    "policiesNoLocalAutoSubtitle": "Al abrir el mesero su turno, se abre también el del local con la misma base que declara el mesero. Las bases se ajustan después desde la caja.",
+    "policiesNoLocalAutoSubtitle": "Al abrir el mesero su turno, se abre también el del local. La base de cada mesero se suma al fondo del local (que no tiene fondo propio). Las bases se ajustan después desde la caja.",
     "policiesNoLocalFootnote": "Regla siempre activa: la base de un mesero nunca puede superar la del local; si el local está en $0, los meseros también.",
     "policiesSaveFailed": "No se pudo guardar.",
     "policiesSaved": "Guardado.",

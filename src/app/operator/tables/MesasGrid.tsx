@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import {
@@ -111,6 +112,16 @@ export function MesasGrid({
   const [filter, setFilter] = useState<FilterChip>("all");
   // ID del tile cuyo sheet está abierto. Solo uno a la vez.
   const [openTileId, setOpenTileId] = useState<string | null>(null);
+  // Modo edición: los tiles dejan de navegar/abrir cobro y pasan a
+  // renombrar/borrar la mesa vía un sheet estable (no se rompe con el
+  // auto-refresh de LiveRefresh). Solo operator/admin — el mesero no
+  // gestiona el alta/baja de mesas.
+  const [editMode, setEditMode] = useState(false);
+  const [manageTile, setManageTile] = useState<{
+    id: string;
+    number: number;
+    label: string | null;
+  } | null>(null);
 
   const counts = useMemo(() => {
     const c = { all: tiles.length, by_pay: 0, recent: 0, free: 0 };
@@ -162,6 +173,23 @@ export function MesasGrid({
           label={tr("filterFree")}
           count={counts.free}
         />
+        {!isMeseroView && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditMode((v) => !v);
+              setOpenTileId(null);
+            }}
+            className={
+              "ml-auto h-8 px-3 inline-flex items-center rounded-full text-xs font-medium border transition-colors " +
+              (editMode
+                ? "bg-ink text-bone border-ink"
+                : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
+            }
+          >
+            {editMode ? tr("editDone") : tr("editTables")}
+          </button>
+        )}
       </div>
 
       {/* Grid de tiles compactos */}
@@ -172,6 +200,23 @@ export function MesasGrid({
           </div>
         )}
         {filtered.map((tile) => {
+          if (editMode) {
+            return (
+              <ManageTileButton
+                key={tile.id}
+                number={tile.number}
+                label={tile.label}
+                counterMode={counterMode}
+                onClick={() =>
+                  setManageTile({
+                    id: tile.id,
+                    number: tile.number,
+                    label: tile.label,
+                  })
+                }
+              />
+            );
+          }
           if (tile.state === "free") {
             return (
               <FreeTile
@@ -211,7 +256,172 @@ export function MesasGrid({
           );
         })}
       </div>
+
+      {manageTile && (
+        <ManageTableSheet
+          tile={manageTile}
+          onClose={() => setManageTile(null)}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * Tile en modo edición — no navega ni abre cobro; al tap abre el sheet
+ * de gestión (renombrar / borrar). Mismo tamaño que los tiles normales
+ * para que la grilla no salte al entrar/salir de edición.
+ */
+function ManageTileButton({
+  number,
+  label,
+  counterMode,
+  onClick,
+}: {
+  number: number;
+  label: string | null;
+  counterMode: boolean;
+  onClick: () => void;
+}) {
+  const tr = useTranslations("opTables");
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="aspect-[4/3] rounded-xl border border-dashed border-op-border bg-op-surface hover:bg-op-bg flex flex-col items-center justify-center p-2 text-center transition-colors relative"
+    >
+      <div className="font-display text-base leading-none">
+        {counterMode ? tr("tileCounterShort") : tr("tileTableShort", { number })}
+      </div>
+      {label && (
+        <div className="font-mono text-[9px] text-op-muted mt-1 truncate w-full">
+          {label}
+        </div>
+      )}
+      <div className="font-mono text-[9px] tracking-wider uppercase text-op-muted mt-auto">
+        {tr("editTap")}
+      </div>
+    </button>
+  );
+}
+
+/**
+ * Sheet de gestión de una mesa: renombrar (label) + borrar. Vive en el
+ * cliente con su propio estado, así el auto-refresh de fondo no lo
+ * resetea. Usa la misma API que el editor de Configuración › Mesas.
+ */
+function ManageTableSheet({
+  tile,
+  onClose,
+}: {
+  tile: { id: string; number: number; label: string | null };
+  onClose: () => void;
+}) {
+  const tr = useTranslations("opTables");
+  const router = useRouter();
+  const [label, setLabel] = useState(tile.label ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/operator/tables/${tile.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: label.trim() || null }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr(tr("saveLabelFailed"));
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
+  async function del() {
+    if (!window.confirm(tr("confirmDeleteTable", { number: tile.number }))) {
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/operator/tables/${tile.id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(
+        j.error === "open_order"
+          ? tr("deleteOpenOrder")
+          : j.error === "has_history"
+            ? tr("deleteHasHistory")
+            : tr("deleteTableFailed"),
+      );
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-sm bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-display text-2xl">
+            {tr("tableFull", { number: tile.number })}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted text-sm shrink-0"
+            aria-label={tr("close")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5">
+            {tr("manageNameLabel")}
+          </div>
+          <input
+            autoFocus
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            maxLength={40}
+            placeholder={tr("labelPlaceholder")}
+            className="w-full h-11 px-3 rounded-xl border border-op-border bg-op-bg text-sm"
+          />
+        </div>
+
+        {err && <div className="text-xs text-danger">{err}</div>}
+
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+        >
+          {tr("manageSave")}
+        </button>
+        <button
+          type="button"
+          onClick={del}
+          disabled={busy}
+          className="w-full h-11 rounded-full border border-danger/50 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-50"
+        >
+          {tr("deleteTable")}
+        </button>
+      </div>
+    </div>
   );
 }
 

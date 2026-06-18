@@ -319,21 +319,32 @@ function ManageTableSheet({
 }) {
   const tr = useTranslations("opTables");
   const router = useRouter();
+  const [num, setNum] = useState(String(tile.number));
   const [label, setLabel] = useState(tile.label ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function save() {
+    const parsedNum = Number(num);
+    if (!Number.isInteger(parsedNum) || parsedNum < 1) {
+      setErr(tr("numberInvalid"));
+      return;
+    }
     setBusy(true);
     setErr(null);
     const res = await fetch(`/api/operator/tables/${tile.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label: label.trim() || null }),
+      body: JSON.stringify({ label: label.trim() || null, number: parsedNum }),
     });
     setBusy(false);
     if (!res.ok) {
-      setErr(tr("saveLabelFailed"));
+      const j = await res.json().catch(() => ({}));
+      setErr(
+        j.error === "number_taken"
+          ? tr("numberTaken")
+          : tr("saveLabelFailed"),
+      );
       return;
     }
     router.refresh();
@@ -390,10 +401,23 @@ function ManageTableSheet({
 
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5">
+            {tr("manageNumberLabel")}
+          </div>
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={num}
+            onChange={(e) => setNum(e.target.value)}
+            className="w-full h-11 px-3 rounded-xl border border-op-border bg-op-bg text-sm tabular"
+          />
+        </div>
+
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5">
             {tr("manageNameLabel")}
           </div>
           <input
-            autoFocus
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             maxLength={40}

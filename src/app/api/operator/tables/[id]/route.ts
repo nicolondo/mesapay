@@ -6,6 +6,9 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const patchSchema = z.object({
   label: z.string().trim().max(40).nullable().optional(),
+  // Número de la mesa. Editable por operator/admin (no mesero). Único
+  // por comercio. NO afecta el QR (el QR usa qrToken, no el número).
+  number: z.number().int().min(1).max(9999).optional(),
   // Atributos de reserva — los edita el operador desde la gestión de
   // mesas. Todos opcionales: un PATCH puede tocar sólo el label, sólo
   // la capacidad, etc. minConsumptionCents null limpia el mínimo.
@@ -73,27 +76,92 @@ export async function PATCH(
   const canEditReservationAttrs =
     role === "operator" || role === "platform_admin";
 
-  await db.table.update({
-    where: { id },
-    data: {
-      label: parsed.data.label === undefined ? undefined : parsed.data.label,
-      ...(canEditReservationAttrs && {
-        ...(parsed.data.capacity !== undefined && {
-          capacity: parsed.data.capacity,
-        }),
-        ...(parsed.data.minConsumptionCents !== undefined && {
-          minConsumptionCents: parsed.data.minConsumptionCents,
-        }),
-        ...(parsed.data.reservable !== undefined && {
-          reservable: parsed.data.reservable,
-        }),
-        ...(parsed.data.shape !== undefined && { shape: parsed.data.shape }),
-        ...(parsed.data.reservationDepositCents !== undefined && {
-          reservationDepositCents: parsed.data.reservationDepositCents,
-        }),
-      }),
-    },
-  });
+  // Cambio de número (solo operator/admin). Validamos unicidad por
+  // comercio antes de tocar nada; la constraint @@unique también lo
+  // protege a nivel DB (catch P2002 más abajo por si hay carrera).
+  const oldNumber = g.table.number;
+  const wantsNumber =
+    canEditReservationAttrs &&
+    parsed.data.number !== undefined &&
+    parsed.data.number !== oldNumber;
+  const newNumber = parsed.data.number;
+  if (wantsNumber) {
+    const clash = await db.table.findFirst({
+      where: {
+        restaurantId: g.table.restaurantId,
+        number: newNumber,
+        NOT: { id },
+      },
+      select: { id: true },
+    });
+    if (clash) {
+      return NextResponse.json({ error: "number_taken" }, { status: 409 });
+    }
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.table.update({
+        where: { id },
+        data: {
+          label:
+            parsed.data.label === undefined ? undefined : parsed.data.label,
+          ...(canEditReservationAttrs && {
+            ...(wantsNumber && { number: newNumber }),
+            ...(parsed.data.capacity !== undefined && {
+              capacity: parsed.data.capacity,
+            }),
+            ...(parsed.data.minConsumptionCents !== undefined && {
+              minConsumptionCents: parsed.data.minConsumptionCents,
+            }),
+            ...(parsed.data.reservable !== undefined && {
+              reservable: parsed.data.reservable,
+            }),
+            ...(parsed.data.shape !== undefined && {
+              shape: parsed.data.shape,
+            }),
+            ...(parsed.data.reservationDepositCents !== undefined && {
+              reservationDepositCents: parsed.data.reservationDepositCents,
+            }),
+          }),
+        },
+      });
+
+      // Los meseros con mesas asignadas guardan NÚMEROS, no ids. Si el
+      // número cambió, migramos esas asignaciones para que sigan
+      // apuntando a la misma mesa.
+      if (wantsNumber && newNumber !== undefined) {
+        const affected = await tx.user.findMany({
+          where: {
+            restaurantId: g.table.restaurantId,
+            assignedTableNumbers: { has: oldNumber },
+          },
+          select: { id: true, assignedTableNumbers: true },
+        });
+        for (const u of affected) {
+          await tx.user.update({
+            where: { id: u.id },
+            data: {
+              assignedTableNumbers: u.assignedTableNumbers.map((n) =>
+                n === oldNumber ? newNumber : n,
+              ),
+            },
+          });
+        }
+      }
+    });
+  } catch (err) {
+    // Carrera contra la unique([restaurantId, number]).
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json({ error: "number_taken" }, { status: 409 });
+    }
+    throw err;
+  }
   return NextResponse.json({ ok: true });
 }
 

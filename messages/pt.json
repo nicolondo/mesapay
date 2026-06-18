@@ -2067,6 +2067,8 @@
     "initialFund": "Fundo inicial",
     "cashCollected": "Dinheiro cobrado",
     "cashExpectedInDrawer": "Dinheiro esperado no caixa",
+    "closeMeserosToggle": "Fechar também os turnos dos garçons",
+    "closeMeserosHint": "Liquida o caixa de cada garçom (você cobra o fundo + o que arrecadou). Esse dinheiro volta ao caixa e entra no esperado.",
     "cashCountedPhysically": "Dinheiro contado fisicamente",
     "differenceLabel": "Diferença: {value}",
     "differenceExact": "bate exato ✓",

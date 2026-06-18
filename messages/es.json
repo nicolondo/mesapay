@@ -2067,6 +2067,8 @@
     "initialFund": "Fondo inicial",
     "cashCollected": "Efectivo cobrado",
     "cashExpectedInDrawer": "Efectivo esperado en caja",
+    "closeMeserosToggle": "Cerrar también los turnos de meseros",
+    "closeMeserosHint": "Liquida la caja de cada mesero (le cobrás su base + lo recaudado). Ese efectivo vuelve al cajón y entra al esperado.",
     "cashCountedPhysically": "Efectivo contado físicamente",
     "differenceLabel": "Diferencia: {value}",
     "differenceExact": "cuadra exacto ✓",

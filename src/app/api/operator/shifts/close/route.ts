@@ -23,6 +23,11 @@ const schema = z.object({
   // Operator override: cerrar AUNQUE haya órdenes abiertas. UI no lo
   // ofrece todavía pero el endpoint lo soporta para soporte en producción.
   forceOpenOrders: z.boolean().optional(),
+  // Cierre general: cerrar también los turnos de mesero abiertos
+  // (cobrándoles su caja = base + lo recaudado). El efectivo de los
+  // meseros vuelve al cajón, así que el esperado pasa a ser el
+  // consolidado.
+  closeMeseroShifts: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -94,7 +99,14 @@ export async function POST(req: Request) {
     restaurantId,
     resolveShiftPolicy(tenantPolicy?.shiftPolicy),
   );
-  const expectedCashCents = snap.general.balanceCents;
+  // Cierre general: si también cerramos los turnos de meseros, su
+  // efectivo (base + lo recaudado) vuelve al cajón, así que el esperado
+  // es el consolidado (caja general + cajas de meseros). Si no, es solo
+  // el saldo de la caja general.
+  const closeMesero = parsed.data.closeMeseroShifts === true;
+  const expectedCashCents = closeMesero
+    ? snap.consolidatedCents
+    : snap.general.balanceCents;
   const cashDiffCents = declaredCashCents - expectedCashCents;
 
   // Pin payments + close shift atomically so we never end up with a closed
@@ -118,6 +130,27 @@ export async function POST(req: Request) {
       },
       data: { shiftId: shift.id },
     });
+
+    // Cierre general: liquidar los turnos de meseros abiertos. A cada
+    // uno le cuadramos su caja en su monto esperado (base + lo que
+    // cobró = lo que debe devolver), sin descuadre, porque el operador
+    // le está cobrando esa plata al cerrar.
+    if (closeMesero) {
+      const now = new Date();
+      for (const m of snap.meseros) {
+        await tx.shift.updateMany({
+          where: { id: m.shiftId, status: "open" },
+          data: {
+            status: "closed",
+            closedAt: now,
+            closedById: session.user.id,
+            declaredCashCents: m.mustReturnCents,
+            expectedCashCents: m.mustReturnCents,
+            cashDiffCents: 0,
+          },
+        });
+      }
+    }
 
     return tx.shift.update({
       where: { id: shift.id },

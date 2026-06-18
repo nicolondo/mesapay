@@ -23,6 +23,7 @@ import { recordAuditEvent } from "@/lib/auditLog";
 
 export type MeseroBox = {
   userId: string;
+  shiftId: string;
   name: string;
   openedAtIso: string;
   baseCents: number; // openingCashCents
@@ -208,6 +209,7 @@ export async function buildCashSnapshot(
       const inHand = sh.openingCashCents + collected;
       meseros.push({
         userId: sh.userId!,
+        shiftId: sh.id,
         name: sh.user?.name ?? sh.user?.email ?? "Mesero",
         openedAtIso: sh.openedAt.toISOString(),
         baseCents: sh.openingCashCents,

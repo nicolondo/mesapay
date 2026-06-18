@@ -19,11 +19,15 @@ export function CashBox({
   initial,
   snapshotUrl,
   movementUrl,
+  baseUrl,
   tenantSlug,
 }: {
   initial: CashSnapshot;
   snapshotUrl: string;
   movementUrl: string;
+  // Cuando se pasa, habilita editar la base del local y de cada mesero
+  // (solo operator). Admin no lo pasa → la caja queda en solo-lectura.
+  baseUrl?: string;
   tenantSlug: string;
 }) {
   const t = useTranslations("cashBox");
@@ -78,7 +82,24 @@ export function CashBox({
               {fmtCOP(g.balanceCents)}
             </div>
             <div className="mt-3 space-y-1">
-              <Line label={t("opening")} value={fmtCOP(g.openingCents)} />
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-op-muted">{t("opening")}</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-mono tabular">
+                    {fmtCOP(g.openingCents)}
+                  </span>
+                  {baseUrl && (
+                    <BaseEditButton
+                      baseUrl={baseUrl}
+                      shiftId={null}
+                      title={t("editBaseLocalTitle")}
+                      amountCents={g.openingCents}
+                      onDone={refetch}
+                      t={t}
+                    />
+                  )}
+                </span>
+              </div>
               <Line
                 label={t("collected")}
                 value={`+ ${fmtCOP(g.collectedCashCents)}`}
@@ -130,8 +151,21 @@ export function CashBox({
                         </span>
                       </div>
                       <div className="mt-1 grid grid-cols-3 gap-2 text-[11px] text-op-muted font-mono tabular">
-                        <span>
-                          {t("mBase")} {fmtCOP(m.baseCents)}
+                        <span className="flex items-center gap-1.5">
+                          <span>
+                            {t("mBase")} {fmtCOP(m.baseCents)}
+                          </span>
+                          {baseUrl && (
+                            <BaseEditButton
+                              baseUrl={baseUrl}
+                              shiftId={m.shiftId}
+                              title={t("editBaseMeseroTitle", { name: m.name })}
+                              amountCents={m.baseCents}
+                              maxCents={g.openingCents}
+                              onDone={refetch}
+                              t={t}
+                            />
+                          )}
                         </span>
                         <span>
                           {t("mCollected")} {fmtCOP(m.collectedCashCents)}
@@ -213,6 +247,138 @@ function Line({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Botón "Editar" + modal para corregir la base (openingCashCents) de un
+ * turno YA abierto. `shiftId=null` → base del local; con shiftId → base de
+ * ese mesero. La regla base_mesero ≤ base_local la valida el servidor;
+ * acá traducimos sus errores a mensajes claros.
+ */
+function BaseEditButton({
+  baseUrl,
+  shiftId,
+  title,
+  amountCents,
+  maxCents,
+  onDone,
+  t,
+}: {
+  baseUrl: string;
+  shiftId: string | null;
+  title: string;
+  amountCents: number;
+  maxCents?: number;
+  onDone: () => void | Promise<void>;
+  t: ReturnType<typeof useTranslations<"cashBox">>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pesos, setPesos] = useState(String(Math.round(amountCents / 100)));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const cents = (parseInt(pesos.replace(/\D/g, ""), 10) || 0) * 100;
+
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    const r = await fetch(baseUrl, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shiftId, openingCashCents: cents }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        maxCents?: number;
+        minCents?: number;
+        meseroName?: string | null;
+      };
+      if (j.error === "base_exceeds_local") {
+        setErr(t("editBaseExceedsLocal", { amount: fmtCOP(j.maxCents ?? 0) }));
+      } else if (j.error === "base_below_mesero") {
+        setErr(
+          t("editBaseBelowMesero", {
+            name: j.meseroName ?? "",
+            amount: fmtCOP(j.minCents ?? 0),
+          }),
+        );
+      } else {
+        setErr(t("saveFailed"));
+      }
+      return;
+    }
+    setOpen(false);
+    await onDone();
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[10px] underline text-op-muted hover:text-op-text shrink-0"
+      >
+        {t("editBase")}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="w-full md:max-w-sm bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-display text-2xl">{title}</h2>
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5">
+            {t("formAmount")}
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-op-border bg-op-bg px-3 h-11">
+            <span className="text-op-muted">$</span>
+            <input
+              autoFocus
+              type="text"
+              inputMode="numeric"
+              value={pesos ? Number(pesos).toLocaleString("es-CO") : ""}
+              onChange={(e) => setPesos(e.target.value.replace(/\D/g, ""))}
+              placeholder="0"
+              className="flex-1 bg-transparent outline-none font-display text-xl tabular min-w-0"
+            />
+          </div>
+          {maxCents !== undefined && (
+            <p className="text-[11px] text-op-muted mt-1">
+              {t("editBaseMax", { amount: fmtCOP(maxCents) })}
+            </p>
+          )}
+        </div>
+        {err && <div className="text-xs text-danger">{err}</div>}
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            disabled={busy}
+            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          >
+            {busy ? t("saving") : t("save")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

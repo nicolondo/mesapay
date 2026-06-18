@@ -2,18 +2,24 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
+import type {
+  TipPolicy,
+  ShiftPolicy,
+  MeseroShiftWithoutLocal,
+} from "@/lib/staffPolicies";
 
 export function StaffPoliciesClient({
   initialTipPolicy,
   initialShiftPolicy,
   initialWalkoutDangerMinutes,
   initialBusinessDayCutoffHour,
+  initialMeseroShiftWithoutLocal,
 }: {
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
   initialWalkoutDangerMinutes: number;
   initialBusinessDayCutoffHour: number;
+  initialMeseroShiftWithoutLocal: MeseroShiftWithoutLocal;
 }) {
   const t = useTranslations("opSettings");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
@@ -24,6 +30,8 @@ export function StaffPoliciesClient({
   const [cutoffHour, setCutoffHour] = useState<number>(
     initialBusinessDayCutoffHour,
   );
+  const [meseroWithoutLocal, setMeseroWithoutLocal] =
+    useState<MeseroShiftWithoutLocal>(initialMeseroShiftWithoutLocal);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -33,7 +41,8 @@ export function StaffPoliciesClient({
     tipPolicy !== initialTipPolicy ||
     shiftPolicy !== initialShiftPolicy ||
     walkoutDanger !== initialWalkoutDangerMinutes ||
-    cutoffHour !== initialBusinessDayCutoffHour;
+    cutoffHour !== initialBusinessDayCutoffHour ||
+    meseroWithoutLocal !== initialMeseroShiftWithoutLocal;
 
   async function save() {
     if (
@@ -57,6 +66,7 @@ export function StaffPoliciesClient({
         shiftPolicy,
         walkoutDangerMinutes: walkoutDanger,
         businessDayCutoffHour: cutoffHour,
+        meseroShiftWithoutLocal: meseroWithoutLocal,
       }),
     });
     setBusy(false);
@@ -120,6 +130,40 @@ export function StaffPoliciesClient({
           subtitle={t("policiesShiftsByWaiterSubtitle")}
         />
       </section>
+
+      {/* Mesero sin turno del local — solo relevante en turno por mesero */}
+      {shiftPolicy === "by_waiter" && (
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+            {t("policiesNoLocalKicker")}
+          </div>
+          <h2 className="font-display text-lg mb-1">
+            {t("policiesNoLocalQuestion")}
+          </h2>
+          <p className="text-xs text-op-muted mb-3">
+            {t("policiesNoLocalIntro")}
+          </p>
+          <RadioCard
+            name="meseroShiftWithoutLocal"
+            value="block"
+            active={meseroWithoutLocal === "block"}
+            onChange={() => setMeseroWithoutLocal("block")}
+            title={t("policiesNoLocalBlockTitle")}
+            subtitle={t("policiesNoLocalBlockSubtitle")}
+          />
+          <RadioCard
+            name="meseroShiftWithoutLocal"
+            value="auto_open"
+            active={meseroWithoutLocal === "auto_open"}
+            onChange={() => setMeseroWithoutLocal("auto_open")}
+            title={t("policiesNoLocalAutoTitle")}
+            subtitle={t("policiesNoLocalAutoSubtitle")}
+          />
+          <p className="text-[10px] text-op-muted mt-3">
+            {t("policiesNoLocalFootnote")}
+          </p>
+        </section>
+      )}
 
       {/* Día contable — hora de corte */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">

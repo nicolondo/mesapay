@@ -949,6 +949,12 @@ function CashSettleModal({
         setErr(null);
         return;
       }
+      if (j.error === "base_exceeds_local") {
+        setErr(
+          tr("cashBaseExceedsLocal", { amount: fmtCOP(j.maxCents ?? 0) }),
+        );
+        return;
+      }
       setErr(j.message ?? j.error ?? tr("cashOpenShiftError"));
       return;
     }

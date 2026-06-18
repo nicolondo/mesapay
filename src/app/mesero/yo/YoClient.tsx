@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { fmtCOP } from "@/lib/format";
+import { fmtBogotaDateTime } from "@/lib/bogota";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
 
 type Stats = {
@@ -39,8 +40,9 @@ type CloseSummary = {
  * Sección reactiva de /mesero/yo. Muestra stats (ventas / propinas /
  * mesas / pagos) en una card grande, y arriba el control de turno
  * cuando el restaurante usa shiftPolicy="by_waiter". Cuando es
- * "global" solo muestra las stats con el label "Hoy desde 00:00" y
- * sin botones — el turno lo abre/cierra el operador.
+ * "global" solo muestra las stats ("Resumen del día") desde el inicio
+ * de la jornada contable y sin botones — el turno lo abre/cierra el
+ * operador.
  */
 export function YoClient({
   tipPolicy,
@@ -83,14 +85,11 @@ export function YoClient({
 
   const hasOpenShift = !!stats.shift;
   const sinceLabel = (() => {
-    const d = new Date(stats.sinceIso);
-    if (hasOpenShift) {
-      return `Desde las ${d.toLocaleTimeString("es-CO", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-    }
-    return "Hoy desde 00:00";
+    // Hora real de inicio del rango en zona Bogotá (determinística, sin
+    // depender del tz del navegador). En global arranca al inicio de la
+    // jornada contable (hora de corte configurable, ej. 05:00), no a las 00:00.
+    const { time } = fmtBogotaDateTime(new Date(stats.sinceIso));
+    return hasOpenShift ? `Desde las ${time}` : `Hoy desde ${time}`;
   })();
 
   return (
@@ -103,7 +102,11 @@ export function YoClient({
               {hasOpenShift ? "Tu turno" : "Hoy"}
             </div>
             <div className="font-display text-2xl mt-0.5">
-              {hasOpenShift ? "Abierto" : "Sin turno abierto"}
+              {shiftPolicy === "global"
+                ? "Resumen del día"
+                : hasOpenShift
+                  ? "Abierto"
+                  : "Sin turno abierto"}
             </div>
             <div className="text-xs text-muted mt-1">{sinceLabel}</div>
           </div>
@@ -131,7 +134,7 @@ export function YoClient({
         {shiftPolicy === "global" && (
           <p className="text-[11px] text-op-muted -mt-2">
             El restaurante maneja un turno único. Las cifras de abajo
-            cuentan desde la medianoche del día actual.
+            cuentan desde el inicio de la jornada del día.
           </p>
         )}
 

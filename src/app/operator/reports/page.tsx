@@ -186,9 +186,9 @@ export default async function ReportsPage({
       }
     : { open: false as const };
   if (shiftPanelInitial.open) {
-    shiftPanelInitial.expectedCashCents =
-      shiftPanelInitial.shift.openingCashCents +
-      shiftPanelInitial.metrics.cashCents;
+    // Esperado en el cajón = saldo de la caja general (descuenta egresos
+    // e ingresos y, en by_waiter, bases entregadas + devoluciones).
+    shiftPanelInitial.expectedCashCents = cashSnap.general.balanceCents;
   }
   // Historial de cierres recientes (últimos 10) para mostrar bajo el panel.
   const recentClosed = await getRecentShifts(restaurantId, 10);

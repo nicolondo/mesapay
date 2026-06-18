@@ -2067,6 +2067,8 @@
     "initialFund": "Initial float",
     "cashCollected": "Cash collected",
     "cashExpectedInDrawer": "Expected cash in drawer",
+    "closeMeserosToggle": "Also close waiter shifts",
+    "closeMeserosHint": "Settles each waiter's box (you collect their float + what they took in). That cash returns to the drawer and counts toward the expected total.",
     "cashCountedPhysically": "Cash counted physically",
     "differenceLabel": "Difference: {value}",
     "differenceExact": "balances exactly ✓",

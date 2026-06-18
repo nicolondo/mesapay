@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import type { CashSnapshot } from "@/lib/cashBox";
 
 const METHOD_KEY: Record<string, string> = {
   demo_cash: "methodDemoCash",
@@ -323,11 +324,44 @@ function CloseShiftSheet({
   onDone: () => void | Promise<void>;
 }) {
   const t = useTranslations("opReports");
-  const [declared, setDeclared] = useState(state.expectedCashCents);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const diff = declared - state.expectedCashCents;
+  // Snapshot de caja para mostrar las cajas de meseros abiertos y poder
+  // liquidarlas en el mismo cierre. Se trae al abrir el sheet.
+  const [snap, setSnap] = useState<CashSnapshot | null>(null);
+  const [alsoMeseros, setAlsoMeseros] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/cash/snapshot")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j) setSnap(j as CashSnapshot);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const meseros = snap?.meseros ?? [];
+  const hasOpenMeseros = meseros.length > 0;
+  const willCloseMeseros = hasOpenMeseros && alsoMeseros;
+  // Si liquidamos a los meseros, su efectivo vuelve al cajón → el
+  // esperado es el consolidado; si no, el saldo de la caja general.
+  const expected =
+    willCloseMeseros && snap
+      ? snap.consolidatedCents
+      : state.expectedCashCents;
+
+  // `declaredRaw` null = el operador aún no escribió → mostramos el
+  // esperado como default (y se actualiza solo si cambia el esperado:
+  // carga del snapshot o toggle de liquidar meseros). Apenas escribe,
+  // su valor manda.
+  const [declaredRaw, setDeclaredRaw] = useState<number | null>(null);
+  const declared = declaredRaw ?? expected;
+  const diff = declared - expected;
 
   async function submit() {
     setBusy(true);
@@ -339,6 +373,7 @@ function CloseShiftSheet({
         body: JSON.stringify({
           declaredCashCents: declared,
           notes: notes.trim() || undefined,
+          closeMeseroShifts: willCloseMeseros,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -387,16 +422,52 @@ function CloseShiftSheet({
             {t("cashExpectedInDrawer")}
           </div>
           <div className="font-display text-2xl tabular">
-            {fmtCOP(state.expectedCashCents)}
+            {fmtCOP(expected)}
           </div>
         </div>
       </div>
+
+      {/* Cierre general: liquidar las cajas de los meseros con turno
+          abierto en el mismo cierre. */}
+      {hasOpenMeseros && (
+        <div className="rounded-xl border border-op-border p-3 mb-4 space-y-2">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={alsoMeseros}
+              onChange={(e) => setAlsoMeseros(e.target.checked)}
+              className="h-4 w-4 mt-0.5 accent-ink"
+            />
+            <span>
+              <span className="text-sm font-medium">
+                {t("closeMeserosToggle")}
+              </span>
+              <span className="block text-[11px] text-op-muted mt-0.5">
+                {t("closeMeserosHint")}
+              </span>
+            </span>
+          </label>
+          <ul className="divide-y divide-op-border">
+            {meseros.map((m) => (
+              <li
+                key={m.shiftId}
+                className="py-1.5 flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="truncate">{m.name}</span>
+                <span className="font-mono tabular shrink-0">
+                  {fmtCOP(m.mustReturnCents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <label className="block mb-3">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
           {t("cashCountedPhysically")}
         </span>
-        <CashInput value={declared} onChange={setDeclared} autoFocus />
+        <CashInput value={declared} onChange={setDeclaredRaw} autoFocus />
       </label>
 
       <div

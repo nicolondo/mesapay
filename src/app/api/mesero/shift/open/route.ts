@@ -6,6 +6,7 @@ import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import {
   getCurrentMeseroShift,
 } from "@/lib/meseroShift";
+import { getCurrentShift } from "@/lib/shift";
 import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({
@@ -62,6 +63,23 @@ export async function POST(req: Request) {
   const existing = await getCurrentMeseroShift(userId);
   if (existing) {
     return NextResponse.json({ ok: true, shiftId: existing.id, alreadyOpen: true });
+  }
+
+  // El turno personal solo puede abrirse si el local ya abrió SU turno
+  // general. Si no, los cobros del mesero quedarían fuera de todo turno
+  // del local y el arqueo general no cuadra (el cierre general no los
+  // ve). Bloqueamos y pedimos que el operador abra primero. El cliente
+  // muestra el mensaje a partir del `error` code.
+  const localShift = await getCurrentShift(restaurantId);
+  if (!localShift) {
+    return NextResponse.json(
+      {
+        error: "local_shift_closed",
+        message:
+          "El local todavía no abrió su turno. Pedile al encargado que abra el turno general; en cuanto lo haga vas a poder abrir el tuyo.",
+      },
+      { status: 409 },
+    );
   }
 
   const shift = await db.shift.create({

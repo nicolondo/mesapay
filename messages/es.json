@@ -862,6 +862,8 @@
     "cashOpenShift": "Abrir turno y cobrar",
     "cashOpening": "Abriendo…",
     "cashOpenShiftError": "No pudimos abrir el turno.",
+    "cashLocalShiftClosed": "El local todavía no abrió su turno, así que no se puede abrir el del mesero. Pedile al encargado que abra el turno general del local; en cuanto lo haga, tocá “Reintentar”.",
+    "cashRetry": "Reintentar",
     "removeItem": "Quitar {name}",
     "addItem": "Agregar {name}",
     "selectAll": "Marcar todo",

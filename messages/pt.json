@@ -862,6 +862,8 @@
     "cashOpenShift": "Abrir turno e cobrar",
     "cashOpening": "Abrindo…",
     "cashOpenShiftError": "Não foi possível abrir o turno.",
+    "cashLocalShiftClosed": "O estabelecimento ainda não abriu o turno dele, então não dá para abrir o do garçom. Peça ao responsável que abra o turno geral do estabelecimento; assim que abrir, toque em “Tentar de novo”.",
+    "cashRetry": "Tentar de novo",
     "removeItem": "Remover {name}",
     "addItem": "Adicionar {name}",
     "selectAll": "Marcar tudo",

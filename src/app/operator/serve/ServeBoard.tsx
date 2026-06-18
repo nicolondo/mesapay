@@ -856,6 +856,8 @@ function CashSettleModal({
   const [noShift, setNoShift] = useState(false);
   const [baseCop, setBaseCop] = useState("0");
   const [opening, setOpening] = useState(false);
+  // El local no abrió su turno general → no se puede abrir el del mesero.
+  const [localClosed, setLocalClosed] = useState(false);
 
   const receivedCents = Math.round(Number(receivedCop || 0) * 100);
   const changeCents = Math.round(Number(changeCop || 0) * 100);
@@ -942,9 +944,15 @@ function CashSettleModal({
     setOpening(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
+      if (j.error === "local_shift_closed") {
+        setLocalClosed(true);
+        setErr(null);
+        return;
+      }
       setErr(j.message ?? j.error ?? tr("cashOpenShiftError"));
       return;
     }
+    setLocalClosed(false);
     setNoShift(false);
     await submit();
   }
@@ -1109,13 +1117,22 @@ function CashSettleModal({
                 />
               </div>
             </label>
+            {localClosed && (
+              <div className="rounded-lg border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-3 text-[13px] text-[#7F5A1F] leading-snug">
+                {tr("cashLocalShiftClosed")}
+              </div>
+            )}
             {err && <div className="text-danger text-sm">{err}</div>}
             <button
               onClick={openShiftAndRetry}
               disabled={opening}
               className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
             >
-              {opening ? tr("cashOpening") : tr("cashOpenShift")}
+              {opening
+                ? tr("cashOpening")
+                : localClosed
+                  ? tr("cashRetry")
+                  : tr("cashOpenShift")}
             </button>
           </div>
         ) : (

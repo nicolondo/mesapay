@@ -444,6 +444,8 @@ function OpenShiftSheet({
   const [cents, setCents] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // El local no abrió su turno → no podemos abrir el del mesero.
+  const [localClosed, setLocalClosed] = useState(false);
 
   async function submit() {
     setBusy(true);
@@ -456,6 +458,11 @@ function OpenShiftSheet({
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
+      if (j.error === "local_shift_closed") {
+        setLocalClosed(true);
+        setErr(null);
+        return;
+      }
       setErr(j.message ?? j.error ?? "No pudimos abrir el turno");
       return;
     }
@@ -473,6 +480,13 @@ function OpenShiftSheet({
         manejas base, déjalo en $0.
       </p>
       <CashInput valueCents={cents} onChange={setCents} autoFocus />
+      {localClosed && (
+        <div className="rounded-xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-3 text-[13px] text-[#7F5A1F] leading-snug">
+          El local todavía no abrió su turno, así que no podés abrir el tuyo.
+          Pedile al encargado que abra el turno general del local; en cuanto lo
+          haga, tocá “Reintentar”.
+        </div>
+      )}
       {err && <div className="text-xs text-danger">{err}</div>}
       <button
         type="button"
@@ -480,7 +494,7 @@ function OpenShiftSheet({
         disabled={busy}
         className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
       >
-        {busy ? "Abriendo…" : "Abrir turno"}
+        {busy ? "Abriendo…" : localClosed ? "Reintentar" : "Abrir turno"}
       </button>
     </SheetShell>
   );

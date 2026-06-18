@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
+import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 
 /**
  * Helpers compartidos para el turno personal del mesero — separado del
@@ -54,8 +55,12 @@ export async function meseroNeedsShiftToCharge(
  * formatee. En la práctica las cuentas de un día agrupan correctamente
  * porque el desfase Colombia/UTC (-5) es estable.
  */
-export function startOfMeseroDay(openShiftAt: Date | null): Date {
+export function startOfMeseroDay(
+  openShiftAt: Date | null,
+  cutoffHour = 0,
+): Date {
   if (openShiftAt) return openShiftAt;
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Sin turno abierto: arrancamos en el inicio del día contable
+  // (hora de corte del comercio) en zona Bogotá.
+  return bogotaDayRange(bogotaBusinessTodayIso(cutoffHour), cutoffHour).start;
 }

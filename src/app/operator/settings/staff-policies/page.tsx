@@ -21,6 +21,7 @@ export default async function StaffPoliciesPage() {
       tipPolicy: true,
       shiftPolicy: true,
       walkoutDangerMinutes: true,
+      businessDayCutoffHour: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -42,6 +43,7 @@ export default async function StaffPoliciesPage() {
         initialTipPolicy={resolveTipPolicy(tenant.tipPolicy)}
         initialShiftPolicy={resolveShiftPolicy(tenant.shiftPolicy)}
         initialWalkoutDangerMinutes={tenant.walkoutDangerMinutes ?? 20}
+        initialBusinessDayCutoffHour={tenant.businessDayCutoffHour ?? 5}
       />
     </div>
   );

@@ -37,7 +37,12 @@ export default async function YoPage() {
       restaurantId: true,
       assignedTableNumbers: true,
       restaurant: {
-        select: { name: true, tipPolicy: true, shiftPolicy: true },
+        select: {
+          name: true,
+          tipPolicy: true,
+          shiftPolicy: true,
+          businessDayCutoffHour: true,
+        },
       },
     },
   });
@@ -68,7 +73,10 @@ export default async function YoPage() {
       shiftPolicy === "by_waiter"
         ? await getCurrentMeseroShift(user.id)
         : null;
-    const since = startOfMeseroDay(openShift?.openedAt ?? null);
+    const since = startOfMeseroDay(
+      openShift?.openedAt ?? null,
+      user.restaurant?.businessDayCutoffHour ?? 0,
+    );
     const payments = await db.payment.findMany({
       where: {
         collectedByUserId: user.id,

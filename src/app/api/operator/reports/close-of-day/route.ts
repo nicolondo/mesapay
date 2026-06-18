@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { bogotaDayRange, bogotaTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
+import { bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -36,17 +36,20 @@ export async function GET(req: Request) {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true, serviceMode: true },
+    select: { slug: true, serviceMode: true, businessDayCutoffHour: true },
   });
   if (!tenant) {
     return NextResponse.json({ error: "tenant not found" }, { status: 404 });
   }
   const counterMode = tenant.serviceMode === "counter";
+  const cutoff = tenant.businessDayCutoffHour ?? 0;
 
   const url = new URL(req.url);
   const raw = url.searchParams.get("date") ?? "";
-  const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : bogotaTodayIso();
-  const { start, end } = bogotaDayRange(dateIso);
+  const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? raw
+    : bogotaBusinessTodayIso(cutoff);
+  const { start, end } = bogotaDayRange(dateIso, cutoff);
 
   const payments = await db.payment.findMany({
     where: {

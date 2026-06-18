@@ -12,6 +12,9 @@ const putBody = z.object({
   // Umbral en minutos para walkout-risk en Mesas. Acepta 1-180 —
   // <1 sería absurdo, >180 (3h) sería ignorar el feature. Default 20.
   walkoutDangerMinutes: z.number().int().min(1).max(180).optional(),
+  // Hora de corte del día contable (0-23). Un comercio que cierra a las
+  // 2-3am pone 5 para que la madrugada cuente para la jornada anterior.
+  businessDayCutoffHour: z.number().int().min(0).max(23).optional(),
 });
 
 /**
@@ -52,6 +55,7 @@ export async function PUT(req: Request) {
       tipPolicy: true,
       shiftPolicy: true,
       walkoutDangerMinutes: true,
+      businessDayCutoffHour: true,
     },
   });
 
@@ -66,6 +70,9 @@ export async function PUT(req: Request) {
       }),
       ...(parsed.data.walkoutDangerMinutes !== undefined && {
         walkoutDangerMinutes: parsed.data.walkoutDangerMinutes,
+      }),
+      ...(parsed.data.businessDayCutoffHour !== undefined && {
+        businessDayCutoffHour: parsed.data.businessDayCutoffHour,
       }),
     },
   });

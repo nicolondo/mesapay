@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { PayFlow } from "@/app/t/[slug]/pay/[orderId]/PayFlow";
+import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { MeseroNeedsShift } from "./MeseroNeedsShift";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,18 @@ export default async function MeseroCobrarPage({
     session.user.restaurantId !== order.restaurantId
   ) {
     return notFound();
+  }
+
+  // En by_waiter, el mesero no puede cobrar sin turno abierto (descuadra
+  // su arqueo). Le mostramos un bloqueo con opción de abrir el turno.
+  if (
+    await meseroNeedsShiftToCharge(
+      session.user.id,
+      role,
+      order.restaurantId,
+    )
+  ) {
+    return <MeseroNeedsShift />;
   }
 
   return <PayFlow slug={order.restaurant.slug} orderId={orderId} op="1" />;

@@ -10,6 +10,7 @@ import {
   validateNewPaymentAmount,
 } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -112,6 +113,23 @@ export async function POST(
         session.user.role === "platform_admin");
 
     if (operatorSettling) {
+      // En by_waiter el mesero no puede cobrar sin turno propio abierto
+      // (descuadra su arqueo). Bloqueamos y el front ofrece abrirlo.
+      if (
+        await meseroNeedsShiftToCharge(
+          session!.user.id,
+          session!.user.role,
+          tenant.id,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error: "mesero_no_shift",
+            message: "No tenés turno abierto. Abrí tu turno para cobrar.",
+          },
+          { status: 409 },
+        );
+      }
       // Keep-the-change math. When the mesero hands us both the
       // tender ($ recibido del cliente) and the change ($ devuelta
       // dada), the diner's "leftover" — tender minus change minus

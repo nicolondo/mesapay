@@ -1219,6 +1219,14 @@ model Shift {
   // vueltas. Suma al efectivo esperado al cerrar.
   openingCashCents Int
 
+  // Solo en el turno GENERAL (userId null): true si lo abrió automáticamente
+  // un mesero (meseroShiftWithoutLocal="auto_open") en vez del operador. En
+  // ese caso el local no tiene fondo central propio: el fondo es la suma de
+  // las bases que traen los meseros, así que cada apertura de mesero SUMA su
+  // base a openingCashCents (en vez de descontarla del cajón). Ver
+  // src/app/api/mesero/shift/open/route.ts.
+  autoOpened Boolean @default(false)
+
   closedAt          DateTime?
   closedById        String?
   closedBy          User?     @relation("ShiftsClosed", fields: [closedById], references: [id])

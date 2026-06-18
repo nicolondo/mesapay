@@ -98,15 +98,29 @@ export async function POST(req: Request) {
         openedById: userId,
         openingCashCents: parsed.data.openingCashCents,
         status: "open",
+        autoOpened: true,
       },
     });
     localAutoOpened = true;
   }
 
-  // Regla: la base del mesero nunca puede superar la del local. En auto_open
-  // el local arrancó con la misma base, así que se cumple por igualdad.
   const meseroBase = parsed.data.openingCashCents;
-  if (!localAutoOpened && meseroBase > localShift.openingCashCents) {
+
+  if (localAutoOpened) {
+    // El local recién se auto-abrió con openingCashCents = meseroBase; ya
+    // queda consistente (fondo del local = base del mesero).
+  } else if (localShift.autoOpened) {
+    // Local auto-abierto por un mesero anterior: no hay fondo central, cada
+    // mesero TRAE su propia base → la sumamos al fondo del local para que el
+    // cajón no quede negativo (fondo local = Σ bases de meseros). Increment
+    // atómico: a prueba de aperturas simultáneas.
+    await db.shift.update({
+      where: { id: localShift.id },
+      data: { openingCashCents: { increment: meseroBase } },
+    });
+  } else if (meseroBase > localShift.openingCashCents) {
+    // Local con fondo real (lo abrió el operador): la base del mesero sale de
+    // ese cajón, así que no puede superarlo.
     return NextResponse.json(
       {
         error: "base_exceeds_local",

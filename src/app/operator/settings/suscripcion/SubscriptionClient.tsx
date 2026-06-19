@@ -1,10 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
 import { formatMoney, formatDate } from "@/lib/format";
 import { currencyForCountry } from "@/lib/billing/subscription";
+import { CardForm } from "./CardForm";
 import type { Locale } from "@/i18n/config";
 import type { MembershipMethod } from "@prisma/client";
+
+// KushkiMode redefinido localmente para no importar el módulo server platformConfig
+type KushkiMode = "mock" | "sandbox" | "production";
 
 type SubscriptionInfo = {
   status: string;
@@ -33,7 +39,11 @@ type Props = {
   country: string | null;
   subscription: SubscriptionInfo | null;
   payments: PaymentRow[];
+  kushkiPublicKey: string | null;
+  kushkiMode: KushkiMode;
 };
+
+type Mode = "idle" | "activating" | "changing_card";
 
 function statusI18nKey(
   key: Props["statusKey"],
@@ -100,12 +110,22 @@ export function SubscriptionClient({
   country,
   subscription,
   payments,
+  kushkiPublicKey,
+  kushkiMode,
 }: Props) {
   const t = useTranslations("opSubscription");
   const locale = useLocale() as Locale;
+  const router = useRouter();
   const currency = currencyForCountry(country);
 
+  const [mode, setMode] = useState<Mode>("idle");
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [selectedPlan] = useState<string>(plan);
+
   const i18nKey = statusI18nKey(statusKey);
+  const hasActiveSubscription =
+    subscription != null && subscription.status === "active";
 
   function fmtMoney(cents: number) {
     return formatMoney(cents, { currency, locale });
@@ -113,6 +133,69 @@ export function SubscriptionClient({
 
   function fmtDate(iso: string) {
     return formatDate(iso, { locale, dateStyle: "medium" });
+  }
+
+  // Tokenización exitosa → POST al endpoint correspondiente
+  async function handleToken(token: string) {
+    setActionErr(null);
+    setBusy(true);
+    try {
+      if (mode === "activating") {
+        const res = await fetch("/api/operator/subscription/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, planTier: selectedPlan }),
+        });
+        const json = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        if (!res.ok) {
+          if (json.error === "charge_declined") {
+            setActionErr(t("errDeclined"));
+          } else {
+            setActionErr(json.message ?? t("errActivate"));
+          }
+          return;
+        }
+        setMode("idle");
+        router.refresh();
+      } else if (mode === "changing_card") {
+        const res = await fetch("/api/operator/subscription/card", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const json = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        if (!res.ok) {
+          setActionErr(json.message ?? t("errChangeCard"));
+          return;
+        }
+        setMode("idle");
+        router.refresh();
+      }
+    } catch (e) {
+      console.error("[billing] action failed", e);
+      setActionErr(mode === "activating" ? t("errActivate") : t("errChangeCard"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!window.confirm(t("cancelConfirm"))) return;
+    setActionErr(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/operator/subscription/cancel", { method: "POST" });
+      const json = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) {
+        setActionErr(json.error ?? t("errCancel"));
+        return;
+      }
+      router.refresh();
+    } catch {
+      setActionErr(t("errCancel"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -159,30 +242,82 @@ export function SubscriptionClient({
       {/* Método de pago */}
       <section className="bg-op-surface border border-op-border rounded-2xl p-5">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
-          {t("methodKushkiCard")}
+          {t("paymentMethodKicker")}
         </div>
-        {subscription &&
-        subscription.status !== "canceled" &&
-        subscription.cardLast4 ? (
-          <div className="text-sm text-op-text">
-            {subscription.cardBrand
-              ? subscription.cardBrand.charAt(0).toUpperCase() +
-                subscription.cardBrand.slice(1)
-              : ""}
-            {" •••• "}
-            {subscription.cardLast4}
-            {subscription.cardExpMonth != null &&
-            subscription.cardExpYear != null ? (
-              <span className="text-op-muted ml-2">
-                {"· "}
-                {String(subscription.cardExpMonth).padStart(2, "0")}
-                {"/"}
-                {String(subscription.cardExpYear).slice(-2)}
-              </span>
-            ) : null}
+
+        {actionErr && (
+          <div className="mb-3 text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">
+            {actionErr}
           </div>
-        ) : (
-          <div className="text-sm text-op-muted">{t("noAutoDebit")}</div>
+        )}
+
+        {/* Formulario de tarjeta (activar o cambiar) */}
+        {(mode === "activating" || mode === "changing_card") && (
+          <div className="mb-4">
+            <CardForm
+              kushkiPublicKey={kushkiPublicKey}
+              kushkiMode={kushkiMode}
+              busy={busy}
+              onToken={handleToken}
+              onCancel={() => { setMode("idle"); setActionErr(null); }}
+            />
+          </div>
+        )}
+
+        {mode === "idle" && (
+          <>
+            {hasActiveSubscription && subscription?.cardLast4 ? (
+              <div className="text-sm text-op-text mb-4">
+                {subscription.cardBrand
+                  ? subscription.cardBrand.charAt(0).toUpperCase() +
+                    subscription.cardBrand.slice(1)
+                  : ""}
+                {" •••• "}
+                {subscription.cardLast4}
+                {subscription.cardExpMonth != null && subscription.cardExpYear != null ? (
+                  <span className="text-op-muted ml-2">
+                    {"· "}
+                    {String(subscription.cardExpMonth).padStart(2, "0")}
+                    {"/"}
+                    {String(subscription.cardExpYear).slice(-2)}
+                  </span>
+                ) : null}
+              </div>
+            ) : (
+              <div className="text-sm text-op-muted mb-4">{t("noAutoDebit")}</div>
+            )}
+
+            {/* Botones de acción */}
+            {hasActiveSubscription ? (
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => { setActionErr(null); setMode("changing_card"); }}
+                  disabled={busy}
+                  className="text-sm font-medium px-4 py-2 rounded-lg border border-op-border hover:bg-op-surface/80 text-op-text disabled:opacity-50 transition-colors"
+                >
+                  {t("changeCardBtn")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={busy}
+                  className="text-sm font-medium px-4 py-2 rounded-lg border border-danger/30 text-danger hover:bg-danger/5 disabled:opacity-50 transition-colors"
+                >
+                  {busy ? t("canceling") : t("cancelDebitBtn")}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setActionErr(null); setMode("activating"); }}
+                disabled={busy}
+                className="text-sm font-medium px-4 py-2.5 rounded-lg bg-brand text-white hover:bg-brand/90 disabled:opacity-50 transition-colors"
+              >
+                {t("activateBtn")}
+              </button>
+            )}
+          </>
         )}
       </section>
 

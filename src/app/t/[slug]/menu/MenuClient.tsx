@@ -1043,13 +1043,20 @@ export function MenuClient({
       <header
         ref={headerRef}
         className="sticky top-0 z-20 bg-bone/90 backdrop-blur border-b border-hairline"
-        // El comensal siempre corre como pestaña de Safari (no standalone), así
-        // que NO usamos .staff-safe-top (gateado a standalone). Con
-        // viewport-fit=cover, al minimizarse la barra de Safari el inset crece y
-        // el header sticky (top:0) se metía bajo el reloj/notch, ocultando el
-        // logo. Sumamos el inset acá (0 en desktop/Android → sin hueco). El bg
-        // bone/blur cubre la franja del notch.
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        // El comensal siempre corre como pestaña del navegador (no standalone).
+        // En iOS Safari, al colapsarse la barra de URL superior durante el
+        // scroll, un header `sticky top-0` "under-shootea" un instante y el
+        // borde de arriba (logo/nombre) queda cortado bajo la barra. Lo
+        // mitigamos promoviendo el header a su propia capa de composición
+        // (translateZ(0) + will-change), que es el fix conocido para ese jitter
+        // de WebKit. El paddingTop de safe-area queda por si la ruta corre con
+        // viewport-fit=cover (0 en navegador normal → sin hueco).
+        style={{
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          transform: "translateZ(0)",
+          WebkitTransform: "translateZ(0)",
+          willChange: "transform",
+        }}
       >
         <div className="max-w-2xl mx-auto px-5 pt-3 pb-3">
           <div className="flex items-center justify-between gap-3">

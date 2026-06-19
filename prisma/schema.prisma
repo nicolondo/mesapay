@@ -253,6 +253,7 @@ model Restaurant {
   orders              Order[]
   dishRatings         DishRating[]
   membershipPayments  MembershipPayment[]
+  billingSubscription BillingSubscription?
   auditEvents         AuditEvent[]
   kushkiDocuments     KushkiDocument[]
   kushkiTransactions  KushkiTransaction[]
@@ -357,6 +358,7 @@ enum MembershipMethod {
   manual_cash
   manual_transfer
   wompi
+  kushki_card
 }
 
 /// Catálogo de planes editable desde /admin/plans. Una fila por
@@ -454,10 +456,43 @@ model MembershipPayment {
   periodEnd       DateTime
   recordedByEmail String
   createdAt       DateTime         @default(now())
+  providerRef     String? // id de transacción Kushki (null en pagos manuales)
+  kind            String  @default("manual") // "initial" | "recurring" | "proration" | "manual"
 
   commissionEntry CommissionEntry?
 
   @@index([restaurantId, createdAt])
+}
+
+/// Suscripción de débito automático del restaurante (1 por comercio).
+/// Vincula al comercio con Kushki (One-click & scheduled payments) y
+/// guarda SOLO metadata de tarjeta para mostrar — nunca el PAN. La
+/// fuente de verdad del plan sigue en Restaurant (plan/monthlyPriceCents/
+/// periodEndsAt/suspended); este modelo agrega el medio de pago + estado
+/// de cobro recurrente. Ver docs/superpowers/specs/2026-06-19-operator-subscription-billing-design.md
+model BillingSubscription {
+  id                   String     @id @default(cuid())
+  restaurantId         String     @unique
+  restaurant           Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  provider             String     @default("kushki")
+  kushkiSubscriptionId String?
+  plan                 Plan
+  amountCents          Int
+  currency             String // "COP" | "MXN"
+  status               String     @default("active") // "active" | "past_due" | "canceled"
+  cardBrand            String?
+  cardLast4            String?
+  cardExpMonth         Int?
+  cardExpYear          Int?
+  startedAt            DateTime   @default(now())
+  currentPeriodEnd     DateTime?
+  nextChargeAt         DateTime?
+  failedAttempts       Int        @default(0)
+  canceledAt           DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@index([status, nextChargeAt])
 }
 
 model CommissionEntry {

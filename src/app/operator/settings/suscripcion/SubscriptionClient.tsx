@@ -29,22 +29,25 @@ type Props = {
   plan: string;
   monthlyPriceCents: number;
   periodEndsAtIso: string | null;
-  suspended: boolean;
+  statusKey: "suspended" | "canceled" | "overdue" | "active";
   country: string | null;
   subscription: SubscriptionInfo | null;
   payments: PaymentRow[];
 };
 
-function deriveStatus(
-  suspended: boolean,
-  subscription: SubscriptionInfo | null,
-  periodEndsAtIso: string | null,
+function statusI18nKey(
+  key: Props["statusKey"],
 ): "statusSuspended" | "statusCanceled" | "statusOverdue" | "statusActive" {
-  if (suspended) return "statusSuspended";
-  if (subscription?.status === "canceled") return "statusCanceled";
-  if (periodEndsAtIso && new Date(periodEndsAtIso) < new Date())
-    return "statusOverdue";
-  return "statusActive";
+  switch (key) {
+    case "suspended":
+      return "statusSuspended";
+    case "canceled":
+      return "statusCanceled";
+    case "overdue":
+      return "statusOverdue";
+    default:
+      return "statusActive";
+  }
 }
 
 function statusTint(key: string): string {
@@ -93,7 +96,7 @@ export function SubscriptionClient({
   plan,
   monthlyPriceCents,
   periodEndsAtIso,
-  suspended,
+  statusKey,
   country,
   subscription,
   payments,
@@ -102,7 +105,7 @@ export function SubscriptionClient({
   const locale = useLocale() as Locale;
   const currency = currencyForCountry(country);
 
-  const statusKey = deriveStatus(suspended, subscription, periodEndsAtIso);
+  const i18nKey = statusI18nKey(statusKey);
 
   function fmtMoney(cents: number) {
     return formatMoney(cents, { currency, locale });
@@ -129,10 +132,10 @@ export function SubscriptionClient({
           <span
             className={
               "px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium " +
-              statusTint(statusKey)
+              statusTint(i18nKey)
             }
           >
-            {t(statusKey)}
+            {t(i18nKey)}
           </span>
         </div>
         {subscription?.nextChargeAtIso && (

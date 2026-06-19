@@ -41,7 +41,15 @@ export default async function SubscriptionPage() {
         plan={tenant.plan}
         monthlyPriceCents={tenant.monthlyPriceCents}
         periodEndsAtIso={tenant.periodEndsAt?.toISOString() ?? null}
-        suspended={tenant.suspended}
+        statusKey={
+          tenant.suspended
+            ? "suspended"
+            : tenant.billingSubscription?.status === "canceled"
+              ? "canceled"
+              : tenant.periodEndsAt && tenant.periodEndsAt < new Date()
+                ? "overdue"
+                : "active"
+        }
         country={tenant.country}
         subscription={
           tenant.billingSubscription

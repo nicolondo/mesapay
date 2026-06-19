@@ -1397,7 +1397,9 @@
     "datafonosBusinessCodeBtn": "Save",
     "datafonosBusinessCodeSaving": "Saving…",
     "datafonosBusinessCodeHint": "Your business code for card-terminal charges. Your terminal provider gives it to you when activating the device.",
-    "badgeDevicesEmpty": "Set up"
+    "badgeDevicesEmpty": "Set up",
+    "subscriptionCardTitle": "Subscription",
+    "subscriptionCardDesc": "Plan, payment history and automatic debit."
   },
   "opTranslations": {
     "noRestaurant": "No restaurant.",
@@ -3580,5 +3582,33 @@
     "qrAlt": "QR code for Nicolás's card",
     "qrHint": "Scan the code to open my card: there you can save the contact or message me directly.",
     "viewCard": "View card →"
+  },
+  "opSubscription": {
+    "title": "Subscription",
+    "subtitle": "Your plan, your payments and your automatic debit method.",
+    "noRestaurant": "No restaurant found.",
+    "planKicker": "Active plan",
+    "planPrice": "{amount}/month",
+    "statusActive": "Active",
+    "statusOverdue": "Overdue",
+    "statusSuspended": "Suspended",
+    "statusCanceled": "Debit canceled",
+    "nextChargeLabel": "Next charge",
+    "renewsLabel": "Renews",
+    "noAutoDebit": "No automatic debit",
+    "historyKicker": "Payment history",
+    "historyEmpty": "No payments recorded yet.",
+    "colDate": "Date",
+    "colPeriod": "Period",
+    "colAmount": "Amount",
+    "colMethod": "Method",
+    "methodKushkiCard": "Card (automatic debit)",
+    "methodManualCash": "Cash",
+    "methodManualTransfer": "Bank transfer",
+    "methodWompi": "Wompi",
+    "kindInitial": "Activation",
+    "kindRecurring": "Monthly",
+    "kindProration": "Plan adjustment",
+    "kindManual": "Manual"
   }
 }

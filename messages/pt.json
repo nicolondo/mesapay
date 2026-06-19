@@ -1397,7 +1397,9 @@
     "datafonosBusinessCodeBtn": "Salvar",
     "datafonosBusinessCodeSaving": "Salvando…",
     "datafonosBusinessCodeHint": "Código do seu comércio para cobranças via datáfono. O fornecedor do datáfono o entrega ao ativar o equipamento.",
-    "badgeDevicesEmpty": "Configurar"
+    "badgeDevicesEmpty": "Configurar",
+    "subscriptionCardTitle": "Assinatura",
+    "subscriptionCardDesc": "Plano, histórico de pagamentos e débito automático."
   },
   "opTranslations": {
     "noRestaurant": "Sem restaurante.",
@@ -3580,5 +3582,33 @@
     "qrAlt": "Código QR do cartão de Nicolás",
     "qrHint": "Escaneie o código para abrir meu cartão: lá você pode salvar o contato ou falar comigo direto.",
     "viewCard": "Ver cartão →"
+  },
+  "opSubscription": {
+    "title": "Assinatura",
+    "subtitle": "Seu plano, seus pagamentos e seu método de débito automático.",
+    "noRestaurant": "Sem restaurante.",
+    "planKicker": "Plano ativo",
+    "planPrice": "{amount}/mês",
+    "statusActive": "Ativo",
+    "statusOverdue": "Vencido",
+    "statusSuspended": "Suspenso",
+    "statusCanceled": "Débito cancelado",
+    "nextChargeLabel": "Próxima cobrança",
+    "renewsLabel": "Vence",
+    "noAutoDebit": "Sem débito automático",
+    "historyKicker": "Histórico de pagamentos",
+    "historyEmpty": "Nenhum pagamento registrado ainda.",
+    "colDate": "Data",
+    "colPeriod": "Período",
+    "colAmount": "Valor",
+    "colMethod": "Método",
+    "methodKushkiCard": "Cartão (débito automático)",
+    "methodManualCash": "Dinheiro",
+    "methodManualTransfer": "Transferência",
+    "methodWompi": "Wompi",
+    "kindInitial": "Ativação",
+    "kindRecurring": "Mensalidade",
+    "kindProration": "Ajuste de plano",
+    "kindManual": "Manual"
   }
 }

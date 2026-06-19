@@ -1397,7 +1397,9 @@
     "datafonosBusinessCodeBtn": "Guardar",
     "datafonosBusinessCodeSaving": "Guardando…",
     "datafonosBusinessCodeHint": "Código de tu comercio para cobrar por datáfono. Te lo entrega el proveedor del datáfono al activarlo.",
-    "badgeDevicesEmpty": "Configurar"
+    "badgeDevicesEmpty": "Configurar",
+    "subscriptionCardTitle": "Suscripción",
+    "subscriptionCardDesc": "Plan, historial de pagos y débito automático."
   },
   "opTranslations": {
     "noRestaurant": "Sin restaurante.",
@@ -3580,5 +3582,33 @@
     "qrAlt": "Código QR de la tarjeta de Nicolás",
     "qrHint": "Escanea el código para abrir mi tarjeta: ahí puedes guardar el contacto o escribirme directo.",
     "viewCard": "Ver tarjeta →"
+  },
+  "opSubscription": {
+    "title": "Suscripción",
+    "subtitle": "Tu plan, tus pagos y tu método de débito automático.",
+    "noRestaurant": "Sin restaurante.",
+    "planKicker": "Plan activo",
+    "planPrice": "{amount}/mes",
+    "statusActive": "Activo",
+    "statusOverdue": "Vencido",
+    "statusSuspended": "Suspendido",
+    "statusCanceled": "Débito cancelado",
+    "nextChargeLabel": "Próximo cobro",
+    "renewsLabel": "Vence",
+    "noAutoDebit": "Sin débito automático",
+    "historyKicker": "Historial de pagos",
+    "historyEmpty": "Todavía no hay pagos registrados.",
+    "colDate": "Fecha",
+    "colPeriod": "Período",
+    "colAmount": "Monto",
+    "colMethod": "Método",
+    "methodKushkiCard": "Tarjeta (débito automático)",
+    "methodManualCash": "Efectivo",
+    "methodManualTransfer": "Transferencia",
+    "methodWompi": "Wompi",
+    "kindInitial": "Activación",
+    "kindRecurring": "Mensualidad",
+    "kindProration": "Ajuste de plan",
+    "kindManual": "Manual"
   }
 }

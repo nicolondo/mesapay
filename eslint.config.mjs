@@ -71,6 +71,7 @@ const MIGRATED = [
   "src/app/operator/settings/datafonos/**/*.{ts,tsx}",
   "src/app/operator/settings/staff-policies/**/*.{ts,tsx}",
   "src/app/operator/settings/usuarios/**/*.{ts,tsx}",
+  "src/app/operator/settings/suscripcion/**/*.{ts,tsx}",
   "src/app/operator/settings/identidad/**/*.{ts,tsx}",
   "src/app/operator/settings/pagos/**/*.{ts,tsx}",
   "src/app/operator/menu/page.tsx",

@@ -3,6 +3,8 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { SubscriptionClient } from "./SubscriptionClient";
+import { env } from "@/lib/env";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +22,17 @@ export default async function SubscriptionPage() {
       periodEndsAt: true,
       suspended: true,
       country: true,
+      kushkiMode: true,
       billingSubscription: true,
       membershipPayments: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
   if (!tenant) return <div className="p-6">{t("noRestaurant")}</div>;
+
+  // Modo Kushki efectivo para este restaurante (respeta override por comercio)
+  const kushkiMode = await getRestaurantKushkiMode(tenant);
+  // Clave pública de plataforma (segura en browser) — null si no configurada
+  const kushkiPublicKey = env.KUSHKI_BILLING_PUBLIC_KEY ?? null;
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -74,6 +82,8 @@ export default async function SubscriptionPage() {
           method: p.method,
           kind: p.kind,
         }))}
+        kushkiPublicKey={kushkiPublicKey}
+        kushkiMode={kushkiMode}
       />
     </div>
   );

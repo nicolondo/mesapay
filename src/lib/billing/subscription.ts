@@ -1,3 +1,7 @@
+import { db } from "@/lib/db";
+import { getPlanByTier } from "@/lib/planCatalog";
+import type { Plan } from "@prisma/client";
+
 /** Moneda de cobro según país ISO alpha-2 del comercio. Default COP. */
 export function currencyForCountry(country: string | null | undefined): "COP" | "MXN" {
   return country === "MX" ? "MXN" : "COP";
@@ -38,4 +42,150 @@ export function prorationCents(args: {
 /** Días enteros entre dos fechas (b - a), mínimo 0. */
 export function daysBetween(a: Date, b: Date): number {
   return Math.max(0, Math.floor((b.getTime() - a.getTime()) / 86_400_000));
+}
+
+/**
+ * Resuelve el precio mensual en centavos del plan dado, usando el
+ * precio del PlanConfig en DB (con fallback a defaultPriceCents del catálogo).
+ * Si el restaurante ya tiene monthlyPriceCents no-cero, lo usa directamente.
+ */
+export async function resolvePlanPrice(args: {
+  restaurantMonthlyPriceCents: number;
+  tier: Plan;
+}): Promise<number> {
+  if (args.restaurantMonthlyPriceCents > 0) return args.restaurantMonthlyPriceCents;
+  const entry = await getPlanByTier(args.tier);
+  return entry.defaultPriceCents;
+}
+
+export type ApplyInitialChargeArgs = {
+  restaurantId: string;
+  plan: Plan;
+  amountCents: number;
+  currency: "COP" | "MXN";
+  subscriptionId: string;
+  transactionId: string | null;
+  card: {
+    brand: string | null;
+    last4: string | null;
+    expMonth: number | null;
+    expYear: number | null;
+  };
+  startDateIso: string; // ISO date YYYY-MM-DD — cuándo empieza a cobrar Kushki
+  periodEndsAt: Date;   // cuando vence el período que acabamos de pagar
+  actorEmail: string;   // para MembershipPayment.recordedByEmail
+};
+
+/**
+ * Persiste el resultado de un cobro de activación (kind="initial"):
+ *   1. Crea MembershipPayment(kind="initial", method="kushki_card")
+ *   2. Actualiza Restaurant(plan, monthlyPriceCents, periodEndsAt, suspended=false)
+ *   3. Upserta BillingSubscription(status=active, nextChargeAt=startDate, card meta)
+ * Todo en una transacción.
+ */
+export async function applyInitialCharge(args: ApplyInitialChargeArgs): Promise<void> {
+  await db.$transaction(async (tx) => {
+    // 1. Registrar el pago
+    await tx.membershipPayment.create({
+      data: {
+        restaurantId: args.restaurantId,
+        amountCents: args.amountCents,
+        method: "kushki_card",
+        kind: "initial",
+        providerRef: args.transactionId,
+        recordedByEmail: args.actorEmail,
+        periodStart: new Date(),
+        periodEnd: args.periodEndsAt,
+      },
+    });
+
+    // 2. Avanzar el plan del restaurante
+    await tx.restaurant.update({
+      where: { id: args.restaurantId },
+      data: {
+        plan: args.plan,
+        monthlyPriceCents: args.amountCents,
+        periodEndsAt: args.periodEndsAt,
+        suspended: false,
+      },
+    });
+
+    // 3. Upsert BillingSubscription
+    await tx.billingSubscription.upsert({
+      where: { restaurantId: args.restaurantId },
+      create: {
+        restaurantId: args.restaurantId,
+        provider: "kushki",
+        kushkiSubscriptionId: args.subscriptionId,
+        plan: args.plan,
+        amountCents: args.amountCents,
+        currency: args.currency,
+        status: "active",
+        cardBrand: args.card.brand,
+        cardLast4: args.card.last4,
+        cardExpMonth: args.card.expMonth,
+        cardExpYear: args.card.expYear,
+        nextChargeAt: new Date(args.startDateIso),
+      },
+      update: {
+        kushkiSubscriptionId: args.subscriptionId,
+        plan: args.plan,
+        amountCents: args.amountCents,
+        currency: args.currency,
+        status: "active",
+        cardBrand: args.card.brand,
+        cardLast4: args.card.last4,
+        cardExpMonth: args.card.expMonth,
+        cardExpYear: args.card.expYear,
+        nextChargeAt: new Date(args.startDateIso),
+        canceledAt: null,
+      },
+    });
+  });
+}
+
+/**
+ * Persiste activación sin cobro inmediato (startDate futuro = periodEndsAt).
+ * Solo crea/actualiza BillingSubscription; no crea MembershipPayment ni
+ * toca el Restaurant (el período ya está vigente).
+ */
+export async function applySubscriptionWithoutCharge(args: {
+  restaurantId: string;
+  plan: Plan;
+  amountCents: number;
+  currency: "COP" | "MXN";
+  subscriptionId: string;
+  card: ApplyInitialChargeArgs["card"];
+  nextChargeAt: Date;
+}): Promise<void> {
+  await db.billingSubscription.upsert({
+    where: { restaurantId: args.restaurantId },
+    create: {
+      restaurantId: args.restaurantId,
+      provider: "kushki",
+      kushkiSubscriptionId: args.subscriptionId,
+      plan: args.plan,
+      amountCents: args.amountCents,
+      currency: args.currency,
+      status: "active",
+      cardBrand: args.card.brand,
+      cardLast4: args.card.last4,
+      cardExpMonth: args.card.expMonth,
+      cardExpYear: args.card.expYear,
+      nextChargeAt: args.nextChargeAt,
+    },
+    update: {
+      kushkiSubscriptionId: args.subscriptionId,
+      plan: args.plan,
+      amountCents: args.amountCents,
+      currency: args.currency,
+      status: "active",
+      cardBrand: args.card.brand,
+      cardLast4: args.card.last4,
+      cardExpMonth: args.card.expMonth,
+      cardExpYear: args.card.expYear,
+      nextChargeAt: args.nextChargeAt,
+      canceledAt: null,
+    },
+  });
 }

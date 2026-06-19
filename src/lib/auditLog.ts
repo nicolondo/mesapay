@@ -56,6 +56,10 @@ export type AuditKind =
   | "crm.lead.reassign"
   | "crm.lead.delete"
   | "crm.export"
+  // Suscripción del operador (débito automático)
+  | "subscription.activate"
+  | "subscription.cancel"
+  | "subscription.card.update"
   // Catch-all para events nuevos no listados (no rompe el type pero
   // empuja a registrar el kind correcto). Usar con moderación.
   | (string & {});
@@ -93,6 +97,9 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "crm.lead.reassign": "Reasignó lead",
   "crm.lead.delete": "Eliminó lead",
   "crm.export": "Exportó leads CRM",
+  "subscription.activate": "Activó débito automático",
+  "subscription.cancel": "Canceló débito automático",
+  "subscription.card.update": "Actualizó tarjeta de débito",
 };
 
 export function labelForKind(kind: string): string {

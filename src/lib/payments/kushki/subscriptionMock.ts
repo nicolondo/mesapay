@@ -27,7 +27,7 @@ export class MockSubscriptionProvider implements SubscriptionProvider {
   async cancelSubscription(): Promise<{ ok: boolean }> {
     return { ok: true };
   }
-  async getSubscription(_req: { subscriptionId: string }): Promise<{ status: string; card: CardMeta } | null> {
+  async getSubscription(): Promise<{ status: string; card: CardMeta } | null> {
     return { status: "active", card: MOCK_CARD };
   }
 }

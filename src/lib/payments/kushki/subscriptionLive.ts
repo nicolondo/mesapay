@@ -6,14 +6,15 @@ import type {
   ChargeNowResult,
   CardMeta,
 } from "@/lib/payments/subscription";
+import { env } from "@/lib/env";
 
 const BASE =
-  process.env.KUSHKI_MODE === "production"
+  env.KUSHKI_MODE === "production"
     ? "https://api.kushkipagos.com"
     : "https://api-uat.kushkipagos.com";
 
 function privateKey(): string {
-  const k = process.env.KUSHKI_BILLING_PRIVATE_KEY;
+  const k = env.KUSHKI_BILLING_PRIVATE_KEY;
   if (!k) throw new Error("billing_not_configured: falta KUSHKI_BILLING_PRIVATE_KEY");
   return k;
 }
@@ -25,6 +26,7 @@ function privateKey(): string {
  *   PATCH  /subscriptions/v1/card/{id}            → cambiar tarjeta
  *   DELETE /subscriptions/v1/card/{id}            → cancelar
  *   GET    /subscriptions/v1/card/search/{id}     → consultar */
+// TODO(fase 3, ir a producción): rutear por kushkiFetch (./client.ts) para retries/errores tipados y tomar el modo (mock|sandbox|production) por constructor como LiveKushkiProvider, en vez de fetch crudo + process.env.KUSHKI_MODE. Las formas de respuesta (cardFrom, approved/declined) están sin verificar contra Kushki real.
 export class LiveSubscriptionProvider implements SubscriptionProvider {
   private async req(path: string, method: string, body?: unknown) {
     const r = await fetch(`${BASE}${path}`, {

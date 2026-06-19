@@ -52,7 +52,7 @@ export async function PATCH(req: Request) {
     });
   } catch (err) {
     console.error("[billing] card update: updateSubscriptionCard failed", err);
-    return NextResponse.json({ error: "update_failed", detail: String(err) }, { status: 502 });
+    return NextResponse.json({ error: "update_failed" }, { status: 502 });
   }
 
   const { card } = result;

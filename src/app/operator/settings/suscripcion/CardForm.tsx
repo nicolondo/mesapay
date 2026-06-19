@@ -10,12 +10,13 @@ type KushkiMode = "mock" | "sandbox" | "production";
 type Props = {
   kushkiPublicKey: string | null;
   kushkiMode: KushkiMode;
+  currency: "COP" | "MXN";
   busy?: boolean;
   onToken: (token: string) => void;
   onCancel: () => void;
 };
 
-export function CardForm({ kushkiPublicKey, kushkiMode, busy, onToken, onCancel }: Props) {
+export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken, onCancel }: Props) {
   const t = useTranslations("opSubscription");
   const [number, setNumber] = useState("");
   const [holderName, setHolderName] = useState("");
@@ -120,7 +121,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, busy, onToken, onCancel 
             "Content-Type": "application/json",
             "Public-Merchant-Id": kushkiPublicKey,
           },
-          body: JSON.stringify({ ...body, totalAmount: 0, currency: "COP", isDeferred: false }),
+          body: JSON.stringify({ ...body, totalAmount: 0, currency, isDeferred: false }),
         });
       }
 

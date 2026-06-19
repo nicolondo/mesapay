@@ -150,6 +150,10 @@ export function SubscriptionClient({
         if (!res.ok) {
           if (json.error === "charge_declined") {
             setActionErr(t("errDeclined"));
+          } else if (json.error === "already_active") {
+            setActionErr(t("errAlreadyActive"));
+          } else if (json.error === "invalid_plan_price") {
+            setActionErr(t("errInvalidPlanPrice"));
           } else {
             setActionErr(json.message ?? t("errActivate"));
           }
@@ -257,6 +261,7 @@ export function SubscriptionClient({
             <CardForm
               kushkiPublicKey={kushkiPublicKey}
               kushkiMode={kushkiMode}
+              currency={currency}
               busy={busy}
               onToken={handleToken}
               onCancel={() => { setMode("idle"); setActionErr(null); }}

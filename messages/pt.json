@@ -3639,6 +3639,8 @@
     "cancelSuccess": "Débito automático cancelado",
     "paymentMethodKicker": "Método de pagamento",
     "planSelectorKicker": "Escolha seu plano",
-    "noPlanSelected": "Selecione um plano para continuar"
+    "noPlanSelected": "Selecione um plano para continuar",
+    "errAlreadyActive": "O débito automático já está ativo. Atualize a página.",
+    "errInvalidPlanPrice": "Esse plano não tem preço mensal; escolha um plano pago."
   }
 }

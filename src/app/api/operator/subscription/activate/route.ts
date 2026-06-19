@@ -56,11 +56,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 404 });
   }
 
+  // Fix 1: idempotency guard — no double-charge if subscription already active
+  const existing = await db.billingSubscription.findUnique({ where: { restaurantId } });
+  if (existing && existing.status === "active" && existing.kushkiSubscriptionId) {
+    return NextResponse.json({ error: "already_active" }, { status: 409 });
+  }
+
   const currency = currencyForCountry(tenant.country);
   const amountCents = await resolvePlanPrice({
     restaurantMonthlyPriceCents: tenant.monthlyPriceCents,
     tier: planTier as Plan,
   });
+
+  // Fix 2: reject price-0 / trial activation
+  if (amountCents <= 0) {
+    return NextResponse.json({ error: "invalid_plan_price" }, { status: 422 });
+  }
 
   // Regla de fecha: si hay período vigente → sin cobro inmediato; si no → cobrar ahora
   const now = new Date();
@@ -117,7 +128,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[billing] activate: createCardSubscription failed", err);
-    return NextResponse.json({ error: "create_failed", detail: String(err) }, { status: 502 });
+    return NextResponse.json({ error: "create_failed" }, { status: 502 });
   }
 
   const { subscriptionId, card } = createResult;
@@ -145,7 +156,7 @@ export async function POST(req: Request) {
         console.error("[billing] activate: failed to cancel orphan subscription", cancelErr);
       }
       console.error("[billing] activate: chargeSubscriptionNow threw", err);
-      return NextResponse.json({ error: "charge_failed", detail: String(err) }, { status: 502 });
+      return NextResponse.json({ error: "charge_failed" }, { status: 502 });
     }
 
     console.log("[billing] activate: charge result", {

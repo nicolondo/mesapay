@@ -3639,6 +3639,8 @@
     "cancelSuccess": "Automatic debit canceled",
     "paymentMethodKicker": "Payment method",
     "planSelectorKicker": "Choose your plan",
-    "noPlanSelected": "Select a plan to continue"
+    "noPlanSelected": "Select a plan to continue",
+    "errAlreadyActive": "Automatic debit is already active. Please refresh the page.",
+    "errInvalidPlanPrice": "That plan has no monthly price; please choose a paid plan."
   }
 }

@@ -52,7 +52,7 @@ function providerFor(mode: KushkiMode): SubscriptionProvider {
   const hit = providerCache.get(mode);
   if (hit) return hit;
   const provider: SubscriptionProvider =
-    mode === "mock" ? new MockSubscriptionProvider() : new LiveSubscriptionProvider();
+    mode === "mock" ? new MockSubscriptionProvider() : new LiveSubscriptionProvider(mode);
   providerCache.set(mode, provider);
   return provider;
 }

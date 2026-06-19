@@ -50,6 +50,9 @@ const schema = z.object({
   // Clave privada de la cuenta de plataforma para cobros de suscripción.
   // Requerida en sandbox/production; no necesaria en mode=mock.
   KUSHKI_BILLING_PRIVATE_KEY: z.string().optional(),
+  // Clave PÚBLICA de la cuenta de plataforma para tokenizar en el browser.
+  // Segura de exponer al cliente. Requerida en sandbox/production.
+  KUSHKI_BILLING_PUBLIC_KEY: z.string().optional(),
 
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),

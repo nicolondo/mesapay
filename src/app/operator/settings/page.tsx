@@ -259,6 +259,13 @@ export default async function SettingsPage() {
             tint="bg-paper text-op-muted"
           />
         )}
+        <SettingCard
+          href="/operator/settings/suscripcion"
+          title={t("subscriptionCardTitle")}
+          subtitle={t("subscriptionCardDesc")}
+          badge={t("badgeConfigure")}
+          tint="bg-paper text-op-muted"
+        />
       </div>
     </div>
   );

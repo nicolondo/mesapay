@@ -163,7 +163,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
             placeholder="1234 5678 9012 3456"
             maxLength={23}
             disabled={isBusy}
-            className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-50"
+            className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-50"
           />
         </div>
 
@@ -176,7 +176,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
             placeholder="JUAN PEREZ"
             maxLength={80}
             disabled={isBusy}
-            className="w-full border border-op-border rounded-lg px-3 py-2 text-sm uppercase bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-50"
+            className="w-full border border-op-border rounded-lg px-3 py-2 text-sm uppercase bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-50"
           />
         </div>
 
@@ -191,7 +191,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
               placeholder="MM/AA"
               maxLength={5}
               disabled={isBusy}
-              className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-50"
+              className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-50"
             />
           </div>
           <div className="w-28">
@@ -204,7 +204,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
               placeholder="123"
               maxLength={4}
               disabled={isBusy}
-              className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-50"
+              className="w-full border border-op-border rounded-lg px-3 py-2 text-sm font-mono bg-op-surface text-op-text placeholder:text-op-muted/50 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-50"
             />
           </div>
         </div>
@@ -219,7 +219,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
           type="button"
           onClick={submit}
           disabled={isBusy}
-          className="flex-1 bg-brand text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-brand/90 disabled:opacity-50 transition-colors"
+          className="flex-1 bg-ink text-bone rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-ink/90 disabled:opacity-50 transition-colors"
         >
           {isBusy ? "…" : t("cardSubmit")}
         </button>

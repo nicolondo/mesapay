@@ -146,7 +146,7 @@ export function SubscriptionClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token, planTier: selectedPlan }),
         });
-        const json = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        const json = await res.json().catch(() => ({})) as { error?: string; message?: string; detail?: string };
         if (!res.ok) {
           if (json.error === "charge_declined") {
             setActionErr(t("errDeclined"));
@@ -155,7 +155,14 @@ export function SubscriptionClient({
           } else if (json.error === "invalid_plan_price") {
             setActionErr(t("errInvalidPlanPrice"));
           } else {
-            setActionErr(json.message ?? t("errActivate"));
+            // Detalle visible solo cuando el server lo manda (sandbox/mock) para
+            // depurar contra Kushki; en prod el server no lo incluye.
+            const extra = json.detail
+              ? " — " + json.detail
+              : json.error
+                ? " (" + json.error + ")"
+                : "";
+            setActionErr((json.message ?? t("errActivate")) + extra);
           }
           return;
         }

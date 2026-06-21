@@ -128,7 +128,15 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[billing] activate: createCardSubscription failed", err);
-    return NextResponse.json({ error: "create_failed" }, { status: 502 });
+    // En sandbox/mock exponemos el detalle para depurar contra Kushki; en
+    // producción NO (evita filtrar internals).
+    return NextResponse.json(
+      {
+        error: "create_failed",
+        detail: mode !== "production" ? String(err) : undefined,
+      },
+      { status: 502 },
+    );
   }
 
   const { subscriptionId, card } = createResult;
@@ -156,7 +164,13 @@ export async function POST(req: Request) {
         console.error("[billing] activate: failed to cancel orphan subscription", cancelErr);
       }
       console.error("[billing] activate: chargeSubscriptionNow threw", err);
-      return NextResponse.json({ error: "charge_failed" }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: "charge_failed",
+          detail: mode !== "production" ? String(err) : undefined,
+        },
+        { status: 502 },
+      );
     }
 
     console.log("[billing] activate: charge result", {

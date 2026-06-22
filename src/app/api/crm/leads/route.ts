@@ -84,11 +84,18 @@ export async function GET(req: Request) {
 
   if (q.trim()) {
     const term = q.trim();
-    // Busca por nombre del lead O por el nombre de cualquiera de sus
-    // contactos (some = matchea si al menos un contacto coincide).
+    // Busca por nombre del lead O por nombre/teléfono de cualquiera de sus
+    // contactos (some = matchea si al menos un contacto coincide). Para el
+    // teléfono normalizamos a dígitos: así "300-123 4567" matchea el E.164
+    // "+573001234567" guardado. Solo si hay ≥3 dígitos (evita falsos
+    // positivos con queries de texto corto).
+    const phoneDigits = term.replace(/\D/g, "");
     where.OR = [
       { name: { contains: term, mode: "insensitive" } },
       { contacts: { some: { name: { contains: term, mode: "insensitive" } } } },
+      ...(phoneDigits.length >= 3
+        ? [{ contacts: { some: { phone: { contains: phoneDigits } } } }]
+        : []),
     ];
   }
 
@@ -150,9 +157,13 @@ export async function GET(req: Request) {
   }
   if (q.trim()) {
     const term = q.trim();
+    const phoneDigits = term.replace(/\D/g, "");
     countsWhere.OR = [
       { name: { contains: term, mode: "insensitive" } },
       { contacts: { some: { name: { contains: term, mode: "insensitive" } } } },
+      ...(phoneDigits.length >= 3
+        ? [{ contacts: { some: { phone: { contains: phoneDigits } } } }]
+        : []),
     ];
   }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
@@ -200,6 +201,8 @@ export async function POST(
     );
   }
 
+  const currency = await getCurrencyForCountry(tenant.country);
+
   // —— Modo mock: el provider auto-aprueba vía el mock bridge (async).
   let push;
   try {
@@ -207,7 +210,7 @@ export async function POST(
     push = await provider.pushToTerminal({
       merchantId: "mock",
       deviceId: device.serialNumber ?? parsed.data.deviceId,
-      amount: { amountCents: payment.amountCents, currency: "COP" },
+      amount: { amountCents: payment.amountCents, currency },
       metadata: { orderId: payment.orderId, paymentId: payment.id },
     });
   } catch (err) {

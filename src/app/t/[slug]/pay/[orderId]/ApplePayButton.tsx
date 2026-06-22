@@ -31,6 +31,7 @@ import { useTranslations } from "next-intl";
 export function ApplePayButton({
   publicKey,
   kushkiMode,
+  currency,
   amountCents,
   displayName,
   busy,
@@ -38,6 +39,7 @@ export function ApplePayButton({
 }: {
   publicKey: string;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   amountCents: number;
   displayName: string;
   busy: boolean;
@@ -146,8 +148,8 @@ export function ApplePayButton({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (kushkiRef.current as any).requestApplePayToken(
       {
-        countryCode: "CO",
-        currencyCode: "COP",
+        countryCode: currency === "MXN" ? "MX" : "CO",
+        currencyCode: currency,
         displayName,
         amount: Math.round(amountCents / 100),
       },

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { getPaymentProvider } from "@/lib/payments";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { ReservarClient } from "./ReservarClient";
@@ -38,6 +39,7 @@ export default async function ReservarPage({
       reservationsEnabled: true,
       reservationConfig: true,
       legalCity: true,
+      country: true,
       kushkiPublicKey: true,
       kushkiOnboardingStatus: true,
       kushkiMode: true,
@@ -46,6 +48,8 @@ export default async function ReservarPage({
   if (!tenant) return notFound();
   // Modo efectivo del comercio (override propio o global) → host de Kushki.
   const kushkiMode = await getRestaurantKushkiMode(tenant);
+  // Moneda de cobro del depósito (config país↔moneda).
+  const currency = await getCurrencyForCountry(tenant.country);
 
   if (!tenant.reservationsEnabled) {
     const t = await getTranslations("reservar");
@@ -93,6 +97,7 @@ export default async function ReservarPage({
       source={source === "google" ? "google_maps" : "direct"}
       kushkiPublicKey={tenant.kushkiPublicKey}
       kushkiMode={kushkiMode}
+      currency={currency}
       pseBanks={pseBanks}
     />
   );

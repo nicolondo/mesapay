@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { kushkiMerchantId: true, bankInfo: true, kushkiMode: true },
+    select: { kushkiMerchantId: true, bankInfo: true, kushkiMode: true, country: true },
   });
   if (!tenant?.kushkiMerchantId || !tenant.bankInfo) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     );
     const result = await provider.disburse({
       merchantId: privateKey,
-      amount: { amountCents: parsed.data.amountCents, currency: "COP" },
+      amount: { amountCents: parsed.data.amountCents, currency: await getCurrencyForCountry(tenant.country) },
       bankInfo,
       reference: `mp-${Date.now()}`,
     });

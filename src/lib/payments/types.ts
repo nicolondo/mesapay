@@ -4,9 +4,12 @@
  * the same shapes.
  */
 
+/** Monedas de cobro soportadas. La moneda real sale del país del comercio. */
+export type Currency = "COP" | "MXN";
+
 export type Money = {
   amountCents: number;
-  currency: "COP";
+  currency: Currency;
 };
 
 export type BankInfo = {
@@ -172,7 +175,7 @@ export type TerminalPushResult = {
 export type WalletBalance = {
   availableCents: number;
   pendingCents: number;
-  currency: "COP";
+  currency: Currency;
 };
 
 export type WalletMovement = {

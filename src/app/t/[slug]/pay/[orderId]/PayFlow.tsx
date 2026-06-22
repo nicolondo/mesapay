@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
@@ -123,6 +124,7 @@ export async function PayFlow({
       kushkiReady={kushkiReady}
       kushkiPublicKey={tenant.kushkiPublicKey}
       kushkiMode={await getRestaurantKushkiMode(tenant)}
+      currency={await getCurrencyForCountry(tenant.country)}
       enabledMethods={enabledMethods}
       pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}

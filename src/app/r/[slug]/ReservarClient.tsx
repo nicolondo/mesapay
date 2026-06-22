@@ -773,7 +773,7 @@ function FloorPlanPicker({
               }}
             >
               <span className="font-display text-xs">
-                {t.label && t.label.length <= 4 ? t.label : `M${t.number}`}
+                {t.label && t.label.length <= 4 ? t.label : `M-${t.number}`}
               </span>
               <span className="opacity-60 text-[9px]">
                 {tr("capacityShort", { count: t.capacity })}

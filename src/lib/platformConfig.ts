@@ -19,6 +19,7 @@
 
 import { db } from "./db";
 import { env } from "./env";
+import { encrypt, decrypt } from "./crypto";
 
 export type KushkiMode = "mock" | "sandbox" | "production";
 
@@ -95,6 +96,97 @@ export async function setKushkiMode(
   });
   currentMode = mode;
   warmedAt = Date.now();
+}
+
+/**
+ * Lee las credenciales Kushki de cobro de suscripciones de la plataforma.
+ * Estrategia de fallback (por campo):
+ *   publicKey:  DB row → env.KUSHKI_BILLING_PUBLIC_KEY → null
+ *   privateKey: decrypt(DB row) → env.KUSHKI_BILLING_PRIVATE_KEY → null
+ *
+ * Direct DB read (sin cache) — frecuencia baja (una vez por activación de
+ * suscripción). Si la DB falla, caemos a env.
+ */
+export async function getBillingCredentials(): Promise<{
+  publicKey: string | null;
+  privateKey: string | null;
+}> {
+  try {
+    const row = await db.platformConfig.findUnique({
+      where: { id: "singleton" },
+      select: { kushkiBillingPublicKey: true, kushkiBillingPrivateKeyEnc: true },
+    });
+    const publicKey =
+      (row?.kushkiBillingPublicKey?.trim() || null) ??
+      env.KUSHKI_BILLING_PUBLIC_KEY ??
+      null;
+
+    let privateKey: string | null = null;
+    if (row?.kushkiBillingPrivateKeyEnc) {
+      try {
+        privateKey = decrypt(row.kushkiBillingPrivateKeyEnc);
+      } catch (decryptErr) {
+        console.error(
+          "[platformConfig] getBillingCredentials: decrypt failed, falling back to env",
+          decryptErr,
+        );
+        privateKey = env.KUSHKI_BILLING_PRIVATE_KEY ?? null;
+      }
+    } else {
+      privateKey = env.KUSHKI_BILLING_PRIVATE_KEY ?? null;
+    }
+
+    return { publicKey, privateKey };
+  } catch (err) {
+    console.error(
+      "[platformConfig] getBillingCredentials: DB read failed, falling back to env",
+      err,
+    );
+    return {
+      publicKey: env.KUSHKI_BILLING_PUBLIC_KEY ?? null,
+      privateKey: env.KUSHKI_BILLING_PRIVATE_KEY ?? null,
+    };
+  }
+}
+
+/**
+ * Persiste las credenciales Kushki de cobro en el singleton.
+ *
+ * Reglas:
+ *   - publicKey !== undefined → sobrescribir (string vacío = borrar).
+ *   - privateKey es una cadena no-vacía → cifrar y sobrescribir.
+ *   - privateKey undefined o vacío → NO tocar kushkiBillingPrivateKeyEnc
+ *     (permite cambiar la public key sin re-ingresar la private).
+ */
+export async function setBillingCredentials(
+  args: { publicKey?: string | null; privateKey?: string | null },
+  actorUserId: string | null,
+): Promise<void> {
+  const updateData: Record<string, unknown> = {
+    updatedById: actorUserId,
+  };
+  if (args.publicKey !== undefined) {
+    updateData.kushkiBillingPublicKey = args.publicKey?.trim() || null;
+  }
+  if (args.privateKey && args.privateKey.trim().length > 0) {
+    updateData.kushkiBillingPrivateKeyEnc = encrypt(args.privateKey.trim());
+  }
+
+  await db.platformConfig.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      kushkiMode: currentMode,
+      updatedById: actorUserId,
+      ...(args.publicKey !== undefined && {
+        kushkiBillingPublicKey: args.publicKey?.trim() || null,
+      }),
+      ...(args.privateKey && args.privateKey.trim().length > 0 && {
+        kushkiBillingPrivateKeyEnc: encrypt(args.privateKey.trim()),
+      }),
+    },
+    update: updateData,
+  });
 }
 
 /** Forzar refresh manual (testing / debugging). */

@@ -7,7 +7,7 @@ import type {
   CardMeta,
 } from "@/lib/payments/subscription";
 import { kushkiFetch } from "@/lib/payments/kushki/client";
-import type { KushkiMode } from "@/lib/platformConfig";
+import { getBillingCredentials, type KushkiMode } from "@/lib/platformConfig";
 
 /**
  * Kushki One-click & scheduled payments con la cuenta de PLATAFORMA.
@@ -27,6 +27,21 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
 
   constructor(mode?: KushkiMode) {
     this.mode = mode;
+  }
+
+  /**
+   * Resuelve la clave privada de cobro (DB-first con fallback a env).
+   * Lanza si no está configurada — mejor fallar explícito que hacer un
+   * cobro sin credenciales.
+   */
+  private async resolveBillingPrivateKey(): Promise<string> {
+    const { privateKey } = await getBillingCredentials();
+    if (!privateKey) {
+      throw new Error(
+        "billing_not_configured: falta la clave privada de cobro (configurala en /admin/configuracion)",
+      );
+    }
+    return privateKey;
   }
 
   async createCardSubscription(req: CreateSubscriptionReq): Promise<CreateSubscriptionResult> {
@@ -55,9 +70,10 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     });
 
     // VERIFY vs sandbox: confirmar que POST /subscriptions/v1/card acepta este body.
+    const billingKey = await this.resolveBillingPrivateKey();
     const resp = await kushkiFetch<Record<string, unknown>>(
       "/subscriptions/v1/card",
-      { method: "POST", auth: { kind: "billing" }, mode: this.mode, body },
+      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode, body },
     );
     console.log("[billing] createCardSubscription resp shape", {
       subscriptionId: resp.subscriptionId,
@@ -90,9 +106,10 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     // VERIFY vs sandbox: confirmar el path de cobro on-demand.
     // Puede ser /subscriptions/v1/card/{id}/charge en vez de /subscriptions/v1/card/{id} (POST distinto al de crear)
     // El body de arriba es best-guess.
+    const billingKey = await this.resolveBillingPrivateKey();
     const resp = await kushkiFetch<Record<string, unknown>>(
       `/subscriptions/v1/card/${req.subscriptionId}`,
-      { method: "POST", auth: { kind: "billing" }, mode: this.mode, body },
+      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode, body },
     );
 
     // VERIFY vs sandbox: confirmar qué campo indica aprobación.
@@ -119,9 +136,10 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
 
     // VERIFY vs sandbox: confirmar que PUT /subscriptions/v1/card/{id} acepta { token }.
     // Puede ser PATCH en vez de PUT.
+    const billingKey = await this.resolveBillingPrivateKey();
     const resp = await kushkiFetch<Record<string, unknown>>(
       `/subscriptions/v1/card/${req.subscriptionId}`,
-      { method: "PUT", auth: { kind: "billing" }, mode: this.mode, body: { token: req.token } },
+      { method: "PUT", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode, body: { token: req.token } },
     );
     console.log("[billing] updateSubscriptionCard resp shape", { hasCard: !!(resp.card) });
     return { card: cardFrom(resp) };
@@ -133,9 +151,10 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     });
 
     // VERIFY vs sandbox: confirmar que DELETE /subscriptions/v1/card/{id} cancela.
+    const billingKey = await this.resolveBillingPrivateKey();
     await kushkiFetch<Record<string, unknown>>(
       `/subscriptions/v1/card/${req.subscriptionId}`,
-      { method: "DELETE", auth: { kind: "billing" }, mode: this.mode },
+      { method: "DELETE", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode },
     );
     console.log("[billing] cancelSubscription ok");
     return { ok: true };
@@ -147,9 +166,10 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     });
 
     // VERIFY vs sandbox: confirmar path GET /subscriptions/v1/card/search/{id}.
+    const billingKey = await this.resolveBillingPrivateKey();
     const resp = await kushkiFetch<Record<string, unknown>>(
       `/subscriptions/v1/card/search/${req.subscriptionId}`,
-      { method: "GET", auth: { kind: "billing" }, mode: this.mode },
+      { method: "GET", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode },
     );
     console.log("[billing] getSubscription resp shape", {
       status: resp.status ?? resp.subscriptionStatus,

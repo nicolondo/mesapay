@@ -1,7 +1,8 @@
 import { getTranslations } from "next-intl/server";
-import { getKushkiMode } from "@/lib/platformConfig";
+import { getKushkiMode, getBillingCredentials } from "@/lib/platformConfig";
 import { db } from "@/lib/db";
 import { KushkiModeSwitcher } from "../KushkiModeSwitcher";
+import { KushkiBillingKeysCard } from "../KushkiBillingKeysCard";
 import { CrmCountriesCard } from "../CrmCountriesCard";
 import coData from "@/data/cities/co.json";
 import mxData from "@/data/cities/mx.json";
@@ -18,7 +19,10 @@ const DATASETS: Record<string, { name: string; datasetSize: number }> = {
  */
 export default async function AdminConfiguracionPage() {
   const t = await getTranslations("opAdmin");
-  const kushkiMode = await getKushkiMode();
+  const [kushkiMode, billing] = await Promise.all([
+    getKushkiMode(),
+    getBillingCredentials(),
+  ]);
 
   // Load CRM country state for the card.
   const [dbCountries, cityCounts] = await Promise.all([
@@ -44,6 +48,13 @@ export default async function AdminConfiguracionPage() {
 
       <section className="mb-6">
         <KushkiModeSwitcher initialMode={kushkiMode} />
+      </section>
+
+      <section className="mb-6">
+        <KushkiBillingKeysCard
+          initialPublicKey={billing.publicKey}
+          initialHasPrivateKey={billing.privateKey !== null}
+        />
       </section>
 
       <section className="mb-6">

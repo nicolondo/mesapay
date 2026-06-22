@@ -83,7 +83,13 @@ export async function GET(req: Request) {
   if (stage) where.stage = stage;
 
   if (q.trim()) {
-    where.name = { contains: q.trim(), mode: "insensitive" };
+    const term = q.trim();
+    // Busca por nombre del lead O por el nombre de cualquiera de sus
+    // contactos (some = matchea si al menos un contacto coincide).
+    where.OR = [
+      { name: { contains: term, mode: "insensitive" } },
+      { contacts: { some: { name: { contains: term, mode: "insensitive" } } } },
+    ];
   }
 
   // assignedTo filter: must be within visible scope.
@@ -143,7 +149,11 @@ export async function GET(req: Request) {
     countsWhere.assignedToUserId = assignedTo;
   }
   if (q.trim()) {
-    countsWhere.name = { contains: q.trim(), mode: "insensitive" };
+    const term = q.trim();
+    countsWhere.OR = [
+      { name: { contains: term, mode: "insensitive" } },
+      { contacts: { some: { name: { contains: term, mode: "insensitive" } } } },
+    ];
   }
 
   const stageGroups = await db.crmLead.groupBy({

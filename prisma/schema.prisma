@@ -401,6 +401,12 @@ model PlatformConfig {
   aiDailyMessageLimit Int @default(50)
   // Default global de comisión en basis points; override por comercial y por comercio.
   salesCommissionBps  Int @default(1000)
+  // Credenciales Kushki de plataforma para cobro de suscripciones a restaurantes.
+  // La clave pública es segura (se pasa al browser para tokenizar tarjetas).
+  // La clave privada se almacena cifrada con AES-GCM (ver src/lib/crypto.ts).
+  // Fallback: si están vacías, se leen de env KUSHKI_BILLING_PUBLIC_KEY / KUSHKI_BILLING_PRIVATE_KEY.
+  kushkiBillingPublicKey      String?
+  kushkiBillingPrivateKeyEnc  String?
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints

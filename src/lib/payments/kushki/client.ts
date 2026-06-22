@@ -1,4 +1,4 @@
-import { requireKushkiKey, env } from "../../env";
+import { requireKushkiKey } from "../../env";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 import type { ZodType } from "zod";
 
@@ -69,7 +69,7 @@ type FetchOpts = {
     | { kind: "partner" }
     | { kind: "submerchant"; privateKey: string }
     | { kind: "submerchant_public"; publicKey: string }
-    | { kind: "billing" };
+    | { kind: "billing"; privateKey: string };
   /** When provided, response is validated through this zod schema. */
   schema?: ZodType<unknown>;
   retries?: number;
@@ -93,9 +93,7 @@ export async function kushkiFetch<T>(
   } else if (opts.auth.kind === "submerchant") {
     headers["Private-Merchant-Id"] = opts.auth.privateKey;
   } else if (opts.auth.kind === "billing") {
-    const billingKey = env.KUSHKI_BILLING_PRIVATE_KEY;
-    if (!billingKey) throw new Error("billing_not_configured: falta KUSHKI_BILLING_PRIVATE_KEY");
-    headers["Private-Merchant-Id"] = billingKey;
+    headers["Private-Merchant-Id"] = opts.auth.privateKey;
   } else {
     headers["Public-Merchant-Id"] = opts.auth.publicKey;
   }

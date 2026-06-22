@@ -85,6 +85,7 @@ const MIGRATED = [
   "src/app/admin/AdminMobileMenu.tsx",
   "src/app/admin/page.tsx",
   "src/app/admin/KushkiModeSwitcher.tsx",
+  "src/app/admin/KushkiBillingKeysCard.tsx",
   "src/app/admin/configuracion/**/*.{ts,tsx}",
   "src/app/admin/CrmCountriesCard.tsx",
   "src/app/admin/audit/**/*.{ts,tsx}",

@@ -493,6 +493,7 @@ function BizSheet({
   onClose: () => void;
 }) {
   const t = useTranslations("crm");
+  const [name, setName] = useState(lead.name);
   const [address, setAddress] = useState(lead.address ?? "");
   const [zone, setZone] = useState(lead.zone ?? "");
   const [businessType, setBusinessType] = useState(lead.businessType ?? "");
@@ -518,6 +519,9 @@ function BizSheet({
     e.preventDefault();
     setSaving(true);
     const patch: Partial<LeadData> & { unitNames?: string[] } = {
+      // Nombre del comercio: requerido (la API rechaza vacío). Si quedó en
+      // blanco lo omitimos para no romper el guardado del resto.
+      ...(name.trim() ? { name: name.trim() } : {}),
       address: address || null,
       zone: zone || null,
       businessType: businessType || null,
@@ -544,6 +548,17 @@ function BizSheet({
         <SheetHandle />
         <SheetHeader title={t("editBizTitle")} onClose={onClose} />
         <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 overflow-y-auto">
+          <div>
+            <FieldLabel required>{t("fieldName")}</FieldLabel>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={300}
+              className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+            />
+          </div>
           {[
             { label: t("fieldAddress"), val: address, set: setAddress },
             { label: t("fieldZone"), val: zone, set: setZone },

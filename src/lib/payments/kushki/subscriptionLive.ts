@@ -51,12 +51,14 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
       periodicity: "monthly",
       startDate: req.startDateIso, // YYYY-MM-DD futuro (no mismo día)
       contactDetails: req.contactDetails,
+      // Mismo shape que el cobro de comensales que YA funciona con COP
+      // (live.ts chargeWithToken): sin `ice` (campo de Ecuador) que puede
+      // hacer que Kushki asuma contexto USD y rechace COP con K055.
       amount: {
         currency: req.currency,
         subtotalIva0: req.amountCents / 100,
         subtotalIva: 0,
         iva: 0,
-        ice: 0,
       },
       metadata: req.metadata ?? {},
     };
@@ -88,12 +90,13 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
 
   async chargeSubscriptionNow(req: ChargeNowReq): Promise<ChargeNowResult> {
     const body = {
+      // Sin `ice` (Ecuador) — alineado con el cobro de comensales que
+      // funciona con COP.
       amount: {
         currency: req.currency,
         subtotalIva0: req.amountCents / 100,
         subtotalIva: 0,
         iva: 0,
-        ice: 0,
       },
       metadata: req.metadata ?? {},
     };

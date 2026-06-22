@@ -18,6 +18,19 @@ export function isAllowedMenuPhotoUrl(u: string): boolean {
     const url = new URL(u);
     if (url.protocol !== "https:") return false;
     const h = url.hostname.toLowerCase();
+    // Menüpp sirve sus fotos desde una distribución de CloudFront
+    // (p.ej. dvzwo3mu4ucsq.cloudfront.net) con el path firmado
+    // `/images/restaurants/<slug>/...`. CloudFront es un CDN compartido,
+    // así que no alcanza el sufijo: exigimos también ese path-prefix —
+    // la firma de Menüpp — para no abrir *.cloudfront.net entero. (Igual
+    // que el resto, solo aplica al fallback cuando la descarga server-side
+    // falla; la foto se pinta como CSS background-image, sin SSRF.)
+    if (
+      h.endsWith(".cloudfront.net") &&
+      url.pathname.startsWith("/images/restaurants/")
+    ) {
+      return true;
+    }
     return (
       // Cualquier subdominio de cluvi.com / cluvi.co — el importador de Cluvi
       // (menuImportCluvi) acepta imágenes de todo *.cluvi.(co|com), así que la

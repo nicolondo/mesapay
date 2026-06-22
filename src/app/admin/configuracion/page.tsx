@@ -24,17 +24,18 @@ export default async function AdminConfiguracionPage() {
     getBillingCredentials(),
   ]);
 
-  // Load CRM country state for the card.
+  // Load country state (enabled + currency) for the card.
   const [dbCountries, cityCounts] = await Promise.all([
-    db.crmCountry.findMany({ select: { code: true, enabled: true } }),
+    db.crmCountry.findMany({ select: { code: true, enabled: true, currency: true } }),
     db.crmCity.groupBy({ by: ["countryCode"], _count: { id: true } }),
   ]);
-  const dbMap = new Map(dbCountries.map((c) => [c.code, c.enabled]));
+  const dbMap = new Map(dbCountries.map((c) => [c.code, c]));
   const countMap = new Map(cityCounts.map((c) => [c.countryCode, c._count.id]));
   const initialCountries = Object.entries(DATASETS).map(([code, ds]) => ({
     code,
     name: ds.name,
-    enabled: dbMap.get(code) ?? false,
+    enabled: dbMap.get(code)?.enabled ?? false,
+    currency: dbMap.get(code)?.currency ?? (code === "MX" ? "MXN" : "COP"),
     cityCount: countMap.get(code) ?? 0,
     datasetSize: ds.datasetSize,
   }));

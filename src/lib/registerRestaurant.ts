@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { type ServiceMode } from "@prisma/client";
 import { db } from "./db";
+import { isCountryEnabled } from "./billing/countries";
 
 // Restaurants register empty by design — the operator imports their
 // real menu (Shopify / Justo / PDF / URL) or builds it from scratch
@@ -103,6 +104,19 @@ export async function registerRestaurant(
   const country = input.country?.trim().toUpperCase() || null;
   const countryName = input.countryName?.trim() || null;
   const placeId = input.placeId?.trim() || null;
+
+  // País obligatorio: define la moneda de cobro (suscripción + pagos).
+  // Debe ser uno de los países habilitados en la config de plataforma.
+  if (!country) {
+    return { ok: false, error: "Elegí el país del restaurante.", status: 400 };
+  }
+  if (!(await isCountryEnabled(country))) {
+    return {
+      ok: false,
+      error: "Ese país no está habilitado. Pedile al administrador que lo active en Configuración.",
+      status: 400,
+    };
+  }
 
   const result = await db.$transaction(async (tx) => {
     const restaurant = await tx.restaurant.create({

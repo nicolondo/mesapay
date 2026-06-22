@@ -22,6 +22,8 @@ import {
 } from "./BillingPanel";
 import { UsersPanel } from "./UsersPanel";
 import { RestaurantNameEditor } from "./RestaurantNameEditor";
+import { RestaurantCountryEditor } from "./RestaurantCountryEditor";
+import { getEnabledCountries, getCurrencyForCountry } from "@/lib/billing/countries";
 import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
 import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
@@ -124,6 +126,12 @@ export default async function RestaurantDetail({
 
   if (!rest) notFound();
 
+  // País + moneda derivada para el editor de país del header.
+  const [enabledCountries, restCurrency] = await Promise.all([
+    getEnabledCountries(),
+    getCurrencyForCountry(rest.country),
+  ]);
+
   // Snapshot inicial de caja (el CashBox refresca en vivo por SSE).
   const cashSnap = await buildCashSnapshot(
     rest.id,
@@ -180,6 +188,13 @@ export default async function RestaurantDetail({
           <div className="font-mono text-[11px] text-op-muted mt-1">
             {t("detailCreatedAt", { date: fmtBogotaDateTime(rest.createdAt).date })}
           </div>
+          <RestaurantCountryEditor
+            restaurantId={rest.id}
+            initialCountry={rest.country}
+            initialCountryName={rest.countryName}
+            currency={restCurrency}
+            options={enabledCountries}
+          />
         </div>
         <form action={impersonate}>
           <button

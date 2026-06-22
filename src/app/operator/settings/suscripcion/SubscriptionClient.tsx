@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { formatMoney, formatDate } from "@/lib/format";
-import { currencyForCountry } from "@/lib/billing/subscription";
 import { CardForm } from "./CardForm";
 import type { Locale } from "@/i18n/config";
 import type { MembershipMethod } from "@prisma/client";
@@ -36,7 +35,7 @@ type Props = {
   monthlyPriceCents: number;
   periodEndsAtIso: string | null;
   statusKey: "suspended" | "canceled" | "overdue" | "active";
-  country: string | null;
+  currency: "COP" | "MXN";
   subscription: SubscriptionInfo | null;
   payments: PaymentRow[];
   kushkiPublicKey: string | null;
@@ -107,7 +106,7 @@ export function SubscriptionClient({
   monthlyPriceCents,
   periodEndsAtIso,
   statusKey,
-  country,
+  currency,
   subscription,
   payments,
   kushkiPublicKey,
@@ -116,7 +115,6 @@ export function SubscriptionClient({
   const t = useTranslations("opSubscription");
   const locale = useLocale() as Locale;
   const router = useRouter();
-  const currency = currencyForCountry(country);
 
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);

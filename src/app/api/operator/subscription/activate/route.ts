@@ -6,12 +6,12 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getSubscriptionProvider } from "@/lib/payments/subscription";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import {
-  currencyForCountry,
   addMonthsIso,
   resolvePlanPrice,
   applyInitialCharge,
   applySubscriptionWithoutCharge,
 } from "@/lib/billing/subscription";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { recordAuditEvent } from "@/lib/auditLog";
 import type { Plan } from "@prisma/client";
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "already_active" }, { status: 409 });
   }
 
-  const currency = currencyForCountry(tenant.country);
+  const currency = await getCurrencyForCountry(tenant.country);
   const amountCents = await resolvePlanPrice({
     restaurantMonthlyPriceCents: tenant.monthlyPriceCents,
     tier: planTier as Plan,

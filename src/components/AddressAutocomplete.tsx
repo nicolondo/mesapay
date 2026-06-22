@@ -19,10 +19,10 @@ import { useLocale } from "next-intl";
  * idioma activo. Al elegir una dirección, autocompleta ciudad y país.
  */
 
-// Países soportados para la expansión (LATAM + US + ES). El <select>
-// los muestra con su nombre localizado; el autocompletado puede setear
-// cualquiera de estos al detectar el país de la dirección elegida.
-const COUNTRY_CODES = [
+// Fallback de países cuando no se pasan `countryCodes` desde el server
+// (LATAM + US + ES). Las pantallas de alta de restaurante pasan la lista
+// de países HABILITADOS en config, así el <select> solo ofrece esos.
+const DEFAULT_COUNTRY_CODES = [
   "CO", "MX", "BR", "US", "AR", "CL", "PE", "EC",
   "CR", "PA", "UY", "BO", "PY", "VE", "GT", "DO", "ES",
 ];
@@ -46,6 +46,8 @@ export function AddressAutocomplete({
   defaultCity = "",
   defaultCountry = "",
   required = false,
+  requiredCountry = false,
+  countryCodes,
   onChange,
   nameAddress,
   nameCity,
@@ -63,6 +65,10 @@ export function AddressAutocomplete({
   defaultCity?: string;
   defaultCountry?: string;
   required?: boolean;
+  /** Marca solo el país como obligatorio (sin forzar dirección/ciudad). */
+  requiredCountry?: boolean;
+  /** Si se pasa, el <select> solo ofrece estos países (ISO-2). */
+  countryCodes?: string[];
   onChange?: (v: AddressValue) => void;
   nameAddress?: string;
   nameCity?: string;
@@ -70,6 +76,10 @@ export function AddressAutocomplete({
   nameCountryName?: string;
   namePlaceId?: string;
 }) {
+  const options =
+    countryCodes && countryCodes.length > 0
+      ? countryCodes
+      : DEFAULT_COUNTRY_CODES;
   const locale = useLocale();
   const [address, setAddress] = useState(defaultAddress);
   const [city, setCity] = useState(defaultCity);
@@ -215,12 +225,12 @@ export function AddressAutocomplete({
           <select
             value={country}
             onChange={(e) => setCountry(e.target.value)}
-            required={required}
+            required={required || requiredCountry}
             {...(nameCountry ? { name: nameCountry } : {})}
             className={fieldCls}
           >
             <option value="">{countryPlaceholder ?? "—"}</option>
-            {COUNTRY_CODES.map((code) => (
+            {options.map((code) => (
               <option key={code} value={code}>
                 {countryLabel(code)}
               </option>

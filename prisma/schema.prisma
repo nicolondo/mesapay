@@ -1814,9 +1814,10 @@ model CrmEmailAccount {
 /// País activo en el CRM. Cuando enabled=true se cargan las ciudades
 /// desde el dataset estático en src/data/cities/{code.toLowerCase()}.json.
 model CrmCountry {
-  code    String  @id // ISO-2 (CO, MX, …)
-  name    String
-  enabled Boolean @default(false)
+  code     String  @id // ISO-2 (CO, MX, …)
+  name     String
+  enabled  Boolean @default(false)
+  currency String  @default("COP") // ISO-4217 de cobro del país (COP, MXN). Fuente única para suscripción y pagos.
 
   cities CrmCity[]
 }

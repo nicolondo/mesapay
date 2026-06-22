@@ -1046,7 +1046,7 @@
     "filterFree": "Libres",
     "emptyFilter": "No hay mesas en este filtro.",
     "tileCounterShort": "Mostr.",
-    "tileTableShort": "M{number}",
+    "tileTableShort": "M-{number}",
     "tileFree": "libre",
     "tileNow": "ahora",
     "tileMinutesAgo": "{mins}m",

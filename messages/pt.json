@@ -1046,7 +1046,7 @@
     "filterFree": "Livres",
     "emptyFilter": "Não há mesas neste filtro.",
     "tileCounterShort": "Balcão",
-    "tileTableShort": "M{number}",
+    "tileTableShort": "M-{number}",
     "tileFree": "livre",
     "tileNow": "agora",
     "tileMinutesAgo": "{mins}m",

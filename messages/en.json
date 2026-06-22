@@ -1046,7 +1046,7 @@
     "filterFree": "Available",
     "emptyFilter": "No tables in this filter.",
     "tileCounterShort": "Counter",
-    "tileTableShort": "T{number}",
+    "tileTableShort": "T-{number}",
     "tileFree": "available",
     "tileNow": "now",
     "tileMinutesAgo": "{mins}m",

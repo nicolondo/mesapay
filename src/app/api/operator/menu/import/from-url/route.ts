@@ -10,6 +10,7 @@ import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
 import { tryImportJusto } from "@/lib/menuImportJusto";
 import { tryImportCluvi, findEmbeddedCluviUrl } from "@/lib/menuImportCluvi";
+import { tryImportMenupp } from "@/lib/menuImportMenupp";
 
 const schema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -117,6 +118,29 @@ export async function POST(req: Request) {
   } catch {
     // If the Shopify path explodes for any reason, fall through to the
     // generic fetch+AI flow — better to import something than nothing.
+  }
+
+  // Same idea for Menüpp (menupp.co): the storefront is a Quasar SPA whose
+  // menu lives in Firestore (project menupp-next), readable via the public
+  // REST API. We read it directly — beats AI on the empty hydration shell.
+  try {
+    const menupp = await tryImportMenupp(url, restaurantId);
+    if (menupp) {
+      const existingCategories = await db.category.findMany({
+        where: { restaurantId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, slug: true, label: true, kind: true },
+      });
+      return NextResponse.json({
+        ok: true,
+        extraction: menupp.extraction,
+        existingCategories,
+        sourceUrl: menupp.sourceUrl,
+        contentType: "application/menupp",
+      });
+    }
+  } catch {
+    /* fall through */
   }
 
   // Same idea for Justo / OrionEat (getjusto.com): the storefront is a

@@ -1025,15 +1025,16 @@ export function CrmPipelineClient({
   //    la reconciliación de React queda corrupta y deja TARJETAS FANTASMA
   //    en el DOM que ningún re-render limpia (bug reproducido en vivo:
   //    buscar "blue" mostraba leads viejos triplicados).
-  // 2. La vista NUNCA muestra un lead que no coincida con la búsqueda,
-  //    venga de donde venga el dato (misma regla que el server: contains,
-  //    insensible a mayúsculas).
-  const qNorm = q.trim().toLowerCase();
+  // 2. El server es la fuente de verdad de la búsqueda (matchea por nombre
+  //    del lead, nombre de contacto Y teléfono). Acá NO re-filtramos por q
+  //    —solo dedupe por id (la paginación puede repetir)— para que las
+  //    columnas coincidan exactamente con los conteos del server. Antes
+  //    filtrábamos por l.name, lo que escondía los matches por contacto/tel.
   const seenIds = new Set<string>();
   const visibleLeads = leads.filter((l) => {
     if (seenIds.has(l.id)) return false;
     seenIds.add(l.id);
-    return !qNorm || l.name.toLowerCase().includes(qNorm);
+    return true;
   });
 
   return (

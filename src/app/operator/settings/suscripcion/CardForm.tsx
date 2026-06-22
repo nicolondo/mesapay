@@ -82,6 +82,10 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
           ? "https://api.kushkipagos.com"
           : "https://api-uat.kushkipagos.com";
 
+      // El token DEBE llevar `currency` (igual que el cobro de comensales en
+      // card/v1/tokens): si no, Kushki crea el token con una moneda por
+      // defecto y al crear la suscripción en COP la rechaza con K055
+      // ("Tipo de moneda no permitido").
       const body = {
         card: {
           number: digits,
@@ -90,12 +94,14 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
           expiryYear: expYear,
           cvv,
         },
+        currency,
       };
 
       console.log("[billing] CardForm: tokenize shape", {
         cardLast4: digits.slice(-4),
         expiryMonth: expMonth,
         expiryYear: expYear,
+        currency,
         endpoint: "subscriptions/v1/card/tokens",
       });
 
@@ -121,7 +127,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
             "Content-Type": "application/json",
             "Public-Merchant-Id": kushkiPublicKey,
           },
-          body: JSON.stringify({ ...body, totalAmount: 0, currency, isDeferred: false }),
+          body: JSON.stringify({ ...body, totalAmount: 0, isDeferred: false }),
         });
       }
 

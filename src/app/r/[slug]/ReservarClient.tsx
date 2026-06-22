@@ -75,6 +75,7 @@ export function ReservarClient({
   source,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   pseBanks,
 }: {
   tenantSlug: string;
@@ -87,6 +88,7 @@ export function ReservarClient({
   source: "direct" | "google_maps";
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   pseBanks: { code: string; name: string }[];
 }) {
   const tr = useTranslations("reservar");
@@ -268,6 +270,7 @@ export function ReservarClient({
             methods={depositStep.methods}
             kushkiPublicKey={kushkiPublicKey}
             kushkiMode={kushkiMode}
+            currency={currency}
             pseBanks={pseBanks}
             onApproved={() => {
               const code = depositStep.code;
@@ -836,6 +839,7 @@ function DepositPay({
   methods,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   pseBanks,
   onApproved,
 }: {
@@ -845,6 +849,7 @@ function DepositPay({
   methods: string[];
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   pseBanks: { code: string; name: string }[];
   onApproved: () => void;
 }) {
@@ -932,6 +937,7 @@ function DepositPay({
           depositCents={depositCents}
           kushkiPublicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
+          currency={currency}
           onApproved={onApproved}
         />
         {backBtn}
@@ -947,6 +953,7 @@ function DepositPay({
         depositCents={depositCents}
         kushkiPublicKey={kushkiPublicKey}
         kushkiMode={kushkiMode}
+        currency={currency}
         onApproved={onApproved}
       />
       {backBtn}
@@ -967,6 +974,7 @@ function DepositCard({
   depositCents,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   onApproved,
 }: {
   tenantSlug: string;
@@ -974,6 +982,7 @@ function DepositCard({
   depositCents: number;
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   onApproved: () => void;
 }) {
   const tr = useTranslations("reservar");
@@ -1049,7 +1058,7 @@ function DepositCard({
               cvv,
             },
             totalAmount: depositCents / 100,
-            currency: "COP",
+            currency,
             isDeferred: false,
             email: email.trim().toLowerCase(),
           }),
@@ -1191,6 +1200,7 @@ function DepositApplePay({
   depositCents,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   onApproved,
 }: {
   tenantSlug: string;
@@ -1198,6 +1208,7 @@ function DepositApplePay({
   depositCents: number;
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   onApproved: () => void;
 }) {
   const tr = useTranslations("reservar");
@@ -1236,6 +1247,7 @@ function DepositApplePay({
         <ApplePayButton
           publicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
+          currency={currency}
           amountCents={depositCents}
           displayName={tr("depositDisplayName")}
           busy={busy}
@@ -1389,6 +1401,7 @@ function DepositPse({
         documentNumber: docNumber.trim(),
         documentType: docTypeForKushki,
         email: buyer.email,
+        // PSE es un riel exclusivo de Colombia → siempre COP.
         currency: "COP",
         bankId: bankCode,
       };

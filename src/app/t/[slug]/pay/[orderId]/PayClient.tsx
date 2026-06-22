@@ -46,6 +46,7 @@ export function PayClient({
   kushkiReady,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   enabledMethods,
   pseBanks,
   assignedDeviceId,
@@ -75,6 +76,10 @@ export function PayClient({
   // base — sin esto teníamos sandbox hardcodeado en el browser y
   // cambiar el modo desde admin no surtía efecto del lado cliente.
   kushkiMode: "mock" | "sandbox" | "production";
+  // Moneda de cobro del comercio (resuelta server-side del país). La
+  // tokenización de tarjeta DEBE ir ligada a esta moneda o Kushki rechaza
+  // el cobro con K055.
+  currency: "COP" | "MXN";
   // Per-restaurant payment method toggles. Slugs of methods the admin
   // enabled in /admin/restaurants/[id]. Buttons are filtered against
   // this list so disabled methods never render.
@@ -853,6 +858,7 @@ export function PayClient({
                 <ApplePayButton
                   publicKey={kushkiPublicKey}
                   kushkiMode={kushkiMode}
+                  currency={currency}
                   amountCents={amountCents}
                   displayName={tenantName}
                   busy={busy === "kushki_apple_pay"}
@@ -996,6 +1002,7 @@ export function PayClient({
           busy={busy === "kushki_card"}
           kushkiPublicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
+          currency={currency}
           onClose={() => setCardSheetOpen(false)}
           onTokenized={(token) => {
             setCardSheetOpen(false);
@@ -1355,6 +1362,7 @@ function PseSheet({
         documentNumber: docNumber.trim(),
         documentType: docTypeForKushki,
         email: email.trim().toLowerCase(),
+        // PSE es un riel exclusivo de Colombia → siempre COP.
         currency: "COP",
         bankId: bankCode,
       };
@@ -1956,6 +1964,7 @@ function CardSheet({
   busy,
   kushkiPublicKey,
   kushkiMode,
+  currency,
   onClose,
   onTokenized,
 }: {
@@ -1966,6 +1975,7 @@ function CardSheet({
   busy: boolean;
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
+  currency: "COP" | "MXN";
   onClose: () => void;
   onTokenized: (token: string) => void;
 }) {
@@ -2058,7 +2068,7 @@ function CardSheet({
           cvv,
         },
         totalAmount: amountCents / 100,
-        currency: "COP",
+        currency,
         isDeferred: false,
         email: email.trim().toLowerCase(),
         authValidation: "url",

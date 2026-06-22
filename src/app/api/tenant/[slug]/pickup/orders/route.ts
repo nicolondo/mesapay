@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
@@ -170,7 +171,7 @@ export async function POST(
       );
       const charge = await provider.chargeWithToken({
         merchantId: privateKey,
-        amount: { amountCents: subtotalCents, currency: "COP" },
+        amount: { amountCents: subtotalCents, currency: await getCurrencyForCountry(tenant.country) },
         token: parsed.data.token,
         metadata: {
           orderId: "pending", // No order id yet; we annotate later via webhook reconciliation.

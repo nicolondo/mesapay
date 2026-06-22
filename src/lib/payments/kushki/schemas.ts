@@ -59,7 +59,7 @@ export type TerminalPushResponse = z.infer<typeof TerminalPushResponseSchema>;
 export const BalanceResponseSchema = z.object({
   availableAmount: z.number(),
   pendingAmount: z.number(),
-  currency: z.literal("COP"),
+  currency: z.enum(["COP", "MXN"]),
 });
 export type BalanceResponse = z.infer<typeof BalanceResponseSchema>;
 

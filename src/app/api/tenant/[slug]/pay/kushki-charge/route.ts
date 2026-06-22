@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
@@ -122,13 +123,15 @@ export async function POST(
     );
   }
 
+  const currency = await getCurrencyForCountry(tenant.country);
+
   let charge;
   try {
     charge = await provider.chargeWithToken({
       // For Kushki, the per-merchant private key is what authenticates the
       // charge; we pass it where the interface asks for merchantId.
       merchantId: privateKey,
-      amount: { amountCents: parsed.data.amountCents, currency: "COP" },
+      amount: { amountCents: parsed.data.amountCents, currency },
       token: parsed.data.token,
       metadata: {
         orderId: order.id,

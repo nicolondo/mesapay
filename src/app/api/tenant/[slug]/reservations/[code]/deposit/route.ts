@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import {
   getPaymentProvider,
@@ -59,6 +60,7 @@ export async function POST(
     select: {
       id: true,
       name: true,
+      country: true,
       kushkiMerchantId: true,
       kushkiMode: true,
       legalCity: true,
@@ -123,11 +125,12 @@ export async function POST(
   }
 
   const depositCents = reservation.depositCents;
+  const currency = await getCurrencyForCountry(tenant.country);
   let charge;
   try {
     charge = await provider.chargeWithToken({
       merchantId: privateKey,
-      amount: { amountCents: depositCents, currency: "COP" },
+      amount: { amountCents: depositCents, currency },
       token: parsed.data.token,
       metadata: {
         reservationId: reservation.id,

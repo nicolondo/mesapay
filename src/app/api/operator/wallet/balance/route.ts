@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -27,11 +28,16 @@ export async function GET() {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { kushkiMerchantId: true, kushkiMode: true },
+    select: { kushkiMerchantId: true, kushkiMode: true, country: true },
   });
   if (!tenant?.kushkiMerchantId) {
     return NextResponse.json(
-      { availableCents: 0, pendingCents: 0, currency: "COP", onboarded: false },
+      {
+        availableCents: 0,
+        pendingCents: 0,
+        currency: await getCurrencyForCountry(tenant?.country),
+        onboarded: false,
+      },
     );
   }
   const privateKey = await getRestaurantPrivateKey(restaurantId);

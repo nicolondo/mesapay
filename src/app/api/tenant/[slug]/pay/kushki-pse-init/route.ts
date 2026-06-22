@@ -346,6 +346,7 @@ export async function POST(
       merchantId: publicKey,
       amount: {
         amountCents: parsed.data.amountCents,
+        // PSE es un riel exclusivo de Colombia → siempre COP (no aplica a MX).
         currency: "COP",
       },
       buyer: parsed.data.buyer,

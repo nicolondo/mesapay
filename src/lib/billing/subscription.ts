@@ -2,11 +2,6 @@ import { db } from "@/lib/db";
 import { getPlanByTier } from "@/lib/planCatalog";
 import type { Plan } from "@prisma/client";
 
-/** Moneda de cobro según país ISO alpha-2 del comercio. Default COP. */
-export function currencyForCountry(country: string | null | undefined): "COP" | "MXN" {
-  return country === "MX" ? "MXN" : "COP";
-}
-
 /**
  * Suma `months` meses a una fecha y devuelve un ISO date (YYYY-MM-DD) en UTC.
  * Clampa el día si el mes destino es más corto (ej. 31 ene + 1 mes = 28/29 feb).

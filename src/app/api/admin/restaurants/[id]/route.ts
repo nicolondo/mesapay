@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { isCountryEnabled } from "@/lib/billing/countries";
 
 /**
  * Platform-admin edits to a restaurant's profile. Today only the name
@@ -20,6 +21,10 @@ const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   tagline: z.string().trim().max(120).nullable().optional(),
   groupId: z.string().trim().min(1).nullable().optional(),
+  // País del comercio (ISO-2). Define la moneda de cobro. Solo se
+  // aceptan países habilitados en la config de plataforma.
+  country: z.string().trim().length(2).toUpperCase().optional(),
+  countryName: z.string().trim().max(120).nullable().optional(),
 });
 
 export async function PATCH(
@@ -43,10 +48,18 @@ export async function PATCH(
       name: true,
       groupId: true,
       legalEntityId: true,
+      country: true,
+      countryName: true,
     },
   });
   if (!existing) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  // Cambio de país: validar que esté habilitado en la config.
+  const countryChange = parsed.data.country !== undefined;
+  if (countryChange && !(await isCountryEnabled(parsed.data.country))) {
+    return NextResponse.json({ error: "country_not_enabled" }, { status: 400 });
   }
 
   // Si pasan groupId: validar que el grupo destino existe (o null
@@ -94,8 +107,30 @@ export async function PATCH(
             legalEntityId: null,
           }
         : {}),
+      ...(countryChange
+        ? {
+            country: parsed.data.country,
+            countryName:
+              parsed.data.countryName !== undefined
+                ? parsed.data.countryName
+                : existing.countryName,
+          }
+        : {}),
     },
   });
+
+  if (countryChange) {
+    await recordAuditEvent({
+      kind: "restaurant.country.update",
+      restaurantId: id,
+      target: { type: "restaurant", id },
+      summary: `Cambió país de ${existing.name}: ${existing.country ?? "—"} → ${parsed.data.country}`,
+      diff: {
+        before: { country: existing.country, countryName: existing.countryName },
+        after: { country: parsed.data.country, countryName: parsed.data.countryName },
+      },
+    });
+  }
 
   if (groupChange) {
     await recordAuditEvent({

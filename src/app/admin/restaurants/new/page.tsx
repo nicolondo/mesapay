@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { registerRestaurant } from "@/lib/registerRestaurant";
+import { getEnabledCountries } from "@/lib/billing/countries";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 async function submit(formData: FormData) {
@@ -41,6 +42,13 @@ async function submit(formData: FormData) {
     );
   }
 
+  // País obligatorio: define la moneda de cobro del comercio.
+  if (!country) {
+    redirect(
+      "/admin/restaurants/new?err=" + encodeURIComponent(t("errCountryRequired")),
+    );
+  }
+
   const res = await registerRestaurant({
     restaurantName,
     restaurantSlug,
@@ -69,6 +77,9 @@ export default async function NewRestaurantPage({
   const sp = await searchParams;
   const t = await getTranslations("opAdmin");
   const tl = await getTranslations("location");
+  // Países habilitados en config — el alta solo ofrece estos.
+  const enabledCountries = await getEnabledCountries();
+  const countryCodes = enabledCountries.map((c) => c.code);
 
   return (
     <div className="flex-1 p-6 max-w-2xl mx-auto w-full">
@@ -115,6 +126,8 @@ export default async function NewRestaurantPage({
           cityPlaceholder={tl("cityPlaceholder")}
           labelCountry={tl("country")}
           countryPlaceholder={tl("countryPlaceholder")}
+          countryCodes={countryCodes}
+          requiredCountry
           nameAddress="address"
           nameCity="city"
           nameCountry="country"

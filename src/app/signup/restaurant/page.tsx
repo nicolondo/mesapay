@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -39,6 +39,17 @@ export default function RestaurantSignUp() {
   });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [countryCodes, setCountryCodes] = useState<string[]>([]);
+
+  // Países habilitados (config de plataforma) para el selector de país.
+  useEffect(() => {
+    fetch("/api/countries")
+      .then((r) => r.json())
+      .then((d: { countries?: { code: string }[] }) => {
+        setCountryCodes((d.countries ?? []).map((c) => c.code));
+      })
+      .catch(() => {});
+  }, []);
 
   function onRestaurantNameChange(v: string) {
     setRestaurantName(v);
@@ -182,6 +193,8 @@ export default function RestaurantSignUp() {
             cityPlaceholder={tl("cityPlaceholder")}
             labelCountry={tl("country")}
             countryPlaceholder={tl("countryPlaceholder")}
+            countryCodes={countryCodes}
+            requiredCountry
             onChange={setLocation}
           />
         </div>

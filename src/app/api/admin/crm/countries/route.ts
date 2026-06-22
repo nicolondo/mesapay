@@ -46,11 +46,11 @@ export async function GET() {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // Fetch existing DB records for enabled state.
+  // Fetch existing DB records for enabled + currency state.
   const dbCountries = await db.crmCountry.findMany({
-    select: { code: true, enabled: true },
+    select: { code: true, enabled: true, currency: true },
   });
-  const dbMap = new Map(dbCountries.map((c) => [c.code, c.enabled]));
+  const dbMap = new Map(dbCountries.map((c) => [c.code, c]));
 
   // Count seeded cities per country.
   const cityCounts = await db.crmCity.groupBy({
@@ -62,7 +62,8 @@ export async function GET() {
   const countries = Object.entries(DATASETS).map(([code, ds]) => ({
     code,
     name: ds.name,
-    enabled: dbMap.get(code) ?? false,
+    enabled: dbMap.get(code)?.enabled ?? false,
+    currency: dbMap.get(code)?.currency ?? defaultCurrencyFor(code),
     cityCount: countMap.get(code) ?? 0,
     datasetSize: ds.cities.length,
   }));
@@ -70,11 +71,18 @@ export async function GET() {
   return NextResponse.json({ countries });
 }
 
+/** Moneda por defecto sugerida por país (editable por el admin). */
+function defaultCurrencyFor(code: string): string {
+  return code === "MX" ? "MXN" : "COP";
+}
+
 // ── POST /api/admin/crm/countries ────────────────────────────────────────────
 
 const schema = z.object({
   code: z.enum(VALID_CODES as [string, ...string[]]),
   enabled: z.boolean(),
+  // Moneda de cobro del país (suscripción + pagos de comensales).
+  currency: z.enum(["COP", "MXN"]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -96,12 +104,13 @@ export async function POST(req: Request) {
   if (!ds) {
     return NextResponse.json({ error: "unknown_country" }, { status: 400 });
   }
+  const currency = parsed.data.currency ?? defaultCurrencyFor(code);
 
-  // Upsert CrmCountry.
+  // Upsert CrmCountry (incluye moneda de cobro).
   await db.crmCountry.upsert({
     where: { code },
-    create: { code, name: ds.name, enabled },
-    update: { name: ds.name, enabled },
+    create: { code, name: ds.name, enabled, currency },
+    update: { name: ds.name, enabled, currency },
   });
 
   let seeded = 0;
@@ -136,7 +145,7 @@ export async function POST(req: Request) {
 
   await recordAuditEvent({
     kind: "crm.country.toggle",
-    summary: `${enabled ? "Habilitó" : "Deshabilitó"} país CRM: ${code} (${ds.name})${enabled && seeded > 0 ? ` · sembradas ${seeded} ciudades` : ""}`,
+    summary: `${enabled ? "Habilitó" : "Deshabilitó"} país: ${code} (${ds.name}) · moneda ${currency}${enabled && seeded > 0 ? ` · sembradas ${seeded} ciudades` : ""}`,
   });
 
   return NextResponse.json({ ok: true, seeded });

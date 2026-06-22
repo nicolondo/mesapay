@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { SubscriptionClient } from "./SubscriptionClient";
 import { getRestaurantKushkiMode, getBillingCredentials } from "@/lib/platformConfig";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export default async function SubscriptionPage() {
   });
   if (!tenant) return <div className="p-6">{t("noRestaurant")}</div>;
 
+  // Moneda de cobro del país (config país↔moneda, fuente única).
+  const currency = await getCurrencyForCountry(tenant.country);
   // Modo Kushki efectivo para este restaurante (respeta override por comercio)
   const kushkiMode = await getRestaurantKushkiMode(tenant);
   // Clave pública de plataforma (segura en browser) — null si no configurada.
@@ -58,7 +61,7 @@ export default async function SubscriptionPage() {
                 ? "overdue"
                 : "active"
         }
-        country={tenant.country}
+        currency={currency}
         subscription={
           tenant.billingSubscription
             ? {

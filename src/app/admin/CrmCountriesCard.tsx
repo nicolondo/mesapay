@@ -8,9 +8,12 @@ interface CountryRow {
   code: string;
   name: string;
   enabled: boolean;
+  currency: string;
   cityCount: number;
   datasetSize: number;
 }
+
+const CURRENCY_OPTIONS = ["COP", "MXN"] as const;
 
 export function CrmCountriesCard({
   initialCountries,
@@ -25,14 +28,21 @@ export function CrmCountriesCard({
   const [info, setInfo] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  async function toggle(code: string, currentEnabled: boolean) {
+  async function save(
+    code: string,
+    next: { enabled?: boolean; currency?: string },
+  ) {
+    const row = countries.find((c) => c.code === code);
+    if (!row) return;
+    const enabled = next.enabled ?? row.enabled;
+    const currency = next.currency ?? row.currency;
     setBusy(code);
     setErr(null);
     setInfo(null);
     const res = await fetch("/api/admin/crm/countries", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, enabled: !currentEnabled }),
+      body: JSON.stringify({ code, enabled, currency }),
     });
     setBusy(null);
     if (!res.ok) {
@@ -40,12 +50,12 @@ export function CrmCountriesCard({
       return;
     }
     const data = await res.json().catch(() => ({}));
-    if (!currentEnabled && data.seeded > 0) {
+    if (next.enabled && !row.enabled && data.seeded > 0) {
       setInfo(t("seededInfo", { count: data.seeded }));
     }
     // Optimistic update + refresh.
     setCountries((prev) =>
-      prev.map((c) => (c.code === code ? { ...c, enabled: !currentEnabled } : c)),
+      prev.map((c) => (c.code === code ? { ...c, enabled, currency } : c)),
     );
     startTransition(() => router.refresh());
   }
@@ -61,6 +71,7 @@ export function CrmCountriesCard({
         <thead>
           <tr className="text-left text-xs text-op-muted border-b border-op-border">
             <th className="pb-2 font-normal">{t("colCountry")}</th>
+            <th className="pb-2 font-normal">{t("colCurrency")}</th>
             <th className="pb-2 font-normal">{t("colCities")}</th>
             <th className="pb-2 font-normal">{t("colStatus")}</th>
             <th className="pb-2 font-normal" />
@@ -71,6 +82,20 @@ export function CrmCountriesCard({
             <tr key={c.code} className="border-b border-op-border/50 last:border-0">
               <td className="py-3 font-medium">
                 {c.code} — {c.name}
+              </td>
+              <td className="py-3">
+                <select
+                  value={c.currency}
+                  onChange={(e) => save(c.code, { currency: e.target.value })}
+                  disabled={busy === c.code}
+                  className="h-8 rounded-lg border border-op-border bg-op-bg px-2 text-xs focus:outline-none focus:border-terracotta disabled:opacity-40"
+                >
+                  {CURRENCY_OPTIONS.map((cur) => (
+                    <option key={cur} value={cur}>
+                      {cur}
+                    </option>
+                  ))}
+                </select>
               </td>
               <td className="py-3 text-op-muted">
                 {c.cityCount > 0
@@ -92,7 +117,7 @@ export function CrmCountriesCard({
               <td className="py-3 text-right">
                 <button
                   type="button"
-                  onClick={() => toggle(c.code, c.enabled)}
+                  onClick={() => save(c.code, { enabled: !c.enabled })}
                   disabled={busy === c.code}
                   className="h-8 px-3 rounded-full text-xs font-medium border border-op-border hover:border-ink/40 disabled:opacity-40"
                 >

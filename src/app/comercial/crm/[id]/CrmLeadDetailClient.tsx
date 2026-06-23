@@ -119,8 +119,8 @@ function stageColor(stage: string): string {
   const map: Record<string, string> = {
     nuevo: "bg-slate-100 text-slate-700",
     contactado: "bg-blue-100 text-blue-700",
-    demo_agendada: "bg-violet-100 text-violet-700",
-    demo_realizada: "bg-purple-100 text-purple-700",
+    demo_agendada: "bg-teal-100 text-teal-700",
+    demo_realizada: "bg-fuchsia-100 text-fuchsia-700",
     propuesta_enviada: "bg-amber-100 text-amber-700",
     negociacion: "bg-orange-100 text-orange-700",
     ganado: "bg-green-100 text-green-700",

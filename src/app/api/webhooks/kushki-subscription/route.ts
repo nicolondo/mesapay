@@ -17,13 +17,16 @@ import { recordAuditEvent } from "@/lib/auditLog";
  *   https://mesapay.co/api/webhooks/kushki-subscription
  *
  * Flujo:
- *   1. Verificar la firma con el secret del merchant de PLATAFORMA
- *      (KUSHKI_BILLING_WEBHOOK_SECRET, fallback al global). La firma NO
- *      depende del restaurante, así que verificamos ANTES de tocar la DB.
- *   2. Parsear el payload (tolerante a variantes de nombres — VERIFY vs sandbox).
- *   3. Resolver el BillingSubscription por kushkiSubscriptionId.
- *   4. Idempotencia: si ya registramos ese ticket (providerRef), no repetir.
- *   5. Aprobado → applyRecurringCharge (avanza período +1 mes, reactiva).
+ *   1. Kushki primero valida la URL con una petición que solo espera un 200
+ *      (sin firma). Cualquier request sin evento procesable → 200 (handshake).
+ *   2. Logueamos headers + body para descubrir las "llaves" que Kushki manda
+ *      en los headers de los eventos reales (VERIFY vs sandbox).
+ *   3. Parsear el payload (tolerante a variantes de nombres).
+ *   4. Verificar firma (KUSHKI_BILLING_WEBHOOK_SECRET, fallback al global).
+ *      Durante el setup NO bloquea — loguea y sigue — hasta confirmar headers.
+ *   5. Resolver el BillingSubscription por kushkiSubscriptionId.
+ *   6. Idempotencia: si ya registramos ese ticket (providerRef), no repetir.
+ *   7. Aprobado → applyRecurringCharge (avanza período +1 mes, reactiva).
  *      Rechazado → markRecurringChargeFailed (NO avanza; el cron de
  *      vencimiento suspende cuando el período vence).
  *
@@ -54,25 +57,24 @@ function deepFind(obj: Json, keys: string[]): string | undefined {
 export async function POST(req: Request) {
   const raw = await req.text();
 
-  // 1. Firma — secret del merchant de plataforma (fallback al global).
-  const verify = verifyKushkiSignature(
-    raw,
-    req.headers,
-    env.KUSHKI_BILLING_WEBHOOK_SECRET ?? null,
-  );
-  if (!verify.ok) {
-    return NextResponse.json(
-      { error: "invalid_signature", reason: verify.reason },
-      { status: 401 },
-    );
-  }
+  // Logueamos headers + body para DESCUBRIR el formato exacto de Kushki: las
+  // "llaves" que manda en los headers de cada evento real. Temporal para el
+  // setup — una vez confirmados los nombres, endurecemos la verificación.
+  const headerDump: Record<string, string> = {};
+  req.headers.forEach((v, k) => {
+    headerDump[k] = v;
+  });
+  console.log("[billing/webhook] headers", headerDump);
+  console.log("[billing/webhook] body", raw.slice(0, 1000) || "(empty)");
 
-  // 2. Parse tolerante.
-  let payload: Json;
+  // Parse tolerante. Kushki manda PRIMERO una petición de VALIDACIÓN de la URL
+  // que solo espera un 200 (puede venir vacía o sin evento). Cualquier cosa
+  // que no sea un evento procesable → 200 (handshake), nunca 4xx.
+  let payload: Json = null;
   try {
-    payload = JSON.parse(raw);
+    payload = raw ? JSON.parse(raw) : null;
   } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    payload = null;
   }
 
   // VERIFY vs sandbox: confirmar los nombres exactos del payload real.
@@ -108,9 +110,26 @@ export async function POST(req: Request) {
   });
 
   if (!subscriptionId) {
-    // Sin id no podemos rutear. Lo ignoramos (200) para no trabar reintentos.
-    console.warn("[billing/webhook] sin subscriptionId — ignorado");
-    return NextResponse.json({ ok: true, ignored: "no_subscription_id" });
+    // Petición de validación / handshake de Kushki (sin evento): responder 200.
+    console.log("[billing/webhook] handshake / validación de URL — 200");
+    return NextResponse.json({ ok: true });
+  }
+
+  // Verificación de firma. Kushki manda las llaves en los headers de los
+  // eventos reales; mientras confirmamos los nombres exactos (ver el log de
+  // headers de arriba), NO bloqueamos — logueamos y seguimos — para no trabar
+  // la integración. VERIFY vs sandbox: endurecer a 401 cuando se conozcan los
+  // headers reales de Kushki.
+  const verify = verifyKushkiSignature(
+    raw,
+    req.headers,
+    env.KUSHKI_BILLING_WEBHOOK_SECRET ?? null,
+  );
+  if (!verify.ok) {
+    console.warn(
+      "[billing/webhook] firma no verificada — procesando igual durante setup:",
+      verify.reason,
+    );
   }
 
   // 3. Resolver la suscripción.

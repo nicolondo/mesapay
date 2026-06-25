@@ -64,7 +64,9 @@ export async function POST(req: Request) {
   req.headers.forEach((v, k) => {
     headerDump[k] = v;
   });
-  console.log("[billing/webhook] headers", headerDump);
+  // JSON en UNA línea: si logueamos el objeto, Node lo parte en varias y el
+  // grep solo agarra la primera (no se ven los headers reales de Kushki).
+  console.log("[billing/webhook] headers", JSON.stringify(headerDump));
   console.log("[billing/webhook] body", raw.slice(0, 1000) || "(empty)");
 
   // Parse tolerante. Kushki manda PRIMERO una petición de VALIDACIÓN de la URL

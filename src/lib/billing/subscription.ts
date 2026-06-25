@@ -140,6 +140,66 @@ export async function applyInitialCharge(args: ApplyInitialChargeArgs): Promise<
 }
 
 /**
+ * Persiste un COBRO RECURRENTE aprobado (kind="recurring"), notificado por el
+ * webhook de Kushki. Avanza el período del comercio un mes y reactiva la
+ * suscripción. Idempotencia: el caller debe deduplicar por providerRef antes
+ * de llamar (no cobramos dos veces el mismo ticket).
+ *   1. MembershipPayment(kind="recurring", method="kushki_card")
+ *   2. Restaurant.periodEndsAt = nuevo fin de período, suspended=false
+ *   3. BillingSubscription: status="active", failedAttempts=0, period/nextCharge
+ */
+export async function applyRecurringCharge(args: {
+  restaurantId: string;
+  amountCents: number;
+  currency: string;
+  providerRef: string | null;
+  periodStart: Date;
+  periodEnd: Date;
+}): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.membershipPayment.create({
+      data: {
+        restaurantId: args.restaurantId,
+        amountCents: args.amountCents,
+        method: "kushki_card",
+        kind: "recurring",
+        providerRef: args.providerRef,
+        recordedByEmail: "kushki-webhook",
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+      },
+    });
+    await tx.restaurant.update({
+      where: { id: args.restaurantId },
+      data: { periodEndsAt: args.periodEnd, suspended: false },
+    });
+    await tx.billingSubscription.update({
+      where: { restaurantId: args.restaurantId },
+      data: {
+        status: "active",
+        failedAttempts: 0,
+        currentPeriodEnd: args.periodEnd,
+        nextChargeAt: args.periodEnd,
+      },
+    });
+  });
+}
+
+/**
+ * Marca un cobro recurrente FALLIDO. NO avanza el período: deja que el cron de
+ * vencimiento existente suspenda el comercio cuando `periodEndsAt` venza. Solo
+ * actualiza el estado de la suscripción para visibilidad/dunning.
+ */
+export async function markRecurringChargeFailed(
+  restaurantId: string,
+): Promise<void> {
+  await db.billingSubscription.update({
+    where: { restaurantId },
+    data: { status: "past_due", failedAttempts: { increment: 1 } },
+  });
+}
+
+/**
  * Persiste activación sin cobro inmediato (startDate futuro = periodEndsAt).
  * Solo crea/actualiza BillingSubscription; no crea MembershipPayment ni
  * toca el Restaurant (el período ya está vigente).

@@ -62,6 +62,8 @@ export type AuditKind =
   | "subscription.activate"
   | "subscription.cancel"
   | "subscription.card.update"
+  | "subscription.charge.recurring"
+  | "subscription.charge.failed"
   // Catch-all para events nuevos no listados (no rompe el type pero
   // empuja a registrar el kind correcto). Usar con moderación.
   | (string & {});
@@ -104,6 +106,8 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "subscription.activate": "Activó débito automático",
   "subscription.cancel": "Canceló débito automático",
   "subscription.card.update": "Actualizó tarjeta de débito",
+  "subscription.charge.recurring": "Cobro recurrente aprobado",
+  "subscription.charge.failed": "Cobro recurrente fallido",
 };
 
 export function labelForKind(kind: string): string {

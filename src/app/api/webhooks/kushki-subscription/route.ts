@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { verifyKushkiSignature } from "@/lib/payments/kushki/webhooks";
 import {
   addMonthsIso,
   applyRecurringCharge,
@@ -10,68 +10,102 @@ import {
 import { recordAuditEvent } from "@/lib/auditLog";
 
 /**
- * Listener de COBROS RECURRENTES de la suscripción (Kushki One-click &
- * scheduled payments, cuenta de PLATAFORMA).
+ * Listener de COBROS RECURRENTES de la suscripción (Kushki "Webhook card
+ * subscriptions", cuenta de PLATAFORMA).
  *
  * URL a configurar en la Consola de Kushki (merchant de cobro de plataforma):
  *   https://mesapay.co/api/webhooks/kushki-subscription
  *
- * Flujo:
- *   1. Kushki primero valida la URL con una petición que solo espera un 200
- *      (sin firma). Cualquier request sin evento procesable → 200 (handshake).
- *   2. Logueamos headers + body para descubrir las "llaves" que Kushki manda
- *      en los headers de los eventos reales (VERIFY vs sandbox).
- *   3. Parsear el payload (tolerante a variantes de nombres).
- *   4. Verificar firma (KUSHKI_BILLING_WEBHOOK_SECRET, fallback al global).
- *      Durante el setup NO bloquea — loguea y sigue — hasta confirmar headers.
- *   5. Resolver el BillingSubscription por kushkiSubscriptionId.
- *   6. Idempotencia: si ya registramos ese ticket (providerRef), no repetir.
- *   7. Aprobado → applyRecurringCharge (avanza período +1 mes, reactiva).
- *      Rechazado → markRecurringChargeFailed (NO avanza; el cron de
- *      vencimiento suspende cuando el período vence).
+ * Payload (doc Kushki — recurring-payments/webhook-card-subscriptions):
+ *   {
+ *     "name": "succesfullCharge" | "declinedCharge" | "failedRetry"
+ *           | "lastRetry" | "subscriptionDelete" | "subscriptionApproved",
+ *     "event": { subscriptionId, ticketNumber, transactionReference,
+ *                approvalCode, amount, ... }
+ *   }
  *
- * Devolvemos 200 incluso para eventos que ignoramos (suscripción no
- * encontrada, estado indeterminado), para que Kushki no reintente en bucle.
- * Solo devolvemos 5xx ante un error de procesamiento real (para que reintente).
+ * Firma (doc Kushki — notifications/overview#autenticación). Headers:
+ *   X-Kushki-Key            = ID del comercio
+ *   X-Kushki-Id             = timestamp Unix (ms)
+ *   X-Kushki-Signature      = HMAC_SHA256( secret, JSON.stringify(body)+"."+X-Kushki-Id ) hex
+ *   X-Kushki-SimpleSignature= HMAC_SHA256( secret, X-Kushki-Id ) hex
+ * `secret` = "Webhook signature ID" del merchant en la Consola
+ *            (env KUSHKI_BILLING_WEBHOOK_SECRET, fallback al global).
+ *
+ * Política: si el secret está configurado, la firma es OBLIGATORIA (401 si no
+ * matchea). Sin secret → bypass con warning (fase de pruebas). La petición de
+ * validación de la URL (body {}) responde 200 sin pedir firma.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any;
 
-/** Busca una clave (varias variantes) en el objeto y en contenedores comunes. */
-function deepFind(obj: Json, keys: string[]): string | undefined {
-  if (!obj || typeof obj !== "object") return undefined;
-  const containers = [obj, obj.subscription, obj.transaction, obj.data, obj.payload];
-  for (const c of containers) {
-    if (!c || typeof c !== "object") continue;
-    for (const k of keys) {
-      const v = c[k];
-      if (typeof v === "string" && v) return v;
-      if (typeof v === "number") return String(v);
-      if (typeof v === "boolean") return String(v);
-    }
+function safeEqHex(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
+
+/**
+ * Verifica X-Kushki-Signature per la doc:
+ *   HMAC-SHA256(secret, JSON.stringify(body) + "." + X-Kushki-Id) → hex.
+ * Probamos canonical = JSON.stringify(parsed) (lo que firma Kushki) y, por las
+ * dudas, el raw, por diferencias de serialización.
+ */
+function verifyBillingSignature(
+  raw: string,
+  parsed: Json,
+  headers: Headers,
+): { ok: boolean; reason: string; computed?: string } {
+  const secret = env.KUSHKI_BILLING_WEBHOOK_SECRET ?? env.KUSHKI_WEBHOOK_SECRET;
+  if (!secret) return { ok: false, reason: "no_secret" };
+  const xId = headers.get("x-kushki-id");
+  const provided = headers.get("x-kushki-signature");
+  if (!xId || !provided) return { ok: false, reason: "missing_headers" };
+
+  const canonicals: string[] = [];
+  try {
+    canonicals.push(JSON.stringify(parsed));
+  } catch {
+    /* ignore */
   }
-  return undefined;
+  canonicals.push(raw);
+
+  for (const c of canonicals) {
+    const computed = createHmac("sha256", secret)
+      .update(`${c}.${xId}`)
+      .digest("hex");
+    if (safeEqHex(computed, provided)) return { ok: true, reason: "ok" };
+  }
+  const computed = createHmac("sha256", secret)
+    .update(`${JSON.stringify(parsed)}.${xId}`)
+    .digest("hex");
+  return { ok: false, reason: "mismatch", computed };
+}
+
+/** Resultado del evento, derivado del campo `name` del webhook. */
+function outcomeFromName(
+  name: string,
+): "approved" | "declined" | "canceled" | "ignore" {
+  const n = name.toLowerCase();
+  if (n.includes("succes") && n.includes("charge")) return "approved";
+  if (n.includes("declin") || n.includes("retry") || n.includes("fail"))
+    return "declined";
+  if (n.includes("delete")) return "canceled";
+  return "ignore"; // subscriptionApproved (inicial, ya lo maneja activate) / desconocido
 }
 
 export async function POST(req: Request) {
   const raw = await req.text();
 
-  // Logueamos headers + body para DESCUBRIR el formato exacto de Kushki: las
-  // "llaves" que manda en los headers de cada evento real. Temporal para el
-  // setup — una vez confirmados los nombres, endurecemos la verificación.
   const headerDump: Record<string, string> = {};
   req.headers.forEach((v, k) => {
     headerDump[k] = v;
   });
-  // JSON en UNA línea: si logueamos el objeto, Node lo parte en varias y el
-  // grep solo agarra la primera (no se ven los headers reales de Kushki).
   console.log("[billing/webhook] headers", JSON.stringify(headerDump));
-  console.log("[billing/webhook] body", raw.slice(0, 1000) || "(empty)");
+  console.log("[billing/webhook] body", raw.slice(0, 1500) || "(empty)");
 
-  // Parse tolerante. Kushki manda PRIMERO una petición de VALIDACIÓN de la URL
-  // que solo espera un 200 (puede venir vacía o sin evento). Cualquier cosa
-  // que no sea un evento procesable → 200 (handshake), nunca 4xx.
   let payload: Json = null;
   try {
     payload = raw ? JSON.parse(raw) : null;
@@ -79,62 +113,74 @@ export async function POST(req: Request) {
     payload = null;
   }
 
-  // VERIFY vs sandbox: confirmar los nombres exactos del payload real.
-  const subscriptionId = deepFind(payload, ["subscriptionId", "subscription_id"]);
+  // Shape real: { name, event: {...} }. Subscription id viene en `event`
+  // (es un número). Toleramos también un shape plano (para simulaciones).
+  const ev = payload && typeof payload.event === "object" ? payload.event : null;
+  const subRaw =
+    ev?.subscriptionId ?? payload?.subscriptionId ?? payload?.subscription_id;
+  const subscriptionId =
+    subRaw != null && subRaw !== "" ? String(subRaw) : undefined;
   const providerRef =
-    deepFind(payload, [
-      "ticketNumber",
-      "transactionReference",
-      "transactionId",
-      "transaction_reference",
-    ]) ?? null;
-  const rawStatus =
-    deepFind(payload, [
-      "status",
-      "transactionStatus",
-      "ticketStatus",
-      "transaction_status",
-    ]) ?? "";
-  const approvedFlag = deepFind(payload, ["approved"]);
-
-  const s = rawStatus.toUpperCase();
-  const isApproved =
-    s.includes("APPROV") || approvedFlag === "true";
-  const isDeclined =
-    s.includes("DECLIN") || s.includes("FAIL") || approvedFlag === "false";
-
-  console.log("[billing/webhook] recurring charge", {
-    subscriptionId,
-    providerRef,
-    rawStatus,
-    isApproved,
-    isDeclined,
-  });
+    (ev?.ticketNumber ??
+      ev?.transactionReference ??
+      payload?.ticketNumber ??
+      payload?.transactionReference ??
+      null) as string | null;
+  const name: string =
+    typeof payload?.name === "string"
+      ? payload.name
+      : typeof payload?.status === "string"
+        ? payload.status // fallback simulación (status APPROVAL/DECLINED)
+        : "";
 
   if (!subscriptionId) {
-    // Petición de validación / handshake de Kushki (sin evento): responder 200.
+    // Validación de URL / handshake de Kushki (body {}): responder 200.
     console.log("[billing/webhook] handshake / validación de URL — 200");
     return NextResponse.json({ ok: true });
   }
 
-  // Verificación de firma. Kushki manda las llaves en los headers de los
-  // eventos reales; mientras confirmamos los nombres exactos (ver el log de
-  // headers de arriba), NO bloqueamos — logueamos y seguimos — para no trabar
-  // la integración. VERIFY vs sandbox: endurecer a 401 cuando se conozcan los
-  // headers reales de Kushki.
-  const verify = verifyKushkiSignature(
-    raw,
-    req.headers,
-    env.KUSHKI_BILLING_WEBHOOK_SECRET ?? null,
-  );
-  if (!verify.ok) {
+  // Firma. Con secret configurado es obligatoria; sin secret, bypass (pruebas).
+  const sig = verifyBillingSignature(raw, payload, req.headers);
+  if (sig.reason === "no_secret") {
     console.warn(
-      "[billing/webhook] firma no verificada — procesando igual durante setup:",
-      verify.reason,
+      "[billing/webhook] sin KUSHKI_BILLING_WEBHOOK_SECRET — procesando sin verificar firma. Setealo en el VPS para producción.",
     );
+  } else if (!sig.ok) {
+    console.warn("[billing/webhook] firma inválida", {
+      reason: sig.reason,
+      computed: sig.computed,
+      received: req.headers.get("x-kushki-signature"),
+    });
+    return NextResponse.json(
+      { error: "invalid_signature", reason: sig.reason },
+      { status: 401 },
+    );
+  } else {
+    console.log("[billing/webhook] firma verificada ✓");
   }
 
-  // 3. Resolver la suscripción.
+  // Toleramos el shape plano de simulación (status/approved) cuando no hay name.
+  let outcome = outcomeFromName(name);
+  if (outcome === "ignore" && !payload?.name) {
+    const s = (payload?.status ?? "").toString().toUpperCase();
+    const approvedFlag = String(payload?.approved ?? "");
+    if (s.includes("APPROV") || approvedFlag === "true") outcome = "approved";
+    else if (s.includes("DECLIN") || approvedFlag === "false")
+      outcome = "declined";
+  }
+
+  console.log("[billing/webhook] evento", {
+    name,
+    subscriptionId,
+    providerRef,
+    outcome,
+  });
+
+  if (outcome === "ignore") {
+    return NextResponse.json({ ok: true, ignored: name || "unknown_event" });
+  }
+
+  // Resolver la suscripción.
   const sub = await db.billingSubscription.findFirst({
     where: { kushkiSubscriptionId: subscriptionId },
     select: {
@@ -145,19 +191,30 @@ export async function POST(req: Request) {
     },
   });
   if (!sub) {
-    console.warn("[billing/webhook] suscripción no encontrada", { subscriptionId });
+    console.warn("[billing/webhook] suscripción no encontrada", {
+      subscriptionId,
+    });
     return NextResponse.json({ ok: true, ignored: "unknown_subscription" });
   }
 
-  // Estado indeterminado → ni cobramos ni suspendemos.
-  if (!isApproved && !isDeclined) {
-    console.warn("[billing/webhook] estado indeterminado — ignorado", { rawStatus });
-    return NextResponse.json({ ok: true, ignored: "unknown_status" });
-  }
-
   try {
-    if (isApproved) {
-      // 4. Idempotencia por ticket: no cobrar dos veces el mismo.
+    if (outcome === "canceled") {
+      // Kushki canceló la suscripción (p.ej. tras agotar reintentos).
+      await db.billingSubscription.update({
+        where: { restaurantId: sub.restaurantId },
+        data: { status: "canceled", canceledAt: new Date() },
+      });
+      await recordAuditEvent({
+        kind: "subscription.cancel",
+        restaurantId: sub.restaurantId,
+        target: { type: "restaurant", id: sub.restaurantId },
+        summary: `Kushki canceló el débito automático de ${sub.restaurant.name}`,
+      });
+      return NextResponse.json({ ok: true, status: "canceled" });
+    }
+
+    if (outcome === "approved") {
+      // Idempotencia por ticket: no cobrar dos veces el mismo.
       if (providerRef) {
         const dup = await db.membershipPayment.findFirst({
           where: { restaurantId: sub.restaurantId, providerRef },
@@ -167,8 +224,6 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true, status: "already_processed" });
         }
       }
-
-      // Nuevo período = (max(período actual, ahora)) + 1 mes.
       const now = new Date();
       const base =
         sub.restaurant.periodEndsAt && sub.restaurant.periodEndsAt > now
@@ -184,7 +239,6 @@ export async function POST(req: Request) {
         periodStart: now,
         periodEnd,
       });
-
       await recordAuditEvent({
         kind: "subscription.charge.recurring",
         restaurantId: sub.restaurantId,
@@ -194,22 +248,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, status: "approved" });
     }
 
-    // Rechazado.
+    // Declinado / reintento fallido. NO avanza el período → el cron de
+    // vencimiento suspende cuando vence.
     await markRecurringChargeFailed(sub.restaurantId);
     await recordAuditEvent({
       kind: "subscription.charge.failed",
       restaurantId: sub.restaurantId,
       target: { type: "restaurant", id: sub.restaurantId },
-      summary: `Cobro recurrente fallido de ${sub.restaurant.name}`,
+      summary: `Cobro recurrente fallido de ${sub.restaurant.name} (${name})`,
     });
     return NextResponse.json({ ok: true, status: "declined" });
   } catch (err) {
-    // Error real de procesamiento → 500 para que Kushki reintente
-    // (la idempotencia por providerRef hace seguro el reintento).
     console.error("[billing/webhook] processing error", err);
-    return NextResponse.json(
-      { error: "processing_error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "processing_error" }, { status: 500 });
   }
 }

@@ -53,6 +53,10 @@ const schema = z.object({
   // Clave PÚBLICA de la cuenta de plataforma para tokenizar en el browser.
   // Segura de exponer al cliente. Requerida en sandbox/production.
   KUSHKI_BILLING_PUBLIC_KEY: z.string().optional(),
+  // Secret de firma del webhook del merchant de PLATAFORMA (cobros
+  // recurrentes de suscripción). Se configura en la Consola de Kushki.
+  // Si falta, cae al KUSHKI_WEBHOOK_SECRET global (ver verifyKushkiSignature).
+  KUSHKI_BILLING_WEBHOOK_SECRET: z.string().optional(),
 
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),

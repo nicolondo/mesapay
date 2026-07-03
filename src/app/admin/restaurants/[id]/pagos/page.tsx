@@ -140,6 +140,7 @@ export default async function AdminPagosPage({
             hasWebhookSecret: !!rest.kushkiWebhookSecretEnc,
             // "" = heredar el modo global de plataforma.
             kushkiMode: rest.kushkiMode ?? "",
+            card3ds: rest.kushkiCard3ds,
           }}
         />
       </section>

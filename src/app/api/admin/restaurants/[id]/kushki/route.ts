@@ -22,6 +22,8 @@ const schema = z.object({
     .enum(["mock", "sandbox", "production"])
     .nullable()
     .optional(),
+  // 3DS en pagos con tarjeta del comensal (OTP del banco vía redirect).
+  card3ds: z.boolean().optional(),
   onboardingStatus: z.enum([
     "not_started",
     "docs_uploaded",
@@ -76,6 +78,10 @@ export async function PATCH(
   // el modo global de plataforma.
   if (parsed.data.kushkiMode !== undefined) {
     data.kushkiMode = parsed.data.kushkiMode;
+  }
+  // 3DS de tarjeta del comensal: sólo si vino en el body.
+  if (parsed.data.card3ds !== undefined) {
+    data.kushkiCard3ds = parsed.data.card3ds;
   }
   // Stamp activatedAt the first time the merchant becomes active, but don't
   // overwrite an existing stamp if the admin toggles status around.

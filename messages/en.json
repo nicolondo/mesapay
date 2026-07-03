@@ -2816,6 +2816,10 @@
     "kushkiModeSandbox": "Sandbox (UAT)",
     "kushkiModeProduction": "Production",
     "kushkiModeHint": "Sets which environment this merchant's charges go to —card, PSE, Apple Pay and the terminal—: Sandbox uses the test host (UAT) and Production the real one. “Inherit global” uses the platform-level mode.",
+    "fieldCard3ds": "3DS on card (bank OTP)",
+    "card3dsOn": "Enabled",
+    "card3dsOff": "Disabled",
+    "card3dsHint": "With 3DS enabled, the diner goes through the bank's validation (OTP) when their card requires it — more security and fewer chargebacks, one extra step at payment. Disabled, the charge goes straight through.",
     "fieldInternalNotes": "Internal notes",
     "save": "Save"
   },

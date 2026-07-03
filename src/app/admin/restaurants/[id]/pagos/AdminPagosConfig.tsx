@@ -45,6 +45,8 @@ export function AdminPagosConfig({
     hasWebhookSecret: boolean;
     // "" = heredar el modo global de plataforma.
     kushkiMode: string;
+    // 3DS en pagos con tarjeta del comensal.
+    card3ds: boolean;
   };
 }) {
   const t = useTranslations("opAdminBilling");
@@ -62,6 +64,7 @@ export function AdminPagosConfig({
     initial.onboardingStatus,
   );
   const [kushkiMode, setKushkiMode] = useState(initial.kushkiMode);
+  const [card3ds, setCard3ds] = useState(initial.card3ds);
   const [notes, setNotes] = useState(initial.notes);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -78,6 +81,7 @@ export function AdminPagosConfig({
       notes: notes.trim() || null,
       // "" → null = heredar el modo global de plataforma.
       kushkiMode: kushkiMode || null,
+      card3ds,
     };
     // Only send privateKey if the admin typed something. An empty string
     // here means "clear the stored key"; undefined means "leave it alone".
@@ -238,6 +242,18 @@ export function AdminPagosConfig({
           <p className="mt-1 text-[11px] text-op-muted">
             {t("kushkiModeHint")}
           </p>
+        </div>
+        <div>
+          <Select
+            label={t("fieldCard3ds")}
+            value={card3ds ? "on" : "off"}
+            options={[
+              ["on", t("card3dsOn")],
+              ["off", t("card3dsOff")],
+            ]}
+            onChange={(v) => setCard3ds(v === "on")}
+          />
+          <p className="mt-1 text-[11px] text-op-muted">{t("card3dsHint")}</p>
         </div>
         <div className="md:col-span-2">
           <label className="block">

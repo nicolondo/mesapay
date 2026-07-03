@@ -47,6 +47,7 @@ export function PayClient({
   kushkiPublicKey,
   kushkiMode,
   currency,
+  card3ds,
   enabledMethods,
   pseBanks,
   assignedDeviceId,
@@ -80,6 +81,11 @@ export function PayClient({
   // tokenización de tarjeta DEBE ir ligada a esta moneda o Kushki rechaza
   // el cobro con K055.
   currency: "COP" | "MXN";
+  // 3DS en pagos con tarjeta: si true, la tokenización pide
+  // authValidation:"url" y el diner pasa por el OTP del banco cuando la
+  // tarjeta lo requiere. Configurable por comercio desde
+  // /admin/restaurants/[id]/pagos.
+  card3ds: boolean;
   // Per-restaurant payment method toggles. Slugs of methods the admin
   // enabled in /admin/restaurants/[id]. Buttons are filtered against
   // this list so disabled methods never render.
@@ -1003,6 +1009,7 @@ export function PayClient({
           kushkiPublicKey={kushkiPublicKey}
           kushkiMode={kushkiMode}
           currency={currency}
+          card3ds={card3ds}
           onClose={() => setCardSheetOpen(false)}
           onTokenized={(token) => {
             setCardSheetOpen(false);
@@ -1965,6 +1972,7 @@ function CardSheet({
   kushkiPublicKey,
   kushkiMode,
   currency,
+  card3ds,
   onClose,
   onTokenized,
 }: {
@@ -1976,6 +1984,7 @@ function CardSheet({
   kushkiPublicKey: string | null;
   kushkiMode: "mock" | "sandbox" | "production";
   currency: "COP" | "MXN";
+  card3ds: boolean;
   onClose: () => void;
   onTokenized: (token: string) => void;
 }) {
@@ -2054,10 +2063,11 @@ function CardSheet({
           ? "https://api.kushkipagos.com"
           : "https://api-uat.kushkipagos.com";
 
-      // 3DS: pedimos `authValidation: "url"` para que Kushki devuelva
-      // la URL del banco cuando la tarjeta lo requiera. callbackUrl
-      // tiene que ser absoluta — el banco redirige al diner ahí con
-      // ?success=...&token=... después del OTP.
+      // 3DS (si el comercio lo tiene activo): pedimos `authValidation: "url"`
+      // para que Kushki devuelva la URL del banco cuando la tarjeta lo
+      // requiera. callbackUrl tiene que ser absoluta — el banco redirige al
+      // diner ahí con ?success=...&token=... después del OTP. Con card3ds
+      // apagado, omitimos ambos campos y el cobro va directo sin OTP.
       const callbackUrl = `${window.location.origin}/t/${tenantSlug}/pay/${orderId}/3ds-return`;
       const body = {
         card: {
@@ -2071,14 +2081,14 @@ function CardSheet({
         currency,
         isDeferred: false,
         email: email.trim().toLowerCase(),
-        authValidation: "url",
-        callbackUrl,
+        ...(card3ds ? { authValidation: "url", callbackUrl } : {}),
       };
       console.log("[card] tokenize body shape", {
         cardLast4: digits.slice(-4),
         totalAmount: body.totalAmount,
         currency: body.currency,
-        callbackUrl,
+        card3ds,
+        callbackUrl: card3ds ? callbackUrl : "(3ds off)",
       });
       const res = await fetch(`${baseUrl}/card/v1/tokens`, {
         method: "POST",

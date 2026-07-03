@@ -2816,6 +2816,10 @@
     "kushkiModeSandbox": "Sandbox (UAT)",
     "kushkiModeProduction": "Producción",
     "kushkiModeHint": "Define a qué entorno van los cobros de este comercio —tarjeta, PSE, Apple Pay y datáfono—: Sandbox usa el host de pruebas (UAT) y Producción el real. «Heredar global» usa el modo configurado a nivel plataforma.",
+    "fieldCard3ds": "3DS en tarjeta (OTP del banco)",
+    "card3dsOn": "Activado",
+    "card3dsOff": "Desactivado",
+    "card3dsHint": "Con 3DS activado, el comensal pasa por la validación del banco (OTP) cuando su tarjeta lo requiere — más seguridad y menos contracargos, un paso extra al pagar. Desactivado, el cobro va directo.",
     "fieldInternalNotes": "Notas internas",
     "save": "Guardar"
   },

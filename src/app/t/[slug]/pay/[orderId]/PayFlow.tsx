@@ -125,6 +125,7 @@ export async function PayFlow({
       kushkiPublicKey={tenant.kushkiPublicKey}
       kushkiMode={await getRestaurantKushkiMode(tenant)}
       currency={await getCurrencyForCountry(tenant.country)}
+      card3ds={tenant.kushkiCard3ds}
       enabledMethods={enabledMethods}
       pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}

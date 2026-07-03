@@ -88,6 +88,10 @@ model Restaurant {
   // —tarjeta, PSE, Apple Pay y el datáfono cloud— y si se usa el provider
   // mock o el real. Editable por comercio desde /admin/restaurants/[id]/pagos.
   kushkiMode             String?
+  // 3DS en pagos con tarjeta del comensal: si true, la tokenización pide
+  // authValidation:"url" y el diner pasa por el OTP del banco cuando la
+  // tarjeta lo requiere. Editable desde /admin/restaurants/[id]/pagos.
+  kushkiCard3ds          Boolean  @default(true)
   // Pulso (asistente de IA): override por comercio del gating por plan.
   // null = según plan (trial/pro habilitados, basic no). true/false = forzar.
   aiInsightsEnabled    Boolean?

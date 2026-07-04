@@ -275,6 +275,8 @@ model Restaurant {
   simpleInvoices      SimpleInvoice[]
   shifts              Shift[]
   cashMovements       CashMovement[]
+  ingredients         Ingredient[]
+  suppliers           Supplier[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -1326,6 +1328,94 @@ model CashMovement {
 
   @@index([restaurantId, occurredAt])
   @@index([shiftId])
+}
+
+// === ERP · Fase A0: fundaciones (insumos, unidades, proveedores) ==========
+// Spec: docs/superpowers/specs/2026-07-03-erp-a0-fundaciones-design.md
+// Cantidades SIEMPRE en unidad base (mass→g, volume→ml, count→un) como Int.
+// Conversiones y formateo en src/lib/erp/units.ts. Los empaques de compra
+// ("caja × 24", "bulto 50 kg") son presentaciones del proveedor
+// (SupplierIngredient.contentQty en unidad base), no unidades.
+
+enum MeasureKind {
+  mass   // base: gramo
+  volume // base: mililitro
+  count  // base: unidad
+}
+
+/// Insumo / materia prima del comercio. Base de inventario (A1),
+/// compras (A2) y recetas (A3). Soft-delete vía active — las fases
+/// siguientes referencian estas filas desde movimientos/recetas/OCs.
+model Ingredient {
+  id           String      @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  // Categoría libre ("Proteínas", "Lácteos", "Empaques"…) — sin taxonomía
+  // impuesta; la UI sugiere las existentes del comercio con un datalist.
+  category     String?
+  measureKind  MeasureKind
+  sku          String?
+  notes        String?
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  supplierItems SupplierIngredient[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId, active])
+}
+
+/// Proveedor del comercio.
+model Supplier {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name             String
+  taxId            String? // NIT / RFC
+  contactName      String?
+  phone            String? // E.164 (normalizePhone del CRM)
+  email            String?
+  address          String?
+  paymentTermsDays Int? // condiciones de pago en días; null = contado
+  notes            String?
+  active           Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  items SupplierIngredient[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId, active])
+}
+
+/// Lista de precios: qué insumos vende cada proveedor, en qué
+/// presentación y a qué precio.
+model SupplierIngredient {
+  id           String     @id @default(cuid())
+  supplierId   String
+  supplier     Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  // Presentación de compra: "Caja × 24", "Bulto 50 kg", "Garrafa 20 L".
+  presentationLabel String
+  // Contenido de UNA presentación en unidad base del insumo (g/ml/un).
+  contentQty        Int
+  // Último precio por presentación, en centavos. Manual en A0; la
+  // recepción de OCs (A2) lo actualizará automáticamente.
+  lastPriceCents    Int?
+  supplierSku       String?
+  // Proveedor habitual del insumo — lo usa la OC sugerida (A4). Máx. 1
+  // por insumo (la API desmarca el anterior al marcar uno nuevo).
+  preferred         Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([supplierId, ingredientId])
+  @@index([ingredientId])
 }
 
 // === Kushki integration ====================================================

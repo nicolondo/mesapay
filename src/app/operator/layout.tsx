@@ -8,6 +8,7 @@ import { localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
+import { isModuleEnabled } from "@/lib/modules";
 import { OperatorMobileMenu } from "./OperatorMobileMenu";
 import { GroupSwitcher } from "./GroupSwitcher";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
@@ -225,6 +226,11 @@ export default async function OperatorLayout({
           },
           { href: "/operator/ratings", label: t("navRatings") },
           { href: "/operator/facturas", label: t("navInvoices") },
+          // Módulo ERP `inventory` (Fase A1): item visible solo con el
+          // módulo activado — mismo gate que la página y la API de stock.
+          ...(isModuleEnabled(tenant?.enabledModules, "inventory")
+            ? [{ href: "/operator/inventario", label: t("navInventory") }]
+            : []),
           { href: "/operator/reports", label: t("navClose") },
           { href: "/operator/wallet", label: t("navWallet") },
           { href: "/operator/settings", label: t("navSettings") },

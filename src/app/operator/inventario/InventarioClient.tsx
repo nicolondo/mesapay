@@ -39,6 +39,32 @@ type MovementRow = {
   createdBy: { id: string; name: string | null } | null;
 };
 
+// ── Conteos (spec D5): sesión borrador → cierre con ajustes ──
+type CountSummary = {
+  id: string;
+  status: "draft" | "closed";
+  notes: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  createdBy: { name: string | null } | null;
+  _count: { items: number };
+};
+
+type CountItemRow = {
+  id: string;
+  expectedQty: number;
+  countedQty: number | null;
+  ingredient: {
+    id: string;
+    name: string;
+    measureKind: MeasureKind;
+    category: string | null;
+    active: boolean;
+  };
+};
+
+type CountDetail = Omit<CountSummary, "_count"> & { items: CountItemRow[] };
+
 /** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
 function fold(s: string): string {
   return s
@@ -88,7 +114,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   ingredient_not_found: "errIngredientNotFound",
 };
 
-type Tab = "stock" | "movements";
+type Tab = "stock" | "movements" | "counts";
 type SheetMode = "entry" | "adjust" | "waste";
 
 export function InventarioClient({
@@ -112,6 +138,13 @@ export function InventarioClient({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [movErr, setMovErr] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Conteos — mismo patrón perezoso que el historial.
+  const [counts, setCounts] = useState<CountSummary[] | null>(null);
+  const [countsErr, setCountsErr] = useState(false);
+  const [newCountOpen, setNewCountOpen] = useState(false);
+  const [openCount, setOpenCount] = useState<CountDetail | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -156,6 +189,58 @@ export function InventarioClient({
     };
   }, [tab, movements, movErr]);
 
+  useEffect(() => {
+    if (tab !== "counts" || counts !== null || countsErr) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/stock/counts");
+        if (!r.ok) throw new Error("load_failed");
+        const j = await r.json();
+        if (!cancelled) setCounts((j.counts ?? []) as CountSummary[]);
+      } catch {
+        if (!cancelled) setCountsErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, counts, countsErr]);
+
+  async function openSession(id: string) {
+    if (openingId) return;
+    setOpeningId(id);
+    try {
+      const r = await fetch(`/api/operator/stock/counts/${id}`);
+      if (!r.ok) throw new Error("load_failed");
+      const j = await r.json();
+      setOpenCount(j.count as CountDetail);
+    } catch {
+      setCountsErr(true);
+    }
+    setOpeningId(null);
+  }
+
+  // Cierre de conteo: los ajustes tocan N saldos a la vez → se refrescan
+  // las existencias completas desde el server y se invalidan historial y
+  // lista de sesiones (misma filosofía que handleMovementDone).
+  async function handleCountClosed() {
+    setCounts(null);
+    setCountsErr(false);
+    setMovements(null);
+    setNextCursor(null);
+    setMovErr(false);
+    try {
+      const r = await fetch("/api/operator/stock");
+      if (r.ok) {
+        const j = await r.json();
+        setRows((j.stock ?? []) as StockRow[]);
+      }
+    } catch {
+      // Silencioso: el saldo se refresca al próximo load de la página.
+    }
+  }
+
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
@@ -190,12 +275,13 @@ export function InventarioClient({
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Existencias / Movimientos */}
+      {/* Segmentos Existencias / Movimientos / Conteos */}
       <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
         {(
           [
             ["stock", t("tabStock")],
             ["movements", t("tabMovements")],
+            ["counts", t("tabCounts")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -334,7 +420,7 @@ export function InventarioClient({
             </div>
           )}
         </>
-      ) : (
+      ) : tab === "movements" ? (
         /* Movimientos */
         <>
           {movErr ? (
@@ -424,6 +510,75 @@ export function InventarioClient({
             </>
           )}
         </>
+      ) : (
+        /* Conteos físicos (sesiones borrador → cierre) */
+        <>
+          <button
+            type="button"
+            onClick={() => setNewCountOpen(true)}
+            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+          >
+            {t("newCount")}
+          </button>
+
+          {countsErr ? (
+            <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+          ) : counts === null ? (
+            <div className="py-6 text-center text-sm text-op-muted">
+              {t("loading")}
+            </div>
+          ) : counts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
+              {t("countsEmpty")}
+            </div>
+          ) : (
+            <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+              {counts.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => openSession(c.id)}
+                  disabled={openingId !== null}
+                  className="w-full text-left px-4 py-2.5 border-b border-op-border last:border-b-0 hover:bg-op-bg disabled:opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium">
+                          {formatDate(c.createdAt, { locale })}
+                        </span>
+                        <span
+                          className={
+                            "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
+                            (c.status === "draft"
+                              ? "bg-ink text-bone"
+                              : "bg-paper text-op-muted")
+                          }
+                        >
+                          {c.status === "draft"
+                            ? t("countStatusDraft")
+                            : t("countStatusClosed")}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                        {[
+                          t("countItems", { count: c._count.items }),
+                          c.createdBy?.name ?? null,
+                          c.notes,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </div>
+                    <span className="text-op-muted text-sm shrink-0">
+                      {openingId === c.id ? t("loading") : "›"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {sheet && (
@@ -433,6 +588,27 @@ export function InventarioClient({
           currency={currency}
           onClose={() => setSheet(null)}
           onDone={handleMovementDone}
+        />
+      )}
+
+      {newCountOpen && (
+        <NewCountSheet
+          ingredients={activeIngredients}
+          onClose={() => setNewCountOpen(false)}
+          onCreated={(count) => {
+            setNewCountOpen(false);
+            setCounts(null); // lista stale → refetch al volver al tab
+            setCountsErr(false);
+            setOpenCount(count);
+          }}
+        />
+      )}
+
+      {openCount && (
+        <CountSheet
+          count={openCount}
+          onClose={() => setOpenCount(null)}
+          onClosed={handleCountClosed}
         />
       )}
     </div>
@@ -751,6 +927,514 @@ function MovementSheet({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── Conteos físicos (spec D5) ─────────────────────── */
+
+/**
+ * Parsea la cantidad contada digitada. A diferencia de los movimientos,
+ * en un conteo "0" es un dato válido ("conté y no hay") y distinto de
+ * vacío ("sin contar" → null); toBaseQty rechaza 0, así que el cero se
+ * maneja explícito antes de convertir.
+ */
+function parseCounted(
+  raw: string,
+  kind: MeasureKind,
+  unitSymbol: string,
+): number | null | "invalid" {
+  const s = raw.trim();
+  if (s === "") return null;
+  const n = Number(s.replace(",", "."));
+  if (!isFinite(n) || n < 0) return "invalid";
+  if (n === 0) return 0;
+  return toBaseQty(n, kind, unitSymbol) ?? "invalid";
+}
+
+function NewCountSheet({
+  ingredients,
+  onClose,
+  onCreated,
+}: {
+  ingredients: StockRow[];
+  onClose: () => void;
+  onCreated: (count: CountDetail) => void;
+}) {
+  const t = useTranslations("opErp");
+  const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of ingredients) if (i.category) set.add(i.category);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [ingredients]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setBusy(true);
+    const r = await fetch("/api/operator/stock/counts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        category: category || null,
+        notes: notes.trim() || null,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        j.error === "count_open_exists"
+          ? t("errCountOpenExists")
+          : j.error === "no_ingredients"
+            ? t("errNoIngredients")
+            : t("errSaveFailed"),
+      );
+      return;
+    }
+    const j = await r.json();
+    onCreated(j.count as CountDetail);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-display text-2xl">{t("newCountTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <p className="text-xs text-op-muted mb-4">{t("newCountHint")}</p>
+
+        <form onSubmit={submit} className="space-y-3">
+          <Field label={t("fieldCountScope")}>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">{t("scopeAllActive")}</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label={t("fieldNotes")}>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={500}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
+            />
+          </Field>
+
+          {err && <div className="text-xs text-danger">{err}</div>}
+
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            >
+              {t("cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+            >
+              {busy ? t("creating") : t("createCount")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CountSheet({
+  count,
+  onClose,
+  onClosed,
+}: {
+  count: CountDetail;
+  onClose: () => void;
+  onClosed: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+
+  // Borrador digitado: raw por item ("" = sin contar) + unidad de display.
+  // Al reanudar, lo ya guardado se muestra en unidad base (sin ambigüedad).
+  const [entries, setEntries] = useState<
+    Record<string, { raw: string; unit: string }>
+  >(() => {
+    const init: Record<string, { raw: string; unit: string }> = {};
+    for (const it of count.items) {
+      init[it.id] = {
+        raw: it.countedQty == null ? "" : String(it.countedQty),
+        unit: BASE_UNIT_SYMBOL[it.ingredient.measureKind],
+      };
+    }
+    return init;
+  });
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [closedResult, setClosedResult] = useState<number | null>(null);
+
+  const readOnly = count.status === "closed" || closedResult !== null;
+
+  const visibleItems = useMemo(() => {
+    const needle = fold(q.trim());
+    if (!needle) return count.items;
+    return count.items.filter((it) =>
+      fold(`${it.ingredient.name} ${it.ingredient.category ?? ""}`).includes(
+        needle,
+      ),
+    );
+  }, [count.items, q]);
+
+  // Desviación en vivo: contados y con diferencia (borrador usa lo
+  // digitado; cerrado usa lo persistido).
+  const stats = useMemo(() => {
+    let counted = 0;
+    let diffs = 0;
+    for (const it of count.items) {
+      const v = readOnly
+        ? it.countedQty
+        : parseCounted(
+            entries[it.id]?.raw ?? "",
+            it.ingredient.measureKind,
+            entries[it.id]?.unit ?? BASE_UNIT_SYMBOL[it.ingredient.measureKind],
+          );
+      if (v == null || v === "invalid") continue;
+      counted++;
+      if (v !== it.expectedQty) diffs++;
+    }
+    return { counted, diffs };
+  }, [count.items, entries, readOnly]);
+
+  /** Payload PATCH completo, o null si hay alguna cantidad inválida. */
+  function buildPayload(): { itemId: string; countedQty: number | null }[] | null {
+    const out: { itemId: string; countedQty: number | null }[] = [];
+    for (const it of count.items) {
+      const e = entries[it.id];
+      const parsed = parseCounted(e.raw, it.ingredient.measureKind, e.unit);
+      if (parsed === "invalid") return null;
+      out.push({ itemId: it.id, countedQty: parsed });
+    }
+    return out;
+  }
+
+  async function patchDraft(): Promise<boolean> {
+    const items = buildPayload();
+    if (!items) {
+      setErr(t("errQtyInvalid"));
+      return false;
+    }
+    const r = await fetch(`/api/operator/stock/counts/${count.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        j.error === "already_closed"
+          ? t("errAlreadyClosed")
+          : j.error === "qty_invalid"
+            ? t("errQtyInvalid")
+            : t("errSaveFailed"),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  async function save() {
+    setErr(null);
+    setSavedFlash(false);
+    setBusy(true);
+    const ok = await patchDraft();
+    setBusy(false);
+    if (ok) setSavedFlash(true);
+  }
+
+  async function closeSession() {
+    setErr(null);
+    setSavedFlash(false);
+    if (buildPayload() === null) {
+      setErr(t("errQtyInvalid"));
+      return;
+    }
+    if (!window.confirm(t("closeCountConfirm"))) return;
+    setBusy(true);
+    // Guardar primero: el cierre genera ajustes contra lo persistido.
+    if (!(await patchDraft())) {
+      setBusy(false);
+      return;
+    }
+    const r = await fetch(`/api/operator/stock/counts/${count.id}/close`, {
+      method: "POST",
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        j.error === "already_closed" ? t("errAlreadyClosed") : t("errSaveFailed"),
+      );
+      return;
+    }
+    const j = await r.json();
+    setClosedResult((j.adjustments as number) ?? 0);
+    onClosed();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="font-display text-2xl">{t("countTitle")}</h2>
+            <span
+              className={
+                "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
+                (readOnly ? "bg-paper text-op-muted" : "bg-ink text-bone")
+              }
+            >
+              {readOnly ? t("countStatusClosed") : t("countStatusDraft")}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <div className="text-[11px] text-op-muted mb-1">
+          {[
+            formatDate(count.createdAt, { locale }),
+            count.createdBy?.name ?? null,
+            count.notes,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+        {/* Desviación en unidades; el valor en $ queda en los movimientos
+            count_adjust del libro (tab Movimientos). */}
+        <div className="text-xs text-op-muted mb-3">
+          {`${t("summaryCounted", { count: stats.counted })} · ${t(
+            "summaryWithDiff",
+            { count: stats.diffs },
+          )}`}
+        </div>
+
+        {closedResult !== null && (
+          <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 text-sm text-ok mb-3">
+            {t("closeCountResult", { count: closedResult })}
+          </div>
+        )}
+
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("searchCountPlaceholder")}
+          className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40 mb-3"
+        />
+
+        {visibleItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-6 text-center text-sm text-op-muted">
+            {t("emptyFiltered")}
+          </div>
+        ) : (
+          <div className="border border-op-border rounded-2xl overflow-hidden">
+            {visibleItems.map((it) => {
+              const kind = it.ingredient.measureKind;
+              const unitOptions = DISPLAY_UNITS[kind];
+              const entry = entries[it.id];
+              const parsed = readOnly
+                ? it.countedQty
+                : parseCounted(entry.raw, kind, entry.unit);
+              const diff =
+                parsed != null && parsed !== "invalid"
+                  ? parsed - it.expectedQty
+                  : null;
+              const diffCls =
+                diff == null || diff === 0
+                  ? "text-op-muted"
+                  : diff > 0
+                    ? "text-ok"
+                    : "text-danger";
+              const diffText =
+                diff == null
+                  ? "—"
+                  : (diff > 0 ? "+" : diff < 0 ? "−" : "") +
+                    formatBaseQty(Math.abs(diff), kind, locale);
+              return (
+                <div
+                  key={it.id}
+                  className="px-4 py-3 border-b border-op-border last:border-b-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">
+                          {it.ingredient.name}
+                        </span>
+                        {!it.ingredient.active && (
+                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
+                            {t("inactiveBadge")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                        {`${t("expectedLabel")}: ${formatBaseQty(
+                          it.expectedQty,
+                          kind,
+                          locale,
+                        )}`}
+                      </div>
+                    </div>
+                    {readOnly && (
+                      <div className="text-right shrink-0">
+                        <div className="text-sm tabular-nums">
+                          {parsed == null
+                            ? t("notCounted")
+                            : formatBaseQty(parsed as number, kind, locale)}
+                        </div>
+                        {parsed != null && (
+                          <div
+                            className={
+                              "text-[11px] mt-0.5 tabular-nums " + diffCls
+                            }
+                          >
+                            {diffText}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {!readOnly && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        inputMode="decimal"
+                        value={entry.raw}
+                        placeholder={t("notCounted")}
+                        onChange={(e) => {
+                          setSavedFlash(false);
+                          setEntries((prev) => ({
+                            ...prev,
+                            [it.id]: { ...prev[it.id], raw: e.target.value },
+                          }));
+                        }}
+                        className={inputCls + " flex-1"}
+                      />
+                      <select
+                        value={entry.unit}
+                        onChange={(e) => {
+                          setSavedFlash(false);
+                          setEntries((prev) => ({
+                            ...prev,
+                            [it.id]: { ...prev[it.id], unit: e.target.value },
+                          }));
+                        }}
+                        disabled={unitOptions.length < 2}
+                        className="min-h-[44px] w-20 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
+                      >
+                        {unitOptions.map((u) => (
+                          <option key={u.symbol} value={u.symbol}>
+                            {u.symbol}
+                          </option>
+                        ))}
+                      </select>
+                      <div
+                        className={
+                          "w-24 text-right text-xs font-medium tabular-nums shrink-0 " +
+                          (parsed === "invalid" ? "text-danger" : diffCls)
+                        }
+                      >
+                        {parsed === "invalid" ? "✕" : diffText}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {savedFlash && !err && (
+          <div className="text-xs text-ok mt-3">{t("draftSaved")}</div>
+        )}
+
+        <div className="sticky bottom-0 -mx-5 px-5 mt-4 pt-3 pb-1 bg-op-surface border-t border-op-border flex items-center justify-end gap-3">
+          {readOnly ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            >
+              {t("cancel")}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={save}
+                disabled={busy}
+                className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface disabled:opacity-40"
+              >
+                {busy ? t("saving") : t("saveDraft")}
+              </button>
+              <button
+                type="button"
+                onClick={closeSession}
+                disabled={busy}
+                className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              >
+                {busy ? t("closing") : t("closeCount")}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

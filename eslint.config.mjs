@@ -62,6 +62,7 @@ const MIGRATED = [
   "src/app/operator/reservas/ReservasBoard.tsx",
   "src/app/operator/tables/**/*.{ts,tsx}",
   "src/app/operator/inventario/**/*.{ts,tsx}",
+  "src/app/operator/compras/**/*.{ts,tsx}",
   "src/app/operator/settings/page.tsx",
   "src/app/operator/settings/salon/**/*.{ts,tsx}",
   "src/app/operator/settings/estaciones/**/*.{ts,tsx}",

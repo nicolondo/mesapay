@@ -33,7 +33,10 @@ export type ModuleConfig = {
 
 export const MODULE_CATALOG: ModuleConfig[] = [
   { slug: "einvoicing", shipped: false },
-  { slug: "purchasing", shipped: false },
+  // Fase A0 en producción: catálogos de insumos y proveedores con lista
+  // de precios. Las OCs/recepción/CxP llegan con A2 — activarlo ya deja
+  // al comercio adelantar el data-entry del catálogo.
+  { slug: "purchasing", shipped: true },
   { slug: "inventory", shipped: false },
   { slug: "recipes", shipped: false },
   { slug: "accounting", shipped: false },

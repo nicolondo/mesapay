@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
+import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import {
   resolveTipPolicy,
@@ -11,8 +12,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Módulos ERP cuya activación hace visible el catálogo de insumos (basta
+// con uno — mismo gate que la página y la API).
+const INSUMOS_GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
+
 export default async function SettingsPage() {
   const t = await getTranslations("opSettings");
+  const tErp = await getTranslations("opErp");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -32,6 +38,7 @@ export default async function SettingsPage() {
       dianResolution: true,
       reservationsEnabled: true,
       enabledPaymentMethods: true,
+      enabledModules: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -45,6 +52,15 @@ export default async function SettingsPage() {
   // Wallet y dispersiones solo aplican cuando Pagos está "Listo para cobrar"
   // (onboarding Kushki activo): antes de eso no hay saldo que mover.
   const showWallet = tenant.kushkiOnboardingStatus === "active";
+
+  // Catálogo de insumos (ERP track A): la card solo existe con algún
+  // módulo activado — con todo apagado el comercio no ve nada del ERP.
+  const showInsumos = INSUMOS_GATE.some((m) =>
+    isModuleEnabled(tenant.enabledModules, m),
+  );
+  const ingredientCount = showInsumos
+    ? await db.ingredient.count({ where: { restaurantId } })
+    : 0;
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -147,6 +163,19 @@ export default async function SettingsPage() {
           badge={t("badgeTags", { count: tagCount })}
           tint="bg-paper text-op-muted"
         />
+        {showInsumos && (
+          <SettingCard
+            href="/operator/settings/insumos"
+            title={tErp("cardInsumosTitle")}
+            subtitle={tErp("cardInsumosSubtitle")}
+            badge={tErp("badgeInsumos", { count: ingredientCount })}
+            tint={
+              ingredientCount > 0
+                ? "bg-ok/15 text-ok"
+                : "bg-paper text-op-muted"
+            }
+          />
+        )}
         <SettingCard
           href="/operator/settings/traducciones"
           title={t("cardTranslationsTitle")}

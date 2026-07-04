@@ -62,6 +62,13 @@ export default async function SettingsPage() {
     ? await db.ingredient.count({ where: { restaurantId } })
     : 0;
 
+  // Proveedores (ERP track A): gate estricto — solo con compras activado
+  // (mismo gate que la página y la API de suppliers).
+  const showProveedores = isModuleEnabled(tenant.enabledModules, "purchasing");
+  const supplierCount = showProveedores
+    ? await db.supplier.count({ where: { restaurantId } })
+    : 0;
+
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
     where: {
@@ -171,6 +178,19 @@ export default async function SettingsPage() {
             badge={tErp("badgeInsumos", { count: ingredientCount })}
             tint={
               ingredientCount > 0
+                ? "bg-ok/15 text-ok"
+                : "bg-paper text-op-muted"
+            }
+          />
+        )}
+        {showProveedores && (
+          <SettingCard
+            href="/operator/settings/proveedores"
+            title={tErp("cardProveedoresTitle")}
+            subtitle={tErp("cardProveedoresSubtitle")}
+            badge={tErp("badgeProveedores", { count: supplierCount })}
+            tint={
+              supplierCount > 0
                 ? "bg-ok/15 text-ok"
                 : "bg-paper text-op-muted"
             }

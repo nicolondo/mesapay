@@ -37,7 +37,9 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // de precios. Las OCs/recepción/CxP llegan con A2 — activarlo ya deja
   // al comercio adelantar el data-entry del catálogo.
   { slug: "purchasing", shipped: true },
-  { slug: "inventory", shipped: false },
+  // Fase A1 en producción: existencias con costeo promedio, movimientos
+  // (entrada/ajuste/merma), historial y conteos físicos (PRs #213-#216).
+  { slug: "inventory", shipped: true },
   { slug: "recipes", shipped: false },
   { slug: "accounting", shipped: false },
   { slug: "production", shipped: false },

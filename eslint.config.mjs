@@ -67,6 +67,7 @@ const MIGRATED = [
   "src/app/operator/settings/reservas/**/*.{ts,tsx}",
   "src/app/operator/settings/etiquetas/**/*.{ts,tsx}",
   "src/app/operator/settings/insumos/**/*.{ts,tsx}",
+  "src/app/operator/settings/proveedores/**/*.{ts,tsx}",
   "src/app/operator/settings/meseros/**/*.{ts,tsx}",
   "src/app/operator/settings/mesas/**/*.{ts,tsx}",
   "src/app/operator/settings/datafonos/**/*.{ts,tsx}",

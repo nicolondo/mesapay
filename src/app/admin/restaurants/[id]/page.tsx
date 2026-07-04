@@ -25,6 +25,8 @@ import { RestaurantNameEditor } from "./RestaurantNameEditor";
 import { RestaurantCountryEditor } from "./RestaurantCountryEditor";
 import { getEnabledCountries, getCurrencyForCountry } from "@/lib/billing/countries";
 import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
+import { ModulesPanel } from "./ModulesPanel";
+import { resolveEnabledModules } from "@/lib/modules";
 import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AdminAiConfig } from "./AdminAiConfig";
@@ -331,6 +333,11 @@ export default async function RestaurantDetail({
       <PaymentMethodsPanel
         restaurantId={id}
         initialEnabled={resolveEnabledPaymentMethods(rest.enabledPaymentMethods)}
+      />
+
+      <ModulesPanel
+        restaurantId={id}
+        initialEnabled={resolveEnabledModules(rest.enabledModules)}
       />
 
       <GroupAssignPanel

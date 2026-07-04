@@ -125,6 +125,13 @@ model Restaurant {
   // vacía explícita = ninguno permitido (raro pero válido).
   enabledPaymentMethods Json?
 
+  // Módulos ERP activados para este comercio (array de slugs — ver
+  // src/lib/modules.ts). null/[] = ninguno: los módulos administrativos
+  // (inventario, compras, recetas, facturación electrónica, contabilidad…)
+  // son OPT-IN por comercio; los activa el admin de plataforma según lo
+  // contratado. Un comercio con su propio ERP los deja apagados.
+  enabledModules Json?
+
   // ─── Reservas ───────────────────────────────────────────────────
   // Toggle global del feature por comercio. Default false porque
   // los restaurantes existentes no la tienen configurada y queremos

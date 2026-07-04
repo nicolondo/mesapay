@@ -47,6 +47,7 @@ export type AuditKind =
   | "restaurant.create"
   | "restaurant.group.update"
   | "restaurant.country.update"
+  | "restaurant.modules.update"
   | "restaurant.data.reset"
   | "cash.movement"
   | "cash.shift_base.update"
@@ -93,6 +94,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.create": "Creó restaurante",
   "restaurant.group.update": "Cambió grupo del comercio",
   "restaurant.country.update": "Cambió país del comercio",
+  "restaurant.modules.update": "Cambió módulos ERP del comercio",
   "restaurant.data.reset": "Borró datos del comercio",
   "cash.movement": "Movimiento de caja",
   "cash.shift_base.update": "Editó base de turno",

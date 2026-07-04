@@ -95,6 +95,8 @@ export type ApplyStockMovementArgs = {
   wasteReason?: WasteReason | null;
   note?: string | null;
   stockCountId?: string | null;
+  /** A2: recepción de OC — el libro es el registro de recepción. */
+  purchaseOrderId?: string | null;
   createdById?: string | null;
 };
 
@@ -134,6 +136,7 @@ export async function applyStockMovement(
     wasteReason,
     note,
     stockCountId,
+    purchaseOrderId,
     createdById,
   } = args;
 
@@ -196,6 +199,7 @@ export async function applyStockMovement(
       wasteReason: wasteReason ?? null,
       note: note || null,
       stockCountId: stockCountId ?? null,
+      purchaseOrderId: purchaseOrderId ?? null,
       createdById: createdById ?? null,
     },
   });

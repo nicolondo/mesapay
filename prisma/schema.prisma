@@ -73,10 +73,10 @@ model Restaurant {
   // (src/lib/crypto.ts). El webhook secret es el que Kushki usa para
   // firmar las llamadas HMAC al endpoint /api/webhooks/kushki — cada
   // sub-merchant puede tener su propio secreto en producción.
-  kushkiMerchantId       String?
-  kushkiPublicKey        String?
-  kushkiPrivateKeyEnc    String?
-  kushkiWebhookSecretEnc String?
+  kushkiMerchantId          String?
+  kushkiPublicKey           String?
+  kushkiPrivateKeyEnc       String?
+  kushkiWebhookSecretEnc    String?
   // Business code del comercio en el Cloud Terminal API (datáfono físico
   // vía cloud). Lo carga el comercio desde Configuración → Datáfonos. Va
   // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth
@@ -87,24 +87,24 @@ model Restaurant {
   // host (uat vs prod) van TODAS las operaciones de pago de este comercio
   // —tarjeta, PSE, Apple Pay y el datáfono cloud— y si se usa el provider
   // mock o el real. Editable por comercio desde /admin/restaurants/[id]/pagos.
-  kushkiMode             String?
+  kushkiMode                String?
   // 3DS en pagos con tarjeta del comensal: si true, la tokenización pide
   // authValidation:"url" y el diner pasa por el OTP del banco cuando la
   // tarjeta lo requiere. Editable desde /admin/restaurants/[id]/pagos.
-  kushkiCard3ds          Boolean  @default(true)
+  kushkiCard3ds             Boolean                @default(true)
   // Pulso (asistente de IA): override por comercio del gating por plan.
   // null = según plan (trial/pro habilitados, basic no). true/false = forzar.
-  aiInsightsEnabled    Boolean?
+  aiInsightsEnabled         Boolean?
   // Límite de mensajes/día del asistente para este comercio. null = usar el
   // default global de PlatformConfig.aiDailyMessageLimit.
-  aiDailyMessageLimit  Int?
+  aiDailyMessageLimit       Int?
   // Relaciones de Pulso
-  aiConversations      AiConversation[]
-  searchEvents         SearchEvent[]
-  kushkiOnboardingStatus KushkiOnboardingStatus @default(not_started)
-  kushkiOnboardingNotes  String?
-  kushkiSubmittedAt      DateTime?
-  kushkiActivatedAt      DateTime?
+  aiConversations           AiConversation[]
+  searchEvents              SearchEvent[]
+  kushkiOnboardingStatus    KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes     String?
+  kushkiSubmittedAt         DateTime?
+  kushkiActivatedAt         DateTime?
 
   // Bank info — populated by AI OCR of the bank certification then verified
   // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).
@@ -137,22 +137,22 @@ model Restaurant {
   // los restaurantes existentes no la tienen configurada y queremos
   // que activen explícitamente desde /operator/settings/reservas
   // (que aparece sólo cuando el módulo está prendido).
-  reservationsEnabled Boolean       @default(false)
+  reservationsEnabled       Boolean       @default(false)
   // Config JSON con turnos por día, duración del slot, auto-confirm,
   // anticipación mínima, etc. Shape: ReservationConfig (ver
   // src/lib/reservations.ts). Null = usar defaults del helper.
-  reservationConfig   Json?
+  reservationConfig         Json?
   // Plano del salón: grilla (cols/rows) + zonas (jardín, terraza,
   // interior…) + markers (entrada, baños, barra…). Las posiciones de
   // las mesas siguen en Table.floorPlanX/Y. Shape: FloorPlan (ver
   // src/lib/floorPlan.ts). Null = grilla por defecto sin zonas.
-  floorPlan           Json?
+  floorPlan                 Json?
   // Qué medios de pago se ofrecen para el DEPÓSITO de reserva. Subconjunto
   // de los métodos online del comercio (tarjeta/PSE/Apple Pay) — efectivo
   // y datáfono no sirven para apartar a distancia. Array de slugs (ver
   // src/lib/paymentMethods.ts). Null = todos los online habilitados.
   reservationDepositMethods Json?
-  reservations        Reservation[]
+  reservations              Reservation[]
 
   // Does this restaurant have a dedicated bartender / barista (separate
   // person from cooks)? Controls whether items routed to station=bar get
@@ -200,11 +200,11 @@ model Restaurant {
   // código ISO-3166-1 alpha-2 en mayúsculas (CO, MX, BR, US) para filtros
   // estables; countryName el nombre legible mostrado. address es la línea
   // formateada que devuelve Places.
-  address      String?
-  city         String?
-  country      String? // ISO alpha-2 (CO, MX, …)
-  countryName  String? // nombre legible (Colombia, México, …)
-  placeId      String? // Google Places place_id (referencia futura)
+  address     String?
+  city        String?
+  country     String? // ISO alpha-2 (CO, MX, …)
+  countryName String? // nombre legible (Colombia, México, …)
+  placeId     String? // Google Places place_id (referencia futura)
 
   // Resolución DIAN — texto descriptivo del acto administrativo
   // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
@@ -244,13 +244,13 @@ model Restaurant {
   //                 jornada. Coexiste con el shift global del restaurante
   //                 si lo hay; sirve para que el mesero tenga su propio
   //                 corte aunque la caja sea una sola.
-  tipPolicy   String @default("shared")
-  shiftPolicy String @default("global")
+  tipPolicy               String @default("shared")
+  shiftPolicy             String @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de
   // madrugada (corte 5 = 05:00, así lo de 00:00–05:00 cuenta como el
   // día anterior). 0 = medianoche.
-  businessDayCutoffHour Int @default(5)
+  businessDayCutoffHour   Int    @default(5)
   // Qué hacer si un mesero abre su turno sin que el local haya abierto el
   // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
@@ -280,6 +280,7 @@ model Restaurant {
   stockLevels         StockLevel[]
   stockMovements      StockMovement[]
   stockCounts         StockCount[]
+  purchaseOrders      PurchaseOrder[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -405,24 +406,24 @@ model PlanConfig {
 /// necesidad de redeploy, pero está pensado para crecer (otros
 /// toggles plataforma-wide). La fila usa id="singleton" como pk.
 model PlatformConfig {
-  id          String   @id @default("singleton")
+  id                         String   @id @default("singleton")
   /// "mock" | "sandbox" | "production". Usamos String en vez de enum
   /// para permitir modos futuros sin schema migration. Si el valor
   /// no matchea ninguno conocido, el helper cae a env.KUSHKI_MODE.
-  kushkiMode  String   @default("mock")
-  updatedAt   DateTime @updatedAt
-  updatedById String?
+  kushkiMode                 String   @default("mock")
+  updatedAt                  DateTime @updatedAt
+  updatedById                String?
   // Default global de mensajes/día del asistente Pulso (override por comercio
   // en Restaurant.aiDailyMessageLimit).
-  aiDailyMessageLimit Int @default(50)
+  aiDailyMessageLimit        Int      @default(50)
   // Default global de comisión en basis points; override por comercial y por comercio.
-  salesCommissionBps  Int @default(1000)
+  salesCommissionBps         Int      @default(1000)
   // Credenciales Kushki de plataforma para cobro de suscripciones a restaurantes.
   // La clave pública es segura (se pasa al browser para tokenizar tarjetas).
   // La clave privada se almacena cifrada con AES-GCM (ver src/lib/crypto.ts).
   // Fallback: si están vacías, se leen de env KUSHKI_BILLING_PUBLIC_KEY / KUSHKI_BILLING_PRIVATE_KEY.
-  kushkiBillingPublicKey      String?
-  kushkiBillingPrivateKeyEnc  String?
+  kushkiBillingPublicKey     String?
+  kushkiBillingPrivateKeyEnc String?
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints
@@ -479,7 +480,7 @@ model MembershipPayment {
   recordedByEmail String
   createdAt       DateTime         @default(now())
   providerRef     String? // id de transacción Kushki (null en pagos manuales)
-  kind            String  @default("manual") // "initial" | "recurring" | "proration" | "manual"
+  kind            String           @default("manual") // "initial" | "recurring" | "proration" | "manual"
 
   commissionEntry CommissionEntry?
 
@@ -605,13 +606,13 @@ model User {
   // field; only the mesero role is filtered.
   assignedTableNumbers Int[] @default([])
 
-  shiftsOpened Shift[] @relation("ShiftsOpened")
-  shiftsClosed Shift[] @relation("ShiftsClosed")
+  shiftsOpened  Shift[]        @relation("ShiftsOpened")
+  shiftsClosed  Shift[]        @relation("ShiftsClosed")
   cashMovements CashMovement[] @relation("CashMovementCreator")
   // Shifts donde este user es el dueño (modo by_waiter). Distinto a
   // shiftsOpened/Closed que pueden referenciar al operador que
   // abrió/cerró un turno de OTRO mesero (admin operativo).
-  shiftsOfUser Shift[] @relation("ShiftsOfUser")
+  shiftsOfUser  Shift[]        @relation("ShiftsOfUser")
 
   // Pagos físicamente cobrados por este user (mesero/operator). Útil
   // para vista "Yo": sum(tipCents) + count(payments) por turno.
@@ -622,6 +623,7 @@ model User {
   // ERP: movimientos de inventario / conteos creados por este usuario.
   stockMovements StockMovement[] @relation("StockMovementCreator")
   stockCounts    StockCount[]    @relation("StockCountCreator")
+  purchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreator")
 
   // Comisiones comerciales
   commissionBps       Int?
@@ -642,15 +644,15 @@ model User {
   team        User[]  @relation("SalesTeam")
 
   // CRM inverse relations
-  assignedCrmLeads  CrmLead[]        @relation("CrmAssigned")
-  createdCrmLeads   CrmLead[]        @relation("CrmCreated")
-  crmActivities     CrmActivity[]
-  crmAppointments   CrmAppointment[]
-  crmEmailAccount   CrmEmailAccount?
-  crmDocuments      CrmDocument[]
-  crmEmailTemplates CrmEmailTemplate[]
+  assignedCrmLeads     CrmLead[]             @relation("CrmAssigned")
+  createdCrmLeads      CrmLead[]             @relation("CrmCreated")
+  crmActivities        CrmActivity[]
+  crmAppointments      CrmAppointment[]
+  crmEmailAccount      CrmEmailAccount?
+  crmDocuments         CrmDocument[]
+  crmEmailTemplates    CrmEmailTemplate[]
   crmWhatsappTemplates CrmWhatsappTemplate[]
-  passwordResetTokens PasswordResetToken[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@index([restaurantId])
   @@index([groupId])
@@ -729,12 +731,12 @@ model Table {
   // reservable: si la mesa acepta reservas (algunas son walk-in only).
   // floorPlanX/Y: coords en la grilla del editor visual (Fase 4).
   // null/null = mesa todavía no posicionada.
-  capacity            Int        @default(4)
-  minConsumptionCents Int?
-  shape               TableShape @default(square)
-  reservable          Boolean    @default(true)
-  floorPlanX          Int?
-  floorPlanY          Int?
+  capacity                Int        @default(4)
+  minConsumptionCents     Int?
+  shape                   TableShape @default(square)
+  reservable              Boolean    @default(true)
+  floorPlanX              Int?
+  floorPlanY              Int?
   // Depósito para reservar esta mesa. null/0 = sin depósito. Se cobra
   // online al reservar (tarjeta/PSE) y se abona a la cuenta al llegar
   // (no reembolsable si no se presentan). Lo edita el operador en
@@ -797,7 +799,7 @@ model Reservation {
   // appliedOrderId: orden a la que se acreditó el abono (status=applied).
   // depositPaymentId: el Payment-crédito que se creó al acreditar.
   depositCents     Int?
-  depositStatus    DepositStatus     @default(none)
+  depositStatus    DepositStatus  @default(none)
   depositMethod    PaymentMethod?
   depositTxId      String?
   holdExpiresAt    DateTime?
@@ -807,10 +809,10 @@ model Reservation {
   // Idioma del comensal al reservar (cookie MESAPAY_LOCALE). El email de
   // confirmación se manda en este idioma aunque lo dispare un webhook de
   // depósito (sin cookie). null ⇒ default (es). i18n fase 4.
-  locale           String?
+  locale String?
 
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([restaurantId, startsAt])
   @@index([tableId, startsAt])
@@ -994,7 +996,7 @@ model Order {
   // mandar la factura/bienvenida en su idioma incluso cuando el email lo
   // dispara el operador (cobro en caja/datáfono) o un webhook futuro, donde
   // no hay cookie del comensal. null ⇒ default (es). i18n fase 4.
-  locale    String?
+  locale String?
 
   subtotalCents Int @default(0)
   tipCents      Int @default(0)
@@ -1182,12 +1184,12 @@ enum PaymentMethod {
 
 /**
  * Estado del depósito de una reserva.
- *   none      — la mesa no exige depósito.
- *   pending   — reserva creada, esperando el pago del depósito (hold).
- *   paid      — depósito cobrado OK; la reserva queda confirmada.
- *   applied   — el abono ya se acreditó a la cuenta cuando llegaron.
- *   forfeited — no se presentaron (no-show): el comercio lo retiene.
- *   refunded  — se devolvió (futuro / casos manuales).
+ * none      — la mesa no exige depósito.
+ * pending   — reserva creada, esperando el pago del depósito (hold).
+ * paid      — depósito cobrado OK; la reserva queda confirmada.
+ * applied   — el abono ya se acreditó a la cuenta cuando llegaron.
+ * forfeited — no se presentaron (no-show): el comercio lo retiene.
+ * refunded  — se devolvió (futuro / casos manuales).
  */
 enum DepositStatus {
   none
@@ -1345,9 +1347,9 @@ model CashMovement {
 // (SupplierIngredient.contentQty en unidad base), no unidades.
 
 enum MeasureKind {
-  mass   // base: gramo
+  mass // base: gramo
   volume // base: mililitro
-  count  // base: unidad
+  count // base: unidad
 }
 
 /// Insumo / materia prima del comercio. Base de inventario (A1),
@@ -1368,10 +1370,11 @@ model Ingredient {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  supplierItems   SupplierIngredient[]
-  stockLevel      StockLevel?
-  stockMovements  StockMovement[]
-  stockCountItems StockCountItem[]
+  supplierItems      SupplierIngredient[]
+  stockLevel         StockLevel?
+  stockMovements     StockMovement[]
+  stockCountItems    StockCountItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1394,7 +1397,8 @@ model Supplier {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  items SupplierIngredient[]
+  items          SupplierIngredient[]
+  purchaseOrders PurchaseOrder[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1424,6 +1428,9 @@ model SupplierIngredient {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  poItems      PurchaseOrderItem[]
+  priceHistory SupplierPriceHistory[]
+
   @@unique([supplierId, ingredientId])
   @@index([ingredientId])
 }
@@ -1437,16 +1444,16 @@ model SupplierIngredient {
 // camino de escritura: applyStockMovement en src/lib/erp/stock.ts.
 
 enum StockMovementKind {
-  purchase_in      // entrada de mercancía (manual en A1; recepción de OC en A2)
-  adjust_in        // ajuste manual +
-  adjust_out       // ajuste manual −
-  count_adjust     // diferencia de conteo físico (±)
-  waste            // merma (−) con motivo
+  purchase_in // entrada de mercancía (manual en A1; recepción de OC en A2)
+  adjust_in // ajuste manual +
+  adjust_out // ajuste manual −
+  count_adjust // diferencia de conteo físico (±)
+  waste // merma (−) con motivo
   sale_consumption // A4 — consumo automático por venta
-  transfer_in      // A5
-  transfer_out     // A5
-  production_in    // A5
-  production_out   // A5
+  transfer_in // A5
+  transfer_out // A5
+  production_in // A5
+  production_out // A5
 }
 
 enum WasteReason {
@@ -1475,21 +1482,24 @@ model StockLevel {
 /// Libro de movimientos — APPEND-ONLY. Correcciones = movimiento contrario.
 /// qtyBase y valueCents llevan SIGNO (+entra / −sale).
 model StockMovement {
-  id           String            @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  ingredientId String
-  ingredient   Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-  kind         StockMovementKind
-  qtyBase      Int
-  valueCents   Int
-  wasteReason  WasteReason?
-  note         String?
-  stockCountId String?
-  stockCount   StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
-  createdById  String?
-  createdBy    User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt    DateTime          @default(now())
+  id              String            @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId    String
+  ingredient      Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  kind            StockMovementKind
+  qtyBase         Int
+  valueCents      Int
+  wasteReason     WasteReason?
+  note            String?
+  stockCountId    String?
+  stockCount      StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
+  // A2: recepciones de OC — el libro ES el registro de recepción (spec D3).
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
 
   @@index([restaurantId, createdAt])
   @@index([ingredientId, createdAt])
@@ -1531,6 +1541,93 @@ model StockCountItem {
   countedQty   Int? // null = todavía sin contar
 
   @@unique([countId, ingredientId])
+}
+
+// === ERP · Fase A2: compras (OCs, recepción, precios, CxP) =================
+// Spec: docs/superpowers/specs/2026-07-04-erp-a2-compras-design.md
+// Se pide en presentaciones del proveedor, se guarda en unidad base. La
+// recepción genera purchase_in vía applyStockMovement (el libro ES el
+// registro de recepción — StockMovement.purchaseOrderId). CxP acotada a
+// compras: factura del proveedor + vencimiento + pagada en la propia OC.
+
+enum PurchaseOrderStatus {
+  draft
+  sent
+  partially_received
+  received
+  canceled
+}
+
+model PurchaseOrder {
+  id           String              @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  // Consecutivo por comercio ("OC-0007"), asignado max+1 en la tx de creación.
+  number       Int
+  status       PurchaseOrderStatus @default(draft)
+  notes        String?
+  expectedAt   DateTime? // entrega esperada
+  sentAt       DateTime?
+  receivedAt   DateTime? // recepción COMPLETA
+  canceledAt   DateTime?
+
+  // CxP (spec D5). invoiceDueAt default: receivedAt + paymentTermsDays.
+  supplierInvoiceNumber String?
+  invoiceDueAt          DateTime?
+  paidAt                DateTime?
+  paymentNote           String?
+
+  createdById String?
+  createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items        PurchaseOrderItem[]
+  movements    StockMovement[]
+  priceHistory SupplierPriceHistory[]
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId, status])
+  @@index([restaurantId, invoiceDueAt])
+}
+
+model PurchaseOrderItem {
+  id              String              @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredientId    String
+  ingredient      Ingredient          @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  supplierItemId  String?
+  supplierItem    SupplierIngredient? @relation(fields: [supplierItemId], references: [id], onDelete: SetNull)
+
+  // Pedido (spec D2): SIEMPRE en unidad base; presentations solo cuando la
+  // línea viene de la lista de precios (qtyOrderedBase = n × contentQty).
+  qtyOrderedBase    Int
+  presentations     Int?
+  expectedCostCents Int // costo total esperado de la línea
+
+  // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
+  receivedQtyBase   Int @default(0)
+  receivedCostCents Int @default(0)
+
+  @@index([purchaseOrderId])
+}
+
+/// Historial de precios por presentación de la lista de precios (spec D4).
+/// source: "reception" (recepción de OC) | "manual" (edición en la lista).
+model SupplierPriceHistory {
+  id              String             @id @default(cuid())
+  supplierItemId  String
+  supplierItem    SupplierIngredient @relation(fields: [supplierItemId], references: [id], onDelete: Cascade)
+  priceCents      Int // por presentación
+  source          String
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdAt       DateTime           @default(now())
+
+  @@index([supplierItemId, createdAt])
 }
 
 // === Kushki integration ====================================================
@@ -1655,7 +1752,7 @@ model TerminalDevice {
   // Configuración → Datáfonos. null en devices legacy/mock.
   serialNumber   String?
   label          String
-  active          Boolean    @default(true)
+  active         Boolean    @default(true)
   lastSeenAt     DateTime?
   assignedUserId String?
   assignedUser   User?      @relation(fields: [assignedUserId], references: [id])
@@ -1772,17 +1869,14 @@ model InvoiceRequest {
 
 /**
  * Traducciones de CONTENIDO cargado por cada restaurante (no de la UI).
- *
  * Los nombres/descripciones de platos, categorías, etiquetas, etc. viven
  * en español en sus modelos. Esto NO se puede traducir con catálogos
  * estáticos. Acá guardamos la traducción por (entidad, campo, idioma),
  * generada on-demand con IA (ver src/lib/translateContent.ts) y cacheada.
- *
  * - source: "machine" (IA) | "human" (editada por el operador).
  * - sourceHash: hash del texto original al momento de traducir; si el
- *   operador cambia el original, detectamos que la traducción quedó
- *   obsoleta y la regeneramos.
- *
+ * operador cambia el original, detectamos que la traducción quedó
+ * obsoleta y la regeneramos.
  * Tabla genérica a propósito: agregar un modelo traducible nuevo no
  * requiere migración, sólo pasar su entityType.
  */
@@ -1866,20 +1960,20 @@ enum CrmStage {
 /// Lead comercial — el corazón del CRM.
 /// Un lead es un restaurante potencial que el comercial está trabajando.
 model CrmLead {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
-  countryCode  String    // ISO-2 (CO, MX, …)
-  cityId       String?   // → CrmCity
-  city         CrmCity?  @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  countryCode  String // ISO-2 (CO, MX, …)
+  cityId       String? // → CrmCity
+  city         CrmCity? @relation(fields: [cityId], references: [id], onDelete: SetNull)
   address      String?
-  zone         String?   // barrio / zona comercial
-  businessType String?   // tipo de negocio (restaurante, cafetería, etc.)
-  stage        CrmStage  @default(nuevo)
-  priority     String    @default("b") // a | b | c
-  source       String?   // cómo llegó el lead: directo, referido, csv, etc.
-  planProposed String?   // plan que se le propone (trial, basic, pro)
-  unitsCount   Int?      // número de locales (para cadenas)
-  unitNames    String[]  @default([]) // nombres de los restaurantes/marcas del grupo
+  zone         String? // barrio / zona comercial
+  businessType String? // tipo de negocio (restaurante, cafetería, etc.)
+  stage        CrmStage @default(nuevo)
+  priority     String   @default("b") // a | b | c
+  source       String? // cómo llegó el lead: directo, referido, csv, etc.
+  planProposed String? // plan que se le propone (trial, basic, pro)
+  unitsCount   Int? // número de locales (para cadenas)
+  unitNames    String[] @default([]) // nombres de los restaurantes/marcas del grupo
 
   // Asignación + creación
   assignedToUserId String
@@ -1888,8 +1982,8 @@ model CrmLead {
   createdBy        User   @relation("CrmCreated", fields: [createdByUserId], references: [id])
 
   // Seguimiento temporal
-  nextActionAt     DateTime?
-  lastActivityAt   DateTime?
+  nextActionAt   DateTime?
+  lastActivityAt DateTime?
 
   // Cierre
   lostReason   String?
@@ -1912,14 +2006,14 @@ model CrmLead {
 
 /// Contacto de un lead. Puede haber varios; uno es principal.
 model CrmContact {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   leadId    String
-  lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead      CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   name      String
-  role      String?  // cargo: dueño, gerente, chef, etc.
-  phone     String?  // E.164
+  role      String? // cargo: dueño, gerente, chef, etc.
+  phone     String? // E.164
   email     String?
-  isPrimary Boolean  @default(false)
+  isPrimary Boolean @default(false)
   notes     String?
 
   @@index([leadId])
@@ -1933,9 +2027,9 @@ model CrmActivity {
   lead      CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  type      String   // note | call | whatsapp | email | visit | stage_change | appointment
+  type      String // note | call | whatsapp | email | visit | stage_change | appointment
   content   String
-  meta      Json?    // metadata extra: asunto de email, de/para en stage_change, etc.
+  meta      Json? // metadata extra: asunto de email, de/para en stage_change, etc.
   createdAt DateTime @default(now())
 
   @@index([leadId, createdAt])
@@ -1944,17 +2038,17 @@ model CrmActivity {
 /// Cita agendada con el prospecto.
 /// status: scheduled | done | cancelled
 model CrmAppointment {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   leadId     String
-  lead       CrmLead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead       CrmLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   userId     String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
   title      String
   startsAt   DateTime
   endsAt     DateTime
   notes      String?
   remindedAt DateTime? // cuándo se envió el push-recordatorio
-  status     String   @default("scheduled") // scheduled | done | cancelled
+  status     String    @default("scheduled") // scheduled | done | cancelled
 
   @@index([userId, startsAt])
   @@index([leadId])
@@ -1963,15 +2057,15 @@ model CrmAppointment {
 /// Documento compartido (PDF, imagen) que los comerciales adjuntan a plantillas.
 /// scope: global (todos) | user (solo el dueño).
 model CrmDocument {
-  id           String   @id @default(cuid())
-  name         String
-  fileUrl      String
-  mime         String
-  size         Int      // bytes
-  scope        String   @default("global") // global | user
-  ownerUserId  String?
-  owner        User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  fileUrl     String
+  mime        String
+  size        Int // bytes
+  scope       String   @default("global") // global | user
+  ownerUserId String?
+  owner       User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
 
   @@index([ownerUserId])
 }
@@ -2014,14 +2108,14 @@ model CrmWhatsappTemplate {
 /// Cuenta SMTP personal del comercial para enviar correos desde el CRM.
 /// smtpPassEnc: contraseña cifrada con AES (src/lib/crypto.ts).
 model CrmEmailAccount {
-  userId      String   @id // un usuario, una cuenta
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String    @id // un usuario, una cuenta
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   fromName    String
   email       String
   smtpHost    String
   smtpPort    Int
   smtpUser    String
-  smtpPassEnc String   // AES-GCM ciphertext
+  smtpPassEnc String // AES-GCM ciphertext
   verifiedAt  DateTime? // se setea cuando el test de envío pasa OK
 
   @@index([userId])

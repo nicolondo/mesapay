@@ -51,6 +51,21 @@ export async function PATCH(
         data: { preferred: false },
       });
     }
+    // A2 (spec D4): cambio manual de precio → historial. Las recepciones
+    // de OC appendean lo suyo con source "reception".
+    if (
+      b.lastPriceCents !== undefined &&
+      b.lastPriceCents !== null &&
+      b.lastPriceCents !== item.lastPriceCents
+    ) {
+      await tx.supplierPriceHistory.create({
+        data: {
+          supplierItemId: id,
+          priceCents: b.lastPriceCents,
+          source: "manual",
+        },
+      });
+    }
     return tx.supplierIngredient.update({
       where: { id },
       data: {

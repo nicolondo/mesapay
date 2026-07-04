@@ -277,6 +277,9 @@ model Restaurant {
   cashMovements       CashMovement[]
   ingredients         Ingredient[]
   suppliers           Supplier[]
+  stockLevels         StockLevel[]
+  stockMovements      StockMovement[]
+  stockCounts         StockCount[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -615,6 +618,10 @@ model User {
   paymentsCollected Payment[] @relation("PaymentsCollected")
 
   pushSubscriptions PushSubscription[]
+
+  // ERP: movimientos de inventario / conteos creados por este usuario.
+  stockMovements StockMovement[] @relation("StockMovementCreator")
+  stockCounts    StockCount[]    @relation("StockCountCreator")
 
   // Comisiones comerciales
   commissionBps       Int?
@@ -1361,7 +1368,10 @@ model Ingredient {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  supplierItems SupplierIngredient[]
+  supplierItems   SupplierIngredient[]
+  stockLevel      StockLevel?
+  stockMovements  StockMovement[]
+  stockCountItems StockCountItem[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1416,6 +1426,111 @@ model SupplierIngredient {
 
   @@unique([supplierId, ingredientId])
   @@index([ingredientId])
+}
+
+// === ERP · Fase A1: inventario core =======================================
+// Spec: docs/superpowers/specs/2026-07-03-erp-a1-inventario-design.md
+// Libro inmutable (StockMovement, append-only) + saldo materializado
+// (StockLevel, actualizado en la MISMA tx). Costo promedio ponderado con
+// enteros exactos: qtyBase + totalValueCents, promedio = derivado. El stock
+// puede quedar negativo (el inventario nunca bloquea la operación). Único
+// camino de escritura: applyStockMovement en src/lib/erp/stock.ts.
+
+enum StockMovementKind {
+  purchase_in      // entrada de mercancía (manual en A1; recepción de OC en A2)
+  adjust_in        // ajuste manual +
+  adjust_out       // ajuste manual −
+  count_adjust     // diferencia de conteo físico (±)
+  waste            // merma (−) con motivo
+  sale_consumption // A4 — consumo automático por venta
+  transfer_in      // A5
+  transfer_out     // A5
+  production_in    // A5
+  production_out   // A5
+}
+
+enum WasteReason {
+  expired
+  damaged
+  kitchen_error
+  spill
+  other
+}
+
+/// Saldo materializado por insumo (1:1 con Ingredient). Costo promedio =
+/// totalValueCents / qtyBase (derivado, nunca persistido).
+model StockLevel {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId    String     @unique
+  ingredient      Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  qtyBase         Int        @default(0) // puede ser negativo (señal de conteo)
+  totalValueCents Int        @default(0)
+  updatedAt       DateTime   @updatedAt
+
+  @@index([restaurantId])
+}
+
+/// Libro de movimientos — APPEND-ONLY. Correcciones = movimiento contrario.
+/// qtyBase y valueCents llevan SIGNO (+entra / −sale).
+model StockMovement {
+  id           String            @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  kind         StockMovementKind
+  qtyBase      Int
+  valueCents   Int
+  wasteReason  WasteReason?
+  note         String?
+  stockCountId String?
+  stockCount   StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([ingredientId, createdAt])
+}
+
+enum StockCountStatus {
+  draft
+  closed
+}
+
+/// Sesión de conteo físico. El teórico (expectedQty) se CONGELA al crear la
+/// sesión; el cierre genera count_adjust por cada diferencia y deja el
+/// reporte de desviación permanente. Máx. 1 sesión draft por comercio
+/// (lo aplica la API).
+model StockCount {
+  id           String           @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  status       StockCountStatus @default(draft)
+  notes        String?
+  createdById  String?
+  createdBy    User?            @relation("StockCountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  closedAt     DateTime?
+
+  items     StockCountItem[]
+  movements StockMovement[]
+
+  @@index([restaurantId, status])
+}
+
+model StockCountItem {
+  id           String     @id @default(cuid())
+  countId      String
+  count        StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  expectedQty  Int // snapshot del teórico al crear la sesión
+  countedQty   Int? // null = todavía sin contar
+
+  @@unique([countId, ingredientId])
 }
 
 // === Kushki integration ====================================================

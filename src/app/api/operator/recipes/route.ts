@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { costRecipeItems } from "@/lib/erp/recipes";
+import { costRecipeItems, resolveIngredientCost } from "@/lib/erp/recipes";
 import { loadCostContext } from "@/lib/erp/recipeData";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -118,5 +118,22 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ dishes, subRecipes: subs });
+  // Catálogo de insumos con su costo resuelto (cascada D3) — alimenta el
+  // picker del editor y el recálculo de costos EN VIVO en el cliente sin
+  // otro fetch: costo de línea = round(bruto × costPerBase).
+  const ingredients = [...meta.values()]
+    .filter((m) => m.active)
+    .map((m) => {
+      const cost = resolveIngredientCost(costCtx, m.id);
+      return {
+        id: m.id,
+        name: m.name,
+        measureKind: m.measureKind,
+        costPerBase: cost?.costPerBase ?? null,
+        costSource: cost?.source ?? null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return NextResponse.json({ dishes, subRecipes: subs, ingredients });
 }

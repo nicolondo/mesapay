@@ -281,6 +281,7 @@ model Restaurant {
   stockMovements      StockMovement[]
   stockCounts         StockCount[]
   purchaseOrders      PurchaseOrder[]
+  recipes             Recipe[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -933,6 +934,7 @@ model MenuItem {
   tags        String[]
   photoUrl    String?
   modifiers   Json?
+  recipe      Recipe? // ERP A3 — receta del plato (costeo + consumo A4)
   available   Boolean      @default(true)
   sortOrder   Int          @default(0)
   // Float: permite tiempos con decimales (ej. 1.5 min para bebidas).
@@ -1375,6 +1377,8 @@ model Ingredient {
   stockMovements     StockMovement[]
   stockCountItems    StockCountItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  recipe             Recipe?              @relation("IngredientRecipe")
+  recipeItems        RecipeItem[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1628,6 +1632,49 @@ model SupplierPriceHistory {
   createdAt       DateTime           @default(now())
 
   @@index([supplierItemId, createdAt])
+}
+
+// === ERP · Fase A3: recetas y costeo =======================================
+// Spec: docs/superpowers/specs/2026-07-05-erp-a3-recetas-design.md
+// Receta 1:1 por plato (menuItemId) O sub-receta 1:1 por insumo elaborado
+// (outputIngredientId + rendimiento). El costo NUNCA se persiste — se
+// deriva en vivo con la cascada de src/lib/erp/recipes.ts (inventario →
+// sub-receta → proveedor preferido → "incompleto").
+
+model Recipe {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  menuItemId String?   @unique
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  outputIngredientId String?     @unique
+  outputIngredient   Ingredient? @relation("IngredientRecipe", fields: [outputIngredientId], references: [id], onDelete: Cascade)
+  outputQtyBase      Int? // rendimiento del batch (solo sub-receta)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items RecipeItem[]
+
+  @@index([restaurantId])
+}
+
+model RecipeItem {
+  id           String     @id @default(cuid())
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  /// Cantidad NETA al plato, en unidad base del insumo.
+  qtyBase  Int
+  /// Merma de preparación 0-90 (%). El costo usa bruto = neto / (1 − merma).
+  wastePct Int @default(0)
+
+  @@unique([recipeId, ingredientId])
 }
 
 // === Kushki integration ====================================================

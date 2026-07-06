@@ -58,6 +58,20 @@ export function subscribeTenant(tenantId: string, fn: Listener) {
 }
 
 export function publishOrderEvent(tenantId: string, e: OrderEvent) {
+  // ERP A4: una orden pagada dispara el consumo automático de inventario
+  // fuera del request (el pago nunca espera ni falla por inventario; el
+  // cron stock-consumption es el respaldo). Import perezoso para que las
+  // rutas ligeras que publican eventos no carguen el ERP, y para evitar
+  // ciclos de import.
+  if (e.type === "order.paid") {
+    setImmediate(() => {
+      import("./erp/consumption")
+        .then((m) => m.consumeOrderStock(e.orderId))
+        .catch((err) =>
+          console.error("[consumption] hook order.paid falló", err),
+        );
+    });
+  }
   const set = bus.get(tenantId);
   if (!set) return;
   for (const fn of set) fn(e);

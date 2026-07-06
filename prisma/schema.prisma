@@ -1016,11 +1016,16 @@ model Order {
   needsWaiter    Boolean   @default(false)
   waiterCalledAt DateTime?
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  placedAt  DateTime?
-  servedAt  DateTime?
-  paidAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  placedAt        DateTime?
+  servedAt        DateTime?
+  paidAt          DateTime?
+  // A4 — marca idempotente del consumo automático de inventario: se
+  // reclama con updateMany({ stockConsumedAt: null }) en la misma tx que
+  // los movimientos. Set también cuando no hay nada que consumir
+  // (módulos apagados / sin recetas) para que el cron no re-visite.
+  stockConsumedAt DateTime?
 
   items           OrderItem[]
   payments        Payment[]
@@ -1028,6 +1033,7 @@ model Order {
   ratings         DishRating[]
   invoiceRequests InvoiceRequest[]
   simpleInvoice   SimpleInvoice?
+  stockMovements  StockMovement[]
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -1358,19 +1364,23 @@ enum MeasureKind {
 /// compras (A2) y recetas (A3). Soft-delete vía active — las fases
 /// siguientes referencian estas filas desde movimientos/recetas/OCs.
 model Ingredient {
-  id           String      @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name         String
+  id               String      @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name             String
   // Categoría libre ("Proteínas", "Lácteos", "Empaques"…) — sin taxonomía
   // impuesta; la UI sugiere las existentes del comercio con un datalist.
-  category     String?
-  measureKind  MeasureKind
-  sku          String?
-  notes        String?
-  active       Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  category         String?
+  measureKind      MeasureKind
+  sku              String?
+  notes            String?
+  active           Boolean     @default(true)
+  // A4 — punto de reorden en unidad base (null = sin aviso) y cantidad
+  // sugerida de compra (null = pedir hasta cubrir el punto).
+  reorderPointBase Int?
+  reorderQtyBase   Int?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   supplierItems      SupplierIngredient[]
   stockLevel         StockLevel?
@@ -1501,12 +1511,16 @@ model StockMovement {
   // A2: recepciones de OC — el libro ES el registro de recepción (spec D3).
   purchaseOrderId String?
   purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  // A4: consumo por venta — orden pagada que originó el sale_consumption.
+  orderId         String?
+  order           Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
   createdById     String?
   createdBy       User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime          @default(now())
 
   @@index([restaurantId, createdAt])
   @@index([ingredientId, createdAt])
+  @@index([orderId])
 }
 
 enum StockCountStatus {

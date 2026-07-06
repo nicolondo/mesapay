@@ -17,6 +17,10 @@ const patchSchema = z.object({
   sku: z.string().trim().max(60).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   active: z.boolean().optional(),
+  // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
+  // aviso / pedir hasta cubrir el punto).
+  reorderPointBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
+  reorderQtyBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
 });
 
 async function loadOwned(id: string, restaurantId: string) {
@@ -76,6 +80,12 @@ export async function PATCH(
       ...(b.sku !== undefined ? { sku: b.sku || null } : {}),
       ...(b.notes !== undefined ? { notes: b.notes || null } : {}),
       ...(b.active !== undefined ? { active: b.active } : {}),
+      ...(b.reorderPointBase !== undefined
+        ? { reorderPointBase: b.reorderPointBase }
+        : {}),
+      ...(b.reorderQtyBase !== undefined
+        ? { reorderQtyBase: b.reorderQtyBase }
+        : {}),
     },
   });
   return NextResponse.json({ ingredient: updated });

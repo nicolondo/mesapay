@@ -24,8 +24,25 @@ type StockRow = {
   category: string | null;
   measureKind: MeasureKind;
   active: boolean;
+  // A4 — punto de reorden (null = sin aviso) y cantidad sugerida de compra.
+  reorderPointBase: number | null;
+  reorderQtyBase: number | null;
   stockLevel: StockLevel | null;
 };
+
+/**
+ * "Bajo mínimo" (spec A4·D3): existencia actual ≤ punto de reorden,
+ * negativos incluidos; sin nivel de stock cuenta como 0. Insumos sin
+ * punto de reorden nunca alertan, y los inactivos tampoco — no tiene
+ * sentido pedir un insumo descatalogado.
+ */
+function isLowStock(r: StockRow): boolean {
+  return (
+    r.active &&
+    r.reorderPointBase != null &&
+    (r.stockLevel?.qtyBase ?? 0) <= r.reorderPointBase
+  );
+}
 
 type MovementRow = {
   id: string;
@@ -130,6 +147,8 @@ export function InventarioClient({
   const [tab, setTab] = useState<Tab>("stock");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
+  // Filtro "bajo mínimo" (A4·D3) — lo activan el chip y el banner contador.
+  const [lowOnly, setLowOnly] = useState(false);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
 
   // Historial — se carga perezoso al abrir el tab; null = sin cargar (un
@@ -155,6 +174,7 @@ export function InventarioClient({
   const filtered = useMemo(() => {
     const needle = fold(q.trim());
     return rows.filter((r) => {
+      if (lowOnly && !isLowStock(r)) return false;
       if (cat !== "all" && r.category !== cat) return false;
       if (needle) {
         const hay = fold(`${r.name} ${r.category ?? ""}`);
@@ -162,7 +182,9 @@ export function InventarioClient({
       }
       return true;
     });
-  }, [rows, q, cat]);
+  }, [rows, q, cat, lowOnly]);
+
+  const lowCount = useMemo(() => rows.filter(isLowStock).length, [rows]);
 
   const activeIngredients = useMemo(
     () => rows.filter((r) => r.active),
@@ -325,7 +347,18 @@ export function InventarioClient({
             </button>
           </div>
 
-          {/* Búsqueda + filtro por categoría */}
+          {/* Aviso bajo mínimo (A4·D3): contador que aplica el filtro */}
+          {lowCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setLowOnly(true)}
+              className="w-full text-left rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3 text-sm font-medium text-[#7F5A1F] hover:bg-[#C98A2E]/15"
+            >
+              {t("reorderBannerCount", { count: lowCount })}
+            </button>
+          )}
+
+          {/* Búsqueda + filtros (categoría · bajo mínimo) */}
           <div className="space-y-2">
             <input
               type="search"
@@ -334,20 +367,35 @@ export function InventarioClient({
               placeholder={t("searchPlaceholder")}
               className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm focus:outline-none focus:border-op-text/40"
             />
-            {categories.length > 0 && (
-              <select
-                value={cat}
-                onChange={(e) => setCat(e.target.value)}
-                className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+            <div className="flex items-center gap-2 flex-wrap">
+              {categories.length > 0 && (
+                <select
+                  value={cat}
+                  onChange={(e) => setCat(e.target.value)}
+                  className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+                >
+                  <option value="all">{t("allCategories")}</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => setLowOnly((v) => !v)}
+                aria-pressed={lowOnly}
+                className={
+                  "min-h-[44px] px-4 rounded-full border text-xs font-medium transition-colors " +
+                  (lowOnly
+                    ? "border-ink bg-ink text-bone"
+                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
+                }
               >
-                <option value="all">{t("allCategories")}</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
+                {t("reorderLowBadge")}
+              </button>
+            </div>
           </div>
 
           {/* Existencias */}
@@ -369,6 +417,7 @@ export function InventarioClient({
                 const value = r.stockLevel?.totalValueCents ?? 0;
                 // Promedio derivado (spec D3) — solo con saldo positivo.
                 const avg = qty > 0 ? Math.round(value / qty) : null;
+                const low = isLowStock(r);
                 return (
                   <div
                     key={r.id}
@@ -389,9 +438,29 @@ export function InventarioClient({
                             {t("inactiveBadge")}
                           </span>
                         )}
+                        {low && (
+                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
+                            {t("reorderLowBadge")}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {r.category ?? t("noCategory")}
+                        {[
+                          r.category ?? t("noCategory"),
+                          // Referencia del umbral ("mín. 2 kg") en filas
+                          // bajo mínimo, para leer el aviso sin abrir nada.
+                          low && r.reorderPointBase != null
+                            ? t("reorderMinRef", {
+                                qty: formatBaseQty(
+                                  r.reorderPointBase,
+                                  r.measureKind,
+                                  locale,
+                                ),
+                              })
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </div>
                     </div>
                     <div className="text-right shrink-0">

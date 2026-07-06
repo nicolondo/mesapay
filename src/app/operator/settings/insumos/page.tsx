@@ -44,6 +44,9 @@ export default async function InsumosSettingsPage() {
       sku: true,
       notes: true,
       active: true,
+      // A4 — punto de reorden editable en el sheet.
+      reorderPointBase: true,
+      reorderQtyBase: true,
       _count: { select: { supplierItems: true } },
     },
   });

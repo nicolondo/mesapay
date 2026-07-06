@@ -43,6 +43,9 @@ export default async function InventarioPage() {
       category: true,
       measureKind: true,
       active: true,
+      // A4 — la UI marca "bajo mínimo" con qtyBase <= reorderPointBase.
+      reorderPointBase: true,
+      reorderQtyBase: true,
       stockLevel: {
         select: { qtyBase: true, totalValueCents: true, updatedAt: true },
       },

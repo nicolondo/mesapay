@@ -6,6 +6,7 @@ import {
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
   MEASURE_KINDS,
+  toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
 
@@ -17,6 +18,10 @@ type Ingredient = {
   sku: string | null;
   notes: string | null;
   active: boolean;
+  // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
+  // aviso / pedir hasta cubrir el punto).
+  reorderPointBase: number | null;
+  reorderQtyBase: number | null;
   _count: { supplierItems: number };
 };
 
@@ -36,6 +41,37 @@ function unitSymbols(kind: MeasureKind): string {
 /** Ej.: "Peso (g)" — label traducido + símbolo de la unidad base. */
 function dimLabel(t: (k: string) => string, kind: MeasureKind): string {
   return `${t(DIM_LABEL_KEYS[kind])} (${BASE_UNIT_SYMBOL[kind]})`;
+}
+
+// Entrada de cantidad en unidades display (raw digitado + unidad elegida).
+type QtyEntry = { raw: string; unit: string };
+
+/** 2500 g → { raw: "2.5", unit: "kg" } — para precargar inputs de cantidad. */
+function baseToQtyEntry(
+  base: number | null,
+  kind: MeasureKind,
+): QtyEntry {
+  if (base == null) return { raw: "", unit: BASE_UNIT_SYMBOL[kind] };
+  const units = DISPLAY_UNITS[kind];
+  const big = units[units.length - 1];
+  if (big.factor > 1 && base >= big.factor) {
+    return { raw: String(base / big.factor), unit: big.symbol };
+  }
+  return { raw: String(base), unit: units[0].symbol };
+}
+
+/**
+ * Parsea una cantidad opcional de reorden: vacío = null (sin aviso);
+ * inválida (precisión de toBaseQty, ≤ 0, etc.) = "invalid".
+ */
+function parseOptionalQty(
+  entry: QtyEntry,
+  kind: MeasureKind,
+): number | null | "invalid" {
+  const s = entry.raw.trim();
+  if (s === "") return null;
+  const n = Number(s.replace(",", "."));
+  return toBaseQty(n, kind, entry.unit) ?? "invalid";
 }
 
 /** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
@@ -270,17 +306,53 @@ function IngredientSheet({
   );
   const [sku, setSku] = useState(editing?.sku ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
+  // A4 — punto de reorden / cantidad a pedir en unidades display; vacío =
+  // null (sin aviso). Se convierten con toBaseQty al guardar.
+  const [point, setPoint] = useState<QtyEntry>(() =>
+    baseToQtyEntry(
+      editing?.reorderPointBase ?? null,
+      editing?.measureKind ?? "mass",
+    ),
+  );
+  const [orderQty, setOrderQty] = useState<QtyEntry>(() =>
+    baseToQtyEntry(
+      editing?.reorderQtyBase ?? null,
+      editing?.measureKind ?? "mass",
+    ),
+  );
+  // POST no acepta los campos de reorden: al crear se hace POST + PATCH.
+  // Si el PATCH falla, `created` deja el sheet en modo edición para que el
+  // reintento no choque con name_taken.
+  const [created, setCreated] = useState<Ingredient | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const current = editing ?? created;
 
   // Con referencias (lista de precios hoy; movimientos/recetas mañana) la
   // dimensión queda bloqueada — cambiarla corrompería cantidades históricas.
   const measureLocked = (editing?._count.supplierItems ?? 0) > 0;
 
+  // Al cambiar la dimensión, las unidades digitadas dejan de existir
+  // (kg no es unidad de volumen): se resetean a la base de la nueva.
+  function changeMeasureKind(k: MeasureKind) {
+    setMeasureKind(k);
+    setPoint((p) => ({ ...p, unit: BASE_UNIT_SYMBOL[k] }));
+    setOrderQty((p) => ({ ...p, unit: BASE_UNIT_SYMBOL[k] }));
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setErr(null);
+
+    const reorderPointBase = parseOptionalQty(point, measureKind);
+    const reorderQtyBase = parseOptionalQty(orderQty, measureKind);
+    if (reorderPointBase === "invalid" || reorderQtyBase === "invalid") {
+      setErr(t("reorderErrInvalid"));
+      return;
+    }
+
+    setBusy(true);
     const payload: Record<string, unknown> = {
       name: name.trim(),
       category: category.trim() || null,
@@ -289,19 +361,24 @@ function IngredientSheet({
     };
     // Con la dimensión bloqueada ni siquiera se manda el campo.
     if (!measureLocked) payload.measureKind = measureKind;
+    // El PATCH acepta el reorden directo; el POST no (se encadena abajo).
+    if (current) {
+      payload.reorderPointBase = reorderPointBase;
+      payload.reorderQtyBase = reorderQtyBase;
+    }
 
     const r = await fetch(
-      editing
-        ? `/api/operator/ingredients/${editing.id}`
+      current
+        ? `/api/operator/ingredients/${current.id}`
         : "/api/operator/ingredients",
       {
-        method: editing ? "PATCH" : "POST",
+        method: current ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       },
     );
-    setBusy(false);
     if (!r.ok) {
+      setBusy(false);
       const j = await r.json().catch(() => ({}));
       setErr(
         j.error === "name_taken"
@@ -313,9 +390,29 @@ function IngredientSheet({
       return;
     }
     const j = await r.json();
+    let saved = j.ingredient as Ingredient;
+
+    // Crear con reorden: PATCH encadenado solo con esos campos.
+    if (!current && (reorderPointBase != null || reorderQtyBase != null)) {
+      setCreated({ ...saved, _count: { supplierItems: 0 } });
+      const r2 = await fetch(`/api/operator/ingredients/${saved.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reorderPointBase, reorderQtyBase }),
+      });
+      if (!r2.ok) {
+        setBusy(false);
+        setErr(t("errSaveFailed"));
+        return;
+      }
+      const j2 = await r2.json();
+      saved = j2.ingredient as Ingredient;
+    }
+
+    setBusy(false);
     // POST/PATCH no incluyen _count — nuevo insumo arranca sin proveedores.
     onSaved({
-      ...(j.ingredient as Ingredient),
+      ...saved,
       _count: { supplierItems: editing?._count.supplierItems ?? 0 },
     });
   }
@@ -393,7 +490,7 @@ function IngredientSheet({
                   <button
                     key={k}
                     type="button"
-                    onClick={() => setMeasureKind(k)}
+                    onClick={() => changeMeasureKind(k)}
                     className={
                       "min-h-[44px] px-2 py-2 rounded-xl border text-center transition-colors " +
                       (measureKind === k
@@ -416,6 +513,22 @@ function IngredientSheet({
                 ))}
               </div>
             )}
+          </Field>
+
+          <Field label={t("reorderPointLabel")} hint={t("reorderPointHint")}>
+            <QtyUnitInput
+              kind={measureKind}
+              entry={point}
+              onChange={setPoint}
+            />
+          </Field>
+
+          <Field label={t("reorderQtyLabel")} hint={t("reorderQtyHint")}>
+            <QtyUnitInput
+              kind={measureKind}
+              entry={orderQty}
+              onChange={setOrderQty}
+            />
           </Field>
 
           <Field label={t("fieldSku")}>
@@ -459,6 +572,44 @@ function IngredientSheet({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** Cantidad + unidad display (mismo patrón que los sheets de inventario). */
+function QtyUnitInput({
+  kind,
+  entry,
+  onChange,
+}: {
+  kind: MeasureKind;
+  entry: QtyEntry;
+  onChange: (e: QtyEntry) => void;
+}) {
+  const unitOptions = DISPLAY_UNITS[kind];
+  return (
+    <div className="flex gap-2">
+      <input
+        type="number"
+        min={0}
+        step="any"
+        inputMode="decimal"
+        value={entry.raw}
+        onChange={(e) => onChange({ ...entry, raw: e.target.value })}
+        className={inputCls + " flex-1"}
+      />
+      <select
+        value={entry.unit}
+        onChange={(e) => onChange({ ...entry, unit: e.target.value })}
+        disabled={unitOptions.length < 2}
+        className="min-h-[44px] w-24 px-3 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
+      >
+        {unitOptions.map((u) => (
+          <option key={u.symbol} value={u.symbol}>
+            {u.symbol}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

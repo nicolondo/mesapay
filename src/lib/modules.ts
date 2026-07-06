@@ -40,7 +40,10 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // Fase A1 en producción: existencias con costeo promedio, movimientos
   // (entrada/ajuste/merma), historial y conteos físicos (PRs #213-#216).
   { slug: "inventory", shipped: true },
-  { slug: "recipes", shipped: false },
+  // Fase A3 en producción: recetas por plato y sub-recetas con costeo en
+  // vivo (cascada inventario → sub-receta → proveedor), food cost % y
+  // matriz de ingeniería de menú (PRs #224-#227).
+  { slug: "recipes", shipped: true },
   { slug: "accounting", shipped: false },
   { slug: "production", shipped: false },
   { slug: "staff", shipped: false },

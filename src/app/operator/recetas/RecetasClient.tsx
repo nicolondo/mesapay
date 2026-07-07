@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import {
   BASE_UNIT_SYMBOL,
@@ -84,6 +84,26 @@ type SubRecipeRow = {
   derivedCostPerBase: number | null;
   /** Promedio real del inventario (¢/unidad base, float) — null sin stock. */
   stockAvgCostPerBase: number | null;
+};
+
+// Insumos al alza (spec A4·D5): último precio de SupplierPriceHistory vs. el
+// registro anterior del mismo supplier-item — el server solo manda alzas
+// ≥ 10% de los últimos 30 días, ordenadas por pctIncrease desc.
+type PriceAlertDto = {
+  ingredientId: string;
+  ingredientName: string;
+  supplierName: string;
+  /** "Bulto 50 kg" — presentación del proveedor (precios por presentación). */
+  presentationLabel: string;
+  prevPriceCents: number;
+  lastPriceCents: number;
+  /** Ya redondeado a 1 decimal por el server; siempre ≥ 10. */
+  pctIncrease: number;
+  /** ISO date del último registro de precio. */
+  at: string;
+  /** Nombres de platos afectados (máx. 6); dishCount es el total real. */
+  dishes: string[];
+  dishCount: number;
 };
 
 type EngineeringQuadrantId = "star" | "plowhorse" | "puzzle" | "dog";
@@ -175,6 +195,27 @@ function foodCostCls(pct: number): string {
   return "text-danger";
 }
 
+/** Rojo del semáforo — mismo umbral que foodCostCls (no se duplica el 40). */
+function isHighFoodCost(pct: number): boolean {
+  return foodCostCls(pct) === "text-danger";
+}
+
+/**
+ * Food cost del plato (%) — solo con costo COMPLETO y precio > 0 (un costo
+ * a medias mentiría; spec: nunca $0). Null = no medible.
+ */
+function dishFoodCostPct(d: DishRow): number | null {
+  if (d.cost === null || !d.cost.complete || d.priceCents <= 0) return null;
+  return (d.cost.costCents / d.priceCents) * 100;
+}
+
+// Tono del % de alza (D5): el server ya filtra < 10%; ámbar de ahí en
+// adelante y rojo desde el doble del umbral (≥ 20%) — mismos tokens del
+// semáforo de food cost.
+function priceAlertPctCls(pct: number): string {
+  return pct >= 20 ? "text-danger" : "text-[#7F5A1F]";
+}
+
 // Errores del PUT de receta → clave i18n (fallback errSaveFailed).
 const API_ERROR_KEYS: Record<string, string> = {
   invalid: "errLineInvalid",
@@ -208,9 +249,12 @@ export function RecetasClient({ currency }: { currency: string }) {
   const [dishes, setDishes] = useState<DishRow[] | null>(null);
   const [subs, setSubs] = useState<SubRecipeRow[]>([]);
   const [ingredients, setIngredients] = useState<IngredientOption[]>([]);
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlertDto[]>([]);
   const [loadErr, setLoadErr] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
+  // Filtro "food cost alto" (A4·D5): solo platos en el rojo del semáforo.
+  const [fcHighOnly, setFcHighOnly] = useState(false);
   const [openDish, setOpenDish] = useState<DishRow | null>(null);
   // Se incrementa para re-fetchear GET /recipes completo (guardar/borrar una
   // sub-receta puede mover costos en cascada: platos y otras sub-recetas).
@@ -233,6 +277,7 @@ export function RecetasClient({ currency }: { currency: string }) {
         setDishes((j.dishes ?? []) as DishRow[]);
         setSubs((j.subRecipes ?? []) as SubRecipeRow[]);
         setIngredients((j.ingredients ?? []) as IngredientOption[]);
+        setPriceAlerts((j.priceAlerts ?? []) as PriceAlertDto[]);
         setLoadErr(false);
       } catch {
         if (!cancelled) setLoadErr(true);
@@ -256,13 +301,27 @@ export function RecetasClient({ currency }: { currency: string }) {
     const needle = fold(q.trim());
     return (dishes ?? []).filter((d) => {
       if (cat !== "all" && d.category.id !== cat) return false;
+      if (fcHighOnly) {
+        const fc = dishFoodCostPct(d);
+        if (fc == null || !isHighFoodCost(fc)) return false;
+      }
       if (needle) {
         const hay = fold(`${d.name} ${d.category.label}`);
         if (!hay.includes(needle)) return false;
       }
       return true;
     });
-  }, [dishes, q, cat]);
+  }, [dishes, q, cat, fcHighOnly]);
+
+  // Platos en el rojo del semáforo (>40%) — alimenta el banner contador.
+  const fcHighCount = useMemo(() => {
+    let n = 0;
+    for (const d of dishes ?? []) {
+      const fc = dishFoodCostPct(d);
+      if (fc != null && isHighFoodCost(fc)) n++;
+    }
+    return n;
+  }, [dishes]);
 
   // Receta guardada/borrada: el server devuelve receta + costo recalculado
   // (fuente de verdad) → se actualiza el row local y se cierra el sheet.
@@ -354,7 +413,18 @@ export function RecetasClient({ currency }: { currency: string }) {
         </div>
       ) : (
         <>
-          {/* Búsqueda + filtro por categoría */}
+          {/* Aviso food cost alto (A4·D5): contador que aplica el filtro */}
+          {fcHighCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFcHighOnly(true)}
+              className="w-full text-left rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3 text-sm font-medium text-[#7F5A1F] hover:bg-[#C98A2E]/15"
+            >
+              {t("fcAlertBannerCount", { count: fcHighCount })}
+            </button>
+          )}
+
+          {/* Búsqueda + filtros (categoría · food cost alto) */}
           <div className="space-y-2">
             <input
               type="search"
@@ -363,21 +433,41 @@ export function RecetasClient({ currency }: { currency: string }) {
               placeholder={t("searchDishesPlaceholder")}
               className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm focus:outline-none focus:border-op-text/40"
             />
-            {categories.length > 0 && (
-              <select
-                value={cat}
-                onChange={(e) => setCat(e.target.value)}
-                className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+            <div className="flex items-center gap-2 flex-wrap">
+              {categories.length > 0 && (
+                <select
+                  value={cat}
+                  onChange={(e) => setCat(e.target.value)}
+                  className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+                >
+                  <option value="all">{t("allCategories")}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => setFcHighOnly((v) => !v)}
+                aria-pressed={fcHighOnly}
+                className={
+                  "min-h-[44px] px-4 rounded-full border text-xs font-medium transition-colors " +
+                  (fcHighOnly
+                    ? "border-ink bg-ink text-bone"
+                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
+                }
               >
-                <option value="all">{t("allCategories")}</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            )}
+                {t("fcAlertFilterChip")}
+              </button>
+            </div>
           </div>
+
+          {/* Insumos al alza (D5) — solo si el server trae alertas */}
+          {priceAlerts.length > 0 && (
+            <PriceAlertsSection alerts={priceAlerts} currency={currency} />
+          )}
 
           {filtered.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
@@ -389,10 +479,7 @@ export function RecetasClient({ currency }: { currency: string }) {
                 // Food cost/margen solo con costo COMPLETO — un costo a
                 // medias mentiría (spec: nunca $0); incompleto → badge.
                 const complete = d.cost !== null && d.cost.complete;
-                const fc =
-                  complete && d.priceCents > 0
-                    ? (d.cost!.costCents / d.priceCents) * 100
-                    : null;
+                const fc = dishFoodCostPct(d);
                 const margin = complete
                   ? d.priceCents - d.cost!.costCents
                   : null;
@@ -490,6 +577,98 @@ export function RecetasClient({ currency }: { currency: string }) {
         />
       )}
     </div>
+  );
+}
+
+/* ──────────────────── Insumos al alza (A4·D5) ──────────────────────── */
+
+/**
+ * Sección colapsable con las alzas de precio del último mes (viene lista
+ * del GET /recipes — nada persistido, regla A3). Cerrada por defecto: es
+ * una alerta lateral, no la tarea principal del tab Platos.
+ */
+function PriceAlertsSection({
+  alerts,
+  currency,
+}: {
+  alerts: PriceAlertDto[];
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [open, setOpen] = useState(false);
+
+  return (
+    <section className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full min-h-[44px] px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-op-bg"
+      >
+        <span className="text-sm font-medium">
+          {t("priceAlertSectionTitle", { count: alerts.length })}
+        </span>
+        <span className="text-xs text-op-muted shrink-0" aria-hidden>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+
+      {open &&
+        alerts.map((a, i) => (
+          // El payload no trae supplierItemId → clave por posición (lista
+          // de solo lectura que se reemplaza entera en cada fetch).
+          <div
+            key={`${a.ingredientId}-${i}`}
+            className="px-4 py-2.5 border-t border-op-border"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">
+                  {a.ingredientName}
+                </div>
+                <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                  {`${a.supplierName} · ${a.presentationLabel}`}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {/* Antes → ahora, por presentación del proveedor */}
+                <div className="text-sm tabular-nums">
+                  <span className="text-op-muted">
+                    {`${formatMoney(a.prevPriceCents, { currency, locale })} → `}
+                  </span>
+                  <span className="font-medium">
+                    {formatMoney(a.lastPriceCents, { currency, locale })}
+                  </span>
+                </div>
+                <div className="text-[11px] mt-0.5 tabular-nums">
+                  <span
+                    className={
+                      "font-medium " + priceAlertPctCls(a.pctIncrease)
+                    }
+                  >
+                    {`+${formatPct(a.pctIncrease, locale)}`}
+                  </span>
+                  <span className="text-op-muted">
+                    {" · " + formatDate(a.at, { locale, timeStyle: undefined })}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {/* Platos afectados: uso directo + vía sub-recetas (server) */}
+            <div className="text-[11px] text-op-muted mt-1">
+              {a.dishCount === 0
+                ? t("priceAlertNoDishes")
+                : a.dishCount > a.dishes.length
+                  ? t("priceAlertAffectsMore", {
+                      list: a.dishes.join(", "),
+                      count: a.dishCount - a.dishes.length,
+                    })
+                  : t("priceAlertAffects", { list: a.dishes.join(", ") })}
+            </div>
+          </div>
+        ))}
+    </section>
   );
 }
 

@@ -39,6 +39,20 @@ export type PnlInputs = {
   expensesByCategory: Array<{ category: string; amountCents: number }>;
   /** Σ recibido de OCs del mes (informativo — el costo entra vía CMV). */
   purchasesReceivedCents: number;
+  /**
+   * C1 — costo laboral del mes (null = módulo staff apagado: el P&L no
+   * cambia). Real = turnos punchados; estimado = planeados sin punch.
+   */
+  labor?: LaborSummary | null;
+};
+
+export type LaborSummary = {
+  totalCents: number;
+  actualCents: number;
+  estimatedCents: number;
+  shifts: number;
+  /** Turnos de empleados sin tarifa (costaron 0 — badge en UI). */
+  missingRateShifts: number;
 };
 
 export type Pnl = PnlInputs & {
@@ -47,6 +61,8 @@ export type Pnl = PnlInputs & {
   grossMarginPct: number | null;
   operatingProfitCents: number;
   operatingMarginPct: number | null;
+  /** C1 — (CMV + mermas + laboral) / ingresos. null sin módulo staff o sin ventas. */
+  primeCostPct: number | null;
 };
 
 export function buildPnl(i: PnlInputs): Pnl {
@@ -55,9 +71,11 @@ export function buildPnl(i: PnlInputs): Pnl {
     0,
   );
   const grossProfitCents = i.salesCents - i.consumptionCents - i.wasteCents;
-  const operatingProfitCents = grossProfitCents - expensesCents;
+  const laborCents = i.labor?.totalCents ?? 0;
+  const operatingProfitCents = grossProfitCents - laborCents - expensesCents;
   return {
     ...i,
+    labor: i.labor ?? null,
     expensesByCategory: [...i.expensesByCategory].sort(
       (a, b) => b.amountCents - a.amountCents,
     ),
@@ -66,6 +84,9 @@ export function buildPnl(i: PnlInputs): Pnl {
     grossMarginPct: pctOf(grossProfitCents, i.salesCents),
     operatingProfitCents,
     operatingMarginPct: pctOf(operatingProfitCents, i.salesCents),
+    primeCostPct: i.labor
+      ? pctOf(i.consumptionCents + i.wasteCents + laborCents, i.salesCents)
+      : null,
   };
 }
 

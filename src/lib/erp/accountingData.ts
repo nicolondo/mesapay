@@ -3,7 +3,9 @@
 // lógica pura de src/lib/erp/accounting.ts. Compartida por el P&L del
 // operador y el consolidado de grupo.
 import { db } from "@/lib/db";
-import { buildPnl, type Pnl } from "@/lib/erp/accounting";
+import { buildPnl, type LaborSummary, type Pnl } from "@/lib/erp/accounting";
+import { shiftCost } from "@/lib/erp/staff";
+import { isModuleEnabled } from "@/lib/modules";
 
 export type MonthRange = { from: Date; to: Date };
 
@@ -11,7 +13,11 @@ export async function computeMonthPnl(
   restaurantId: string,
   range: MonthRange,
 ): Promise<Pnl> {
-  const [sales, movements, expenses] = await Promise.all([
+  const [tenant, sales, movements, expenses] = await Promise.all([
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { enabledModules: true },
+    }),
     db.order.aggregate({
       where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
       _sum: { subtotalCents: true, tipCents: true, taxCents: true },
@@ -45,6 +51,42 @@ export async function computeMonthPnl(
     movements.map((m) => [m.kind, m._sum.valueCents ?? 0]),
   );
 
+  // C1 — costo laboral del mes: real (punchado) + estimado (planeado sin
+  // punch). Solo con el módulo staff activo; apagado, el P&L no cambia.
+  let labor: LaborSummary | null = null;
+  if (isModuleEnabled(tenant?.enabledModules, "staff")) {
+    const shifts = await db.staffShift.findMany({
+      where: { restaurantId, date: { gte: range.from, lt: range.to } },
+      select: {
+        startMinutes: true,
+        endMinutes: true,
+        checkInAt: true,
+        checkOutAt: true,
+        employee: { select: { hourlyRateCents: true } },
+      },
+    });
+    labor = {
+      totalCents: 0,
+      actualCents: 0,
+      estimatedCents: 0,
+      shifts: shifts.length,
+      missingRateShifts: 0,
+    };
+    for (const sh of shifts) {
+      const c = shiftCost({
+        startMinutes: sh.startMinutes,
+        endMinutes: sh.endMinutes,
+        checkInAt: sh.checkInAt,
+        checkOutAt: sh.checkOutAt,
+        hourlyRateCents: sh.employee.hourlyRateCents,
+      });
+      labor.totalCents += c.costCents;
+      if (c.source === "actual") labor.actualCents += c.costCents;
+      else labor.estimatedCents += c.costCents;
+      if (c.missingRate) labor.missingRateShifts++;
+    }
+  }
+
   return buildPnl({
     salesCents: sales._sum.subtotalCents ?? 0,
     tipsCents: sales._sum.tipCents ?? 0,
@@ -56,6 +98,7 @@ export async function computeMonthPnl(
       amountCents: e._sum.amountCents ?? 0,
     })),
     purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0),
+    labor,
   });
 }
 

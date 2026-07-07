@@ -55,6 +55,7 @@ export async function GET(req: Request) {
       salesCents: number;
       consumptionCents: number;
       wasteCents: number;
+      laborCents: number;
       expensesCents: number;
       grossProfitCents: number;
       operatingProfitCents: number;
@@ -70,6 +71,7 @@ export async function GET(req: Request) {
         salesCents: 0,
         consumptionCents: 0,
         wasteCents: 0,
+        laborCents: 0,
         expensesCents: 0,
         grossProfitCents: 0,
         operatingProfitCents: 0,
@@ -80,6 +82,7 @@ export async function GET(req: Request) {
     acc.salesCents += s.pnl.salesCents;
     acc.consumptionCents += s.pnl.consumptionCents;
     acc.wasteCents += s.pnl.wasteCents;
+    acc.laborCents += s.pnl.labor?.totalCents ?? 0;
     acc.expensesCents += s.pnl.expensesCents;
     acc.grossProfitCents += s.pnl.grossProfitCents;
     acc.operatingProfitCents += s.pnl.operatingProfitCents;

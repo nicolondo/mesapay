@@ -104,6 +104,9 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   adjust_out: "kindAdjustOut",
   waste: "kindWaste",
   count_adjust: "kindCountAdjust",
+  // A4 — consumo automático por venta (lo escribe el server al pagar una
+  // orden; acá solo se lee).
+  sale_consumption: "kindSaleConsumption",
 };
 
 const WASTE_REASONS = [

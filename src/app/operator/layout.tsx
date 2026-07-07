@@ -241,6 +241,11 @@ export default async function OperatorLayout({
           ...(isModuleEnabled(tenant?.enabledModules, "recipes")
             ? [{ href: "/operator/recetas", label: t("navRecipes") }]
             : []),
+          // Módulo ERP `accounting` (Fase B2): mismo patrón — item visible
+          // solo con el módulo activado (gate de página y API).
+          ...(isModuleEnabled(tenant?.enabledModules, "accounting")
+            ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
+            : []),
           { href: "/operator/reports", label: t("navClose") },
           { href: "/operator/wallet", label: t("navWallet") },
           { href: "/operator/settings", label: t("navSettings") },

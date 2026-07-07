@@ -4001,6 +4001,23 @@
     "priceAlertSectionTitle": "Ingredients on the rise ({count})",
     "priceAlertAffects": "Affects: {list}",
     "priceAlertAffectsMore": "Affects: {list} and {count} more",
-    "priceAlertNoDishes": "No dishes with a recipe use it."
+    "priceAlertNoDishes": "No dishes with a recipe use it.",
+    "csvDate": "Date",
+    "csvOrderCode": "Code",
+    "csvTable": "Table",
+    "csvSubtotal": "Subtotal",
+    "csvTip": "Tip",
+    "csvTax": "Tax",
+    "csvTotal": "Total",
+    "csvPaymentMethods": "Payment methods",
+    "csvInvoiceNumber": "Invoice",
+    "csvPoNumber": "Purchase order",
+    "csvSupplier": "Supplier",
+    "csvSupplierInvoice": "Supplier invoice",
+    "csvDueDate": "Due",
+    "csvPaidDate": "Paid",
+    "csvCategory": "Category",
+    "csvDescription": "Description",
+    "csvAmount": "Amount"
   }
 }

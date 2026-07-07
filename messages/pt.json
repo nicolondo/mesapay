@@ -4001,6 +4001,23 @@
     "priceAlertSectionTitle": "Insumos em alta ({count})",
     "priceAlertAffects": "Afeta: {list}",
     "priceAlertAffectsMore": "Afeta: {list} e mais {count}",
-    "priceAlertNoDishes": "Nenhum prato com receita o utiliza."
+    "priceAlertNoDishes": "Nenhum prato com receita o utiliza.",
+    "csvDate": "Data",
+    "csvOrderCode": "Código",
+    "csvTable": "Mesa",
+    "csvSubtotal": "Subtotal",
+    "csvTip": "Gorjeta",
+    "csvTax": "Imposto",
+    "csvTotal": "Total",
+    "csvPaymentMethods": "Formas de pagamento",
+    "csvInvoiceNumber": "Fatura",
+    "csvPoNumber": "Ordem de compra",
+    "csvSupplier": "Fornecedor",
+    "csvSupplierInvoice": "Fatura do fornecedor",
+    "csvDueDate": "Vence",
+    "csvPaidDate": "Paga",
+    "csvCategory": "Categoria",
+    "csvDescription": "Descrição",
+    "csvAmount": "Valor"
   }
 }

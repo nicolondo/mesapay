@@ -4001,6 +4001,23 @@
     "priceAlertSectionTitle": "Insumos al alza ({count})",
     "priceAlertAffects": "Afecta: {list}",
     "priceAlertAffectsMore": "Afecta: {list} y {count} más",
-    "priceAlertNoDishes": "Sin platos con receta que lo usen."
+    "priceAlertNoDishes": "Sin platos con receta que lo usen.",
+    "csvDate": "Fecha",
+    "csvOrderCode": "Código",
+    "csvTable": "Mesa",
+    "csvSubtotal": "Subtotal",
+    "csvTip": "Propina",
+    "csvTax": "Impuesto",
+    "csvTotal": "Total",
+    "csvPaymentMethods": "Métodos de pago",
+    "csvInvoiceNumber": "Factura",
+    "csvPoNumber": "Orden de compra",
+    "csvSupplier": "Proveedor",
+    "csvSupplierInvoice": "Factura del proveedor",
+    "csvDueDate": "Vence",
+    "csvPaidDate": "Pagada",
+    "csvCategory": "Categoría",
+    "csvDescription": "Descripción",
+    "csvAmount": "Monto"
   }
 }

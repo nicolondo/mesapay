@@ -284,6 +284,8 @@ model Restaurant {
   recipes             Recipe[]
   expenses            Expense[]
   productionBatches   ProductionBatch[]
+  employees           Employee[]
+  staffShifts         StaffShift[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -627,6 +629,7 @@ model User {
   stockMovements           StockMovement[]   @relation("StockMovementCreator")
   expensesCreated          Expense[]         @relation("ExpenseCreator")
   productionBatchesCreated ProductionBatch[] @relation("ProductionBatchCreator")
+  employeeProfile          Employee?
   stockCounts              StockCount[]      @relation("StockCountCreator")
   purchaseOrders           PurchaseOrder[]   @relation("PurchaseOrderCreator")
 
@@ -1732,6 +1735,70 @@ model ProductionBatch {
   movements StockMovement[]
 
   @@index([restaurantId, createdAt])
+}
+
+// === ERP · Fase C1: horarios, asistencia y costo laboral ===================
+// Spec: docs/superpowers/specs/2026-07-07-erp-c1-horarios-design.md
+// Empleados propios del comercio (no los usuarios del app — la mayoría
+// del personal no tiene cuenta; los roles del app son de acceso, no de
+// nómina) + turnos planeados con asistencia punchada encima. El costo
+// laboral (real si está punchado, planeado si no) alimenta el prime
+// cost del P&L (B2).
+
+model Employee {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name            String
+  // Cargo libre con datalist (criterio categorías de insumos/gastos).
+  position        String
+  // Tarifa por hora en centavos. null = sin tarifa: los turnos cuestan 0
+  // y se marcan "sin tarifa" — nunca se inventa. Tarifa mensual: se
+  // ingresa el equivalente por hora (hint en la UI).
+  hourlyRateCents Int?
+  active          Boolean @default(true)
+  // Cuenta del app opcional (mesero con login). Hoy informativo; deja la
+  // puerta abierta al self check-in.
+  userId          String? @unique
+  user            User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shifts StaffShift[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId, active])
+}
+
+/// Turno planeado + asistencia (distinto del Shift de caja/arqueo).
+model StaffShift {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  employeeId   String
+  employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Día al que pertenece el turno (medianoche UTC). Nocturnos cruzan
+  // medianoche pero pertenecen al día en que EMPIEZAN.
+  date         DateTime
+  // Rango en minutos desde la medianoche de `date`: start 0-1439,
+  // end > start y <= start+960 (máx. 16 h) — 18:00→02:00 es 1080→1560.
+  startMinutes Int
+  endMinutes   Int
+  note         String?
+
+  // Asistencia: timestamps reales del punch (ajustables a mano por el
+  // operador). Ambos presentes => el costo usa los minutos reales.
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, date])
+  @@index([employeeId, date])
 }
 
 // === ERP · Fase B2: gastos y contabilidad ==================================

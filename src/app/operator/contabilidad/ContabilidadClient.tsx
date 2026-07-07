@@ -51,6 +51,19 @@ type PnlDto = {
   grossMarginPct: number | null;
   operatingProfitCents: number;
   operatingMarginPct: number | null;
+  /**
+   * C1 — costo laboral del mes: null = módulo staff apagado (el P&L se ve
+   * exactamente como antes). Real = turnos punchados; estimado = planeados.
+   */
+  labor: {
+    totalCents: number;
+    actualCents: number;
+    estimatedCents: number;
+    shifts: number;
+    missingRateShifts: number;
+  } | null;
+  /** C1 — (CMV + mermas + laboral) / ingresos. null sin staff o sin ventas. */
+  primeCostPct: number | null;
 };
 
 // Espejo de GET /api/operator/accounting/books (B2 · D5).
@@ -546,6 +559,13 @@ function PnlTab({
           pct={fmtPct(pnl.grossMarginPct, locale)}
         />
 
+        {/* C1 — costo laboral (solo con módulo staff activo): después del
+            margen bruto y antes de gastos. La utilidad operativa ya lo
+            descuenta server-side. */}
+        {pnl.labor !== null && (
+          <PnlLabor labor={pnl.labor} currency={currency} />
+        )}
+
         <PnlExpenses pnl={pnl} currency={currency} />
 
         <PnlSubtotal
@@ -555,6 +575,19 @@ function PnlTab({
           valueCls={profitCls(pnl.operatingProfitCents)}
         />
       </div>
+
+      {/* Prime cost (C1) — CMV + mermas + laboral sobre ingresos. Solo
+          con módulo staff activo y ventas en el mes. */}
+      {pnl.primeCostPct !== null && (
+        <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-op-muted">
+            {t("laborPrimeCost")}
+          </span>
+          <span className="text-sm tabular-nums text-op-muted shrink-0">
+            {fmtPct(pnl.primeCostPct, locale)}
+          </span>
+        </div>
+      )}
 
       {/* Compras recibidas — contexto de caja: NO entra al resultado (el
           costo de lo vendido entra vía CMV). */}
@@ -584,6 +617,47 @@ function PnlLine({ label, value }: { label: string; value: string }) {
     <div className="px-4 py-2.5 border-b border-op-border flex items-center justify-between gap-3">
       <span className="text-sm text-op-muted">{label}</span>
       <span className="text-sm tabular-nums shrink-0">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Línea "− Costo laboral" (C1) con desglose real/estimado en caption y
+ * badge discreto cuando hay turnos sin tarifa (costaron $0 — el total
+ * está subestimado y el operador debe saberlo).
+ */
+function PnlLabor({
+  labor,
+  currency,
+}: {
+  labor: NonNullable<PnlDto["labor"]>;
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
+
+  return (
+    <div className="px-4 py-2.5 border-b border-op-border">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-op-muted">{t("laborPnlLine")}</span>
+        <span className="text-sm tabular-nums shrink-0">
+          {"− " + money(labor.totalCents)}
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center justify-between gap-3 flex-wrap">
+        <span className="text-[11px] text-op-muted tabular-nums">
+          {t("laborPnlBreakdown", {
+            actual: money(labor.actualCents),
+            estimated: money(labor.estimatedCents),
+          })}
+        </span>
+        {labor.missingRateShifts > 0 && (
+          <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium shrink-0">
+            {t("laborMissingRateShifts", { count: labor.missingRateShifts })}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

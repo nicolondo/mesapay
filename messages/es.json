@@ -3833,6 +3833,8 @@
     "kindWaste": "Merma",
     "kindCountAdjust": "Ajuste por conteo",
     "kindSaleConsumption": "Consumo por venta",
+    "kindProductionIn": "Producción (entrada)",
+    "kindProductionOut": "Producción (consumo)",
     "movementsEmpty": "Aún no hay movimientos de inventario.",
     "loadMore": "Cargar más",
     "tabCounts": "Conteos",

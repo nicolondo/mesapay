@@ -35,6 +35,75 @@ type ExpensesPayload = {
   categories: string[];
 };
 
+// Espejo de GET /api/operator/accounting/pnl (B2 · D3). Los % vienen con
+// 1 decimal; null = sin ventas en el mes (no inventar 0%).
+type PnlDto = {
+  salesCents: number;
+  tipsCents: number;
+  taxesCents: number;
+  consumptionCents: number;
+  wasteCents: number;
+  /** Orden desc por monto (lo garantiza el server). */
+  expensesByCategory: Array<{ category: string; amountCents: number }>;
+  purchasesReceivedCents: number;
+  expensesCents: number;
+  grossProfitCents: number;
+  grossMarginPct: number | null;
+  operatingProfitCents: number;
+  operatingMarginPct: number | null;
+};
+
+// Espejo de GET /api/operator/accounting/books (B2 · D5).
+type Book = "sales" | "purchases";
+
+type SalesBookOrder = {
+  id: string;
+  shortCode: string;
+  paidAt: string;
+  orderType: "dineIn" | "pickup";
+  subtotalCents: number;
+  tipCents: number;
+  taxCents: number;
+  totalCents: number;
+  table: { number: number; label: string | null } | null;
+  /** Solo pagos aprobados. */
+  payments: Array<{ method: string; amountCents: number }>;
+  simpleInvoice: { invoiceNumber: number } | null;
+};
+
+type SalesBookPayload = {
+  book: "sales";
+  orders: SalesBookOrder[];
+  totals: {
+    count: number;
+    subtotalCents: number;
+    tipCents: number;
+    taxCents: number;
+    totalCents: number;
+    /** Desc por monto. */
+    byMethod: Array<{ method: string; amountCents: number }>;
+  };
+};
+
+type PurchasesBookRow = {
+  id: string;
+  number: number;
+  receivedAt: string;
+  supplierName: string;
+  supplierInvoiceNumber: string | null;
+  invoiceDueAt: string | null;
+  paidAt: string | null;
+  receivedCents: number;
+};
+
+type PurchasesBookPayload = {
+  book: "purchases";
+  rows: PurchasesBookRow[];
+  totals: { count: number; receivedCents: number; unpaidCents: number };
+};
+
+type BookPayload = SalesBookPayload | PurchasesBookPayload;
+
 /* ─────────────────────────── Helpers ───────────────────────────────── */
 
 /** "2026-07" del mes actual (hora local del dispositivo). */
@@ -88,6 +157,44 @@ const API_ERROR_KEYS: Record<string, string> = {
   not_found: "errExpenseNotFound",
 };
 
+// PaymentMethod (prisma) → clave i18n del label (convención m* de
+// opPayments/opOrders). Un método futuro sin clave cae al valor crudo:
+// el libro nunca se rompe por un enum nuevo.
+const PAY_METHOD_KEYS: Record<string, string> = {
+  demo_cash: "mDemoCash",
+  demo_card: "mDemoCard",
+  wompi_card: "mWompiCard",
+  wompi_pse: "mWompiPse",
+  wompi_nequi: "mWompiNequi",
+  kushki_apple_pay: "mKushkiApplePay",
+  kushki_google_pay: "mKushkiGooglePay",
+  kushki_card_terminal: "mKushkiCardTerminal",
+  kushki_card: "mKushkiCard",
+  kushki_pse: "mKushkiPse",
+  external_terminal: "mExternalTerminal",
+  reservation_deposit: "mReservationDeposit",
+};
+
+/** % (ya en escala 0-100, 1 decimal) → "66,5 %" localizado; null → "—". */
+function fmtPct(pct: number | null, locale: Locale): string {
+  if (pct === null) return "—";
+  return new Intl.NumberFormat(localeTag(locale), {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(pct / 100);
+}
+
+/** Verde/rojo según signo de la utilidad; 0 queda neutro. */
+function profitCls(cents: number): string {
+  return cents > 0 ? "text-ok" : cents < 0 ? "text-danger" : "";
+}
+
+// "Ahora" congelado al cargar el módulo — para el flag de factura vencida
+// del libro de compras. Fuera del componente porque el render debe ser
+// puro (regla react-hooks/purity); la precisión de horas no importa acá.
+const NOW_MS = Date.now();
+
 type Tab = "expenses" | "pnl" | "books";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
@@ -113,6 +220,15 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   const [reloadSeq, setReloadSeq] = useState(0);
   // null = cerrado · "new" = crear · dto = editar (gasto o plantilla).
   const [open, setOpen] = useState<ExpenseDto | "new" | null>(null);
+  // Cachés por mes de los otros tabs (patrón engCache de Recetas): viven
+  // acá y no en el tab para sobrevivir al cambio de tab. La del P&L se
+  // invalida al guardar/borrar gastos (los gastos mueven el resultado);
+  // los libros no dependen de los gastos, así que su caché queda.
+  const [pnlCache, setPnlCache] = useState<Record<string, PnlDto>>({});
+  const [book, setBook] = useState<Book>("sales");
+  const [booksCache, setBooksCache] = useState<Record<string, BookPayload>>(
+    {},
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -168,11 +284,14 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   function handleChanged() {
     setOpen(null);
     setReloadSeq((s) => s + 1);
+    // Los gastos alimentan el P&L (línea "Gastos" y utilidad): tirar la
+    // caché completa para que el tab lo re-derive al abrirse.
+    setPnlCache({});
   }
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Gastos / P&L / Libros (P&L y Libros llegan en B2.4) */}
+      {/* Segmentos Gastos / P&L / Libros */}
       <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
         {(
           [
@@ -195,36 +314,48 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         ))}
       </div>
 
-      {tab !== "expenses" ? (
-        // Placeholder neutro — el PR B2.4 lo reemplaza por P&L y Libros.
-        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-          {t("accountingTabEmpty")}
+      {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por los 3 tabs
+          (mismo `month` para gastos, P&L y libros). */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setMonth((m) => shiftMonth(m, -1))}
+          aria-label={t("monthPrev")}
+          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+        >
+          {"◀"}
+        </button>
+        <div className="text-sm font-medium">
+          {monthLabel(month, locale)}
         </div>
+        <button
+          type="button"
+          onClick={() => setMonth((m) => shiftMonth(m, 1))}
+          aria-label={t("monthNext")}
+          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+        >
+          {"▶"}
+        </button>
+      </div>
+
+      {tab === "pnl" ? (
+        <PnlTab
+          month={month}
+          currency={currency}
+          cache={pnlCache}
+          setCache={setPnlCache}
+        />
+      ) : tab === "books" ? (
+        <BooksTab
+          month={month}
+          currency={currency}
+          book={book}
+          setBook={setBook}
+          cache={booksCache}
+          setCache={setBooksCache}
+        />
       ) : (
         <>
-          {/* Selector de mes: ◀ Julio de 2026 ▶ — alimenta el GET */}
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setMonth((m) => shiftMonth(m, -1))}
-              aria-label={t("monthPrev")}
-              className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
-            >
-              {"◀"}
-            </button>
-            <div className="text-sm font-medium">
-              {monthLabel(month, locale)}
-            </div>
-            <button
-              type="button"
-              onClick={() => setMonth((m) => shiftMonth(m, 1))}
-              aria-label={t("monthNext")}
-              className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
-            >
-              {"▶"}
-            </button>
-          </div>
-
           <button
             type="button"
             onClick={() => setOpen("new")}
@@ -321,6 +452,592 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         />
       )}
     </div>
+  );
+}
+
+/* ───────────────────────── Tab P&L (D3) ────────────────────────────── */
+
+/**
+ * Estado de cuenta vertical del mes: ingresos − CMV − mermas = margen
+ * bruto; − gastos = utilidad operativa. Derivado en vivo por el server;
+ * acá solo se cachea por mes — el shell invalida al tocar gastos.
+ */
+function PnlTab({
+  month,
+  currency,
+  cache,
+  setCache,
+}: {
+  month: string;
+  currency: string;
+  cache: Record<string, PnlDto>;
+  setCache: React.Dispatch<React.SetStateAction<Record<string, PnlDto>>>;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [loadErr, setLoadErr] = useState(false);
+  const pnl: PnlDto | undefined = cache[month];
+
+  useEffect(() => {
+    if (cache[month]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/operator/accounting/pnl?month=${month}`);
+        if (!r.ok) throw new Error("load_failed");
+        const j = (await r.json()) as { pnl: PnlDto };
+        if (cancelled) return;
+        setCache((c) => ({ ...c, [month]: j.pnl }));
+        setLoadErr(false);
+      } catch {
+        if (!cancelled) setLoadErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [month, cache, setCache]);
+
+  if (pnl === undefined) {
+    return loadErr ? (
+      <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+    ) : (
+      <div className="py-6 text-center text-sm text-op-muted">
+        {t("loading")}
+      </div>
+    );
+  }
+
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+        {/* Ingresos por ventas + líneas informativas (no son ingreso) */}
+        <div className="px-4 py-3 border-b border-op-border">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+              {t("pnlSales")}
+            </span>
+            <span className="font-display text-2xl tabular-nums">
+              {money(pnl.salesCents)}
+            </span>
+          </div>
+          <div className="mt-1.5 space-y-0.5">
+            <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
+              <span>{t("pnlTips")}</span>
+              <span className="tabular-nums">{money(pnl.tipsCents)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
+              <span>{t("pnlTaxes")}</span>
+              <span className="tabular-nums">{money(pnl.taxesCents)}</span>
+            </div>
+          </div>
+        </div>
+
+        <PnlLine
+          label={t("pnlConsumption")}
+          value={"− " + money(pnl.consumptionCents)}
+        />
+        <PnlLine label={t("pnlWaste")} value={"− " + money(pnl.wasteCents)} />
+        <PnlSubtotal
+          label={t("pnlGrossProfit")}
+          value={money(pnl.grossProfitCents)}
+          pct={fmtPct(pnl.grossMarginPct, locale)}
+        />
+
+        <PnlExpenses pnl={pnl} currency={currency} />
+
+        <PnlSubtotal
+          label={t("pnlOperatingProfit")}
+          value={money(pnl.operatingProfitCents)}
+          pct={fmtPct(pnl.operatingMarginPct, locale)}
+          valueCls={profitCls(pnl.operatingProfitCents)}
+        />
+      </div>
+
+      {/* Compras recibidas — contexto de caja: NO entra al resultado (el
+          costo de lo vendido entra vía CMV). */}
+      <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex items-center justify-between gap-3">
+        <span className="text-[11px] text-op-muted">
+          {t("pnlPurchasesInfo")}
+        </span>
+        <span className="text-sm tabular-nums text-op-muted shrink-0">
+          {money(pnl.purchasesReceivedCents)}
+        </span>
+      </div>
+
+      {/* Compró pero no registró consumo: el CMV en 0 mentiría — nunca
+          usar compras como CMV disfrazado (regla D3). */}
+      {pnl.consumptionCents === 0 && pnl.purchasesReceivedCents > 0 && (
+        <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3 text-sm text-[#7F5A1F]">
+          {t("pnlCmvHint")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Línea de deducción del estado de cuenta (− CMV, − Mermas). */
+function PnlLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 py-2.5 border-b border-op-border flex items-center justify-between gap-3">
+      <span className="text-sm text-op-muted">{label}</span>
+      <span className="text-sm tabular-nums shrink-0">{value}</span>
+    </div>
+  );
+}
+
+/** Subtotal con % (margen bruto / utilidad operativa). */
+function PnlSubtotal({
+  label,
+  value,
+  pct,
+  valueCls,
+}: {
+  label: string;
+  value: string;
+  pct: string;
+  valueCls?: string;
+}) {
+  return (
+    <div className="px-4 py-3 border-b border-op-border last:border-b-0 bg-op-bg/50 flex items-center justify-between gap-3">
+      <span className="text-sm font-medium">{label}</span>
+      <div className="text-right shrink-0">
+        <div
+          className={
+            "text-sm font-medium tabular-nums" +
+            (valueCls ? " " + valueCls : "")
+          }
+        >
+          {value}
+        </div>
+        <div className="text-[11px] text-op-muted tabular-nums">{pct}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Línea de gastos con desglose por categoría (orden desc del server).
+ * Con más de 4 categorías el desglose se colapsa (cerrado por defecto,
+ * mismo criterio que TemplatesSection) para no ahogar el estado.
+ */
+function PnlExpenses({ pnl, currency }: { pnl: PnlDto; currency: string }) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [open, setOpen] = useState(false);
+  const collapsible = pnl.expensesByCategory.length > 4;
+  const showBreakdown =
+    pnl.expensesByCategory.length > 0 && (!collapsible || open);
+
+  const header = (
+    <>
+      <span className="text-sm text-op-muted">
+        {t("pnlExpenses")}
+        {collapsible && (
+          <span className="ml-2 text-[11px]">
+            {(open ? "▾ " : "▸ ") +
+              t("pnlExpenseCategories", {
+                count: pnl.expensesByCategory.length,
+              })}
+          </span>
+        )}
+      </span>
+      <span className="text-sm tabular-nums shrink-0">
+        {"− " + formatMoney(pnl.expensesCents, { currency, locale })}
+      </span>
+    </>
+  );
+
+  return (
+    <div className="border-b border-op-border">
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="w-full min-h-[44px] px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-op-bg"
+        >
+          {header}
+        </button>
+      ) : (
+        <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+          {header}
+        </div>
+      )}
+      {showBreakdown && (
+        <div className="px-4 pb-2.5 space-y-1">
+          {pnl.expensesByCategory.map((e) => (
+            <div
+              key={e.category}
+              className="flex items-center justify-between gap-3 text-[11px] text-op-muted"
+            >
+              <span className="truncate pl-3">{e.category}</span>
+              <span className="tabular-nums shrink-0">
+                {formatMoney(e.amountCents, { currency, locale })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────── Tab Libros (D5) ───────────────────────────── */
+
+/**
+ * Libros de ventas y compras del mes con export CSV. Sub-toggle
+ * Ventas/Compras (el estado vive en el shell para sobrevivir al cambio
+ * de tab) + caché por book+mes. El export es un link directo: el server
+ * pone Content-Disposition y el browser descarga solo.
+ */
+function BooksTab({
+  month,
+  currency,
+  book,
+  setBook,
+  cache,
+  setCache,
+}: {
+  month: string;
+  currency: string;
+  book: Book;
+  setBook: (b: Book) => void;
+  cache: Record<string, BookPayload>;
+  setCache: React.Dispatch<React.SetStateAction<Record<string, BookPayload>>>;
+}) {
+  const t = useTranslations("opErp");
+  const [loadErr, setLoadErr] = useState(false);
+  const cacheKey = `${book}:${month}`;
+  const data = cache[cacheKey];
+
+  useEffect(() => {
+    if (cache[cacheKey]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/operator/accounting/books?book=${book}&month=${month}`,
+        );
+        if (!r.ok) throw new Error("load_failed");
+        const j = (await r.json()) as BookPayload;
+        if (cancelled) return;
+        setCache((c) => ({ ...c, [cacheKey]: j }));
+        setLoadErr(false);
+      } catch {
+        if (!cancelled) setLoadErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, book, month, cache, setCache]);
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-toggle Ventas / Compras + export CSV del libro activo */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+          {(
+            [
+              ["sales", t("bookSales")],
+              ["purchases", t("bookPurchases")],
+            ] as [Book, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setBook(value)}
+              className={
+                "min-h-[36px] px-4 text-xs font-medium transition-colors " +
+                (book === value
+                  ? "bg-ink text-bone"
+                  : "text-op-muted hover:text-ink")
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <a
+          href={`/api/operator/accounting/export?book=${book}&month=${month}`}
+          className="min-h-[36px] px-4 inline-flex items-center rounded-full border border-op-border bg-op-surface text-xs font-medium hover:bg-op-bg"
+        >
+          {t("exportCsv")}
+        </a>
+      </div>
+
+      {data === undefined ? (
+        loadErr ? (
+          <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+        ) : (
+          <div className="py-6 text-center text-sm text-op-muted">
+            {t("loading")}
+          </div>
+        )
+      ) : data.book === "sales" ? (
+        <SalesBookView data={data} currency={currency} />
+      ) : (
+        <PurchasesBookView data={data} currency={currency} />
+      )}
+
+      {/* Gastos: tercer libro exportable — link discreto (la vista ya
+          vive en el tab Gastos; acá solo el CSV para el contador). */}
+      <div className="text-center">
+        <a
+          href={`/api/operator/accounting/export?book=expenses&month=${month}`}
+          className="text-[11px] text-op-muted underline hover:text-ink"
+        >
+          {t("exportExpensesCsv")}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/** Fila label/valor de los resúmenes de libro. */
+function SummaryLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-[11px]">
+      <span className="text-op-muted truncate">{label}</span>
+      <span className="tabular-nums shrink-0">{value}</span>
+    </div>
+  );
+}
+
+/** Libro de ventas: resumen del mes + órdenes pagadas. */
+function SalesBookView({
+  data,
+  currency,
+}: {
+  data: SalesBookPayload;
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
+  const methodLabel = (method: string) => {
+    const key = PAY_METHOD_KEYS[method];
+    return key ? t(key) : method;
+  };
+
+  return (
+    <>
+      <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-op-border flex items-center justify-between gap-3">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("bookOrdersCount", { count: data.totals.count })}
+          </span>
+          <span className="font-display text-2xl tabular-nums">
+            {money(data.totals.totalCents)}
+          </span>
+        </div>
+        <div className="px-4 py-2.5 space-y-1">
+          <SummaryLine
+            label={t("csvSubtotal")}
+            value={money(data.totals.subtotalCents)}
+          />
+          <SummaryLine
+            label={t("csvTip")}
+            value={money(data.totals.tipCents)}
+          />
+          <SummaryLine
+            label={t("csvTax")}
+            value={money(data.totals.taxCents)}
+          />
+        </div>
+        {data.totals.byMethod.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-op-border space-y-1">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1.5">
+              {t("bookByMethod")}
+            </div>
+            {data.totals.byMethod.map((m) => (
+              <SummaryLine
+                key={m.method}
+                label={methodLabel(m.method)}
+                value={money(m.amountCents)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {data.orders.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
+          {t("bookSalesEmpty")}
+        </div>
+      ) : (
+        <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+          {data.orders.map((o) => (
+            <div
+              key={o.id}
+              className="px-4 py-2.5 border-b border-op-border last:border-b-0"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium shrink-0">
+                      {o.shortCode}
+                    </span>
+                    <span className="text-sm text-op-muted truncate">
+                      {o.orderType === "pickup"
+                        ? t("bookPickup")
+                        : o.table
+                          ? (o.table.label ??
+                            t("bookTable", {
+                              // String: ICU agruparía miles en un number.
+                              number: String(o.table.number),
+                            }))
+                          : "—"}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                    {formatDate(o.paidAt, { locale, dateStyle: "short" })}
+                    {o.simpleInvoice &&
+                      ` · ${t("invoiceLabel", {
+                        // String: ICU agruparía miles (Factura 1.234).
+                        number: String(o.simpleInvoice.invoiceNumber),
+                      })}`}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-medium tabular-nums">
+                    {money(o.totalCents)}
+                  </div>
+                  {o.tipCents > 0 && (
+                    <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
+                      {t("bookTipLine", { amount: money(o.tipCents) })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Libro de compras: recibido / por pagar + OCs recibidas en el mes. */
+function PurchasesBookView({
+  data,
+  currency,
+}: {
+  data: PurchasesBookPayload;
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
+
+  return (
+    <>
+      <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-op-border flex items-center justify-between gap-3">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("bookReceivedTotal")}
+          </span>
+          <span className="font-display text-2xl tabular-nums">
+            {money(data.totals.receivedCents)}
+          </span>
+        </div>
+        <div className="px-4 py-2.5 space-y-1">
+          <SummaryLine
+            label={t("unpaidTotalLabel")}
+            value={money(data.totals.unpaidCents)}
+          />
+          <div className="text-[11px] text-op-muted">
+            {t("bookPurchasesCount", { count: data.totals.count })}
+          </div>
+        </div>
+      </div>
+
+      {data.rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
+          {t("bookPurchasesEmpty")}
+        </div>
+      ) : (
+        <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+          {data.rows.map((r) => {
+            const overdue =
+              !r.paidAt &&
+              r.invoiceDueAt !== null &&
+              new Date(r.invoiceDueAt).getTime() < NOW_MS;
+            return (
+              <div
+                key={r.id}
+                className="px-4 py-2.5 border-b border-op-border last:border-b-0"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-medium shrink-0">
+                        {t("poNumber", {
+                          number: String(r.number).padStart(4, "0"),
+                        })}
+                      </span>
+                      <span className="text-sm text-op-muted truncate">
+                        {r.supplierName}
+                      </span>
+                    </div>
+                    <div className="text-[11px] mt-0.5 truncate">
+                      <span className="text-op-muted">
+                        {formatDate(r.receivedAt, {
+                          locale,
+                          timeStyle: undefined,
+                        })}
+                        {" · "}
+                        {r.supplierInvoiceNumber
+                          ? t("invoiceLabel", {
+                              number: r.supplierInvoiceNumber,
+                            })
+                          : t("noInvoiceNumber")}
+                      </span>
+                      {r.invoiceDueAt !== null && (
+                        <span
+                          className={
+                            overdue
+                              ? "text-danger font-medium"
+                              : "text-op-muted"
+                          }
+                        >
+                          {" · "}
+                          {t("dueLabel", {
+                            date: formatDate(r.invoiceDueAt, {
+                              locale,
+                              timeStyle: undefined,
+                            }),
+                          })}
+                          {overdue && ` · ${t("overdueLabel")}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-medium tabular-nums">
+                      {money(r.receivedCents)}
+                    </div>
+                    <span
+                      className={
+                        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium mt-0.5 " +
+                        (r.paidAt
+                          ? "bg-ok/10 text-[#1E5339]"
+                          : "bg-[#C98A2E]/10 text-[#7F5A1F]")
+                      }
+                    >
+                      {r.paidAt ? t("bookPaidBadge") : t("bookUnpaidBadge")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 

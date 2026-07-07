@@ -17,9 +17,9 @@ export const dynamic = "force-dynamic";
  * nav tampoco.
  *
  * No se precarga server-side: el payload depende del mes seleccionado y
- * ya vive en GET /api/operator/expenses — el client hace el fetch al
- * montar y al cambiar de mes. Los tabs P&L y Libros llegan en el PR B2.4
- * (acá quedan montados como empty-state).
+ * ya vive en los GET de /api/operator (expenses, accounting/pnl,
+ * accounting/books) — el client hace fetch al montar y al cambiar de
+ * mes/tab, con caché por mes.
  */
 export default async function ContabilidadPage() {
   const t = await getTranslations("opErp");

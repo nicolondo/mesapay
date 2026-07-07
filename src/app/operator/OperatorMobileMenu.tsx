@@ -6,6 +6,12 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 type NavItem = { href: string; label: string };
+/**
+ * Entrada de nav: link directo o grupo con hijos (los módulos
+ * administrativos ERP van agrupados — dropdown en desktop, sección
+ * rotulada acá en el drawer).
+ */
+export type NavEntry = NavItem | { label: string; children: NavItem[] };
 
 /**
  * Mobile-only hamburger drawer for the operator layout. Mirrors the
@@ -25,7 +31,7 @@ export function OperatorMobileMenu({
   userEmail: string;
   // Platform admin gets an extra link back to /admin.
   isAdmin: boolean;
-  items: NavItem[];
+  items: NavEntry[];
   // Server-action form rendered by the layout (cannot define a server
   // action inside a client component, so the parent passes it as JSX).
   signOutAction: React.ReactNode;
@@ -34,10 +40,13 @@ export function OperatorMobileMenu({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close on navigation so the overlay doesn't linger.
-  useEffect(() => {
+  // Close on navigation so the overlay doesn't linger — state adjust
+  // during render (not an effect; react-hooks/set-state-in-effect).
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -115,15 +124,26 @@ export function OperatorMobileMenu({
             </div>
 
             <nav className="flex flex-col p-3 gap-1 overflow-y-auto">
-              {items.map((it) => (
-                <DrawerLink
-                  key={it.href}
-                  href={it.href}
-                  pathname={pathname}
-                >
-                  {it.label}
-                </DrawerLink>
-              ))}
+              {items.map((it) =>
+                "children" in it ? (
+                  <div key={it.label} className="my-1">
+                    <div className="px-4 pb-1 font-mono text-[9px] tracking-[0.18em] uppercase text-op-muted">
+                      {it.label}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {it.children.map((c) => (
+                        <DrawerLink key={c.href} href={c.href} pathname={pathname}>
+                          {c.label}
+                        </DrawerLink>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <DrawerLink key={it.href} href={it.href} pathname={pathname}>
+                    {it.label}
+                  </DrawerLink>
+                ),
+              )}
               {isAdmin && (
                 <DrawerLink href="/admin" pathname={pathname}>
                   {t("platformAdminLink")}

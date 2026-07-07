@@ -9,7 +9,8 @@ import { type Locale } from "@/i18n/config";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
 import { isModuleEnabled } from "@/lib/modules";
-import { OperatorMobileMenu } from "./OperatorMobileMenu";
+import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";
+import { NavDropdown } from "./NavDropdown";
 import { GroupSwitcher } from "./GroupSwitcher";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
@@ -200,10 +201,32 @@ export default async function OperatorLayout({
         </div>
       )}
       {(() => {
+        // Módulos ERP activados (gate por módulo — mismo criterio que las
+        // páginas y APIs). Van AGRUPADOS bajo un solo item con dropdown
+        // (desktop) / sección rotulada (drawer móvil) para que la nav no
+        // crezca un item por módulo.
+        const erpItems: { href: string; label: string }[] = [
+          ...(isModuleEnabled(tenant?.enabledModules, "inventory")
+            ? [{ href: "/operator/inventario", label: t("navInventory") }]
+            : []),
+          ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
+            ? [{ href: "/operator/compras", label: t("navPurchasing") }]
+            : []),
+          ...(isModuleEnabled(tenant?.enabledModules, "recipes")
+            ? [{ href: "/operator/recetas", label: t("navRecipes") }]
+            : []),
+          ...(isModuleEnabled(tenant?.enabledModules, "accounting")
+            ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
+            : []),
+          ...(isModuleEnabled(tenant?.enabledModules, "production")
+            ? [{ href: "/operator/produccion", label: t("navProduction") }]
+            : []),
+        ];
         // Single source of truth for the nav so desktop inline + mobile
         // drawer render the same items in the same order. Includes
-        // Cocina + Bar conditionally based on tenant config.
-        const navItems: { href: string; label: string }[] = [
+        // Cocina + Bar conditionally based on tenant config. Una entrada
+        // con `children` es el grupo de módulos administrativos.
+        const navItems: NavEntry[] = [
           { href: "/operator", label: t("navSummary") },
           { href: "/operator/kitchen", label: t("navKitchen") },
           ...(tenant?.hasBar
@@ -226,30 +249,8 @@ export default async function OperatorLayout({
           },
           { href: "/operator/ratings", label: t("navRatings") },
           { href: "/operator/facturas", label: t("navInvoices") },
-          // Módulo ERP `inventory` (Fase A1): item visible solo con el
-          // módulo activado — mismo gate que la página y la API de stock.
-          ...(isModuleEnabled(tenant?.enabledModules, "inventory")
-            ? [{ href: "/operator/inventario", label: t("navInventory") }]
-            : []),
-          // Módulo ERP `purchasing` (Fase A2): mismo patrón que Inventario —
-          // item visible solo con el módulo activado (gate de página y API).
-          ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
-            ? [{ href: "/operator/compras", label: t("navPurchasing") }]
-            : []),
-          // Módulo ERP `recipes` (Fase A3): mismo patrón — item visible
-          // solo con el módulo activado (gate de página y API).
-          ...(isModuleEnabled(tenant?.enabledModules, "recipes")
-            ? [{ href: "/operator/recetas", label: t("navRecipes") }]
-            : []),
-          // Módulo ERP `accounting` (Fase B2): mismo patrón — item visible
-          // solo con el módulo activado (gate de página y API).
-          ...(isModuleEnabled(tenant?.enabledModules, "accounting")
-            ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
-            : []),
-          // Módulo ERP `production` (Fase A5): mismo patrón — item visible
-          // solo con el módulo activado (gate de página y API).
-          ...(isModuleEnabled(tenant?.enabledModules, "production")
-            ? [{ href: "/operator/produccion", label: t("navProduction") }]
+          ...(erpItems.length > 0
+            ? [{ label: t("navErpGroup"), children: erpItems }]
             : []),
           { href: "/operator/reports", label: t("navClose") },
           { href: "/operator/wallet", label: t("navWallet") },
@@ -302,11 +303,19 @@ export default async function OperatorLayout({
                 {/* Inline nav — desktop only. On mobile the hamburger
                     replaces it (overflow on 14 items is unusable). */}
                 <nav className="hidden md:flex gap-1 flex-wrap">
-                  {navItems.map((it) => (
-                    <NavLink key={it.href} href={it.href}>
-                      {it.label}
-                    </NavLink>
-                  ))}
+                  {navItems.map((it) =>
+                    "children" in it ? (
+                      <NavDropdown
+                        key={it.label}
+                        label={it.label}
+                        items={it.children}
+                      />
+                    ) : (
+                      <NavLink key={it.href} href={it.href}>
+                        {it.label}
+                      </NavLink>
+                    ),
+                  )}
                 </nav>
               </div>
               {/* Cluster derecho: links (desktop), selector de idioma y el

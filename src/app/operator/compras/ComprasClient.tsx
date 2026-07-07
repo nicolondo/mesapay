@@ -239,6 +239,7 @@ export function ComprasClient({
   const [listErr, setListErr] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -325,13 +326,22 @@ export function ComprasClient({
         <UnpaidTab currency={currency} onOpenDetail={setDetailId} />
       ) : (
         <>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
-          >
-            {t("newOrder")}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="min-h-[44px] px-2 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+            >
+              {t("newOrder")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSuggestOpen(true)}
+              className="min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg"
+            >
+              {t("suggestedButton")}
+            </button>
+          </div>
 
           {/* Filtro por estado */}
           <div className="flex flex-wrap gap-2">
@@ -450,6 +460,18 @@ export function ComprasClient({
             invalidate();
             setDetailId(id);
           }}
+        />
+      )}
+
+      {suggestOpen && (
+        <SuggestedSheet
+          currency={currency}
+          onClose={() => setSuggestOpen(false)}
+          onDone={() => {
+            setSuggestOpen(false);
+            invalidate();
+          }}
+          onPartial={invalidate}
         />
       )}
     </div>
@@ -1171,6 +1193,418 @@ function NewOrderSheet({
               {busy ? t("creating") : t("createOrder")}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── OC sugerida por reorden (sheet, D4) ───────────── */
+
+/** Línea sugerida tal cual llega del GET /suggested; `presentations` se
+ *  vuelve string editable en el estado local (input controlado). */
+type SuggestedLine = {
+  ingredientId: string;
+  ingredientName: string;
+  measureKind: MeasureKind;
+  stockQtyBase: number;
+  reorderPointBase: number;
+  needBase: number;
+  supplierItemId: string;
+  presentationLabel: string;
+  contentQty: number;
+  presentations: number;
+  lastPriceCents: number | null;
+  expectedCostCents: number;
+};
+
+type UnassignedLine = {
+  ingredientId: string;
+  ingredientName: string;
+  measureKind: MeasureKind;
+  stockQtyBase: number;
+  reorderPointBase: number;
+  needBase: number;
+};
+
+type ReviewLine = Omit<SuggestedLine, "presentations" | "expectedCostCents"> & {
+  presentations: string;
+};
+
+type ReviewGroup = {
+  supplierId: string;
+  supplierName: string;
+  lines: ReviewLine[];
+};
+
+/** Costo esperado de la línea (n × último precio) o null si no hay precio
+ *  registrado o el nº de presentaciones digitado no es un entero ≥ 1. */
+function reviewLineCost(l: ReviewLine): number | null {
+  if (l.lastPriceCents == null) return null;
+  const n = Number(l.presentations);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return n * l.lastPriceCents;
+}
+
+function SuggestedSheet({
+  currency,
+  onClose,
+  onDone,
+  onPartial,
+}: {
+  currency: string;
+  onClose: () => void;
+  /** Todos los borradores se crearon: cerrar + refrescar la lista. */
+  onDone: () => void;
+  /** Falló un proveedor pero otros ya se crearon: solo refrescar. */
+  onPartial: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+
+  // null = cargando; loadErr distingue inventory apagado (403) de red.
+  const [groups, setGroups] = useState<ReviewGroup[] | null>(null);
+  const [unassigned, setUnassigned] = useState<UnassignedLine[]>([]);
+  const [loadErr, setLoadErr] = useState<"load" | "module" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/purchase-orders/suggested");
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error === "module_disabled" ? "module" : "load");
+        }
+        const j = await r.json();
+        if (cancelled) return;
+        setGroups(
+          (
+            (j.suppliers ?? []) as {
+              supplierId: string;
+              supplierName: string;
+              lines: SuggestedLine[];
+            }[]
+          ).map((g) => ({
+            supplierId: g.supplierId,
+            supplierName: g.supplierName,
+            lines: g.lines.map((l) => ({
+              ...l,
+              presentations: String(l.presentations),
+            })),
+          })),
+        );
+        setUnassigned((j.unassigned ?? []) as UnassignedLine[]);
+      } catch (e) {
+        if (!cancelled) {
+          setLoadErr((e as Error).message === "module" ? "module" : "load");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function updatePresentations(
+    supplierId: string,
+    ingredientId: string,
+    value: string,
+  ) {
+    setGroups((prev) =>
+      (prev ?? []).map((g) =>
+        g.supplierId === supplierId
+          ? {
+              ...g,
+              lines: g.lines.map((l) =>
+                l.ingredientId === ingredientId
+                  ? { ...l, presentations: value }
+                  : l,
+              ),
+            }
+          : g,
+      ),
+    );
+  }
+
+  /** Quitar la línea; si el proveedor queda vacío, sale del sheet entero. */
+  function removeLine(supplierId: string, ingredientId: string) {
+    setGroups((prev) =>
+      (prev ?? [])
+        .map((g) =>
+          g.supplierId === supplierId
+            ? {
+                ...g,
+                lines: g.lines.filter((l) => l.ingredientId !== ingredientId),
+              }
+            : g,
+        )
+        .filter((g) => g.lines.length > 0),
+    );
+  }
+
+  async function submit() {
+    const gs = groups;
+    if (!gs || gs.length === 0 || busy) return;
+    setErr(null);
+    // Validación completa ANTES de crear nada — o se crean todos o ninguno
+    // empieza con líneas inválidas a medias.
+    for (const g of gs) {
+      for (const l of g.lines) {
+        const n = Number(l.presentations);
+        if (!Number.isInteger(n) || n < 1) {
+          setErr(t("errLineInvalid"));
+          return;
+        }
+      }
+    }
+    setBusy(true);
+    // Un POST por proveedor, secuencial. Si uno falla, los ya creados se
+    // quitan de la vista y el sheet queda abierto con los pendientes.
+    const remaining = [...gs];
+    while (remaining.length > 0) {
+      const g = remaining[0];
+      const r = await fetch("/api/operator/purchase-orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          supplierId: g.supplierId,
+          lines: g.lines.map((l) => {
+            const n = Number(l.presentations);
+            return {
+              ingredientId: l.ingredientId,
+              supplierItemId: l.supplierItemId,
+              presentations: n,
+              expectedCostCents: (l.lastPriceCents ?? 0) * n,
+            };
+          }),
+        }),
+      }).catch(() => null);
+      if (!r || !r.ok) {
+        const j = r ? await r.json().catch(() => ({})) : {};
+        const key = API_CREATE_ERROR_KEYS[(j as { error?: string }).error ?? ""];
+        setBusy(false);
+        setGroups(remaining);
+        setErr(
+          `${t("suggestedCreateFailed", { name: g.supplierName })} ${
+            key ? t(key) : t("errSaveFailed")
+          }`,
+        );
+        if (remaining.length < gs.length) onPartial();
+        return;
+      }
+      remaining.shift();
+    }
+    setBusy(false);
+    onDone();
+  }
+
+  const isEmpty =
+    groups !== null && groups.length === 0 && unassigned.length === 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-display text-2xl">{t("suggestedTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <p className="text-[11px] text-op-muted mb-4">{t("suggestedHint")}</p>
+
+        {loadErr === "module" ? (
+          <div className="text-xs text-danger">
+            {t("suggestedNeedsInventory")}
+          </div>
+        ) : loadErr === "load" ? (
+          <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+        ) : groups === null ? (
+          <div className="py-6 text-center text-sm text-op-muted">
+            {t("loading")}
+          </div>
+        ) : isEmpty ? (
+          <div className="rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-8 text-center text-sm text-op-muted">
+            {t("suggestedEmpty")}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((g) => {
+              const subtotal = g.lines.reduce(
+                (sum, l) => sum + (reviewLineCost(l) ?? 0),
+                0,
+              );
+              return (
+                <div key={g.supplierId}>
+                  <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+                    {g.supplierName}
+                  </div>
+                  <div className="border border-op-border rounded-2xl overflow-hidden">
+                    {g.lines.map((l) => {
+                      const cost = reviewLineCost(l);
+                      return (
+                        <div
+                          key={l.ingredientId}
+                          className="px-3 py-2 border-b border-op-border last:border-b-0"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {l.ingredientName}
+                              </div>
+                              <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                                {[
+                                  `${formatBaseQty(
+                                    l.stockQtyBase,
+                                    l.measureKind,
+                                    locale,
+                                  )} / ${t("reorderMinRef", {
+                                    qty: formatBaseQty(
+                                      l.reorderPointBase,
+                                      l.measureKind,
+                                      locale,
+                                    ),
+                                  })}`,
+                                  l.presentationLabel,
+                                ].join(" · ")}
+                              </div>
+                            </div>
+                            <div className="text-sm font-medium tabular-nums shrink-0">
+                              {cost == null
+                                ? "—"
+                                : formatMoney(cost, { currency, locale })}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 mt-1">
+                            <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted truncate">
+                              {t("fieldPresentationsCount")}
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              inputMode="numeric"
+                              value={l.presentations}
+                              onChange={(e) =>
+                                updatePresentations(
+                                  g.supplierId,
+                                  l.ingredientId,
+                                  e.target.value,
+                                )
+                              }
+                              aria-label={t("fieldPresentationsCount")}
+                              className="min-h-[40px] w-20 px-2 rounded-lg border border-op-border bg-op-bg text-sm text-center shrink-0"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeLine(g.supplierId, l.ingredientId)
+                              }
+                              className="min-h-[40px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0"
+                            >
+                              {t("removeLine")}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center justify-between px-3 py-2 bg-op-bg/50">
+                      <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                        {t("orderTotalLabel")}
+                      </span>
+                      <span className="text-sm font-medium tabular-nums">
+                        {formatMoney(subtotal, { currency, locale })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Bajo mínimo pero sin proveedor preferido — informativo. */}
+            {unassigned.length > 0 && (
+              <div>
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+                  {t("suggestedUnassignedTitle")}
+                </div>
+                <div className="border border-op-border rounded-2xl overflow-hidden">
+                  {unassigned.map((u) => (
+                    <div
+                      key={u.ingredientId}
+                      className="flex items-center gap-3 px-3 py-2 border-b border-op-border last:border-b-0"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {u.ingredientName}
+                        </div>
+                        <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                          {`${formatBaseQty(
+                            u.stockQtyBase,
+                            u.measureKind,
+                            locale,
+                          )} / ${t("reorderMinRef", {
+                            qty: formatBaseQty(
+                              u.reorderPointBase,
+                              u.measureKind,
+                              locale,
+                            ),
+                          })}`}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                          {t("suggestedNeedLabel")}
+                        </div>
+                        <div className="text-sm font-medium tabular-nums">
+                          {formatBaseQty(u.needBase, u.measureKind, locale)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-[10px] text-op-muted mt-1">
+                  {t("suggestedUnassignedHint")}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+
+        <div className="flex items-center justify-end gap-3 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+          >
+            {t("cancel")}
+          </button>
+          {groups !== null && groups.length > 0 && (
+            <button
+              type="button"
+              onClick={submit}
+              disabled={busy}
+              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+            >
+              {busy
+                ? t("creating")
+                : t("suggestedCreate", { count: groups.length })}
+            </button>
+          )}
         </div>
       </div>
     </div>

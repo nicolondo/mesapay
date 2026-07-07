@@ -142,6 +142,7 @@ export default async function GroupLayout({
             </div>
             <nav className="hidden md:flex gap-1">
               <NavLink href="/group">{t("navRestaurants")}</NavLink>
+              <NavLink href="/group/pnl">{t("navPnl")}</NavLink>
               <NavLink href="/group/razones-sociales">
                 {t("navLegalEntities")}
               </NavLink>

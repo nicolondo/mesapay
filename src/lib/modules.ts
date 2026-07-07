@@ -44,7 +44,10 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // vivo (cascada inventario → sub-receta → proveedor), food cost % y
   // matriz de ingeniería de menú (PRs #224-#227).
   { slug: "recipes", shipped: true },
-  { slug: "accounting", shipped: false },
+  // Fase B2 en producción: gastos (con recurrentes), P&L mensual con CMV
+  // real del ledger, consolidado de grupo, libros de ventas/compras y
+  // export CSV (PRs #235-#238).
+  { slug: "accounting", shipped: true },
   { slug: "production", shipped: false },
   { slug: "staff", shipped: false },
 ];

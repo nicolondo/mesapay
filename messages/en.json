@@ -3995,6 +3995,12 @@
     "engineeringNoDataTitle": "No data",
     "engineeringReasonNoSales": "No sales in the period",
     "engineeringEmptyTitle": "No dishes to classify yet",
-    "engineeringEmptyBody": "The matrix needs dishes with a complete recipe and sales in the period."
+    "engineeringEmptyBody": "The matrix needs dishes with a complete recipe and sales in the period.",
+    "fcAlertBannerCount": "{count, plural, one {# dish with high food cost} other {# dishes with high food cost}}",
+    "fcAlertFilterChip": "High food cost",
+    "priceAlertSectionTitle": "Ingredients on the rise ({count})",
+    "priceAlertAffects": "Affects: {list}",
+    "priceAlertAffectsMore": "Affects: {list} and {count} more",
+    "priceAlertNoDishes": "No dishes with a recipe use it."
   }
 }

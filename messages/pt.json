@@ -3995,6 +3995,12 @@
     "engineeringNoDataTitle": "Sem dados",
     "engineeringReasonNoSales": "Sem vendas no período",
     "engineeringEmptyTitle": "Ainda não há pratos para classificar",
-    "engineeringEmptyBody": "A matriz precisa de pratos com receita completa e vendas no período."
+    "engineeringEmptyBody": "A matriz precisa de pratos com receita completa e vendas no período.",
+    "fcAlertBannerCount": "{count, plural, one {# prato com food cost alto} other {# pratos com food cost alto}}",
+    "fcAlertFilterChip": "Food cost alto",
+    "priceAlertSectionTitle": "Insumos em alta ({count})",
+    "priceAlertAffects": "Afeta: {list}",
+    "priceAlertAffectsMore": "Afeta: {list} e mais {count}",
+    "priceAlertNoDishes": "Nenhum prato com receita o utiliza."
   }
 }

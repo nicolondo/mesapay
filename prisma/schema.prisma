@@ -282,6 +282,7 @@ model Restaurant {
   stockCounts         StockCount[]
   purchaseOrders      PurchaseOrder[]
   recipes             Recipe[]
+  expenses            Expense[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -622,9 +623,10 @@ model User {
   pushSubscriptions PushSubscription[]
 
   // ERP: movimientos de inventario / conteos creados por este usuario.
-  stockMovements StockMovement[] @relation("StockMovementCreator")
-  stockCounts    StockCount[]    @relation("StockCountCreator")
-  purchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreator")
+  stockMovements  StockMovement[] @relation("StockMovementCreator")
+  expensesCreated Expense[]       @relation("ExpenseCreator")
+  stockCounts     StockCount[]    @relation("StockCountCreator")
+  purchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreator")
 
   // Comisiones comerciales
   commissionBps       Int?
@@ -1413,6 +1415,7 @@ model Supplier {
 
   items          SupplierIngredient[]
   purchaseOrders PurchaseOrder[]
+  expenses       Expense[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1689,6 +1692,44 @@ model RecipeItem {
   wastePct Int @default(0)
 
   @@unique([recipeId, ingredientId])
+}
+
+// === ERP · Fase B2: gastos y contabilidad ==================================
+// Spec: docs/superpowers/specs/2026-07-06-erp-b2-contabilidad-design.md
+// Gasto operativo del comercio. Categoría LIBRE con datalist (criterio
+// Ingredient.category — sin plan de cuentas impuesto). Un gasto puede ser
+// plantilla mensual (recurring + recurringDay): el cron
+// /api/cron/recurring-expenses lo materializa como copia con templateId,
+// una sola vez por mes (idempotente).
+
+model Expense {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  category    String
+  description String?
+  amountCents Int
+  // Fecha CONTABLE del gasto (editable) — no confundir con createdAt.
+  date        DateTime
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  // Plantilla mensual (recurringDay 1-28, lo valida la API).
+  recurring    Boolean @default(false)
+  recurringDay Int?
+
+  templateId String?
+  template   Expense?  @relation("ExpenseTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  copies     Expense[] @relation("ExpenseTemplate")
+
+  createdById String?
+  createdBy   User?    @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([restaurantId, date])
+  @@index([restaurantId, recurring])
 }
 
 // === Kushki integration ====================================================

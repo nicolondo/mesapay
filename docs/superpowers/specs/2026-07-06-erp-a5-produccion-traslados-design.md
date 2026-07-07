@@ -1,17 +1,19 @@
-# ERP Fase A5 · Producción de batches y traslados entre sedes
+# ERP Fase A5 · Producción de batches
 
 > Spec para aprobación antes de codear. Roadmap: `docs/roadmap-erp-modulos.md`.
 > Módulo nuevo: `production` (slug ya en el catálogo con `shipped: false`).
-> Depende de A1 (ledger), A3 (sub-recetas) y — para traslados — de Grupos F1.
+> Depende de A1 (ledger) y A3 (sub-recetas).
+>
+> **Cambio de alcance (2026-07-06, decisión de producto):** los traslados
+> entre sedes se DESCARTARON — no se van a desarrollar. Esta fase queda
+> solo con producción de batches.
 
 ## Objetivo
 
-Cerrar los dos huecos que quedaron señalados en A3/A4: (1) **producir un
-batch** de una sub-receta mueve inventario de verdad — salen los
-ingredientes, entra el elaborado con su costo real — y el elaborado deja
-de quedar negativo cuando las ventas lo consumen; (2) **trasladar
-insumos entre sedes** del mismo grupo (la bodega central le manda lomo a
-la sede norte) con el valor viajando con la mercancía.
+Cerrar el hueco señalado en A3/A4: **producir un batch** de una
+sub-receta mueve inventario de verdad — salen los ingredientes, entra el
+elaborado con su costo real — y el elaborado deja de quedar negativo
+cuando las ventas lo consumen (A4).
 
 ## Decisiones de diseño
 
@@ -43,34 +45,15 @@ cuánto y a qué costo. Sin estados — el batch se registra ya hecho
 (planear producción es otra fase). Sin edición: un error se corrige con
 movimientos contrarios (regla A1); borrar batches no existe.
 
-### D3. Traslados: inmediatos, entre sedes del grupo, matching por nombre
-
-- Origen y destino deben pertenecer al **mismo grupo** (validación
-  server). Sin estado "en tránsito" en A5: el traslado se registra al
-  despachar y escribe las DOS sedes en una tx (misma DB) —
-  `transfer_out` en origen al promedio actual y `transfer_in` en destino
-  con `totalCostCents` = |valor de salida| (el valor viaja con la
-  mercancía, como una recepción).
-- **Matching de insumos** (los catálogos son por sede): por nombre
-  normalizado (fold accent-insensitive, mismo helper de búsqueda) +
-  `measureKind` igual. Si el destino no tiene el insumo, se CREA
-  (nombre/categoría/measureKind copiados, activo). Nombre igual con
-  dimensión distinta ⇒ error por línea (`measure_kind_mismatch`) — nunca
-  mezclar gramos con mililitros.
-- Gate: módulo `production` activo en la sede ORIGEN (quien despacha).
-  El destino recibe movimientos sin exigir módulo (como una recepción de
-  OC — la mercancía llega igual); su operador los ve en el historial de
-  inventario si tiene `inventory`.
-
-### D4. Modelo de datos (Prisma)
+### D3. Modelo de datos (Prisma)
 
 ```prisma
 model ProductionBatch {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  // Sub-receta producida (snapshot vía outputIngredientId — la receta
-  // puede cambiar después; el ledger conserva lo que realmente salió).
+  // Elaborado producido (la receta puede cambiar después; el ledger
+  // conserva lo que realmente salió).
   outputIngredientId String
   outputIngredient   Ingredient @relation("BatchOutput", fields: [outputIngredientId], references: [id], onDelete: Restrict)
   outputQtyBase Int // cantidad producida (unidad base del elaborado)
@@ -84,111 +67,63 @@ model ProductionBatch {
 
   @@index([restaurantId, createdAt])
 }
-
-model Transfer {
-  id               String     @id @default(cuid())
-  groupId          String
-  fromRestaurantId String
-  from             Restaurant @relation("TransfersOut", fields: [fromRestaurantId], references: [id], onDelete: Cascade)
-  toRestaurantId   String
-  to               Restaurant @relation("TransfersIn", fields: [toRestaurantId], references: [id], onDelete: Cascade)
-  note             String?
-  createdById      String?
-  createdBy        User?      @relation("TransferCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt        DateTime   @default(now())
-
-  items     TransferItem[]
-  movements StockMovement[]
-
-  @@index([fromRestaurantId, createdAt])
-  @@index([toRestaurantId, createdAt])
-}
-
-model TransferItem {
-  id         String   @id @default(cuid())
-  transferId String
-  transfer   Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  // Insumo en ORIGEN y su gemelo en DESTINO (resuelto/creado al despachar).
-  fromIngredientId String
-  toIngredientId   String
-  qtyBase          Int
-  valueCents       Int // |transfer_out| = totalCost del transfer_in
-
-  @@index([transferId])
-}
 ```
 
-`StockMovement` gana `productionBatchId` y `transferId` (FKs opcionales
-SetNull + índices), mismo patrón que `purchaseOrderId`/`orderId`.
+`StockMovement` gana `productionBatchId` (FK opcional SetNull + índice),
+mismo patrón que `purchaseOrderId`/`orderId`.
 
-### D5. Superficie: `/operator/produccion` (módulo `production`)
+### D4. Superficie: `/operator/produccion` (módulo `production`)
 
-Página propia (patrón contabilidad): gate + nav "Producción". Dos tabs:
+Página propia (patrón contabilidad): gate + nav "Producción". Una sola
+vista: **historial de batches** (fecha, elaborado, cantidad, costo,
+quién, badge costo parcial; paginado) + botón "Producir": sheet con
+picker de sub-receta (las de A3), cantidad producida en unidades display
+(default = rendimiento), **preview en vivo** de consumos por línea
+(escalados, con costo al promedio actual y hint en líneas sin costo) y
+costo total del batch. Registrar → POST.
 
-1. **Batches** — historial (fecha, elaborado, cantidad, costo, quién,
-   badge costo parcial) + botón "Producir": sheet con picker de
-   sub-receta (las de A3), cantidad producida en unidades display
-   (default = rendimiento), **preview en vivo** de consumos por línea
-   (escalados, con costo al promedio actual y hint en líneas sin costo)
-   y costo total del batch. Registrar → POST.
-2. **Traslados** — solo tiene sentido con grupo: sin `groupId` o con una
-   sola sede, empty-state explicativo. Historial enviados/recibidos
-   (dirección, sede, items, valor) + botón "Trasladar": sheet con
-   destino (sedes hermanas), líneas insumo + cantidad display, preview
-   de valor al promedio actual y aviso por línea cuando el insumo se
-   creará en destino o cuando hay `measure_kind_mismatch`.
-
-### D6. API (gate `production` vía getErpContext)
-
-```
-GET  /api/operator/production            → batches (paginado 20)
-POST /api/operator/production            → { outputIngredientId, outputQtyBase, note? }
-                                           (400 no_subrecipe si el insumo no tiene receta,
-                                            400 qty inválida; respuesta incluye partialCost)
-GET  /api/operator/transfers             → enviados + recibidos (paginado)
-GET  /api/operator/transfers/context     → sedes hermanas + matching preview por insumo
-POST /api/operator/transfers             → { toRestaurantId, items: [{ingredientId, qtyBase}], note? }
-                                           (400 not_same_group | measure_kind_mismatch (por línea)
-                                            | qty inválida; máx. 100 líneas)
-```
-
-El preview de consumos del batch se calcula EN EL CLIENTE con datos que
-ya expone `GET /api/operator/recipes` (líneas + rendimiento) y
+El preview se calcula EN EL CLIENTE con datos que ya exponen
+`GET /api/operator/recipes` (líneas + rendimiento) y
 `GET /api/operator/stock` (promedios) — sin endpoint nuevo; el server
 recalcula al registrar (la verdad es del server).
 
-## Lógica central: `src/lib/erp/production.ts` (pura, testeable)
+### D5. API (gate `production` vía getErpContext)
 
-- `scaleBatchLines(recipeItems, outputQtyBase, producedQtyBase)` →
+```
+GET  /api/operator/production   → batches (paginado 20, cursor)
+POST /api/operator/production   → { outputIngredientId, outputQtyBase, note? }
+                                  (400 no_subrecipe si el insumo no tiene
+                                   receta, 400 qty inválida; respuesta
+                                   incluye batch + partialCost)
+```
+
+## Lógica central: `src/lib/erp/production.ts` (pura + tx)
+
+- `scaleBatchLines(recipeItems, outputQtyBase, producedQtyBase)` (pura) →
   `[{ingredientId, qtyBase}]` (bruto por merma, escalado, redondeado,
   filtra qty 0).
-- `runProduction(tx, args)`: valida sub-receta, aplica los
+- `runProduction(tx, args)`: valida sub-receta y cantidades, aplica los
   `production_out` (capturando valores) + `production_in` con el costo
   acumulado, crea el `ProductionBatch`. Reusa `applyStockMovement`.
-- `resolveTransferTargets(fromItems, toIngredients)` (pura): matching
-  fold+measureKind → `{matched, toCreate, mismatched}`.
-- `runTransfer(tx, args)`: resuelve/crea gemelos en destino, aplica
-  `transfer_out`/`transfer_in` por línea con el valor viajando, crea
-  `Transfer` + items.
 - Sanity con tsx contra los criterios de aceptación.
 
 ## i18n
 
-Extensión de `opErp`: nav "Producción", tabs, sheets, badges, errores.
-`navProduction` en el namespace `operator`. Glob a MIGRATED. Paridad.
+Extensión de `opErp`: tabs/sheet/badges/errores + `navProduction` en el
+namespace `operator`. Glob a MIGRATED. Paridad estricta.
 
 ## Fuera de alcance (explícito)
 
-Planeación de producción (batch sugerido por demanda), estados en
-tránsito / confirmación en destino, traslados de dinero, edición o
-anulación de batches/traslados (movimientos contrarios manuales),
-traslados entre grupos distintos, costos de transporte.
+**Traslados entre sedes — descartados por decisión de producto (no se
+desarrollan).** Planeación de producción (batch sugerido por demanda),
+edición/anulación de batches (movimientos contrarios manuales), costos
+de mano de obra en el batch.
 
 ## Entrega (4 PRs)
 
-1. Schema + `src/lib/erp/production.ts` + sanity tsx.
-2. API: production + transfers + context.
-3. UI `/operator/produccion` (2 tabs) + nav — subagente.
+1. Schema `ProductionBatch` + FK en StockMovement + `production.ts` + sanity tsx.
+2. API: GET/POST /api/operator/production.
+3. UI `/operator/produccion` + nav — subagente.
 4. Flip `production.shipped = true` + verificación integral.
 
 ## Criterios de aceptación
@@ -200,12 +135,8 @@ traslados entre grupos distintos, costos de transporte.
    consistente (valor/cantidad).
 2. Producir con una línea sin costo en stock ⇒ batch registrado con
    `partialCost: true` y badge en UI — nunca bloquea.
-3. Traslado de 2 kg de lomo (promedio $16.000/kg) a una sede hermana ⇒
-   `transfer_out` −2000 g / −$32.000 en origen y `transfer_in` +2000 g /
-   +$32.000 en destino en la MISMA tx; si el destino no tenía "Lomo", se
-   crea con la misma dimensión.
-4. Traslado a una sede de otro grupo ⇒ 400; insumo homónimo con otra
-   dimensión ⇒ 400 `measure_kind_mismatch` señalando la línea.
-5. Módulo apagado ⇒ sin nav, página 404, API 403. Comercio sin grupo ⇒
-   tab Traslados con empty-state, API `transfers` 400 `no_group`.
-   Trilingüe en paridad.
+3. Insumo sin sub-receta ⇒ 400 `no_subrecipe`. Cantidad 0/negativa ⇒ 400.
+4. El movimiento del ledger enlaza el batch (kind `production_in/out`
+   con `productionBatchId`) y se lee en el tab Movimientos de inventario
+   con su label.
+5. Módulo apagado ⇒ sin nav, página 404, API 403. Trilingüe en paridad.

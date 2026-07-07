@@ -96,7 +96,8 @@ Un error de inventario jamás tumba un pedido de comensal.
   al pagar la orden (`sale_consumption`). Par levels → avisos de reorden
   (push/email/banner) → OC sugerida en un clic. Teórico vs. conteo =
   desviación.
-- **A5 · Producción + traslados** (segunda ola, ~3-5 PRs).
+- **A5 · Producción de batches** (segunda ola, ~4 PRs chicos). Traslados
+  entre sedes: DESCARTADOS por decisión de producto (2026-07-06).
 
 ### Track B — Fiscal/Financiero (paralelo, no depende de inventario)
 
@@ -123,7 +124,7 @@ Fase 0 (prerequisito): framework de módulos activables (enabledModules)
 Arranque:      B1 Facturación electrónica  +  A0 Fundaciones   (paralelo)
 Luego:         A1 Inventario → A2 Compras → A3 Recetas/costeo
 Luego:         A4 Consumo + reorden   +   B2 P&L/export        (paralelo)
-Segunda ola:   B3 Conciliación · A5 Producción/traslados · C1 Horarios
+Segunda ola:   B3 Conciliación · A5 Producción de batches · C1 Horarios
 ```
 
 Por qué: B1 desbloquea ventas ya y no depende de nada. A0→A4 es cadena

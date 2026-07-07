@@ -244,17 +244,25 @@ model Restaurant {
   //                 jornada. Coexiste con el shift global del restaurante
   //                 si lo hay; sirve para que el mesero tenga su propio
   //                 corte aunque la caja sea una sola.
-  tipPolicy               String @default("shared")
-  shiftPolicy             String @default("global")
+  tipPolicy String @default("shared")
+
+  // C2 (ERP staff) — asistencia estricta: turno pasado sin check-in =
+  // falta ($0) en vez del estimado C1. Se enciende al adoptar el kiosko.
+  staffStrictAttendance   Boolean @default(false)
+  // C2 — recargo % sobre la hora ordinaria en festivos y domingos
+  // (default 75/75, estándar CO; 0 = sin recargo).
+  staffHolidayPct         Int     @default(75)
+  staffSundayPct          Int     @default(75)
+  shiftPolicy             String  @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de
   // madrugada (corte 5 = 05:00, así lo de 00:00–05:00 cuenta como el
   // día anterior). 0 = medianoche.
-  businessDayCutoffHour   Int    @default(5)
+  businessDayCutoffHour   Int     @default(5)
   // Qué hacer si un mesero abre su turno sin que el local haya abierto el
   // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
-  meseroShiftWithoutLocal String @default("block")
+  meseroShiftWithoutLocal String  @default("block")
 
   users               User[]
   tables              Table[]
@@ -1791,8 +1799,15 @@ model StaffShift {
 
   // Asistencia: timestamps reales del punch (ajustables a mano por el
   // operador). Ambos presentes => el costo usa los minutos reales.
-  checkInAt  DateTime?
-  checkOutAt DateTime?
+  checkInAt        DateTime?
+  checkOutAt       DateTime?
+  // C2 — evidencia y origen del punch ("face" | "manual" | "operator").
+  checkInPhotoUrl  String?
+  checkOutPhotoUrl String?
+  checkInMethod    String?
+  checkOutMethod   String?
+  // C2 — el cron cerró la salida a la hora planeada (olvido de check-out).
+  autoClosed       Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

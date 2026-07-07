@@ -25,18 +25,45 @@ export function validShiftRange(startMinutes: number, endMinutes: number): boole
 export type ShiftCost = {
   minutes: number;
   costCents: number;
-  /** "actual" = punch completo; "planned" = rango planeado. */
-  source: "actual" | "planned";
+  /**
+   * "actual" = punch completo; "planned" = rango planeado;
+   * "absent" (C2) = turno pasado sin check-in en modo estricto — falta,
+   * cuesta 0.
+   */
+  source: "actual" | "planned" | "absent";
   missingRate: boolean;
+  /** C2 — parte del costo que es recargo festivo/dominical. */
+  surchargeCents: number;
 };
 
-export function shiftCost(shift: {
-  startMinutes: number;
-  endMinutes: number;
-  checkInAt: Date | null;
-  checkOutAt: Date | null;
-  hourlyRateCents: number | null;
-}): ShiftCost {
+/**
+ * Contexto C2 (opcional — sin él, comportamiento C1 exacto):
+ * - recargo: % sobre la hora ordinaria si el DÍA en que EMPIEZA el turno
+ *   es festivo (holidayPct) o domingo no festivo (sundayPct).
+ * - estricto: turno ya terminado (según plan) sin check-in ⇒ falta ($0).
+ */
+export type ShiftCostContext = {
+  isHoliday?: boolean;
+  isSunday?: boolean;
+  holidayPct?: number;
+  sundayPct?: number;
+  strict?: boolean;
+  /** Reloj del caller — para decidir si el turno planeado ya terminó. */
+  now?: Date;
+  /** date del turno (medianoche UTC) — requerido para la regla estricta. */
+  shiftDate?: Date;
+};
+
+export function shiftCost(
+  shift: {
+    startMinutes: number;
+    endMinutes: number;
+    checkInAt: Date | null;
+    checkOutAt: Date | null;
+    hourlyRateCents: number | null;
+  },
+  ctx: ShiftCostContext = {},
+): ShiftCost {
   let minutes = shift.endMinutes - shift.startMinutes;
   let source: ShiftCost["source"] = "planned";
   if (shift.checkInAt && shift.checkOutAt) {
@@ -49,11 +76,72 @@ export function shiftCost(shift: {
       source = "actual";
     }
   }
+
+  // C2 — falta: sin check-in y el turno planeado ya terminó (estricto).
+  if (
+    source === "planned" &&
+    ctx.strict &&
+    !shift.checkInAt &&
+    ctx.now &&
+    ctx.shiftDate &&
+    ctx.shiftDate.getTime() + shift.endMinutes * 60_000 < ctx.now.getTime()
+  ) {
+    return {
+      minutes: 0,
+      costCents: 0,
+      source: "absent",
+      missingRate: shift.hourlyRateCents == null,
+      surchargeCents: 0,
+    };
+  }
+
   const missingRate = shift.hourlyRateCents == null;
-  const costCents = missingRate
+  const baseCents = missingRate
     ? 0
     : Math.round((minutes * shift.hourlyRateCents!) / 60);
-  return { minutes, costCents, source, missingRate };
+  // Recargo (C2): festivo manda sobre domingo (no se acumulan).
+  const pct = ctx.isHoliday
+    ? (ctx.holidayPct ?? 0)
+    : ctx.isSunday
+      ? (ctx.sundayPct ?? 0)
+      : 0;
+  const surchargeCents = pct > 0 ? Math.round((baseCents * pct) / 100) : 0;
+  return {
+    minutes,
+    costCents: baseCents + surchargeCents,
+    source,
+    missingRate,
+    surchargeCents,
+  };
+}
+
+// ── Plantilla semanal (C2) ──────────────────────────────────────────────────
+
+export type WeeklyTemplate = Array<{
+  /** 0 = lunes … 6 = domingo (eje del planner). */
+  weekday: number;
+  ranges: Array<{ startMinutes: number; endMinutes: number }>;
+}>;
+
+/** Turnos candidatos de la plantilla para la semana del lunes dado. */
+export function templateShiftsForWeek(
+  template: WeeklyTemplate,
+  monday: Date,
+): Array<{ date: Date; startMinutes: number; endMinutes: number }> {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const out: Array<{ date: Date; startMinutes: number; endMinutes: number }> = [];
+  for (const day of template) {
+    if (!Number.isInteger(day.weekday) || day.weekday < 0 || day.weekday > 6) continue;
+    for (const r of day.ranges.slice(0, 2)) {
+      if (!validShiftRange(r.startMinutes, r.endMinutes)) continue;
+      out.push({
+        date: new Date(monday.getTime() + day.weekday * DAY_MS),
+        startMinutes: r.startMinutes,
+        endMinutes: r.endMinutes,
+      });
+    }
+  }
+  return out;
 }
 
 /** Solape de rangos del mismo empleado/día ([start, end) — turno partido OK). */

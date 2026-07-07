@@ -246,6 +246,11 @@ export default async function OperatorLayout({
           ...(isModuleEnabled(tenant?.enabledModules, "accounting")
             ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
             : []),
+          // Módulo ERP `production` (Fase A5): mismo patrón — item visible
+          // solo con el módulo activado (gate de página y API).
+          ...(isModuleEnabled(tenant?.enabledModules, "production")
+            ? [{ href: "/operator/produccion", label: t("navProduction") }]
+            : []),
           { href: "/operator/reports", label: t("navClose") },
           { href: "/operator/wallet", label: t("navWallet") },
           { href: "/operator/settings", label: t("navSettings") },

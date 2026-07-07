@@ -99,6 +99,8 @@ export type ApplyStockMovementArgs = {
   purchaseOrderId?: string | null;
   /** A4: consumo por venta — orden pagada que originó el movimiento. */
   orderId?: string | null;
+  /** A5: producción — batch que originó el production_in/out. */
+  productionBatchId?: string | null;
   createdById?: string | null;
 };
 
@@ -140,6 +142,7 @@ export async function applyStockMovement(
     stockCountId,
     purchaseOrderId,
     orderId,
+    productionBatchId,
     createdById,
   } = args;
 
@@ -204,6 +207,7 @@ export async function applyStockMovement(
       stockCountId: stockCountId ?? null,
       purchaseOrderId: purchaseOrderId ?? null,
       orderId: orderId ?? null,
+      productionBatchId: productionBatchId ?? null,
       createdById: createdById ?? null,
     },
   });

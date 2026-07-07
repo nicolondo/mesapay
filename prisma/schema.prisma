@@ -283,6 +283,7 @@ model Restaurant {
   purchaseOrders      PurchaseOrder[]
   recipes             Recipe[]
   expenses            Expense[]
+  productionBatches   ProductionBatch[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -623,10 +624,11 @@ model User {
   pushSubscriptions PushSubscription[]
 
   // ERP: movimientos de inventario / conteos creados por este usuario.
-  stockMovements  StockMovement[] @relation("StockMovementCreator")
-  expensesCreated Expense[]       @relation("ExpenseCreator")
-  stockCounts     StockCount[]    @relation("StockCountCreator")
-  purchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreator")
+  stockMovements           StockMovement[]   @relation("StockMovementCreator")
+  expensesCreated          Expense[]         @relation("ExpenseCreator")
+  productionBatchesCreated ProductionBatch[] @relation("ProductionBatchCreator")
+  stockCounts              StockCount[]      @relation("StockCountCreator")
+  purchaseOrders           PurchaseOrder[]   @relation("PurchaseOrderCreator")
 
   // Comisiones comerciales
   commissionBps       Int?
@@ -1391,6 +1393,7 @@ model Ingredient {
   purchaseOrderItems PurchaseOrderItem[]
   recipe             Recipe?              @relation("IngredientRecipe")
   recipeItems        RecipeItem[]
+  productionBatches  ProductionBatch[]    @relation("BatchOutput")
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1499,31 +1502,35 @@ model StockLevel {
 /// Libro de movimientos — APPEND-ONLY. Correcciones = movimiento contrario.
 /// qtyBase y valueCents llevan SIGNO (+entra / −sale).
 model StockMovement {
-  id              String            @id @default(cuid())
-  restaurantId    String
-  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  ingredientId    String
-  ingredient      Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-  kind            StockMovementKind
-  qtyBase         Int
-  valueCents      Int
-  wasteReason     WasteReason?
-  note            String?
-  stockCountId    String?
-  stockCount      StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
+  id                String            @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId      String
+  ingredient        Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  kind              StockMovementKind
+  qtyBase           Int
+  valueCents        Int
+  wasteReason       WasteReason?
+  note              String?
+  stockCountId      String?
+  stockCount        StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
   // A2: recepciones de OC — el libro ES el registro de recepción (spec D3).
-  purchaseOrderId String?
-  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  purchaseOrderId   String?
+  purchaseOrder     PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   // A4: consumo por venta — orden pagada que originó el sale_consumption.
-  orderId         String?
-  order           Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdById     String?
-  createdBy       User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime          @default(now())
+  orderId           String?
+  order             Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  // A5: producción — batch que originó el production_in/out.
+  productionBatchId String?
+  productionBatch   ProductionBatch?  @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
+  createdById       String?
+  createdBy         User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime          @default(now())
 
   @@index([restaurantId, createdAt])
   @@index([ingredientId, createdAt])
   @@index([orderId])
+  @@index([productionBatchId])
 }
 
 enum StockCountStatus {
@@ -1692,6 +1699,39 @@ model RecipeItem {
   wastePct Int @default(0)
 
   @@unique([recipeId, ingredientId])
+}
+
+// === ERP · Fase A5: producción de batches ==================================
+// Spec: docs/superpowers/specs/2026-07-06-erp-a5-produccion-traslados-design.md
+// (traslados entre sedes descartados por decisión de producto). Un batch
+// registra producción YA HECHA de una sub-receta: salen los ingredientes
+// (production_out al promedio) y entra el elaborado (production_in con el
+// costo exacto de lo que salió). El ledger es la verdad (movimientos con
+// productionBatchId); sin edición — errores se corrigen con movimientos
+// contrarios (regla A1).
+
+model ProductionBatch {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Elaborado producido (la receta puede cambiar después; el ledger
+  // conserva lo que realmente salió).
+  outputIngredientId String
+  outputIngredient   Ingredient @relation("BatchOutput", fields: [outputIngredientId], references: [id], onDelete: Restrict)
+  // Cantidad producida, en unidad base del elaborado.
+  outputQtyBase      Int
+  // Σ consumos — lo que entró el production_in.
+  costCents          Int
+  note               String?
+
+  createdById String?
+  createdBy   User?    @relation("ProductionBatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  movements StockMovement[]
+
+  @@index([restaurantId, createdAt])
 }
 
 // === ERP · Fase B2: gastos y contabilidad ==================================

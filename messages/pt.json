@@ -3833,6 +3833,8 @@
     "kindWaste": "Perda",
     "kindCountAdjust": "Ajuste por contagem",
     "kindSaleConsumption": "Consumo por venda",
+    "kindProductionIn": "Produção (entrada)",
+    "kindProductionOut": "Produção (consumo)",
     "movementsEmpty": "Ainda não há movimentações de estoque.",
     "loadMore": "Carregar mais",
     "tabCounts": "Contagens",

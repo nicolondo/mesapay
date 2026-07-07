@@ -18,7 +18,7 @@ export type ModuleSlug =
   | "recipes" // A3 — recetas, costeo, ingeniería de menú
   | "einvoicing" // B1 — facturación electrónica (DIAN / CFDI)
   | "accounting" // B2 — gastos, libros operativos, P&L, export contable
-  | "production" // A5 — batches de sub-recetas, traslados entre sedes
+  | "production" // A5 — batches de sub-recetas (traslados descartados)
   | "staff"; // C1 — horarios, asistencia, costo laboral
 
 export type ModuleConfig = {
@@ -48,7 +48,10 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // real del ledger, consolidado de grupo, libros de ventas/compras y
   // export CSV (PRs #235-#238).
   { slug: "accounting", shipped: true },
-  { slug: "production", shipped: false },
+  // Fase A5 en producción: batches de sub-recetas — salen ingredientes al
+  // promedio, entra el elaborado con costo exacto (PRs #242-#244).
+  // Traslados entre sedes: descartados por decisión de producto.
+  { slug: "production", shipped: true },
   { slug: "staff", shipped: false },
 ];
 

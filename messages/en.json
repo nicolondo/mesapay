@@ -3833,6 +3833,8 @@
     "kindWaste": "Waste",
     "kindCountAdjust": "Count adjustment",
     "kindSaleConsumption": "Sale consumption",
+    "kindProductionIn": "Production (in)",
+    "kindProductionOut": "Production (consumed)",
     "movementsEmpty": "No inventory movements yet.",
     "loadMore": "Load more",
     "tabCounts": "Counts",

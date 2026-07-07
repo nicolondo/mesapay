@@ -107,6 +107,9 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   // A4 — consumo automático por venta (lo escribe el server al pagar una
   // orden; acá solo se lee).
   sale_consumption: "kindSaleConsumption",
+  // A5 — producción de lotes (los escribe /operator/produccion).
+  production_in: "kindProductionIn",
+  production_out: "kindProductionOut",
 };
 
 const WASTE_REASONS = [

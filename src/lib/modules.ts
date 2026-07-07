@@ -52,7 +52,11 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // promedio, entra el elaborado con costo exacto (PRs #242-#244).
   // Traslados entre sedes: descartados por decisión de producto.
   { slug: "production", shipped: true },
-  { slug: "staff", shipped: false },
+  // Fase C1 en producción: equipo con tarifa/hora, planificador semanal
+  // con copia de semana, asistencia (check-in/out) y costo laboral con
+  // prime cost en el P&L (PRs #248-#251). C2 agrega kiosko facial,
+  // plantillas y festivos.
+  { slug: "staff", shipped: true },
 ];
 
 export const MODULE_SLUGS = MODULE_CATALOG.map((m) => m.slug);

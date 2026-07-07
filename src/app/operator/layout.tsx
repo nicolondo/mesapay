@@ -221,6 +221,9 @@ export default async function OperatorLayout({
           ...(isModuleEnabled(tenant?.enabledModules, "production")
             ? [{ href: "/operator/produccion", label: t("navProduction") }]
             : []),
+          ...(isModuleEnabled(tenant?.enabledModules, "staff")
+            ? [{ href: "/operator/horarios", label: t("navStaff") }]
+            : []),
         ];
         // Single source of truth for the nav so desktop inline + mobile
         // drawer render the same items in the same order. Includes

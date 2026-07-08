@@ -62,3 +62,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /e2e/reports/
+
+# Referencia de comportamiento DIAN (Odoo OEEL-1, propietaria — NO versionar ni copiar código)
+modulos odoo/

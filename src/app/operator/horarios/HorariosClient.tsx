@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
@@ -660,6 +661,17 @@ function TodayTab({
       >
         {t("shiftExtra")}
       </button>
+
+      {/* Kiosko de marcación con cara (C2 · D1) — link discreto: es la
+          pantalla que queda abierta en la tablet del local. */}
+      <div className="text-center">
+        <Link
+          href="/operator/horarios/kiosko"
+          className="inline-flex items-center min-h-[44px] px-3 text-[11px] font-medium text-op-muted hover:text-ink underline underline-offset-2"
+        >
+          {t("kioskOpenLink")}
+        </Link>
+      </div>
 
       {err && <div className="text-xs text-danger">{err}</div>}
 

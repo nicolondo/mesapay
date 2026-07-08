@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate } from "@/lib/format";
+import {
+  captureVideoFrame,
+  detectFaceDescriptor,
+  loadFaceApi,
+} from "../faceApi";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/attendance/roster (C2 · D1): descriptores
@@ -46,8 +51,6 @@ const AUTO_CAPTURE_SECONDS = 3;
 const CONFIRM_SECONDS = 3;
 /** Éxito/error vuelven solos a la pantalla inicial a los 4 s. */
 const RESULT_SECONDS = 4;
-/** Lado máximo de la foto de evidencia (JPEG 0.8 ≪ 5 MB del upload). */
-const MAX_PHOTO_WIDTH = 640;
 
 // Hora del dispositivo (= la del comercio en la práctica): el reloj, el
 // punch (date/nowMinutes) y la hora del mensaje de éxito usan la misma
@@ -70,36 +73,9 @@ const MANUAL_NOTICE_KEYS: Record<Exclude<ManualReason, null>, string> = {
   face_error: "kioskFaceUnavailable",
 };
 
-/* ─────────────────────── face-api (carga perezosa) ─────────────────── */
-
-type FaceApi = typeof import("@vladmandic/face-api");
-
-// Singleton a nivel de módulo: import dinámico SOLO en esta página (el
-// bundle de face-api + tfjs queda fuera del chunk común) y modelos de
-// /public/models cargados una sola vez por sesión del kiosko.
-let faceApiPromise: Promise<FaceApi> | null = null;
-
-function loadFaceApi(): Promise<FaceApi> {
-  if (!faceApiPromise) {
-    faceApiPromise = (async () => {
-      const faceapi = await import("@vladmandic/face-api");
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
-        faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
-        faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-      ]);
-      return faceapi;
-    })();
-    // Si falla (red caída a mitad de descarga), se permite reintentar en
-    // la próxima captura en vez de dejar la promesa envenenada.
-    faceApiPromise.catch(() => {
-      faceApiPromise = null;
-    });
-  }
-  return faceApiPromise;
-}
-
 /* ─────────────────────────── Helpers puros ─────────────────────────── */
+// face-api (carga perezosa + captura de frame): compartido con el
+// enrolamiento del tab Equipo — ver ../faceApi.ts.
 
 /** Fecha y minuto LOCAL del dispositivo — contrato del POST punch. */
 function localPunchClock(): { date: string; nowMinutes: number } {
@@ -248,17 +224,11 @@ export function KioskoClient() {
       // Sin frames todavía (cámara arrancando) — el interval reintenta.
       if (!video || video.videoWidth === 0) return;
       captured = true;
-      const w = Math.min(video.videoWidth, MAX_PHOTO_WIDTH);
-      const h = Math.round((video.videoHeight / video.videoWidth) * w);
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const g = canvas.getContext("2d");
-      if (!g) {
+      const canvas = captureVideoFrame(video);
+      if (!canvas) {
         setStep({ s: "manual", kind, reason: "face_error" });
         return;
       }
-      g.drawImage(video, 0, 0, w, h);
       canvasRef.current = canvas;
       canvas.toBlob(
         (b) => {
@@ -336,19 +306,17 @@ export function KioskoClient() {
         return;
       }
       try {
-        const faceapi = await loadFaceApi();
+        await loadFaceApi();
         if (cancelled) return;
         setModelsReady(true);
-        const det = await faceapi
-          .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        // La promesa singleton ya resolvió: acá solo corre la detección.
+        const descriptor = await detectFaceDescriptor(canvas);
         if (cancelled) return;
-        if (!det) {
+        if (!descriptor) {
           setStep({ s: "manual", kind, reason: "no_face" });
           return;
         }
-        const match = bestMatch(det.descriptor, withFace);
+        const match = bestMatch(descriptor, withFace);
         if (!match) {
           setStep({ s: "manual", kind, reason: "no_match" });
           return;

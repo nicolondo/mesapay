@@ -54,13 +54,17 @@ type PnlDto = {
   /**
    * C1 — costo laboral del mes: null = módulo staff apagado (el P&L se ve
    * exactamente como antes). Real = turnos punchados; estimado = planeados.
+   * C2 — recargos festivo/dominical incluidos en el total y conteo de
+   * faltas (modo estricto).
    */
   labor: {
     totalCents: number;
     actualCents: number;
     estimatedCents: number;
+    surchargeCents: number;
     shifts: number;
     missingRateShifts: number;
+    absentShifts: number;
   } | null;
   /** C1 — (CMV + mermas + laboral) / ingresos. null sin staff o sin ventas. */
   primeCostPct: number | null;
@@ -647,10 +651,23 @@ function PnlLabor({
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-[11px] text-op-muted tabular-nums">
-          {t("laborPnlBreakdown", {
-            actual: money(labor.actualCents),
-            estimated: money(labor.estimatedCents),
-          })}
+          {/* C2 — recargos y faltas se anexan al caption solo si existen. */}
+          {[
+            t("laborPnlBreakdown", {
+              actual: money(labor.actualCents),
+              estimated: money(labor.estimatedCents),
+            }),
+            labor.surchargeCents > 0
+              ? t("holidaySurchargePnl", {
+                  amount: money(labor.surchargeCents),
+                })
+              : null,
+            labor.absentShifts > 0
+              ? t("absentCount", { count: labor.absentShifts })
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
         {labor.missingRateShifts > 0 && (
           <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium shrink-0">

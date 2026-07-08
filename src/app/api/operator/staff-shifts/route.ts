@@ -8,6 +8,7 @@ import {
   validShiftRange,
   weekRange,
 } from "@/lib/erp/staff";
+import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -36,26 +37,68 @@ export async function GET(req: Request) {
   const range = weekRange(searchParams.get("week") ?? "");
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  const shifts = await db.staffShift.findMany({
-    where: { restaurantId: ctx.restaurantId, date: { gte: range.from, lt: range.to } },
-    orderBy: [{ date: "asc" }, { startMinutes: "asc" }],
-    include: {
-      employee: {
-        select: { id: true, name: true, position: true, hourlyRateCents: true, active: true },
+  const [shifts, tenant] = await Promise.all([
+    db.staffShift.findMany({
+      where: { restaurantId: ctx.restaurantId, date: { gte: range.from, lt: range.to } },
+      orderBy: [{ date: "asc" }, { startMinutes: "asc" }],
+      include: {
+        employee: {
+          select: { id: true, name: true, position: true, hourlyRateCents: true, active: true },
+        },
       },
-    },
-  });
-
-  const rows = shifts.map((s) => ({
-    ...s,
-    cost: shiftCost({
-      startMinutes: s.startMinutes,
-      endMinutes: s.endMinutes,
-      checkInAt: s.checkInAt,
-      checkOutAt: s.checkOutAt,
-      hourlyRateCents: s.employee.hourlyRateCents,
     }),
-  }));
+    db.restaurant.findUnique({
+      where: { id: ctx.restaurantId },
+      select: {
+        staffStrictAttendance: true,
+        staffHolidayPct: true,
+        staffSundayPct: true,
+      },
+    }),
+  ]);
+
+  // Festivos del país que caen en la semana (C2 · D5) — la semana puede
+  // cruzar de año (29 dic → 4 ene): union de ambos años.
+  const holidaySet = new Set([
+    ...holidaysForYear(ctx.country, range.from.getUTCFullYear()),
+    ...holidaysForYear(ctx.country, range.to.getUTCFullYear()),
+  ]);
+  const now = new Date();
+
+  const rows = shifts.map((s) => {
+    const dayIso = s.date.toISOString().slice(0, 10);
+    const holiday = holidaySet.has(dayIso);
+    return {
+      ...s,
+      isHoliday: holiday,
+      cost: shiftCost(
+        {
+          startMinutes: s.startMinutes,
+          endMinutes: s.endMinutes,
+          checkInAt: s.checkInAt,
+          checkOutAt: s.checkOutAt,
+          hourlyRateCents: s.employee.hourlyRateCents,
+        },
+        {
+          isHoliday: holiday,
+          isSunday: isSunday(s.date),
+          holidayPct: tenant?.staffHolidayPct ?? 0,
+          sundayPct: tenant?.staffSundayPct ?? 0,
+          strict: tenant?.staffStrictAttendance ?? false,
+          now,
+          shiftDate: s.date,
+        },
+      ),
+    };
+  });
+  const weekIsos: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    weekIsos.push(
+      new Date(range.from.getTime() + i * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10),
+    );
+  }
   const totals = {
     shifts: rows.length,
     minutes: rows.reduce((a, r) => a + r.cost.minutes, 0),
@@ -63,9 +106,16 @@ export async function GET(req: Request) {
     actualCents: rows
       .filter((r) => r.cost.source === "actual")
       .reduce((a, r) => a + r.cost.costCents, 0),
+    surchargeCents: rows.reduce((a, r) => a + r.cost.surchargeCents, 0),
     missingRateShifts: rows.filter((r) => r.cost.missingRate).length,
+    absentShifts: rows.filter((r) => r.cost.source === "absent").length,
   };
-  return NextResponse.json({ shifts: rows, totals });
+  return NextResponse.json({
+    shifts: rows,
+    totals,
+    holidays: weekIsos.filter((d) => holidaySet.has(d)),
+    settings: tenant,
+  });
 }
 
 const createSchema = z.object({

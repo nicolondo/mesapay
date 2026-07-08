@@ -5,6 +5,7 @@
 import { db } from "@/lib/db";
 import { buildPnl, type LaborSummary, type Pnl } from "@/lib/erp/accounting";
 import { shiftCost } from "@/lib/erp/staff";
+import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import { isModuleEnabled } from "@/lib/modules";
 
 export type MonthRange = { from: Date; to: Date };
@@ -16,7 +17,13 @@ export async function computeMonthPnl(
   const [tenant, sales, movements, expenses] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { enabledModules: true },
+      select: {
+        enabledModules: true,
+        country: true,
+        staffStrictAttendance: true,
+        staffHolidayPct: true,
+        staffSundayPct: true,
+      },
     }),
     db.order.aggregate({
       where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
@@ -58,6 +65,7 @@ export async function computeMonthPnl(
     const shifts = await db.staffShift.findMany({
       where: { restaurantId, date: { gte: range.from, lt: range.to } },
       select: {
+        date: true,
         startMinutes: true,
         endMinutes: true,
         checkInAt: true,
@@ -69,19 +77,41 @@ export async function computeMonthPnl(
       totalCents: 0,
       actualCents: 0,
       estimatedCents: 0,
+      surchargeCents: 0,
       shifts: shifts.length,
       missingRateShifts: 0,
+      absentShifts: 0,
     };
+    // C2: recargos por festivo/domingo y faltas (modo estricto) — mismas
+    // reglas del GET semanal, para que el P&L cuadre con Horarios.
+    const holidaySet = new Set([
+      ...holidaysForYear(tenant?.country, range.from.getUTCFullYear()),
+      ...holidaysForYear(tenant?.country, range.to.getUTCFullYear()),
+    ]);
+    const now = new Date();
     for (const sh of shifts) {
-      const c = shiftCost({
-        startMinutes: sh.startMinutes,
-        endMinutes: sh.endMinutes,
-        checkInAt: sh.checkInAt,
-        checkOutAt: sh.checkOutAt,
-        hourlyRateCents: sh.employee.hourlyRateCents,
-      });
+      const c = shiftCost(
+        {
+          startMinutes: sh.startMinutes,
+          endMinutes: sh.endMinutes,
+          checkInAt: sh.checkInAt,
+          checkOutAt: sh.checkOutAt,
+          hourlyRateCents: sh.employee.hourlyRateCents,
+        },
+        {
+          isHoliday: holidaySet.has(sh.date.toISOString().slice(0, 10)),
+          isSunday: isSunday(sh.date),
+          holidayPct: tenant?.staffHolidayPct ?? 0,
+          sundayPct: tenant?.staffSundayPct ?? 0,
+          strict: tenant?.staffStrictAttendance ?? false,
+          now,
+          shiftDate: sh.date,
+        },
+      );
       labor.totalCents += c.costCents;
+      labor.surchargeCents += c.surchargeCents;
       if (c.source === "actual") labor.actualCents += c.costCents;
+      else if (c.source === "absent") labor.absentShifts++;
       else labor.estimatedCents += c.costCents;
       if (c.missingRate) labor.missingRateShifts++;
     }

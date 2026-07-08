@@ -1771,6 +1771,17 @@ model Employee {
   userId          String? @unique
   user            User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // C2 — plantilla semanal: [{weekday: 0-6 (0=lunes), ranges:
+  // [{startMinutes, endMinutes}]}] (0-2 rangos/día, reglas de StaffShift).
+  weeklyTemplate  Json?
+  // C2 — reconocimiento facial en el navegador. DATO SENSIBLE (CO Ley
+  // 1581 / MX LFPDPPP): descriptores de 128 floats (1-3) + fotos de
+  // referencia; faceConsentAt registra el consentimiento informado.
+  // "Eliminar registro facial" borra los tres.
+  faceDescriptors Json?
+  facePhotoUrls   Json?
+  faceConsentAt   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

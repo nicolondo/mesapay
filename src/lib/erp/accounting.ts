@@ -50,9 +50,13 @@ export type LaborSummary = {
   totalCents: number;
   actualCents: number;
   estimatedCents: number;
+  /** C2 — parte del total que es recargo festivo/dominical. */
+  surchargeCents: number;
   shifts: number;
   /** Turnos de empleados sin tarifa (costaron 0 — badge en UI). */
   missingRateShifts: number;
+  /** C2 — faltas del mes (modo estricto; cuestan 0). */
+  absentShifts: number;
 };
 
 export type Pnl = PnlInputs & {

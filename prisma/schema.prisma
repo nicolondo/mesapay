@@ -294,6 +294,8 @@ model Restaurant {
   productionBatches   ProductionBatch[]
   employees           Employee[]
   staffShifts         StaffShift[]
+  dianConfig          DianConfig?
+  dianDocuments       DianDocument[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -359,6 +361,7 @@ model LegalEntity {
   updatedAt DateTime @updatedAt
 
   restaurants Restaurant[]
+  dianConfig  DianConfig?
 
   @@index([groupId])
 }
@@ -1827,6 +1830,71 @@ model StaffShift {
   @@index([employeeId, date])
 }
 
+// === ERP · Fase B1: facturación electrónica DIAN (software propio) =========
+// Spec: docs/superpowers/specs/2026-07-07-erp-b1-dian-directo-design.md
+// Integración DIRECTA con la DIAN (sin proveedor tecnológico). El emisor
+// es la LegalEntity (grupos) o el Restaurant (independientes) — mismo
+// criterio que la numeración DIAN. Certificado .p12, contraseña y PIN
+// van ENCRIPTADOS at rest (AES-256-GCM con DIAN_MASTER_KEY del server).
+
+model DianConfig {
+  id String @id @default(cuid())
+
+  legalEntityId String?      @unique
+  legalEntity   LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  restaurantId  String?      @unique
+  restaurant    Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Certificado digital de firma (.p12) — ciphertext AES-256-GCM.
+  certP12Enc      Bytes?
+  certPasswordEnc String?
+  // Derivados al subir (para avisos de vencimiento; no sensibles).
+  certSubject     String?
+  certNotAfter    DateTime?
+
+  // Portal DIAN — software propio.
+  softwareId     String?
+  softwarePinEnc String? // encriptado (entra al CUDE)
+  // Clave técnica de la resolución de numeración (entra al CUFE).
+  technicalKey   String?
+  testSetId      String?
+
+  environment String @default("habilitacion") // habilitacion | produccion
+  status      String @default("pending") // pending | testing | enabled
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Tracking de un documento electrónico enviado a la DIAN. El estado y el
+/// XML firmado viven acá; SimpleInvoice sigue siendo la representación
+/// gráfica y enlaza 1:1.
+model DianDocument {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  simpleInvoiceId String?        @unique
+  simpleInvoice   SimpleInvoice? @relation(fields: [simpleInvoiceId], references: [id], onDelete: SetNull)
+
+  kind  String @default("invoice") // invoice | credit_note
+  state String @default("to_send") // to_send | sent | pending | accepted | rejected | error
+
+  cufe        String?
+  // XML firmado, comprimido (zip) — lo que se envió a la DIAN.
+  xmlZip      Bytes?
+  responseXml String?
+  // zipKey/trackId del envío (asíncrono en habilitación).
+  trackId     String?
+  errors      Json?
+  attempts    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, state])
+}
+
 // === ERP · Fase B2: gastos y contabilidad ==================================
 // Spec: docs/superpowers/specs/2026-07-06-erp-b2-contabilidad-design.md
 // Gasto operativo del comercio. Categoría LIBRE con datalist (criterio
@@ -2064,6 +2132,8 @@ model SimpleInvoice {
   totalCents    Int
   emailedAt     DateTime?
   emailError    String?
+
+  dianDocument DianDocument?
 
   createdAt DateTime @default(now())
 

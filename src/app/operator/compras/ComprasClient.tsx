@@ -241,6 +241,10 @@ export function ComprasClient({
   const [createOpen, setCreateOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // Carga de factura con IA (A2.5): resultado del POST → sheet de revisión.
+  const [invoiceResult, setInvoiceResult] = useState<InvoiceUploadResult | null>(
+    null,
+  );
 
   useEffect(() => {
     if (orders !== null || listErr) return;
@@ -341,6 +345,7 @@ export function ComprasClient({
             >
               {t("suggestedButton")}
             </button>
+            <InvoiceUploadButton onUploaded={setInvoiceResult} />
           </div>
 
           {/* Filtro por estado */}
@@ -472,6 +477,20 @@ export function ComprasClient({
             invalidate();
           }}
           onPartial={invalidate}
+        />
+      )}
+
+      {invoiceResult && (
+        <InvoiceReviewSheet
+          result={invoiceResult}
+          suppliers={suppliers}
+          currency={currency}
+          onClose={() => setInvoiceResult(null)}
+          onConfirmed={(id) => {
+            setInvoiceResult(null);
+            invalidate();
+            setDetailId(id);
+          }}
         />
       )}
     </div>
@@ -1606,6 +1625,1030 @@ function SuggestedSheet({
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────── Cargar factura con IA (A2.5) — tipos ─────────────── */
+
+/** Línea cruda de la extracción de la IA. */
+type ExtractionLine = {
+  description: string;
+  quantity: number;
+  unit: string | null;
+  unitPriceCents: number | null;
+  lineTotalCents: number | null;
+  taxPct: string | null;
+  confidence: number;
+};
+
+type SupplierMatch =
+  | { kind: "matched"; supplier: { id: string; name: string; nit: string | null } }
+  | { kind: "suggest_create"; name: string; nit: string | null };
+
+type IngredientMatch =
+  | {
+      kind: "matched";
+      ingredient: { id: string; name: string; measureKind: MeasureKind };
+    }
+  | { kind: "suggest_create"; name: string };
+
+type SuggestedPresentation = {
+  supplierItemId: string;
+  presentationLabel: string;
+  contentQty: number;
+  lastPriceCents: number | null;
+};
+
+type MatchLine = {
+  line: ExtractionLine;
+  lowConfidence: boolean;
+  ingredient: IngredientMatch;
+  suggestedPresentation: SuggestedPresentation | null;
+};
+
+/** Respuesta del POST /api/operator/purchase-invoices. */
+type InvoiceUploadResult = {
+  uploadId: string;
+  fileUrl: string;
+  extraction: {
+    supplierNit: string | null;
+    supplierName: string | null;
+    supplierInvoiceNumber: string | null;
+    issueDate: string | null;
+    currency: "COP" | "MXN" | "unknown";
+    lines: ExtractionLine[];
+    confidence: number;
+    notes: string;
+  };
+  match: {
+    supplier: SupplierMatch;
+    lines: MatchLine[];
+    computedTotalCents: number;
+  };
+};
+
+// Errores del POST de subida → clave i18n (fallback invUploadErrFailed).
+const API_UPLOAD_ERROR_KEYS: Record<string, string> = {
+  no_file: "invUploadErrNoFile",
+  bad_format: "invUploadErrBadFormat",
+  bad_size: "invUploadErrBadSize",
+  module_disabled: "invUploadErrModuleDisabled",
+};
+
+// Errores del POST de confirmación → clave i18n (fallback errSaveFailed).
+const API_CONFIRM_ERROR_KEYS: Record<string, string> = {
+  invalid: "invReviewErrInvalid",
+  supplier_not_found: "invReviewErrSupplierNotFound",
+  ingredient_not_found: "invReviewErrIngredientNotFound",
+  no_lines: "invReviewErrNoLines",
+  not_found: "invReviewErrNotFound",
+  not_pending: "invReviewErrNotPending",
+  module_disabled: "invUploadErrModuleDisabled",
+};
+
+/* ──────────── Cargar factura: botón + spinner de lectura IA ────────── */
+
+function InvoiceUploadButton({
+  onUploaded,
+}: {
+  onUploaded: (result: InvoiceUploadResult) => void;
+}) {
+  const t = useTranslations("opErp");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputId = "inv-upload-file";
+
+  async function handleFile(file: File) {
+    setErr(null);
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const r = await fetch("/api/operator/purchase-invoices", {
+        method: "POST",
+        body,
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        const key = API_UPLOAD_ERROR_KEYS[j.error as string];
+        setErr(key ? t(key) : t("invUploadErrFailed"));
+        setBusy(false);
+        return;
+      }
+      const j = (await r.json()) as InvoiceUploadResult;
+      setBusy(false);
+      onUploaded(j);
+    } catch {
+      setErr(t("invUploadErrFailed"));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {/* La carga ocupa las 2 columnas del grid (fila propia). */}
+      <label
+        htmlFor={inputId}
+        className="col-span-2 min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg flex items-center justify-center cursor-pointer"
+      >
+        {t("invUploadButton")}
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept=".pdf,image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // Reset para permitir re-subir el mismo archivo tras un error.
+          e.target.value = "";
+          if (file) void handleFile(file);
+        }}
+      />
+      {err && <div className="col-span-2 text-xs text-danger">{err}</div>}
+
+      {busy && (
+        <div className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-6">
+          <div className="bg-op-surface rounded-3xl border border-op-border p-8 max-w-xs w-full text-center">
+            <div className="mx-auto mb-4 h-8 w-8 rounded-full border-2 border-op-border border-t-ink animate-spin" />
+            <div className="text-sm font-medium">{t("invUploadReading")}</div>
+            <p className="text-[11px] text-op-muted mt-1">
+              {t("invUploadReadingHint")}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ───────────────── Revisar factura (sheet, D4/D5) ──────────────────── */
+
+/** Estado editable de una línea de la revisión. */
+type InvoiceReviewLine = {
+  key: number;
+  // Insumo: existente (id) o nuevo (id null + nombre + measureKind).
+  ingredientId: string | null;
+  ingredientName: string;
+  measureKind: MeasureKind;
+  // Presentación sugerida (para el modo "por presentación").
+  suggestedPresentation: SuggestedPresentation | null;
+  qtyMode: "presentation" | "direct";
+  presentations: string; // modo presentación
+  qty: string; // modo directo
+  unit: string; // modo directo
+  cost: string; // costo total de la línea, en pesos
+  lowConfidence: boolean;
+  readUnit: string | null; // unidad leída (pista)
+  readQty: number; // cantidad leída (pista)
+};
+
+let invLineKeySeq = 0;
+
+/** Cantidad en unidad base de una línea, o null si es inválida. */
+function reviewLineQtyBase(l: InvoiceReviewLine): number | null {
+  if (l.qtyMode === "presentation" && l.suggestedPresentation) {
+    const n = Number(l.presentations);
+    if (!Number.isInteger(n) || n < 1) return null;
+    const base = n * l.suggestedPresentation.contentQty;
+    return base >= 1 ? base : null;
+  }
+  return toBaseQty(Number(l.qty.replace(",", ".")), l.measureKind, l.unit);
+}
+
+/** Costo total de la línea en centavos, o null si es inválido. */
+function reviewLineCostCents(l: InvoiceReviewLine): number | null {
+  if (l.cost.trim() === "") return null;
+  const p = Number(l.cost.replace(",", "."));
+  if (!isFinite(p) || p < 0) return null;
+  return pesosToCents(p);
+}
+
+/** Costo inicial (pesos) desde la extracción: total de línea o unit×qty. */
+function initialLineCost(line: ExtractionLine): string {
+  if (line.lineTotalCents != null) return String(line.lineTotalCents / 100);
+  if (line.unitPriceCents != null && line.quantity > 0) {
+    return String(Math.round(line.unitPriceCents * line.quantity) / 100);
+  }
+  return "";
+}
+
+/** Construye una línea de revisión desde un MatchLine de la IA. */
+function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
+  const ing = m.ingredient;
+  const measureKind: MeasureKind =
+    ing.kind === "matched" ? ing.ingredient.measureKind : "count";
+  return {
+    key: ++invLineKeySeq,
+    ingredientId: ing.kind === "matched" ? ing.ingredient.id : null,
+    ingredientName:
+      ing.kind === "matched" ? ing.ingredient.name : ing.name,
+    measureKind,
+    suggestedPresentation: m.suggestedPresentation,
+    qtyMode: m.suggestedPresentation ? "presentation" : "direct",
+    presentations: "1",
+    qty: "",
+    unit: BASE_UNIT_SYMBOL[measureKind],
+    cost: initialLineCost(m.line),
+    lowConfidence: m.lowConfidence,
+    readUnit: m.line.unit,
+    readQty: m.line.quantity,
+  };
+}
+
+const INV_MODE_STORAGE_KEY = "mesapay:invReviewMode";
+
+function InvoiceReviewSheet({
+  result,
+  suppliers,
+  currency,
+  onClose,
+  onConfirmed,
+}: {
+  result: InvoiceUploadResult;
+  suppliers: SupplierRef[];
+  currency: string;
+  onClose: () => void;
+  onConfirmed: (orderId: string) => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+
+  const { uploadId, fileUrl, extraction, match } = result;
+  const isPdf = /\.pdf(\?|$)/i.test(fileUrl);
+
+  // Proveedor: emparejado o crear nuevo (toggle entre existente/nuevo).
+  const [supplier, setSupplier] = useState<SupplierRef | null>(
+    match.supplier.kind === "matched"
+      ? {
+          id: match.supplier.supplier.id,
+          name: match.supplier.supplier.name,
+        }
+      : null,
+  );
+  const [creatingSupplier, setCreatingSupplier] = useState(
+    match.supplier.kind === "suggest_create",
+  );
+  const [newSupplierName, setNewSupplierName] = useState(
+    match.supplier.kind === "suggest_create" ? match.supplier.name : "",
+  );
+  const [newSupplierNit, setNewSupplierNit] = useState(
+    match.supplier.kind === "suggest_create"
+      ? (match.supplier.nit ?? "")
+      : (extraction.supplierNit ?? ""),
+  );
+  const [supQ, setSupQ] = useState("");
+
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    extraction.supplierInvoiceNumber ?? "",
+  );
+  const [issueDate, setIssueDate] = useState(
+    extraction.issueDate ?? "",
+  );
+
+  const [lines, setLines] = useState<InvoiceReviewLine[]>(() =>
+    match.lines.map(matchLineToReviewLine),
+  );
+
+  // Insumos existentes para el picker "usar existente" (carga diferida).
+  const [ingredients, setIngredients] = useState<IngredientRef[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/ingredients");
+        if (!r.ok) return;
+        const j = await r.json();
+        if (cancelled) return;
+        setIngredients(
+          ((j.ingredients ?? []) as IngredientRef[]).filter((i) => i.active),
+        );
+      } catch {
+        // El picker de insumos existentes queda sin lista; se puede crear
+        // insumo nuevo igual. No es bloqueante.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Modo de confirmación (D5): recordado por comercio en localStorage. El
+  // sheet solo se monta en el cliente tras subir, así que leer en el lazy
+  // init no arriesga hydration mismatch.
+  const [mode, setMode] = useState<"draft" | "receive">(() => {
+    try {
+      const saved = window.localStorage.getItem(INV_MODE_STORAGE_KEY);
+      return saved === "receive" ? "receive" : "draft";
+    } catch {
+      return "draft";
+    }
+  });
+  const [dueDate, setDueDate] = useState("");
+  function changeMode(m: "draft" | "receive") {
+    setMode(m);
+    try {
+      window.localStorage.setItem(INV_MODE_STORAGE_KEY, m);
+    } catch {
+      // Sin persistencia; no es bloqueante.
+    }
+  }
+
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const supMatches = useMemo(() => {
+    const needle = fold(supQ.trim());
+    return suppliers
+      .filter((s) => !needle || fold(s.name).includes(needle))
+      .slice(0, 8);
+  }, [suppliers, supQ]);
+
+  const total = useMemo(
+    () => lines.reduce((sum, l) => sum + (reviewLineCostCents(l) ?? 0), 0),
+    [lines],
+  );
+
+  function updateLine(key: number, changes: Partial<InvoiceReviewLine>) {
+    setLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...changes } : l)),
+    );
+  }
+
+  function removeLine(key: number) {
+    setLines((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  function addManualLine() {
+    setLines((prev) => [
+      ...prev,
+      {
+        key: ++invLineKeySeq,
+        ingredientId: null,
+        ingredientName: "",
+        measureKind: "count",
+        suggestedPresentation: null,
+        qtyMode: "direct",
+        presentations: "1",
+        qty: "",
+        unit: BASE_UNIT_SYMBOL.count,
+        cost: "",
+        lowConfidence: false,
+        readUnit: null,
+        readQty: 0,
+      },
+    ]);
+  }
+
+  async function discard() {
+    if (!window.confirm(t("invReviewConfirmDiscard"))) return;
+    setBusy(true);
+    await fetch(`/api/operator/purchase-invoices/${uploadId}`, {
+      method: "DELETE",
+    }).catch(() => {});
+    setBusy(false);
+    onClose();
+  }
+
+  async function confirm() {
+    setErr(null);
+    // Proveedor: existente o nombre nuevo.
+    if (!supplier && !newSupplierName.trim()) {
+      setErr(t("invReviewErrNoSupplier"));
+      return;
+    }
+    if (lines.length === 0) {
+      setErr(t("invReviewErrNoLines"));
+      return;
+    }
+    // Validación por línea: insumo, cantidad y costo.
+    const payloadLines: {
+      ingredientId: string | null;
+      newIngredientName?: string;
+      newIngredientMeasureKind?: MeasureKind;
+      qtyBase: number;
+      expectedCostCents: number;
+    }[] = [];
+    for (const l of lines) {
+      if (!l.ingredientId && !l.ingredientName.trim()) {
+        setErr(t("invReviewErrNoLineIngredient"));
+        return;
+      }
+      const qtyBase = reviewLineQtyBase(l);
+      if (qtyBase == null) {
+        setErr(t("invReviewErrLineQty"));
+        return;
+      }
+      const cost = reviewLineCostCents(l);
+      if (cost == null) {
+        setErr(t("invReviewErrLineCost"));
+        return;
+      }
+      payloadLines.push(
+        l.ingredientId
+          ? { ingredientId: l.ingredientId, qtyBase, expectedCostCents: cost }
+          : {
+              ingredientId: null,
+              newIngredientName: l.ingredientName.trim(),
+              newIngredientMeasureKind: l.measureKind,
+              qtyBase,
+              expectedCostCents: cost,
+            },
+      );
+    }
+
+    setBusy(true);
+    const r = await fetch(
+      `/api/operator/purchase-invoices/${uploadId}/confirm`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          supplierId: supplier ? supplier.id : null,
+          newSupplierName: supplier ? undefined : newSupplierName.trim(),
+          newSupplierNit: supplier ? undefined : newSupplierNit.trim() || null,
+          lines: payloadLines,
+          mode,
+          supplierInvoiceNumber: invoiceNumber.trim() || null,
+          invoiceDueAt:
+            mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
+        }),
+      },
+    );
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      const key = API_CONFIRM_ERROR_KEYS[j.error as string];
+      setErr(key ? t(key) : t("errSaveFailed"));
+      return;
+    }
+    const j = await r.json();
+    onConfirmed((j.order as { id: string }).id);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-display text-2xl">{t("invReviewTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <p className="text-[11px] text-op-muted mb-4">{t("invReviewHint")}</p>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Evidencia: imagen o PDF original */}
+          <div className="order-1 md:order-2">
+            {isPdf ? (
+              <div className="rounded-2xl border border-op-border overflow-hidden bg-op-bg">
+                <iframe
+                  src={fileUrl}
+                  title={t("invReviewImageAlt")}
+                  className="w-full h-64 md:h-[70dvh]"
+                />
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-3 py-2 text-center text-xs font-medium text-op-muted hover:text-ink border-t border-op-border"
+                >
+                  {t("invReviewViewPdf")}
+                </a>
+              </div>
+            ) : (
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-2xl border border-op-border overflow-hidden bg-op-bg"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fileUrl}
+                  alt={t("invReviewImageAlt")}
+                  className="w-full max-h-[70dvh] object-contain"
+                />
+              </a>
+            )}
+          </div>
+
+          {/* Datos editables */}
+          <div className="order-2 md:order-1 space-y-3">
+            {/* Encabezado: proveedor */}
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+              {t("invReviewSupplierSection")}
+            </div>
+
+            {creatingSupplier ? (
+              <>
+                <Field label={t("invReviewNewSupplierName")} required>
+                  <input
+                    type="text"
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                    maxLength={120}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label={t("invReviewNewSupplierNit")}>
+                  <input
+                    type="text"
+                    value={newSupplierNit}
+                    onChange={(e) => setNewSupplierNit(e.target.value)}
+                    maxLength={40}
+                    className={inputCls}
+                  />
+                </Field>
+                {suppliers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCreatingSupplier(false)}
+                    className="text-[11px] font-medium text-op-muted hover:text-ink"
+                  >
+                    {t("invReviewUseExistingSupplier")}
+                  </button>
+                )}
+              </>
+            ) : supplier ? (
+              <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
+                <span className="truncate">{supplier.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSupplier(null);
+                    setSupQ("");
+                  }}
+                  className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
+                >
+                  {t("changeSupplier")}
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="search"
+                  value={supQ}
+                  onChange={(e) => setSupQ(e.target.value)}
+                  placeholder={t("supplierSearchPlaceholder")}
+                  className={inputCls}
+                />
+                <div className="rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
+                  {supMatches.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-op-muted">
+                      {t("noSupplierMatches")}
+                    </div>
+                  ) : (
+                    supMatches.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSupplier(s)}
+                        className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
+                      >
+                        {s.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatingSupplier(true);
+                    if (!newSupplierName)
+                      setNewSupplierName(extraction.supplierName ?? "");
+                  }}
+                  className="text-[11px] font-medium text-op-muted hover:text-ink"
+                >
+                  {t("invReviewCreateSupplier")}
+                </button>
+              </>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <Field label={t("invReviewFieldInvoiceNumber")}>
+                <input
+                  type="text"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  maxLength={80}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label={t("invReviewFieldIssueDate")}>
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+            </div>
+
+            {/* Líneas */}
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
+              {t("invReviewLinesSection")}
+            </div>
+
+            {lines.map((l) => (
+              <InvoiceReviewLineCard
+                key={l.key}
+                line={l}
+                currency={currency}
+                ingredients={ingredients}
+                onChange={(changes) => updateLine(l.key, changes)}
+                onRemove={() => removeLine(l.key)}
+              />
+            ))}
+
+            <button
+              type="button"
+              onClick={addManualLine}
+              className="w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface"
+            >
+              {t("invReviewAddLine")}
+            </button>
+
+            {/* Total recomputado en vivo */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-op-bg/50 border border-op-border">
+              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                {t("invReviewTotalNote")}
+              </span>
+              <span className="text-sm font-medium tabular-nums">
+                {formatMoney(total, { currency, locale })}
+              </span>
+            </div>
+
+            {extraction.notes.trim() !== "" && (
+              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
+                  {t("invReviewNotesLabel")}
+                </div>
+                <div className="text-[11px] text-[#7F5A1F]">
+                  {extraction.notes}
+                </div>
+              </div>
+            )}
+
+            {/* Switch borrador / recibir (D5) */}
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
+              {t("invReviewModeSection")}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["draft", t("invReviewModeDraft")],
+                  ["receive", t("invReviewModeReceive")],
+                ] as ["draft" | "receive", string][]
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => changeMode(value)}
+                  className={
+                    "min-h-[44px] px-2 rounded-xl border text-sm font-medium transition-colors " +
+                    (mode === value
+                      ? "border-ink bg-ink text-bone"
+                      : "border-op-border bg-op-bg hover:bg-op-surface")
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === "receive" && (
+              <Field label={t("invReviewDueDateLabel")}>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+            )}
+          </div>
+        </div>
+
+        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+
+        <div className="flex items-center justify-between gap-3 mt-4">
+          <button
+            type="button"
+            onClick={discard}
+            disabled={busy}
+            className="min-h-[44px] px-4 rounded-full text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
+          >
+            {t("invReviewDiscard")}
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            >
+              {t("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={busy}
+              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+            >
+              {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Tarjeta editable de una línea de la factura en revisión. */
+function InvoiceReviewLineCard({
+  line: l,
+  currency,
+  ingredients,
+  onChange,
+  onRemove,
+}: {
+  line: InvoiceReviewLine;
+  currency: string;
+  ingredients: IngredientRef[] | null;
+  onChange: (changes: Partial<InvoiceReviewLine>) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [ingQ, setIngQ] = useState("");
+  const [picking, setPicking] = useState(false);
+
+  const ingMatches = useMemo(() => {
+    const needle = fold(ingQ.trim());
+    return (ingredients ?? [])
+      .filter((i) => !needle || fold(i.name).includes(needle))
+      .slice(0, 8);
+  }, [ingredients, ingQ]);
+
+  const qtyBase = reviewLineQtyBase(l);
+  const readQtyStr = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 3,
+  }).format(l.readQty);
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          {/* Insumo: existente o crear nuevo */}
+          {l.ingredientId ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">
+                {l.ingredientName}
+              </span>
+              <span className="font-mono text-[10px] text-op-muted">
+                {unitSymbols(l.measureKind)}
+              </span>
+            </div>
+          ) : (
+            <div className="text-[11px] font-medium text-op-muted">
+              {l.ingredientName
+                ? t("invReviewCreateIngredient", { name: l.ingredientName })
+                : t("invReviewNewIngredientName")}
+            </div>
+          )}
+        </div>
+        {l.lowConfidence && (
+          <span className="px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 bg-[#C98A2E]/15 text-[#7F5A1F]">
+            {t("invReviewLowConfidence")}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0"
+        >
+          {t("invReviewRemoveLine")}
+        </button>
+      </div>
+
+      {/* Selector de insumo existente / nombre + measureKind del nuevo */}
+      {picking ? (
+        <div>
+          <input
+            type="search"
+            value={ingQ}
+            onChange={(e) => setIngQ(e.target.value)}
+            placeholder={t("ingredientSearchPlaceholder")}
+            className={inputCls}
+          />
+          <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-40 overflow-y-auto">
+            {ingMatches.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-op-muted">
+                {t("noIngredientMatches")}
+              </div>
+            ) : (
+              ingMatches.map((i) => (
+                <button
+                  key={i.id}
+                  type="button"
+                  onClick={() => {
+                    onChange({
+                      ingredientId: i.id,
+                      ingredientName: i.name,
+                      measureKind: i.measureKind,
+                      // Al cambiar de insumo la unidad directa se re-basea.
+                      unit: BASE_UNIT_SYMBOL[i.measureKind],
+                    });
+                    setPicking(false);
+                    setIngQ("");
+                  }}
+                  className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
+                >
+                  <span>{i.name}</span>
+                  <span className="font-mono text-[10px] text-op-muted ml-2">
+                    {unitSymbols(i.measureKind)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPicking(false);
+              setIngQ("");
+            }}
+            className="text-[11px] font-medium text-op-muted hover:text-ink mt-1"
+          >
+            {t("cancel")}
+          </button>
+        </div>
+      ) : l.ingredientId ? (
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="text-[11px] font-medium text-op-muted hover:text-ink"
+        >
+          {t("invReviewChangeIngredient")}
+        </button>
+      ) : (
+        <>
+          <Field label={t("invReviewNewIngredientName")} required>
+            <input
+              type="text"
+              value={l.ingredientName}
+              onChange={(e) => onChange({ ingredientName: e.target.value })}
+              maxLength={120}
+              className={inputCls}
+            />
+          </Field>
+          <Field label={t("invReviewMeasureKind")}>
+            <select
+              value={l.measureKind}
+              onChange={(e) => {
+                const kind = e.target.value as MeasureKind;
+                onChange({
+                  measureKind: kind,
+                  unit: BASE_UNIT_SYMBOL[kind],
+                });
+              }}
+              className={inputCls}
+            >
+              <option value="mass">{t("invReviewMeasureMass")}</option>
+              <option value="volume">{t("invReviewMeasureVolume")}</option>
+              <option value="count">{t("invReviewMeasureCount")}</option>
+            </select>
+          </Field>
+          {ingredients && ingredients.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="text-[11px] font-medium text-op-muted hover:text-ink"
+            >
+              {t("invReviewUseExistingIngredient")}
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Cantidad: por presentación (si hay sugerencia) o directa */}
+      {l.suggestedPresentation && (
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["presentation", t("invReviewQtyModePresentation")],
+              ["direct", t("invReviewQtyModeDirect")],
+            ] as ["presentation" | "direct", string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onChange({ qtyMode: value })}
+              className={
+                "min-h-[40px] px-2 rounded-xl border text-xs font-medium transition-colors " +
+                (l.qtyMode === value
+                  ? "border-ink bg-ink text-bone"
+                  : "border-op-border bg-op-bg hover:bg-op-surface")
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {l.qtyMode === "presentation" && l.suggestedPresentation ? (
+        <Field
+          label={t("invReviewPresentationLabel", {
+            label: l.suggestedPresentation.presentationLabel,
+            qty: formatBaseQty(
+              l.suggestedPresentation.contentQty,
+              l.measureKind,
+              locale,
+            ),
+          })}
+          required
+        >
+          <input
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={l.presentations}
+            onChange={(e) => onChange({ presentations: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+      ) : (
+        <Field label={t("fieldQty")} required>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={0}
+              step="any"
+              inputMode="decimal"
+              value={l.qty}
+              onChange={(e) => onChange({ qty: e.target.value })}
+              className={inputCls + " flex-1 min-w-0"}
+            />
+            <select
+              value={l.unit}
+              onChange={(e) => onChange({ unit: e.target.value })}
+              disabled={DISPLAY_UNITS[l.measureKind].length < 2}
+              className="min-h-[44px] w-16 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
+            >
+              {DISPLAY_UNITS[l.measureKind].map((u) => (
+                <option key={u.symbol} value={u.symbol}>
+                  {u.symbol}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Field>
+      )}
+
+      <Field label={`${t("fieldExpectedCost")} (${currency})`} required>
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          value={l.cost}
+          onChange={(e) => onChange({ cost: e.target.value })}
+          className={inputCls}
+        />
+      </Field>
+
+      {/* Pista de lo leído + cantidad base resultante */}
+      <div className="text-[10px] text-op-muted">
+        {[
+          l.readQty > 0
+            ? l.readUnit
+              ? t("invReviewReadUnitHint", {
+                  qty: readQtyStr,
+                  unit: l.readUnit,
+                })
+              : t("invReviewReadUnitHintNoUnit", { qty: readQtyStr })
+            : null,
+          qtyBase != null
+            ? formatBaseQty(qtyBase, l.measureKind, locale)
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
       </div>
     </div>
   );

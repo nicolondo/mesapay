@@ -82,6 +82,7 @@ const MIGRATED = [
   "src/app/operator/settings/suscripcion/**/*.{ts,tsx}",
   "src/app/operator/settings/identidad/**/*.{ts,tsx}",
   "src/app/operator/settings/pagos/**/*.{ts,tsx}",
+  "src/app/operator/settings/facturacion-dian/**/*.{ts,tsx}",
   "src/app/operator/menu/page.tsx",
   "src/app/operator/menu/MenuEditor.tsx",
   "src/app/operator/menu/import/**/*.{ts,tsx}",

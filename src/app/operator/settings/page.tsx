@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
 import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
+import { dianConfigStatus } from "@/lib/dian/config";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import {
   resolveTipPolicy,
@@ -19,6 +20,7 @@ const INSUMOS_GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
 export default async function SettingsPage() {
   const t = await getTranslations("opSettings");
   const tErp = await getTranslations("opErp");
+  const tDian = await getTranslations("opDian");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -68,6 +70,13 @@ export default async function SettingsPage() {
   const supplierCount = showProveedores
     ? await db.supplier.count({ where: { restaurantId } })
     : 0;
+
+  // Facturación electrónica DIAN (ERP Fase B1): gate estricto por módulo
+  // einvoicing — mismo gate que la página y la API /api/operator/dian.
+  const showDian = isModuleEnabled(tenant.enabledModules, "einvoicing");
+  const dianStatus = showDian
+    ? (await dianConfigStatus(restaurantId)).status.status
+    : "pending";
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -193,6 +202,27 @@ export default async function SettingsPage() {
               supplierCount > 0
                 ? "bg-ok/15 text-ok"
                 : "bg-paper text-op-muted"
+            }
+          />
+        )}
+        {showDian && (
+          <SettingCard
+            href="/operator/settings/facturacion-dian"
+            title={tDian("cardTitle")}
+            subtitle={tDian("cardSubtitle")}
+            badge={
+              dianStatus === "enabled"
+                ? tDian("cardBadgeEnabled")
+                : dianStatus === "testing"
+                  ? tDian("cardBadgeTesting")
+                  : tDian("cardBadgeConfigure")
+            }
+            tint={
+              dianStatus === "enabled"
+                ? "bg-ok/15 text-ok"
+                : dianStatus === "testing"
+                  ? "bg-[#C98A2E]/20 text-[#8F6828]"
+                  : "bg-paper text-op-muted"
             }
           />
         )}

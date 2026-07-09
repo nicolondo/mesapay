@@ -32,7 +32,11 @@ export type ModuleConfig = {
 };
 
 export const MODULE_CATALOG: ModuleConfig[] = [
-  { slug: "einvoicing", shipped: false },
+  // Fase B1 en producción: facturación electrónica DIAN directa (software
+  // propio) — certificado .p12, firma XAdES, UBL con CUFE/QR, canal SOAP,
+  // habilitación desde la UI, nota crédito (PRs #258-#265). Requiere
+  // DIAN_MASTER_KEY en el server + certificado/credenciales del comercio.
+  { slug: "einvoicing", shipped: true },
   // Fase A0 en producción: catálogos de insumos y proveedores con lista
   // de precios. Las OCs/recepción/CxP llegan con A2 — activarlo ya deja
   // al comercio adelantar el data-entry del catálogo.

@@ -86,7 +86,7 @@ export function NavDropdown({
       {open && (
         <div
           role="menu"
-          className="absolute left-0 top-full mt-1 min-w-44 rounded-xl border border-op-border bg-op-surface shadow-lg py-1 z-30"
+          className="absolute left-0 top-full mt-1 min-w-44 overflow-hidden rounded-xl border border-op-border bg-op-surface shadow-lg py-1 z-30"
         >
           {items.map((it) => {
             const active =

@@ -670,7 +670,12 @@
     "sentBy": "Sent by MESAPAY · Made in Colombia",
     "generatedBy": "Generated with MESAPAY",
     "metaTitleFallback": "Invoice — MESAPAY",
-    "print": "Print"
+    "print": "Print",
+    "dianFiscalTitle": "Electronic sales invoice",
+    "dianCufeLabel": "CUFE",
+    "dianQrAlt": "QR code for the DIAN electronic invoice",
+    "dianVerifyCta": "Verify your invoice with the DIAN",
+    "dianVerifyLead": "Scan the QR code or validate your invoice on the DIAN portal."
   },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
@@ -2290,7 +2295,22 @@
     "agoNow": "now",
     "agoMinutes": "{mins}m ago",
     "agoHours": "{hours}h ago",
-    "agoDays": "{days}d ago"
+    "agoDays": "{days}d ago",
+    "dianSectionLabel": "DIAN electronic invoicing",
+    "dianStatusNone": "Not issued",
+    "dianStatusInProcess": "In process",
+    "dianStatusAccepted": "Accepted by DIAN",
+    "dianStatusRejected": "Rejected",
+    "dianStatusError": "Error",
+    "dianNoInvoiceYet": "The customer hasn't generated the electronic invoice for this order yet.",
+    "dianEmit": "Send to the DIAN",
+    "dianRetry": "Retry submission",
+    "dianEmitting": "Submitting…",
+    "dianCufeLabel": "CUFE",
+    "dianCopyCufe": "Copy CUFE",
+    "dianCufeCopied": "CUFE copied",
+    "dianErrorsTitle": "View rejection details",
+    "dianErrorGeneric": "The invoice could not be submitted. Please try again."
   },
   "opWallet": {
     "noRestaurant": "No restaurant.",

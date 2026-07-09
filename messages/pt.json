@@ -670,7 +670,12 @@
     "sentBy": "Enviado por MESAPAY · Feito na Colômbia",
     "generatedBy": "Gerado com MESAPAY",
     "metaTitleFallback": "Fatura — MESAPAY",
-    "print": "Imprimir"
+    "print": "Imprimir",
+    "dianFiscalTitle": "Fatura eletrônica de venda",
+    "dianCufeLabel": "CUFE",
+    "dianQrAlt": "Código QR da fatura eletrônica DIAN",
+    "dianVerifyCta": "Verifique sua fatura na DIAN",
+    "dianVerifyLead": "Escaneie o código QR ou valide sua fatura no portal da DIAN."
   },
   "emailMembership": {
     "subjectT7": "Seu plano MESAPAY vence em {days} dias",
@@ -2290,7 +2295,22 @@
     "agoNow": "agora",
     "agoMinutes": "há {mins}m",
     "agoHours": "há {hours}h",
-    "agoDays": "há {days}d"
+    "agoDays": "há {days}d",
+    "dianSectionLabel": "Faturamento eletrônico DIAN",
+    "dianStatusNone": "Não emitida",
+    "dianStatusInProcess": "Em processamento",
+    "dianStatusAccepted": "Aceita pela DIAN",
+    "dianStatusRejected": "Rejeitada",
+    "dianStatusError": "Erro",
+    "dianNoInvoiceYet": "O cliente ainda não gerou a fatura eletrônica deste pedido.",
+    "dianEmit": "Enviar à DIAN",
+    "dianRetry": "Tentar novamente",
+    "dianEmitting": "Enviando…",
+    "dianCufeLabel": "CUFE",
+    "dianCopyCufe": "Copiar CUFE",
+    "dianCufeCopied": "CUFE copiado",
+    "dianErrorsTitle": "Ver detalhes da rejeição",
+    "dianErrorGeneric": "Não foi possível enviar a fatura. Tente novamente."
   },
   "opWallet": {
     "noRestaurant": "Sem restaurante.",

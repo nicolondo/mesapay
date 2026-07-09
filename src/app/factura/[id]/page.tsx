@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import QRCode from "qrcode";
 import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP, localeTag } from "@/lib/format";
@@ -9,6 +10,8 @@ import {
   formatInvoiceNumber,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
+import { isModuleEnabled } from "@/lib/modules";
+import { dianQrUrl } from "@/lib/dian/crypto";
 import { restaurantLogoSrc } from "@/lib/branding";
 import { PrintButton } from "./PrintButton";
 
@@ -57,7 +60,19 @@ export default async function FacturaPage({
   const tag = localeTag((await getLocale()) as Locale);
   const inv = await db.simpleInvoice.findUnique({
     where: { id },
-    include: { order: { select: { shortCode: true } } },
+    include: {
+      order: { select: { shortCode: true } },
+      dianDocument: { select: { state: true, cufe: true } },
+      restaurant: {
+        select: {
+          enabledModules: true,
+          dianConfig: { select: { environment: true } },
+          legalEntity: {
+            select: { dianConfig: { select: { environment: true } } },
+          },
+        },
+      },
+    },
   });
   if (!inv) return notFound();
 
@@ -66,6 +81,31 @@ export default async function FacturaPage({
   const paidAt = new Date(snap.paidAtIso);
   const dianDate = snap.dianResolutionDate
     ? new Date(snap.dianResolutionDate)
+    : null;
+
+  // Bloque fiscal DIAN (CUFE + QR) — solo con el módulo `einvoicing`
+  // activo y un documento electrónico ACEPTADO con CUFE. En cualquier
+  // otro caso la tirilla se ve exactamente como hoy. El ambiente
+  // (host del catálogo DIAN) sale de la config del emisor: gana el
+  // LegalEntity del grupo si existe (mismo criterio que resolveEmisor),
+  // y por defecto producción — es lo que ve un cliente con factura real.
+  const einvoicingOn = isModuleEnabled(
+    inv.restaurant.enabledModules,
+    "einvoicing",
+  );
+  const dianCufe =
+    einvoicingOn && inv.dianDocument?.state === "accepted"
+      ? inv.dianDocument.cufe
+      : null;
+  const dianEnv =
+    inv.restaurant.legalEntity?.dianConfig?.environment ??
+    inv.restaurant.dianConfig?.environment ??
+    "produccion";
+  const dianQrDataUrl = dianCufe
+    ? await QRCode.toDataURL(
+        dianQrUrl(dianCufe, dianEnv === "produccion" ? "1" : "2"),
+        { margin: 0, width: 220, errorCorrectionLevel: "M" },
+      )
     : null;
 
   return (
@@ -169,6 +209,25 @@ export default async function FacturaPage({
               <span className="right">{fmtCOP(snap.totalCents)}</span>
             </div>
           </div>
+
+          {dianCufe && dianQrDataUrl && (
+            <>
+              <hr className="dashed" />
+              <div className="dian-fiscal">
+                <div className="dian-title">{t("dianFiscalTitle")}</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="dian-qr"
+                  src={dianQrDataUrl}
+                  alt={t("dianQrAlt")}
+                  width={110}
+                  height={110}
+                />
+                <div className="dian-cufe-label">{t("dianCufeLabel")}</div>
+                <div className="dian-cufe">{dianCufe}</div>
+              </div>
+            </>
+          )}
 
           <hr className="dashed" />
 
@@ -300,6 +359,36 @@ const POS_STYLES = `
     font-size: 10px;
     margin-top: 12px;
     line-height: 1.5;
+  }
+  .receipt .dian-fiscal {
+    text-align: center;
+    margin: 2px 0;
+  }
+  .receipt .dian-fiscal .dian-title {
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .receipt .dian-fiscal .dian-qr {
+    display: block;
+    margin: 0 auto 8px auto;
+    width: 110px;
+    height: 110px;
+    image-rendering: pixelated;
+  }
+  .receipt .dian-fiscal .dian-cufe-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+  }
+  .receipt .dian-fiscal .dian-cufe {
+    font-size: 8px;
+    line-height: 1.35;
+    word-break: break-all;
+    margin-top: 2px;
   }
   @media print {
     body { background: #fff !important; }

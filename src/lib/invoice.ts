@@ -73,8 +73,19 @@ export async function renderInvoiceEmail(args: {
   invoiceUrl: string;
   /** Idioma del comensal (Order.locale). null ⇒ default (es). */
   locale?: string | null;
+  /**
+   * Datos DIAN de la factura electrónica ACEPTADA. Opcionales: si no se
+   * pasan (default), el email se renderea exactamente como hoy (módulo
+   * apagado o documento aún no aceptado). Cuando se pasan, el correo gana
+   * un bloque fiscal con el CUFE y un enlace "Verifica tu factura en la
+   * DIAN" al catálogo. Decisión: NO inlineamos el QR como data-URL —
+   * Gmail bloquea data-URIs en <img> y el correo se vería roto; el enlace
+   * al portal DIAN + CUFE en texto es más robusto entre clientes.
+   */
+  cufe?: string;
+  dianQrUrl?: string;
 }): Promise<{ subject: string; html: string; text: string }> {
-  const { snapshot, invoiceNumber, invoiceUrl } = args;
+  const { snapshot, invoiceNumber, invoiceUrl, cufe, dianQrUrl } = args;
   const { t, locale } = await getEmailTranslator(args.locale, "emailInvoice");
   const tag = localeTag(locale);
   const numberStr = formatInvoiceNumber(snapshot, invoiceNumber);
@@ -137,6 +148,11 @@ export async function renderInvoiceEmail(args: {
       : "",
     dianDateStr ? t("dianDate", { date: dianDateStr }) : "",
     "",
+    // Bloque fiscal DIAN (solo si la factura electrónica fue aceptada).
+    cufe ? t("dianFiscalTitle") : "",
+    cufe ? `${t("dianCufeLabel")}: ${cufe}` : "",
+    cufe && dianQrUrl ? `${t("dianVerifyCta")}: ${dianQrUrl}` : "",
+    "",
     t("printText"),
     invoiceUrl,
     "",
@@ -155,6 +171,8 @@ export async function renderInvoiceEmail(args: {
     fechaStr,
     dianDateStr,
     invoiceUrl,
+    cufe,
+    dianQrUrl,
   });
 
   return { subject, html, text };
@@ -170,8 +188,10 @@ function renderHtml(args: {
   fechaStr: string;
   dianDateStr: string | null;
   invoiceUrl: string;
+  cufe?: string;
+  dianQrUrl?: string;
 }): string {
-  const { t, locale, snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl } = args;
+  const { t, locale, snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl } = args;
 
   // Items como filas de tabla — más resistente que divs en Outlook.
   const itemRows = snapshot.items
@@ -188,6 +208,24 @@ function renderHtml(args: {
   // Línea punteada — span lleno con borde inferior. Más confiable
   // que <hr> en Outlook (que lo renderea con padding raro).
   const dashed = `<div style="border-bottom:1px dashed #000;height:1px;margin:10px 0;line-height:0;font-size:0;">&nbsp;</div>`;
+
+  // Bloque fiscal DIAN dentro de la tirilla del email — solo si la
+  // factura electrónica fue aceptada (cufe presente). Sin QR inline
+  // (Gmail lo bloquea): CUFE en texto + enlace al catálogo DIAN.
+  const dianFiscalBlock = cufe
+    ? `
+                  ${dashed}
+                  <div style="text-align:center;font-family:'SF Mono','Menlo',monospace;color:#000;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">${escapeHtml(t("dianFiscalTitle"))}</div>
+                    <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.7;">${escapeHtml(t("dianCufeLabel"))}</div>
+                    <div style="font-size:9px;line-height:1.4;word-break:break-all;margin:2px 0 8px 0;">${escapeHtml(cufe)}</div>
+                    ${
+                      dianQrUrl
+                        ? `<a href="${escapeHtml(dianQrUrl)}" style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#1A1613;text-decoration:underline;">${escapeHtml(t("dianVerifyCta"))}</a>`
+                        : ""
+                    }
+                  </div>`
+    : "";
 
   const logoSrc =
     snapshot.logoUrl && snapshot.logoUrl.trim()
@@ -362,6 +400,7 @@ function renderHtml(args: {
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${fmtCOP(snapshot.totalCents)}</td>
                     </tr>
                   </table>
+                  ${dianFiscalBlock}
 
                   ${dashed}
 

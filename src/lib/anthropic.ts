@@ -578,3 +578,152 @@ export async function extractRutData(source: DocumentSource): Promise<RutExtract
   }
   return result.data;
 }
+
+// ── Factura de compra de proveedor (ERP A2.5) ───────────────────────────────
+// Lee la factura del proveedor (PDF/imagen) para armar una orden de compra
+// en borrador que el operador revisa. La IA SOLO lee; nada se persiste sin
+// confirmación. Todo en centavos.
+
+const PurchaseInvoiceLine = z.object({
+  description: z.string().min(1),
+  // Cantidad de la línea (unidades de la presentación facturada).
+  quantity: z.number().positive(),
+  // Texto libre de la presentación tal como aparece ("caja x24", "bulto
+  // 50 kg", "und", "L"). El operador la mapea a la del catálogo.
+  unit: z.string().nullable(),
+  unitPriceCents: z.number().int().nonnegative().nullable(),
+  lineTotalCents: z.number().int().nonnegative().nullable(),
+  // Tarifa de impuesto como texto ("0", "5", "19"), null si no se ve.
+  taxPct: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+});
+
+const PurchaseInvoiceSchema = z.object({
+  supplierNit: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  supplierInvoiceNumber: z.string().nullable(),
+  issueDate: z.string().nullable(), // YYYY-MM-DD
+  currency: z.enum(["COP", "MXN", "unknown"]),
+  lines: z.array(PurchaseInvoiceLine),
+  confidence: z.number().min(0).max(1),
+  notes: z.string().optional(),
+});
+
+export type PurchaseInvoiceLineType = z.infer<typeof PurchaseInvoiceLine>;
+export type PurchaseInvoiceExtraction = z.infer<typeof PurchaseInvoiceSchema>;
+
+const PURCHASE_INVOICE_SYSTEM = `Eres un asistente que extrae los datos de una FACTURA DE COMPRA de un proveedor a un restaurante (Colombia/México).
+Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
+
+{
+  "supplierNit": string | null,          // NIT/RFC del PROVEEDOR (quien emite), SOLO dígitos, sin DV ni guiones
+  "supplierName": string | null,         // razón social del proveedor
+  "supplierInvoiceNumber": string | null,// número/consecutivo de la factura
+  "issueDate": "YYYY-MM-DD" | null,       // fecha de la factura
+  "currency": "COP" | "MXN" | "unknown",
+  "lines": [
+    {
+      "description": string,             // nombre del producto/insumo como aparece
+      "quantity": number,                // cantidad facturada (puede tener decimales)
+      "unit": string | null,             // presentación tal cual ("caja x24", "bulto 50 kg", "und", "L", "kg")
+      "unitPriceCents": number | null,   // precio UNITARIO en CENTAVOS. "$12.500" -> 1250000
+      "lineTotalCents": number | null,   // total de la línea en CENTAVOS
+      "taxPct": string | null,           // tarifa de impuesto de la línea ("0","5","19"), null si no se ve
+      "confidence": number               // 0..1 qué tan seguro de ESTA línea
+    }
+  ],
+  "confidence": number,                   // 0..1 confianza global
+  "notes": string                         // opcional, 1 frase (ej. "foto borrosa en el total")
+}
+
+Reglas estrictas:
+- TODOS los montos en CENTAVOS: multiplica por 100. "$12.500" -> 1250000. "1.250,50" (coma decimal) -> 125050.
+- supplierNit: el del PROVEEDOR que emite la factura, NO el del restaurante que compra. Solo dígitos, sin dígito de verificación.
+- quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
+- unit: cópialo tal como aparece; no lo normalices.
+- Ignora líneas que no sean productos (subtotales, IVA, totales, notas). Solo insumos comprados.
+- Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
+- Si el documento no parece una factura de compra, devuelve lines vacío con confidence 0.`;
+
+/**
+ * Lee una factura de compra (PDF o imagen). El caller guarda el archivo
+ * original; esto solo extrae los datos para que el operador los revise
+ * antes de crear la orden de compra.
+ */
+export async function extractPurchaseInvoice(
+  source: DocumentSource,
+): Promise<PurchaseInvoiceExtraction> {
+  const c = getClient();
+  const base64 = source.data.toString("base64");
+  const instruction = "Extrae los datos de esta factura de compra.";
+  const content: Anthropic.Messages.ContentBlockParam[] =
+    source.kind === "pdf"
+      ? [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: base64 },
+          },
+          { type: "text", text: instruction },
+        ]
+      : [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: source.mimeType as
+                | "image/png"
+                | "image/jpeg"
+                | "image/webp"
+                | "image/gif",
+              data: base64,
+            },
+          },
+          { type: "text", text: instruction },
+        ];
+
+  const empty: PurchaseInvoiceExtraction = {
+    supplierNit: null,
+    supplierName: null,
+    supplierInvoiceNumber: null,
+    issueDate: null,
+    currency: "unknown",
+    lines: [],
+    confidence: 0,
+    notes: "",
+  };
+
+  const resp = await c.messages.create({
+    model: env.ANTHROPIC_MODEL,
+    max_tokens: 4096,
+    system: [
+      {
+        type: "text",
+        text: PURCHASE_INVOICE_SYSTEM,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  const text = resp.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return { ...empty, notes: `model returned non-JSON: ${text.slice(0, 200)}` };
+  }
+  const result = PurchaseInvoiceSchema.safeParse(parsed);
+  if (!result.success) {
+    return { ...empty, notes: `schema mismatch: ${result.error.issues[0]?.message}` };
+  }
+  return result.data;
+}

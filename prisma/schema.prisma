@@ -264,38 +264,39 @@ model Restaurant {
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
   meseroShiftWithoutLocal String  @default("block")
 
-  users               User[]
-  tables              Table[]
-  menus               Menu[]
-  categories          Category[]
-  menuItems           MenuItem[]
-  orders              Order[]
-  dishRatings         DishRating[]
-  membershipPayments  MembershipPayment[]
-  billingSubscription BillingSubscription?
-  auditEvents         AuditEvent[]
-  kushkiDocuments     KushkiDocument[]
-  kushkiTransactions  KushkiTransaction[]
-  walletMovements     WalletMovement[]
-  terminalDevices     TerminalDevice[]
-  kushkiWebhookEvents KushkiWebhookEvent[]
-  invoiceRequests     InvoiceRequest[]
-  simpleInvoices      SimpleInvoice[]
-  shifts              Shift[]
-  cashMovements       CashMovement[]
-  ingredients         Ingredient[]
-  suppliers           Supplier[]
-  stockLevels         StockLevel[]
-  stockMovements      StockMovement[]
-  stockCounts         StockCount[]
-  purchaseOrders      PurchaseOrder[]
-  recipes             Recipe[]
-  expenses            Expense[]
-  productionBatches   ProductionBatch[]
-  employees           Employee[]
-  staffShifts         StaffShift[]
-  dianConfig          DianConfig?
-  dianDocuments       DianDocument[]
+  users                  User[]
+  tables                 Table[]
+  menus                  Menu[]
+  categories             Category[]
+  menuItems              MenuItem[]
+  orders                 Order[]
+  dishRatings            DishRating[]
+  membershipPayments     MembershipPayment[]
+  billingSubscription    BillingSubscription?
+  auditEvents            AuditEvent[]
+  kushkiDocuments        KushkiDocument[]
+  kushkiTransactions     KushkiTransaction[]
+  walletMovements        WalletMovement[]
+  terminalDevices        TerminalDevice[]
+  kushkiWebhookEvents    KushkiWebhookEvent[]
+  invoiceRequests        InvoiceRequest[]
+  simpleInvoices         SimpleInvoice[]
+  shifts                 Shift[]
+  cashMovements          CashMovement[]
+  ingredients            Ingredient[]
+  suppliers              Supplier[]
+  stockLevels            StockLevel[]
+  stockMovements         StockMovement[]
+  stockCounts            StockCount[]
+  purchaseOrders         PurchaseOrder[]
+  recipes                Recipe[]
+  expenses               Expense[]
+  productionBatches      ProductionBatch[]
+  employees              Employee[]
+  staffShifts            StaffShift[]
+  dianConfig             DianConfig?
+  dianDocuments          DianDocument[]
+  purchaseInvoiceUploads PurchaseInvoiceUpload[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -637,12 +638,13 @@ model User {
   pushSubscriptions PushSubscription[]
 
   // ERP: movimientos de inventario / conteos creados por este usuario.
-  stockMovements           StockMovement[]   @relation("StockMovementCreator")
-  expensesCreated          Expense[]         @relation("ExpenseCreator")
-  productionBatchesCreated ProductionBatch[] @relation("ProductionBatchCreator")
+  stockMovements           StockMovement[]         @relation("StockMovementCreator")
+  expensesCreated          Expense[]               @relation("ExpenseCreator")
+  productionBatchesCreated ProductionBatch[]       @relation("ProductionBatchCreator")
+  purchaseInvoiceUploads   PurchaseInvoiceUpload[]
   employeeProfile          Employee?
-  stockCounts              StockCount[]      @relation("StockCountCreator")
-  purchaseOrders           PurchaseOrder[]   @relation("PurchaseOrderCreator")
+  stockCounts              StockCount[]            @relation("StockCountCreator")
+  purchaseOrders           PurchaseOrder[]         @relation("PurchaseOrderCreator")
 
   // Comisiones comerciales
   commissionBps       Int?
@@ -1626,9 +1628,10 @@ model PurchaseOrder {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  items        PurchaseOrderItem[]
-  movements    StockMovement[]
-  priceHistory SupplierPriceHistory[]
+  items          PurchaseOrderItem[]
+  movements      StockMovement[]
+  priceHistory   SupplierPriceHistory[]
+  invoiceUploads PurchaseInvoiceUpload[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId, status])
@@ -1828,6 +1831,33 @@ model StaffShift {
 
   @@index([restaurantId, date])
   @@index([employeeId, date])
+}
+
+// === ERP · Fase A2.5: órdenes de compra desde factura (lectura IA) =========
+// Spec: docs/superpowers/specs/2026-07-08-erp-a2-5-factura-compra-ia-design.md
+// El operador sube el PDF/foto de una factura de proveedor; la IA la lee
+// y arma una OC en borrador para revisar y confirmar. La imagen queda de
+// evidencia ligada a la OC; la extracción cruda se guarda para reintentar.
+
+model PurchaseInvoiceUpload {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  fileUrl    String
+  status     String @default("pending") // pending | confirmed | discarded
+  // Salida cruda de extractPurchaseInvoice (para re-abrir/editar).
+  extraction Json
+
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([restaurantId, status])
 }
 
 // === ERP · Fase B1: facturación electrónica DIAN (software propio) =========

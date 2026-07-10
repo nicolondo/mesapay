@@ -3,8 +3,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
+  derivedHourlyCents,
   hasOverlap,
-  shiftCost,
+  shiftSurcharge,
   validShiftRange,
   weekRange,
 } from "@/lib/erp/staff";
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
       orderBy: [{ date: "asc" }, { startMinutes: "asc" }],
       include: {
         employee: {
-          select: { id: true, name: true, position: true, hourlyRateCents: true, active: true },
+          select: { id: true, name: true, position: true, monthlySalaryCents: true, active: true },
         },
       },
     }),
@@ -53,9 +54,11 @@ export async function GET(req: Request) {
         staffStrictAttendance: true,
         staffHolidayPct: true,
         staffSundayPct: true,
+        staffHoursDivisor: true,
       },
     }),
   ]);
+  const divisor = tenant?.staffHoursDivisor ?? 240;
 
   // Festivos del país que caen en la semana (C2 · D5) — la semana puede
   // cruzar de año (29 dic → 4 ene): union de ambos años.
@@ -71,13 +74,16 @@ export async function GET(req: Request) {
     return {
       ...s,
       isHoliday: holiday,
-      cost: shiftCost(
+      cost: shiftSurcharge(
         {
           startMinutes: s.startMinutes,
           endMinutes: s.endMinutes,
           checkInAt: s.checkInAt,
           checkOutAt: s.checkOutAt,
-          hourlyRateCents: s.employee.hourlyRateCents,
+          hourlyValueCents: derivedHourlyCents(
+            s.employee.monthlySalaryCents,
+            divisor,
+          ),
         },
         {
           isHoliday: holiday,
@@ -99,15 +105,14 @@ export async function GET(req: Request) {
         .slice(0, 10),
     );
   }
+  // Vista SEMANAL: el salario es mensual, así que acá NO se muestra una
+  // "base" de la semana — solo horas programadas, recargos acumulados y
+  // banderas. La base salarial mensual vive en Contabilidad (P&L).
   const totals = {
     shifts: rows.length,
     minutes: rows.reduce((a, r) => a + r.cost.minutes, 0),
-    costCents: rows.reduce((a, r) => a + r.cost.costCents, 0),
-    actualCents: rows
-      .filter((r) => r.cost.source === "actual")
-      .reduce((a, r) => a + r.cost.costCents, 0),
     surchargeCents: rows.reduce((a, r) => a + r.cost.surchargeCents, 0),
-    missingRateShifts: rows.filter((r) => r.cost.missingRate).length,
+    missingSalaryShifts: rows.filter((r) => r.cost.missingSalary).length,
     absentShifts: rows.filter((r) => r.cost.source === "absent").length,
   };
   return NextResponse.json({
@@ -171,7 +176,7 @@ export async function POST(req: Request) {
     },
     include: {
       employee: {
-        select: { id: true, name: true, position: true, hourlyRateCents: true, active: true },
+        select: { id: true, name: true, position: true, monthlySalaryCents: true, active: true },
       },
     },
   });

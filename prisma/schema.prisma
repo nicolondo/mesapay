@@ -253,6 +253,10 @@ model Restaurant {
   // (default 75/75, estándar CO; 0 = sin recargo).
   staffHolidayPct         Int     @default(75)
   staffSundayPct          Int     @default(75)
+  // Divisor mensual para derivar el valor de la hora ordinaria del salario
+  // básico (Colombia tradicional 240 = 30×8; MX análogo). Editable en los
+  // ajustes de Horarios. valor hora = Employee.monthlySalaryCents / divisor.
+  staffHoursDivisor       Int     @default(240)
   shiftPolicy             String  @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de
@@ -1767,9 +1771,16 @@ model Employee {
   name            String
   // Cargo libre con datalist (criterio categorías de insumos/gastos).
   position        String
-  // Tarifa por hora en centavos. null = sin tarifa: los turnos cuestan 0
-  // y se marcan "sin tarifa" — nunca se inventa. Tarifa mensual: se
-  // ingresa el equivalente por hora (hint en la UI).
+  // Salario básico mensual en centavos. null = sin salario: no aporta a
+  // la base laboral del mes y se marca "sin salario" — nunca se inventa.
+  // El valor de la hora ordinaria se DERIVA: salario / staffHoursDivisor
+  // (recargos y horas extra). Es el input primario del costo laboral.
+  monthlySalaryCents Int?
+  // DEPRECADO (C1). Reemplazado por monthlySalaryCents; se deja un release
+  // para no perder datos en `db push`. Backfill opcional en la VPS:
+  // UPDATE "Employee" SET "monthlySalaryCents" = "hourlyRateCents" * 240
+  //   WHERE "monthlySalaryCents" IS NULL AND "hourlyRateCents" IS NOT NULL;
+  // Sin uso en el código desde el modelo de salario mensual.
   hourlyRateCents Int?
   active          Boolean @default(true)
   // Cuenta del app opcional (mesero con login). Hoy informativo; deja la

@@ -12,7 +12,7 @@ const GATE: ModuleSlug[] = ["staff"];
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   position: z.string().trim().min(1).max(60),
-  hourlyRateCents: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
+  monthlySalaryCents: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
   userId: z.string().min(1).nullable().optional(),
 });
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         restaurantId: ctx.restaurantId,
         name: b.name,
         position: b.position,
-        hourlyRateCents: b.hourlyRateCents ?? null,
+        monthlySalaryCents: b.monthlySalaryCents ?? null,
         userId: b.userId ?? null,
       },
       include: { user: { select: { id: true, name: true, email: true } } },

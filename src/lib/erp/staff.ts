@@ -1,10 +1,16 @@
-// Horarios y costo laboral (ERP Fase C1) — LÓGICA PURA, sin DB.
+// Horarios y costo laboral (ERP Fase C1/C2, modelo de salario mensual) —
+// LÓGICA PURA, sin DB.
 //
-// El costo de un turno usa los minutos REALES cuando está punchado
-// (checkInAt + checkOutAt) y los planeados en cualquier otro caso —
-// mejor estimar la nómina de un turno pasado sin punch que reportar $0;
-// el desglose siempre dice cuánto es real y cuánto estimado. Sin tarifa
-// el turno cuesta 0 con flag `missingRate` (nunca se inventa).
+// El personal se paga con SALARIO BÁSICO MENSUAL fijo: ese salario es la
+// base del costo laboral del mes (no fluctúa con las horas), y se cuenta
+// a nivel de empleado en el P&L. El valor de la hora ordinaria se DERIVA
+// del salario (salario / divisor) SOLO para liquidar recargos
+// festivo/dominical (y, a futuro, horas extra). Por eso el turno ya no
+// aporta un "costo por horas": aporta únicamente su RECARGO.
+//
+// Los minutos del turno salen del punch real (checkInAt + checkOutAt) si
+// existe, o del rango planeado si no. Sin salario ⇒ no se puede derivar
+// el valor-hora: recargo 0 con flag `missingSalary` (nunca se inventa).
 
 export const MIN_SHIFT_MINUTES = 15;
 export const MAX_SHIFT_MINUTES = 960; // 16 h — cubre nocturnos largos
@@ -22,25 +28,35 @@ export function validShiftRange(startMinutes: number, endMinutes: number): boole
   );
 }
 
-export type ShiftCost = {
+/** Valor de la hora ordinaria derivado del salario básico mensual.
+ * `Math.round(salario / divisor)`. null (sin salario) o divisor ≤ 0 ⇒
+ * null: no se puede derivar. */
+export function derivedHourlyCents(
+  monthlySalaryCents: number | null,
+  divisor: number,
+): number | null {
+  if (monthlySalaryCents == null || !(divisor > 0)) return null;
+  return Math.round(monthlySalaryCents / divisor);
+}
+
+export type ShiftSurcharge = {
   minutes: number;
-  costCents: number;
   /**
    * "actual" = punch completo; "planned" = rango planeado;
-   * "absent" (C2) = turno pasado sin check-in en modo estricto — falta,
-   * cuesta 0.
+   * "absent" (C2) = turno pasado sin check-in en modo estricto — falta.
    */
   source: "actual" | "planned" | "absent";
-  missingRate: boolean;
-  /** C2 — parte del costo que es recargo festivo/dominical. */
+  /** Recargo festivo/dominical del turno (0 si día normal o sin salario). */
   surchargeCents: number;
+  /** Empleado sin salario ⇒ no se puede derivar el valor-hora. */
+  missingSalary: boolean;
 };
 
 /**
- * Contexto C2 (opcional — sin él, comportamiento C1 exacto):
+ * Contexto C2 (opcional — sin él, recargo 0):
  * - recargo: % sobre la hora ordinaria si el DÍA en que EMPIEZA el turno
  *   es festivo (holidayPct) o domingo no festivo (sundayPct).
- * - estricto: turno ya terminado (según plan) sin check-in ⇒ falta ($0).
+ * - estricto: turno ya terminado (según plan) sin check-in ⇒ falta.
  */
 export type ShiftCostContext = {
   isHoliday?: boolean;
@@ -54,18 +70,26 @@ export type ShiftCostContext = {
   shiftDate?: Date;
 };
 
-export function shiftCost(
+/**
+ * Recargo festivo/dominical de un turno. La BASE del costo laboral es el
+ * salario mensual del empleado (se cuenta aparte, a nivel de empleado);
+ * el turno solo aporta este recargo sobre las horas trabajadas.
+ * `hourlyValueCents` es el valor-hora YA derivado del salario
+ * (`derivedHourlyCents`); null = sin salario ⇒ recargo 0.
+ */
+export function shiftSurcharge(
   shift: {
     startMinutes: number;
     endMinutes: number;
     checkInAt: Date | null;
     checkOutAt: Date | null;
-    hourlyRateCents: number | null;
+    hourlyValueCents: number | null;
   },
   ctx: ShiftCostContext = {},
-): ShiftCost {
+): ShiftSurcharge {
+  const missingSalary = shift.hourlyValueCents == null;
   let minutes = shift.endMinutes - shift.startMinutes;
-  let source: ShiftCost["source"] = "planned";
+  let source: ShiftSurcharge["source"] = "planned";
   if (shift.checkInAt && shift.checkOutAt) {
     const actual = Math.round(
       (shift.checkOutAt.getTime() - shift.checkInAt.getTime()) / 60_000,
@@ -86,33 +110,20 @@ export function shiftCost(
     ctx.shiftDate &&
     ctx.shiftDate.getTime() + shift.endMinutes * 60_000 < ctx.now.getTime()
   ) {
-    return {
-      minutes: 0,
-      costCents: 0,
-      source: "absent",
-      missingRate: shift.hourlyRateCents == null,
-      surchargeCents: 0,
-    };
+    return { minutes: 0, source: "absent", surchargeCents: 0, missingSalary };
   }
 
-  const missingRate = shift.hourlyRateCents == null;
-  const baseCents = missingRate
-    ? 0
-    : Math.round((minutes * shift.hourlyRateCents!) / 60);
   // Recargo (C2): festivo manda sobre domingo (no se acumulan).
   const pct = ctx.isHoliday
     ? (ctx.holidayPct ?? 0)
     : ctx.isSunday
       ? (ctx.sundayPct ?? 0)
       : 0;
-  const surchargeCents = pct > 0 ? Math.round((baseCents * pct) / 100) : 0;
-  return {
-    minutes,
-    costCents: baseCents + surchargeCents,
-    source,
-    missingRate,
-    surchargeCents,
-  };
+  const surchargeCents =
+    missingSalary || pct <= 0
+      ? 0
+      : Math.round((minutes * shift.hourlyValueCents!) / 60 * (pct / 100));
+  return { minutes, source, surchargeCents, missingSalary };
 }
 
 // ── Plantilla semanal (C2) ──────────────────────────────────────────────────

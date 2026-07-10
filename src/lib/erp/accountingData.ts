@@ -4,7 +4,7 @@
 // operador y el consolidado de grupo.
 import { db } from "@/lib/db";
 import { buildPnl, type LaborSummary, type Pnl } from "@/lib/erp/accounting";
-import { shiftCost } from "@/lib/erp/staff";
+import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import { isModuleEnabled } from "@/lib/modules";
 
@@ -23,6 +23,7 @@ export async function computeMonthPnl(
         staffStrictAttendance: true,
         staffHolidayPct: true,
         staffSundayPct: true,
+        staffHoursDivisor: true,
       },
     }),
     db.order.aggregate({
@@ -58,28 +59,44 @@ export async function computeMonthPnl(
     movements.map((m) => [m.kind, m._sum.valueCents ?? 0]),
   );
 
-  // C1 — costo laboral del mes: real (punchado) + estimado (planeado sin
-  // punch). Solo con el módulo staff activo; apagado, el P&L no cambia.
+  // Costo laboral del mes (modelo de salario mensual): base fija = Σ
+  // salarios de los empleados activos; encima, recargos festivo/dominical
+  // de los turnos. Solo con el módulo staff activo; apagado, el P&L no
+  // cambia.
   let labor: LaborSummary | null = null;
   if (isModuleEnabled(tenant?.enabledModules, "staff")) {
-    const shifts = await db.staffShift.findMany({
-      where: { restaurantId, date: { gte: range.from, lt: range.to } },
-      select: {
-        date: true,
-        startMinutes: true,
-        endMinutes: true,
-        checkInAt: true,
-        checkOutAt: true,
-        employee: { select: { hourlyRateCents: true } },
-      },
-    });
+    const divisor = tenant?.staffHoursDivisor ?? 240;
+    const [employees, shifts] = await Promise.all([
+      db.employee.findMany({
+        where: { restaurantId, active: true },
+        select: { monthlySalaryCents: true },
+      }),
+      db.staffShift.findMany({
+        where: { restaurantId, date: { gte: range.from, lt: range.to } },
+        select: {
+          date: true,
+          startMinutes: true,
+          endMinutes: true,
+          checkInAt: true,
+          checkOutAt: true,
+          employee: { select: { monthlySalaryCents: true } },
+        },
+      }),
+    ]);
+    // Base salarial: salario completo del mes de cada empleado activo con
+    // salario (sin prorrateo por altas/bajas a mitad de mes — fuera de
+    // alcance). Independiente de si tiene turnos.
+    const salaried = employees.filter((e) => e.monthlySalaryCents != null);
     labor = {
       totalCents: 0,
-      actualCents: 0,
-      estimatedCents: 0,
+      baseSalaryCents: salaried.reduce(
+        (a, e) => a + (e.monthlySalaryCents ?? 0),
+        0,
+      ),
       surchargeCents: 0,
+      salariedEmployees: salaried.length,
+      missingSalaryEmployees: employees.length - salaried.length,
       shifts: shifts.length,
-      missingRateShifts: 0,
       absentShifts: 0,
     };
     // C2: recargos por festivo/domingo y faltas (modo estricto) — mismas
@@ -90,13 +107,16 @@ export async function computeMonthPnl(
     ]);
     const now = new Date();
     for (const sh of shifts) {
-      const c = shiftCost(
+      const c = shiftSurcharge(
         {
           startMinutes: sh.startMinutes,
           endMinutes: sh.endMinutes,
           checkInAt: sh.checkInAt,
           checkOutAt: sh.checkOutAt,
-          hourlyRateCents: sh.employee.hourlyRateCents,
+          hourlyValueCents: derivedHourlyCents(
+            sh.employee.monthlySalaryCents,
+            divisor,
+          ),
         },
         {
           isHoliday: holidaySet.has(sh.date.toISOString().slice(0, 10)),
@@ -108,13 +128,10 @@ export async function computeMonthPnl(
           shiftDate: sh.date,
         },
       );
-      labor.totalCents += c.costCents;
       labor.surchargeCents += c.surchargeCents;
-      if (c.source === "actual") labor.actualCents += c.costCents;
-      else if (c.source === "absent") labor.absentShifts++;
-      else labor.estimatedCents += c.costCents;
-      if (c.missingRate) labor.missingRateShifts++;
+      if (c.source === "absent") labor.absentShifts++;
     }
+    labor.totalCents = labor.baseSalaryCents + labor.surchargeCents;
   }
 
   return buildPnl({

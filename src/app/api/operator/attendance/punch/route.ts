@@ -80,7 +80,7 @@ export async function POST(req: Request) {
         id: true,
         name: true,
         position: true,
-        hourlyRateCents: true,
+        monthlySalaryCents: true,
         active: true,
       },
     },

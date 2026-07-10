@@ -53,17 +53,17 @@ type PnlDto = {
   operatingMarginPct: number | null;
   /**
    * C1 — costo laboral del mes: null = módulo staff apagado (el P&L se ve
-   * exactamente como antes). Real = turnos punchados; estimado = planeados.
-   * C2 — recargos festivo/dominical incluidos en el total y conteo de
-   * faltas (modo estricto).
+   * exactamente como antes). Base salarial (Σ salarios de activos, fija) +
+   * recargos festivo/dominical de los turnos. C2 — conteo de faltas (modo
+   * estricto).
    */
   labor: {
     totalCents: number;
-    actualCents: number;
-    estimatedCents: number;
+    baseSalaryCents: number;
     surchargeCents: number;
+    salariedEmployees: number;
+    missingSalaryEmployees: number;
     shifts: number;
-    missingRateShifts: number;
     absentShifts: number;
   } | null;
   /** C1 — (CMV + mermas + laboral) / ingresos. null sin staff o sin ventas. */
@@ -626,9 +626,10 @@ function PnlLine({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Línea "− Costo laboral" (C1) con desglose real/estimado en caption y
- * badge discreto cuando hay turnos sin tarifa (costaron $0 — el total
- * está subestimado y el operador debe saberlo).
+ * Línea "− Costo laboral" (C1): base salarial mensual (Σ salarios de
+ * activos, fija) + recargos festivo/dominical en el caption. Badge
+ * discreto cuando hay empleados activos sin salario (no entran a la base
+ * — el total está subestimado y el operador debe saberlo).
  */
 function PnlLabor({
   labor,
@@ -651,17 +652,12 @@ function PnlLabor({
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-[11px] text-op-muted tabular-nums">
-          {/* C2 — recargos y faltas se anexan al caption solo si existen. */}
+          {/* Base salarial + recargos; faltas se anexan solo si existen. */}
           {[
             t("laborPnlBreakdown", {
-              actual: money(labor.actualCents),
-              estimated: money(labor.estimatedCents),
+              base: money(labor.baseSalaryCents),
+              surcharge: money(labor.surchargeCents),
             }),
-            labor.surchargeCents > 0
-              ? t("holidaySurchargePnl", {
-                  amount: money(labor.surchargeCents),
-                })
-              : null,
             labor.absentShifts > 0
               ? t("absentCount", { count: labor.absentShifts })
               : null,
@@ -669,9 +665,11 @@ function PnlLabor({
             .filter(Boolean)
             .join(" · ")}
         </span>
-        {labor.missingRateShifts > 0 && (
+        {labor.missingSalaryEmployees > 0 && (
           <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-            {t("laborMissingRateShifts", { count: labor.missingRateShifts })}
+            {t("laborMissingSalaryEmployees", {
+              count: labor.missingSalaryEmployees,
+            })}
           </span>
         )}
       </div>

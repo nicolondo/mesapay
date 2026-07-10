@@ -1,0 +1,46 @@
+MESAPAY · Colores de marca (HEX)
+Pegá estos códigos en Canva → Marca → Kit de marca → Colores de marca.
+
+── MARCA ─────────────────────────────
+Terracota            #C9532E   (primario: botones, enlaces, acentos)
+Terracota oscuro     #A8401F   (hover / estados activos)
+Terracota suave      #F0D9CB   (fondos de acento, badges)
+
+── TINTA / TEXTO ─────────────────────
+Tinta                #1A1613   (texto principal, negro cálido)
+Tinta 2              #2B2521   (titulares secundarios)
+Tinta 3              #423B35   (texto sobre fondos claros)
+Apagado              #6B6259   (texto secundario)
+Apagado 2            #8F867C   (terciario / placeholders)
+
+── FONDOS / NEUTROS ──────────────────
+Hueso                #F5F1EA   (fondo principal)
+Papel                #FBF8F3   (tarjetas y superficies)
+Crema                #EFE8DC   (fondos alternos)
+Marfil               #FFFDF9   (superficie más clara)
+Línea                #E5DED1   (bordes sutiles)
+Línea 2              #D8CFBF   (divisores)
+
+── SECUNDARIOS ───────────────────────
+Oliva                #5C6B3B   (acento natural / orgánico)
+Oro                  #B8893B   (acento premium)
+
+── SEMÁNTICOS ────────────────────────
+Éxito                #2E6B4C   (confirmaciones, pagado)
+Atención             #C98A2E   (avisos, pendiente)
+Error                #B23A2E   (errores, rechazos)
+
+── COLORES DEL ARCHIVO DEL LOGO (referencia exacta) ──
+Si necesitás igualar colores pegados al logo, el arte usa:
+Terracota (logo)     #C55B3B
+Tinta (logo)         #161311
+Papel (logo)         #FCF8F3
+
+──────────────────────────────────────
+Los 6 principales para empezar en Canva:
+#C9532E  #A8401F  #1A1613  #F5F1EA  #FBF8F3  #6B6259
+
+Lista completa (solo HEX):
+#C9532E #A8401F #F0D9CB #1A1613 #2B2521 #423B35 #6B6259 #8F867C
+#F5F1EA #FBF8F3 #EFE8DC #FFFDF9 #E5DED1 #D8CFBF #5C6B3B #B8893B
+#2E6B4C #C98A2E #B23A2E

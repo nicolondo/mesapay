@@ -23,8 +23,8 @@ type EmployeeDto = {
   id: string;
   name: string;
   position: string;
-  /** null = sin tarifa: los turnos cuestan 0 con badge (D1). */
-  hourlyRateCents: number | null;
+  /** null = sin salario: el empleado no aporta a la base salarial (badge). */
+  monthlySalaryCents: number | null;
   active: boolean;
   userId: string | null;
   user: UserRef | null;
@@ -43,6 +43,8 @@ type StaffSettings = {
   staffStrictAttendance: boolean;
   staffHolidayPct: number;
   staffSundayPct: number;
+  /** Divisor del salario mensual → valor de la hora ordinaria (default 240). */
+  staffHoursDivisor: number;
 };
 
 type ShiftDto = {
@@ -68,17 +70,17 @@ type ShiftDto = {
     id: string;
     name: string;
     position: string;
-    hourlyRateCents: number | null;
+    monthlySalaryCents: number | null;
     active: boolean;
   };
   cost: {
     minutes: number;
-    costCents: number;
-    /** "absent" (C2) = falta en modo estricto — cuesta $0. */
+    /** "absent" (C2) = falta en modo estricto — no aporta recargo. */
     source: "actual" | "planned" | "absent";
-    missingRate: boolean;
-    /** C2 — parte del costo que es recargo festivo/dominical. */
+    /** C2 — recargo festivo/dominical del turno (la base es mensual). */
     surchargeCents: number;
+    /** El empleado no tiene salario: no se puede derivar la hora. */
+    missingSalary: boolean;
   };
 };
 
@@ -87,10 +89,10 @@ type WeekPayload = {
   totals: {
     shifts: number;
     minutes: number;
-    costCents: number;
-    actualCents: number;
+    /** C2 — Σ recargos festivo/dominical de la semana. */
     surchargeCents: number;
-    missingRateShifts: number;
+    /** Turnos de empleados sin salario (no se derivó la hora). */
+    missingSalaryShifts: number;
     absentShifts: number;
   };
   /** C2 — ISO de los festivos del país que caen en la semana. */
@@ -264,6 +266,10 @@ export function HorariosClient({
   const [team, setTeam] = useState<TeamPayload | null>(null);
   const [teamErr, setTeamErr] = useState(false);
   const [teamSeq, setTeamSeq] = useState(0);
+  // Divisor del salario → valor de la hora ordinaria. Se muestra en la
+  // lista de Equipo y en el hint del sheet de empleado. Default 240 hasta
+  // que llegue el GET de ajustes (el mismo divisor editable de Ajustes).
+  const [divisor, setDivisor] = useState(240);
 
   // Sheets en el shell: el de turno se abre desde Semana Y desde Hoy
   // (mismo formulario; "Turno extra" llega con la fecha fija de hoy).
@@ -296,6 +302,26 @@ export function HorariosClient({
       cancelled = true;
     };
   }, [teamSeq]);
+
+  // Divisor de horas del comercio (ajustes de staff). Se refresca al
+  // cerrar Ajustes por si el operador lo cambió — no bloquea la vista.
+  useEffect(() => {
+    if (settingsOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/staff-settings");
+        if (!r.ok) return;
+        const j = (await r.json()) as { settings: StaffSettings | null };
+        if (!cancelled && j.settings) setDivisor(j.settings.staffHoursDivisor);
+      } catch {
+        /* opcional — sin ajustes se usa el default 240 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsOpen]);
 
   const activeEmployees = useMemo(
     () => (team?.employees ?? []).filter((e) => e.active),
@@ -374,6 +400,7 @@ export function HorariosClient({
       ) : (
         <TeamTab
           currency={currency}
+          divisor={divisor}
           team={team}
           teamErr={teamErr}
           onNew={() => setEmployeeSheet("new")}
@@ -400,6 +427,7 @@ export function HorariosClient({
           positions={team?.positions ?? []}
           users={users}
           currency={currency}
+          divisor={divisor}
           onClose={() => setEmployeeSheet(null)}
           onChanged={handleEmployeeChanged}
         />
@@ -594,24 +622,18 @@ function WeekTab({
         </div>
       ) : (
         <>
-          {/* Totales de la semana: costo, horas y cuánto ya es real */}
+          {/* Resumen de la semana: el salario es MENSUAL, así que la
+              semana no tiene "costo base" — el headline son las horas
+              programadas; recargos y faltas van como líneas secundarias. */}
           <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("staffWeekTotal")}
+                {t("staffWeekHoursLabel")}
               </span>
               <span className="font-display text-2xl tabular-nums">
-                {money(data.totals.costCents)}
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-3 flex-wrap text-[11px] text-op-muted">
-              <span className="tabular-nums">
                 {t("staffWeekHours", {
                   hours: fmtHours(data.totals.minutes, locale),
                 })}
-              </span>
-              <span className="tabular-nums">
-                {t("staffWeekActual", { amount: money(data.totals.actualCents) })}
               </span>
             </div>
             {(data.totals.surchargeCents > 0 ||
@@ -631,10 +653,10 @@ function WeekTab({
                 )}
               </div>
             )}
-            {data.totals.missingRateShifts > 0 && (
+            {data.totals.missingSalaryShifts > 0 && (
               <div className="mt-1 text-[11px] text-[#7F5A1F]">
-                {t("laborMissingRateShifts", {
-                  count: data.totals.missingRateShifts,
+                {t("staffWeekMissingSalary", {
+                  count: data.totals.missingSalaryShifts,
                 })}
               </div>
             )}
@@ -650,8 +672,10 @@ function WeekTab({
           ) : (
             weekDays(monday).map((day) => {
               const shifts = byDay.get(day) ?? [];
-              const subtotal = shifts.reduce(
-                (a, s) => a + s.cost.costCents,
+              // Salario mensual: el día no tiene un "costo" — solo puede
+              // acumular recargo festivo/dominical.
+              const daySurcharge = shifts.reduce(
+                (a, s) => a + s.cost.surchargeCents,
                 0,
               );
               return (
@@ -670,9 +694,11 @@ function WeekTab({
                         </span>
                       )}
                     </span>
-                    {shifts.length > 0 && (
+                    {daySurcharge > 0 && (
                       <span className="text-[11px] text-op-muted tabular-nums shrink-0">
-                        {money(subtotal)}
+                        {t("holidaySurchargeTotal", {
+                          amount: money(daySurcharge),
+                        })}
                       </span>
                     )}
                   </div>
@@ -709,9 +735,9 @@ function WeekTab({
                                   {t("autoClosedBadge")}
                                 </span>
                               )}
-                              {s.cost.missingRate && (
+                              {s.cost.missingSalary && (
                                 <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                                  {t("staffNoRate")}
+                                  {t("staffNoSalary")}
                                 </span>
                               )}
                             </div>
@@ -720,6 +746,8 @@ function WeekTab({
                                 .filter(Boolean)
                                 .join(" · ")}
                             </div>
+                            {/* Salario mensual: el turno no muestra costo en
+                                dinero — solo el recargo, si lo tiene. */}
                             {s.cost.surchargeCents > 0 && (
                               <div className="text-[10px] text-op-muted mt-0.5 tabular-nums">
                                 {t("holidaySurchargeIncluded", {
@@ -728,12 +756,6 @@ function WeekTab({
                               </div>
                             )}
                           </div>
-                          {/* Falta (C2): sin costo — el badge ya lo dice. */}
-                          {s.cost.source !== "absent" && (
-                            <div className="text-sm font-medium tabular-nums shrink-0">
-                              {money(s.cost.costCents)}
-                            </div>
-                          )}
                         </div>
                       </button>
                     ))
@@ -868,19 +890,15 @@ function TodayTab({
                       {t("autoClosedBadge")}
                     </span>
                   )}
-                  {s.cost.missingRate && (
+                  {s.cost.missingSalary && (
                     <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                      {t("staffNoRate")}
+                      {t("staffNoSalary")}
                     </span>
                   )}
                 </div>
                 <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                  {[
-                    s.employee.position,
-                    rangeLabel(s),
-                    // Falta (C2): sin costo — el badge ya lo dice.
-                    s.cost.source !== "absent" ? money(s.cost.costCents) : null,
-                  ]
+                  {/* Salario mensual: el turno no muestra costo en dinero. */}
+                  {[s.employee.position, rangeLabel(s)]
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
@@ -980,12 +998,15 @@ function TodayTab({
 
 function TeamTab({
   currency,
+  divisor,
   team,
   teamErr,
   onNew,
   onEdit,
 }: {
   currency: string;
+  /** Salario / divisor = valor de la hora ordinaria (default 240). */
+  divisor: number;
   team: TeamPayload | null;
   teamErr: boolean;
   onNew: () => void;
@@ -1051,18 +1072,28 @@ function TeamTab({
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  {e.hourlyRateCents !== null ? (
-                    <div className="text-sm font-medium tabular-nums">
-                      {t("staffRatePerHour", {
-                        rate: formatMoney(e.hourlyRateCents, {
-                          currency,
-                          locale,
-                        }),
-                      })}
-                    </div>
+                  {e.monthlySalaryCents !== null ? (
+                    <>
+                      <div className="text-sm font-medium tabular-nums">
+                        {t("staffSalaryPerMonth", {
+                          salary: formatMoney(e.monthlySalaryCents, {
+                            currency,
+                            locale,
+                          }),
+                        })}
+                      </div>
+                      <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
+                        {t("staffHourlyValue", {
+                          value: formatMoney(
+                            Math.round(e.monthlySalaryCents / divisor),
+                            { currency, locale },
+                          ),
+                        })}
+                      </div>
+                    </>
                   ) : (
                     <div className="text-[11px] text-op-muted">
-                      {t("staffNoRate")}
+                      {t("staffNoSalary")}
                     </div>
                   )}
                 </div>
@@ -1408,9 +1439,6 @@ function ShiftSheet({
 
 /* ─────────────── Crear/editar empleado (sheet) ─────────────────────── */
 
-/** Horas/mes del hint de tarifa (≈ jornada mensual de referencia, D6.3). */
-const MONTHLY_HOURS = 230;
-
 /* ── Editor de plantilla semanal (C2 · D3) ──────────────────────────── */
 
 /** Borrador de un rango del editor — strings de inputs time. */
@@ -1470,6 +1498,7 @@ function EmployeeSheet({
   positions,
   users,
   currency,
+  divisor,
   onClose,
   onChanged,
 }: {
@@ -1478,6 +1507,8 @@ function EmployeeSheet({
   positions: string[];
   users: UserRef[];
   currency: string;
+  /** Salario / divisor = valor de la hora ordinaria (default 240). */
+  divisor: number;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -1486,10 +1517,10 @@ function EmployeeSheet({
 
   const [name, setName] = useState(employee?.name ?? "");
   const [position, setPosition] = useState(employee?.position ?? "");
-  // Tarifa en unidades de moneda (pesos) — el API habla en centavos.
-  const [rateRaw, setRateRaw] = useState(
-    employee?.hourlyRateCents != null
-      ? String(employee.hourlyRateCents / 100)
+  // Salario mensual en unidades de moneda (pesos) — el API habla en centavos.
+  const [salaryRaw, setSalaryRaw] = useState(
+    employee?.monthlySalaryCents != null
+      ? String(employee.monthlySalaryCents / 100)
       : "",
   );
   const [userId, setUserId] = useState(employee?.userId ?? "");
@@ -1514,11 +1545,11 @@ function EmployeeSheet({
     return users;
   }, [employee, users]);
 
-  const rateCents = useMemo(() => {
-    if (rateRaw.trim() === "") return null;
-    const pesos = Number(rateRaw.replace(",", "."));
+  const salaryCents = useMemo(() => {
+    if (salaryRaw.trim() === "") return null;
+    const pesos = Number(salaryRaw.replace(",", "."));
     return isFinite(pesos) && pesos > 0 ? pesosToCents(pesos) : null;
-  }, [rateRaw]);
+  }, [salaryRaw]);
 
   async function save() {
     setErr(null);
@@ -1528,7 +1559,7 @@ function EmployeeSheet({
       setErr(t("errEmployeeInvalid"));
       return;
     }
-    if (rateRaw.trim() !== "" && (rateCents === null || rateCents < 1)) {
+    if (salaryRaw.trim() !== "" && (salaryCents === null || salaryCents < 1)) {
       setErr(t("errAmountInvalid"));
       return;
     }
@@ -1551,7 +1582,7 @@ function EmployeeSheet({
     const body = {
       name: nm,
       position: pos,
-      hourlyRateCents: rateCents,
+      monthlySalaryCents: salaryCents,
       userId: userId || null,
       ...(employee ? { active, weeklyTemplate: tpl } : {}),
     };
@@ -1663,11 +1694,11 @@ function EmployeeSheet({
           </Field>
 
           <Field
-            label={t("staffFieldRate")}
+            label={t("staffFieldSalary")}
             hint={
-              rateCents !== null
-                ? t("staffRateHint", {
-                    monthly: formatMoney(rateCents * MONTHLY_HOURS, {
+              salaryCents !== null
+                ? t("staffSalaryHint", {
+                    value: formatMoney(Math.round(salaryCents / divisor), {
                       currency,
                       locale,
                     }),
@@ -1680,8 +1711,8 @@ function EmployeeSheet({
               min={0}
               step="any"
               inputMode="decimal"
-              value={rateRaw}
-              onChange={(e) => setRateRaw(e.target.value)}
+              value={salaryRaw}
+              onChange={(e) => setSalaryRaw(e.target.value)}
               className={inputCls}
             />
           </Field>
@@ -2220,6 +2251,13 @@ function parsePct(v: string): number | null {
   return Number.isInteger(n) && n >= 0 && n <= 200 ? n : null;
 }
 
+/** Divisor de horas: entero 1-1000 (contrato del PATCH staff-settings). */
+function parseDivisor(v: string): number | null {
+  if (v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 1000 ? n : null;
+}
+
 function SettingsSheet({
   onClose,
   onChanged,
@@ -2234,6 +2272,7 @@ function SettingsSheet({
   const [strict, setStrict] = useState(false);
   const [holidayPct, setHolidayPct] = useState("");
   const [sundayPct, setSundayPct] = useState("");
+  const [divisor, setDivisor] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -2252,6 +2291,7 @@ function SettingsSheet({
         setStrict(j.settings.staffStrictAttendance);
         setHolidayPct(String(j.settings.staffHolidayPct));
         setSundayPct(String(j.settings.staffSundayPct));
+        setDivisor(String(j.settings.staffHoursDivisor));
         setLoaded(true);
       } catch {
         if (!cancelled) setLoadErr(true);
@@ -2270,6 +2310,11 @@ function SettingsSheet({
       setErr(t("staffSettingsPctInvalid"));
       return;
     }
+    const div = parseDivisor(divisor);
+    if (div === null) {
+      setErr(t("staffSettingsDivisorInvalid"));
+      return;
+    }
     setBusy(true);
     const r = await fetch("/api/operator/staff-settings", {
       method: "PATCH",
@@ -2278,6 +2323,7 @@ function SettingsSheet({
         staffStrictAttendance: strict,
         staffHolidayPct: holiday,
         staffSundayPct: sunday,
+        staffHoursDivisor: div,
       }),
     });
     setBusy(false);
@@ -2366,6 +2412,22 @@ function SettingsSheet({
                 />
               </Field>
             </div>
+
+            <Field
+              label={t("staffSettingsDivisor")}
+              hint={t("staffSettingsDivisorHint")}
+            >
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                step={1}
+                inputMode="numeric"
+                value={divisor}
+                onChange={(e) => setDivisor(e.target.value)}
+                className={inputCls}
+              />
+            </Field>
 
             {err && <div className="text-xs text-danger">{err}</div>}
 

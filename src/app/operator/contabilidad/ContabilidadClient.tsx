@@ -466,6 +466,13 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           categories={data?.categories ?? []}
           onClose={() => setOpen(null)}
           onChanged={handleChanged}
+          onSupplierCreated={(s) =>
+            setSuppliers((prev) =>
+              [s, ...prev.filter((p) => p.id !== s.id)].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+            )
+          }
         />
       )}
     </div>
@@ -1213,6 +1220,7 @@ function ExpenseSheet({
   categories,
   onClose,
   onChanged,
+  onSupplierCreated,
 }: {
   /** null = crear. */
   expense: ExpenseDto | null;
@@ -1220,8 +1228,15 @@ function ExpenseSheet({
   categories: string[];
   onClose: () => void;
   onChanged: () => void;
+  /** Un proveedor creado inline sube al padre para persistir en la lista. */
+  onSupplierCreated?: (s: SupplierRef) => void;
 }) {
   const t = useTranslations("opErp");
+
+  // Proveedores creados inline en esta sesión del sheet: se muestran en el
+  // select de inmediato (el prop `suppliers` solo se refresca en el padre).
+  const [localSuppliers, setLocalSuppliers] = useState<SupplierRef[]>([]);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
 
   const [category, setCategory] = useState(expense?.category ?? "");
   const [description, setDescription] = useState(expense?.description ?? "");
@@ -1243,16 +1258,29 @@ function ExpenseSheet({
 
   // El gasto puede referenciar un proveedor que ya no está en el catálogo
   // (o purchasing apagado → lista vacía): se agrega como opción para no
-  // perder la referencia al editar.
+  // perder la referencia al editar. Los creados inline se anteponen.
   const supplierOptions = useMemo(() => {
-    if (
-      expense?.supplier &&
-      !suppliers.some((s) => s.id === expense.supplier!.id)
-    ) {
-      return [expense.supplier, ...suppliers];
-    }
-    return suppliers;
-  }, [expense, suppliers]);
+    const seen = new Set<string>();
+    const out: SupplierRef[] = [];
+    const push = (s: SupplierRef) => {
+      if (seen.has(s.id)) return;
+      seen.add(s.id);
+      out.push(s);
+    };
+    localSuppliers.forEach(push);
+    if (expense?.supplier) push(expense.supplier);
+    suppliers.forEach(push);
+    return out;
+  }, [expense, suppliers, localSuppliers]);
+
+  // Proveedor creado inline: queda elegido, visible en el select y sube al
+  // padre para persistir fuera del sheet.
+  function handleSupplierCreated(s: SupplierRef) {
+    setLocalSuppliers((prev) => [s, ...prev.filter((p) => p.id !== s.id)]);
+    setSupplierId(s.id);
+    setCreatingSupplier(false);
+    onSupplierCreated?.(s);
+  }
 
   async function save() {
     setErr(null);
@@ -1417,6 +1445,20 @@ function ExpenseSheet({
                   </option>
                 ))}
               </select>
+              {creatingSupplier ? (
+                <SupplierInlineForm
+                  onCreated={handleSupplierCreated}
+                  onCancel={() => setCreatingSupplier(false)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCreatingSupplier(true)}
+                  className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
+                >
+                  {t("createSupplierInline")}
+                </button>
+              )}
             </Field>
           )}
 
@@ -1480,6 +1522,124 @@ function ExpenseSheet({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Crear proveedor inline (mini-form) ────────────────── */
+
+/**
+ * Mini-form colapsable para dar de alta un proveedor sin salir del sheet
+ * de gasto: Nombre (req.), NIT (opc.) y plazo de pago en días (opc.). Al
+ * crear, entrega el proveedor devuelto por el API al `onCreated` del padre.
+ */
+function SupplierInlineForm({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: (s: SupplierRef) => void;
+  onCancel: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const [name, setName] = useState("");
+  const [taxId, setTaxId] = useState("");
+  const [termsRaw, setTermsRaw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function create() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setErr(t("errExpenseInvalid"));
+      return;
+    }
+    const terms = termsRaw.trim();
+    const paymentTermsDays = terms === "" ? undefined : Number(terms);
+    if (
+      paymentTermsDays !== undefined &&
+      (!Number.isInteger(paymentTermsDays) ||
+        paymentTermsDays < 0 ||
+        paymentTermsDays > 365)
+    ) {
+      setErr(t("errExpenseInvalid"));
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    const r = await fetch("/api/operator/suppliers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: trimmed,
+        taxId: taxId.trim() || undefined,
+        paymentTermsDays,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        (j as { error?: string }).error === "name_taken"
+          ? t("errSupplierNameTaken")
+          : t("errSaveFailed"),
+      );
+      return;
+    }
+    const j = (await r.json()) as { supplier: SupplierRef };
+    onCreated({ id: j.supplier.id, name: j.supplier.name });
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <Field label={t("fieldName")} required>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("supplierNamePlaceholder")}
+          maxLength={120}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldTaxId")}>
+        <input
+          type="text"
+          value={taxId}
+          onChange={(e) => setTaxId(e.target.value)}
+          placeholder={t("taxIdPlaceholder")}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldPaymentTerms")} hint={t("paymentTermsHint")}>
+        <input
+          type="number"
+          min={0}
+          max={365}
+          step={1}
+          inputMode="numeric"
+          value={termsRaw}
+          onChange={(e) => setTermsRaw(e.target.value)}
+          className={inputCls}
+        />
+      </Field>
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+        >
+          {t("cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={create}
+          disabled={busy || name.trim() === ""}
+          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+        >
+          {busy ? t("saving") : t("inlineCreate")}
+        </button>
       </div>
     </div>
   );

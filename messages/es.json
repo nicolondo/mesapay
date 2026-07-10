@@ -4012,6 +4012,8 @@
     "invReviewStatusNew": "Se creará",
     "invReviewSummaryExisting": "{count, plural, one {# ya existe} other {# ya existen}}",
     "invReviewSummaryNew": "{count, plural, one {# se creará} other {# se crearán}}",
+    "invReviewDocCuentaCobro": "Cuenta de cobro",
+    "invReviewDocCuentaCobroHint": "El proveedor es a quien se le paga (el de \"debe a:\").",
     "invReviewIngredientMatched": "Insumo emparejado",
     "invReviewCreateIngredient": "Crear insumo «{name}»",
     "invReviewUseExistingIngredient": "Usar insumo existente",

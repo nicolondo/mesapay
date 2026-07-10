@@ -599,6 +599,13 @@ const PurchaseInvoiceLine = z.object({
 });
 
 const PurchaseInvoiceSchema = z.object({
+  // Tipo de documento: en una "cuenta de cobro" el proveedor es el acreedor
+  // ("debe a:"), no quien la emite arriba. .catch(null) evita que un valor
+  // inesperado del modelo tumbe toda la extracción.
+  documentType: z
+    .enum(["factura", "cuenta_de_cobro", "otro"])
+    .nullable()
+    .catch(null),
   supplierNit: z.string().nullable(),
   supplierName: z.string().nullable(),
   supplierInvoiceNumber: z.string().nullable(),
@@ -612,12 +619,13 @@ const PurchaseInvoiceSchema = z.object({
 export type PurchaseInvoiceLineType = z.infer<typeof PurchaseInvoiceLine>;
 export type PurchaseInvoiceExtraction = z.infer<typeof PurchaseInvoiceSchema>;
 
-const PURCHASE_INVOICE_SYSTEM = `Eres un asistente que extrae los datos de una FACTURA DE COMPRA de un proveedor a un restaurante (Colombia/México).
+const PURCHASE_INVOICE_SYSTEM = `Eres un asistente que extrae los datos de un DOCUMENTO DE COMPRA de un proveedor a un restaurante (Colombia/México). El documento puede ser una FACTURA o una CUENTA DE COBRO.
 Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
 
 {
-  "supplierNit": string | null,          // NIT/RFC del PROVEEDOR (quien emite), SOLO dígitos, sin DV ni guiones
-  "supplierName": string | null,         // razón social del proveedor
+  "documentType": "factura" | "cuenta_de_cobro" | "otro",  // tipo de documento
+  "supplierNit": string | null,          // NIT/RFC/cédula del PROVEEDOR (acreedor, a quien se paga), SOLO dígitos, sin DV ni guiones
+  "supplierName": string | null,         // razón social o nombre del proveedor (acreedor)
   "supplierInvoiceNumber": string | null,// número/consecutivo de la factura
   "issueDate": "YYYY-MM-DD" | null,       // fecha de la factura
   "currency": "COP" | "MXN" | "unknown",
@@ -638,12 +646,14 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
 
 Reglas estrictas:
 - TODOS los montos en CENTAVOS: multiplica por 100. "$12.500" -> 1250000. "1.250,50" (coma decimal) -> 125050.
-- supplierNit: el del PROVEEDOR que emite la factura, NO el del restaurante que compra. Solo dígitos, sin dígito de verificación.
+- documentType: "cuenta_de_cobro" si el documento se titula "CUENTA DE COBRO" o lo emite una persona natural sin factura electrónica; "factura" si es una factura de venta/compra; "otro" en cualquier otro caso.
+- PROVEEDOR = a quién se le PAGA (el acreedor/beneficiario). En una FACTURA es quien la emite. En una CUENTA DE COBRO es quien aparece después de "DEBE A:" — NO quien debe (el restaurante que paga, que suele ir arriba o antes de "debe a"). supplierName y supplierNit son SIEMPRE los del acreedor (a quien se le paga), nunca los del restaurante.
+- supplierNit: el del PROVEEDOR (acreedor), NO el del restaurante que compra/debe. Solo dígitos, sin dígito de verificación.
 - quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
 - unit: cópialo tal como aparece; no lo normalices.
 - Ignora líneas que no sean productos (subtotales, IVA, totales, notas). Solo insumos comprados.
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
-- Si el documento no parece una factura de compra, devuelve lines vacío con confidence 0.`;
+- Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
 /**
  * Lee una factura de compra (PDF o imagen). El caller guarda el archivo
@@ -655,7 +665,8 @@ export async function extractPurchaseInvoice(
 ): Promise<PurchaseInvoiceExtraction> {
   const c = getClient();
   const base64 = source.data.toString("base64");
-  const instruction = "Extrae los datos de esta factura de compra.";
+  const instruction =
+    "Extrae los datos de este documento de compra (factura o cuenta de cobro).";
   const content: Anthropic.Messages.ContentBlockParam[] =
     source.kind === "pdf"
       ? [
@@ -682,6 +693,7 @@ export async function extractPurchaseInvoice(
         ];
 
   const empty: PurchaseInvoiceExtraction = {
+    documentType: null,
     supplierNit: null,
     supplierName: null,
     supplierInvoiceNumber: null,

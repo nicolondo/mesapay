@@ -1718,6 +1718,7 @@ type InvoiceUploadResult = {
   uploadId: string;
   fileUrl: string;
   extraction: {
+    documentType: "factura" | "cuenta_de_cobro" | "otro" | null;
     supplierNit: string | null;
     supplierName: string | null;
     supplierInvoiceNumber: string | null;
@@ -2234,7 +2235,7 @@ function InvoiceReviewSheet({
             )}
 
             {/* Encabezado: proveedor */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
                 {t("invReviewSupplierSection")}
               </div>
@@ -2243,7 +2244,17 @@ function InvoiceReviewSheet({
               ) : creatingSupplier ? (
                 <MatchStatusChip existing={false} />
               ) : null}
+              {extraction.documentType === "cuenta_de_cobro" && (
+                <span className="px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium border border-op-border bg-op-bg text-op-muted">
+                  {t("invReviewDocCuentaCobro")}
+                </span>
+              )}
             </div>
+            {extraction.documentType === "cuenta_de_cobro" && (
+              <p className="text-[11px] text-op-muted -mt-1.5">
+                {t("invReviewDocCuentaCobroHint")}
+              </p>
+            )}
 
             {creatingSupplier ? (
               <>

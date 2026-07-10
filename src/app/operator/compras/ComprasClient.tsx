@@ -9,6 +9,7 @@ import {
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
   formatBaseQty,
+  MEASURE_KINDS,
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
@@ -544,6 +545,10 @@ function NewOrderSheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Mini-forms inline de creación (proveedor / insumo libre) — colapsados.
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const [creatingIng, setCreatingIng] = useState(false);
+
   // Formulario de línea
   const [mode, setMode] = useState<LineMode>("list");
   const [pickedItem, setPickedItem] = useState<PriceListItem | null>(null);
@@ -570,6 +575,8 @@ function NewOrderSheet({
     setPriceList(null);
     setIngredients(null);
     setLoadErr(false);
+    setCreatingSupplier(false);
+    setSupQ("");
   }
 
   // El reset de priceList/ingredients pasa en pickSupplier (handler), no
@@ -651,6 +658,12 @@ function NewOrderSheet({
     setPresentations("1");
     setCostDirty(false);
     setCost(item.lastPriceCents != null ? String(item.lastPriceCents / 100) : "");
+  }
+
+  // Elegir insumo (línea libre): fija la unidad base como la del picker.
+  function pickIngredient(ing: IngredientRef) {
+    setPickedIng(ing);
+    setUnit(BASE_UNIT_SYMBOL[ing.measureKind]);
   }
 
   function changePresentations(v: string) {
@@ -838,6 +851,21 @@ function NewOrderSheet({
                     ))
                   )}
                 </div>
+                {creatingSupplier ? (
+                  <SupplierInlineForm
+                    initialName={supQ.trim()}
+                    onCreated={pickSupplier}
+                    onCancel={() => setCreatingSupplier(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCreatingSupplier(true)}
+                    className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
+                  >
+                    {t("createSupplierInline")}
+                  </button>
+                )}
               </div>
             )}
           </Field>
@@ -1078,12 +1106,7 @@ function NewOrderSheet({
                                     <button
                                       key={i.id}
                                       type="button"
-                                      onClick={() => {
-                                        setPickedIng(i);
-                                        setUnit(
-                                          BASE_UNIT_SYMBOL[i.measureKind],
-                                        );
-                                      }}
+                                      onClick={() => pickIngredient(i)}
                                       className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
                                     >
                                       <span>{i.name}</span>
@@ -1094,6 +1117,28 @@ function NewOrderSheet({
                                   ))
                                 )}
                               </div>
+                              {creatingIng ? (
+                                <IngredientInlineForm
+                                  initialName={ingQ.trim()}
+                                  onCreated={(ing) => {
+                                    setIngredients((prev) => [
+                                      ...(prev ?? []),
+                                      ing,
+                                    ]);
+                                    pickIngredient(ing);
+                                    setCreatingIng(false);
+                                  }}
+                                  onCancel={() => setCreatingIng(false)}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setCreatingIng(true)}
+                                  className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
+                                >
+                                  {t("createIngredientInline")}
+                                </button>
+                              )}
                             </div>
                           )}
                         </Field>
@@ -3930,6 +3975,246 @@ function Field({
       {children}
       {hint && <div className="text-[10px] text-op-muted mt-1">{hint}</div>}
     </label>
+  );
+}
+
+/* ────────────── Crear proveedor / insumo inline (mini-forms) ────────── */
+
+/**
+ * Alta de proveedor sin salir de la creación de OC: Nombre (req.), NIT
+ * (opc.) y plazo de pago en días (opc.). Entrega el proveedor devuelto por
+ * el API a `onCreated` (que lo elige y dispara su lista de precios).
+ */
+function SupplierInlineForm({
+  initialName,
+  onCreated,
+  onCancel,
+}: {
+  initialName?: string;
+  onCreated: (s: SupplierRef) => void;
+  onCancel: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const [name, setName] = useState(initialName ?? "");
+  const [taxId, setTaxId] = useState("");
+  const [termsRaw, setTermsRaw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function create() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setErr(t("errLineInvalid"));
+      return;
+    }
+    const terms = termsRaw.trim();
+    const paymentTermsDays = terms === "" ? undefined : Number(terms);
+    if (
+      paymentTermsDays !== undefined &&
+      (!Number.isInteger(paymentTermsDays) ||
+        paymentTermsDays < 0 ||
+        paymentTermsDays > 365)
+    ) {
+      setErr(t("errLineInvalid"));
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    const r = await fetch("/api/operator/suppliers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: trimmed,
+        taxId: taxId.trim() || undefined,
+        paymentTermsDays,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        (j as { error?: string }).error === "name_taken"
+          ? t("errSupplierNameTaken")
+          : t("errSaveFailed"),
+      );
+      return;
+    }
+    const j = (await r.json()) as { supplier: SupplierRef };
+    onCreated({ id: j.supplier.id, name: j.supplier.name });
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <Field label={t("fieldName")} required>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("supplierNamePlaceholder")}
+          maxLength={120}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldTaxId")}>
+        <input
+          type="text"
+          value={taxId}
+          onChange={(e) => setTaxId(e.target.value)}
+          placeholder={t("taxIdPlaceholder")}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldPaymentTerms")} hint={t("paymentTermsHint")}>
+        <input
+          type="number"
+          min={0}
+          max={365}
+          step={1}
+          inputMode="numeric"
+          value={termsRaw}
+          onChange={(e) => setTermsRaw(e.target.value)}
+          className={inputCls}
+        />
+      </Field>
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+        >
+          {t("cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={create}
+          disabled={busy || name.trim() === ""}
+          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+        >
+          {busy ? t("creating") : t("inlineCreate")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Clave i18n por dimensión — mismas labels que el editor de insumos.
+const DIM_LABEL_KEYS: Record<MeasureKind, string> = {
+  mass: "dimMass",
+  volume: "dimVolume",
+  count: "dimCount",
+};
+
+/**
+ * Alta de insumo sin salir de la línea libre: Nombre (req.), tipo de
+ * medida (req.) y categoría (opc.). Entrega el insumo devuelto por el API
+ * a `onCreated` (que lo suma a la lista y lo deja elegido para la línea).
+ */
+function IngredientInlineForm({
+  initialName,
+  onCreated,
+  onCancel,
+}: {
+  initialName?: string;
+  onCreated: (ing: IngredientRef) => void;
+  onCancel: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const [name, setName] = useState(initialName ?? "");
+  const [measureKind, setMeasureKind] = useState<MeasureKind>("mass");
+  const [category, setCategory] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function create() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setErr(t("errLineInvalid"));
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    const r = await fetch("/api/operator/ingredients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: trimmed,
+        measureKind,
+        category: category.trim() || undefined,
+      }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        (j as { error?: string }).error === "name_taken"
+          ? t("errNameTaken")
+          : t("errSaveFailed"),
+      );
+      return;
+    }
+    const j = (await r.json()) as { ingredient: IngredientRef };
+    onCreated({
+      id: j.ingredient.id,
+      name: j.ingredient.name,
+      measureKind: j.ingredient.measureKind,
+      active: true,
+    });
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <Field label={t("fieldName")} required>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("namePlaceholder")}
+          maxLength={120}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldMeasure")} required>
+        <select
+          value={measureKind}
+          onChange={(e) => setMeasureKind(e.target.value as MeasureKind)}
+          className={inputCls}
+        >
+          {MEASURE_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {t(DIM_LABEL_KEYS[k])}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t("fieldCategory")}>
+        <input
+          type="text"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder={t("categoryPlaceholder")}
+          className={inputCls}
+        />
+      </Field>
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+        >
+          {t("cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={create}
+          disabled={busy || name.trim() === ""}
+          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+        >
+          {busy ? t("creating") : t("inlineCreate")}
+        </button>
+      </div>
+    </div>
   );
 }
 

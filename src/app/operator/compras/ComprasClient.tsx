@@ -13,6 +13,14 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import {
+  lineGrossCents,
+  lineTaxCents,
+  normalizeTaxPct,
+  poTotals,
+  purchaseTaxRates,
+  totalsMatch,
+} from "@/lib/erp/purchaseTax";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 
@@ -34,7 +42,11 @@ type OrderSummary = {
   supplierInvoiceNumber: string | null;
   invoiceDueAt: string | Date | null;
   supplier: { id: string; name: string };
-  items: { expectedCostCents: number; receivedCostCents: number }[];
+  items: {
+    expectedCostCents: number;
+    receivedCostCents: number;
+    taxPct: number;
+  }[];
   _count: { items: number };
 };
 
@@ -86,6 +98,7 @@ type OrderDetail = {
     expectedCostCents: number;
     receivedQtyBase: number;
     receivedCostCents: number;
+    taxPct: number;
     ingredient: { id: string; name: string; measureKind: MeasureKind };
     supplierItem: {
       id: string;
@@ -210,6 +223,119 @@ function StatusChip({ status }: { status: PoStatus }) {
     >
       {t(STATUS_KEYS[status])}
     </span>
+  );
+}
+
+/**
+ * País del comercio (para las tarifas de IVA del picker). Se lee de los
+ * ajustes de compras al montar; default CO mientras carga o si falla. El
+ * país solo define las opciones de tarifa, así que un fallback razonable
+ * es suficiente y no bloquea la UI.
+ */
+function usePurchaseCountry(): string {
+  const [country, setCountry] = useState<string>("CO");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/purchasing-settings");
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled && typeof j.country === "string") setCountry(j.country);
+      } catch {
+        // Sin país: se mantiene el default CO. No es bloqueante.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return country;
+}
+
+/** Selector de IVA % por línea (opciones = tarifas del país). */
+function TaxPctSelect({
+  value,
+  rates,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  rates: number[];
+  onChange: (pct: number) => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("opErp");
+  // La tarifa guardada puede no estar en la lista del país (fila vieja):
+  // se agrega para no perderla en el select.
+  const options = rates.includes(value) ? rates : [...rates, value].sort(
+    (a, b) => a - b,
+  );
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(normalizeTaxPct(e.target.value))}
+      disabled={disabled}
+      aria-label={t("fieldTaxPct")}
+      className="min-h-[44px] w-24 px-3 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
+    >
+      {options.map((pct) => (
+        <option key={pct} value={pct}>
+          {t("taxPctOption", { pct })}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Desglose Subtotal + IVA + Total de una lista de líneas netas + taxPct.
+ * Si el IVA total es 0 solo muestra el Total (no ensucia con "IVA $0"),
+ * salvo `alwaysBreakdown` para contextos donde el desglose siempre ayuda.
+ */
+function TaxBreakdown({
+  lines,
+  currency,
+  totalLabel,
+  alwaysBreakdown,
+}: {
+  lines: { costCents: number; taxPct: number }[];
+  currency: string;
+  totalLabel?: string;
+  alwaysBreakdown?: boolean;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const { subtotalCents, taxCents, totalCents } = poTotals(lines);
+  const showBreakdown = alwaysBreakdown || taxCents > 0;
+  const money = (c: number) => formatMoney(c, { currency, locale });
+  return (
+    <div className="bg-op-bg/50">
+      {showBreakdown && (
+        <>
+          <div className="flex items-center justify-between px-3 py-1.5">
+            <span className="text-[11px] text-op-muted">{t("subtotalLabel")}</span>
+            <span className="text-[11px] text-op-muted tabular-nums">
+              {money(subtotalCents)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-1.5">
+            <span className="text-[11px] text-op-muted">{t("taxLabel")}</span>
+            <span className="text-[11px] text-op-muted tabular-nums">
+              {money(taxCents)}
+            </span>
+          </div>
+        </>
+      )}
+      <div className="flex items-center justify-between px-3 py-2">
+        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+          {totalLabel ?? t("totalLabel")}
+        </span>
+        <span className="text-sm font-medium tabular-nums">
+          {money(totalCents)}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -391,10 +517,13 @@ export function ComprasClient({
         <>
           <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
             {orders.map((o) => {
-              const total = o.items.reduce(
-                (sum, it) => sum + it.expectedCostCents,
-                0,
-              );
+              // Bruto (neto + IVA) — lo que se paga con impuestos.
+              const total = poTotals(
+                o.items.map((it) => ({
+                  costCents: it.expectedCostCents,
+                  taxPct: it.taxPct,
+                })),
+              ).totalCents;
               return (
                 <button
                   key={o.id}
@@ -510,7 +639,10 @@ type DraftLine = {
   presentations: number | null;
   /** Derivado para display; el POST solo lo manda en líneas libres. */
   qtyBase: number;
+  /** Costo NETO (sin IVA) de la línea, en centavos. */
   expectedCostCents: number;
+  /** IVA de la línea (0–100); el bruto = neto + IVA. */
+  taxPct: number;
 };
 
 type LineMode = "list" | "free";
@@ -530,6 +662,8 @@ function NewOrderSheet({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
+  const country = usePurchaseCountry();
+  const taxRates = useMemo(() => purchaseTaxRates(country), [country]);
 
   const [supplier, setSupplier] = useState<SupplierRef | null>(null);
   const [supQ, setSupQ] = useState("");
@@ -561,6 +695,8 @@ function NewOrderSheet({
   const [cost, setCost] = useState("");
   // El costo se precarga (n × último precio) hasta que el operador lo toca.
   const [costDirty, setCostDirty] = useState(false);
+  // IVA de la línea en edición; default 0 (sin IVA).
+  const [taxPct, setTaxPct] = useState(0);
   const [lineErr, setLineErr] = useState<string | null>(null);
 
   const supMatches = useMemo(() => {
@@ -630,11 +766,6 @@ function NewOrderSheet({
       .slice(0, 8);
   }, [ingredients, ingQ]);
 
-  const total = useMemo(
-    () => lines.reduce((sum, l) => sum + l.expectedCostCents, 0),
-    [lines],
-  );
-
   // Cuando el proveedor no tiene lista de precios, la única vía es la
   // línea libre — se fuerza el modo para no mostrar un combobox vacío.
   const effectiveMode: LineMode =
@@ -650,6 +781,7 @@ function NewOrderSheet({
     setUnit("");
     setCost("");
     setCostDirty(false);
+    setTaxPct(0);
     setLineErr(null);
   }
 
@@ -711,6 +843,7 @@ function NewOrderSheet({
           presentations: n,
           qtyBase: n * pickedItem.contentQty,
           expectedCostCents,
+          taxPct,
         },
       ]);
     } else {
@@ -736,6 +869,7 @@ function NewOrderSheet({
           presentations: null,
           qtyBase,
           expectedCostCents,
+          taxPct,
         },
       ]);
     }
@@ -758,11 +892,13 @@ function NewOrderSheet({
                 supplierItemId: l.supplierItemId,
                 presentations: l.presentations,
                 expectedCostCents: l.expectedCostCents,
+                taxPct: l.taxPct,
               }
             : {
                 ingredientId: l.ingredientId,
                 qtyBase: l.qtyBase,
                 expectedCostCents: l.expectedCostCents,
+                taxPct: l.taxPct,
               },
         ),
         notes: notes.trim() || null,
@@ -911,11 +1047,23 @@ function NewOrderSheet({
                                 .join(" · ")}
                             </div>
                           </div>
-                          <div className="text-sm font-medium tabular-nums shrink-0">
-                            {formatMoney(l.expectedCostCents, {
-                              currency,
-                              locale,
-                            })}
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-medium tabular-nums">
+                              {formatMoney(l.expectedCostCents, {
+                                currency,
+                                locale,
+                              })}
+                            </div>
+                            {l.taxPct > 0 && (
+                              <div className="text-[11px] text-op-muted tabular-nums">
+                                {`${t("taxPctOption", { pct: l.taxPct })} · ${t(
+                                  "lineGrossLabel",
+                                )} ${formatMoney(
+                                  lineGrossCents(l.expectedCostCents, l.taxPct),
+                                  { currency, locale },
+                                )}`}
+                              </div>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -930,14 +1078,14 @@ function NewOrderSheet({
                           </button>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between px-3 py-2 bg-op-bg/50">
-                        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                          {t("orderTotalLabel")}
-                        </span>
-                        <span className="text-sm font-medium tabular-nums">
-                          {formatMoney(total, { currency, locale })}
-                        </span>
-                      </div>
+                      <TaxBreakdown
+                        lines={lines.map((l) => ({
+                          costCents: l.expectedCostCents,
+                          taxPct: l.taxPct,
+                        }))}
+                        currency={currency}
+                        totalLabel={t("orderTotalLabel")}
+                      />
                     </div>
                   )}
 
@@ -1178,28 +1326,41 @@ function NewOrderSheet({
                       </>
                     )}
 
-                    <Field
-                      label={`${t("fieldExpectedCost")} (${currency})`}
-                      required
-                      hint={
-                        effectiveMode === "list"
-                          ? t("expectedCostHint")
-                          : undefined
-                      }
-                    >
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        inputMode="decimal"
-                        value={cost}
-                        onChange={(e) => {
-                          setCost(e.target.value);
-                          setCostDirty(true);
-                        }}
-                        className={inputCls}
-                      />
-                    </Field>
+                    <div className="flex gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Field
+                          label={`${t("fieldExpectedCost")} (${currency})`}
+                          required
+                          hint={
+                            effectiveMode === "list"
+                              ? t("expectedCostHint")
+                              : undefined
+                          }
+                        >
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            inputMode="decimal"
+                            value={cost}
+                            onChange={(e) => {
+                              setCost(e.target.value);
+                              setCostDirty(true);
+                            }}
+                            className={inputCls}
+                          />
+                        </Field>
+                      </div>
+                      <div className="shrink-0">
+                        <Field label={t("fieldTaxPct")}>
+                          <TaxPctSelect
+                            value={taxPct}
+                            rates={taxRates}
+                            onChange={setTaxPct}
+                          />
+                        </Field>
+                      </div>
+                    </div>
 
                     {lineErr && (
                       <div className="text-xs text-danger">{lineErr}</div>
@@ -1725,6 +1886,11 @@ type InvoiceUploadResult = {
     issueDate: string | null;
     currency: "COP" | "MXN" | "unknown";
     lines: ExtractionLine[];
+    // Totales IMPRESOS que leyó la IA (para validar concordancia); null si
+    // no se ven en el documento.
+    invoiceSubtotalCents: number | null;
+    invoiceTaxCents: number | null;
+    invoiceTotalCents: number | null;
     confidence: number;
     notes: string;
   };
@@ -1845,7 +2011,8 @@ type InvoiceReviewLine = {
   presentations: string; // modo presentación
   qty: string; // modo directo
   unit: string; // modo directo
-  cost: string; // costo total de la línea, en pesos
+  cost: string; // costo NETO total de la línea, en pesos
+  taxPct: number; // IVA de la línea (0–100)
   lowConfidence: boolean;
   readUnit: string | null; // unidad leída (pista)
   readQty: number; // cantidad leída (pista)
@@ -1898,6 +2065,7 @@ function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
     qty: "",
     unit: BASE_UNIT_SYMBOL[measureKind],
     cost: initialLineCost(m.line),
+    taxPct: normalizeTaxPct(m.line.taxPct),
     lowConfidence: m.lowConfidence,
     readUnit: m.line.unit,
     readQty: m.line.quantity,
@@ -1938,6 +2106,8 @@ function InvoiceReviewSheet({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
+  const country = usePurchaseCountry();
+  const taxRates = useMemo(() => purchaseTaxRates(country), [country]);
 
   const { uploadId, fileUrl, extraction, match } = result;
   const isPdf = /\.pdf(\?|$)/i.test(fileUrl);
@@ -2029,9 +2199,20 @@ function InvoiceReviewSheet({
       .slice(0, 8);
   }, [suppliers, supQ]);
 
-  const total = useMemo(
-    () => lines.reduce((sum, l) => sum + (reviewLineCostCents(l) ?? 0), 0),
+  // Líneas netas + IVA para el desglose y la concordancia con la factura.
+  const breakdownLines = useMemo(
+    () =>
+      lines.map((l) => ({
+        costCents: reviewLineCostCents(l) ?? 0,
+        taxPct: l.taxPct,
+      })),
     [lines],
+  );
+  const totals = useMemo(() => poTotals(breakdownLines), [breakdownLines]);
+  // Concordancia con el total IMPRESO de la factura (si se leyó).
+  const mismatch = useMemo(
+    () => !totalsMatch(totals.totalCents, extraction.invoiceTotalCents),
+    [totals.totalCents, extraction.invoiceTotalCents],
   );
 
   // Resumen emparejado/nuevo: cuántos insumos ya existen vs se crearán
@@ -2065,6 +2246,7 @@ function InvoiceReviewSheet({
         qty: "",
         unit: BASE_UNIT_SYMBOL.count,
         cost: "",
+        taxPct: 0,
         lowConfidence: false,
         readUnit: null,
         readQty: 0,
@@ -2100,6 +2282,7 @@ function InvoiceReviewSheet({
       newIngredientMeasureKind?: MeasureKind;
       qtyBase: number;
       expectedCostCents: number;
+      taxPct: number;
     }[] = [];
     for (const l of lines) {
       if (!l.ingredientId && !l.ingredientName.trim()) {
@@ -2118,13 +2301,19 @@ function InvoiceReviewSheet({
       }
       payloadLines.push(
         l.ingredientId
-          ? { ingredientId: l.ingredientId, qtyBase, expectedCostCents: cost }
+          ? {
+              ingredientId: l.ingredientId,
+              qtyBase,
+              expectedCostCents: cost,
+              taxPct: l.taxPct,
+            }
           : {
               ingredientId: null,
               newIngredientName: l.ingredientName.trim(),
               newIngredientMeasureKind: l.measureKind,
               qtyBase,
               expectedCostCents: cost,
+              taxPct: l.taxPct,
             },
       );
     }
@@ -2371,6 +2560,7 @@ function InvoiceReviewSheet({
                 key={l.key}
                 line={l}
                 currency={currency}
+                taxRates={taxRates}
                 ingredients={ingredients}
                 onChange={(changes) => updateLine(l.key, changes)}
                 onRemove={() => removeLine(l.key)}
@@ -2385,15 +2575,30 @@ function InvoiceReviewSheet({
               {t("invReviewAddLine")}
             </button>
 
-            {/* Total recomputado en vivo */}
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-op-bg/50 border border-op-border">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("invReviewTotalNote")}
-              </span>
-              <span className="text-sm font-medium tabular-nums">
-                {formatMoney(total, { currency, locale })}
-              </span>
+            {/* Desglose recomputado en vivo (Subtotal + IVA + Total) */}
+            <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
+              <TaxBreakdown
+                lines={breakdownLines}
+                currency={currency}
+                totalLabel={t("invReviewTotalNote")}
+              />
             </div>
+
+            {/* Concordancia con el total impreso de la factura (no bloquea). */}
+            {mismatch && extraction.invoiceTotalCents != null && (
+              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
+                {t("invTotalMismatch", {
+                  computed: formatMoney(totals.totalCents, {
+                    currency,
+                    locale,
+                  }),
+                  printed: formatMoney(extraction.invoiceTotalCents, {
+                    currency,
+                    locale,
+                  }),
+                })}
+              </div>
+            )}
 
             {extraction.notes.trim() !== "" && (
               <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
@@ -2484,12 +2689,14 @@ function InvoiceReviewSheet({
 function InvoiceReviewLineCard({
   line: l,
   currency,
+  taxRates,
   ingredients,
   onChange,
   onRemove,
 }: {
   line: InvoiceReviewLine;
   currency: string;
+  taxRates: number[];
   ingredients: IngredientRef[] | null;
   onChange: (changes: Partial<InvoiceReviewLine>) => void;
   onRemove: () => void;
@@ -2507,6 +2714,8 @@ function InvoiceReviewLineCard({
   }, [ingredients, ingQ]);
 
   const qtyBase = reviewLineQtyBase(l);
+  // Costo NETO de la línea en centavos (null si el input es inválido/vacío).
+  const lineNetCents = reviewLineCostCents(l);
   const readQtyStr = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 3,
   }).format(l.readQty);
@@ -2724,17 +2933,48 @@ function InvoiceReviewLineCard({
         </Field>
       )}
 
-      <Field label={`${t("fieldExpectedCost")} (${currency})`} required>
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          value={l.cost}
-          onChange={(e) => onChange({ cost: e.target.value })}
-          className={inputCls}
-        />
-      </Field>
+      <div className="flex gap-2">
+        <div className="flex-1 min-w-0">
+          <Field label={`${t("fieldExpectedCost")} (${currency})`} required>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              inputMode="decimal"
+              value={l.cost}
+              onChange={(e) => onChange({ cost: e.target.value })}
+              className={inputCls}
+            />
+          </Field>
+        </div>
+        <div className="shrink-0">
+          <Field label={t("fieldTaxPct")}>
+            <TaxPctSelect
+              value={l.taxPct}
+              rates={taxRates}
+              onChange={(pct) => onChange({ taxPct: pct })}
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* IVA $ y bruto de la línea (sobre el costo neto editado) */}
+      {l.taxPct > 0 && lineNetCents != null && (
+        <div className="flex items-center justify-between text-[11px] text-op-muted tabular-nums">
+          <span>
+            {`${t("taxLabel")} ${formatMoney(
+              lineTaxCents(lineNetCents, l.taxPct),
+              { currency, locale },
+            )}`}
+          </span>
+          <span>
+            {`${t("lineGrossLabel")} ${formatMoney(
+              lineGrossCents(lineNetCents, l.taxPct),
+              { currency, locale },
+            )}`}
+          </span>
+        </div>
+      )}
 
       {/* Pista de lo leído + cantidad base resultante */}
       <div className="text-[10px] text-op-muted">
@@ -2856,10 +3096,15 @@ function OrderDetailSheet({
     if (ok) setEditing(false);
   }
 
-  const total = (order?.items ?? []).reduce(
-    (sum, it) => sum + it.expectedCostCents,
-    0,
-  );
+  // Si la OC ya se recibió (completa), el costo real recibido manda; si no,
+  // el esperado. Cada línea aporta su costo NETO + su IVA.
+  const useReceived = order?.status === "received";
+  const detailLines = (order?.items ?? []).map((it) => ({
+    costCents: useReceived ? it.receivedCostCents : it.expectedCostCents,
+    taxPct: it.taxPct,
+  }));
+  // Total bruto (neto + IVA) — para WhatsApp/impresión.
+  const total = poTotals(detailLines).totalCents;
 
   // Enviar (WhatsApp/imprimir) marca `sent` si aún es borrador — optimista
   // y fire-and-forget: el envío ya salió, el server solo lo registra (D6).
@@ -2905,6 +3150,19 @@ function OrderDetailSheet({
           )}</td></tr>`,
       )
       .join("");
+    // Pie: si hay IVA, desglose Subtotal + IVA + Total; si no, solo Total.
+    const printTotals = poTotals(detailLines);
+    const totalRow = (label: string, cents: number) =>
+      `<tr><td>${escapeHtml(label)}</td>` +
+      `<td class="num">${escapeHtml(
+        formatMoney(cents, { currency, locale }),
+      )}</td></tr>`;
+    const printTotalsRows =
+      printTotals.taxCents > 0
+        ? totalRow(t("subtotalLabel"), printTotals.subtotalCents) +
+          totalRow(t("taxLabel"), printTotals.taxCents) +
+          totalRow(t("orderTotalLabel"), printTotals.totalCents)
+        : totalRow(t("orderTotalLabel"), printTotals.totalCents);
     const meta = [
       `${t("fieldSupplier")}: ${order.supplier.name}`,
       order.supplier.phone,
@@ -2932,11 +3190,9 @@ function OrderDetailSheet({
       `.notes{margin-top:12px;color:#555;white-space:pre-wrap;}` +
       `</style></head><body>` +
       `<h1>${escapeHtml(title)}</h1><div class="meta">${meta}</div>` +
-      `<table><tbody>${rows}</tbody><tfoot><tr>` +
-      `<td>${escapeHtml(t("orderTotalLabel"))}</td>` +
-      `<td class="num">${escapeHtml(
-        formatMoney(total, { currency, locale }),
-      )}</td></tr></tfoot></table>` +
+      `<table><tbody>${rows}</tbody><tfoot>` +
+      printTotalsRows +
+      `</tfoot></table>` +
       (order.notes
         ? `<div class="notes">${escapeHtml(order.notes)}</div>`
         : "") +
@@ -3140,14 +3396,11 @@ function OrderDetailSheet({
                   </div>
                 );
               })}
-              <div className="flex items-center justify-between px-3 py-2 bg-op-bg/50">
-                <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                  {t("orderTotalLabel")}
-                </span>
-                <span className="text-sm font-medium tabular-nums">
-                  {formatMoney(total, { currency, locale })}
-                </span>
-              </div>
+              <TaxBreakdown
+                lines={detailLines}
+                currency={currency}
+                totalLabel={t("orderTotalLabel")}
+              />
             </div>
 
             {/* Historial de recepciones (libro purchase_in de esta OC) */}
@@ -3585,9 +3838,11 @@ function ReceiveSheet({
 
 /* ───────────────────────── Por pagar (CxP, D5) ─────────────────────── */
 
-/** Total recibido de la OC (suma del acumulado real por línea). */
+/** Total recibido de la OC (bruto: neto + IVA del acumulado por línea). */
 function receivedTotal(o: OrderSummary): number {
-  return o.items.reduce((sum, it) => sum + it.receivedCostCents, 0);
+  return poTotals(
+    o.items.map((it) => ({ costCents: it.receivedCostCents, taxPct: it.taxPct })),
+  ).totalCents;
 }
 
 function UnpaidTab({

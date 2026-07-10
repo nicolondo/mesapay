@@ -232,6 +232,9 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   } | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
+  // true cuando el endpoint de proveedores respondió 200 (módulo purchasing
+  // activo) — habilita el campo/alta de proveedor aunque el catálogo esté vacío.
+  const [suppliersEnabled, setSuppliersEnabled] = useState(false);
   // Se incrementa para re-fetchear el mes tras guardar/borrar: un gasto
   // editado puede salir del mes, y una plantilla nueva cambia ambas listas.
   const [reloadSeq, setReloadSeq] = useState(0);
@@ -280,6 +283,9 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         if (!r.ok) return;
         const j = (await r.json()) as { suppliers?: SupplierRef[] };
         if (!cancelled) {
+          // Módulo purchasing activo (endpoint 200) ⇒ ofrecer el campo
+          // proveedor aunque el catálogo esté vacío, para crear el primero.
+          setSuppliersEnabled(true);
           setSuppliers(
             (j.suppliers ?? []).map((s) => ({ id: s.id, name: s.name })),
           );
@@ -463,6 +469,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         <ExpenseSheet
           expense={open === "new" ? null : open}
           suppliers={suppliers}
+          suppliersEnabled={suppliersEnabled}
           categories={data?.categories ?? []}
           onClose={() => setOpen(null)}
           onChanged={handleChanged}
@@ -1217,6 +1224,7 @@ function TemplatesSection({
 function ExpenseSheet({
   expense,
   suppliers,
+  suppliersEnabled,
   categories,
   onClose,
   onChanged,
@@ -1225,6 +1233,8 @@ function ExpenseSheet({
   /** null = crear. */
   expense: ExpenseDto | null;
   suppliers: SupplierRef[];
+  /** Módulo purchasing activo: ofrecer el campo/alta aunque no haya proveedores. */
+  suppliersEnabled?: boolean;
   categories: string[];
   onClose: () => void;
   onChanged: () => void;
@@ -1431,7 +1441,7 @@ function ExpenseSheet({
             />
           </Field>
 
-          {supplierOptions.length > 0 && (
+          {(suppliersEnabled || supplierOptions.length > 0) && (
             <Field label={t("fieldSupplier")}>
               <select
                 value={supplierId}

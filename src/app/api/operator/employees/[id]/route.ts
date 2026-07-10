@@ -32,7 +32,7 @@ const descriptorsSchema = z
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   position: z.string().trim().min(1).max(60).optional(),
-  hourlyRateCents: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
+  monthlySalaryCents: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
   userId: z.string().min(1).nullable().optional(),
   active: z.boolean().optional(),
   // C2 — plantilla semanal y registro facial.
@@ -94,8 +94,8 @@ export async function PATCH(
       data: {
         ...(b.name !== undefined ? { name: b.name } : {}),
         ...(b.position !== undefined ? { position: b.position } : {}),
-        ...(b.hourlyRateCents !== undefined
-          ? { hourlyRateCents: b.hourlyRateCents }
+        ...(b.monthlySalaryCents !== undefined
+          ? { monthlySalaryCents: b.monthlySalaryCents }
           : {}),
         ...(b.userId !== undefined ? { userId: b.userId } : {}),
         ...(b.active !== undefined ? { active: b.active } : {}),

@@ -33,7 +33,7 @@ const EMPLOYEE_SELECT = {
       id: true,
       name: true,
       position: true,
-      hourlyRateCents: true,
+      monthlySalaryCents: true,
       active: true,
     },
   },

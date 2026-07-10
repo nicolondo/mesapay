@@ -12,6 +12,7 @@ const SELECT = {
   staffStrictAttendance: true,
   staffHolidayPct: true,
   staffSundayPct: true,
+  staffHoursDivisor: true,
 } as const;
 
 export async function GET() {
@@ -30,6 +31,9 @@ const patchSchema = z.object({
   staffStrictAttendance: z.boolean().optional(),
   staffHolidayPct: z.number().int().min(0).max(200).optional(),
   staffSundayPct: z.number().int().min(0).max(200).optional(),
+  // Divisor mensual para derivar el valor de la hora del salario básico
+  // (240 = jornada tradicional CO; editable por el contador).
+  staffHoursDivisor: z.number().int().min(1).max(1000).optional(),
 });
 
 /** Ajustes de Horarios (C2 · D4/D5): modo estricto + recargos. */

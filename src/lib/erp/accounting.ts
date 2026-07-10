@@ -41,21 +41,25 @@ export type PnlInputs = {
   purchasesReceivedCents: number;
   /**
    * C1 — costo laboral del mes (null = módulo staff apagado: el P&L no
-   * cambia). Real = turnos punchados; estimado = planeados sin punch.
+   * cambia). Base = Σ salarios mensuales de los empleados activos (fija);
+   * encima, recargos festivo/dominical de los turnos.
    */
   labor?: LaborSummary | null;
 };
 
 export type LaborSummary = {
+  /** Base salarial + recargos. */
   totalCents: number;
-  actualCents: number;
-  estimatedCents: number;
-  /** C2 — parte del total que es recargo festivo/dominical. */
+  /** Σ salarios mensuales de empleados activos con salario (base fija). */
+  baseSalaryCents: number;
+  /** C2 — Σ recargos festivo/dominical de los turnos del mes. */
   surchargeCents: number;
+  /** Empleados contados en la base. */
+  salariedEmployees: number;
+  /** Empleados activos sin salario (badge en UI; no aportan a la base). */
+  missingSalaryEmployees: number;
   shifts: number;
-  /** Turnos de empleados sin tarifa (costaron 0 — badge en UI). */
-  missingRateShifts: number;
-  /** C2 — faltas del mes (modo estricto; cuestan 0). */
+  /** C2 — faltas del mes (modo estricto). */
   absentShifts: number;
 };
 

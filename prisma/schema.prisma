@@ -257,6 +257,10 @@ model Restaurant {
   // básico (Colombia tradicional 240 = 30×8; MX análogo). Editable en los
   // ajustes de Horarios. valor hora = Employee.monthlySalaryCents / divisor.
   staffHoursDivisor       Int     @default(240)
+  // Compras: ¿el IVA de las facturas de compra es descontable? false
+  // (default) ⇒ el IVA entra al costo de inventario (lo que se paga);
+  // true ⇒ el costo de inventario es el neto y el IVA se registra aparte.
+  purchaseIvaDeductible   Boolean @default(false)
   shiftPolicy             String  @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de
@@ -1655,10 +1659,14 @@ model PurchaseOrderItem {
   // línea viene de la lista de precios (qtyOrderedBase = n × contentQty).
   qtyOrderedBase    Int
   presentations     Int?
-  expectedCostCents Int // costo total esperado de la línea
+  // NETO (sin IVA) esperado de la línea. Filas viejas: taxPct 0 ⇒ neto = bruto.
+  expectedCostCents Int
+  // IVA % de la línea (0/5/19 CO, 0/8/16 MX). El bruto se deriva: neto + IVA.
+  taxPct            Int @default(0)
 
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
   receivedQtyBase   Int @default(0)
+  // NETO acumulado recibido (sin IVA). El bruto de la CxP se deriva con taxPct.
   receivedCostCents Int @default(0)
 
   @@index([purchaseOrderId])

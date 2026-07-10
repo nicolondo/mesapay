@@ -612,6 +612,12 @@ const PurchaseInvoiceSchema = z.object({
   issueDate: z.string().nullable(), // YYYY-MM-DD
   currency: z.enum(["COP", "MXN", "unknown"]),
   lines: z.array(PurchaseInvoiceLine),
+  // Totales IMPRESOS en la factura (en centavos), para validar concordancia
+  // con lo calculado desde las líneas. null si no se ven. .catch(null) tolera
+  // valores raros sin tumbar la extracción.
+  invoiceSubtotalCents: z.number().nullable().catch(null),
+  invoiceTaxCents: z.number().nullable().catch(null),
+  invoiceTotalCents: z.number().nullable().catch(null),
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -640,6 +646,9 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "confidence": number               // 0..1 qué tan seguro de ESTA línea
     }
   ],
+  "invoiceSubtotalCents": number | null,  // SUBTOTAL impreso (sin IVA), en CENTAVOS, null si no se ve
+  "invoiceTaxCents": number | null,       // IVA total impreso, en CENTAVOS, null si no se ve
+  "invoiceTotalCents": number | null,     // TOTAL a pagar impreso, en CENTAVOS, null si no se ve
   "confidence": number,                   // 0..1 confianza global
   "notes": string                         // opcional, 1 frase (ej. "foto borrosa en el total")
 }
@@ -651,7 +660,9 @@ Reglas estrictas:
 - supplierNit: el del PROVEEDOR (acreedor), NO el del restaurante que compra/debe. Solo dígitos, sin dígito de verificación.
 - quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
 - unit: cópialo tal como aparece; no lo normalices.
-- Ignora líneas que no sean productos (subtotales, IVA, totales, notas). Solo insumos comprados.
+- Ignora líneas que no sean productos (subtotales, IVA, totales, notas) DENTRO de "lines". Solo insumos comprados en "lines".
+- taxPct por línea: la tarifa de IVA de esa línea ("0","5","19" CO; "0","8","16" MX). unitPriceCents/lineTotalCents son el NETO de la línea (sin IVA) cuando la factura discrimina IVA.
+- invoiceSubtotalCents/invoiceTaxCents/invoiceTotalCents: cópialos de los TOTALES impresos de la factura (no los sumes tú), en centavos, null si no se ven. Sirven para validar.
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
@@ -700,6 +711,9 @@ export async function extractPurchaseInvoice(
     issueDate: null,
     currency: "unknown",
     lines: [],
+    invoiceSubtotalCents: null,
+    invoiceTaxCents: null,
+    invoiceTotalCents: null,
     confidence: 0,
     notes: "",
   };

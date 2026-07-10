@@ -28,6 +28,8 @@ const lineSchema = z.object({
   presentations: z.number().int().min(1).max(100_000).nullable().optional(),
   qtyBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
   expectedCostCents: z.number().int().min(0).max(2_000_000_000),
+  // IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0.
+  taxPct: z.number().int().min(0).max(100).optional(),
 });
 
 const createSchema = z.object({
@@ -72,7 +74,9 @@ export async function GET(req: Request) {
       : [{ createdAt: "desc" }],
     include: {
       supplier: { select: { id: true, name: true } },
-      items: { select: { expectedCostCents: true, receivedCostCents: true } },
+      items: {
+        select: { expectedCostCents: true, receivedCostCents: true, taxPct: true },
+      },
       _count: { select: { items: true } },
     },
   });

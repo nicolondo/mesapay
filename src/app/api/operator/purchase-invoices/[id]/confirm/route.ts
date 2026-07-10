@@ -24,7 +24,9 @@ const lineSchema = z.object({
   newIngredientName: z.string().trim().min(1).max(120).nullable().optional(),
   newIngredientMeasureKind: z.enum(["mass", "volume", "count"]).optional(),
   qtyBase: z.number().int().min(1).max(2_000_000_000),
+  // NETO (sin IVA) de la línea; el IVA se deriva con taxPct.
   expectedCostCents: z.number().int().min(0).max(2_000_000_000),
+  taxPct: z.number().int().min(0).max(100).optional(),
 });
 
 const confirmSchema = z.object({
@@ -64,6 +66,11 @@ export async function POST(
   }
   const session = await auth();
   const createdById = session?.user?.id ?? null;
+  // Ajuste del comercio para valorar el inventario al recibir (neto/bruto).
+  const rest = await db.restaurant.findUnique({
+    where: { id: ctx.restaurantId },
+    select: { purchaseIvaDeductible: true },
+  });
 
   try {
     const order = await db.$transaction(async (tx) => {
@@ -120,6 +127,7 @@ export async function POST(
           ingredientId,
           qtyBase: line.qtyBase,
           expectedCostCents: line.expectedCostCents,
+          taxPct: line.taxPct,
         });
       }
 
@@ -152,6 +160,7 @@ export async function POST(
             qtyBase: it.qtyOrderedBase,
             costCents: it.expectedCostCents,
           })),
+          ivaDeductible: rest?.purchaseIvaDeductible ?? false,
           createdById,
         });
         // CxP: número de factura del proveedor + vencimiento.

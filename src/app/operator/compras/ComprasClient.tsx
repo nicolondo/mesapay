@@ -1905,6 +1905,23 @@ function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
 
 const INV_MODE_STORAGE_KEY = "mesapay:invReviewMode";
 
+/** Chip emparejado/nuevo: verde "Ya existe" vs azul "Se creará" (F4). */
+function MatchStatusChip({ existing }: { existing: boolean }) {
+  const t = useTranslations("opErp");
+  return (
+    <span
+      className={
+        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
+        (existing
+          ? "bg-[#2E7D32]/15 text-[#2E7D32]"
+          : "bg-[#2563EB]/12 text-[#2563EB]")
+      }
+    >
+      {t(existing ? "invReviewStatusExisting" : "invReviewStatusNew")}
+    </span>
+  );
+}
+
 function InvoiceReviewSheet({
   result,
   suppliers,
@@ -2015,6 +2032,13 @@ function InvoiceReviewSheet({
     () => lines.reduce((sum, l) => sum + (reviewLineCostCents(l) ?? 0), 0),
     [lines],
   );
+
+  // Resumen emparejado/nuevo: cuántos insumos ya existen vs se crearán
+  // (ingredientId != null ⇒ existe). Para que el operador vea qué va a crear.
+  const matchCounts = useMemo(() => {
+    const existing = lines.filter((l) => l.ingredientId).length;
+    return { existing, toCreate: lines.length - existing };
+  }, [lines]);
 
   function updateLine(key: number, changes: Partial<InvoiceReviewLine>) {
     setLines((prev) =>
@@ -2193,9 +2217,32 @@ function InvoiceReviewSheet({
 
           {/* Datos editables */}
           <div className="order-2 md:order-1 space-y-3">
+            {/* Resumen emparejado/nuevo (F4): qué se va a crear de un vistazo */}
+            {(matchCounts.existing > 0 || matchCounts.toCreate > 0) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {matchCounts.existing > 0 && (
+                  <span className="px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-[#2E7D32]/15 text-[#2E7D32]">
+                    {t("invReviewSummaryExisting", { count: matchCounts.existing })}
+                  </span>
+                )}
+                {matchCounts.toCreate > 0 && (
+                  <span className="px-2 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-[#2563EB]/12 text-[#2563EB]">
+                    {t("invReviewSummaryNew", { count: matchCounts.toCreate })}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Encabezado: proveedor */}
-            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-              {t("invReviewSupplierSection")}
+            <div className="flex items-center gap-2">
+              <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                {t("invReviewSupplierSection")}
+              </div>
+              {supplier ? (
+                <MatchStatusChip existing />
+              ) : creatingSupplier ? (
+                <MatchStatusChip existing={false} />
+              ) : null}
             </div>
 
             {creatingSupplier ? (
@@ -2475,6 +2522,7 @@ function InvoiceReviewLineCard({
             </div>
           )}
         </div>
+        <MatchStatusChip existing={l.ingredientId != null} />
         {l.lowConfidence && (
           <span className="px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 bg-[#C98A2E]/15 text-[#7F5A1F]">
             {t("invReviewLowConfidence")}

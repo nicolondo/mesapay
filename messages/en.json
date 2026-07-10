@@ -4012,6 +4012,8 @@
     "invReviewStatusNew": "New",
     "invReviewSummaryExisting": "{count, plural, one {# exists} other {# exist}}",
     "invReviewSummaryNew": "{count, plural, one {# to create} other {# to create}}",
+    "invReviewDocCuentaCobro": "Collection note",
+    "invReviewDocCuentaCobroHint": "The supplier is whoever gets paid (the \"pay to\" party).",
     "invReviewIngredientMatched": "Matched ingredient",
     "invReviewCreateIngredient": "Create ingredient “{name}”",
     "invReviewUseExistingIngredient": "Use existing ingredient",

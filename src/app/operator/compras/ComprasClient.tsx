@@ -114,6 +114,8 @@ type OrderDetail = {
   movements: ReceptionMovement[];
   // Abonos (CxP · F3) — historial de pagos parciales/totales, desc por fecha.
   payments: PurchasePaymentRef[];
+  // Facturas subidas (A2.5) — evidencia PDF/foto que originó la OC.
+  invoiceUploads: { id: string; fileUrl: string; createdAt: string }[];
 };
 
 type ReceptionMovement = {
@@ -3527,6 +3529,33 @@ function OrderDetailSheet({
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Factura subida (A2.5): evidencia PDF/foto que originó la OC. */}
+            {order.invoiceUploads.length > 0 && (
+              <>
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mt-4 mb-2">
+                  {t("invoiceEvidence")}
+                </div>
+                <div className="border border-op-border rounded-2xl overflow-hidden">
+                  {order.invoiceUploads.map((u) => (
+                    <a
+                      key={u.id}
+                      href={u.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 px-3 py-2 border-b border-op-border last:border-b-0 hover:bg-op-bg"
+                    >
+                      <span className="text-sm truncate">
+                        {formatDate(u.createdAt, { locale })}
+                      </span>
+                      <span className="text-sm font-medium text-terracotta shrink-0">
+                        {t("viewInvoice")}
+                      </span>
+                    </a>
                   ))}
                 </div>
               </>

@@ -4002,6 +4002,8 @@
     "payStatusPending": "Pendiente",
     "cxpTotalPaid": "Total {total} · Pagado {paid}",
     "cxpSectionTitle": "Cuenta por pagar",
+    "invoiceEvidence": "Factura",
+    "viewInvoice": "Ver factura",
     "cxpTotalLabel": "Total",
     "cxpPaidLabel": "Pagado",
     "cxpBalanceLabel": "Saldo",

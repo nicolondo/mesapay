@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import {
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
@@ -1118,13 +1119,9 @@ function MovementSheet({
               label={`${t("fieldTotalCost")} (${currency})`}
               hint={t("entryCostHint")}
             >
-              <input
-                type="number"
-                min={0}
-                step="any"
-                inputMode="decimal"
+              <MoneyInput
                 value={cost}
-                onChange={(e) => setCost(e.target.value)}
+                onChange={setCost}
                 className={inputCls}
               />
             </Field>

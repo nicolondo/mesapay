@@ -10,6 +10,7 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { formatMoney, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import type { Locale } from "@/i18n/config";
 
 // ── Contratos de la API (LEÍDOS de src/app/api/operator/inventory-import) ──
@@ -822,13 +823,9 @@ function TableRow({
           <span className="text-op-muted text-[11px]" aria-hidden>
             {"$"}
           </span>
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
+          <MoneyInput
             value={row.cost}
-            onChange={(e) => onPatch(row.localId, { cost: e.target.value })}
+            onChange={(d) => onPatch(row.localId, { cost: d })}
             className={cellInput + " text-right tabular"}
           />
         </div>

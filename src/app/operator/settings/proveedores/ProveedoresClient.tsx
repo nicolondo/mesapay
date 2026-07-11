@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
@@ -1060,13 +1061,9 @@ function ItemForm({
       </Field>
 
       <Field label={`${t("fieldPrice")} (${currency})`}>
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
+        <MoneyInput
           value={price}
-          onChange={(e) => setPrice(e.target.value)}
+          onChange={setPrice}
           className={inputCls}
         />
       </Field>

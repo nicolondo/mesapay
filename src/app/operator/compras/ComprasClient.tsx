@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
@@ -1371,14 +1372,10 @@ function NewOrderSheet({
                               : undefined
                           }
                         >
-                          <input
-                            type="number"
-                            min={0}
-                            step="any"
-                            inputMode="decimal"
+                          <MoneyInput
                             value={cost}
-                            onChange={(e) => {
-                              setCost(e.target.value);
+                            onChange={(d) => {
+                              setCost(d);
                               setCostDirty(true);
                             }}
                             className={inputCls}
@@ -2970,13 +2967,9 @@ function InvoiceReviewLineCard({
       <div className="flex gap-2">
         <div className="flex-1 min-w-0">
           <Field label={`${t("fieldExpectedCost")} (${currency})`} required>
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
+            <MoneyInput
               value={l.cost}
-              onChange={(e) => onChange({ cost: e.target.value })}
+              onChange={(d) => onChange({ cost: d })}
               className={inputCls}
             />
           </Field>
@@ -3973,15 +3966,11 @@ function ReceiveSheet({
                         </div>
                       </Field>
                       <Field label={`${t("fieldRealCost")} (${currency})`} required>
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          inputMode="decimal"
+                        <MoneyInput
                           value={l.cost}
-                          onChange={(e) =>
+                          onChange={(d) =>
                             updateLine(l.itemId, {
-                              cost: e.target.value,
+                              cost: d,
                               costDirty: true,
                             })
                           }
@@ -4426,11 +4415,9 @@ function PaymentForm({
 
       <div className="space-y-3">
         <Field label={t("fieldPaymentAmount")}>
-          <input
-            type="text"
-            inputMode="decimal"
+          <MoneyInput
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={setAmount}
             className={inputCls}
           />
         </Field>

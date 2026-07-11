@@ -41,6 +41,16 @@ export type InvoiceSnapshot = {
   subtotalCents: number;
   tipCents: number;
   totalCents: number;
+  // Datos del cliente cuando la factura es PERSONALIZADA (con razón social /
+  // documento). null/ausente = tirilla genérica (consumidor final).
+  customer?: {
+    name: string;
+    docType: string; // CC | CE | NIT | PA
+    docNumber: string;
+    address: string;
+    city: string;
+    department: string;
+  } | null;
 };
 
 export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): string {

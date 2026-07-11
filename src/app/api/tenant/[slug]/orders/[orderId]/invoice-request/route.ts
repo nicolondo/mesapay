@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
+import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice";
 
 /**
  * Customer-submitted billing info attached to a paid order. We store it
@@ -59,68 +60,76 @@ export async function POST(
     );
   }
 
+  const data = {
+    customerName: parsed.data.customerName,
+    docType: parsed.data.docType,
+    docNumber: parsed.data.docNumber,
+    address: parsed.data.address,
+    city: parsed.data.city,
+    department: parsed.data.department,
+    email: parsed.data.email,
+    placeId: parsed.data.placeId ?? null,
+    rawComponents:
+      parsed.data.rawComponents != null
+        ? (parsed.data.rawComponents as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+  };
+
   // Find an existing pending request and overwrite. If it's already
   // generated, refuse — the customer should contact the restaurant.
   const existing = await db.invoiceRequest.findFirst({
     where: { orderId, status: "pending" },
   });
+  let request;
   if (existing) {
-    const updated = await db.invoiceRequest.update({
+    request = await db.invoiceRequest.update({
       where: { id: existing.id },
-      data: {
-        customerName: parsed.data.customerName,
-        docType: parsed.data.docType,
-        docNumber: parsed.data.docNumber,
-        address: parsed.data.address,
-        city: parsed.data.city,
-        department: parsed.data.department,
-        email: parsed.data.email,
-        placeId: parsed.data.placeId ?? null,
-        rawComponents:
-          parsed.data.rawComponents != null
-            ? (parsed.data.rawComponents as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-      },
+      data,
     });
-    publishOrderEvent(tenant.id, {
-      type: "order.updated",
-      orderId: order.id,
+  } else {
+    const generated = await db.invoiceRequest.findFirst({
+      where: { orderId, status: "generated" },
     });
-    return NextResponse.json({ ok: true, request: updated, replaced: true });
+    if (generated) {
+      return NextResponse.json({ error: "already_generated" }, { status: 409 });
+    }
+    request = await db.invoiceRequest.create({
+      data: { restaurantId: tenant.id, orderId: order.id, ...data },
+    });
   }
+  publishOrderEvent(tenant.id, { type: "order.updated", orderId: order.id });
 
-  const generated = await db.invoiceRequest.findFirst({
-    where: { orderId, status: "generated" },
-  });
-  if (generated) {
-    return NextResponse.json(
-      { error: "already_generated" },
-      { status: 409 },
-    );
-  }
-
-  const created = await db.invoiceRequest.create({
-    data: {
-      restaurantId: tenant.id,
-      orderId: order.id,
-      customerName: parsed.data.customerName,
+  // Además de encolar la solicitud (para la emisión DIAN futura), generamos
+  // YA una factura imprimible con los datos del cliente — así el mesero/cliente
+  // la imprime en el momento sin esperar a DIAN. Idempotente por orden.
+  const inv = await issueSimpleInvoice({
+    tenantId: tenant.id,
+    orderId: order.id,
+    email: parsed.data.email,
+    customer: {
+      name: parsed.data.customerName,
       docType: parsed.data.docType,
       docNumber: parsed.data.docNumber,
       address: parsed.data.address,
       city: parsed.data.city,
       department: parsed.data.department,
-      email: parsed.data.email,
-      placeId: parsed.data.placeId ?? null,
-      rawComponents:
-        parsed.data.rawComponents != null
-          ? (parsed.data.rawComponents as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
     },
   });
-  publishOrderEvent(tenant.id, {
-    type: "order.updated",
-    orderId: order.id,
-  });
+  if (inv.ok && !inv.alreadyIssued && inv.email) {
+    void sendSimpleInvoiceEmail({
+      invoiceId: inv.invoiceId,
+      snapshot: inv.snapshot,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceUrl: inv.invoiceUrl,
+      email: inv.email,
+      locale: inv.locale,
+    });
+  }
 
-  return NextResponse.json({ ok: true, request: created });
+  return NextResponse.json({
+    ok: true,
+    request,
+    replaced: !!existing,
+    invoiceUrl: inv.ok ? inv.invoiceUrl : null,
+  });
 }

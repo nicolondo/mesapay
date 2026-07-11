@@ -319,6 +319,8 @@ function InvoiceFormSheet({
   const [rawComponents, setRawComponents] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Tras enviar: factura imprimible generada con los datos del cliente.
+  const [done, setDone] = useState<{ invoiceUrl: string } | null>(null);
   // Saved profiles from previous orders on this device (any restaurant).
   // localStorage-only; nothing crosses to the server until the diner picks
   // one and submits it.
@@ -475,12 +477,14 @@ function InvoiceFormSheet({
         }),
       },
     );
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       const j = await res.json().catch(() => ({}));
       setErr(humanError(j, t));
       return;
     }
+    const j = (await res.json().catch(() => ({}))) as { invoiceUrl?: string };
+    setBusy(false);
     // Remember on this device so the next restaurant gets one-tap fill.
     // Wrapped in try so a storage failure (private mode, full quota) doesn't
     // hide the success state from the user.
@@ -499,10 +503,66 @@ function InvoiceFormSheet({
     } catch {
       /* ignore */
     }
-    // Cierra el sheet de una — el banner "Solicitud de factura enviada" de
-    // la página (estado pending tras el refresh) confirma el envío.
+    // Refresca el estado de la página (banner "solicitud enviada") y muestra
+    // la factura imprimible generada con los datos del cliente. Si por algún
+    // motivo no vino la URL, cerramos como antes.
     router.refresh();
-    onClose();
+    if (j.invoiceUrl) {
+      setDone({ invoiceUrl: j.invoiceUrl });
+    } else {
+      onClose();
+    }
+  }
+
+  // Factura personalizada ya generada → pantalla para imprimirla (con los
+  // datos del cliente). El e-invoice DIAN se emitirá aparte cuando esté listo.
+  if (done) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+        onClick={onClose}
+      >
+        <div
+          className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                {t("invFormLabel")}
+              </div>
+              <h2 className="font-display text-2xl mt-1">
+                {t("invGeneratedReady")}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-muted text-sm shrink-0"
+              aria-label={t("close")}
+            >
+              {"✕"}
+            </button>
+          </div>
+          <p className="text-sm text-ink/80">{t("invPersonalizedReadyBody")}</p>
+          <a
+            href={`${done.invoiceUrl}?print=1`}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
+          >
+            {t("invPrintInvoice")}
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full h-10 rounded-2xl border border-hairline text-sm"
+          >
+            {t("close")}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

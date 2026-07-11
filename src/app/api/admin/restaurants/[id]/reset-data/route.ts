@@ -8,7 +8,9 @@ import { recordAuditEvent } from "@/lib/auditLog";
  * Borrado selectivo de datos operativos de un comercio (platform-admin).
  * Pensado para resetear un comercio (ej: salir de modo prueba / demo)
  * sin tener que recrearlo: borra mesas, cartas, menú, reseñas, facturas,
- * cierres, cobros y/u órdenes — lo que el admin marque.
+ * cierres, cobros, órdenes y/o el módulo de administración (ERP:
+ * inventario, compras, recetas, producción, gastos, staff y DIAN) —
+ * lo que el admin marque.
  *
  * IRREVERSIBLE. Por eso exigimos `confirmSlug` igual al slug del comercio
  * (el front pide tipearlo) y todo corre en una transacción: o se borra
@@ -36,6 +38,9 @@ const schema = z.object({
   shifts: z.boolean().optional().default(false),
   payments: z.boolean().optional().default(false),
   orders: z.boolean().optional().default(false),
+  // Módulo de administración (ERP): inventario, compras, recetas,
+  // producción, gastos, staff/horarios y facturación electrónica DIAN.
+  erp: z.boolean().optional().default(false),
 });
 
 export async function POST(
@@ -80,7 +85,8 @@ export async function POST(
     sel.invoices ||
     sel.shifts ||
     sel.payments ||
-    sel.orders;
+    sel.orders ||
+    sel.erp;
   if (!anySelected) {
     return NextResponse.json(
       { error: "nothing_selected", message: "No seleccionaste nada." },
@@ -135,6 +141,32 @@ export async function POST(
       counts.shifts = (
         await tx.shift.deleteMany({ where: { restaurantId: id } })
       ).count;
+    }
+    if (sel.erp) {
+      // Módulo de administración (ERP). Orden FK-safe: primero las hojas
+      // del libro (movimientos, conteos, saldos), luego compras (OCs
+      // cascadean sus ítems), recetas (cascadean sus ítems), producción y
+      // lista de precios (cascadea el historial), luego gastos, y recién
+      // ahí el catálogo (insumos/proveedores, ya libres de los RESTRICT de
+      // OC-items/recetas/batches/precios), staff y DIAN. Va antes que
+      // órdenes/menú para no arrastrar SetNull/cascadas innecesarias.
+      let n = 0;
+      n += (await tx.stockMovement.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.stockCount.deleteMany({ where: { restaurantId: id } })).count; // cascadea StockCountItem
+      n += (await tx.stockLevel.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.purchaseInvoiceUpload.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.purchaseOrder.deleteMany({ where: { restaurantId: id } })).count; // cascadea PurchaseOrderItem
+      n += (await tx.recipe.deleteMany({ where: { restaurantId: id } })).count; // cascadea RecipeItem
+      n += (await tx.productionBatch.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.supplierIngredient.deleteMany({ where: { supplier: { restaurantId: id } } })).count; // cascadea SupplierPriceHistory
+      n += (await tx.expense.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.ingredient.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.supplier.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.staffShift.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.employee.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.dianDocument.deleteMany({ where: { restaurantId: id } })).count;
+      n += (await tx.dianConfig.deleteMany({ where: { restaurantId: id } })).count;
+      counts.erp = n;
     }
     if (sel.orders) {
       // Cascadea rounds, order-items, cobros, reseñas y facturas restantes.

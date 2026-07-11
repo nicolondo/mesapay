@@ -20,17 +20,20 @@ type CatKey =
   | "invoices"
   | "shifts"
   | "reviews"
+  | "erp"
   | "tables"
   | "menus"
   | "menu";
 
-// Orden de listado + default marcado. Todo menos mesas/cartas/menú.
+// Orden de listado + default marcado. Todo menos ERP/mesas/cartas/menú
+// (ERP incluye el catálogo de insumos/proveedores → opt-in explícito).
 const CATS: { key: CatKey; def: boolean }[] = [
   { key: "orders", def: true },
   { key: "payments", def: true },
   { key: "invoices", def: true },
   { key: "shifts", def: true },
   { key: "reviews", def: true },
+  { key: "erp", def: false },
   { key: "tables", def: false },
   { key: "menus", def: false },
   { key: "menu", def: false },

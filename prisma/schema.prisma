@@ -261,6 +261,10 @@ model Restaurant {
   // (default) ⇒ el IVA entra al costo de inventario (lo que se paga);
   // true ⇒ el costo de inventario es el neto y el IVA se registra aparte.
   purchaseIvaDeductible   Boolean @default(false)
+  // Categorías de insumos que NO manejan inventario: sus insumos se
+  // excluyen del consumo automático al vender, del reorden y de la vista
+  // de existencias. Los nombres coinciden con Ingredient.category.
+  inventoryExcludedCategories String[] @default([])
   shiftPolicy             String  @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de

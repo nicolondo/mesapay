@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
@@ -149,8 +150,11 @@ export function InventarioClient({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
+  const router = useRouter();
   const [rows, setRows] = useState<StockRow[]>(initial);
   const [tab, setTab] = useState<Tab>("stock");
+  // Ajustes de categorías sin inventario — sheet propio (carga perezosa).
+  const [invSettingsOpen, setInvSettingsOpen] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   // Filtro "bajo mínimo" (A4·D3) — lo activan el chip y el banner contador.
@@ -303,27 +307,40 @@ export function InventarioClient({
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Existencias / Movimientos / Conteos */}
-      <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
-        {(
-          [
-            ["stock", t("tabStock")],
-            ["movements", t("tabMovements")],
-            ["counts", t("tabCounts")],
-          ] as [Tab, string][]
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setTab(value)}
-            className={
-              "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-              (tab === value ? "bg-ink text-bone" : "text-op-muted hover:text-ink")
-            }
-          >
-            {label}
-          </button>
-        ))}
+      {/* Segmentos Existencias / Movimientos / Conteos + acceso a ajustes */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+          {(
+            [
+              ["stock", t("tabStock")],
+              ["movements", t("tabMovements")],
+              ["counts", t("tabCounts")],
+            ] as [Tab, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTab(value)}
+              className={
+                "min-h-[44px] px-5 text-xs font-medium transition-colors " +
+                (tab === value
+                  ? "bg-ink text-bone"
+                  : "text-op-muted hover:text-ink")
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setInvSettingsOpen(true)}
+          aria-label={t("invSettingsTitle")}
+          title={t("invSettingsTitle")}
+          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-base text-op-muted hover:text-ink hover:bg-op-bg shrink-0"
+        >
+          {"⚙"}
+        </button>
       </div>
 
       {tab === "stock" ? (
@@ -686,6 +703,172 @@ export function InventarioClient({
           onClosed={handleCountClosed}
         />
       )}
+
+      {invSettingsOpen && (
+        <InventorySettingsSheet
+          onClose={() => setInvSettingsOpen(false)}
+          onSaved={() => {
+            setInvSettingsOpen(false);
+            // Las categorías excluidas cambian qué insumos ve el server
+            // (existencias/reorden) → recomponer la página.
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────── Ajustes: categorías sin inventario (spec A4·D6) ────────── */
+
+function InventorySettingsSheet({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const [loaded, setLoaded] = useState(false);
+  const [loadErr, setLoadErr] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  // Set de categorías EXCLUIDAS (sin inventario). El toggle de la fila es
+  // "maneja inventario" → marcado = NO está en este set.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/inventory-settings");
+        if (!r.ok) throw new Error("load_failed");
+        const j = (await r.json()) as {
+          excludedCategories: string[];
+          categories: string[];
+        };
+        if (cancelled) return;
+        setCategories(j.categories ?? []);
+        setExcluded(new Set(j.excludedCategories ?? []));
+        setLoaded(true);
+      } catch {
+        if (!cancelled) setLoadErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggle(cat: string) {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
+  async function save() {
+    setErr(null);
+    setBusy(true);
+    // Solo mandamos excluidas que sigan siendo categorías vigentes.
+    const payload = categories.filter((c) => excluded.has(c));
+    const r = await fetch("/api/operator/inventory-settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ inventoryExcludedCategories: payload }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      setErr(t("errSaveFailed"));
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h2 className="font-display text-2xl">{t("invSettingsTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <p className="text-xs text-op-muted mb-4">{t("invSettingsHint")}</p>
+
+        {loadErr ? (
+          <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+        ) : !loaded ? (
+          <div className="py-6 text-center text-sm text-op-muted">
+            {t("loading")}
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-8 text-center text-sm text-op-muted">
+            {t("invSettingsNoCategories")}
+          </div>
+        ) : (
+          <div className="border border-op-border rounded-2xl overflow-hidden">
+            {categories.map((c) => {
+              const manages = !excluded.has(c);
+              return (
+                <label
+                  key={c}
+                  className="flex items-center gap-3 px-4 py-3 min-h-[44px] border-b border-op-border last:border-b-0 cursor-pointer hover:bg-op-bg"
+                >
+                  <span className="flex-1 min-w-0 text-sm font-medium truncate">
+                    {c}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-op-muted">
+                      {t("invSettingsManagesInventory")}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={manages}
+                      onChange={() => toggle(c)}
+                      className="w-4 h-4 accent-ink shrink-0"
+                    />
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+
+        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy || !loaded || loadErr}
+            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          >
+            {busy ? t("saving") : t("save")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

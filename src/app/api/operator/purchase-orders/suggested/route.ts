@@ -25,17 +25,22 @@ export async function GET() {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: ctx.restaurantId },
-    select: { enabledModules: true },
+    select: { enabledModules: true, inventoryExcludedCategories: true },
   });
   if (!tenant || !isModuleEnabled(tenant.enabledModules, "inventory")) {
     return NextResponse.json({ error: "module_disabled" }, { status: 403 });
   }
 
+  const excluded = tenant.inventoryExcludedCategories;
   const ingredients = await db.ingredient.findMany({
     where: {
       restaurantId: ctx.restaurantId,
       active: true,
       reorderPointBase: { not: null },
+      // Categorías sin inventario no entran al reorden (null-category sí).
+      ...(excluded.length > 0
+        ? { OR: [{ category: null }, { category: { notIn: excluded } }] }
+        : {}),
     },
     orderBy: { name: "asc" },
     select: {

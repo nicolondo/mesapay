@@ -359,14 +359,11 @@ export function ImportInsumosSheet({
   const busy = stage === "reading" || stage === "confirming";
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={busy ? undefined : onClose}
-    >
-      <div
-        className="w-full md:max-w-5xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border flex flex-col max-h-[92dvh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    // El backdrop NO cierra: importar es un flujo largo (lectura IA + revisión
+    // de cientos de filas) y un tap accidental —o volver de otra app— no debe
+    // descartar el trabajo. Solo se cierra con la ✕.
+    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6">
+      <div className="w-full md:max-w-5xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border flex flex-col max-h-[92dvh]">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 p-5 pb-3 border-b border-op-border shrink-0">
           <div>

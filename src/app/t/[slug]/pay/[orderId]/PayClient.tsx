@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
+import { InvoiceRequestPanel } from "./done/InvoiceRequestPanel";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
@@ -824,6 +825,20 @@ export function PayClient({
       </div>
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
+
+      {/* Factura electrónica cuando cobra el MESERO: el cliente puede pedir
+          factura con sus datos fiscales aunque no esté en su propio celular.
+          El mesero los ingresa acá antes de cobrar (mismo panel que el
+          comensal ve en la página de "listo"). */}
+      {operatorMode && (
+        <div className="mt-4">
+          <InvoiceRequestPanel
+            tenantSlug={tenantSlug}
+            orderId={orderId}
+            existing={null}
+          />
+        </div>
+      )}
 
       <div className="mt-6 space-y-2">
         {/* Apple Pay requires the diner's own iPhone — the waiter can't

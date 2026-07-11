@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { extractInventoryImport } from "@/lib/anthropic";
+import {
+  extractInventoryImport,
+  type InventoryImportExtraction,
+} from "@/lib/anthropic";
 import { sheetToText } from "@/lib/erp/sheetImport";
 import {
   matchInventory,
@@ -10,7 +13,52 @@ import {
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120; // la extracción con IA puede tardar
+export const maxDuration = 300; // catálogos grandes = varias pasadas de IA
+
+const CHUNK_ROWS = 120;
+const CHUNK_CONCURRENCY = 3;
+
+type ImportSource =
+  | { kind: "pdf"; data: Buffer }
+  | { kind: "image"; data: Buffer; mimeType: string }
+  | { kind: "text"; text: string };
+
+/**
+ * Para planillas GRANDES: parte el texto en lotes (repitiendo el
+ * encabezado en cada uno) y corre la IA por lote con concurrencia
+ * limitada, uniendo las filas. Un catálogo de 700 ítems no cabe en una
+ * sola respuesta (el JSON se trunca y se pierde todo). Foto/PDF: una pasada.
+ */
+async function extractChunked(
+  source: ImportSource,
+  instructions: string,
+): Promise<InventoryImportExtraction> {
+  if (source.kind !== "text") return extractInventoryImport(source, instructions);
+  const lines = source.text.split("\n");
+  if (lines.length <= CHUNK_ROWS + 5) {
+    return extractInventoryImport(source, instructions);
+  }
+  const header = lines[0];
+  const data = lines.slice(1).filter((l) => l.replace(/\t/g, "").trim() !== "");
+  const chunks: string[] = [];
+  for (let i = 0; i < data.length; i += CHUNK_ROWS) {
+    chunks.push([header, ...data.slice(i, i + CHUNK_ROWS)].join("\n"));
+  }
+  const results: InventoryImportExtraction[] = [];
+  for (let i = 0; i < chunks.length; i += CHUNK_CONCURRENCY) {
+    const wave = chunks.slice(i, i + CHUNK_CONCURRENCY);
+    results.push(
+      ...(await Promise.all(
+        wave.map((c) => extractInventoryImport({ kind: "text", text: c }, instructions)),
+      )),
+    );
+  }
+  return {
+    currency: results.find((r) => r.currency !== "unknown")?.currency ?? "unknown",
+    rows: results.flatMap((r) => r.rows),
+    notes: results.map((r) => r.notes).filter(Boolean).join(" "),
+  };
+}
 
 const GATE: ModuleSlug[] = ["inventory"];
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -89,10 +137,7 @@ export async function POST(req: Request) {
   }
   const buf = Buffer.from(await file.arrayBuffer());
 
-  let source:
-    | { kind: "pdf"; data: Buffer }
-    | { kind: "image"; data: Buffer; mimeType: string }
-    | { kind: "text"; text: string };
+  let source: ImportSource;
   if (cls.kind === "pdf") {
     source = { kind: "pdf", data: buf };
   } else if (cls.kind === "image") {
@@ -108,7 +153,7 @@ export async function POST(req: Request) {
     source = { kind: "text", text };
   }
 
-  const raw = await extractInventoryImport(source, instructions);
+  const raw = await extractChunked(source, instructions);
   const extraction = normalizeInventoryExtraction(raw);
   const matchCtx = await loadContext(ctx.restaurantId);
   const match = matchInventory(extraction, matchCtx);

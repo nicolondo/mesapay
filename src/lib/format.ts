@@ -15,6 +15,24 @@ export function pesosToCents(pesos: number): number {
   return Math.round(pesos * 100);
 }
 
+/**
+ * Agrupa un monto ENTERO (string de dígitos) con el separador de miles del
+ * locale — para los inputs de plata (`MoneyInput`). Ignora todo lo que no
+ * sea dígito, recorta a 12 cifras (evita perder precisión de Number) y
+ * quita ceros a la izquierda. "" → "". Los inputs de COP/MXN no manejan
+ * centavos, así que es entero puro.
+ */
+export function groupThousands(
+  digits: string,
+  locale: Locale = defaultLocale,
+): string {
+  const clean = digits.replace(/\D/g, "").slice(0, 12);
+  if (clean === "") return "";
+  return Number(clean).toLocaleString(localeTag(locale), {
+    maximumFractionDigits: 0,
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Formateo localizado (i18n). Idioma ≠ moneda: el `locale` controla idioma
 // y agrupación de miles; la `currency` la define el país del restaurante

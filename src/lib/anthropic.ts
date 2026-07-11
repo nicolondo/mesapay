@@ -753,3 +753,135 @@ export async function extractPurchaseInvoice(
   }
   return result.data;
 }
+
+// ── Importación masiva de insumos (ERP inventory) ───────────────────────────
+
+const InventoryImportRow = z.object({
+  name: z.string(),
+  measureKind: z.enum(["mass", "volume", "count"]).catch("count"),
+  category: z.string().nullable().catch(null),
+  quantity: z.number().nullable().catch(null),
+  unit: z.string().nullable().catch(null),
+  unitPriceCents: z.number().nullable().catch(null),
+  presentationNote: z.string().nullable().catch(null),
+  confidence: z.number().min(0).max(1).catch(0.5),
+});
+
+const InventoryImportSchema = z.object({
+  currency: z.enum(["COP", "MXN", "unknown"]).catch("unknown"),
+  rows: z.array(InventoryImportRow),
+  notes: z.string().optional(),
+});
+
+export type InventoryImportRowType = z.infer<typeof InventoryImportRow>;
+export type InventoryImportExtraction = z.infer<typeof InventoryImportSchema>;
+
+const INVENTORY_IMPORT_SYSTEM = `Eres un asistente que extrae un CATÁLOGO DE INSUMOS de un restaurante (Colombia/México) desde un archivo: foto, PDF, o el texto de una planilla Excel/CSV.
+Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
+
+{
+  "currency": "COP" | "MXN" | "unknown",
+  "rows": [
+    {
+      "name": string,                 // nombre LIMPIO del insumo, SIN la unidad/tamaño
+      "measureKind": "mass" | "volume" | "count",
+      "category": string | null,      // categoría corta sugerida
+      "quantity": number | null,      // existencia inicial (en la unidad de "unit")
+      "unit": string | null,          // unidad tal cual ("kg","g","L","ml","botella","und","caja")
+      "unitPriceCents": number | null,// costo UNITARIO en CENTAVOS
+      "presentationNote": string | null, // tamaño/presentación detectado ("botella 750 ml","bulto 25 kg")
+      "confidence": number            // 0..1
+    }
+  ],
+  "notes": string                     // opcional, 1 frase
+}
+
+Reglas estrictas:
+- LIMPIAR EL NOMBRE: si el nombre trae la unidad o el tamaño ("Harina 25kg","Aceite Girasol 1L"), QUÍTALO del nombre (name="Harina" / "Aceite Girasol") y ponlo en unit/presentationNote.
+- measureKind: masa (kg/g/lb/@) → "mass"; volumen (L/ml/cc) → "volume"; conteo (und/botella/caja/bulto/paquete/lata/docena) → "count".
+- REGLA DE EMBOTELLADOS / LICOR (IMPORTANTE): si el producto es una BEBIDA o LICOR embotellado/enlatado y el nombre dice "750 ml","1 L","330 ml", ESO NO ES LA UNIDAD DE MEDIDA — es una BOTELLA/LATA (1 unidad) de ese tamaño. Entonces measureKind="count", unit="botella" (o "lata"), presentationNote="botella 750 ml". El licor y las bebidas embotelladas se cuentan por unidades, NO por volumen.
+- unitPriceCents: costo unitario en CENTAVOS. "$12.500" -> 1250000. "1.250,50" -> 125050. null si no está.
+- quantity: la existencia inicial si la planilla trae una columna de stock/cantidad; null si no.
+- category: sugiere una categoría corta (Proteínas, Lácteos, Licores, Empaques, Verduras…). Filas que NO son productos (encabezados, subtotales, totales, separadores) → NO las incluyas en "rows".
+- Todos los montos en CENTAVOS. Si un dato no se ve, ponlo en null.`;
+
+/**
+ * Lee un archivo (foto/PDF o texto de una planilla) y extrae un catálogo
+ * de insumos para revisar. `instructions` son indicaciones libres del
+ * operador para interpretar columnas/campos (se respetan por encima de
+ * las heurísticas). El caller NO persiste el archivo — se procesa y se
+ * revisa; reintentar = re-procesar con otras instrucciones.
+ */
+export async function extractInventoryImport(
+  source: DocumentSource | { kind: "text"; text: string },
+  instructions?: string | null,
+): Promise<InventoryImportExtraction> {
+  const c = getClient();
+  const content: Anthropic.Messages.ContentBlockParam[] = [];
+  if (source.kind === "text") {
+    content.push({
+      type: "text",
+      text: "Contenido de la planilla (tabulado):\n\n" + source.text.slice(0, 200_000),
+    });
+  } else if (source.kind === "pdf") {
+    content.push({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: source.data.toString("base64") },
+    });
+  } else {
+    content.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: source.mimeType as
+          | "image/png"
+          | "image/jpeg"
+          | "image/webp"
+          | "image/gif",
+        data: source.data.toString("base64"),
+      },
+    });
+  }
+  const instr = (instructions ?? "").trim();
+  content.push({
+    type: "text",
+    text:
+      "Extrae el catálogo de insumos de este archivo." +
+      (instr
+        ? "\n\nInstrucciones adicionales del usuario (respétalas): " + instr.slice(0, 4000)
+        : ""),
+  });
+
+  const empty: InventoryImportExtraction = { currency: "unknown", rows: [], notes: "" };
+
+  const resp = await c.messages.create({
+    model: env.ANTHROPIC_MODEL,
+    max_tokens: 16_000, // catálogos largos
+    system: [
+      { type: "text", text: INVENTORY_IMPORT_SYSTEM, cache_control: { type: "ephemeral" } },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  const text = resp.content
+    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return { ...empty, notes: `model returned non-JSON: ${text.slice(0, 200)}` };
+  }
+  const result = InventoryImportSchema.safeParse(parsed);
+  if (!result.success) {
+    return { ...empty, notes: `schema mismatch: ${result.error.issues[0]?.message}` };
+  }
+  return result.data;
+}

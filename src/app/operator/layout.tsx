@@ -242,9 +242,26 @@ export default async function OperatorLayout({
             : []),
         ];
         // Single source of truth for the nav so desktop inline + mobile
-        // drawer render the same items in the same order. Includes
-        // Cocina + Bar conditionally based on tenant config. Una entrada
-        // con `children` es el grupo de módulos administrativos.
+        // drawer render the same items in the same order. Los tableros en
+        // vivo (Resumen, Cocina, Bar, Salón, Mesas, Reservas) quedan al
+        // primer nivel — son de uso constante y llevan el punto rojo de
+        // novedad. El resto va AGRUPADO en dropdowns (items/subitems) para
+        // que la nav no sea una fila larga de links planos.
+        const ordersGroup: { href: string; label: string }[] = [
+          { href: "/operator/orders", label: t("navOrders") },
+          { href: "/operator/payments", label: t("navPayments") },
+          { href: "/operator/facturas", label: t("navInvoices") },
+          { href: "/operator/ratings", label: t("navRatings") },
+        ];
+        const menuGroup: { href: string; label: string }[] = [
+          { href: "/operator/menu", label: t("navMenu") },
+          { href: "/operator/menus", label: t("navMenus") },
+        ];
+        const businessGroup: { href: string; label: string }[] = [
+          { href: "/operator/reports", label: t("navClose") },
+          { href: "/operator/wallet", label: t("navWallet") },
+          { href: "/operator/insights", label: t("navInsights") },
+        ];
         const navItems: NavEntry[] = [
           { href: "/operator", label: t("navSummary") },
           { href: "/operator/kitchen", label: t("navKitchen") },
@@ -252,13 +269,6 @@ export default async function OperatorLayout({
             ? [{ href: "/operator/bar", label: t("navBar") }]
             : []),
           { href: "/operator/serve", label: t("navHall") },
-          ...(tenant?.reservationsEnabled
-            ? [{ href: "/operator/reservas", label: t("navReservations") }]
-            : []),
-          { href: "/operator/payments", label: t("navPayments") },
-          { href: "/operator/orders", label: t("navOrders") },
-          { href: "/operator/menu", label: t("navMenu") },
-          { href: "/operator/menus", label: t("navMenus") },
           {
             href: "/operator/tables",
             label:
@@ -266,15 +276,16 @@ export default async function OperatorLayout({
                 ? t("navCounter")
                 : t("navTables"),
           },
-          { href: "/operator/ratings", label: t("navRatings") },
-          { href: "/operator/facturas", label: t("navInvoices") },
+          ...(tenant?.reservationsEnabled
+            ? [{ href: "/operator/reservas", label: t("navReservations") }]
+            : []),
+          { label: t("navGroupOrders"), children: ordersGroup },
+          { label: t("navGroupMenu"), children: menuGroup },
           ...(erpItems.length > 0
             ? [{ label: t("navErpGroup"), children: erpItems }]
             : []),
-          { href: "/operator/reports", label: t("navClose") },
-          { href: "/operator/wallet", label: t("navWallet") },
+          { label: t("navGroupBusiness"), children: businessGroup },
           { href: "/operator/settings", label: t("navSettings") },
-          { href: "/operator/insights", label: t("navInsights") },
         ];
         // The signOut server-action gets rendered twice (desktop link +
         // mobile drawer button) so we declare it once and reuse the

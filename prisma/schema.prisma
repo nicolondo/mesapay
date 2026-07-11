@@ -261,6 +261,13 @@ model Restaurant {
   // (default) ⇒ el IVA entra al costo de inventario (lo que se paga);
   // true ⇒ el costo de inventario es el neto y el IVA se registra aparte.
   purchaseIvaDeductible   Boolean @default(false)
+  // Ventas: impuesto que aplica el restaurante sobre el subtotal (ERP A3).
+  // "none" ⇒ no se discrimina impuesto (precio final); "inc" ⇒ Impuesto al
+  // Consumo (impoconsumo, típico restaurantes CO); "iva" ⇒ IVA. El impuesto
+  // se calcula EMBEBIDO en el precio del menú (no se suma encima): el
+  // componente = subtotal × pct/(100+pct). Solo para reportes/contabilidad.
+  salesTaxKind            String  @default("none") // none | inc | iva
+  salesTaxPct             Int     @default(0) // p.ej. 8 (INC) o 19 (IVA)
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.
@@ -1641,6 +1648,14 @@ model PurchaseOrder {
   // Abonado acumulado (centavos) — cache mantenido en la tx de cada pago.
   // Saldo = total bruto de la OC − paidCents.
   paidCents             Int       @default(0)
+
+  // Impuestos de la factura capturados/verificados por el operador (ERP A3).
+  // El IVA se deriva de las líneas (taxPct); estos son los demás que la
+  // factura discrimina a nivel documento, para la contabilidad/reportes.
+  incCents        Int @default(0) // Impuesto al consumo (impoconsumo)
+  retefuenteCents Int @default(0) // Retención en la fuente
+  reteIvaCents    Int @default(0) // Retención de IVA
+  reteIcaCents    Int @default(0) // Retención de ICA
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)

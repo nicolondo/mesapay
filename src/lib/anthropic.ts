@@ -616,8 +616,15 @@ const PurchaseInvoiceSchema = z.object({
   // con lo calculado desde las líneas. null si no se ven. .catch(null) tolera
   // valores raros sin tumbar la extracción.
   invoiceSubtotalCents: z.number().nullable().catch(null),
-  invoiceTaxCents: z.number().nullable().catch(null),
+  invoiceTaxCents: z.number().nullable().catch(null), // IVA total impreso
   invoiceTotalCents: z.number().nullable().catch(null),
+  // Otros impuestos discriminados a nivel documento (ERP A3), en centavos.
+  // El IVA sale de las líneas (taxPct); estos se capturan aparte para que el
+  // operador los verifique y la contabilidad los tenga en cuenta.
+  invoiceIncCents: z.number().nullable().catch(null), // Impuesto al consumo
+  retefuenteCents: z.number().nullable().catch(null), // Retención en la fuente
+  reteIvaCents: z.number().nullable().catch(null), // Retención de IVA
+  reteIcaCents: z.number().nullable().catch(null), // Retención de ICA
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -654,6 +661,10 @@ const RawInvoiceSchema = z.object({
   invoiceSubtotal: numText,
   invoiceTax: numText,
   invoiceTotal: numText,
+  invoiceInc: numText,
+  retefuente: numText,
+  reteIva: numText,
+  reteIca: numText,
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -712,8 +723,12 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "confidence": number               // 0..1 qué tan seguro de ESTA línea
     }
   ],
-  "invoiceSubtotal": string | null,       // SUBTOTAL impreso (sin IVA), TEXTO tal cual, null si no se ve
+  "invoiceSubtotal": string | null,       // SUBTOTAL impreso (sin impuestos), TEXTO tal cual, null si no se ve
   "invoiceTax": string | null,            // IVA total impreso, TEXTO tal cual, null si no se ve
+  "invoiceInc": string | null,            // Impuesto al consumo / IMPOCONSUMO / INC total impreso, TEXTO tal cual, null si no se ve
+  "retefuente": string | null,            // Retención en la fuente (RETEFUENTE) total, TEXTO tal cual, null si no se ve
+  "reteIva": string | null,               // Retención de IVA (RETEIVA) total, TEXTO tal cual, null si no se ve
+  "reteIca": string | null,               // Retención de ICA (RETEICA) total, TEXTO tal cual, null si no se ve
   "invoiceTotal": string | null,          // TOTAL a pagar impreso, TEXTO tal cual, null si no se ve
   "confidence": number,                   // 0..1 confianza global
   "notes": string                         // opcional, 1 frase (ej. "foto borrosa en el total")
@@ -729,6 +744,12 @@ Reglas estrictas:
 - Ignora líneas que no sean productos (subtotales, IVA, totales, notas) DENTRO de "lines". Solo insumos comprados en "lines".
 - taxPct por línea: la tarifa de IVA de esa línea ("0","5","19" CO; "0","8","16" MX). unitPrice/lineTotal son el NETO de la línea (sin IVA) cuando la factura discrimina IVA.
 - invoiceSubtotal/invoiceTax/invoiceTotal: cópialos de los TOTALES impresos de la factura (no los sumes tú) como TEXTO tal cual, null si no se ven. Sirven para validar.
+- IMPUESTOS ADICIONALES a nivel documento (además del IVA): busca en la sección de totales/resumen y cópialos como TEXTO tal cual si aparecen, si no null:
+  · invoiceInc = "Impuesto al consumo", "IMPOCONSUMO", "INC", "Imp. Consumo" (8% típico en restaurantes/licores).
+  · retefuente = "Retención en la fuente", "RETEFUENTE", "Rte Fuente".
+  · reteIva = "Retención de IVA", "RETEIVA", "Rte IVA".
+  · reteIca = "Retención de ICA", "RETEICA", "Rte ICA".
+  Las retenciones se RESTAN del total a pagar; el IVA e INC se SUMAN. Cópialos como valores positivos (el signo lo maneja el código).
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
@@ -780,6 +801,10 @@ export async function extractPurchaseInvoice(
     invoiceSubtotalCents: null,
     invoiceTaxCents: null,
     invoiceTotalCents: null,
+    invoiceIncCents: null,
+    retefuenteCents: null,
+    reteIvaCents: null,
+    reteIcaCents: null,
     confidence: 0,
     notes: "",
   };
@@ -843,6 +868,10 @@ export async function extractPurchaseInvoice(
     invoiceSubtotalCents: moneyToCents(r.invoiceSubtotal),
     invoiceTaxCents: moneyToCents(r.invoiceTax),
     invoiceTotalCents: moneyToCents(r.invoiceTotal),
+    invoiceIncCents: moneyToCents(r.invoiceInc),
+    retefuenteCents: moneyToCents(r.retefuente),
+    reteIvaCents: moneyToCents(r.reteIva),
+    reteIcaCents: moneyToCents(r.reteIca),
     confidence: r.confidence,
     notes: r.notes ?? "",
   });

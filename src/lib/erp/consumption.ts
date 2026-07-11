@@ -18,21 +18,63 @@ export type ConsumableItem = {
   /** "cancel" | "comp" | null (null viejo = cancel, back-compat). */
   cancellationKind: string | null;
   roundCancelled: boolean;
+  /** Selección de modificadores del comensal (OrderItem.modifierSelections). */
+  modifierSelections?: unknown;
+};
+
+/** Delta de insumo de UNA opción de modificador (qtyBase con signo). */
+export type ConsumptionModifierLine = {
+  modifierId: string;
+  optLabel: string;
+  ingredientId: string;
+  qtyBase: number;
+  wastePct: number;
 };
 
 export type ConsumptionRecipe = {
   items: Array<{ ingredientId: string; qtyBase: number; wastePct: number }>;
+  /** Deltas por opción de modificador (A4.mods). Puede ir vacío. */
+  modifierItems: ConsumptionModifierLine[];
 };
+
+// Llave estable "modifierId + opción" (tupla JSON, sin ambigüedad) para
+// emparejar la selección del comensal con el delta del modificador.
+const optKey = (modifierId: string, optLabel: string): string =>
+  JSON.stringify([modifierId, optLabel]);
+
+/**
+ * Llaves optKey(modifierId, label) de las opciones que el comensal eligió,
+ * para ambos formatos de OrderItem.modifierSelections (radio: string;
+ * checkbox: string[]). Labels vacíos/no-string se ignoran.
+ */
+export function selectedOptionKeys(selections: unknown): Set<string> {
+  const keys = new Set<string>();
+  if (!selections || typeof selections !== "object" || Array.isArray(selections)) {
+    return keys;
+  }
+  for (const [modId, v] of Object.entries(selections as Record<string, unknown>)) {
+    const labels = typeof v === "string" ? [v] : Array.isArray(v) ? v : [];
+    for (const lab of labels) {
+      if (typeof lab === "string" && lab.trim()) {
+        keys.add(optKey(modId, lab.trim()));
+      }
+    }
+  }
+  return keys;
+}
 
 /**
  * Matemática pura del consumo (testeable sin DB): agrega por insumo el
  * BRUTO total de los items consumibles.
  *
- * Reglas (spec D2):
+ * Reglas (spec D2 + A4.mods):
  * - Items vivos consumen; los comp también (se prepararon aunque no se
  *   cobren); los cancel y los de rounds cancelados no.
  * - Por línea de receta: bruto = neto/(1−merma%), redondeado a entero en
  *   unidad base, × qty del item.
+ * - Modificadores elegidos: se suman/restan sus deltas (qtyBase con signo)
+ *   por porción. Una venta NUNCA agrega stock: si un "quitar" excede a la
+ *   base, el consumo de ese insumo se topa en 0 (no genera entrada).
  * - Plato sin receta no aporta nada.
  */
 export function explodeOrderConsumption(
@@ -46,11 +88,31 @@ export function explodeOrderConsumption(
     if (it.qty <= 0) continue;
     const recipe = recipes.get(it.menuItemId);
     if (!recipe) continue;
+
+    // Consumo por PORCIÓN (una unidad del plato) en base, por insumo: la
+    // receta base más los deltas de las opciones elegidas.
+    const perPortion = new Map<string, number>();
     for (const line of recipe.items) {
-      const grossPerPortion = Math.round(grossQty(line.qtyBase, line.wastePct));
-      const qty = grossPerPortion * it.qty;
-      if (qty <= 0) continue;
-      totals.set(line.ingredientId, (totals.get(line.ingredientId) ?? 0) + qty);
+      const g = Math.round(grossQty(line.qtyBase, line.wastePct));
+      perPortion.set(line.ingredientId, (perPortion.get(line.ingredientId) ?? 0) + g);
+    }
+    if (recipe.modifierItems.length > 0) {
+      const selected = selectedOptionKeys(it.modifierSelections);
+      if (selected.size > 0) {
+        for (const m of recipe.modifierItems) {
+          if (!selected.has(optKey(m.modifierId, m.optLabel))) continue;
+          // qtyBase puede ser negativo (quitar) → bruto también.
+          const g = Math.round(grossQty(m.qtyBase, m.wastePct));
+          perPortion.set(m.ingredientId, (perPortion.get(m.ingredientId) ?? 0) + g);
+        }
+      }
+    }
+
+    for (const [ingredientId, perPortionQty] of perPortion) {
+      const per = Math.max(0, perPortionQty); // clamp: una venta no agrega stock
+      if (per <= 0) continue;
+      const qty = per * it.qty;
+      totals.set(ingredientId, (totals.get(ingredientId) ?? 0) + qty);
     }
   }
   return totals;
@@ -99,6 +161,7 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         qty: true,
         cancelledAt: true,
         cancellationKind: true,
+        modifierSelections: true,
         round: { select: { status: true } },
       },
     });
@@ -113,12 +176,24 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         items: {
           select: { ingredientId: true, qtyBase: true, wastePct: true },
         },
+        modifierItems: {
+          select: {
+            modifierId: true,
+            optLabel: true,
+            ingredientId: true,
+            qtyBase: true,
+            wastePct: true,
+          },
+        },
       },
     });
     const recipeMap = new Map<string, ConsumptionRecipe>(
       recipes
         .filter((r) => r.menuItemId)
-        .map((r) => [r.menuItemId!, { items: r.items }]),
+        .map((r) => [
+          r.menuItemId!,
+          { items: r.items, modifierItems: r.modifierItems },
+        ]),
     );
     totals = explodeOrderConsumption(
       items.map((i) => ({
@@ -127,6 +202,7 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         cancelledAt: i.cancelledAt,
         cancellationKind: i.cancellationKind,
         roundCancelled: i.round?.status === "cancelled",
+        modifierSelections: i.modifierSelections,
       })),
       recipeMap,
     );

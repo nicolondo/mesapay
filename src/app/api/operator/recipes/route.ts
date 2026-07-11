@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { costRecipeItems, resolveIngredientCost } from "@/lib/erp/recipes";
 import { loadCostContext } from "@/lib/erp/recipeData";
+import { normalizeModifiers } from "@/lib/modifiers";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function GET() {
         name: true,
         priceCents: true,
         available: true,
+        modifiers: true,
         category: { select: { id: true, label: true } },
         recipe: {
           select: {
@@ -40,6 +42,15 @@ export async function GET() {
             items: {
               select: { ingredientId: true, qtyBase: true, wastePct: true },
             },
+            modifierItems: {
+              select: {
+                modifierId: true,
+                optLabel: true,
+                ingredientId: true,
+                qtyBase: true,
+                wastePct: true,
+              },
+            },
           },
         },
       },
@@ -47,6 +58,14 @@ export async function GET() {
   ]);
 
   const dishes = menuItems.map((mi) => {
+    // Modificadores del plato (grupos + opciones) para que el editor pueda
+    // colgarles insumos. Se normalizan (tolera formato viejo string[]).
+    const modifiers = normalizeModifiers(mi.modifiers).map((m) => ({
+      id: m.id,
+      label: m.label,
+      type: m.type,
+      opts: m.opts.map((o) => o.label),
+    }));
     if (!mi.recipe) {
       return {
         menuItemId: mi.id,
@@ -54,6 +73,7 @@ export async function GET() {
         category: mi.category,
         priceCents: mi.priceCents,
         available: mi.available,
+        modifiers,
         recipe: null,
         cost: null,
       };
@@ -65,10 +85,16 @@ export async function GET() {
       category: mi.category,
       priceCents: mi.priceCents,
       available: mi.available,
+      modifiers,
       recipe: {
         id: mi.recipe.id,
         notes: mi.recipe.notes,
         items: mi.recipe.items.map((it) => ({
+          ...it,
+          ingredientName: meta.get(it.ingredientId)?.name ?? "",
+          measureKind: meta.get(it.ingredientId)?.measureKind ?? "count",
+        })),
+        modifierItems: mi.recipe.modifierItems.map((it) => ({
           ...it,
           ingredientName: meta.get(it.ingredientId)?.name ?? "",
           measureKind: meta.get(it.ingredientId)?.measureKind ?? "count",

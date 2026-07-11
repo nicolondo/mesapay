@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   MEASURE_KINDS,
   toBaseQty,
@@ -54,7 +55,7 @@ function baseToQtyEntry(
   base: number | null,
   kind: MeasureKind,
 ): QtyEntry {
-  if (base == null) return { raw: "", unit: BASE_UNIT_SYMBOL[kind] };
+  if (base == null) return { raw: "", unit: DEFAULT_INPUT_UNIT[kind] };
   const units = DISPLAY_UNITS[kind];
   const big = units[units.length - 1];
   if (big.factor > 1 && base >= big.factor) {
@@ -377,8 +378,8 @@ function IngredientSheet({
   // (kg no es unidad de volumen): se resetean a la base de la nueva.
   function changeMeasureKind(k: MeasureKind) {
     setMeasureKind(k);
-    setPoint((p) => ({ ...p, unit: BASE_UNIT_SYMBOL[k] }));
-    setOrderQty((p) => ({ ...p, unit: BASE_UNIT_SYMBOL[k] }));
+    setPoint((p) => ({ ...p, unit: DEFAULT_INPUT_UNIT[k] }));
+    setOrderQty((p) => ({ ...p, unit: DEFAULT_INPUT_UNIT[k] }));
   }
 
   async function submit(e: React.FormEvent) {

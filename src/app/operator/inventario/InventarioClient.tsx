@@ -9,6 +9,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import {
   BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
   toBaseQty,
@@ -1043,7 +1044,7 @@ function MovementSheet({
                         type="button"
                         onClick={() => {
                           setSelected(i);
-                          setUnit(BASE_UNIT_SYMBOL[i.measureKind]);
+                          setUnit(DEFAULT_INPUT_UNIT[i.measureKind]);
                         }}
                         className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
                       >
@@ -1359,7 +1360,7 @@ function CountSheet({
     for (const it of count.items) {
       init[it.id] = {
         raw: it.countedQty == null ? "" : String(it.countedQty),
-        unit: BASE_UNIT_SYMBOL[it.ingredient.measureKind],
+        unit: DEFAULT_INPUT_UNIT[it.ingredient.measureKind],
       };
     }
     return init;
@@ -1393,7 +1394,7 @@ function CountSheet({
         : parseCounted(
             entries[it.id]?.raw ?? "",
             it.ingredient.measureKind,
-            entries[it.id]?.unit ?? BASE_UNIT_SYMBOL[it.ingredient.measureKind],
+            entries[it.id]?.unit ?? DEFAULT_INPUT_UNIT[it.ingredient.measureKind],
           );
       if (v == null || v === "invalid") continue;
       counted++;

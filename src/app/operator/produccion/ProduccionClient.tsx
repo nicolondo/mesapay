@@ -6,7 +6,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
 import { grossQty } from "@/lib/erp/recipes";
 import {
-  BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
   toBaseQty,
@@ -401,7 +401,7 @@ function ProduceSheet({
     const init =
       s.outputQtyBase != null
         ? baseToInputQty(s.outputQtyBase, s.measureKind)
-        : { qty: "", unit: BASE_UNIT_SYMBOL[s.measureKind] };
+        : { qty: "", unit: DEFAULT_INPUT_UNIT[s.measureKind] };
     setQtyRaw(init.qty);
     setQtyUnit(init.unit);
     setSubQ("");

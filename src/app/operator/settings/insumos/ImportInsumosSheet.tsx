@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
-  BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   MEASURE_KINDS,
   toBaseQty,
@@ -82,7 +82,7 @@ type RowIssue = "name" | "qty";
 function pickUnit(kind: MeasureKind, unit: string | null): string {
   const opts = DISPLAY_UNITS[kind];
   if (unit && opts.some((u) => u.symbol === unit)) return unit;
-  return BASE_UNIT_SYMBOL[kind];
+  return DEFAULT_INPUT_UNIT[kind];
 }
 
 /** Parsea un número digitado con coma o punto decimal. NaN si vacío/ inválido. */
@@ -248,7 +248,7 @@ export function ImportInsumosSheet({
         // Al cambiar la dimensión, la unidad digitada puede dejar de existir
         // (kg no es unidad de volumen): se resetea a la base de la nueva.
         if (p.measureKind && p.measureKind !== r.measureKind) {
-          next.unit = BASE_UNIT_SYMBOL[p.measureKind];
+          next.unit = DEFAULT_INPUT_UNIT[p.measureKind];
         }
         return next;
       }),

@@ -11,6 +11,8 @@ import { deriveMembershipStatus } from "@/lib/membership";
 import { isModuleEnabled } from "@/lib/modules";
 import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";
 import { NavDropdown } from "./NavDropdown";
+import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
+import { computeBoardActivity, type BoardActivity } from "./boardActivity";
 import { GroupSwitcher } from "./GroupSwitcher";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
@@ -71,6 +73,13 @@ export default async function OperatorLayout({
   const tenant = restaurantId
     ? await db.restaurant.findUnique({ where: { id: restaurantId } })
     : null;
+
+  // Aviso "algo nuevo entró" por tablero (Cocina / Bar / Salón) para el punto
+  // rojo de la nav. Se recalcula en cada render del layout; como LiveRefresh
+  // refresca el layout en cada evento SSE, queda casi en vivo.
+  const boardActivity: BoardActivity = restaurantId
+    ? await computeBoardActivity(restaurantId, tenant?.hasBar ?? false)
+    : { kitchen: 0, bar: 0, floor: 0 };
 
   const membership = tenant
     ? deriveMembershipStatus({
@@ -321,7 +330,11 @@ export default async function OperatorLayout({
                         items={it.children}
                       />
                     ) : (
-                      <NavLink key={it.href} href={it.href}>
+                      <NavLink
+                        key={it.href}
+                        href={it.href}
+                        boardActivity={boardActivity}
+                      >
                         {it.label}
                       </NavLink>
                     ),
@@ -350,6 +363,7 @@ export default async function OperatorLayout({
                   userEmail={session.user.email}
                   isAdmin={session.user.role === "platform_admin"}
                   items={navItems}
+                  boardActivity={boardActivity}
                   signOutAction={signOutMobile}
                 />
               </div>
@@ -364,13 +378,31 @@ export default async function OperatorLayout({
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({
+  href,
+  children,
+  boardActivity,
+}: {
+  href: string;
+  children: React.ReactNode;
+  boardActivity?: BoardActivity;
+}) {
+  const board = BOARD_BY_HREF[href];
   return (
     <Link
       href={href}
       className="px-3 h-8 inline-flex items-center rounded-lg text-sm text-op-muted hover:text-op-text hover:bg-op-bg"
     >
-      {children}
+      <span className="relative">
+        {children}
+        {board && boardActivity && (
+          <BoardDot
+            boardKey={board}
+            path={href}
+            activityMs={boardActivity[board]}
+          />
+        )}
+      </span>
     </Link>
   );
 }

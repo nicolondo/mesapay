@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 
 type Plan = "trial" | "basic" | "pro";
 
@@ -107,12 +108,9 @@ export function PlanEditor({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-op-muted text-sm">{"$"}</span>
-          <input
-            type="number"
+          <MoneyInput
             value={priceCop}
-            onChange={(e) => setPriceCop(e.target.value)}
-            min={0}
-            step={1000}
+            onChange={setPriceCop}
             className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
           />
           <span className="text-op-muted text-xs">{t("perMonthSuffix")}</span>
@@ -187,12 +185,9 @@ export function RecordPaymentForm({
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("amountCop")}
           </span>
-          <input
-            type="number"
+          <MoneyInput
             value={amountCop}
-            onChange={(e) => setAmountCop(e.target.value)}
-            min={0}
-            step={1000}
+            onChange={setAmountCop}
             className="h-9 w-36 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular"
           />
         </label>

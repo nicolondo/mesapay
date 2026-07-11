@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import type { PlanCatalogEntry } from "@/lib/planCatalog";
 
 type Plan = "trial" | "basic" | "pro";
@@ -162,12 +163,9 @@ function PlanCard({
         >
           <div className="flex items-center gap-2">
             <span className="text-op-muted text-sm">{"$"}</span>
-            <input
-              type="number"
+            <MoneyInput
               value={priceCop}
-              onChange={(e) => setPriceCop(e.target.value)}
-              min={0}
-              step={1000}
+              onChange={setPriceCop}
               className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
             />
             <span className="text-op-muted text-xs">{t("perMonthSuffix")}</span>

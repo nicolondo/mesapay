@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
@@ -1421,13 +1422,9 @@ function ExpenseSheet({
           </Field>
 
           <Field label={t("fieldAmount")} required>
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
+            <MoneyInput
               value={amountRaw}
-              onChange={(e) => setAmountRaw(e.target.value)}
+              onChange={setAmountRaw}
               className={inputCls}
             />
           </Field>

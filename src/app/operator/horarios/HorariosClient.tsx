@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import { captureVideoFrame, detectFaceDescriptor } from "./faceApi";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
@@ -1723,13 +1724,9 @@ function EmployeeSheet({
                 : undefined
             }
           >
-            <input
-              type="number"
-              min={0}
-              step="any"
-              inputMode="decimal"
+            <MoneyInput
               value={salaryRaw}
-              onChange={(e) => setSalaryRaw(e.target.value)}
+              onChange={setSalaryRaw}
               className={inputCls}
             />
           </Field>

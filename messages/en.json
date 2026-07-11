@@ -852,6 +852,7 @@
     "callBusy": "On it…",
     "callOnMyWay": "On my way",
     "terminalOwnDevice": "Merchant's own card terminal",
+    "invoiceAfterSettle": "Invoice for the customer?",
     "charge": "Charge",
     "includesTip": "Includes tip {amount}",
     "terminalSwipeExternal": "Swipe the card on your terminal and report the result.",

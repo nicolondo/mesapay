@@ -852,6 +852,7 @@
     "callBusy": "Atendendo…",
     "callOnMyWay": "Já vou",
     "terminalOwnDevice": "Maquininha do próprio estabelecimento",
+    "invoiceAfterSettle": "Nota para o cliente?",
     "charge": "Cobrar",
     "includesTip": "Inclui gorjeta {amount}",
     "terminalSwipeExternal": "Passe o cartão na sua maquininha e informe o resultado.",

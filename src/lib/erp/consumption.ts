@@ -77,7 +77,9 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
       restaurantId: true,
       status: true,
       stockConsumedAt: true,
-      restaurant: { select: { enabledModules: true } },
+      restaurant: {
+        select: { enabledModules: true, inventoryExcludedCategories: true },
+      },
     },
   });
   if (!order) return { status: "not_found" };
@@ -128,6 +130,20 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
       })),
       recipeMap,
     );
+
+    // Categorías sin inventario: sus insumos no consumen stock aunque la
+    // receta los use (agua de la llave, servicios, etc.).
+    const excluded = order.restaurant.inventoryExcludedCategories;
+    if (excluded.length > 0 && totals.size > 0) {
+      const ings = await db.ingredient.findMany({
+        where: { id: { in: [...totals.keys()] } },
+        select: { id: true, category: true },
+      });
+      const skip = new Set(excluded);
+      for (const ing of ings) {
+        if (ing.category && skip.has(ing.category)) totals.delete(ing.id);
+      }
+    }
   }
 
   return db.$transaction(async (tx) => {

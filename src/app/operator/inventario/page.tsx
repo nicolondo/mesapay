@@ -25,17 +25,28 @@ export default async function InventarioPage() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { enabledModules: true, country: true },
+    select: {
+      enabledModules: true,
+      country: true,
+      inventoryExcludedCategories: true,
+    },
   });
   if (!tenant || !isModuleEnabled(tenant.enabledModules, "inventory")) {
     notFound();
   }
 
+  const excluded = tenant.inventoryExcludedCategories;
   // Mismo criterio que GET /api/operator/stock: se lista desde el INSUMO
   // para incluir activos sin movimientos (level null → 0); los inactivos
-  // solo si conservan saldo ≠ 0 (siguen siendo plata en la bodega).
+  // solo si conservan saldo ≠ 0 (siguen siendo plata en la bodega). Las
+  // categorías sin inventario no aparecen (null-category sí).
   const ingredients = await db.ingredient.findMany({
-    where: { restaurantId },
+    where: {
+      restaurantId,
+      ...(excluded.length > 0
+        ? { OR: [{ category: null }, { category: { notIn: excluded } }] }
+        : {}),
+    },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
       id: true,

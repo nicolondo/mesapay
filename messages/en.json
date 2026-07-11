@@ -2700,6 +2700,7 @@
     "resetOpt_invoices": "Invoices",
     "resetOpt_shifts": "Shift closes",
     "resetOpt_reviews": "Reviews",
+    "resetOpt_erp": "Administration (inventory, purchasing, recipes, expenses, staff, DIAN)",
     "resetOpt_tables": "Tables",
     "resetOpt_menus": "Menus",
     "resetOpt_menu": "Menu (categories and dishes)",

@@ -2700,6 +2700,7 @@
     "resetOpt_invoices": "Faturas",
     "resetOpt_shifts": "Fechamentos de turno",
     "resetOpt_reviews": "Avaliações",
+    "resetOpt_erp": "Administração (estoque, compras, receitas, despesas, equipe, DIAN)",
     "resetOpt_tables": "Mesas",
     "resetOpt_menus": "Cardápios",
     "resetOpt_menu": "Menu (categorias e pratos)",

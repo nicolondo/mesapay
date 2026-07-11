@@ -171,6 +171,65 @@ export function centsToCsvAmount(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+// ── Excel multi-hoja (SpreadsheetML 2003, SIN dependencias) ─────────────────
+// Un solo XML de texto que Excel y Google Sheets abren como libro con varias
+// hojas. Evita agregar una librería (exceljs) y el riesgo de build en deploy.
+// Los montos van como Number (el contador puede sumar/filtrar).
+
+export type XlsxSheet = {
+  name: string;
+  headers: string[];
+  rows: Array<Array<string | number | null | undefined>>;
+};
+
+function xmlEscape(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function xlsxCell(v: string | number | null | undefined): string {
+  if (v == null || v === "") return "<Cell/>";
+  if (typeof v === "number" && isFinite(v)) {
+    return `<Cell><Data ss:Type="Number">${v}</Data></Cell>`;
+  }
+  return `<Cell><Data ss:Type="String">${xmlEscape(String(v))}</Data></Cell>`;
+}
+
+/** Nombre de hoja válido para Excel: ≤31 chars, sin : \ / ? * [ ]. */
+function sheetName(name: string): string {
+  return xmlEscape(name.replace(/[:\\/?*[\]]/g, " ").slice(0, 31));
+}
+
+/**
+ * Serializa hojas a un libro SpreadsheetML 2003. Se sirve como
+ * `application/vnd.ms-excel` con extensión .xls. Excel muestra un aviso
+ * benigno de "formato/extensión" que se acepta con un clic.
+ */
+export function buildXlsxWorkbook(sheets: XlsxSheet[]): string {
+  const body = sheets
+    .map((s) => {
+      const rows = [s.headers, ...s.rows]
+        .map((r) => `<Row>${r.map(xlsxCell).join("")}</Row>`)
+        .join("");
+      return `<Worksheet ss:Name="${sheetName(s.name)}"><Table>${rows}</Table></Worksheet>`;
+    })
+    .join("");
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<?mso-application progid="Excel.Sheet"?>\n` +
+    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ` +
+    `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${body}</Workbook>`
+  );
+}
+
+/** Centavos → número en unidades de moneda (2 decimales) para celdas Excel. */
+export function centsToAmount(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
 // ── Gastos recurrentes ──────────────────────────────────────────────────────
 
 export type RecurringTemplate = {

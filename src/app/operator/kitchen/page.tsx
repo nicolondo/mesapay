@@ -20,7 +20,12 @@ export default async function KitchenPage() {
     where: {
       order: { restaurantId },
       status: { in: ["placed", "in_kitchen", "ready"] },
-      items: { some: { station: "kitchen", cancelledAt: null } },
+      // El round se cae del board cuando TODOS sus items de cocina están
+      // servidos — sin depender de que Round.status pase a "served" (ese
+      // roll-up post-tx puede rezagarse y deja tarjetas fantasma). El
+      // include de abajo sigue mostrando los servidos tachados mientras
+      // quede algún item pendiente. Mismo patrón que el board de "serve".
+      items: { some: { station: "kitchen", cancelledAt: null, servedAt: null } },
     },
     include: {
       order: { include: { table: true } },

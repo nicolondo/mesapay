@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
+import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
 
 type NavItem = { href: string; label: string };
@@ -44,6 +44,9 @@ export function OperatorMobileMenu({
   const t = useTranslations("operator");
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  // ¿Algún tablero con novedad? (para el punto en el botón del menú, ya que
+  // en móvil la nav de escritorio con los puntos por ítem está oculta).
+  const anyBoardAlert = useAnyBoardAlert(boardActivity, pathname);
 
   // Close on navigation so the overlay doesn't linger — state adjust
   // during render (not an effect; react-hooks/set-state-in-effect).
@@ -69,7 +72,7 @@ export function OperatorMobileMenu({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t("openMenu")}
-        className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
+        className="md:hidden relative inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
       >
         <svg
           width="20"
@@ -84,6 +87,12 @@ export function OperatorMobileMenu({
           <line x1="3" y1="10" x2="17" y2="10" />
           <line x1="3" y1="14" x2="17" y2="14" />
         </svg>
+        {anyBoardAlert && (
+          <span
+            className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-danger ring-2 ring-op-surface"
+            aria-hidden
+          />
+        )}
       </button>
 
       {open && (

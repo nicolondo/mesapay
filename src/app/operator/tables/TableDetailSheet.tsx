@@ -229,10 +229,12 @@ export function TableDetailSheet({
       setMoveErr(j.message ?? j.error ?? tr("moveFailed"));
       return;
     }
-    // El SSE de order.updated va a refrescar ambas tarjetas. Cerramos
-    // todo lo abierto y dejamos que la grid se redibuje.
+    // Cerramos todo y forzamos el refresh de la grid: el SSE solo no
+    // alcanza (la mesa ORIGEN queda libre y no siempre revalida), así que
+    // pedimos el re-render del server como en los demás handlers.
     setShowMoveSheet(false);
     setOpen(false);
+    startTx(() => router.refresh());
   }
 
   async function cancelItem(

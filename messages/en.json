@@ -4304,6 +4304,8 @@
     "staffActiveToggle": "Active",
     "staffInactiveBadge": "Inactive",
     "staffConfirmDeactivate": "Deactivate this employee? They no longer appear in the planner; their past shifts are kept.",
+    "staffDeleteEmployee": "Delete",
+    "staffConfirmDeleteEmployee": "Delete this employee PERMANENTLY? They are removed along with all their shift and attendance history. If they just stopped working, deactivate them instead (history is kept).",
     "staffSalaryPerMonth": "{salary}/mo",
     "staffHourlyValue": "hourly value {value}",
     "errShiftInvalid": "Check the shift details.",

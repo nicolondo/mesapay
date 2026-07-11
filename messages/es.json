@@ -4304,6 +4304,8 @@
     "staffActiveToggle": "Activo",
     "staffInactiveBadge": "Inactivo",
     "staffConfirmDeactivate": "¿Desactivar a este empleado? Deja de aparecer en el planeador; sus turnos históricos se conservan.",
+    "staffDeleteEmployee": "Eliminar",
+    "staffConfirmDeleteEmployee": "¿Eliminar a este empleado DEFINITIVAMENTE? Se borra junto con todo su historial de turnos y asistencia. Si solo dejó de trabajar, mejor desactivalo (se conserva el historial).",
     "staffSalaryPerMonth": "{salary}/mes",
     "staffHourlyValue": "valor hora {value}",
     "errShiftInvalid": "Revisa los datos del turno.",

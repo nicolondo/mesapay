@@ -20,6 +20,13 @@ const bodySchema = z.discriminatedUnion("action", [
     ids: z.array(z.string().min(1)).min(1).max(1000),
     measureKind: z.enum(["mass", "volume", "count"]),
   }),
+  // Renombrar una categoría: afecta a TODOS los insumos de `from` (no depende
+  // de la selección). Es gestión de categorías, no acción por-fila.
+  z.object({
+    action: z.literal("renameCategory"),
+    from: z.string().trim().min(1).max(60),
+    to: z.string().trim().min(1).max(60),
+  }),
 ]);
 
 /**
@@ -40,6 +47,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const b = parsed.data;
+
+  // Renombrar categoría: opera sobre TODOS los insumos de `from` del comercio,
+  // no sobre una selección. Si `to` == `from`, no hay nada que hacer.
+  if (b.action === "renameCategory") {
+    const from = b.from.trim();
+    const to = b.to.trim();
+    const affected = await db.ingredient.findMany({
+      where: { restaurantId: ctx.restaurantId, category: from },
+      select: { id: true },
+    });
+    const changedIds = affected.map((a) => a.id);
+    if (changedIds.length > 0 && to !== from) {
+      await db.ingredient.updateMany({
+        where: { restaurantId: ctx.restaurantId, category: from },
+        data: { category: to },
+      });
+    }
+    return NextResponse.json({
+      updated: to !== from ? changedIds.length : 0,
+      skipped: 0,
+      changedIds,
+      to,
+    });
+  }
 
   // Solo insumos del comercio (evita tocar filas de otro restaurante si el
   // cliente manda ids ajenos).

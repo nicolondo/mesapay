@@ -118,6 +118,11 @@ export function InsumosClient({
   const [bulkMeasure, setBulkMeasure] = useState<MeasureKind>("mass");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkNote, setBulkNote] = useState<string | null>(null);
+  // Dentro de "cambiar categoría": mover los seleccionados a otra, o renombrar
+  // una categoría (afecta a todos sus insumos, no a la selección).
+  const [catAction, setCatAction] = useState<"move" | "rename">("move");
+  const [renameFrom, setRenameFrom] = useState("");
+  const [renameTo, setRenameTo] = useState("");
 
   // Categorías existentes del comercio (sin taxonomía impuesta): alimentan
   // el filtro y el datalist del formulario.
@@ -209,13 +214,18 @@ export function InsumosClient({
   }
 
   async function applyBulk() {
+    if (!bulkMode) return;
+    const isRename = bulkMode === "category" && catAction === "rename";
     const ids = [...selected];
-    if (ids.length === 0 || !bulkMode) return;
+    // Renombrar no depende de la selección; el resto sí necesita insumos.
+    if (!isRename && ids.length === 0) return;
+    if (isRename && (!renameFrom || !renameTo.trim())) return;
     setBulkBusy(true);
     setRowError(null);
     setBulkNote(null);
-    const body =
-      bulkMode === "category"
+    const body = isRename
+      ? { action: "renameCategory", from: renameFrom, to: renameTo.trim() }
+      : bulkMode === "category"
         ? { action: "category", ids, category: bulkCategory.trim() || null }
         : { action: "measureKind", ids, measureKind: bulkMeasure };
     const r = await fetch("/api/operator/ingredients/bulk", {
@@ -234,9 +244,11 @@ export function InsumosClient({
       changedIds: string[];
     };
     const changed = new Set(j.changedIds);
+    const newTo = renameTo.trim();
     setItems((prev) =>
       prev.map((it) => {
         if (!changed.has(it.id)) return it;
+        if (isRename) return { ...it, category: newTo };
         return bulkMode === "category"
           ? { ...it, category: bulkCategory.trim() || null }
           : { ...it, measureKind: bulkMeasure };
@@ -245,6 +257,9 @@ export function InsumosClient({
     setSelected(new Set());
     setBulkMode(null);
     setBulkCategory("");
+    setCatAction("move");
+    setRenameFrom("");
+    setRenameTo("");
     // Aviso si algunos no se pudieron cambiar (dimensión bloqueada por refs).
     setBulkNote(
       j.skipped > 0 ? t("bulkSkippedMeasure", { count: j.skipped }) : null,
@@ -371,28 +386,106 @@ export function InsumosClient({
             </div>
           </div>
           {bulkMode === "category" && (
-            <div className="flex items-center gap-2">
-              <input
-                value={bulkCategory}
-                onChange={(e) => setBulkCategory(e.target.value)}
-                list="insumos-bulk-cats"
-                maxLength={60}
-                placeholder={t("bulkCategoryPlaceholder")}
-                className="flex-1 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
-              />
-              <datalist id="insumos-bulk-cats">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
+            <div className="space-y-2">
+              {/* Sub-opción: mover los seleccionados vs renombrar la categoría */}
+              <div className="flex items-center gap-2">
+                {(
+                  [
+                    ["move", t("bulkCatMove")],
+                    ["rename", t("bulkCatRename")],
+                  ] as ["move" | "rename", string][]
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      if (value === "rename" && !renameFrom) {
+                        // Default: categoría común de los seleccionados o la 1ra.
+                        const cats = new Set(
+                          items
+                            .filter((i) => selected.has(i.id) && i.category)
+                            .map((i) => i.category as string),
+                        );
+                        setRenameFrom(
+                          cats.size === 1 ? [...cats][0] : (categories[0] ?? ""),
+                        );
+                      }
+                      setCatAction(value);
+                    }}
+                    className={
+                      "h-7 px-3 rounded-full text-[11px] font-medium border " +
+                      (catAction === value
+                        ? "bg-op-text text-op-surface border-op-text"
+                        : "border-op-border hover:bg-op-bg")
+                    }
+                  >
+                    {label}
+                  </button>
                 ))}
-              </datalist>
-              <button
-                type="button"
-                onClick={applyBulk}
-                disabled={bulkBusy}
-                className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
-              >
-                {bulkBusy ? t("saving") : t("bulkApply")}
-              </button>
+              </div>
+              {catAction === "move" ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={bulkCategory}
+                    onChange={(e) => setBulkCategory(e.target.value)}
+                    list="insumos-bulk-cats"
+                    maxLength={60}
+                    placeholder={t("bulkCategoryPlaceholder")}
+                    className="flex-1 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
+                  />
+                  <datalist id="insumos-bulk-cats">
+                    {categories.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                  <button
+                    type="button"
+                    onClick={applyBulk}
+                    disabled={bulkBusy}
+                    className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+                  >
+                    {bulkBusy ? t("saving") : t("bulkApply")}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={renameFrom}
+                      onChange={(e) => setRenameFrom(e.target.value)}
+                      className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+                    >
+                      {categories.length === 0 && <option value="">—</option>}
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <span aria-hidden className="text-op-muted">
+                      {"→"}
+                    </span>
+                    <input
+                      value={renameTo}
+                      onChange={(e) => setRenameTo(e.target.value)}
+                      maxLength={60}
+                      placeholder={t("bulkRenameToPlaceholder")}
+                      className="flex-1 min-w-[8rem] min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyBulk}
+                      disabled={bulkBusy || !renameFrom || !renameTo.trim()}
+                      className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+                    >
+                      {bulkBusy ? t("saving") : t("bulkApply")}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-op-muted">
+                    {t("bulkRenameHint")}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {bulkMode === "measureKind" && (

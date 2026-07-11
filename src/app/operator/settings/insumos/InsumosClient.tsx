@@ -109,6 +109,15 @@ export function InsumosClient({
   const [importing, setImporting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  // Selección múltiple + acciones masivas (cambiar categoría / dimensión).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState<"category" | "measureKind" | null>(
+    null,
+  );
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkMeasure, setBulkMeasure] = useState<MeasureKind>("mass");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNote, setBulkNote] = useState<string | null>(null);
 
   // Categorías existentes del comercio (sin taxonomía impuesta): alimentan
   // el filtro y el datalist del formulario.
@@ -162,6 +171,84 @@ export function InsumosClient({
     const j = await r.json();
     // El PATCH no incluye _count — se preserva el del row local.
     upsert({ ...(j.ingredient as Ingredient), _count: item._count });
+  }
+
+  // ── Selección múltiple ──
+  const filteredIds = useMemo(() => filtered.map((i) => i.id), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+
+  function toggleSelect(id: string) {
+    setBulkNote(null);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** Marca/desmarca TODOS los visibles (respeta el filtro de categoría). */
+  function toggleSelectAllFiltered() {
+    setBulkNote(null);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (filteredIds.every((id) => next.has(id))) {
+        filteredIds.forEach((id) => next.delete(id));
+      } else {
+        filteredIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+    setBulkMode(null);
+    setBulkNote(null);
+  }
+
+  async function applyBulk() {
+    const ids = [...selected];
+    if (ids.length === 0 || !bulkMode) return;
+    setBulkBusy(true);
+    setRowError(null);
+    setBulkNote(null);
+    const body =
+      bulkMode === "category"
+        ? { action: "category", ids, category: bulkCategory.trim() || null }
+        : { action: "measureKind", ids, measureKind: bulkMeasure };
+    const r = await fetch("/api/operator/ingredients/bulk", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBulkBusy(false);
+    if (!r.ok) {
+      setRowError(t("errSaveFailed"));
+      return;
+    }
+    const j = (await r.json()) as {
+      updated: number;
+      skipped: number;
+      changedIds: string[];
+    };
+    const changed = new Set(j.changedIds);
+    setItems((prev) =>
+      prev.map((it) => {
+        if (!changed.has(it.id)) return it;
+        return bulkMode === "category"
+          ? { ...it, category: bulkCategory.trim() || null }
+          : { ...it, measureKind: bulkMeasure };
+      }),
+    );
+    setSelected(new Set());
+    setBulkMode(null);
+    setBulkCategory("");
+    // Aviso si algunos no se pudieron cambiar (dimensión bloqueada por refs).
+    setBulkNote(
+      j.skipped > 0 ? t("bulkSkippedMeasure", { count: j.skipped }) : null,
+    );
   }
 
   return (
@@ -236,6 +323,105 @@ export function InsumosClient({
 
       {rowError && <div className="text-xs text-danger">{rowError}</div>}
 
+      {/* Barra de acciones masivas (aparece al seleccionar) */}
+      {selected.size > 0 && (
+        <div className="rounded-2xl border border-terracotta/40 bg-terracotta/5 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-sm font-medium">
+              {t("bulkSelectedCount", { count: selected.size })}
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkMode("category");
+                  setBulkNote(null);
+                }}
+                className={
+                  "h-8 px-3 rounded-full text-xs font-medium border " +
+                  (bulkMode === "category"
+                    ? "bg-ink text-bone border-ink"
+                    : "border-op-border hover:bg-op-bg")
+                }
+              >
+                {t("bulkChangeCategory")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkMode("measureKind");
+                  setBulkNote(null);
+                }}
+                className={
+                  "h-8 px-3 rounded-full text-xs font-medium border " +
+                  (bulkMode === "measureKind"
+                    ? "bg-ink text-bone border-ink"
+                    : "border-op-border hover:bg-op-bg")
+                }
+              >
+                {t("bulkChangeMeasure")}
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="h-8 px-2 text-xs text-op-muted underline underline-offset-2 hover:text-ink"
+              >
+                {t("bulkClear")}
+              </button>
+            </div>
+          </div>
+          {bulkMode === "category" && (
+            <div className="flex items-center gap-2">
+              <input
+                value={bulkCategory}
+                onChange={(e) => setBulkCategory(e.target.value)}
+                list="insumos-bulk-cats"
+                maxLength={60}
+                placeholder={t("bulkCategoryPlaceholder")}
+                className="flex-1 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
+              />
+              <datalist id="insumos-bulk-cats">
+                {categories.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                onClick={applyBulk}
+                disabled={bulkBusy}
+                className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+              >
+                {bulkBusy ? t("saving") : t("bulkApply")}
+              </button>
+            </div>
+          )}
+          {bulkMode === "measureKind" && (
+            <div className="flex items-center gap-2">
+              <select
+                value={bulkMeasure}
+                onChange={(e) => setBulkMeasure(e.target.value as MeasureKind)}
+                className="flex-1 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              >
+                {MEASURE_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(DIM_LABEL_KEYS[k])}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={applyBulk}
+                disabled={bulkBusy}
+                className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+              >
+                {bulkBusy ? t("saving") : t("bulkApply")}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {bulkNote && <div className="text-xs text-op-muted">{bulkNote}</div>}
+
       {/* Lista */}
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
@@ -248,11 +434,38 @@ export function InsumosClient({
         </div>
       ) : (
         <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+          {/* Encabezado: seleccionar todos los VISIBLES (respeta el filtro de
+              categoría, así "seleccionar todos los de una categoría" = filtrar
+              por esa categoría y marcar todo). */}
+          <label className="flex items-center gap-3 px-4 py-2 border-b border-op-border bg-op-bg/40 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allFilteredSelected}
+              onChange={toggleSelectAllFiltered}
+              className="accent-terracotta w-4 h-4"
+              aria-label={t("bulkSelectAll")}
+            />
+            <span className="text-[11px] text-op-muted">
+              {cat === "all"
+                ? t("bulkSelectAll")
+                : t("bulkSelectAllCategory", { category: cat })}
+            </span>
+          </label>
           {filtered.map((i) => (
             <div
               key={i.id}
-              className="flex items-center gap-3 px-4 py-2 border-b border-op-border last:border-b-0"
+              className={
+                "flex items-center gap-3 px-4 py-2 border-b border-op-border last:border-b-0 " +
+                (selected.has(i.id) ? "bg-terracotta/5" : "")
+              }
             >
+              <input
+                type="checkbox"
+                checked={selected.has(i.id)}
+                onChange={() => toggleSelect(i.id)}
+                className="accent-terracotta w-4 h-4 shrink-0"
+                aria-label={t("bulkSelectRow", { name: i.name })}
+              />
               <button
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}

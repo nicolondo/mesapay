@@ -2093,11 +2093,17 @@ function pesosDigitsToCents(digits: string): number {
   return digits && isFinite(p) && p > 0 ? pesosToCents(p) : 0;
 }
 
-/** Costo inicial (pesos) desde la extracción: total de línea o unit×qty. */
+/**
+ * Costo inicial (pesos) desde la extracción: total de línea o unit×qty. El
+ * input de costo (MoneyInput) es de pesos ENTEROS — sin centavos — así que se
+ * redondea AL PESO. Devolver decimales ("232499.82") rompía el display:
+ * MoneyInput quita el punto y mostraba "23.249.982" (aunque el cálculo usaba
+ * el valor correcto). El centavo perdido es inmaterial en COP.
+ */
 function initialLineCost(line: ExtractionLine): string {
-  if (line.lineTotalCents != null) return String(line.lineTotalCents / 100);
+  if (line.lineTotalCents != null) return String(Math.round(line.lineTotalCents / 100));
   if (line.unitPriceCents != null && line.quantity > 0) {
-    return String(Math.round(line.unitPriceCents * line.quantity) / 100);
+    return String(Math.round((line.unitPriceCents * line.quantity) / 100));
   }
   return "";
 }

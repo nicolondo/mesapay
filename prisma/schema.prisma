@@ -1877,11 +1877,20 @@ model StaffShift {
   // C2 — el cron cerró la salida a la hora planeada (olvido de check-out).
   autoClosed       Boolean   @default(false)
 
+  // Revisión de identidad: se marca cuando un punch fue MANUAL con foto
+  // (la cámara funcionó pero el reconocimiento facial no matcheó → alguien
+  // eligió su nombre a mano). El admin revisa que la foto concuerde con la
+  // persona; reviewedAt lo cierra.
+  reviewNeededAt   DateTime?
+  reviewedAt       DateTime?
+  reviewedByEmail  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([restaurantId, date])
   @@index([employeeId, date])
+  @@index([restaurantId, reviewNeededAt])
 }
 
 // === ERP · Fase A2.5: órdenes de compra desde factura (lectura IA) =========

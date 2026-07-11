@@ -10,10 +10,10 @@ export default async function TerminalPendingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
-  searchParams: Promise<{ pid?: string }>;
+  searchParams: Promise<{ pid?: string; op?: string }>;
 }) {
   const { slug, orderId } = await params;
-  const { pid } = await searchParams;
+  const { pid, op } = await searchParams;
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -54,6 +54,7 @@ export default async function TerminalPendingPage({
       // sumar tipCents de nuevo o se duplica la propina en pantalla.
       amountCents={payment.amountCents}
       initialStatus={payment.status}
+      operatorMode={op === "1"}
     />
   );
 }

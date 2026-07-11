@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { DoneLive } from "./DoneLive";
@@ -50,10 +51,16 @@ export default async function PayDone({
   searchParams,
 }: {
   params: Promise<{ slug: string; orderId: string }>;
-  searchParams: Promise<{ pid?: string }>;
+  searchParams: Promise<{ pid?: string; op?: string }>;
 }) {
   const { slug, orderId } = await params;
-  const { pid } = await searchParams;
+  const { pid, op } = await searchParams;
+  // op=1 → llegó acá el MESERO tras cobrar: copia en tercera persona +
+  // enlace de vuelta a mesas (según el rol de la sesión).
+  const operator = op === "1";
+  const session = operator ? await auth() : null;
+  const backHref =
+    session?.user?.role === "mesero" ? "/mesero/mesas" : "/operator/tables";
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
 
@@ -101,6 +108,19 @@ export default async function PayDone({
 
   const t = await getTranslations("done");
 
+  // Banner de mesero (solo op=1): confirma el cobro y da salida a mesas.
+  const operatorBanner = operator ? (
+    <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl bg-ink text-bone px-4 py-3">
+      <span className="text-sm font-medium">{t("opChargeDone")}</span>
+      <Link
+        href={backHref}
+        className="font-mono text-[10px] tracking-wider uppercase underline opacity-90 shrink-0"
+      >
+        {t("opBackToTables")}
+      </Link>
+    </div>
+  ) : null;
+
   // Counter-mode keeps its status tracker: big code + live cook status.
   if (tenant.serviceMode === "counter") {
     const round = order.rounds[0] ?? null;
@@ -112,6 +132,7 @@ export default async function PayDone({
       <main className="flex-1 bg-bone">
         <div className="max-w-md mx-auto px-5 py-10">
           <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
+          {operatorBanner}
 
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-terracotta">
             {t("orderPaid")}
@@ -167,6 +188,7 @@ export default async function PayDone({
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              operatorMode={operator}
             />
           </div>
 
@@ -231,6 +253,7 @@ export default async function PayDone({
     <main className="flex-1 bg-bone">
       <div className="max-w-xl mx-auto px-5 py-10">
         <DoneLive orderId={order.id} tenantSlug={tenant.slug} />
+        {operatorBanner}
 
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
           {t("headerTable", {
@@ -273,6 +296,7 @@ export default async function PayDone({
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              operatorMode={operator}
             />
           </div>
         )}

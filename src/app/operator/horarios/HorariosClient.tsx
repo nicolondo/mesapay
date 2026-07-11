@@ -101,6 +101,24 @@ type WeekPayload = {
   settings: StaffSettings | null;
 };
 
+/** Punch manual-con-foto pendiente de revisión de identidad: el
+ *  reconocimiento facial no matcheó, el empleado eligió su nombre a mano
+ *  y la foto quedó como evidencia para que el admin la verifique. */
+type ReviewDto = {
+  id: string;
+  date: string;
+  reviewNeededAt: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  checkInPhotoUrl: string | null;
+  checkOutPhotoUrl: string | null;
+  checkInMethod: string | null;
+  checkOutMethod: string | null;
+  employee: { id: string; name: string; position: string };
+};
+
+type ReviewsPayload = { count: number; reviews: ReviewDto[] };
+
 /* ─────────────────────────── Helpers ───────────────────────────────── */
 
 /** "YYYY-MM-DD" ± n días — aritmética UTC (sin DST). */
@@ -284,6 +302,11 @@ export function HorariosClient({
   // Ajustes de Horarios (C2 · D4/D5): estricto + recargos. Guardar cambia
   // el costo de los turnos ya cargados → invalida la caché de semanas.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Revisión de identidad: punches manual-con-foto que el admin debe
+  // verificar. El count alimenta la alerta del header; se refresca al
+  // montar y al cerrar el sheet (por si el admin confirmó varias).
+  const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [reviewsCount, setReviewsCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,6 +346,27 @@ export function HorariosClient({
       cancelled = true;
     };
   }, [settingsOpen]);
+
+  // Alerta de revisión de identidad: cuenta los punches pendientes. Se
+  // refresca al cerrar el sheet por si el admin confirmó algunos — no
+  // bloquea la vista (si falla, la alerta simplemente no aparece).
+  useEffect(() => {
+    if (reviewsOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/attendance/reviews");
+        if (!r.ok) return;
+        const j = (await r.json()) as ReviewsPayload;
+        if (!cancelled) setReviewsCount(j.count);
+      } catch {
+        /* la alerta es opcional — sin count no se resalta nada */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewsOpen]);
 
   const activeEmployees = useMemo(
     () => (team?.employees ?? []).filter((e) => e.active),
@@ -367,15 +411,37 @@ export function HorariosClient({
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          aria-label={t("staffSettingsTitle")}
-          title={t("staffSettingsTitle")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-base text-op-muted hover:text-ink hover:bg-op-bg shrink-0"
-        >
-          {"⚙"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Alerta de revisión de identidad: resaltada en ámbar cuando
+              hay punches pendientes; apagada cuando no hay ninguno. */}
+          <button
+            type="button"
+            onClick={() => setReviewsOpen(true)}
+            title={t("reviewsTitle")}
+            className={
+              "relative min-h-[44px] px-4 rounded-full border text-xs font-medium transition-colors " +
+              (reviewsCount > 0
+                ? "border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#7F5A1F] hover:bg-[#C98A2E]/20"
+                : "border-op-border bg-op-surface text-op-muted hover:text-ink hover:bg-op-bg")
+            }
+          >
+            {t("reviewsButton")}
+            {reviewsCount > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-danger text-bone text-[10px] font-semibold tabular-nums">
+                {reviewsCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label={t("staffSettingsTitle")}
+            title={t("staffSettingsTitle")}
+            className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-base text-op-muted hover:text-ink hover:bg-op-bg shrink-0"
+          >
+            {"⚙"}
+          </button>
+        </div>
       </div>
 
       {tab === "week" ? (
@@ -442,6 +508,13 @@ export function HorariosClient({
             // Estricto/recargos cambian el costo de TODOS los turnos.
             setWeekCache({});
           }}
+        />
+      )}
+
+      {reviewsOpen && (
+        <ReviewsSheet
+          onClose={() => setReviewsOpen(false)}
+          onCountChange={setReviewsCount}
         />
       )}
     </div>
@@ -2261,6 +2334,210 @@ function FaceEnrollSheet({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Revisión de identidad (alerta al admin) ───────────── */
+
+/**
+ * Lista los punches manual-con-foto pendientes de revisar: el
+ * reconocimiento facial no matcheó, el empleado eligió su nombre a mano y
+ * la cámara igual capturó la foto. El admin verifica que la foto sea de la
+ * persona y confirma (POST). Confirmar saca la fila del listado y baja el
+ * count del header (la alerta). El sheet refresca el count al cerrarse.
+ */
+function ReviewsSheet({
+  onClose,
+  onCountChange,
+}: {
+  onClose: () => void;
+  onCountChange: (count: number) => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+
+  const [reviews, setReviews] = useState<ReviewDto[] | null>(null);
+  const [loadErr, setLoadErr] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/attendance/reviews");
+        if (!r.ok) throw new Error("load_failed");
+        const j = (await r.json()) as ReviewsPayload;
+        if (cancelled) return;
+        setReviews(j.reviews);
+        onCountChange(j.count);
+      } catch {
+        if (!cancelled) setLoadErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // onCountChange es un setState estable — no hace falta como dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function confirm(id: string) {
+    setErr(null);
+    setBusyId(id);
+    const r = await fetch(`/api/operator/attendance/reviews/${id}`, {
+      method: "POST",
+    });
+    setBusyId(null);
+    if (!r.ok) {
+      setErr(t("errSaveFailed"));
+      return;
+    }
+    // Sale del listado y baja el count de la alerta.
+    setReviews((rs) => {
+      const next = (rs ?? []).filter((x) => x.id !== id);
+      onCountChange(next.length);
+      return next;
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h2 className="font-display text-2xl">{t("reviewsTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        {loadErr ? (
+          <div className="text-xs text-danger">{t("errLoadFailed")}</div>
+        ) : reviews === null ? (
+          <div className="py-6 text-center text-sm text-op-muted">
+            {t("loading")}
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
+            <p className="text-sm text-op-muted">{t("reviewsEmpty")}</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[11px] text-op-muted">{t("reviewsHint")}</p>
+            {err && <div className="text-xs text-danger">{err}</div>}
+            {reviews.map((rev) => (
+              <div
+                key={rev.id}
+                className="rounded-2xl border border-op-border bg-op-bg/40 p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {rev.employee.name}
+                    </div>
+                    <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                      {[
+                        rev.employee.position,
+                        formatDate(rev.date, {
+                          locale,
+                          dateStyle: "medium",
+                          timeStyle: undefined,
+                          timeZone: "UTC",
+                        }),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fotos del punch (entrada/salida) — las que no sean
+                    null. Tap abre la foto completa en otra pestaña. */}
+                <div className="flex items-start gap-3">
+                  {rev.checkInPhotoUrl && (
+                    <figure className="min-w-0">
+                      <a
+                        href={rev.checkInPhotoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-[120px] h-[120px] rounded-xl overflow-hidden border border-op-border"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={rev.checkInPhotoUrl}
+                          alt={t("facePhotoAltIn")}
+                          className="w-full h-full object-cover"
+                        />
+                      </a>
+                      {rev.checkInAt && (
+                        <figcaption className="text-[10px] text-op-muted mt-1 tabular-nums">
+                          {t("reviewsPhotoInLabel", {
+                            time: punchTime(rev.checkInAt, locale),
+                          })}
+                        </figcaption>
+                      )}
+                    </figure>
+                  )}
+                  {rev.checkOutPhotoUrl && (
+                    <figure className="min-w-0">
+                      <a
+                        href={rev.checkOutPhotoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-[120px] h-[120px] rounded-xl overflow-hidden border border-op-border"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={rev.checkOutPhotoUrl}
+                          alt={t("facePhotoAltOut")}
+                          className="w-full h-full object-cover"
+                        />
+                      </a>
+                      {rev.checkOutAt && (
+                        <figcaption className="text-[10px] text-op-muted mt-1 tabular-nums">
+                          {t("reviewsPhotoOutLabel", {
+                            time: punchTime(rev.checkOutAt, locale),
+                          })}
+                        </figcaption>
+                      )}
+                    </figure>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-op-muted">
+                  {t("reviewsFacialMismatch")}
+                </p>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => confirm(rev.id)}
+                    disabled={busyId !== null}
+                    className="min-h-[44px] px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+                  >
+                    {busyId === rev.id ? t("saving") : t("reviewsConfirm")}
+                  </button>
+                  <span className="text-[10px] text-op-muted">
+                    {t("reviewsMismatchNote")}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

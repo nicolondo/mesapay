@@ -69,6 +69,10 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
+  // Punch MANUAL con foto = la cámara funcionó pero el reconocimiento no
+  // matcheó (eligieron el nombre a mano) → alerta al admin para revisar.
+  const reviewFields =
+    b.method === "manual" && b.photoUrl ? { reviewNeededAt: now } : {};
   const shifts = await db.staffShift.findMany({
     where: { employeeId: b.employeeId, date },
     orderBy: { startMinutes: "asc" },
@@ -97,6 +101,7 @@ export async function POST(req: Request) {
         checkOutAt: now,
         checkOutPhotoUrl: b.photoUrl ?? null,
         checkOutMethod: b.method,
+        ...reviewFields,
       },
       include: EMPLOYEE_SELECT,
     });
@@ -112,6 +117,7 @@ export async function POST(req: Request) {
         checkInAt: now,
         checkInPhotoUrl: b.photoUrl ?? null,
         checkInMethod: b.method,
+        ...reviewFields,
       },
       include: EMPLOYEE_SELECT,
     });
@@ -156,6 +162,7 @@ export async function POST(req: Request) {
       checkInAt: now,
       checkInPhotoUrl: b.photoUrl ?? null,
       checkInMethod: b.method,
+      ...reviewFields,
     },
     include: EMPLOYEE_SELECT,
   });

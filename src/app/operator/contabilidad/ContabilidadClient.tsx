@@ -1278,6 +1278,18 @@ function BooksTab({
           {t("exportExpensesCsv")}
         </a>
       </div>
+
+      {/* Reporte consolidado para el contador: un Excel con Ventas,
+          Retenciones, Costos de ventas e Inventarios. */}
+      <a
+        href={`/api/operator/accounting/report?month=${month}`}
+        className="w-full min-h-[44px] inline-flex items-center justify-center rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+      >
+        {t("repDownloadExcel")}
+      </a>
+      <p className="text-[11px] text-op-muted text-center -mt-2">
+        {t("repDownloadHint")}
+      </p>
     </div>
   );
 }

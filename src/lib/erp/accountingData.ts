@@ -457,3 +457,67 @@ export async function loadPurchasesBook(
   };
   return { rows, totals };
 }
+
+/**
+ * Costo de ventas (CMV) del mes por insumo: Σ |valueCents| de los
+ * movimientos sale_consumption (ledger A4), agrupado por insumo. Es el costo
+ * real de lo vendido — para el reporte al contador.
+ */
+export async function loadCogsBook(restaurantId: string, range: MonthRange) {
+  const moves = await db.stockMovement.groupBy({
+    by: ["ingredientId"],
+    where: {
+      restaurantId,
+      kind: "sale_consumption",
+      createdAt: { gte: range.from, lt: range.to },
+    },
+    _sum: { valueCents: true },
+  });
+  const ids = moves.map((m) => m.ingredientId).filter((x): x is string => !!x);
+  const ingredients = ids.length
+    ? await db.ingredient.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, name: true, category: true },
+      })
+    : [];
+  const byId = new Map(ingredients.map((i) => [i.id, i]));
+  const rows = moves
+    .map((m) => ({
+      ingredientName: byId.get(m.ingredientId ?? "")?.name ?? "—",
+      category: byId.get(m.ingredientId ?? "")?.category ?? "",
+      valueCents: Math.abs(m._sum.valueCents ?? 0),
+    }))
+    .filter((r) => r.valueCents > 0)
+    .sort((a, b) => b.valueCents - a.valueCents);
+  const totals = { valueCents: rows.reduce((s, r) => s + r.valueCents, 0) };
+  return { rows, totals };
+}
+
+/**
+ * Inventario ACTUAL valorado por insumo (snapshot, no depende del mes):
+ * existencia en unidad base + valor total (promedio ponderado). Para el
+ * reporte al contador.
+ */
+export async function loadInventoryBook(restaurantId: string) {
+  const levels = await db.stockLevel.findMany({
+    where: { restaurantId, ingredient: { active: true } },
+    select: {
+      qtyBase: true,
+      totalValueCents: true,
+      ingredient: {
+        select: { name: true, category: true, measureKind: true },
+      },
+    },
+  });
+  const rows = levels
+    .map((l) => ({
+      ingredientName: l.ingredient.name,
+      category: l.ingredient.category ?? "",
+      measureKind: l.ingredient.measureKind,
+      qtyBase: l.qtyBase,
+      valueCents: l.totalValueCents,
+    }))
+    .sort((a, b) => b.valueCents - a.valueCents);
+  const totals = { valueCents: rows.reduce((s, r) => s + r.valueCents, 0) };
+  return { rows, totals };
+}

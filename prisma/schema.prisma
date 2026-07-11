@@ -305,6 +305,7 @@ model Restaurant {
   dianConfig             DianConfig?
   dianDocuments          DianDocument[]
   purchaseInvoiceUploads PurchaseInvoiceUpload[]
+  purchasePayments       PurchasePayment[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -650,6 +651,7 @@ model User {
   expensesCreated          Expense[]               @relation("ExpenseCreator")
   productionBatchesCreated ProductionBatch[]       @relation("ProductionBatchCreator")
   purchaseInvoiceUploads   PurchaseInvoiceUpload[]
+  purchasePayments         PurchasePayment[]       @relation("PurchasePaymentCreator")
   employeeProfile          Employee?
   stockCounts              StockCount[]            @relation("StockCountCreator")
   purchaseOrders           PurchaseOrder[]         @relation("PurchaseOrderCreator")
@@ -1628,8 +1630,12 @@ model PurchaseOrder {
   // CxP (spec D5). invoiceDueAt default: receivedAt + paymentTermsDays.
   supplierInvoiceNumber String?
   invoiceDueAt          DateTime?
+  // paidAt se setea cuando el saldo llega a 0 (pagada por completo).
   paidAt                DateTime?
   paymentNote           String?
+  // Abonado acumulado (centavos) — cache mantenido en la tx de cada pago.
+  // Saldo = total bruto de la OC − paidCents.
+  paidCents             Int       @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -1640,6 +1646,7 @@ model PurchaseOrder {
   movements      StockMovement[]
   priceHistory   SupplierPriceHistory[]
   invoiceUploads PurchaseInvoiceUpload[]
+  payments       PurchasePayment[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId, status])
@@ -1670,6 +1677,27 @@ model PurchaseOrderItem {
   receivedCostCents Int @default(0)
 
   @@index([purchaseOrderId])
+}
+
+/// Abono (pago parcial o total) de una OC recibida — CxP (F3). Varios
+/// por OC; el saldo = total bruto − Σ abonos. Cuando el saldo llega a 0
+/// la OC queda pagada (PurchaseOrder.paidAt). Historial para auditoría.
+model PurchasePayment {
+  id              String        @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  amountCents     Int
+  paidAt          DateTime // fecha del abono (editable)
+  method          String? // efectivo / transferencia / … (texto libre)
+  note            String?
+  createdById     String?
+  createdBy       User?    @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  @@index([purchaseOrderId])
+  @@index([restaurantId, paidAt])
 }
 
 /// Historial de precios por presentación de la lista de precios (spec D4).

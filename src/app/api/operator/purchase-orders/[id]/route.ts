@@ -12,15 +12,13 @@ const GATE: ModuleSlug[] = ["purchasing"];
 // re-creando la OC desde la UI (borrar draft + crear) — mantener PATCH de
 // líneas fuera simplifica el server sin perder capacidad real.
 const patchSchema = z.object({
-  action: z.enum(["mark_sent", "cancel", "update_invoice", "mark_paid", "edit"]),
+  action: z.enum(["mark_sent", "cancel", "update_invoice", "edit"]),
   // edit (solo draft):
   notes: z.string().trim().max(1000).nullable().optional(),
   expectedAt: z.string().datetime().nullable().optional(),
   // update_invoice:
   supplierInvoiceNumber: z.string().trim().max(80).nullable().optional(),
   invoiceDueAt: z.string().datetime().nullable().optional(),
-  // mark_paid:
-  paymentNote: z.string().trim().max(300).nullable().optional(),
 });
 
 async function loadOwned(id: string, restaurantId: string) {
@@ -69,6 +67,11 @@ export async function GET(
           ingredient: { select: { id: true, name: true, measureKind: true } },
           createdBy: { select: { id: true, name: true } },
         },
+      },
+      // Abonos (CxP · F3) — historial de pagos parciales/totales.
+      payments: {
+        orderBy: { paidAt: "desc" },
+        include: { createdBy: { select: { id: true, name: true } } },
       },
     },
   });
@@ -147,16 +150,6 @@ export async function PATCH(
             ? { invoiceDueAt: b.invoiceDueAt ? new Date(b.invoiceDueAt) : null }
             : {}),
         },
-      });
-      return NextResponse.json({ order });
-    }
-    case "mark_paid": {
-      if (po.status !== "received" && po.status !== "partially_received") {
-        return NextResponse.json({ error: "wrong_status" }, { status: 409 });
-      }
-      const order = await db.purchaseOrder.update({
-        where: { id },
-        data: { paidAt: now, paymentNote: b.paymentNote ?? null },
       });
       return NextResponse.json({ order });
     }

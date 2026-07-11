@@ -103,10 +103,20 @@ export default async function TablesPage() {
     : allTables.filter((t) => t.number !== -1);
 
   // Mesas libres (sin orden abierta) — necesarias para "Mover a
-  // otra mesa" del detail sheet.
+  // otra mesa" del detail sheet (mueve el pedido ENTERO, solo a libres).
   const freeTables = tables
     .filter((t) => t.orders.length === 0)
     .map((t) => ({ id: t.id, number: t.number, label: t.label }));
+
+  // TODAS las mesas (libres y ocupadas) para "Mover un plato" — a
+  // diferencia del move de pedido entero, un plato SÍ puede unirse a
+  // una mesa con cuenta abierta. `occupied` = tiene orden abierta.
+  const allTablesForMove = tables.map((t) => ({
+    id: t.id,
+    number: t.number,
+    label: t.label,
+    occupied: t.orders.length > 0,
+  }));
 
   // Recently-paid lookup.
   const tableIds = allTables.map((t) => t.id);
@@ -334,6 +344,7 @@ export default async function TablesPage() {
         counterMode={counterMode}
         isMeseroView={isMeseroView}
         freeTables={freeTables}
+        allTables={allTablesForMove}
       />
     </div>
   );

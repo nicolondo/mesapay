@@ -1680,7 +1680,7 @@
     "fieldPhoneLabel": "Telefone",
     "fieldPhonePlaceholder": "+57 320 123 4567",
     "dianSectionTitle": "Resolução de faturamento DIAN",
-    "dianHelp": "As informações da resolução que aparecem nas faturas em formato de cupom. Não nos conectamos com a DIAN — isto serve apenas para imprimir no comprovante.",
+    "dianHelp": "Dados da resolução de numeração autorizada pela DIAN. Aparecem no comprovante e, com a nota fiscal eletrônica ativa, alimentam a nota eletrônica.",
     "dianResolutionLabel": "Resolução (texto)",
     "dianResolutionPlaceholder": "Resolución 18760000001",
     "dianDateLabel": "Data da resolução",

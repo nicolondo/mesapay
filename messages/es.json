@@ -1680,7 +1680,7 @@
     "fieldPhoneLabel": "Teléfono",
     "fieldPhonePlaceholder": "+57 320 123 4567",
     "dianSectionTitle": "Resolución de facturación DIAN",
-    "dianHelp": "La información de la resolución que aparece en las facturas tipo tirilla. No conectamos con la DIAN — esto es solo para imprimir en el comprobante.",
+    "dianHelp": "Datos de la resolución de numeración autorizada por la DIAN. Aparecen en el comprobante y, con la facturación electrónica activa, alimentan la factura electrónica.",
     "dianResolutionLabel": "Resolución (texto)",
     "dianResolutionPlaceholder": "Resolución 18760000001",
     "dianDateLabel": "Fecha de resolución",

@@ -16,11 +16,14 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import {
+  type InvoiceTaxExtras,
+  invoiceGrandTotalCents,
   lineGrossCents,
   lineTaxCents,
   normalizeTaxPct,
   poTotals,
   purchaseTaxRates,
+  retentionsCents,
   totalsMatch,
 } from "@/lib/erp/purchaseTax";
 
@@ -1926,6 +1929,11 @@ type InvoiceUploadResult = {
     invoiceSubtotalCents: number | null;
     invoiceTaxCents: number | null;
     invoiceTotalCents: number | null;
+    // Otros impuestos discriminados a nivel documento (ERP A3).
+    invoiceIncCents: number | null;
+    retefuenteCents: number | null;
+    reteIvaCents: number | null;
+    reteIcaCents: number | null;
     confidence: number;
     notes: string;
   };
@@ -2072,6 +2080,17 @@ function reviewLineCostCents(l: InvoiceReviewLine): number | null {
   const p = Number(l.cost.replace(",", "."));
   if (!isFinite(p) || p < 0) return null;
   return pesosToCents(p);
+}
+
+/** Centavos → dígitos crudos de pesos enteros para MoneyInput ("" si 0/null). */
+function centsToPesosDigits(c: number | null | undefined): string {
+  return c && c > 0 ? String(Math.round(c / 100)) : "";
+}
+
+/** Dígitos crudos de pesos (MoneyInput) → centavos. */
+function pesosDigitsToCents(digits: string): number {
+  const p = Number(digits);
+  return digits && isFinite(p) && p > 0 ? pesosToCents(p) : 0;
 }
 
 /** Costo inicial (pesos) desde la extracción: total de línea o unit×qty. */
@@ -2281,10 +2300,39 @@ function InvoiceReviewSheet({
     [lines],
   );
   const totals = useMemo(() => poTotals(breakdownLines), [breakdownLines]);
+
+  // Otros impuestos del documento (ERP A3): INC (impoconsumo) + retenciones,
+  // que la IA leyó y el operador verifica. En pesos enteros (MoneyInput).
+  const [incPesos, setIncPesos] = useState(() =>
+    centsToPesosDigits(extraction.invoiceIncCents),
+  );
+  const [retefuentePesos, setRetefuentePesos] = useState(() =>
+    centsToPesosDigits(extraction.retefuenteCents),
+  );
+  const [reteIvaPesos, setReteIvaPesos] = useState(() =>
+    centsToPesosDigits(extraction.reteIvaCents),
+  );
+  const [reteIcaPesos, setReteIcaPesos] = useState(() =>
+    centsToPesosDigits(extraction.reteIcaCents),
+  );
+  const extras = useMemo<InvoiceTaxExtras>(
+    () => ({
+      incCents: pesosDigitsToCents(incPesos),
+      retefuenteCents: pesosDigitsToCents(retefuentePesos),
+      reteIvaCents: pesosDigitsToCents(reteIvaPesos),
+      reteIcaCents: pesosDigitsToCents(reteIcaPesos),
+    }),
+    [incPesos, retefuentePesos, reteIvaPesos, reteIcaPesos],
+  );
+  // Total a pagar = subtotal + IVA + INC − retenciones.
+  const grandTotalCents = useMemo(
+    () => invoiceGrandTotalCents(totals.subtotalCents, totals.taxCents, extras),
+    [totals.subtotalCents, totals.taxCents, extras],
+  );
   // Concordancia con el total IMPRESO de la factura (si se leyó).
   const mismatch = useMemo(
-    () => !totalsMatch(totals.totalCents, extraction.invoiceTotalCents),
-    [totals.totalCents, extraction.invoiceTotalCents],
+    () => !totalsMatch(grandTotalCents, extraction.invoiceTotalCents),
+    [grandTotalCents, extraction.invoiceTotalCents],
   );
 
   // Resumen emparejado/nuevo: cuántos insumos ya existen vs se crearán
@@ -2405,6 +2453,10 @@ function InvoiceReviewSheet({
           supplierInvoiceNumber: invoiceNumber.trim() || null,
           invoiceDueAt:
             mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
+          incCents: extras.incCents,
+          retefuenteCents: extras.retefuenteCents,
+          reteIvaCents: extras.reteIvaCents,
+          reteIcaCents: extras.reteIcaCents,
         }),
       },
     );
@@ -2656,11 +2708,62 @@ function InvoiceReviewSheet({
               />
             </div>
 
+            {/* Otros impuestos del documento (ERP A3): INC + retenciones. La IA
+                los prellena; el operador los verifica/corrige. INC suma,
+                retenciones restan al total a pagar. */}
+            <div className="rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+              <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                {t("invTaxOtherSection")}
+              </div>
+              {(
+                [
+                  ["inc", t("invTaxInc"), incPesos, setIncPesos],
+                  [
+                    "retefuente",
+                    t("invTaxRetefuente"),
+                    retefuentePesos,
+                    setRetefuentePesos,
+                  ],
+                  ["reteiva", t("invTaxReteIva"), reteIvaPesos, setReteIvaPesos],
+                  ["reteica", t("invTaxReteIca"), reteIcaPesos, setReteIcaPesos],
+                ] as [string, string, string, (v: string) => void][]
+              ).map(([key, label, value, setter]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <label
+                    htmlFor={`invtax-${key}`}
+                    className="text-xs text-op-muted"
+                  >
+                    {label}
+                  </label>
+                  <MoneyInput
+                    id={`invtax-${key}`}
+                    value={value}
+                    onChange={setter}
+                    ariaLabel={label}
+                    placeholder="0"
+                    className="w-32 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-surface text-sm text-right"
+                  />
+                </div>
+              ))}
+              {retentionsCents(extras) > 0 && (
+                <p className="text-[10px] text-op-muted">
+                  {t("invTaxRetentionNote")}
+                </p>
+              )}
+              <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
+                <span>{t("invTaxGrandTotal")}</span>
+                <span>{formatMoney(grandTotalCents, { currency, locale })}</span>
+              </div>
+            </div>
+
             {/* Concordancia con el total impreso de la factura (no bloquea). */}
             {mismatch && extraction.invoiceTotalCents != null && (
               <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
                 {t("invTotalMismatch", {
-                  computed: formatMoney(totals.totalCents, {
+                  computed: formatMoney(grandTotalCents, {
                     currency,
                     locale,
                   }),

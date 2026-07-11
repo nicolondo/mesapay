@@ -48,6 +48,41 @@ export function purchaseTaxRates(country: string | null | undefined): number[] {
   return country === "MX" ? [0, 8, 16] : [0, 5, 19];
 }
 
+/**
+ * Otros impuestos de la factura además del IVA (ERP A3). INC se suma al
+ * total; las retenciones se restan. Todos en centavos, positivos.
+ */
+export type InvoiceTaxExtras = {
+  incCents: number;
+  retefuenteCents: number;
+  reteIvaCents: number;
+  reteIcaCents: number;
+};
+
+export const EMPTY_TAX_EXTRAS: InvoiceTaxExtras = {
+  incCents: 0,
+  retefuenteCents: 0,
+  reteIvaCents: 0,
+  reteIcaCents: 0,
+};
+
+/** Suma de retenciones (se restan del total a pagar). */
+export function retentionsCents(x: InvoiceTaxExtras): number {
+  return x.retefuenteCents + x.reteIvaCents + x.reteIcaCents;
+}
+
+/**
+ * Total a pagar de la factura = subtotal (neto) + IVA + INC − retenciones.
+ * Sirve para verificar contra el total impreso que leyó la IA.
+ */
+export function invoiceGrandTotalCents(
+  subtotalCents: number,
+  ivaCents: number,
+  x: InvoiceTaxExtras,
+): number {
+  return subtotalCents + ivaCents + x.incCents - retentionsCents(x);
+}
+
 /** Normaliza un taxPct a entero 0–100 (0 si inválido). */
 export function normalizeTaxPct(v: unknown): number {
   const n = typeof v === "string" ? Number(v) : (v as number);

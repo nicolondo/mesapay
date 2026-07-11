@@ -29,6 +29,7 @@ const lineSchema = z.object({
   taxPct: z.number().int().min(0).max(100).optional(),
 });
 
+const cents = z.number().int().min(0).max(2_000_000_000).optional();
 const confirmSchema = z.object({
   supplierId: z.string().min(1).nullable(), // null ⇒ crear proveedor nuevo
   newSupplierName: z.string().trim().min(1).max(120).nullable().optional(),
@@ -37,6 +38,12 @@ const confirmSchema = z.object({
   mode: z.enum(["draft", "receive"]),
   supplierInvoiceNumber: z.string().trim().max(80).nullable().optional(),
   invoiceDueAt: z.string().datetime().nullable().optional(),
+  // Impuestos de la factura verificados por el operador (ERP A3). El IVA sale
+  // de las líneas (taxPct); estos se guardan en la OC para la contabilidad.
+  incCents: cents,
+  retefuenteCents: cents,
+  reteIvaCents: cents,
+  reteIcaCents: cents,
 });
 
 export async function POST(
@@ -141,6 +148,25 @@ export async function POST(
           : null,
         createdById,
       });
+
+      // 3b. Impuestos de la factura (además del IVA de las líneas) → OC, para
+      // la contabilidad/reportes. Se guardan igual en draft o receive.
+      if (
+        b.incCents ||
+        b.retefuenteCents ||
+        b.reteIvaCents ||
+        b.reteIcaCents
+      ) {
+        await tx.purchaseOrder.update({
+          where: { id: po.id },
+          data: {
+            incCents: b.incCents ?? 0,
+            retefuenteCents: b.retefuenteCents ?? 0,
+            reteIvaCents: b.reteIvaCents ?? 0,
+            reteIcaCents: b.reteIcaCents ?? 0,
+          },
+        });
+      }
 
       // 4. Recepción (si la factura = mercancía recibida).
       if (b.mode === "receive") {

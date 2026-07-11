@@ -69,6 +69,18 @@ type PnlDto = {
   } | null;
   /** C1 — (CMV + mermas + laboral) / ingresos. null sin staff o sin ventas. */
   primeCostPct: number | null;
+  /**
+   * Ventas y CMV por categoría del menú (orden desc por salesCents, lo
+   * garantiza el server). `category` puede ser "(sin categoría)" o "(otros)"
+   * (costo no atribuible) — vienen como datos, no se i18n-izan. `cmvCents`
+   * queda en 0 si no hay inventory+recipes activos o la categoría no consumió.
+   * Vacío si no hay ventas en el mes.
+   */
+  categoryBreakdown: Array<{
+    category: string;
+    salesCents: number;
+    cmvCents: number;
+  }>;
 };
 
 // Espejo de GET /api/operator/accounting/books (B2 · D5).
@@ -595,6 +607,15 @@ function PnlTab({
         />
       </div>
 
+      {/* Ventas (y CMV, cuando hay inventory+recipes) por categoría del
+          menú: cuadra con las líneas de Ingresos y CMV del P&L. */}
+      {pnl.categoryBreakdown.length > 0 && (
+        <PnlCategoryBreakdown
+          rows={pnl.categoryBreakdown}
+          currency={currency}
+        />
+      )}
+
       {/* Prime cost (C1) — CMV + mermas + laboral sobre ingresos. Solo
           con módulo staff activo y ventas en el mes. */}
       {pnl.primeCostPct !== null && (
@@ -786,6 +807,126 @@ function PnlExpenses({ pnl, currency }: { pnl: PnlDto; currency: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Ventas (y CMV) por categoría del menú — una fila por categoría con
+ * Ventas, CMV y Margen (ventas − CMV, con % si ventas>0), en el mismo
+ * orden desc que trae el server, más una fila de total al pie que cuadra
+ * con las líneas de Ingresos/CMV del P&L. Si TODOS los CMV vienen en 0
+ * (sin inventory+recipes, o nada consumido) se ocultan las columnas
+ * CMV/Margen y queda solo Ventas por categoría, para no llenar de ceros.
+ */
+function PnlCategoryBreakdown({
+  rows,
+  currency,
+}: {
+  rows: PnlDto["categoryBreakdown"];
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
+
+  // Con algún CMV atribuido mostramos las columnas de costo/margen; si
+  // todo es 0 (sin inventory+recipes) sería una columna de puros ceros.
+  const showCmv = rows.some((r) => r.cmvCents > 0);
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      salesCents: acc.salesCents + r.salesCents,
+      cmvCents: acc.cmvCents + r.cmvCents,
+    }),
+    { salesCents: 0, cmvCents: 0 },
+  );
+  const totalMarginCents = totals.salesCents - totals.cmvCents;
+
+  return (
+    <section className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-op-border">
+        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+          {t("pnlSalesByCategory")}
+        </span>
+      </div>
+
+      {/* Encabezado de columnas (solo con CMV; sin él la fila es simple
+          label/valor como los demás desgloses del P&L). */}
+      {showCmv && (
+        <div className="px-4 py-2 border-b border-op-border flex items-center gap-3 text-[10px] font-mono tracking-[0.1em] uppercase text-op-muted">
+          <span className="flex-1 min-w-0">{t("catColCategory")}</span>
+          <span className="w-20 text-right shrink-0 tabular-nums">
+            {t("catColSales")}
+          </span>
+          <span className="w-20 text-right shrink-0 tabular-nums">
+            {t("catColCmv")}
+          </span>
+          <span className="w-24 text-right shrink-0 tabular-nums">
+            {t("catColMargin")}
+          </span>
+        </div>
+      )}
+
+      {rows.map((r) => {
+        const marginCents = r.salesCents - r.cmvCents;
+        const marginPct =
+          r.salesCents > 0 ? (marginCents / r.salesCents) * 100 : null;
+        return (
+          <div
+            key={r.category}
+            className="px-4 py-2.5 border-b border-op-border last:border-b-0 flex items-center gap-3"
+          >
+            <span className="flex-1 min-w-0 text-sm truncate">
+              {r.category}
+            </span>
+            {showCmv ? (
+              <>
+                <span className="w-20 text-right shrink-0 text-sm tabular-nums">
+                  {money(r.salesCents)}
+                </span>
+                <span className="w-20 text-right shrink-0 text-sm tabular-nums text-op-muted">
+                  {money(r.cmvCents)}
+                </span>
+                <div className="w-24 text-right shrink-0">
+                  <div className="text-sm tabular-nums">
+                    {money(marginCents)}
+                  </div>
+                  <div className="text-[10px] text-op-muted tabular-nums">
+                    {fmtPct(marginPct, locale)}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <span className="text-sm tabular-nums shrink-0">
+                {money(r.salesCents)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Total al pie: Σ ventas (y Σ CMV / Σ margen) para cuadrar con el P&L. */}
+      <div className="px-4 py-2.5 bg-op-bg/50 flex items-center gap-3 font-medium">
+        <span className="flex-1 min-w-0 text-sm">{t("catTotal")}</span>
+        {showCmv ? (
+          <>
+            <span className="w-20 text-right shrink-0 text-sm tabular-nums">
+              {money(totals.salesCents)}
+            </span>
+            <span className="w-20 text-right shrink-0 text-sm tabular-nums text-op-muted">
+              {money(totals.cmvCents)}
+            </span>
+            <span className="w-24 text-right shrink-0 text-sm tabular-nums">
+              {money(totalMarginCents)}
+            </span>
+          </>
+        ) : (
+          <span className="text-sm tabular-nums shrink-0">
+            {money(totals.salesCents)}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 

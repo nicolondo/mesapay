@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
-import { InvoiceRequestPanel } from "./done/InvoiceRequestPanel";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
@@ -304,7 +303,7 @@ export function PayClient({
     if (j.approved && j.paymentId) {
       router.push(
         operatorMode
-          ? staffServeHref
+          ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}&op=1`
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
@@ -520,9 +519,10 @@ export function PayClient({
         return;
       }
       if (operatorMode) {
-        // Bill closed (or partially paid) directly. Skip the diner
-        // cash-wait screen and the Salón roundtrip.
-        router.push(staffHomeHref);
+        // Cobro cerrado (o parcial). En vez de volver a mesas, va a la
+        // página de "listo" en modo mesero, donde se ofrece la factura
+        // electrónica DESPUÉS del pago (y desde ahí vuelve a mesas).
+        router.push(`/t/${tenantSlug}/pay/${orderId}/done?op=1`);
         return;
       }
       if (j.pending && j.paymentId) {
@@ -829,20 +829,8 @@ export function PayClient({
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
-      {/* Factura electrónica cuando cobra el MESERO: el cliente puede pedir
-          factura con sus datos fiscales aunque no esté en su propio celular.
-          El mesero los ingresa acá antes de cobrar (mismo panel que el
-          comensal ve en la página de "listo"). */}
-      {operatorMode && (
-        <div className="mt-4">
-          <InvoiceRequestPanel
-            tenantSlug={tenantSlug}
-            orderId={orderId}
-            existing={null}
-            operatorMode
-          />
-        </div>
-      )}
+      {/* La factura NO se pide acá (antes del pago): se ofrece DESPUÉS del
+          cobro exitoso, en la página de "listo" (done), en modo mesero. */}
 
       <div className="mt-6 space-y-2">
         {/* Apple Pay requires the diner's own iPhone — the waiter can't

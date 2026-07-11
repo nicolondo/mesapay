@@ -332,6 +332,8 @@
     "relMin": "{min} min ago",
     "relHours": "{hours} h ago",
     "orderPaid": "Order paid",
+    "opChargeDone": "Payment charged",
+    "opBackToTables": "Back to tables",
     "yourCode": "Your code",
     "showCashier": "Show it to the cashier when they call you.",
     "delivered": "Delivered",

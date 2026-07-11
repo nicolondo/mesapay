@@ -332,6 +332,8 @@
     "relMin": "há {min} min",
     "relHours": "há {hours} h",
     "orderPaid": "Pedido pago",
+    "opChargeDone": "Cobrança realizada",
+    "opBackToTables": "Voltar às mesas",
     "yourCode": "Seu código",
     "showCashier": "Mostre ao caixa quando te chamarem.",
     "delivered": "Entregue",

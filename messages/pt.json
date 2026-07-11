@@ -4505,7 +4505,7 @@
     "impInvErrRowName": "Há uma linha incluída sem nome.",
     "impInvErrRowQty": "Há uma linha com quantidade ou unidade inválida.",
     "impInvErrRowsInvalid": "{count, plural, one {# linha tem quantidade ou unidade inválida — corrija-a ou desmarque-a.} other {# linhas têm quantidade ou unidade inválida — corrija-as ou desmarque-as.}}",
-    "impInvIssueQty": "Quantidade ou unidade inválida. Se for por unidades, use um número inteiro; ou mude para Peso ou Volume.",
+    "impInvIssueQty": "Quantidade inválida. Verifique o número: pode ser muito pequeno ou ter mais de 3 casas decimais.",
     "impInvIssueName": "Falta o nome.",
     "impInvIssuesChip": "{count, plural, one {# com problema} other {# com problema}}",
     "impInvExcludeIssues": "Desmarcar as que têm problema",

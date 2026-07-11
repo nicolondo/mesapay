@@ -88,7 +88,8 @@ function baseToInputQty(
   if (big.factor > 1 && base >= big.factor) {
     return { qty: String(base / big.factor), unit: big.symbol };
   }
-  return { qty: String(base), unit: units[0].symbol };
+  // units[0].factor: 1 para g/ml, 1000 para count "un" (base milesimal).
+  return { qty: String(base / units[0].factor), unit: units[0].symbol };
 }
 
 // Errores del POST de producción → clave i18n (fallback errSaveFailed).

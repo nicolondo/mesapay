@@ -4505,7 +4505,7 @@
     "impInvErrRowName": "There's an included row with no name.",
     "impInvErrRowQty": "There's a row with an invalid quantity or unit.",
     "impInvErrRowsInvalid": "{count, plural, one {# row has an invalid quantity or unit — fix it or uncheck it.} other {# rows have an invalid quantity or unit — fix them or uncheck them.}}",
-    "impInvIssueQty": "Invalid quantity or unit. For counted items use a whole number, or switch to Weight or Volume.",
+    "impInvIssueQty": "Invalid quantity. Check the number: it may be too small or have more than 3 decimals.",
     "impInvIssueName": "Name is missing.",
     "impInvIssuesChip": "{count, plural, one {# with a problem} other {# with a problem}}",
     "impInvExcludeIssues": "Uncheck the ones with a problem",

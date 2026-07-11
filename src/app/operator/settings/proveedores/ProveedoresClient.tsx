@@ -7,6 +7,7 @@ import { formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { waLink } from "@/lib/crm/phone";
 import {
+  BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
   costPerBaseUnit,
@@ -745,7 +746,7 @@ function SupplierDetailSheet({
                       ? formatMoney(item.lastPriceCents, { currency, locale })
                       : null,
                     unitCost != null
-                      ? `${formatMoney(unitCost, { currency, locale })}/${BASE_UNIT_SYMBOL[kind]}`
+                      ? `${formatMoney(Math.round(unitCost * BASE_SYMBOL_FACTOR[kind]), { currency, locale })}/${BASE_UNIT_SYMBOL[kind]}`
                       : null,
                   ]
                     .filter(Boolean)
@@ -848,7 +849,11 @@ function prefillQty(editing: SupplierItem | null): {
   if (big.factor > 1 && editing.contentQty % big.factor === 0) {
     return { qty: String(editing.contentQty / big.factor), unit: big.symbol };
   }
-  return { qty: String(editing.contentQty), unit: units[0].symbol };
+  // units[0].factor: 1 para g/ml, 1000 para count "un" (base milesimal).
+  return {
+    qty: String(editing.contentQty / units[0].factor),
+    unit: units[0].symbol,
+  };
 }
 
 function ItemForm({

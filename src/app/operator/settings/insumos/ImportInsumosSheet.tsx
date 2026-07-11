@@ -106,8 +106,9 @@ function rowNumbers(r: EditRow): {
   totalCents: number;
 } {
   const qtyNum = parseNum(r.qty);
-  // count: base = cantidad de unidades (toBaseQty ya lo resuelve con factor 1);
-  // vacío/0 = sin stock (qtyBase 0 no siembra, contrato de /confirm).
+  // toBaseQty convierte a la base de cada dimensión (g/ml/milésima-de-un); en
+  // count "un" admite decimales (25,94 un → 25940 base). vacío/0 = sin stock
+  // (qtyBase 0 no siembra, contrato de /confirm).
   const qtyBase =
     isFinite(qtyNum) && qtyNum > 0
       ? toBaseQty(qtyNum, r.measureKind, r.unit)

@@ -52,6 +52,7 @@
     "nextDish": "Next dish",
     "close": "Close",
     "kitchenNotes": "Notes for the kitchen",
+    "addNote": "+ Note for the kitchen",
     "notesPlaceholder": "Allergies, preferences…",
     "addWithPrice": "Add · {price}",
     "atThisTable": "At this table",

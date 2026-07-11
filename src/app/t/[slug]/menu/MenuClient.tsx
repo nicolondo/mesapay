@@ -923,6 +923,16 @@ export function MenuClient({
         .filter((l) => l.qty > 0),
     );
   }
+  /** Nota por línea del carrito (visible para cocina/bar). Editable desde
+   *  "Tu pedido" — cubre los platos agregados con quickAdd (sin abrir el
+   *  detalle, donde vive el otro campo de nota). */
+  function setLineNote(key: string, notes: string) {
+    setCart((prev) =>
+      prev.map((l) =>
+        l.key === key ? { ...l, notes: notes.trim() || undefined } : l,
+      ),
+    );
+  }
 
   async function sendToKitchen() {
     if (!cart.length) return;
@@ -1496,6 +1506,7 @@ export function MenuClient({
               totalQty={totalQty}
               onQty={setQty}
               onRemove={removeLine}
+              onNote={setLineNote}
               submitting={submitting}
               onSend={sendToKitchen}
               appendingTo={activeOrder?.shortCode ?? null}
@@ -1565,6 +1576,7 @@ function CartBar({
   totalQty,
   onQty,
   onRemove,
+  onNote,
   submitting,
   onSend,
   appendingTo,
@@ -1583,6 +1595,7 @@ function CartBar({
   totalQty: number;
   onQty: (key: string, qty: number) => void;
   onRemove: (key: string) => void;
+  onNote: (key: string, notes: string) => void;
   submitting: boolean;
   onSend: () => void;
   appendingTo: string | null;
@@ -1593,6 +1606,8 @@ function CartBar({
   prepay: boolean;
 }) {
   const t = useTranslations("menu");
+  // Línea cuya nota se está editando (una a la vez).
+  const [noteEditKey, setNoteEditKey] = useState<string | null>(null);
   // O(1) lookup by id so the render loop doesn't scan items per line.
   const itemById = useMemo(() => {
     const m = new Map<string, MenuItem>();
@@ -1676,10 +1691,32 @@ function CartBar({
                           ))}
                         </div>
                       )}
-                      {l.notes && (
-                        <div className="text-xs text-muted-2 italic mt-0.5">
-                          “{l.notes}”
-                        </div>
+                      {noteEditKey === l.key ? (
+                        <textarea
+                          autoFocus
+                          value={l.notes ?? ""}
+                          onChange={(e) => onNote(l.key, e.target.value)}
+                          onBlur={() => setNoteEditKey(null)}
+                          rows={2}
+                          placeholder={t("notesPlaceholder")}
+                          className="mt-1 w-full px-2 py-1 rounded-lg border border-hairline bg-ivory text-xs focus:outline-none focus:border-terracotta"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setNoteEditKey(l.key)}
+                          className="text-xs mt-0.5 text-left block"
+                        >
+                          {l.notes ? (
+                            <span className="text-muted-2 italic">
+                              “{l.notes}”
+                            </span>
+                          ) : (
+                            <span className="text-terracotta">
+                              {t("addNote")}
+                            </span>
+                          )}
+                        </button>
                       )}
                     </div>
                     <div className="flex items-center gap-2">

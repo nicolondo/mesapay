@@ -52,6 +52,7 @@
     "nextDish": "Siguiente plato",
     "close": "Cerrar",
     "kitchenNotes": "Notas para la cocina",
+    "addNote": "+ Nota para la cocina",
     "notesPlaceholder": "Alergias, preferencias…",
     "addWithPrice": "Añadir · {price}",
     "atThisTable": "En esta mesa",

@@ -8,6 +8,7 @@ import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import {
   BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
   toBaseQty,
@@ -753,7 +754,7 @@ function newEditLine(ing: IngredientOption): EditLine {
     measureKind: ing.measureKind,
     costPerBase: ing.costPerBase,
     qtyRaw: "",
-    unit: BASE_UNIT_SYMBOL[ing.measureKind],
+    unit: DEFAULT_INPUT_UNIT[ing.measureKind],
     wasteRaw: "0",
   };
 }
@@ -1757,7 +1758,7 @@ function SubRecipeSheet({
       : null;
   const [yieldRaw, setYieldRaw] = useState(initYield?.qty ?? "");
   const [yieldUnit, setYieldUnit] = useState(
-    initYield?.unit ?? (sub ? BASE_UNIT_SYMBOL[sub.measureKind] : ""),
+    initYield?.unit ?? (sub ? DEFAULT_INPUT_UNIT[sub.measureKind] : ""),
   );
 
   const [lines, setLines] = useState<EditLine[]>(() =>
@@ -1793,7 +1794,7 @@ function SubRecipeSheet({
     setErr(null);
     setOutput({ id: ing.id, name: ing.name, measureKind: ing.measureKind });
     setYieldRaw("");
-    setYieldUnit(BASE_UNIT_SYMBOL[ing.measureKind]);
+    setYieldUnit(DEFAULT_INPUT_UNIT[ing.measureKind]);
     setLines((prev) => prev.filter((l) => l.ingredientId !== ing.id));
     setOutQ("");
   }

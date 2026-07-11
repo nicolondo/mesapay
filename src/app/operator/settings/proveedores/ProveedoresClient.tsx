@@ -9,6 +9,7 @@ import { waLink } from "@/lib/crm/phone";
 import {
   BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   costPerBaseUnit,
   formatBaseQty,
@@ -1009,7 +1010,7 @@ function ItemForm({
                     type="button"
                     onClick={() => {
                       setSelected(i);
-                      setUnit(BASE_UNIT_SYMBOL[i.measureKind]);
+                      setUnit(DEFAULT_INPUT_UNIT[i.measureKind]);
                     }}
                     className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
                   >

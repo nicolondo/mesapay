@@ -8,6 +8,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
+  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
   MEASURE_KINDS,
@@ -833,7 +834,7 @@ function NewOrderSheet({
   // Elegir insumo (línea libre): fija la unidad base como la del picker.
   function pickIngredient(ing: IngredientRef) {
     setPickedIng(ing);
-    setUnit(BASE_UNIT_SYMBOL[ing.measureKind]);
+    setUnit(DEFAULT_INPUT_UNIT[ing.measureKind]);
   }
 
   function changePresentations(v: string) {
@@ -2854,7 +2855,7 @@ function InvoiceReviewLineCard({
                       ingredientName: i.name,
                       measureKind: i.measureKind,
                       // Al cambiar de insumo la unidad directa se re-basea.
-                      unit: BASE_UNIT_SYMBOL[i.measureKind],
+                      unit: DEFAULT_INPUT_UNIT[i.measureKind],
                     });
                     setPicking(false);
                     setIngQ("");
@@ -2906,7 +2907,7 @@ function InvoiceReviewLineCard({
                 const kind = e.target.value as MeasureKind;
                 onChange({
                   measureKind: kind,
-                  unit: BASE_UNIT_SYMBOL[kind],
+                  unit: DEFAULT_INPUT_UNIT[kind],
                 });
               }}
               className={inputCls}

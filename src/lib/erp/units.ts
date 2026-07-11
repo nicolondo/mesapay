@@ -35,6 +35,18 @@ export const BASE_UNIT_SYMBOL: Record<MeasureKind, string> = {
   count: "un",
 };
 
+/**
+ * Unidad PREDETERMINADA al DIGITAR en un input nuevo/vacío (no la base):
+ * peso arranca en kg (más natural para insumos de cocina), volumen en ml y
+ * conteo en un. Solo el default inicial — el usuario puede cambiar el select,
+ * y la precarga de un valor guardado escoge la unidad según su magnitud.
+ */
+export const DEFAULT_INPUT_UNIT: Record<MeasureKind, string> = {
+  mass: "kg",
+  volume: "ml",
+  count: "un",
+};
+
 export type DisplayUnit = {
   symbol: string;
   /** Cuántas unidades base es 1 de esta unidad. */

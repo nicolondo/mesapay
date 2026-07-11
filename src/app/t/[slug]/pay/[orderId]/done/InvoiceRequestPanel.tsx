@@ -174,7 +174,10 @@ function SimpleInvoiceSheet({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const mail = email.trim();
+    // Correo OPCIONAL: solo se valida si se escribió algo. Sin correo, la
+    // factura igual se genera para imprimir/descargar.
+    if (mail !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
       setErr(t("invErrEmail"));
       return;
     }
@@ -185,7 +188,7 @@ function SimpleInvoiceSheet({
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: mail }),
       },
     );
     setBusy(false);
@@ -195,7 +198,7 @@ function SimpleInvoiceSheet({
       return;
     }
     const j = (await r.json()) as { invoiceUrl: string };
-    setDone({ invoiceUrl: j.invoiceUrl, email });
+    setDone({ invoiceUrl: j.invoiceUrl, email: mail });
   }
 
   return (
@@ -213,7 +216,11 @@ function SimpleInvoiceSheet({
               {t("invSimpleLabel")}
             </div>
             <h2 className="font-display text-2xl mt-1">
-              {done ? t("invSentTitle") : t("invYourReceipt")}
+              {done
+                ? done.email
+                  ? t("invSentTitle")
+                  : t("invGeneratedReady")
+                : t("invYourReceipt")}
             </h2>
           </div>
           <button
@@ -229,10 +236,14 @@ function SimpleInvoiceSheet({
         {done ? (
           <>
             <p className="text-sm text-ink/80">
-              {t.rich("invSentBody", {
-                email: done.email,
-                b: (chunks) => <strong>{chunks}</strong>,
-              })}
+              {done.email ? (
+                t.rich("invSentBody", {
+                  email: done.email,
+                  b: (chunks) => <strong>{chunks}</strong>,
+                })
+              ) : (
+                <span>{t("invGeneratedReadyBody")}</span>
+              )}
             </p>
             <a
               href={`${done.invoiceUrl}?print=1`}
@@ -255,13 +266,12 @@ function SimpleInvoiceSheet({
             <p className="text-sm text-muted">{t("invSimpleIntro")}</p>
             <label className="block">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-                {t("invEmailField")}
+                {t("invEmailFieldOptional")}
               </div>
               <input
                 type="email"
                 inputMode="email"
                 autoComplete="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t("invEmailPlaceholder")}
@@ -274,7 +284,7 @@ function SimpleInvoiceSheet({
               disabled={busy}
               className="w-full h-12 rounded-2xl bg-ink text-bone text-base font-medium disabled:opacity-50"
             >
-              {busy ? t("invGenerating") : t("invSendReceipt")}
+              {busy ? t("invGenerating") : t("invGenerateInvoice")}
             </button>
           </form>
         )}

@@ -9,10 +9,16 @@ import {
 } from "@/lib/invoice";
 
 const bodySchema = z.object({
-  email: z
-    .string()
-    .email("Email inválido")
-    .transform((s) => s.toLowerCase().trim()),
+  // Correo OPCIONAL: vacío/ausente = solo se genera para imprimir/descargar
+  // (no se envía nada). Con correo válido, además se envía.
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z
+      .string()
+      .email("Email inválido")
+      .transform((s) => s.toLowerCase().trim())
+      .optional(),
+  ),
 });
 
 /**
@@ -144,7 +150,7 @@ export async function POST(
     data: {
       restaurantId: tenant.id,
       orderId: order.id,
-      email: parsed.data.email,
+      email: parsed.data.email ?? null,
       invoiceNumber,
       snapshot: snapshot as unknown as object,
       totalCents: order.totalCents,
@@ -153,8 +159,10 @@ export async function POST(
 
   // Fire-and-forget email — no bloqueamos la respuesta. La factura
   // ya existe en DB y el link es válido aun si el correo demora o
-  // falla; el cliente puede pedir reenvío si no llega.
-  void (async () => {
+  // falla; el cliente puede pedir reenvío si no llega. Solo si hay correo.
+  const invEmail = parsed.data.email;
+  if (invEmail)
+    void (async () => {
     try {
       const { subject, html, text } = await renderInvoiceEmail({
         snapshot,
@@ -169,7 +177,7 @@ export async function POST(
       // construirlo (sin email-address parseable o sin restaurant.name).
       const from = buildBrandedFrom(snapshot.restaurantName);
       const ok = await sendEmail({
-        to: parsed.data.email,
+        to: invEmail,
         subject,
         html,
         text,

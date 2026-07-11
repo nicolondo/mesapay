@@ -73,6 +73,11 @@ type EditRow = {
   lowConfidence: boolean;
 };
 
+// Motivo por el que una fila incluida no se puede confirmar todavía:
+//   "name" → nombre vacío · "qty" → cantidad/unidad inválida para la dimensión
+// (ej. un decimal en dimensión "conteo", o un valor sub-gramo en masa).
+type RowIssue = "name" | "qty";
+
 /** Elige la unidad display inicial: la leída si es válida, si no la base. */
 function pickUnit(kind: MeasureKind, unit: string | null): string {
   const opts = DISPLAY_UNITS[kind];
@@ -115,6 +120,24 @@ function rowNumbers(r: EditRow): {
       ? Math.round(qtyNum * unitCents)
       : 0;
   return { qtyBase: qtyBase === null ? null : qtyBase, unitCents, totalCents };
+}
+
+/**
+ * Motivo (si lo hay) por el que una fila incluida bloquea la confirmación.
+ * Debe coincidir exactamente con las validaciones de confirm(); null = OK.
+ */
+function rowIssueOf(r: EditRow): RowIssue | null {
+  if (r.name.trim().length === 0) return "name";
+  if (rowNumbers(r).qtyBase === null) return "qty";
+  return null;
+}
+
+/** Lleva a la vista la fila con problema (scroll suave al centro). */
+function scrollToRow(localId: string): void {
+  if (typeof document === "undefined") return;
+  document
+    .getElementById(`imp-row-${localId}`)
+    ?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 // Formato de respuesta del endpoint de errores → clave i18n.
@@ -235,6 +258,15 @@ export function ImportInsumosSheet({
     setRows((prev) => prev.map((r) => ({ ...r, include: value })));
   }
 
+  /** Desmarca todas las filas con problema para poder importar el resto ya. */
+  function excludeIssues() {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.include && rowIssueOf(r) ? { ...r, include: false } : r,
+      ),
+    );
+  }
+
   // ── Resumen (solo filas incluidas) ──
   const summary = useMemo(() => {
     let newCount = 0;
@@ -251,6 +283,19 @@ export function ImportInsumosSheet({
     return { newCount, existingCount, valued, included };
   }, [rows]);
 
+  // Filas incluidas que aún no se pueden confirmar (nombre/cantidad inválidos),
+  // en el mismo orden de la tabla. Se resaltan y se puede saltar a ellas para
+  // que el usuario no tenga que buscar la fila mala entre cientos.
+  const issues = useMemo(() => {
+    const m = new Map<string, RowIssue>();
+    for (const r of rows) {
+      if (!r.include) continue;
+      const issue = rowIssueOf(r);
+      if (issue) m.set(r.localId, issue);
+    }
+    return m;
+  }, [rows]);
+
   async function confirm() {
     setError(null);
     const included = rows.filter((r) => r.include);
@@ -259,17 +304,19 @@ export function ImportInsumosSheet({
       return;
     }
     // Validación cliente: nombre no vacío; cantidad/unidad válidas cuando se
-    // digitó una cantidad (0/vacío es válido → no siembra stock).
-    for (const r of included) {
-      if (r.name.trim().length === 0) {
-        setError(t("impInvErrRowName"));
-        return;
-      }
-      const { qtyBase } = rowNumbers(r);
-      if (qtyBase === null) {
-        setError(t("impInvErrRowQty"));
-        return;
-      }
+    // digitó una cantidad (0/vacío es válido → no siembra stock). Si hay filas
+    // con problema, salta a la primera y avisa cuántas son (no un genérico).
+    const nameless = included.find((r) => r.name.trim().length === 0);
+    if (nameless) {
+      setError(t("impInvErrRowName"));
+      scrollToRow(nameless.localId);
+      return;
+    }
+    const badQty = included.filter((r) => rowNumbers(r).qtyBase === null);
+    if (badQty.length > 0) {
+      setError(t("impInvErrRowsInvalid", { count: badQty.length }));
+      scrollToRow(badQty[0].localId);
+      return;
     }
 
     const body = {
@@ -359,6 +406,7 @@ export function ImportInsumosSheet({
         {(stage === "review" || stage === "confirming") && (
           <ReviewStage
             rows={rows}
+            issues={issues}
             categories={categories}
             notes={notes}
             instructions={instructions}
@@ -372,6 +420,8 @@ export function ImportInsumosSheet({
             onPatch={patch}
             onSelectAll={selectAll}
             onUpdateExisting={setUpdateExisting}
+            onScrollToRow={scrollToRow}
+            onExcludeIssues={excludeIssues}
             onConfirm={confirm}
           />
         )}
@@ -504,6 +554,7 @@ function UploadStage({
 
 function ReviewStage({
   rows,
+  issues,
   categories,
   notes,
   instructions,
@@ -517,9 +568,12 @@ function ReviewStage({
   onPatch,
   onSelectAll,
   onUpdateExisting,
+  onScrollToRow,
+  onExcludeIssues,
   onConfirm,
 }: {
   rows: EditRow[];
+  issues: Map<string, RowIssue>;
   categories: string[];
   notes: string;
   instructions: string;
@@ -538,11 +592,14 @@ function ReviewStage({
   onPatch: (localId: string, p: Partial<EditRow>) => void;
   onSelectAll: (value: boolean) => void;
   onUpdateExisting: (v: boolean) => void;
+  onScrollToRow: (localId: string) => void;
+  onExcludeIssues: () => void;
   onConfirm: () => void;
 }) {
   const t = useTranslations("opErp");
   const allIncluded = rows.length > 0 && rows.every((r) => r.include);
   const hasExisting = rows.some((r) => r.matchedIngredientId);
+  const firstIssueId = rows.find((r) => issues.has(r.localId))?.localId ?? null;
 
   return (
     <>
@@ -559,6 +616,24 @@ function ReviewStage({
             <span className="text-op-muted">
               {t("impInvSummaryValued", { amount: money(summary.valued) })}
             </span>
+            {issues.size > 0 && firstIssueId && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onScrollToRow(firstIssueId)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-danger/10 text-danger font-medium hover:bg-danger/20"
+                >
+                  {t("impInvIssuesChip", { count: issues.size })}
+                </button>
+                <button
+                  type="button"
+                  onClick={onExcludeIssues}
+                  className="text-op-muted underline underline-offset-2 hover:text-ink"
+                >
+                  {t("impInvExcludeIssues")}
+                </button>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -624,7 +699,12 @@ function ReviewStage({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <TableRow key={r.localId} row={r} onPatch={onPatch} />
+              <TableRow
+                key={r.localId}
+                row={r}
+                issue={r.include ? (issues.get(r.localId) ?? null) : null}
+                onPatch={onPatch}
+              />
             ))}
           </tbody>
         </table>
@@ -708,9 +788,11 @@ function ReviewStage({
 
 function TableRow({
   row,
+  issue,
   onPatch,
 }: {
   row: EditRow;
+  issue: RowIssue | null;
   onPatch: (localId: string, p: Partial<EditRow>) => void;
 }) {
   const t = useTranslations("opErp");
@@ -721,8 +803,10 @@ function TableRow({
 
   return (
     <tr
+      id={`imp-row-${row.localId}`}
       className={
         "border-b border-op-border last:border-b-0 " +
+        (issue ? "bg-danger/[0.06] " : "") +
         (row.include ? "" : "opacity-40")
       }
     >
@@ -766,6 +850,11 @@ function TableRow({
             title={row.presentationNote}
           >
             {row.presentationNote}
+          </span>
+        )}
+        {issue && (
+          <span className="block px-1.5 mt-0.5 text-[10px] text-danger">
+            {t(issue === "name" ? "impInvIssueName" : "impInvIssueQty")}
           </span>
         )}
       </td>

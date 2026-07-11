@@ -852,6 +852,7 @@
     "callBusy": "Atendiendo…",
     "callOnMyWay": "Voy en camino",
     "terminalOwnDevice": "Datáfono propio del comercio",
+    "invoiceAfterSettle": "¿Factura para el cliente?",
     "charge": "Cobrar",
     "includesTip": "Incluye propina {amount}",
     "terminalSwipeExternal": "Pasa la tarjeta por tu datáfono y reporta el resultado.",

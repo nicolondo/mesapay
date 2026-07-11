@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
@@ -123,6 +124,9 @@ export function ServeBoard({
   const [, startTx] = useTransition();
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
   const [settlingId, setSettlingId] = useState<string | null>(null);
+  // Tras confirmar un cobro con datáfono del comercio en Salón, ofrecer la
+  // factura (igual que en efectivo/Kushki, que caen en la pantalla de listo).
+  const [invoiceOrderId, setInvoiceOrderId] = useState<string | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
 
   const refreshBoard = () =>
@@ -376,6 +380,7 @@ export function ServeBoard({
                 device={device}
                 busy={chargingPaymentId === p.id}
                 onCharged={() => startTx(() => router.refresh())}
+                onExternalApproved={(orderId) => setInvoiceOrderId(orderId)}
                 onBusyChange={setChargingPaymentId}
               />
             ))}
@@ -441,6 +446,38 @@ export function ServeBoard({
             startTx(() => router.refresh());
           }}
         />
+      )}
+
+      {/* Factura tras confirmar el datáfono del comercio — mismas dos
+          opciones (genérica / personalizada) que en efectivo/Kushki. */}
+      {invoiceOrderId && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+          onClick={() => setInvoiceOrderId(null)}
+        >
+          <div
+            className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 space-y-3 max-h-[92dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{tr("invoiceAfterSettle")}</span>
+              <button
+                type="button"
+                onClick={() => setInvoiceOrderId(null)}
+                aria-label={tr("close")}
+                className="text-op-muted text-sm min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+              >
+                {"✕"}
+              </button>
+            </div>
+            <InvoiceRequestPanel
+              tenantSlug={tenantSlug}
+              orderId={invoiceOrderId}
+              existing={null}
+              operatorMode
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -593,6 +630,7 @@ function TerminalPendingCard({
   device,
   busy,
   onCharged,
+  onExternalApproved,
   onBusyChange,
 }: {
   pending: TerminalPending;
@@ -601,6 +639,8 @@ function TerminalPendingCard({
   device: { id: string; label: string } | null;
   busy: boolean;
   onCharged: () => void;
+  // Se llama tras aprobar el datáfono del comercio (para ofrecer factura).
+  onExternalApproved: (orderId: string) => void;
   onBusyChange: (id: string | null) => void;
 }) {
   const tr = useTranslations("serve");
@@ -661,6 +701,9 @@ function TerminalPendingCard({
       setErr(j.error ?? tr("terminalSettleError"));
       return;
     }
+    // Aprobado con el datáfono propio → ofrecer factura (como en efectivo/
+    // Kushki, que caen en la pantalla de "listo"). Rechazado no factura.
+    if (action === "approve") onExternalApproved(pending.order.id);
     onCharged();
   }
 

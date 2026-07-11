@@ -4002,6 +4002,8 @@
     "payStatusPending": "Pending",
     "cxpTotalPaid": "Total {total} · Paid {paid}",
     "cxpSectionTitle": "Accounts payable",
+    "invoiceEvidence": "Invoice",
+    "viewInvoice": "View invoice",
     "cxpTotalLabel": "Total",
     "cxpPaidLabel": "Paid",
     "cxpBalanceLabel": "Balance",

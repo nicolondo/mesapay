@@ -73,6 +73,13 @@ export async function GET(
         orderBy: { paidAt: "desc" },
         include: { createdBy: { select: { id: true, name: true } } },
       },
+      // Facturas subidas (A2.5): la evidencia (PDF/foto) que originó la OC,
+      // para poder verla después desde el detalle.
+      invoiceUploads: {
+        where: { status: "confirmed" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, fileUrl: true, createdAt: true },
+      },
     },
   });
   if (!order || order.restaurantId !== ctx.restaurantId) {

@@ -1,5 +1,6 @@
 import type { Prisma, PurchaseOrderStatus } from "@prisma/client";
 import { applyStockMovement } from "@/lib/erp/stock";
+import { inventoryCostCents, normalizeTaxPct } from "@/lib/erp/purchaseTax";
 
 // Lógica central de compras (ERP Fase A2).
 //
@@ -35,8 +36,10 @@ export type CreatePoLine = {
   presentations?: number | null;
   /** Cantidad en unidad base (requerida si NO hay presentación). */
   qtyBase?: number | null;
-  /** Costo total esperado de la línea, en centavos. */
+  /** Costo NETO (sin IVA) esperado de la línea, en centavos. */
   expectedCostCents: number;
+  /** IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0. */
+  taxPct?: number | null;
 };
 
 export async function createPurchaseOrder(
@@ -68,6 +71,7 @@ export async function createPurchaseOrder(
     presentations: number | null;
     qtyOrderedBase: number;
     expectedCostCents: number;
+    taxPct: number;
   }> = [];
 
   for (const line of lines) {
@@ -113,6 +117,7 @@ export async function createPurchaseOrder(
         presentations: n,
         qtyOrderedBase: n * si.contentQty,
         expectedCostCents: line.expectedCostCents,
+        taxPct: normalizeTaxPct(line.taxPct ?? 0),
       });
     } else {
       const q = line.qtyBase ?? 0;
@@ -125,6 +130,7 @@ export async function createPurchaseOrder(
         presentations: null,
         qtyOrderedBase: q,
         expectedCostCents: line.expectedCostCents,
+        taxPct: normalizeTaxPct(line.taxPct ?? 0),
       });
     }
   }
@@ -189,10 +195,13 @@ export async function receivePurchaseOrder(
     restaurantId: string;
     purchaseOrderId: string;
     lines: ReceiveLine[];
+    /** ¿IVA descontable? Decide si el inventario se valora al neto o al bruto. */
+    ivaDeductible?: boolean;
     createdById?: string | null;
   },
 ) {
   const { restaurantId, purchaseOrderId, lines } = args;
+  const ivaDeductible = args.ivaDeductible ?? false;
   if (!lines.length) throw new PurchasingError("nothing_to_receive");
   for (const l of lines) {
     if (
@@ -246,7 +255,14 @@ export async function receivePurchaseOrder(
         ingredientId: item.ingredientId,
         kind: "purchase_in",
         qtyBase: line.qtyBase,
-        totalCostCents: line.costCents,
+        // El inventario se valora al neto (IVA descontable) o al bruto
+        // (IVA parte del costo). receivedCostCents y la lista de precios
+        // se quedan en NETO — solo el ledger cambia con el ajuste.
+        totalCostCents: inventoryCostCents(
+          line.costCents,
+          item.taxPct,
+          ivaDeductible,
+        ),
         purchaseOrderId,
         createdById: args.createdById ?? null,
       },

@@ -45,6 +45,12 @@ export async function POST(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
+  // Ajuste del comercio: ¿inventario al neto (IVA descontable) o al bruto?
+  const rest = await db.restaurant.findUnique({
+    where: { id: ctx.restaurantId },
+    select: { purchaseIvaDeductible: true },
+  });
+
   try {
     const result = await db.$transaction(
       (tx) =>
@@ -52,6 +58,7 @@ export async function POST(
           restaurantId: ctx.restaurantId,
           purchaseOrderId: id,
           lines: parsed.data.lines,
+          ivaDeductible: rest?.purchaseIvaDeductible ?? false,
           createdById: session?.user?.id ?? null,
         }),
       // Recepciones grandes (muchas líneas) — margen holgado.

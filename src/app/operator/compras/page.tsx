@@ -41,7 +41,13 @@ export default async function ComprasPage() {
     orderBy: [{ createdAt: "desc" }],
     include: {
       supplier: { select: { id: true, name: true } },
-      items: { select: { expectedCostCents: true, receivedCostCents: true } },
+      items: {
+        select: {
+          expectedCostCents: true,
+          receivedCostCents: true,
+          taxPct: true,
+        },
+      },
       _count: { select: { items: true } },
     },
   });

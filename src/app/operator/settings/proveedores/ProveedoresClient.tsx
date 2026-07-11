@@ -129,6 +129,9 @@ export function ProveedoresClient({
 
   return (
     <div className="space-y-4">
+      {/* Ajustes de impuestos de compras (F5) */}
+      <PurchaseIvaSettingsCard />
+
       {/* Crear + búsqueda */}
       <button
         type="button"
@@ -251,6 +254,100 @@ export function ProveedoresClient({
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* ──────────────── Ajustes de impuestos de compras (F5) ─────────────── */
+
+/**
+ * Tarjeta con el toggle "IVA de compras descontable". Lee el ajuste con GET
+ * y lo guarda con PATCH a /purchasing-settings. Optimista: refleja el switch
+ * al instante y revierte si el PATCH falla.
+ */
+function PurchaseIvaSettingsCard() {
+  const t = useTranslations("opErp");
+  const [deductible, setDeductible] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/purchasing-settings");
+        if (!r.ok) throw new Error("load_failed");
+        const j = await r.json();
+        if (!cancelled) {
+          setDeductible(Boolean(j.settings?.purchaseIvaDeductible));
+        }
+      } catch {
+        if (!cancelled) setErr(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggle() {
+    if (deductible === null || busy) return;
+    const next = !deductible;
+    setBusy(true);
+    setErr(false);
+    // Optimista: refleja ya y revierte si el PATCH falla.
+    setDeductible(next);
+    const r = await fetch("/api/operator/purchasing-settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ purchaseIvaDeductible: next }),
+    }).catch(() => null);
+    setBusy(false);
+    if (!r || !r.ok) {
+      setDeductible(!next);
+      setErr(true);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-surface p-4">
+      <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
+        {t("purchaseIvaSettingsTitle")}
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">
+            {t("purchaseIvaDeductibleLabel")}
+          </div>
+          <p className="text-[11px] text-op-muted mt-0.5">
+            {t("purchaseIvaDeductibleHint")}
+          </p>
+          {err && (
+            <div className="text-[11px] text-danger mt-1">
+              {t("errSaveFailed")}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={deductible === true}
+          aria-label={t("purchaseIvaDeductibleLabel")}
+          onClick={toggle}
+          disabled={deductible === null || busy}
+          className={
+            "relative shrink-0 h-6 w-11 rounded-full transition-colors disabled:opacity-40 " +
+            (deductible ? "bg-ink" : "bg-op-border")
+          }
+        >
+          <span
+            className={
+              "absolute top-0.5 h-5 w-5 rounded-full bg-bone transition-all " +
+              (deductible ? "left-[22px]" : "left-0.5")
+            }
+          />
+        </button>
+      </div>
     </div>
   );
 }

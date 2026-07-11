@@ -63,6 +63,13 @@ export type LaborSummary = {
   absentShifts: number;
 };
 
+/** Ventas y CMV de una categoría del menú (para el desglose del P&L). */
+export type CategoryLine = {
+  category: string;
+  salesCents: number;
+  cmvCents: number;
+};
+
 export type Pnl = PnlInputs & {
   expensesCents: number;
   grossProfitCents: number;
@@ -71,6 +78,8 @@ export type Pnl = PnlInputs & {
   operatingMarginPct: number | null;
   /** C1 — (CMV + mermas + laboral) / ingresos. null sin módulo staff o sin ventas. */
   primeCostPct: number | null;
+  /** Ventas y CMV por categoría del menú (vacío si no hay ventas). */
+  categoryBreakdown: CategoryLine[];
 };
 
 export function buildPnl(i: PnlInputs): Pnl {
@@ -95,6 +104,8 @@ export function buildPnl(i: PnlInputs): Pnl {
     primeCostPct: i.labor
       ? pctOf(i.consumptionCents + i.wasteCents + laborCents, i.salesCents)
       : null,
+    // Lo llena la capa de datos (necesita DB); acá default vacío.
+    categoryBreakdown: [],
   };
 }
 

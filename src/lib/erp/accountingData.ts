@@ -3,12 +3,136 @@
 // lógica pura de src/lib/erp/accounting.ts. Compartida por el P&L del
 // operador y el consolidado de grupo.
 import { db } from "@/lib/db";
-import { buildPnl, type LaborSummary, type Pnl } from "@/lib/erp/accounting";
+import {
+  buildPnl,
+  type CategoryLine,
+  type LaborSummary,
+  type Pnl,
+} from "@/lib/erp/accounting";
 import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
+import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import { isModuleEnabled } from "@/lib/modules";
 
 export type MonthRange = { from: Date; to: Date };
+
+/**
+ * Ventas y CMV por categoría del MENÚ. Ventas = Σ precio de los ítems
+ * vendidos (no cancelados) por categoría. CMV = costo real consumido
+ * (movimientos sale_consumption) atribuido a la categoría del plato que
+ * usó cada insumo, en proporción a cuánto consumió (re-explotando recetas).
+ * El costo que no se puede atribuir (insumo sin receta viva) va a "(otros)".
+ */
+async function computeCategoryBreakdown(
+  restaurantId: string,
+  range: MonthRange,
+  cmvEnabled: boolean,
+): Promise<CategoryLine[]> {
+  const UNCAT = "(sin categoría)";
+  const OTHER = "(otros)";
+  const items = await db.orderItem.findMany({
+    where: {
+      order: {
+        restaurantId,
+        status: "paid",
+        paidAt: { gte: range.from, lt: range.to },
+      },
+      // Los de rounds cancelados no venden ni consumen.
+      OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+    },
+    select: {
+      qty: true,
+      priceCentsSnapshot: true,
+      menuItemId: true,
+      cancelledAt: true,
+      cancellationKind: true,
+      menuItem: { select: { category: { select: { label: true } } } },
+    },
+  });
+  const catOf = (i: (typeof items)[number]) =>
+    i.menuItem?.category?.label?.trim() || UNCAT;
+
+  // Ventas: solo ítems NO cancelados (los comp no se cobran).
+  const sales = new Map<string, number>();
+  for (const it of items) {
+    if (it.cancelledAt) continue;
+    sales.set(catOf(it), (sales.get(catOf(it)) ?? 0) + it.priceCentsSnapshot * it.qty);
+  }
+
+  const cmv = new Map<string, number>();
+  if (cmvEnabled) {
+    // Consumen: vivos + comp (se prepararon aunque no se cobren); cancel no.
+    const consuming = items.filter(
+      (it) => !it.cancelledAt || it.cancellationKind === "comp",
+    );
+    const menuItemIds = [...new Set(consuming.map((i) => i.menuItemId))];
+    const recipes = await db.recipe.findMany({
+      where: { restaurantId, menuItemId: { in: menuItemIds } },
+      select: {
+        menuItemId: true,
+        items: { select: { ingredientId: true, qtyBase: true, wastePct: true } },
+      },
+    });
+    const recipeMap = new Map(
+      recipes.filter((r) => r.menuItemId).map((r) => [r.menuItemId!, r.items]),
+    );
+    // (ingredientId → categoría → qtyBase) + total por insumo.
+    const perIngCat = new Map<string, Map<string, number>>();
+    const perIngTotal = new Map<string, number>();
+    for (const it of consuming) {
+      const lines = recipeMap.get(it.menuItemId);
+      if (!lines) continue;
+      const cat = catOf(it);
+      for (const line of lines) {
+        const g = Math.round(grossQty(line.qtyBase, line.wastePct)) * it.qty;
+        if (g <= 0) continue;
+        const m = perIngCat.get(line.ingredientId) ?? new Map<string, number>();
+        m.set(cat, (m.get(cat) ?? 0) + g);
+        perIngCat.set(line.ingredientId, m);
+        perIngTotal.set(line.ingredientId, (perIngTotal.get(line.ingredientId) ?? 0) + g);
+      }
+    }
+    // Costo real consumido por insumo (movimientos del mes).
+    const moves = await db.stockMovement.groupBy({
+      by: ["ingredientId"],
+      where: {
+        restaurantId,
+        kind: "sale_consumption",
+        createdAt: { gte: range.from, lt: range.to },
+      },
+      _sum: { valueCents: true },
+    });
+    for (const mv of moves) {
+      const cost = Math.abs(mv._sum.valueCents ?? 0);
+      const total = perIngTotal.get(mv.ingredientId) ?? 0;
+      const catQtys = perIngCat.get(mv.ingredientId);
+      if (total <= 0 || !catQtys) {
+        cmv.set(OTHER, (cmv.get(OTHER) ?? 0) + cost);
+        continue;
+      }
+      // Reparto proporcional; el residual de redondeo va a la última.
+      const entries = [...catQtys.entries()];
+      let assigned = 0;
+      entries.forEach(([cat, q], idx) => {
+        const share =
+          idx === entries.length - 1
+            ? cost - assigned
+            : Math.round((cost * q) / total);
+        assigned += share;
+        cmv.set(cat, (cmv.get(cat) ?? 0) + share);
+      });
+    }
+  }
+
+  const cats = new Set([...sales.keys(), ...cmv.keys()]);
+  return [...cats]
+    .map((category) => ({
+      category,
+      salesCents: sales.get(category) ?? 0,
+      cmvCents: cmv.get(category) ?? 0,
+    }))
+    .sort((a, b) => b.salesCents - a.salesCents);
+}
 
 export async function computeMonthPnl(
   restaurantId: string,
@@ -134,19 +258,32 @@ export async function computeMonthPnl(
     labor.totalCents = labor.baseSalaryCents + labor.surchargeCents;
   }
 
-  return buildPnl({
-    salesCents: sales._sum.subtotalCents ?? 0,
-    tipsCents: sales._sum.tipCents ?? 0,
-    taxesCents: sales._sum.taxCents ?? 0,
-    consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
-    wasteCents: Math.abs(byKind.get("waste") ?? 0),
-    expensesByCategory: expenses.map((e) => ({
-      category: e.category,
-      amountCents: e._sum.amountCents ?? 0,
-    })),
-    purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0),
-    labor,
-  });
+  // CMV por categoría solo si hay consumo real (módulos inventory+recipes).
+  const cmvEnabled =
+    isModuleEnabled(tenant?.enabledModules, "inventory") &&
+    isModuleEnabled(tenant?.enabledModules, "recipes");
+  const categoryBreakdown = await computeCategoryBreakdown(
+    restaurantId,
+    range,
+    cmvEnabled,
+  );
+
+  return {
+    ...buildPnl({
+      salesCents: sales._sum.subtotalCents ?? 0,
+      tipsCents: sales._sum.tipCents ?? 0,
+      taxesCents: sales._sum.taxCents ?? 0,
+      consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
+      wasteCents: Math.abs(byKind.get("waste") ?? 0),
+      expensesByCategory: expenses.map((e) => ({
+        category: e.category,
+        amountCents: e._sum.amountCents ?? 0,
+      })),
+      purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0),
+      labor,
+    }),
+    categoryBreakdown,
+  };
 }
 
 // ── Libros (D5): filas para la vista JSON y el export CSV ──────────────────

@@ -625,6 +625,43 @@ const PurchaseInvoiceSchema = z.object({
 export type PurchaseInvoiceLineType = z.infer<typeof PurchaseInvoiceLine>;
 export type PurchaseInvoiceExtraction = z.infer<typeof PurchaseInvoiceSchema>;
 
+// Schema RAW del modelo: montos en PESOS como número LITERAL (admite
+// decimales). El ×100 a centavos lo hace el CÓDIGO — el modelo se equivocaba
+// multiplicando por 100 valores con centavos decimales ("232.499,82" ->
+// 23.249.982 -> ×100 = basura). Pidiéndole el número literal y convirtiendo
+// acá con Math.round(pesos×100), el decimal se maneja bien.
+const RawInvoiceLine = z.object({
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unit: z.string().nullable(),
+  unitPrice: z.number().nonnegative().nullable().catch(null),
+  lineTotal: z.number().nonnegative().nullable().catch(null),
+  taxPct: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
+});
+const RawInvoiceSchema = z.object({
+  documentType: z
+    .enum(["factura", "cuenta_de_cobro", "otro"])
+    .nullable()
+    .catch(null),
+  supplierNit: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  supplierInvoiceNumber: z.string().nullable(),
+  issueDate: z.string().nullable(),
+  currency: z.enum(["COP", "MXN", "unknown"]),
+  lines: z.array(RawInvoiceLine),
+  invoiceSubtotal: z.number().nullable().catch(null),
+  invoiceTax: z.number().nullable().catch(null),
+  invoiceTotal: z.number().nullable().catch(null),
+  confidence: z.number().min(0).max(1),
+  notes: z.string().optional(),
+});
+
+/** Pesos (literal, con decimales) → centavos enteros. null pasa como null. */
+function pesosFieldToCents(p: number | null): number | null {
+  return p == null || !isFinite(p) ? null : Math.round(p * 100);
+}
+
 const PURCHASE_INVOICE_SYSTEM = `Eres un asistente que extrae los datos de un DOCUMENTO DE COMPRA de un proveedor a un restaurante (Colombia/México). El documento puede ser una FACTURA o una CUENTA DE COBRO.
 Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
 
@@ -640,29 +677,29 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "description": string,             // nombre del producto/insumo como aparece
       "quantity": number,                // cantidad facturada (puede tener decimales)
       "unit": string | null,             // presentación tal cual ("caja x24", "bulto 50 kg", "und", "L", "kg")
-      "unitPriceCents": number | null,   // precio UNITARIO en CENTAVOS. "$12.500" -> 1250000
-      "lineTotalCents": number | null,   // total de la línea en CENTAVOS
+      "unitPrice": number | null,        // precio UNITARIO en PESOS, número LITERAL con decimales. "$12.500" -> 12500 ; "13.025,21" -> 13025.21
+      "lineTotal": number | null,        // total de la línea en PESOS (número literal con decimales)
       "taxPct": string | null,           // tarifa de impuesto de la línea ("0","5","19"), null si no se ve
       "confidence": number               // 0..1 qué tan seguro de ESTA línea
     }
   ],
-  "invoiceSubtotalCents": number | null,  // SUBTOTAL impreso (sin IVA), en CENTAVOS, null si no se ve
-  "invoiceTaxCents": number | null,       // IVA total impreso, en CENTAVOS, null si no se ve
-  "invoiceTotalCents": number | null,     // TOTAL a pagar impreso, en CENTAVOS, null si no se ve
+  "invoiceSubtotal": number | null,       // SUBTOTAL impreso (sin IVA), en PESOS literal, null si no se ve
+  "invoiceTax": number | null,            // IVA total impreso, en PESOS literal, null si no se ve
+  "invoiceTotal": number | null,          // TOTAL a pagar impreso, en PESOS literal, null si no se ve
   "confidence": number,                   // 0..1 confianza global
   "notes": string                         // opcional, 1 frase (ej. "foto borrosa en el total")
 }
 
 Reglas estrictas:
-- TODOS los montos en CENTAVOS: multiplica por 100. "$12.500" -> 1250000. "1.250,50" (coma decimal) -> 125050.
+- TODOS los montos en PESOS como número LITERAL. NUNCA multipliques por 100 ni conviertas a centavos — devuelve el número tal como está impreso. Interpreta el formato local del número: en Colombia el PUNTO separa miles y la COMA los decimales ("232.499,82" -> 232499.82 ; "$12.500" -> 12500 ; "1.250,50" -> 1250.50); en México es al revés ("232,499.82" -> 232499.82). El decimal (centavos) es OBLIGATORIO conservarlo cuando aparece.
 - documentType: "cuenta_de_cobro" si el documento se titula "CUENTA DE COBRO" o lo emite una persona natural sin factura electrónica; "factura" si es una factura de venta/compra; "otro" en cualquier otro caso.
 - PROVEEDOR = a quién se le PAGA (el acreedor/beneficiario). En una FACTURA es quien la emite. En una CUENTA DE COBRO es quien aparece después de "DEBE A:" — NO quien debe (el restaurante que paga, que suele ir arriba o antes de "debe a"). supplierName y supplierNit son SIEMPRE los del acreedor (a quien se le paga), nunca los del restaurante.
 - supplierNit: el del PROVEEDOR (acreedor), NO el del restaurante que compra/debe. Solo dígitos, sin dígito de verificación.
 - quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
 - unit: cópialo tal como aparece; no lo normalices.
 - Ignora líneas que no sean productos (subtotales, IVA, totales, notas) DENTRO de "lines". Solo insumos comprados en "lines".
-- taxPct por línea: la tarifa de IVA de esa línea ("0","5","19" CO; "0","8","16" MX). unitPriceCents/lineTotalCents son el NETO de la línea (sin IVA) cuando la factura discrimina IVA.
-- invoiceSubtotalCents/invoiceTaxCents/invoiceTotalCents: cópialos de los TOTALES impresos de la factura (no los sumes tú), en centavos, null si no se ven. Sirven para validar.
+- taxPct por línea: la tarifa de IVA de esa línea ("0","5","19" CO; "0","8","16" MX). unitPrice/lineTotal son el NETO de la línea (sin IVA) cuando la factura discrimina IVA.
+- invoiceSubtotal/invoiceTax/invoiceTotal: cópialos de los TOTALES impresos de la factura (no los sumes tú), en pesos literales, null si no se ven. Sirven para validar.
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
@@ -747,11 +784,35 @@ export async function extractPurchaseInvoice(
   } catch {
     return { ...empty, notes: `model returned non-JSON: ${text.slice(0, 200)}` };
   }
-  const result = PurchaseInvoiceSchema.safeParse(parsed);
+  const result = RawInvoiceSchema.safeParse(parsed);
   if (!result.success) {
     return { ...empty, notes: `schema mismatch: ${result.error.issues[0]?.message}` };
   }
-  return result.data;
+  const r = result.data;
+  // Convertir PESOS → CENTAVOS acá (no el modelo): maneja bien los decimales.
+  // Se valida contra el schema de salida (centavos) antes de devolver.
+  return PurchaseInvoiceSchema.parse({
+    documentType: r.documentType,
+    supplierNit: r.supplierNit,
+    supplierName: r.supplierName,
+    supplierInvoiceNumber: r.supplierInvoiceNumber,
+    issueDate: r.issueDate,
+    currency: r.currency,
+    lines: r.lines.map((l) => ({
+      description: l.description,
+      quantity: l.quantity,
+      unit: l.unit,
+      unitPriceCents: pesosFieldToCents(l.unitPrice),
+      lineTotalCents: pesosFieldToCents(l.lineTotal),
+      taxPct: l.taxPct,
+      confidence: l.confidence,
+    })),
+    invoiceSubtotalCents: pesosFieldToCents(r.invoiceSubtotal),
+    invoiceTaxCents: pesosFieldToCents(r.invoiceTax),
+    invoiceTotalCents: pesosFieldToCents(r.invoiceTotal),
+    confidence: r.confidence,
+    notes: r.notes ?? "",
+  });
 }
 
 // ── Importación masiva de insumos (ERP inventory) ───────────────────────────

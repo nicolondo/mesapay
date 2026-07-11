@@ -2702,7 +2702,7 @@
     "module_recipes_label": "Recetas y costeo",
     "module_recipes_desc": "Recetas por plato, food cost en vivo, márgenes e ingeniería de menú.",
     "module_einvoicing_label": "Facturación electrónica",
-    "module_einvoicing_desc": "Emisión de factura electrónica (DIAN / CFDI) desde MESAPAY vía proveedor autorizado.",
+    "module_einvoicing_desc": "Emisión de factura electrónica directa a la DIAN con software propio de MESAPAY (sin proveedor tecnológico).",
     "module_accounting_label": "Contabilidad y PYG",
     "module_accounting_desc": "Gastos, libros operativos de ventas y compras, PYG por sede y export al software contable.",
     "module_production_label": "Producción y traslados",

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
+import type { BoardActivity } from "./boardActivity";
 
 type NavItem = { href: string; label: string };
 /**
@@ -25,6 +27,7 @@ export function OperatorMobileMenu({
   userEmail,
   isAdmin,
   items,
+  boardActivity,
   signOutAction,
 }: {
   tenantName: string;
@@ -32,6 +35,8 @@ export function OperatorMobileMenu({
   // Platform admin gets an extra link back to /admin.
   isAdmin: boolean;
   items: NavEntry[];
+  // Actividad por tablero para el punto rojo (Cocina / Bar / Salón).
+  boardActivity?: BoardActivity;
   // Server-action form rendered by the layout (cannot define a server
   // action inside a client component, so the parent passes it as JSX).
   signOutAction: React.ReactNode;
@@ -139,7 +144,12 @@ export function OperatorMobileMenu({
                     </div>
                   </div>
                 ) : (
-                  <DrawerLink key={it.href} href={it.href} pathname={pathname}>
+                  <DrawerLink
+                    key={it.href}
+                    href={it.href}
+                    pathname={pathname}
+                    boardActivity={boardActivity}
+                  >
                     {it.label}
                   </DrawerLink>
                 ),
@@ -171,10 +181,12 @@ function DrawerLink({
   href,
   pathname,
   children,
+  boardActivity,
 }: {
   href: string;
   pathname: string | null;
   children: React.ReactNode;
+  boardActivity?: BoardActivity;
 }) {
   // Match by exact path or as a parent prefix (so /operator/menu/import
   // still highlights "Menú"). The root "/operator" exact-only — otherwise
@@ -182,17 +194,27 @@ function DrawerLink({
   const active =
     pathname === href ||
     (href !== "/operator" && pathname?.startsWith(href + "/"));
+  const board = BOARD_BY_HREF[href];
   return (
     <Link
       href={href}
       className={
-        "px-4 h-11 inline-flex items-center rounded-xl text-sm transition-colors " +
+        "px-4 h-11 inline-flex items-center gap-2 rounded-xl text-sm transition-colors " +
         (active
           ? "bg-ink text-bone"
           : "text-op-text hover:bg-op-bg")
       }
     >
-      {children}
+      <span className="relative">
+        {children}
+        {board && boardActivity && (
+          <BoardDot
+            boardKey={board}
+            path={href}
+            activityMs={boardActivity[board]}
+          />
+        )}
+      </span>
     </Link>
   );
 }

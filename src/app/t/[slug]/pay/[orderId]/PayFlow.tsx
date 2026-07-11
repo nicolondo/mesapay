@@ -93,12 +93,19 @@ export async function PayFlow({
   const isMeseroSession = session?.user?.role === "mesero";
   const staffHomeHref = isMeseroSession ? "/mesero/mesas" : "/operator/tables";
   const staffServeHref = isMeseroSession ? "/mesero/salon" : "/operator/serve";
+  // Tras un cobro exitoso, la pantalla de "listo" (con la factura) debe
+  // quedar DENTRO del scope del que cobra: el mesero en su PWA (con bottom
+  // nav), el operador/admin en la página done del comensal en modo op.
+  const doneHref = isMeseroSession
+    ? `/mesero/cobrar/${orderId}/done`
+    : `/t/${slug}/pay/${orderId}/done?op=1`;
 
   return (
     <PayClient
       operatorMode={operatorMode}
       staffHomeHref={staffHomeHref}
       staffServeHref={staffServeHref}
+      doneHref={doneHref}
       tenantSlug={slug}
       tenantName={tenant.name}
       orderId={order.id}

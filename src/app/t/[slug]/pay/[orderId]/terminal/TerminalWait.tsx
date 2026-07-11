@@ -22,7 +22,7 @@ export function TerminalWait({
   paymentId,
   amountCents,
   initialStatus,
-  operatorMode = false,
+  doneHref,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -31,8 +31,8 @@ export function TerminalWait({
   paymentId: string;
   amountCents: number;
   initialStatus: Status;
-  // Cobra el mesero: al aprobar, ir a "listo" en modo mesero (op=1).
-  operatorMode?: boolean;
+  // A dónde ir al APROBARSE (lo resuelve el server según quién cobra).
+  doneHref: string;
 }) {
   const router = useRouter();
   const t = useTranslations("wait");
@@ -43,9 +43,7 @@ export function TerminalWait({
     if (status === "approved" && !redirected.current) {
       redirected.current = true;
       const t = setTimeout(() => {
-        router.push(
-          `/t/${tenantSlug}/pay/${orderId}/done?pid=${paymentId}${operatorMode ? "&op=1" : ""}`,
-        );
+        router.push(doneHref);
       }, 1200);
       return () => clearTimeout(t);
     }
@@ -64,7 +62,7 @@ export function TerminalWait({
       }, 1500);
       return () => clearTimeout(t);
     }
-  }, [status, router, tenantSlug, orderId, paymentId, operatorMode]);
+  }, [status, router, tenantSlug, orderId, doneHref]);
 
   const aliveRef = useRef(true);
   useEffect(() => {

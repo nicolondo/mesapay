@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { TerminalWait } from "./TerminalWait";
 
@@ -14,6 +15,17 @@ export default async function TerminalPendingPage({
 }) {
   const { slug, orderId } = await params;
   const { pid, op } = await searchParams;
+
+  // Al aprobar el datáfono, a dónde ir: el comensal a su "done"; el staff a
+  // la pantalla de "listo" DENTRO de su scope (mesero → PWA con bottom nav).
+  let doneHref = `/t/${slug}/pay/${orderId}/done?pid=${pid ?? ""}`;
+  if (op === "1") {
+    const session = await auth();
+    doneHref =
+      session?.user?.role === "mesero"
+        ? `/mesero/cobrar/${orderId}/done`
+        : `/t/${slug}/pay/${orderId}/done?op=1`;
+  }
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -54,7 +66,7 @@ export default async function TerminalPendingPage({
       // sumar tipCents de nuevo o se duplica la propina en pantalla.
       amountCents={payment.amountCents}
       initialStatus={payment.status}
-      operatorMode={op === "1"}
+      doneHref={doneHref}
     />
   );
 }

@@ -1625,6 +1625,23 @@ function EmployeeSheet({
     onChanged();
   }
 
+  /** Eliminación DEFINITIVA del empleado (+ su historial de turnos). Para
+   *  conservar el historial, usar el toggle "activo" (desactivar). */
+  async function deleteEmployee() {
+    if (!employee || !window.confirm(t("staffConfirmDeleteEmployee"))) return;
+    setErr(null);
+    setBusy(true);
+    const r = await fetch(`/api/operator/employees/${employee.id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!r.ok) {
+      setErr(t("errSaveFailed"));
+      return;
+    }
+    onChanged();
+  }
+
   const faceCount = employee?.faceDescriptors?.length ?? 0;
   const tplHasRanges = tplDays.some((d) => d.length > 0);
 
@@ -1919,6 +1936,16 @@ function EmployeeSheet({
           {err && <div className="text-xs text-danger">{err}</div>}
 
           <div className="flex items-center gap-3 pt-1">
+            {employee && (
+              <button
+                type="button"
+                onClick={deleteEmployee}
+                disabled={busy}
+                className="min-h-[44px] px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-40"
+              >
+                {t("staffDeleteEmployee")}
+              </button>
+            )}
             <div className="flex-1" />
             <button
               type="button"

@@ -129,7 +129,12 @@ export async function PATCH(
   }
 }
 
-/** DELETE = soft-delete (active:false) — los turnos históricos quedan. */
+/**
+ * DELETE = eliminación DEFINITIVA: borra el empleado y CASCADEA sus turnos
+ * y asistencia (StaffShift onDelete Cascade). Para conservar el historial
+ * (empleado que ya no trabaja) hay que DESACTIVAR en su lugar (PATCH
+ * active:false), no borrar.
+ */
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -142,6 +147,6 @@ export async function DELETE(
   if (!(await loadOwned(id, ctx.restaurantId))) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  await db.employee.update({ where: { id }, data: { active: false } });
+  await db.employee.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

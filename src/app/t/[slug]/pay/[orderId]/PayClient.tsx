@@ -638,14 +638,10 @@ export function PayClient({
         </section>
       )}
 
-      {/* Selector de modo de pago.
-          - Cliente (no operatorMode): los 3 modos en grilla (Todo / Partes / Lo mío)
-            porque es el flujo principal del checkout y todos son habituales.
-          - Mesero (operatorMode): el 95% del tiempo cobra TODO. Esconder
-            "Partes iguales" detrás de un link compacto evita ruido en
-            mobile sin sacrificar la opción cuando un grupo dice "mitad
-            y mitad". El default es Todo; al tocar el link aparecen los
-            dos botones para escoger. */}
+      {/* Selector de modo de pago (Todo / Partes iguales / Lo mío) — la
+          MISMA grilla de 3 modos para el comensal y para el mesero
+          (operatorMode). El default es Todo; el mesero puede partir la
+          cuenta igual que el comensal. */}
       {/* Banner de error cuando el diner viene de un cobro rechazado.
           Se descarta automáticamente cuando intenta otro método (los
           handlers limpian err en el setBusy) o cuando toca el botón
@@ -664,10 +660,10 @@ export function PayClient({
         </div>
       )}
 
-      {!isCounter && !operatorMode && (
+      {!isCounter && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            {t("howToPay")}
+            {operatorMode ? t("howToCharge") : t("howToPay")}
           </div>
           <div className="grid gap-2 grid-cols-3">
             <ModeButton
@@ -693,24 +689,6 @@ export function PayClient({
           {mode === "mine" && !hasGuests && (
             <div className="mt-2 text-xs text-muted-2">{t("noGuestsHint")}</div>
           )}
-        </div>
-      )}
-
-      {!isCounter && operatorMode && (
-        // Toggle único compacto. Default = Todo (la inmensa mayoría de
-        // los cobros del mesero son la cuenta entera). Si el cliente
-        // dice "mitad y mitad" el mesero pulsa el link y el modo
-        // cambia a Partes iguales (el contador +/- aparece abajo).
-        // Pulsar otra vez vuelve a Todo. Un único control en vez de
-        // dos botones grandes ahorra espacio en mobile.
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => setMode(mode === "full" ? "equal" : "full")}
-            className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted underline"
-          >
-            {mode === "full" ? t("splitToEqual") : t("splitToFull")}
-          </button>
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
-import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
+import { isModuleEnabled } from "@/lib/modules";
 import { dianConfigStatus } from "@/lib/dian/config";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import {
@@ -12,10 +12,6 @@ import {
 } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
-
-// Módulos ERP cuya activación hace visible el catálogo de insumos (basta
-// con uno — mismo gate que la página y la API).
-const INSUMOS_GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
 
 export default async function SettingsPage() {
   const t = await getTranslations("opSettings");
@@ -54,15 +50,6 @@ export default async function SettingsPage() {
   // Wallet y dispersiones solo aplican cuando Pagos está "Listo para cobrar"
   // (onboarding Kushki activo): antes de eso no hay saldo que mover.
   const showWallet = tenant.kushkiOnboardingStatus === "active";
-
-  // Catálogo de insumos (ERP track A): la card solo existe con algún
-  // módulo activado — con todo apagado el comercio no ve nada del ERP.
-  const showInsumos = INSUMOS_GATE.some((m) =>
-    isModuleEnabled(tenant.enabledModules, m),
-  );
-  const ingredientCount = showInsumos
-    ? await db.ingredient.count({ where: { restaurantId } })
-    : 0;
 
   // Proveedores (ERP track A): gate estricto — solo con compras activado
   // (mismo gate que la página y la API de suppliers).
@@ -179,19 +166,8 @@ export default async function SettingsPage() {
           badge={t("badgeTags", { count: tagCount })}
           tint="bg-paper text-op-muted"
         />
-        {showInsumos && (
-          <SettingCard
-            href="/operator/settings/insumos"
-            title={tErp("cardInsumosTitle")}
-            subtitle={tErp("cardInsumosSubtitle")}
-            badge={tErp("badgeInsumos", { count: ingredientCount })}
-            tint={
-              ingredientCount > 0
-                ? "bg-ok/15 text-ok"
-                : "bg-paper text-op-muted"
-            }
-          />
-        )}
+        {/* Insumos se movió de Configuración al dropdown de Administración
+            (nav) — ya no se ofrece como card acá. */}
         {showProveedores && (
           <SettingCard
             href="/operator/settings/proveedores"

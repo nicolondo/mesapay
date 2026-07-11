@@ -209,6 +209,13 @@ export default async function OperatorLayout({
           ...(isModuleEnabled(tenant?.enabledModules, "inventory")
             ? [{ href: "/operator/inventario", label: t("navInventory") }]
             : []),
+          // Catálogo de insumos — antes vivía en Configuración; ahora en
+          // Administración. Mismo gate que la card (inventory/compras/recetas).
+          ...(isModuleEnabled(tenant?.enabledModules, "inventory") ||
+          isModuleEnabled(tenant?.enabledModules, "purchasing") ||
+          isModuleEnabled(tenant?.enabledModules, "recipes")
+            ? [{ href: "/operator/settings/insumos", label: t("navInsumos") }]
+            : []),
           ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
             ? [{ href: "/operator/compras", label: t("navPurchasing") }]
             : []),

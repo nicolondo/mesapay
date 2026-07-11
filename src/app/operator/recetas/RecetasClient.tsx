@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
 import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import {
+  BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
   formatBaseQty,
@@ -165,7 +166,8 @@ function baseToInputQty(
   if (big.factor > 1 && base >= big.factor) {
     return { qty: String(base / big.factor), unit: big.symbol };
   }
-  return { qty: String(base), unit: units[0].symbol };
+  // units[0].factor: 1 para g/ml, 1000 para count "un" (base milesimal).
+  return { qty: String(base / units[0].factor), unit: units[0].symbol };
 }
 
 /** "32,5%" con separador decimal del idioma. */
@@ -183,7 +185,9 @@ function formatPerBase(
   currency: string,
   locale: Locale,
 ): string {
-  return `${formatMoney(Math.round(costPerBase), { currency, locale })}/${BASE_UNIT_SYMBOL[kind]}`;
+  // costPerBase es por unidad BASE (por milésima en count); se rotula por el
+  // símbolo base ("/un"), así que se escala por BASE_SYMBOL_FACTOR.
+  return `${formatMoney(Math.round(costPerBase * BASE_SYMBOL_FACTOR[kind]), { currency, locale })}/${BASE_UNIT_SYMBOL[kind]}`;
 }
 
 // Semáforo food cost (spec D6, umbrales estándar fijos en A3):

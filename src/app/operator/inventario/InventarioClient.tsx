@@ -7,6 +7,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
+  BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
   formatBaseQty,
@@ -440,7 +441,15 @@ export function InventarioClient({
                 const qty = r.stockLevel?.qtyBase ?? 0;
                 const value = r.stockLevel?.totalValueCents ?? 0;
                 // Promedio derivado (spec D3) — solo con saldo positivo.
-                const avg = qty > 0 ? Math.round(value / qty) : null;
+                // Costo por unidad BASE-SÍMBOLO (/g, /ml, /un): en count la
+                // base es la milésima, así que se escala por el factor y se
+                // redondea UNA vez a esa escala (no sobre el per-milésima).
+                const avg =
+                  qty > 0
+                    ? Math.round(
+                        (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
+                      )
+                    : null;
                 const low = isLowStock(r);
                 return (
                   <div

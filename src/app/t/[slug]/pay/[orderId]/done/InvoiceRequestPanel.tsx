@@ -235,12 +235,12 @@ function SimpleInvoiceSheet({
               })}
             </p>
             <a
-              href={done.invoiceUrl}
+              href={`${done.invoiceUrl}?print=1`}
               target="_blank"
               rel="noreferrer"
               className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
             >
-              {t("invViewPrint")}
+              {t("invPrintInvoice")}
             </a>
             <button
               type="button"

@@ -385,6 +385,7 @@
     "close": "Cerrar",
     "invSentBody": "La enviamos a <b>{email}</b>. Si no llega en unos minutos revisa la carpeta de spam.",
     "invViewPrint": "Ver e imprimir factura",
+    "invPrintInvoice": "Imprimir factura",
     "invSimpleIntro": "Solo se necesita el correo. Enviamos la factura con los datos del comercio y los platos del pedido.",
     "invEmailField": "Correo",
     "invEmailPlaceholder": "tu@correo.com",

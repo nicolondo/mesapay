@@ -83,6 +83,25 @@ type PnlDto = {
   }>;
 };
 
+// Espejo de TaxSummary de /api/operator/accounting/pnl (ERP A3).
+type SalesTaxKind = "none" | "inc" | "iva";
+type TaxSummaryDto = {
+  sales: {
+    kind: SalesTaxKind;
+    pct: number;
+    grossCents: number;
+    taxCents: number;
+    baseCents: number;
+  };
+  purchases: {
+    ivaCents: number;
+    incCents: number;
+    retefuenteCents: number;
+    reteIvaCents: number;
+    reteIcaCents: number;
+  };
+};
+
 // Espejo de GET /api/operator/accounting/books (B2 · D5).
 type Book = "sales" | "purchases";
 
@@ -258,6 +277,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   // invalida al guardar/borrar gastos (los gastos mueven el resultado);
   // los libros no dependen de los gastos, así que su caché queda.
   const [pnlCache, setPnlCache] = useState<Record<string, PnlDto>>({});
+  const [taxCache, setTaxCache] = useState<Record<string, TaxSummaryDto>>({});
   const [book, setBook] = useState<Book>("sales");
   const [booksCache, setBooksCache] = useState<Record<string, BookPayload>>(
     {},
@@ -323,6 +343,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
     // Los gastos alimentan el P&L (línea "Gastos" y utilidad): tirar la
     // caché completa para que el tab lo re-derive al abrirse.
     setPnlCache({});
+    setTaxCache({});
   }
 
   return (
@@ -380,6 +401,8 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           currency={currency}
           cache={pnlCache}
           setCache={setPnlCache}
+          taxCache={taxCache}
+          setTaxCache={setTaxCache}
         />
       ) : tab === "books" ? (
         <BooksTab
@@ -511,27 +534,37 @@ function PnlTab({
   currency,
   cache,
   setCache,
+  taxCache,
+  setTaxCache,
 }: {
   month: string;
   currency: string;
   cache: Record<string, PnlDto>;
   setCache: React.Dispatch<React.SetStateAction<Record<string, PnlDto>>>;
+  taxCache: Record<string, TaxSummaryDto>;
+  setTaxCache: React.Dispatch<
+    React.SetStateAction<Record<string, TaxSummaryDto>>
+  >;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
   const [loadErr, setLoadErr] = useState(false);
   const pnl: PnlDto | undefined = cache[month];
+  const tax: TaxSummaryDto | undefined = taxCache[month];
 
   useEffect(() => {
-    if (cache[month]) return;
+    // Refetch si falta el P&L o el resumen de impuestos (este último se
+    // invalida al cambiar la config de impuesto de ventas).
+    if (cache[month] && taxCache[month]) return;
     let cancelled = false;
     (async () => {
       try {
         const r = await fetch(`/api/operator/accounting/pnl?month=${month}`);
         if (!r.ok) throw new Error("load_failed");
-        const j = (await r.json()) as { pnl: PnlDto };
+        const j = (await r.json()) as { pnl: PnlDto; taxSummary: TaxSummaryDto };
         if (cancelled) return;
         setCache((c) => ({ ...c, [month]: j.pnl }));
+        setTaxCache((c) => ({ ...c, [month]: j.taxSummary }));
         setLoadErr(false);
       } catch {
         if (!cancelled) setLoadErr(true);
@@ -540,7 +573,7 @@ function PnlTab({
     return () => {
       cancelled = true;
     };
-  }, [month, cache, setCache]);
+  }, [month, cache, setCache, taxCache, setTaxCache]);
 
   if (pnl === undefined) {
     return loadErr ? (
@@ -607,6 +640,15 @@ function PnlTab({
         />
       </div>
 
+      {/* Impuestos (ERP A3): causados en ventas + pagados en compras. */}
+      {tax && (
+        <PnlTaxes
+          tax={tax}
+          currency={currency}
+          onConfigSaved={() => setTaxCache({})}
+        />
+      )}
+
       {/* Ventas (y CMV, cuando hay inventory+recipes) por categoría del
           menú: cuadra con las líneas de Ingresos y CMV del P&L. */}
       {pnl.categoryBreakdown.length > 0 && (
@@ -647,6 +689,204 @@ function PnlTab({
           {t("pnlCmvHint")}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Sección de impuestos (ERP A3): impuesto de ventas (INC/IVA) causado
+ * embebido en los subtotales + impuestos pagados en compras (IVA, INC,
+ * retenciones). Config del impuesto de ventas inline.
+ */
+function PnlTaxes({
+  tax,
+  currency,
+  onConfigSaved,
+}: {
+  tax: TaxSummaryDto;
+  currency: string;
+  onConfigSaved: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const money = (c: number) => formatMoney(c, { currency, locale });
+  const [editing, setEditing] = useState(false);
+  const kindLabel = (k: SalesTaxKind) =>
+    k === "inc" ? t("taxKindInc") : k === "iva" ? t("taxKindIva") : "";
+
+  const p = tax.purchases;
+  // IVA siempre visible (es lo más común); los demás solo si tienen valor.
+  const purchaseRows: Array<{ label: string; cents: number }> = [
+    { label: t("taxPurchaseIva"), cents: p.ivaCents },
+    { label: t("taxPurchaseInc"), cents: p.incCents },
+    { label: t("taxRetefuente"), cents: p.retefuenteCents },
+    { label: t("taxReteIva"), cents: p.reteIvaCents },
+    { label: t("taxReteIca"), cents: p.reteIcaCents },
+  ].filter((r, i) => i === 0 || r.cents > 0);
+
+  return (
+    <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-op-border flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+          {t("taxSectionTitle")}
+        </span>
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          className="text-[11px] text-op-muted hover:text-ink underline min-h-[44px]"
+        >
+          {t("taxConfigButton")}
+        </button>
+      </div>
+
+      {editing && (
+        <TaxConfigEditor
+          current={tax.sales}
+          onSaved={() => {
+            setEditing(false);
+            onConfigSaved();
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+
+      {/* Impuesto sobre ventas */}
+      <div className="px-4 py-2.5 border-b border-op-border">
+        <div className="text-[11px] text-op-muted mb-1">
+          {t("taxSalesTitle")}
+        </div>
+        {tax.sales.kind === "none" ? (
+          <div className="text-[11px] text-op-muted">{t("taxSalesNone")}</div>
+        ) : (
+          <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
+              <span>{t("taxSalesBase")}</span>
+              <span className="tabular-nums">{money(tax.sales.baseCents)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span>{`${kindLabel(tax.sales.kind)} ${tax.sales.pct}%`}</span>
+              <span className="tabular-nums">{money(tax.sales.taxCents)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Impuestos de compras */}
+      <div className="px-4 py-2.5">
+        <div className="text-[11px] text-op-muted mb-1">
+          {t("taxPurchasesTitle")}
+        </div>
+        <div className="space-y-0.5">
+          {purchaseRows.map((r) => (
+            <div
+              key={r.label}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className={r.cents === 0 ? "text-op-muted" : undefined}>
+                {r.label}
+              </span>
+              <span className="tabular-nums">{money(r.cents)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Editor inline del impuesto de ventas: tipo (none/inc/iva) + tarifa. */
+function TaxConfigEditor({
+  current,
+  onSaved,
+  onCancel,
+}: {
+  current: { kind: SalesTaxKind; pct: number };
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const [kind, setKind] = useState<SalesTaxKind>(current.kind);
+  const [pct, setPct] = useState(current.pct ? String(current.pct) : "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(false);
+
+  function changeKind(k: SalesTaxKind) {
+    setKind(k);
+    // Sugerencia de tarifa típica al elegir el tipo (editable).
+    if (k === "inc" && !pct) setPct("8");
+    if (k === "iva" && !pct) setPct("19");
+  }
+
+  async function save() {
+    setBusy(true);
+    setErr(false);
+    try {
+      const r = await fetch("/api/operator/accounting/tax-config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          salesTaxKind: kind,
+          salesTaxPct: kind === "none" ? 0 : Number(pct) || 0,
+        }),
+      });
+      if (!r.ok) throw new Error("save_failed");
+      onSaved();
+    } catch {
+      setErr(true);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="px-4 py-3 border-b border-op-border bg-op-bg/40 space-y-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-[11px] text-op-muted">
+          <span className="block mb-0.5">{t("taxConfigKind")}</span>
+          <select
+            value={kind}
+            onChange={(e) => changeKind(e.target.value as SalesTaxKind)}
+            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-surface text-sm"
+          >
+            <option value="none">{t("taxConfigNone")}</option>
+            <option value="inc">{t("taxKindInc")}</option>
+            <option value="iva">{t("taxKindIva")}</option>
+          </select>
+        </label>
+        {kind !== "none" && (
+          <label className="text-[11px] text-op-muted">
+            <span className="block mb-0.5">{t("taxConfigPct")}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={100}
+              value={pct}
+              onChange={(e) => setPct(e.target.value.replace(/\D/g, "").slice(0, 3))}
+              className="w-20 min-h-[40px] px-2 rounded-lg border border-op-border bg-op-surface text-sm"
+            />
+          </label>
+        )}
+      </div>
+      <p className="text-[10px] text-op-muted">{t("taxConfigHint")}</p>
+      {err && <div className="text-[11px] text-danger">{t("errSaveFailed")}</div>}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40"
+        >
+          {busy ? t("taxConfigSaving") : t("taxConfigSave")}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="min-h-[40px] px-4 rounded-full border border-op-border bg-op-surface text-xs font-medium disabled:opacity-40"
+        >
+          {t("cancel")}
+        </button>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,43 @@ export function pctOf(partCents: number, baseCents: number): number | null {
   return Math.round((partCents / baseCents) * 1000) / 10;
 }
 
+// ── Impuestos (ERP A3): ventas + compras, para reportes al contador ─────────
+
+export type SalesTaxKind = "none" | "inc" | "iva";
+
+/**
+ * Impuesto EMBEBIDO en un precio que ya lo incluye: si el precio final es
+ * bruto = base × (1 + pct/100), el impuesto = bruto × pct/(100+pct). Así el
+ * comensal paga lo mismo y se deriva el componente de impuesto para reportes.
+ */
+export function embeddedTaxCents(grossCents: number, pct: number): number {
+  if (!(pct > 0) || grossCents <= 0) return 0;
+  return Math.round((grossCents * pct) / (100 + pct));
+}
+
+/** Resumen de impuestos del mes: causados en ventas + pagados en compras. */
+export type TaxSummary = {
+  sales: {
+    kind: SalesTaxKind;
+    pct: number;
+    /** Σ subtotales de órdenes pagadas (el precio ya incluye el impuesto). */
+    grossCents: number;
+    /** Componente de impuesto embebido (INC o IVA) causado en ventas. */
+    taxCents: number;
+    /** Base gravable = grossCents − taxCents. */
+    baseCents: number;
+  };
+  purchases: {
+    /** IVA pagado en compras (Σ por línea desde taxPct). */
+    ivaCents: number;
+    /** INC/impoconsumo pagado en compras. */
+    incCents: number;
+    retefuenteCents: number;
+    reteIvaCents: number;
+    reteIcaCents: number;
+  };
+};
+
 export type PnlInputs = {
   /** Σ subtotalCents de órdenes pagadas del mes. */
   salesCents: number;

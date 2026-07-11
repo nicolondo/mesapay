@@ -73,19 +73,41 @@ export async function GET(req: Request) {
         t("csvPoNumber"),
         t("csvSupplier"),
         t("csvSupplierInvoice"),
+        t("csvNet"),
+        t("csvIva"),
+        t("csvInc"),
+        t("csvRetefuente"),
+        t("csvReteIva"),
+        t("csvReteIca"),
         t("csvTotal"),
         t("csvDueDate"),
         t("csvPaidDate"),
       ],
-      rows.map((r) => [
-        isoDate(r.receivedAt),
-        `OC-${String(r.number).padStart(4, "0")}`,
-        r.supplierName,
-        r.supplierInvoiceNumber ?? "",
-        centsToCsvAmount(r.receivedCents),
-        isoDate(r.invoiceDueAt),
-        isoDate(r.paidAt),
-      ]),
+      rows.map((r) => {
+        // Total a pagar = neto + IVA + INC − retenciones.
+        const total =
+          r.receivedCents +
+          r.ivaCents +
+          r.incCents -
+          r.retefuenteCents -
+          r.reteIvaCents -
+          r.reteIcaCents;
+        return [
+          isoDate(r.receivedAt),
+          `OC-${String(r.number).padStart(4, "0")}`,
+          r.supplierName,
+          r.supplierInvoiceNumber ?? "",
+          centsToCsvAmount(r.receivedCents),
+          centsToCsvAmount(r.ivaCents),
+          centsToCsvAmount(r.incCents),
+          centsToCsvAmount(r.retefuenteCents),
+          centsToCsvAmount(r.reteIvaCents),
+          centsToCsvAmount(r.reteIcaCents),
+          centsToCsvAmount(total),
+          isoDate(r.invoiceDueAt),
+          isoDate(r.paidAt),
+        ];
+      }),
     );
   } else {
     const expenses = await db.expense.findMany({

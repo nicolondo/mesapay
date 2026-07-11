@@ -1843,6 +1843,7 @@
     "errPhotoUpload": "We couldn't upload the photo.",
     "errArchive": "Couldn't archive.",
     "confirmDeleteItem": "Delete \"{name}\"?\n\nIf it appears in past orders it can't be fully deleted — we'll keep it archived (it stops showing on the customer's menu).",
+    "deleteArchivedNotice": "\"{name}\" can't be deleted: it has movements (it appears in orders), so it was archived. It stops showing on the menu and you can re-enable it anytime.",
     "uploading": "Uploading…",
     "changePhoto": "Change photo",
     "uploadPhoto": "Upload photo",

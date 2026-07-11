@@ -1843,6 +1843,7 @@
     "errPhotoUpload": "Não conseguimos enviar a foto.",
     "errArchive": "Não foi possível arquivar.",
     "confirmDeleteItem": "Excluir \"{name}\"?\n\nSe aparecer em pedidos anteriores não dá para excluir por completo — vamos deixá-lo arquivado (deixa de aparecer no cardápio do cliente).",
+    "deleteArchivedNotice": "Não é possível excluir \"{name}\": tem movimentos (aparece em pedidos), então foi arquivado. Deixa de aparecer no cardápio e você pode reativá-lo quando quiser.",
     "uploading": "Enviando…",
     "changePhoto": "Trocar foto",
     "uploadPhoto": "Enviar foto",

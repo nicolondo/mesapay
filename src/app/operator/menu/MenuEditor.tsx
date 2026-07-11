@@ -2020,6 +2020,9 @@ function ItemSheet({
       return;
     }
     const j = await res.json().catch(() => ({}));
+    // Si tenía movimientos (ventas) el server lo archiva en vez de borrarlo:
+    // avisamos explícito para que no parezca que "desapareció" sin más.
+    if (j.archived) alert(tr("deleteArchivedNotice", { name: item.name }));
     onDeleted(!!j.archived);
   }
 

@@ -31,6 +31,10 @@ const schema = z
       .object({
         reason: z.string().trim().min(3).max(240),
         kind: z.enum(["cancel", "comp"]).optional().default("cancel"),
+        // Además de cancelar este plato, marcarlo "no disponible" en la
+        // carta (86 del plato: se acabó el insumo). Mismo intent que el
+        // cancel de ronda; acá aplica solo al menuItem de ESTE item.
+        markUnavailable: z.boolean().optional(),
       })
       .optional(),
   })
@@ -143,6 +147,13 @@ export async function PATCH(
             },
           });
         }
+      }
+      // 86 del plato: marcar el menuItem como no disponible en la carta.
+      if (parsed.data.cancel.markUnavailable) {
+        await tx.menuItem.update({
+          where: { id: item.menuItemId },
+          data: { available: false },
+        });
       }
       // Si la cancelación era el único item activo del round,
       // mover el round a "cancelled" para que el kitchen board lo

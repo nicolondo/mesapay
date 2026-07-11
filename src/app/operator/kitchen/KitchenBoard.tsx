@@ -231,18 +231,18 @@ export function KitchenBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowMs, rounds, boardMode]);
 
-  async function cancelRound(
-    roundId: string,
+  // Cancelación POR PRODUCTO (no por pedido): cancela un item puntual.
+  // Si era el último vivo de la ronda, el server cancela la ronda solo.
+  async function cancelItem(
+    itemId: string,
     reason: string,
     markUnavailable: boolean,
   ) {
-    const res = await fetch(`/api/operator/rounds/${roundId}`, {
+    const res = await fetch(`/api/operator/order-items/${itemId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        status: "cancelled",
-        reason,
-        markUnavailable,
+        cancel: { reason, kind: "cancel", markUnavailable },
       }),
     });
     if (!res.ok) {
@@ -251,20 +251,6 @@ export function KitchenBoard({
     }
     setCancellingKey(null);
     startTx(() => router.refresh());
-  }
-
-  // Compute, once per render, the leftmost column each round appears in.
-  // The cancel control should show on that card only — duplicating it on
-  // every column where the round has items would clutter the board and let
-  // the operator open two cancel forms for the same pedido.
-  const cancelColByRound = new Map<string, KitchenStatus>();
-  for (const r of rounds) {
-    for (const col of COLUMNS) {
-      if (r.items.some((i) => effectiveItemStatus(i) === col.key)) {
-        cancelColByRound.set(r.id, col.key);
-        break;
-      }
-    }
   }
 
   return (
@@ -413,6 +399,12 @@ export function KitchenBoard({
                                 status === "in_kitchen"
                               }
                               nowMs={nowMs}
+                              cancelOpen={cancellingKey === i.id}
+                              onCancelOpen={() => setCancellingKey(i.id)}
+                              onCancelClose={() => setCancellingKey(null)}
+                              onCancelConfirm={(reason, markUnavailable) =>
+                                cancelItem(i.id, reason, markUnavailable)
+                              }
                               onAdvance={() => {
                                 if (advancePending) return;
                                 const to = NEXT_STATUS[status];
@@ -465,19 +457,6 @@ export function KitchenBoard({
                         </button>
                       </div>
                     )}
-                    {cancelColByRound.get(r.id) === col.key && (
-                      <CancelControl
-                        cardKey={r.id + "-" + col.key}
-                        open={cancellingKey === r.id + "-" + col.key}
-                        onOpen={() =>
-                          setCancellingKey(r.id + "-" + col.key)
-                        }
-                        onClose={() => setCancellingKey(null)}
-                        onConfirm={(reason, markUnavailable) =>
-                          cancelRound(r.id, reason, markUnavailable)
-                        }
-                      />
-                    )}
                   </li>
                 );
               })}
@@ -502,6 +481,10 @@ function ItemRow({
   advancePending,
   showCountdown,
   nowMs,
+  cancelOpen,
+  onCancelOpen,
+  onCancelClose,
+  onCancelConfirm,
   onAdvance,
   onToggleServed,
 }: {
@@ -512,11 +495,16 @@ function ItemRow({
   advancePending: boolean;
   showCountdown: boolean;
   nowMs: number;
+  cancelOpen: boolean;
+  onCancelOpen: () => void;
+  onCancelClose: () => void;
+  onCancelConfirm: (reason: string, markUnavailable: boolean) => Promise<void>;
   onAdvance: () => void;
   onToggleServed: () => void;
 }) {
   const tr = useTranslations("kitchen");
   return (
+    <>
     <div className="flex items-start gap-2 py-0.5">
       <AdvanceControl
         status={status}
@@ -602,6 +590,18 @@ function ItemRow({
         <ServeControl served={served} onToggle={onToggleServed} />
       )}
     </div>
+    {/* Cancelar POR PRODUCTO: cada plato tiene su propio control (presets +
+        motivo + "no disponible"). Los ya servidos no se cancelan acá. */}
+    {!served && (
+      <CancelControl
+        cardKey={item.id}
+        open={cancelOpen}
+        onOpen={onCancelOpen}
+        onClose={onCancelClose}
+        onConfirm={onCancelConfirm}
+      />
+    )}
+    </>
   );
 }
 

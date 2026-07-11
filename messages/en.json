@@ -2702,7 +2702,7 @@
     "module_recipes_label": "Recipes & costing",
     "module_recipes_desc": "Per-dish recipes, live food cost, margins and menu engineering.",
     "module_einvoicing_label": "Electronic invoicing",
-    "module_einvoicing_desc": "Electronic invoice issuance (DIAN / CFDI) from MESAPAY via an authorized provider.",
+    "module_einvoicing_desc": "Electronic invoices issued directly to DIAN with MESAPAY's own software (no technology provider).",
     "module_accounting_label": "Accounting & P&L",
     "module_accounting_desc": "Expenses, operational sales and purchase ledgers, per-location P&L and accounting-software export.",
     "module_production_label": "Production & transfers",

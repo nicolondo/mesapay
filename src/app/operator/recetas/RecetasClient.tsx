@@ -13,6 +13,7 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/recipes (dishes + subRecipes + ingredients)
@@ -28,10 +29,26 @@ type RecipeItemDto = {
   measureKind: MeasureKind;
 };
 
+// Delta de insumo por opción de modificador. qtyBase con SIGNO: + agrega,
+// − quita. Reusa la forma de RecipeItemDto (nombre + dimensión).
+type ModifierItemDto = RecipeItemDto & {
+  modifierId: string;
+  optLabel: string;
+};
+
+// Grupo de modificador del plato (para colgarle insumos por opción).
+type ModifierGroupDto = {
+  id: string;
+  label: string;
+  type: "radio" | "checkbox";
+  opts: string[];
+};
+
 type RecipeDto = {
   id: string;
   notes: string | null;
   items: RecipeItemDto[];
+  modifierItems: ModifierItemDto[];
 };
 
 type CostLineDto = {
@@ -56,6 +73,7 @@ type DishRow = {
   category: { id: string; label: string };
   priceCents: number;
   available: boolean;
+  modifiers: ModifierGroupDto[];
   recipe: RecipeDto | null;
   cost: CostDto | null;
 };
@@ -688,7 +706,12 @@ type EditLine = {
   qtyRaw: string;
   unit: string;
   wasteRaw: string;
+  /** Solo líneas de modificador: +1 agrega, −1 quita. undefined = +1 (base). */
+  sign?: 1 | -1;
 };
+
+// Línea de insumo atada a una opción de modificador (extiende EditLine).
+type ModLine = EditLine & { modifierId: string; optLabel: string };
 
 type ParsedLine =
   | {
@@ -815,6 +838,20 @@ function RecipeSheet({
     ),
   );
   const [notes, setNotes] = useState(dish.recipe?.notes ?? "");
+  // Deltas de insumo por opción de modificador (± por línea). Se precargan
+  // de la receta guardada; qtyBase negativo → sign −1 (quitar).
+  const [modLines, setModLines] = useState<ModLine[]>(() =>
+    (dish.recipe?.modifierItems ?? []).map((it) => ({
+      ...editLineFromItem(
+        { ...it, qtyBase: Math.abs(it.qtyBase) },
+        ingById,
+        undefined,
+      ),
+      modifierId: it.modifierId,
+      optLabel: it.optLabel,
+      sign: it.qtyBase < 0 ? -1 : 1,
+    })),
+  );
   const [busy, setBusy] = useState(false);
   const [deletingBusy, setDeletingBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -835,6 +872,34 @@ function RecipeSheet({
     setLines((prev) => prev.filter((x) => x.key !== key));
   }
 
+  function addModLine(modifierId: string, optLabel: string, ing: IngredientOption) {
+    setErr(null);
+    setModLines((prev) => [
+      ...prev,
+      { ...newEditLine(ing), modifierId, optLabel, sign: 1 },
+    ]);
+  }
+
+  function updateModLine(key: number, patch: Partial<EditLine>) {
+    setErr(null);
+    setModLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
+  }
+
+  function removeModLine(key: number) {
+    setModLines((prev) => prev.filter((x) => x.key !== key));
+  }
+
+  function toggleModSign(key: number) {
+    setErr(null);
+    setModLines((prev) =>
+      prev.map((l) =>
+        l.key === key ? { ...l, sign: l.sign === -1 ? 1 : -1 } : l,
+      ),
+    );
+  }
+
   // Totales EN VIVO: costo + food cost + margen contra el precio de carta.
   const live = useMemo(() => {
     const { total, complete } = liveLinesTotal(lines);
@@ -846,8 +911,17 @@ function RecipeSheet({
     return { total, complete, fc, margin };
   }, [lines, dish.priceCents]);
 
+  type ModItemPayload = {
+    modifierId: string;
+    optLabel: string;
+    ingredientId: string;
+    qtyBase: number;
+    wastePct: number;
+  };
+
   async function put(body: {
     items: { ingredientId: string; qtyBase: number; wastePct: number }[];
+    modifierItems?: ModItemPayload[];
     notes: string | null;
   }): Promise<Response> {
     return fetch(`/api/operator/recipes/dish/${dish.menuItemId}`, {
@@ -878,8 +952,28 @@ function RecipeSheet({
       });
     }
     if (items.length === 0) return;
+    // Deltas de modificador: qtyBase con signo (sign −1 = quitar).
+    const modifierItems: ModItemPayload[] = [];
+    for (const l of modLines) {
+      const p = parseLine(l);
+      if (p === "qty_invalid") {
+        setErr(t("errContentInvalid"));
+        return;
+      }
+      if (p === "waste_invalid") {
+        setErr(t("errWasteInvalid"));
+        return;
+      }
+      modifierItems.push({
+        modifierId: l.modifierId,
+        optLabel: l.optLabel,
+        ingredientId: l.ingredientId,
+        qtyBase: (l.sign === -1 ? -1 : 1) * p.qtyBase,
+        wastePct: p.wastePct,
+      });
+    }
     setBusy(true);
-    const r = await put({ items, notes: notes.trim() || null });
+    const r = await put({ items, modifierItems, notes: notes.trim() || null });
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
@@ -894,11 +988,24 @@ function RecipeSheet({
       id: string;
       notes: string | null;
       items: { ingredientId: string; qtyBase: number; wastePct: number }[];
+      modifierItems: ModItemPayload[];
     };
+    const nameOf = (id: string) =>
+      lines.find((l) => l.ingredientId === id) ??
+      modLines.find((l) => l.ingredientId === id);
     const recipe: RecipeDto = {
-      ...raw,
+      id: raw.id,
+      notes: raw.notes,
       items: raw.items.map((it) => {
-        const line = lines.find((l) => l.ingredientId === it.ingredientId);
+        const line = nameOf(it.ingredientId);
+        return {
+          ...it,
+          ingredientName: line?.ingredientName ?? "",
+          measureKind: line?.measureKind ?? "count",
+        };
+      }),
+      modifierItems: (raw.modifierItems ?? []).map((it) => {
+        const line = nameOf(it.ingredientId);
         return {
           ...it,
           ingredientName: line?.ingredientName ?? "",
@@ -931,7 +1038,7 @@ function RecipeSheet({
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
+      {...useBackdropClose(onClose)}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -1031,6 +1138,22 @@ function RecipeSheet({
             </div>
           </div>
 
+          {/* Los deltas de modificador se cuelgan de la receta base: solo se
+              muestran cuando ya hay al menos un insumo base (sin base, guardar
+              está deshabilitado y el server borraría la receta). */}
+          {lines.length > 0 && (
+            <DishModifiersEditor
+              modifiers={dish.modifiers}
+              modLines={modLines}
+              ingredients={ingredients}
+              currency={currency}
+              onAdd={addModLine}
+              onUpdate={updateModLine}
+              onRemove={removeModLine}
+              onToggleSign={toggleModSign}
+            />
+          )}
+
           <Field label={t("fieldNotes")}>
             <textarea
               value={notes}
@@ -1089,6 +1212,8 @@ function LinesEditor({
   ingredients,
   excludeIds,
   currency,
+  signed,
+  onToggleSign,
   onAdd,
   onUpdate,
   onRemove,
@@ -1098,6 +1223,9 @@ function LinesEditor({
   /** Ids extra fuera del picker (p. ej. el insumo output de la sub-receta). */
   excludeIds?: Set<string>;
   currency: string;
+  /** Modo modificador: muestra un toggle +/− (agregar / quitar) por línea. */
+  signed?: boolean;
+  onToggleSign?: (key: number) => void;
   onAdd: (ing: IngredientOption) => void;
   onUpdate: (key: number, patch: Partial<EditLine>) => void;
   onRemove: (key: number) => void;
@@ -1159,7 +1287,8 @@ function LinesEditor({
                     {invalid
                       ? "✕"
                       : parsed.lineCost != null
-                        ? formatMoney(parsed.lineCost, { currency, locale })
+                        ? (signed && l.sign === -1 ? "−" : "") +
+                          formatMoney(parsed.lineCost, { currency, locale })
                         : "—"}
                   </div>
                   <button
@@ -1171,6 +1300,24 @@ function LinesEditor({
                   </button>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
+                  {signed && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSign?.(l.key)}
+                      aria-label={
+                        l.sign === -1 ? t("modSignRemove") : t("modSignAdd")
+                      }
+                      title={l.sign === -1 ? t("modSignRemove") : t("modSignAdd")}
+                      className={
+                        "min-h-[44px] w-10 rounded-lg border text-base font-bold shrink-0 " +
+                        (l.sign === -1
+                          ? "border-danger/40 text-danger bg-danger/10"
+                          : "border-ok/40 text-ok bg-ok/10")
+                      }
+                    >
+                      {l.sign === -1 ? "−" : "+"}
+                    </button>
+                  )}
                   <input
                     type="number"
                     min={0}
@@ -1281,6 +1428,133 @@ function LinesEditor({
         </div>
       </div>
     </>
+  );
+}
+
+/* ─────────── Insumos por opción de modificador (plato) ─────────── */
+
+// Por cada grupo de modificador del plato y cada opción, un editor de
+// deltas de insumo (± agregar/quitar). Se aplica al consumo/CMV solo cuando
+// el comensal eligió esa opción. Sin modificadores no renderiza nada.
+function DishModifiersEditor({
+  modifiers,
+  modLines,
+  ingredients,
+  currency,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onToggleSign,
+}: {
+  modifiers: ModifierGroupDto[];
+  modLines: ModLine[];
+  ingredients: IngredientOption[];
+  currency: string;
+  onAdd: (modifierId: string, optLabel: string, ing: IngredientOption) => void;
+  onUpdate: (key: number, patch: Partial<EditLine>) => void;
+  onRemove: (key: number) => void;
+  onToggleSign: (key: number) => void;
+}) {
+  const t = useTranslations("opErp");
+  if (modifiers.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <div>
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+          {t("modRecipeTitle")}
+        </div>
+        <div className="text-[10px] text-op-muted mt-0.5">
+          {t("modRecipeHint")}
+        </div>
+      </div>
+      {modifiers.map((m) => (
+        <div
+          key={m.id}
+          className="rounded-2xl border border-op-border overflow-hidden"
+        >
+          <div className="px-3 py-2 bg-op-bg/50 text-sm font-medium">
+            {m.label}
+          </div>
+          <div className="divide-y divide-op-border">
+            {m.opts.map((opt) => (
+              <OptionEditor
+                key={opt}
+                label={opt}
+                lines={modLines.filter(
+                  (l) => l.modifierId === m.id && l.optLabel === opt,
+                )}
+                ingredients={ingredients}
+                currency={currency}
+                onAdd={(ing) => onAdd(m.id, opt, ing)}
+                onUpdate={onUpdate}
+                onRemove={onRemove}
+                onToggleSign={onToggleSign}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Una opción del modificador: colapsable, abre el LinesEditor (modo signed)
+// para colgarle insumos. Estado `open` local para no depender de <details>.
+function OptionEditor({
+  label,
+  lines,
+  ingredients,
+  currency,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onToggleSign,
+}: {
+  label: string;
+  lines: EditLine[];
+  ingredients: IngredientOption[];
+  currency: string;
+  onAdd: (ing: IngredientOption) => void;
+  onUpdate: (key: number, patch: Partial<EditLine>) => void;
+  onRemove: (key: number) => void;
+  onToggleSign: (key: number) => void;
+}) {
+  const t = useTranslations("opErp");
+  const [open, setOpen] = useState(lines.length > 0);
+  return (
+    <div className="px-3 py-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full min-h-[40px] flex items-center justify-between gap-2 text-sm"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span aria-hidden className="text-op-muted">
+            {open ? "▾" : "▸"}
+          </span>
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="text-[10px] text-op-muted shrink-0">
+          {lines.length > 0
+            ? t("modOptLineCount", { count: lines.length })
+            : t("modOptAdd")}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          <LinesEditor
+            lines={lines}
+            ingredients={ingredients}
+            currency={currency}
+            signed
+            onToggleSign={onToggleSign}
+            onAdd={onAdd}
+            onUpdate={onUpdate}
+            onRemove={onRemove}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

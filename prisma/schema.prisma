@@ -1421,9 +1421,10 @@ model Ingredient {
   stockMovements     StockMovement[]
   stockCountItems    StockCountItem[]
   purchaseOrderItems PurchaseOrderItem[]
-  recipe             Recipe?              @relation("IngredientRecipe")
-  recipeItems        RecipeItem[]
-  productionBatches  ProductionBatch[]    @relation("BatchOutput")
+  recipe              Recipe?              @relation("IngredientRecipe")
+  recipeItems         RecipeItem[]
+  modifierRecipeItems ModifierRecipeItem[]
+  productionBatches   ProductionBatch[]    @relation("BatchOutput")
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -1742,7 +1743,8 @@ model Recipe {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items RecipeItem[]
+  items         RecipeItem[]
+  modifierItems ModifierRecipeItem[]
 
   @@index([restaurantId])
 }
@@ -1760,6 +1762,33 @@ model RecipeItem {
   wastePct Int @default(0)
 
   @@unique([recipeId, ingredientId])
+}
+
+/// Delta de insumo asociado a UNA opción de modificador de un plato (ej.
+/// "extra queso" suma queso; "sin cebolla" resta cebolla). Se aplica al
+/// consumo (A4) solo cuando el comensal eligió esa opción. Separado de
+/// RecipeItem porque un mismo insumo puede estar en la receta base Y en una
+/// opción (el @@unique de RecipeItem no lo permitiría), y para no alterar el
+/// costo BASE del plato. `qtyBase` lleva SIGNO: + agrega, − quita.
+model ModifierRecipeItem {
+  id           String     @id @default(cuid())
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  /// Id del grupo de modificador (MenuItem.modifiers[].id).
+  modifierId String
+  /// Label de la opción elegida (MenuItem.modifiers[].opts[].label).
+  optLabel   String
+
+  /// Delta NETO en unidad base del insumo. + agrega, − quita (nunca 0).
+  qtyBase  Int
+  /// Merma de preparación 0-90 (%). Mismo criterio que RecipeItem.
+  wastePct Int @default(0)
+
+  @@unique([recipeId, modifierId, optLabel, ingredientId])
+  @@index([recipeId])
 }
 
 // === ERP · Fase A5: producción de batches ==================================

@@ -273,14 +273,24 @@ export function KitchenBoard({
         // Each round appears in every column where it has at least one item
         // in that column's state — so advancing a single item moves just
         // that item across columns instead of holding back the whole round.
+        // Apurar: el ítem apurado (no servido) flota ARRIBA en su ronda, y
+        // la ronda con algún apurado flota arriba en su columna — vale para
+        // cualquier estado, incluido "Por preparar". El sort es estable, así
+        // que el resto conserva el orden por placedAt.
+        const rushKey = (i: Item) => (i.expediteRequestedAt && !i.servedAt ? 0 : 1);
         const rows = rounds
           .map((r) => ({
             round: r,
-            colItems: r.items.filter(
-              (i) => effectiveItemStatus(i) === col.key,
-            ),
+            colItems: r.items
+              .filter((i) => effectiveItemStatus(i) === col.key)
+              .sort((a, b) => rushKey(a) - rushKey(b)),
           }))
-          .filter((x) => x.colItems.length > 0);
+          .filter((x) => x.colItems.length > 0)
+          .sort(
+            (a, b) =>
+              Math.min(...a.colItems.map(rushKey)) -
+              Math.min(...b.colItems.map(rushKey)),
+          );
         return (
           <div
             key={col.key}

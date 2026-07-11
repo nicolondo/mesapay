@@ -180,6 +180,25 @@ export default async function FacturaPage({
             <span className="right">{snap.shortCode}</span>
           </div>
 
+          {snap.customer && (
+            <>
+              <hr className="dashed" />
+              <div className="row">
+                <span>{t("customerLabel")}</span>
+                <span className="right">{snap.customer.name}</span>
+              </div>
+              <div className="row">
+                <span>{snap.customer.docType}</span>
+                <span className="right">{snap.customer.docNumber}</span>
+              </div>
+              <div className="row">
+                <span className="iname">
+                  {snap.customer.address}, {snap.customer.city}
+                </span>
+              </div>
+            </>
+          )}
+
           <hr className="dashed" />
 
           <div className="items">

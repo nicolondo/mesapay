@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
 import { InsumosClient } from "./InsumosClient";
 
@@ -27,11 +28,18 @@ export default async function InsumosSettingsPage() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { enabledModules: true },
+    select: { enabledModules: true, country: true },
   });
   if (!tenant || !GATE.some((m) => isModuleEnabled(tenant.enabledModules, m))) {
     notFound();
   }
+
+  // La importación con IA siembra inventario valorado → solo tiene sentido
+  // (y la API solo la permite) con el módulo `inventory` activo. Con
+  // Compras/Recetas pero sin Inventario, la página existe pero sin el botón.
+  const canImport = isModuleEnabled(tenant.enabledModules, "inventory");
+  // Moneda = país del comercio (regla idioma ≠ moneda de @/lib/format).
+  const currency = await getCurrencyForCountry(tenant.country);
 
   const ingredients = await db.ingredient.findMany({
     where: { restaurantId },
@@ -64,7 +72,11 @@ export default async function InsumosSettingsPage() {
       </div>
       <p className="text-sm text-op-muted mb-6">{t("insumosIntro")}</p>
 
-      <InsumosClient initial={ingredients} />
+      <InsumosClient
+        initial={ingredients}
+        currency={currency}
+        canImport={canImport}
+      />
     </div>
   );
 }

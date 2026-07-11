@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import {
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
@@ -9,6 +10,7 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import { ImportInsumosSheet } from "./ImportInsumosSheet";
 
 type Ingredient = {
   id: string;
@@ -85,13 +87,23 @@ function fold(s: string): string {
 type ActiveFilter = "active" | "inactive" | "all";
 type SheetState = { mode: "create" } | { mode: "edit"; item: Ingredient };
 
-export function InsumosClient({ initial }: { initial: Ingredient[] }) {
+export function InsumosClient({
+  initial,
+  currency,
+  canImport,
+}: {
+  initial: Ingredient[];
+  currency: string;
+  canImport: boolean;
+}) {
   const t = useTranslations("opErp");
+  const router = useRouter();
   const [items, setItems] = useState<Ingredient[]>(initial);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [importing, setImporting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
@@ -151,14 +163,26 @@ export function InsumosClient({ initial }: { initial: Ingredient[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Crear + búsqueda + filtros */}
-      <button
-        type="button"
-        onClick={() => setSheet({ mode: "create" })}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
-      >
-        {t("newIngredient")}
-      </button>
+      {/* Crear + importar con IA + búsqueda + filtros */}
+      <div className={canImport ? "flex gap-2" : ""}>
+        <button
+          type="button"
+          onClick={() => setSheet({ mode: "create" })}
+          className="flex-1 min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        >
+          {t("newIngredient")}
+        </button>
+        {canImport && (
+          <button
+            type="button"
+            onClick={() => setImporting(true)}
+            className="flex-1 min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg inline-flex items-center justify-center gap-1.5"
+          >
+            <span aria-hidden>{"✨"}</span>
+            {t("impInvButton")}
+          </button>
+        )}
+      </div>
 
       <div className="space-y-2">
         <input
@@ -280,6 +304,20 @@ export function InsumosClient({ initial }: { initial: Ingredient[] }) {
           onSaved={(saved) => {
             upsert(saved);
             setSheet(null);
+          }}
+        />
+      )}
+
+      {importing && (
+        <ImportInsumosSheet
+          currency={currency}
+          onClose={() => setImporting(false)}
+          onImported={() => {
+            setImporting(false);
+            // La siembra crea insumos + movimientos server-side; recargamos
+            // la lista desde el server para reflejarlos (más simple y seguro
+            // que reconstruir las filas en el cliente).
+            router.refresh();
           }}
         />
       )}

@@ -2238,7 +2238,8 @@ model SimpleInvoice {
   orderId      String     @unique
   order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  email         String
+  // Opcional: si no se deja correo, la factura solo se imprime/descarga.
+  email         String?
   // Consecutivo asignado al momento de emitir. Para DIAN se concatena
   // con Restaurant.invoicePrefix al renderear (ej: POS-42).
   invoiceNumber Int

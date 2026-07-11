@@ -56,6 +56,7 @@ export function PayClient({
   operatorMode = false,
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
+  doneHref = "",
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -123,6 +124,10 @@ export function PayClient({
   // gated y un mesero quedaría con 403).
   staffHomeHref?: string;
   staffServeHref?: string;
+  // Pantalla de "listo" tras cobrar (con la factura) DENTRO del scope del
+  // que cobra: mesero → /mesero/…/done (mantiene el bottom nav); operador
+  // → /t/[slug]/…/done?op=1. Vacío = fallback al done del comensal en op.
+  doneHref?: string;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -303,7 +308,7 @@ export function PayClient({
     if (j.approved && j.paymentId) {
       router.push(
         operatorMode
-          ? `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}&op=1`
+          ? doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
@@ -519,10 +524,10 @@ export function PayClient({
         return;
       }
       if (operatorMode) {
-        // Cobro cerrado (o parcial). En vez de volver a mesas, va a la
-        // página de "listo" en modo mesero, donde se ofrece la factura
-        // electrónica DESPUÉS del pago (y desde ahí vuelve a mesas).
-        router.push(`/t/${tenantSlug}/pay/${orderId}/done?op=1`);
+        // Cobro cerrado (o parcial). Va a la pantalla de "listo" DENTRO del
+        // scope del que cobra (mesero: su PWA con bottom nav), donde se
+        // ofrece la factura DESPUÉS del pago.
+        router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
         return;
       }
       if (j.pending && j.paymentId) {

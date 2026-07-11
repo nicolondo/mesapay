@@ -307,6 +307,7 @@ export function HorariosClient({
   // montar y al cerrar el sheet (por si el admin confirmó varias).
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviewsCount, setReviewsCount] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -434,6 +435,14 @@ export function HorariosClient({
           </button>
           <button
             type="button"
+            onClick={() => setReportOpen(true)}
+            title={t("attReportTitle")}
+            className="min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-xs font-medium text-op-muted hover:text-ink hover:bg-op-bg"
+          >
+            {t("attReportButton")}
+          </button>
+          <button
+            type="button"
             onClick={() => setSettingsOpen(true)}
             aria-label={t("staffSettingsTitle")}
             title={t("staffSettingsTitle")}
@@ -517,6 +526,8 @@ export function HorariosClient({
           onCountChange={setReviewsCount}
         />
       )}
+
+      {reportOpen && <AttendanceReportSheet onClose={() => setReportOpen(false)} />}
     </div>
   );
 }
@@ -2758,6 +2769,87 @@ function SettingsSheet({
 }
 
 /* ────────────────────────────── UI compartida ──────────────────────── */
+
+/** Reporte de asistencia: rango de fechas → descarga el CSV. */
+function AttendanceReportSheet({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("opErp");
+  const toInput = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+  const now = new Date();
+  const [from, setFrom] = useState(
+    toInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+  );
+  const [to, setTo] = useState(toInput(now));
+  const invalid = !from || !to || from > to;
+
+  function download() {
+    if (invalid) return;
+    window.open(
+      `/api/operator/attendance/report?from=${from}&to=${to}`,
+      "_blank",
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h2 className="font-display text-2xl">{t("attReportTitle")}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            aria-label={t("cancel")}
+          >
+            {"✕"}
+          </button>
+        </div>
+        <p className="text-xs text-op-muted mb-4">{t("attReportHint")}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t("attReportFrom")}>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+          <Field label={t("attReportTo")}>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className={inputCls}
+            />
+          </Field>
+        </div>
+        {invalid && (
+          <div className="text-xs text-danger mt-2">
+            {t("attReportRangeInvalid")}
+          </div>
+        )}
+        <div className="flex justify-end mt-4">
+          <button
+            type="button"
+            onClick={download}
+            disabled={invalid}
+            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          >
+            {t("attReportDownload")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Field({
   label,

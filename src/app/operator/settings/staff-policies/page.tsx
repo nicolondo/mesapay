@@ -24,6 +24,8 @@ export default async function StaffPoliciesPage() {
       walkoutDangerMinutes: true,
       businessDayCutoffHour: true,
       meseroShiftWithoutLocal: true,
+      compEnabled: true,
+      compLabel: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -49,6 +51,8 @@ export default async function StaffPoliciesPage() {
         initialMeseroShiftWithoutLocal={resolveMeseroShiftWithoutLocal(
           tenant.meseroShiftWithoutLocal,
         )}
+        initialCompEnabled={tenant.compEnabled}
+        initialCompLabel={tenant.compLabel ?? ""}
       />
     </div>
   );

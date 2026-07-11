@@ -106,6 +106,10 @@ export async function PayFlow({
       staffHomeHref={staffHomeHref}
       staffServeHref={staffServeHref}
       doneHref={doneHref}
+      // Gastos de representación (cortesía $0): solo cuando cobra staff y el
+      // comercio lo tiene habilitado. Etiqueta configurable (null ⇒ default).
+      compEnabled={operatorMode && tenant.compEnabled}
+      compLabel={tenant.compLabel}
       tenantSlug={slug}
       tenantName={tenant.name}
       orderId={order.id}

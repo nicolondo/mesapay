@@ -21,6 +21,10 @@ const putBody = z.object({
   businessDayCutoffHour: z.number().int().min(0).max(23).optional(),
   // Qué hacer si el mesero abre turno sin que el local abriera el suyo.
   meseroShiftWithoutLocal: z.enum(MESERO_SHIFT_WITHOUT_LOCAL).optional(),
+  // Gastos de representación: permitir cerrar cuentas como cortesía ($0) +
+  // nombre configurable. compLabel vacío ⇒ null (usa el default de i18n).
+  compEnabled: z.boolean().optional(),
+  compLabel: z.string().trim().max(40).optional(),
 });
 
 /**
@@ -63,6 +67,8 @@ export async function PUT(req: Request) {
       walkoutDangerMinutes: true,
       businessDayCutoffHour: true,
       meseroShiftWithoutLocal: true,
+      compEnabled: true,
+      compLabel: true,
     },
   });
 
@@ -83,6 +89,12 @@ export async function PUT(req: Request) {
       }),
       ...(parsed.data.meseroShiftWithoutLocal !== undefined && {
         meseroShiftWithoutLocal: parsed.data.meseroShiftWithoutLocal,
+      }),
+      ...(parsed.data.compEnabled !== undefined && {
+        compEnabled: parsed.data.compEnabled,
+      }),
+      ...(parsed.data.compLabel !== undefined && {
+        compLabel: parsed.data.compLabel || null,
       }),
     },
   });

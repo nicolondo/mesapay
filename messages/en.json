@@ -385,6 +385,7 @@
     "close": "Close",
     "invSentBody": "We sent it to <b>{email}</b>. If it doesn't arrive in a few minutes check the spam folder.",
     "invViewPrint": "View and print invoice",
+    "invPrintInvoice": "Print invoice",
     "invSimpleIntro": "We only need the email. We'll send the invoice with the business details and the ordered items.",
     "invEmailField": "Email",
     "invEmailPlaceholder": "you@email.com",

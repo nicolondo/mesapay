@@ -52,10 +52,13 @@ export async function generateMetadata({
  */
 export default async function FacturaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ print?: string }>;
 }) {
   const { id } = await params;
+  const { print } = await searchParams;
   const t = await getTranslations("emailInvoice");
   const tag = localeTag((await getLocale()) as Locale);
   const inv = await db.simpleInvoice.findUnique({
@@ -113,7 +116,7 @@ export default async function FacturaPage({
       <style>{POS_STYLES}</style>
       <div className="factura-shell">
         <div className="factura-controls">
-          <PrintButton />
+          <PrintButton autoPrint={print === "1"} />
           <Link href="/" className="secondary">
             {"MESAPAY"}
           </Link>

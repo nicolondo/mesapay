@@ -385,6 +385,7 @@
     "close": "Fechar",
     "invSentBody": "Enviamos para <b>{email}</b>. Se não chegar em alguns minutos, verifique a pasta de spam.",
     "invViewPrint": "Ver e imprimir nota",
+    "invPrintInvoice": "Imprimir nota",
     "invSimpleIntro": "Só precisamos do e-mail. Enviamos a nota com os dados do estabelecimento e os itens do pedido.",
     "invEmailField": "E-mail",
     "invEmailPlaceholder": "voce@email.com",

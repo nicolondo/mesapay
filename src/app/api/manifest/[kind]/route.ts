@@ -18,7 +18,7 @@ import { NextResponse } from "next/server";
  * standalone mode would otherwise open the browser, which is jarring.
  */
 
-type Kind = "mesero" | "cocina" | "bar" | "comercial" | "app";
+type Kind = "mesero" | "cocina" | "bar" | "comercial" | "asistencia" | "app";
 
 const VARIANTS: Record<
   Kind,
@@ -60,6 +60,14 @@ const VARIANTS: Record<
     shortName: "MP COMERCIAL",
     start: "/comercial/crm",
     scope: "/comercial/",
+  },
+  // Kiosko de asistencia (tablet en pared): el empleado puncha por
+  // reconocimiento facial o eligiendo su nombre.
+  asistencia: {
+    name: "MP Asistencia",
+    shortName: "MP Asistencia",
+    start: "/operator/horarios/kiosko",
+    scope: "/operator/horarios/kiosko",
   },
 };
 

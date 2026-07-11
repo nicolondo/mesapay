@@ -1843,6 +1843,7 @@
     "errPhotoUpload": "No pudimos subir la foto.",
     "errArchive": "No se pudo archivar.",
     "confirmDeleteItem": "¿Eliminar \"{name}\"?\n\nSi aparece en pedidos anteriores no se puede borrar del todo — lo dejaremos archivado (deja de mostrarse en la carta del cliente).",
+    "deleteArchivedNotice": "No se puede eliminar \"{name}\": tiene movimientos (aparece en pedidos), así que se archivó. Deja de mostrarse en la carta y lo podés reactivar cuando quieras.",
     "uploading": "Subiendo…",
     "changePhoto": "Cambiar foto",
     "uploadPhoto": "Subir foto",

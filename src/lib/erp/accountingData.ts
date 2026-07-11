@@ -6,9 +6,13 @@ import { db } from "@/lib/db";
 import {
   buildPnl,
   type CategoryLine,
+  embeddedTaxCents,
   type LaborSummary,
   type Pnl,
+  type SalesTaxKind,
+  type TaxSummary,
 } from "@/lib/erp/accounting";
+import { lineTaxCents } from "@/lib/erp/purchaseTax";
 import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
@@ -286,6 +290,75 @@ export async function computeMonthPnl(
   };
 }
 
+/**
+ * Resumen de impuestos del mes (ERP A3) para la contabilidad y el reporte al
+ * contador. Ventas: impuesto (INC/IVA) EMBEBIDO en los subtotales pagados,
+ * según la config del comercio. Compras: IVA desde el taxPct de las líneas
+ * recibidas + INC/retenciones capturados a nivel factura en la OC.
+ */
+export async function computeTaxSummary(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<TaxSummary> {
+  const [tenant, sales, poItems, poHeaders] = await Promise.all([
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { salesTaxKind: true, salesTaxPct: true },
+    }),
+    db.order.aggregate({
+      where: { restaurantId, status: "paid", paidAt: { gte: range.from, lt: range.to } },
+      _sum: { subtotalCents: true },
+    }),
+    // IVA de compras: por línea recibida en el mes, taxPct × neto recibido.
+    db.purchaseOrderItem.findMany({
+      where: {
+        purchaseOrder: {
+          restaurantId,
+          receivedAt: { gte: range.from, lt: range.to },
+        },
+      },
+      select: { receivedCostCents: true, taxPct: true },
+    }),
+    // INC + retenciones capturados a nivel factura (cabecera de la OC).
+    db.purchaseOrder.aggregate({
+      where: { restaurantId, receivedAt: { gte: range.from, lt: range.to } },
+      _sum: {
+        incCents: true,
+        retefuenteCents: true,
+        reteIvaCents: true,
+        reteIcaCents: true,
+      },
+    }),
+  ]);
+
+  const kind = (tenant?.salesTaxKind ?? "none") as SalesTaxKind;
+  const pct = tenant?.salesTaxPct ?? 0;
+  const grossCents = sales._sum.subtotalCents ?? 0;
+  const salesTaxCents = kind === "none" ? 0 : embeddedTaxCents(grossCents, pct);
+
+  const ivaCents = poItems.reduce(
+    (s, it) => s + lineTaxCents(it.receivedCostCents, it.taxPct),
+    0,
+  );
+
+  return {
+    sales: {
+      kind,
+      pct,
+      grossCents,
+      taxCents: salesTaxCents,
+      baseCents: grossCents - salesTaxCents,
+    },
+    purchases: {
+      ivaCents,
+      incCents: poHeaders._sum.incCents ?? 0,
+      retefuenteCents: poHeaders._sum.retefuenteCents ?? 0,
+      reteIvaCents: poHeaders._sum.reteIvaCents ?? 0,
+      reteIcaCents: poHeaders._sum.reteIcaCents ?? 0,
+    },
+  };
+}
+
 // ── Libros (D5): filas para la vista JSON y el export CSV ──────────────────
 
 export async function loadSalesBook(restaurantId: string, range: MonthRange) {
@@ -343,8 +416,12 @@ export async function loadPurchasesBook(
       supplierInvoiceNumber: true,
       invoiceDueAt: true,
       paidAt: true,
+      incCents: true,
+      retefuenteCents: true,
+      reteIvaCents: true,
+      reteIcaCents: true,
       supplier: { select: { name: true } },
-      items: { select: { receivedCostCents: true } },
+      items: { select: { receivedCostCents: true, taxPct: true } },
     },
   });
   const rows = orders.map((o) => ({
@@ -356,6 +433,15 @@ export async function loadPurchasesBook(
     invoiceDueAt: o.invoiceDueAt,
     paidAt: o.paidAt,
     receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
+    // Impuestos de la factura (ERP A3): IVA desde las líneas + INC/retenciones.
+    ivaCents: o.items.reduce(
+      (s, i) => s + lineTaxCents(i.receivedCostCents, i.taxPct),
+      0,
+    ),
+    incCents: o.incCents,
+    retefuenteCents: o.retefuenteCents,
+    reteIvaCents: o.reteIvaCents,
+    reteIcaCents: o.reteIcaCents,
   }));
   const totals = {
     count: rows.length,
@@ -363,6 +449,11 @@ export async function loadPurchasesBook(
     unpaidCents: rows
       .filter((r) => !r.paidAt)
       .reduce((s, r) => s + r.receivedCents, 0),
+    ivaCents: rows.reduce((s, r) => s + r.ivaCents, 0),
+    incCents: rows.reduce((s, r) => s + r.incCents, 0),
+    retefuenteCents: rows.reduce((s, r) => s + r.retefuenteCents, 0),
+    reteIvaCents: rows.reduce((s, r) => s + r.reteIvaCents, 0),
+    reteIcaCents: rows.reduce((s, r) => s + r.reteIcaCents, 0),
   };
   return { rows, totals };
 }

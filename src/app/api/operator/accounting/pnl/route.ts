@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
-import { computeMonthPnl } from "@/lib/erp/accountingData";
+import { computeMonthPnl, computeTaxSummary } from "@/lib/erp/accountingData";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,9 @@ export async function GET(req: Request) {
   const range = monthRange(month);
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  const pnl = await computeMonthPnl(ctx.restaurantId, range);
-  return NextResponse.json({ month, pnl });
+  const [pnl, taxSummary] = await Promise.all([
+    computeMonthPnl(ctx.restaurantId, range),
+    computeTaxSummary(ctx.restaurantId, range),
+  ]);
+  return NextResponse.json({ month, pnl, taxSummary });
 }

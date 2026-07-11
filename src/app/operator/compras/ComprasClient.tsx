@@ -2080,10 +2080,40 @@ function initialLineCost(line: ExtractionLine): string {
 }
 
 /** Construye una línea de revisión desde un MatchLine de la IA. */
+/** Infiere la medida de un insumo NUEVO desde la unidad leída (texto libre). */
+function inferMeasureFromUnit(unit: string | null): MeasureKind | null {
+  if (!unit) return null;
+  const u = unit.toLowerCase();
+  if (/(^|\W)(kg|kilo|kilos|kgr|g|gr|grs|gramo|gramos|lb|libra|libras|arroba|@)(\W|$)/.test(u))
+    return "mass";
+  if (/(^|\W)(l|lt|lts|litro|litros|ml|cc|gal|galon|garrafa)(\W|$)/.test(u))
+    return "volume";
+  if (/(^|\W)(un|und|unid|unidad|unidades|u|caja|cajas|bulto|paq|paquete|pack|docena|lata|latas|botella|botellas|bolsa|bolsas)(\W|$)/.test(u))
+    return "count";
+  return null;
+}
+/** Unidad de display por defecto (grande, para admitir cantidades decimales). */
+function defaultUnitFor(kind: MeasureKind): string {
+  return kind === "mass" ? "kg" : kind === "volume" ? "L" : "un";
+}
+/** Si la unidad leída coincide con un símbolo de display de esa medida, úsalo. */
+function matchReadUnit(kind: MeasureKind, unit: string | null): string | null {
+  if (!unit) return null;
+  const u = unit.trim().toLowerCase();
+  return DISPLAY_UNITS[kind].find((d) => d.symbol.toLowerCase() === u)?.symbol ?? null;
+}
+
 function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
   const ing = m.ingredient;
+  const q = m.line.quantity;
+  // Insumo nuevo: inferir la medida de la unidad leída; si no se puede,
+  // una cantidad DECIMAL casi siempre es peso/volumen (conteo es entero),
+  // así que default masa; una entera, conteo.
   const measureKind: MeasureKind =
-    ing.kind === "matched" ? ing.ingredient.measureKind : "count";
+    ing.kind === "matched"
+      ? ing.ingredient.measureKind
+      : (inferMeasureFromUnit(m.line.unit) ??
+        (Number.isInteger(q) ? "count" : "mass"));
   return {
     key: ++invLineKeySeq,
     ingredientId: ing.kind === "matched" ? ing.ingredient.id : null,
@@ -2092,9 +2122,16 @@ function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
     measureKind,
     suggestedPresentation: m.suggestedPresentation,
     qtyMode: m.suggestedPresentation ? "presentation" : "direct",
-    presentations: "1",
-    qty: "",
-    unit: BASE_UNIT_SYMBOL[measureKind],
+    // Presentación: si la cantidad leída es un entero, suele ser el # de
+    // presentaciones (2 cajas). Si no, arranca en 1 y el operador ajusta.
+    presentations:
+      m.suggestedPresentation && Number.isInteger(q) && q > 0
+        ? String(q)
+        : "1",
+    // PRELLENAR la cantidad leída (antes quedaba vacía — había que
+    // re-teclearla).
+    qty: q > 0 ? String(q) : "",
+    unit: matchReadUnit(measureKind, m.line.unit) ?? defaultUnitFor(measureKind),
     cost: initialLineCost(m.line),
     taxPct: normalizeTaxPct(m.line.taxPct),
     lowConfidence: m.lowConfidence,

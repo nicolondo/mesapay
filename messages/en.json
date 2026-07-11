@@ -1680,7 +1680,7 @@
     "fieldPhoneLabel": "Phone",
     "fieldPhonePlaceholder": "+57 320 123 4567",
     "dianSectionTitle": "DIAN invoicing resolution",
-    "dianHelp": "The resolution information shown on receipt-style invoices. We don't connect with the DIAN — this is only for printing on the receipt.",
+    "dianHelp": "Details of the DIAN-authorized numbering resolution. They appear on the receipt and, when electronic invoicing is on, feed the electronic invoice.",
     "dianResolutionLabel": "Resolution (text)",
     "dianResolutionPlaceholder": "Resolución 18760000001",
     "dianDateLabel": "Resolution date",

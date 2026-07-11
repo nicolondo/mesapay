@@ -46,6 +46,16 @@ type FreeTable = {
   label: string | null;
 };
 
+// Todas las otras mesas (libres y ocupadas) — destino posible para
+// mover UN plato. A diferencia del move de pedido entero, el plato SÍ
+// puede unirse a una mesa ocupada (se suma a su cuenta abierta).
+type AllTable = {
+  id: string;
+  number: number;
+  label: string | null;
+  occupied: boolean;
+};
+
 export function TableDetailSheet({
   orderId,
   shortCode,
@@ -54,6 +64,7 @@ export function TableDetailSheet({
   tableId,
   initialRounds,
   freeTables,
+  allTables,
   open: externalOpen,
   onOpenChange,
   hideTrigger,
@@ -76,6 +87,10 @@ export function TableDetailSheet({
   // de "Mover a otra mesa". Server pre-llena. Si no hay ninguna
   // (todas ocupadas) se esconde el botón.
   freeTables: FreeTable[];
+  // TODAS las otras mesas del restaurante (libres y ocupadas), sin la
+  // mesa actual. Necesarias para "Mover un plato" — el plato puede
+  // unirse a una mesa ocupada. Si está vacío se esconde el botón.
+  allTables: AllTable[];
   // Modo controlled: si el padre pasa `open` + `onOpenChange`, el
   // sheet sigue el estado externo. Útil para que la grilla compacta
   // de Mesas dispare el sheet al tap del tile. Si no se pasan,
@@ -165,6 +180,13 @@ export function TableDetailSheet({
   } | null>(null);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [moveErr, setMoveErr] = useState<string | null>(null);
+  // Mover UN plato — target abre el picker de mesas para ese ítem;
+  // moveItemErr surface el error del endpoint dentro del picker.
+  const [moveItemTarget, setMoveItemTarget] = useState<{
+    itemId: string;
+    name: string;
+  } | null>(null);
+  const [moveItemErr, setMoveItemErr] = useState<string | null>(null);
   // Cancelar la orden completa — sólo aplica cuando la cocina no
   // ha plateado nada (status placed/in_kitchen). Una vez cancelada
   // cerramos el sheet y refrescamos.
@@ -233,6 +255,44 @@ export function TableDetailSheet({
     // alcanza (la mesa ORIGEN queda libre y no siempre revalida), así que
     // pedimos el re-render del server como en los demás handlers.
     setShowMoveSheet(false);
+    setOpen(false);
+    startTx(() => router.refresh());
+  }
+
+  // Mapa de códigos de error del endpoint de mover-plato a copy i18n.
+  function moveItemErrorMessage(code: string | undefined): string {
+    switch (code) {
+      case "item_served":
+        return tr("moveItemServed");
+      case "item_cancelled":
+        return tr("moveItemCancelled");
+      case "order_closed":
+        return tr("moveItemOrderClosed");
+      case "same_table":
+        return tr("moveItemSameTable");
+      case "target_out_of_scope":
+        return tr("moveItemOutOfScope");
+      default:
+        return tr("moveItemFailed");
+    }
+  }
+
+  async function moveItemToTable(itemId: string, targetTableId: string) {
+    setMoveItemErr(null);
+    const r = await fetch(`/api/operator/order-items/${itemId}/move`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetTableId }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setMoveItemErr(j.message ?? moveItemErrorMessage(j.error));
+      return;
+    }
+    // El plato se fue a otra mesa; cerramos picker + sheet y forzamos
+    // el re-render del server (misma razón que moveOrderToTable: la
+    // grid de ambas mesas debe reflejar el cambio).
+    setMoveItemTarget(null);
     setOpen(false);
     startTx(() => router.refresh());
   }
@@ -574,6 +634,26 @@ export function TableDetailSheet({
                               )}
                           </div>
                           <div className="flex items-center gap-1.5">
+                            {/* Mover — reasigna ESTE plato a otra
+                                mesa (el mesero lo cargó en la mesa
+                                equivocada). Solo si no está servido y
+                                hay otras mesas a donde mover. El plato
+                                puede unirse a una mesa ocupada. */}
+                            {!it.servedAt && allTables.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMoveItemErr(null);
+                                  setMoveItemTarget({
+                                    itemId: it.id,
+                                    name: it.name,
+                                  });
+                                }}
+                                className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text hover:bg-op-bg px-2 py-1 rounded-full"
+                              >
+                                {tr("moveItem")}
+                              </button>
+                            )}
                             {/* Cancelar — solo si el item está en
                                 "placed" (todavía no entró a cocina).
                                 Una vez que cocina lo empieza, la
@@ -673,6 +753,16 @@ export function TableDetailSheet({
           onPick={(tid) => moveOrderToTable(tid)}
         />
       )}
+
+      {moveItemTarget && (
+        <MoveItemSheet
+          itemName={moveItemTarget.name}
+          allTables={allTables}
+          err={moveItemErr}
+          onClose={() => setMoveItemTarget(null)}
+          onPick={(tid) => moveItemToTable(moveItemTarget.itemId, tid)}
+        />
+      )}
     </>
   );
 }
@@ -753,6 +843,113 @@ function MoveTableSheet({
             </button>
           ))}
         </div>
+
+        {err && <div className="text-xs text-danger">{err}</div>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Picker para mover UN plato a otra mesa. A diferencia de
+ * MoveTableSheet (mueve el pedido entero, solo a mesas libres), acá
+ * listamos TODAS las otras mesas y marcamos si están ocupadas — el
+ * plato se sumará a esa cuenta abierta — o libres — se abre cuenta
+ * nueva. El encabezado muestra el nombre del plato que se mueve.
+ */
+function MoveItemSheet({
+  itemName,
+  allTables,
+  err,
+  onClose,
+  onPick,
+}: {
+  itemName: string;
+  allTables: AllTable[];
+  err: string | null;
+  onClose: () => void;
+  onPick: (targetTableId: string) => void | Promise<void>;
+}) {
+  const tr = useTranslations("opTables");
+  const [busy, setBusy] = useState(false);
+  async function pick(id: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onPick(id);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              {tr("moveItemFromDish")}
+            </div>
+            <h2 className="font-display text-2xl mt-1">{itemName}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label={tr("close")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        <p className="text-xs text-muted">{tr("moveItemHint")}</p>
+
+        {allTables.length === 0 ? (
+          <div className="text-sm text-op-muted">{tr("moveItemNoTables")}</div>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2">
+            {allTables.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => pick(t.id)}
+                disabled={busy}
+                className={
+                  "h-16 rounded-xl border disabled:opacity-50 flex flex-col items-center justify-center px-1 " +
+                  (t.occupied
+                    ? "bg-terracotta/10 border-terracotta/40 hover:border-terracotta/70"
+                    : "bg-op-surface border-hairline hover:border-ink/40")
+                }
+                title={t.label ?? undefined}
+              >
+                <div className="font-display text-lg tabular leading-none">
+                  {t.number}
+                </div>
+                {t.label && (
+                  <div className="text-[10px] text-op-muted mt-0.5 truncate max-w-full px-1">
+                    {t.label}
+                  </div>
+                )}
+                <div
+                  className={
+                    "font-mono text-[8px] tracking-wider uppercase mt-0.5 " +
+                    (t.occupied ? "text-terracotta" : "text-op-muted")
+                  }
+                >
+                  {t.occupied
+                    ? tr("moveItemTableOccupied")
+                    : tr("moveItemTableFree")}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {err && <div className="text-xs text-danger">{err}</div>}
       </div>

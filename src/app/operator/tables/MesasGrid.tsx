@@ -93,6 +93,14 @@ type ItemDetail = {
 
 type FreeTable = { id: string; number: number; label: string | null };
 
+// Todas las mesas (libres y ocupadas) para "Mover un plato".
+type AllTable = {
+  id: string;
+  number: number;
+  label: string | null;
+  occupied: boolean;
+};
+
 type FilterChip = "all" | "by_pay" | "recent" | "free";
 
 export function MesasGrid({
@@ -101,12 +109,14 @@ export function MesasGrid({
   counterMode,
   isMeseroView,
   freeTables,
+  allTables,
 }: {
   tiles: TileData[];
   tenantSlug: string;
   counterMode: boolean;
   isMeseroView: boolean;
   freeTables: FreeTable[];
+  allTables: AllTable[];
 }) {
   const tr = useTranslations("opTables");
   const [filter, setFilter] = useState<FilterChip>("all");
@@ -250,6 +260,7 @@ export function MesasGrid({
                 setOpenTileId(next ? tile.id : null)
               }
               freeTables={freeTables.filter((ft) => ft.id !== tile.id)}
+              allTables={allTables.filter((at) => at.id !== tile.id)}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
             />
@@ -606,6 +617,7 @@ function ActiveTile({
   open,
   onOpenChange,
   freeTables,
+  allTables,
   tenantSlug,
   isMeseroView,
 }: {
@@ -614,6 +626,7 @@ function ActiveTile({
   open: boolean;
   onOpenChange: (next: boolean) => void;
   freeTables: FreeTable[];
+  allTables: AllTable[];
   tenantSlug: string;
   isMeseroView: boolean;
 }) {
@@ -708,6 +721,7 @@ function ActiveTile({
           tableNumber={tile.number}
           tableId={tile.id}
           freeTables={freeTables}
+          allTables={allTables}
           initialRounds={tile.order.rounds}
           open={open}
           onOpenChange={onOpenChange}

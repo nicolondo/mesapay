@@ -41,6 +41,8 @@ type OrderSummary = {
   // CxP (tab "Por pagar") — el GET de lista devuelve todos los escalares.
   supplierInvoiceNumber: string | null;
   invoiceDueAt: string | Date | null;
+  // Abonado acumulado (centavos). Saldo = total bruto recibido − paidCents.
+  paidCents: number;
   supplier: { id: string; name: string };
   items: {
     expectedCostCents: number;
@@ -82,7 +84,8 @@ type OrderDetail = {
   supplierInvoiceNumber: string | null;
   invoiceDueAt: string | null;
   paidAt: string | null;
-  paymentNote: string | null;
+  // Abonado acumulado (centavos). Saldo = total bruto recibido − paidCents.
+  paidCents: number;
   supplier: {
     id: string;
     name: string;
@@ -108,6 +111,8 @@ type OrderDetail = {
   }[];
   // Recepciones del libro (movimientos purchase_in ligados a la OC).
   movements: ReceptionMovement[];
+  // Abonos (CxP · F3) — historial de pagos parciales/totales, desc por fecha.
+  payments: PurchasePaymentRef[];
 };
 
 type ReceptionMovement = {
@@ -117,6 +122,17 @@ type ReceptionMovement = {
   createdAt: string;
   ingredient: { id: string; name: string; measureKind: MeasureKind };
   createdBy: { id: string; name: string | null } | null;
+};
+
+/** Abono de una OC (CxP · F3): monto, fecha, método/nota y quién lo registró. */
+type PurchasePaymentRef = {
+  id: string;
+  amountCents: number;
+  paidAt: string;
+  method: string | null;
+  note: string | null;
+  createdBy: { id: string; name: string | null } | null;
+  createdAt: string;
 };
 
 type OrderItem = OrderDetail["items"][number];
@@ -151,6 +167,24 @@ function isoToDateInput(value: string | null): string {
   const d = new Date(value);
   const pad = (x: number) => String(x).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Hoy como valor de un input date ("2026-07-10"). */
+function todayDateInput(): string {
+  return isoToDateInput(new Date().toISOString());
+}
+
+/** Centavos → texto para un input en pesos (sin separador de miles). */
+function centsToPesosInput(cents: number): string {
+  return String(Math.round(cents) / 100);
+}
+
+/** Texto de un input en pesos → centavos (null si vacío/inválido). */
+function pesosInputToCents(value: string): number | null {
+  if (value.trim() === "") return null;
+  const p = Number(value.replace(",", "."));
+  if (!isFinite(p) || p < 0) return null;
+  return pesosToCents(p);
 }
 
 /** 150000 g → { qty: "150", unit: "kg" } — para precargar inputs de cantidad. */
@@ -3026,6 +3060,8 @@ function OrderDetailSheet({
   // tras recibir (los movements cambiaron en el server).
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // CxP (F3): formulario de abono desplegable dentro del detalle.
+  const [payOpen, setPayOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -3094,6 +3130,26 @@ function OrderDetailSheet({
       expectedAt: expectedDraft ? dateInputToIso(expectedDraft) : null,
     });
     if (ok) setEditing(false);
+  }
+
+  // Reversar un abono (CxP · F3). Refresca el detalle para traer los saldos
+  // frescos y el historial actualizado; avisa a la lista de "por pagar".
+  async function deletePayment(paymentId: string) {
+    if (!window.confirm(t("confirmDeletePayment"))) return;
+    setErr(null);
+    setOkMsg(null);
+    setBusy(true);
+    const r = await fetch(
+      `/api/operator/purchase-orders/${orderId}/payments/${paymentId}`,
+      { method: "DELETE" },
+    );
+    setBusy(false);
+    if (!r.ok) {
+      setErr(t("errSaveFailed"));
+      return;
+    }
+    setReloadKey((k) => k + 1);
+    onChanged();
   }
 
   // Si la OC ya se recibió (completa), el costo real recibido manda; si no,
@@ -3445,6 +3501,134 @@ function OrderDetailSheet({
                 </div>
               </>
             )}
+
+            {/* CxP (F3): saldo + abonos. Solo OCs con mercancía recibida
+                tienen cuenta por pagar (mismo gate del server). */}
+            {(order.status === "received" ||
+              order.status === "partially_received") &&
+              (() => {
+                // Total bruto de la CxP = Σ bruto de lo recibido (neto + IVA),
+                // igual que el server. El esperado no cuenta para el saldo.
+                const cxpTotal = poTotals(
+                  order.items.map((it) => ({
+                    costCents: it.receivedCostCents,
+                    taxPct: it.taxPct,
+                  })),
+                ).totalCents;
+                const balance = cxpTotal - order.paidCents;
+                return (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                        {t("cxpSectionTitle")}
+                      </span>
+                      {order.paidAt != null ? (
+                        <PayStatusChip status="paid" />
+                      ) : order.paidCents > 0 ? (
+                        <PayStatusChip status="partial" />
+                      ) : null}
+                    </div>
+                    <div className="border border-op-border rounded-2xl overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
+                        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                          {t("cxpTotalLabel")}
+                        </span>
+                        <span className="text-sm tabular-nums">
+                          {formatMoney(cxpTotal, { currency, locale })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
+                        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                          {t("cxpPaidLabel")}
+                        </span>
+                        <span className="text-sm tabular-nums">
+                          {formatMoney(order.paidCents, { currency, locale })}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                          {t("cxpBalanceLabel")}
+                        </span>
+                        <span className="text-sm font-medium tabular-nums">
+                          {formatMoney(balance, { currency, locale })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Historial de abonos */}
+                    {order.payments.length > 0 && (
+                      <div className="border border-op-border rounded-2xl overflow-hidden mt-2">
+                        {order.payments.map((p) => (
+                          <div
+                            key={p.id}
+                            className="flex items-center gap-2 px-3 py-2 border-b border-op-border last:border-b-0"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium tabular-nums">
+                                {formatMoney(p.amountCents, {
+                                  currency,
+                                  locale,
+                                })}
+                              </div>
+                              <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                                {[
+                                  formatDate(p.paidAt, { locale }),
+                                  p.method,
+                                  p.createdBy?.name ?? null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </div>
+                              {p.note && (
+                                <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                                  {p.note}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void deletePayment(p.id)}
+                              disabled={busy}
+                              className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0 disabled:opacity-40"
+                            >
+                              {t("deletePayment")}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {balance > 0 &&
+                      (payOpen ? (
+                        <div className="border border-op-border rounded-2xl p-3 mt-2">
+                          <PaymentForm
+                            orderId={order.id}
+                            totalCents={cxpTotal}
+                            paidCents={order.paidCents}
+                            currency={currency}
+                            onDone={() => {
+                              setPayOpen(false);
+                              setReloadKey((k) => k + 1);
+                              onChanged();
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setErr(null);
+                            setOkMsg(null);
+                            setPayOpen(true);
+                          }}
+                          className="w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface mt-2"
+                        >
+                          {t("registerPayment")}
+                        </button>
+                      ))}
+                  </div>
+                );
+              })()}
 
             {err && <div className="text-xs text-danger mt-3">{err}</div>}
             {okMsg && <div className="text-xs text-ok mt-3">{okMsg}</div>}
@@ -3845,6 +4029,55 @@ function receivedTotal(o: OrderSummary): number {
   ).totalCents;
 }
 
+/** Saldo pendiente de la OC = total bruto recibido − abonado. */
+function outstandingOf(o: OrderSummary): number {
+  return receivedTotal(o) - o.paidCents;
+}
+
+// Estado de pago de la CxP (por abonos): pagada / parcial / vencida / pendiente.
+type PayStatus = "paid" | "partial" | "overdue" | "pending";
+
+/** Deriva el estado de pago de una OC. `now`=0 (sin fetch aún) ⇒ nunca vencida. */
+function payStatus(o: OrderSummary, now: number): PayStatus {
+  const outstanding = outstandingOf(o);
+  if (outstanding <= 0) return "paid";
+  const overdue =
+    o.invoiceDueAt != null && now > 0 && new Date(o.invoiceDueAt).getTime() < now;
+  if (overdue) return "overdue";
+  if (o.paidCents > 0) return "partial";
+  return "pending";
+}
+
+const PAY_STATUS_KEYS: Record<PayStatus, string> = {
+  paid: "payStatusPaid",
+  partial: "payStatusPartial",
+  overdue: "payStatusOverdue",
+  pending: "payStatusPending",
+};
+
+// Colores por estado de pago — mismos tokens del archivo: ok (pagada), ámbar
+// (parcial), danger (vencida), neutro (pendiente).
+const PAY_STATUS_CLS: Record<PayStatus, string> = {
+  paid: "bg-ok/10 text-ok",
+  partial: "bg-[#C98A2E]/15 text-[#7F5A1F]",
+  overdue: "bg-danger/10 text-danger",
+  pending: "bg-paper text-op-muted",
+};
+
+function PayStatusChip({ status }: { status: PayStatus }) {
+  const t = useTranslations("opErp");
+  return (
+    <span
+      className={
+        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
+        PAY_STATUS_CLS[status]
+      }
+    >
+      {t(PAY_STATUS_KEYS[status])}
+    </span>
+  );
+}
+
 function UnpaidTab({
   currency,
   onOpenDetail,
@@ -3906,7 +4139,16 @@ function UnpaidTab({
     setLoadingMore(false);
   }
 
-  const totalDue = (rows ?? []).reduce((sum, o) => sum + receivedTotal(o), 0);
+  // Refrescar la lista desde cero (tras registrar/borrar un abono): un pago
+  // total saca la OC de "por pagar"; uno parcial actualiza saldo/estado.
+  function reload() {
+    setRows(null);
+    setNextCursor(null);
+    setListErr(false);
+  }
+
+  // Total por pagar = suma de los SALDOS pendientes (no del bruto total).
+  const totalDue = (rows ?? []).reduce((sum, o) => sum + outstandingOf(o), 0);
 
   return (
     <>
@@ -3932,9 +4174,10 @@ function UnpaidTab({
               </span>
             </div>
             {rows.map((o) => {
-              const overdue =
-                o.invoiceDueAt != null &&
-                new Date(o.invoiceDueAt).getTime() < now;
+              const status = payStatus(o, now);
+              const overdue = status === "overdue";
+              const total = receivedTotal(o);
+              const outstanding = total - o.paidCents;
               return (
                 <div
                   key={o.id}
@@ -3953,6 +4196,7 @@ function UnpaidTab({
                         <span className="text-sm text-op-muted truncate">
                           {o.supplier.name}
                         </span>
+                        <PayStatusChip status={status} />
                       </div>
                       <div className="text-[11px] mt-0.5 truncate">
                         <span className="text-op-muted">
@@ -3984,7 +4228,13 @@ function UnpaidTab({
                     </button>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-medium tabular-nums">
-                        {formatMoney(receivedTotal(o), { currency, locale })}
+                        {formatMoney(outstanding, { currency, locale })}
+                      </div>
+                      <div className="text-[10px] text-op-muted tabular-nums mt-0.5">
+                        {t("cxpTotalPaid", {
+                          total: formatMoney(total, { currency, locale }),
+                          paid: formatMoney(o.paidCents, { currency, locale }),
+                        })}
                       </div>
                     </div>
                   </div>
@@ -4001,7 +4251,7 @@ function UnpaidTab({
                       onClick={() => setPayFor(o)}
                       className="min-h-[36px] px-3 rounded-full border border-op-border bg-op-bg text-[11px] font-medium hover:bg-op-surface"
                     >
-                      {t("markPaid")}
+                      {t("registerPayment")}
                     </button>
                   </div>
                 </div>
@@ -4022,13 +4272,13 @@ function UnpaidTab({
       )}
 
       {payFor && (
-        <MarkPaidSheet
+        <RegisterPaymentSheet
           order={payFor}
           currency={currency}
           onClose={() => setPayFor(null)}
-          onPaid={(id) => {
+          onDone={() => {
             setPayFor(null);
-            setRows((prev) => (prev ?? []).filter((r) => r.id !== id));
+            reload();
           }}
         />
       )}
@@ -4051,45 +4301,210 @@ function UnpaidTab({
   );
 }
 
-/** Confirmación de pago con nota opcional (PATCH mark_paid). */
-function MarkPaidSheet({
-  order,
+// Errores del POST /payments → clave i18n (fallback errSaveFailed).
+const API_PAYMENT_ERROR_KEYS: Record<string, string> = {
+  exceeds_balance: "errExceedsBalance",
+  wrong_status: "errWrongStatus",
+  invalid: "errLineInvalid",
+  not_found: "errLoadFailed",
+};
+
+/** Resultado del POST/DELETE de abonos (saldos frescos del server). */
+type PaymentResult = {
+  totalCents: number;
+  paidCents: number;
+  outstandingCents: number;
+};
+
+/**
+ * Formulario de un abono: monto (prellenado con el saldo, editable),
+ * fecha, método (texto libre con sugerencias) y nota. Botón "Registrar
+ * pago" + atajo "Pagar saldo" (abono por el saldo completo). Reutilizado
+ * por el sheet de la CxP y por el detalle de la OC.
+ */
+function PaymentForm({
+  orderId,
+  totalCents,
+  paidCents,
   currency,
-  onClose,
-  onPaid,
+  onDone,
 }: {
-  order: OrderSummary;
+  orderId: string;
+  totalCents: number;
+  paidCents: number;
   currency: string;
-  onClose: () => void;
-  onPaid: (id: string) => void;
+  onDone: (r: PaymentResult) => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
+  const outstanding = Math.max(0, totalCents - paidCents);
+
+  const [amount, setAmount] = useState(() => centsToPesosInput(outstanding));
+  const [paidAt, setPaidAt] = useState(todayDateInput);
+  const [method, setMethod] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function submit() {
+  async function post(amountCents: number) {
+    if (busy) return;
+    if (!Number.isInteger(amountCents) || amountCents < 1) {
+      setErr(t("errLineInvalid"));
+      return;
+    }
+    if (amountCents > outstanding) {
+      setErr(t("errExceedsBalance"));
+      return;
+    }
     setErr(null);
     setBusy(true);
-    const r = await fetch(`/api/operator/purchase-orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action: "mark_paid",
-        paymentNote: note.trim() || null,
-      }),
-    });
+    const r = await fetch(
+      `/api/operator/purchase-orders/${orderId}/payments`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          amountCents,
+          paidAt: paidAt ? dateInputToIso(paidAt) : null,
+          method: method.trim() || null,
+          note: note.trim() || null,
+        }),
+      },
+    );
     setBusy(false);
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setErr(
-        j.error === "wrong_status" ? t("errWrongStatus") : t("errSaveFailed"),
-      );
+      const key = API_PAYMENT_ERROR_KEYS[(j as { error?: string }).error ?? ""];
+      setErr(t(key ?? "errSaveFailed"));
       return;
     }
-    onPaid(order.id);
+    const j = (await r.json()) as PaymentResult;
+    onDone(j);
   }
+
+  function submit() {
+    const cents = pesosInputToCents(amount);
+    if (cents === null) {
+      setErr(t("errLineInvalid"));
+      return;
+    }
+    void post(cents);
+  }
+
+  function payFull() {
+    void post(outstanding);
+  }
+
+  return (
+    <>
+      <div className="rounded-2xl border border-op-border overflow-hidden mb-4">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("cxpTotalLabel")}
+          </span>
+          <span className="text-sm tabular-nums">
+            {formatMoney(totalCents, { currency, locale })}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("cxpPaidLabel")}
+          </span>
+          <span className="text-sm tabular-nums">
+            {formatMoney(paidCents, { currency, locale })}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("cxpBalanceLabel")}
+          </span>
+          <span className="text-sm font-medium tabular-nums">
+            {formatMoney(outstanding, { currency, locale })}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <Field label={t("fieldPaymentAmount")}>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label={t("fieldPaymentDate")}>
+          <input
+            type="date"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label={t("fieldPaymentMethod")}>
+          <input
+            type="text"
+            list="cxp-payment-methods"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            maxLength={40}
+            className={inputCls}
+          />
+          <datalist id="cxp-payment-methods">
+            <option value={t("methodCash")} />
+            <option value={t("methodTransfer")} />
+            <option value={t("methodCard")} />
+          </datalist>
+        </Field>
+        <Field label={t("fieldPaymentNote")} hint={t("paymentNoteHint")}>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={300}
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
+          />
+        </Field>
+      </div>
+
+      {err && <div className="text-xs text-danger mt-3">{err}</div>}
+
+      <div className="flex items-center justify-end gap-3 mt-4">
+        <button
+          type="button"
+          onClick={payFull}
+          disabled={busy || outstanding < 1}
+          className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface disabled:opacity-40"
+        >
+          {t("payFull")}
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy}
+          className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+        >
+          {busy ? t("saving") : t("registerPayment")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Sheet "Registrar pago" desde la CxP: cabecera + PaymentForm. */
+function RegisterPaymentSheet({
+  order,
+  currency,
+  onClose,
+  onDone,
+}: {
+  order: OrderSummary;
+  currency: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations("opErp");
 
   return (
     <div
@@ -4101,7 +4516,7 @@ function MarkPaidSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-1">
-          <h2 className="font-display text-2xl">{t("markPaidTitle")}</h2>
+          <h2 className="font-display text-2xl">{t("registerPaymentTitle")}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -4115,39 +4530,16 @@ function MarkPaidSheet({
           {[
             t("poNumber", { number: padNumber(order.number) }),
             order.supplier.name,
-            formatMoney(receivedTotal(order), { currency, locale }),
           ].join(" · ")}
         </div>
 
-        <Field label={t("fieldPaymentNote")} hint={t("paymentNoteHint")}>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={300}
-            rows={2}
-            className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
-          />
-        </Field>
-
-        {err && <div className="text-xs text-danger mt-3">{err}</div>}
-
-        <div className="flex items-center justify-end gap-3 mt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
-          >
-            {t("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={busy}
-            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
-          >
-            {busy ? t("saving") : t("confirmPaid")}
-          </button>
-        </div>
+        <PaymentForm
+          orderId={order.id}
+          totalCents={receivedTotal(order)}
+          paidCents={order.paidCents}
+          currency={currency}
+          onDone={onDone}
+        />
       </div>
     </div>
   );

@@ -268,6 +268,12 @@ model Restaurant {
   // componente = subtotal × pct/(100+pct). Solo para reportes/contabilidad.
   salesTaxKind            String  @default("none") // none | inc | iva
   salesTaxPct             Int     @default(0) // p.ej. 8 (INC) o 19 (IVA)
+  // Gastos de representación (ERP A3): permitir al mesero cerrar una cuenta
+  // como cortesía ($0) sin cobrarla, con nota de a quién se le dio. El nombre
+  // es configurable; null ⇒ etiqueta por defecto de i18n ("Gastos de
+  // representación").
+  compEnabled             Boolean @default(true)
+  compLabel               String?
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.
@@ -1062,6 +1068,14 @@ model Order {
   placedAt        DateTime?
   servedAt        DateTime?
   paidAt          DateTime?
+  // Cuenta cerrada como cortesía / gastos de representación (ERP A3): sin
+  // cobro. Los ítems quedan comp (consumen inventario, no venden) y la orden
+  // se cierra en $0. compAmountCents = valor de venta regalado (auditoría/
+  // reporte); compNote = a quién se le dio; compLabel = etiqueta usada.
+  compedAt        DateTime?
+  compNote        String?
+  compLabel       String?
+  compAmountCents Int?
   // A4 — marca idempotente del consumo automático de inventario: se
   // reclama con updateMany({ stockConsumedAt: null }) en la misma tx que
   // los movimientos. Set también cuando no hay nada que consumir

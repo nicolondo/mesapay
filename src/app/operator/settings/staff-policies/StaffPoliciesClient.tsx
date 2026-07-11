@@ -14,12 +14,16 @@ export function StaffPoliciesClient({
   initialWalkoutDangerMinutes,
   initialBusinessDayCutoffHour,
   initialMeseroShiftWithoutLocal,
+  initialCompEnabled,
+  initialCompLabel,
 }: {
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
   initialWalkoutDangerMinutes: number;
   initialBusinessDayCutoffHour: number;
   initialMeseroShiftWithoutLocal: MeseroShiftWithoutLocal;
+  initialCompEnabled: boolean;
+  initialCompLabel: string;
 }) {
   const t = useTranslations("opSettings");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
@@ -32,6 +36,8 @@ export function StaffPoliciesClient({
   );
   const [meseroWithoutLocal, setMeseroWithoutLocal] =
     useState<MeseroShiftWithoutLocal>(initialMeseroShiftWithoutLocal);
+  const [compEnabled, setCompEnabled] = useState<boolean>(initialCompEnabled);
+  const [compLabel, setCompLabel] = useState<string>(initialCompLabel);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -42,7 +48,9 @@ export function StaffPoliciesClient({
     shiftPolicy !== initialShiftPolicy ||
     walkoutDanger !== initialWalkoutDangerMinutes ||
     cutoffHour !== initialBusinessDayCutoffHour ||
-    meseroWithoutLocal !== initialMeseroShiftWithoutLocal;
+    meseroWithoutLocal !== initialMeseroShiftWithoutLocal ||
+    compEnabled !== initialCompEnabled ||
+    compLabel.trim() !== initialCompLabel.trim();
 
   async function save() {
     if (
@@ -67,6 +75,8 @@ export function StaffPoliciesClient({
         walkoutDangerMinutes: walkoutDanger,
         businessDayCutoffHour: cutoffHour,
         meseroShiftWithoutLocal: meseroWithoutLocal,
+        compEnabled,
+        compLabel: compLabel.trim(),
       }),
     });
     setBusy(false);
@@ -258,6 +268,41 @@ export function StaffPoliciesClient({
         <p className="text-[10px] text-op-muted mt-3">
           {t("policiesWalkoutFootnote")}
         </p>
+      </section>
+
+      {/* Gastos de representación (cortesía $0) */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {t("policiesCompKicker")}
+        </div>
+        <h2 className="font-display text-lg mb-1">
+          {t("policiesCompQuestion")}
+        </h2>
+        <p className="text-xs text-op-muted mb-3">{t("policiesCompIntro")}</p>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={compEnabled}
+            onChange={(e) => setCompEnabled(e.target.checked)}
+            className="h-4 w-4 accent-ink"
+          />
+          <span className="text-sm">{t("policiesCompToggle")}</span>
+        </label>
+        {compEnabled && (
+          <label className="mt-4 block">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted block mb-1">
+              {t("policiesCompLabelField")}
+            </span>
+            <input
+              type="text"
+              maxLength={40}
+              value={compLabel}
+              onChange={(e) => setCompLabel(e.target.value)}
+              placeholder={t("policiesCompLabelPlaceholder")}
+              className="h-9 w-full max-w-sm px-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
+            />
+          </label>
+        )}
       </section>
 
       <div className="flex items-center justify-end gap-3 pt-1">

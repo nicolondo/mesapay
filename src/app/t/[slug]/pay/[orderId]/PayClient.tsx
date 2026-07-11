@@ -28,7 +28,8 @@ type MethodKind =
   | "kushki_card_terminal"
   | "kushki_pse"
   | "external_terminal"
-  | "demo_cash";
+  | "demo_cash"
+  | "representacion";
 
 export function PayClient({
   tenantSlug,
@@ -57,6 +58,8 @@ export function PayClient({
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
   doneHref = "",
+  compEnabled = false,
+  compLabel = null,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -128,6 +131,10 @@ export function PayClient({
   // que cobra: mesero → /mesero/…/done (mantiene el bottom nav); operador
   // → /t/[slug]/…/done?op=1. Vacío = fallback al done del comensal en op.
   doneHref?: string;
+  // Gastos de representación (cortesía $0): solo en operatorMode y si el
+  // comercio lo habilitó. compLabel = nombre configurable (null ⇒ default i18n).
+  compEnabled?: boolean;
+  compLabel?: string | null;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -149,6 +156,7 @@ export function PayClient({
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
+  const [representacionOpen, setRepresentacionOpen] = useState(false);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -533,6 +541,32 @@ export function PayClient({
       if (j.pending && j.paymentId) {
         router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
       }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Gastos de representación: cerrar la cuenta como cortesía ($0) sin cobrar,
+  // con nota de a quién se le dio. La mesa queda cerrada → vuelve a mesas.
+  async function payWithRepresentacion(note: string) {
+    setBusy("representacion");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenantSlug}/orders/${orderId}/comp`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ note }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        return;
+      }
+      setRepresentacionOpen(false);
+      router.push(staffHomeHref);
     } finally {
       setBusy(null);
     }
@@ -932,6 +966,16 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
+        {operatorMode && compEnabled && (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => setRepresentacionOpen(true)}
+            className="w-full min-h-[52px] rounded-2xl border border-dashed border-hairline bg-paper text-sm font-medium text-muted hover:text-ink disabled:opacity-40 transition-colors"
+          >
+            {compLabel?.trim() || t("representacion")}
+          </button>
+        )}
         {showDemoFallback && enabledMethods.includes("kushki_card_terminal") && (
           <>
             {/* Same flow as the real "Tarjeta con datáfono" button — useful
@@ -972,6 +1016,15 @@ export function PayClient({
             setCashTenderOpen(false);
             payWithCash(tenderCents, changeGivenCents);
           }}
+        />
+      )}
+      {representacionOpen && (
+        <RepresentacionSheet
+          title={compLabel?.trim() || t("representacion")}
+          amountCents={amountCents}
+          busy={busy === "representacion"}
+          onClose={() => setRepresentacionOpen(false)}
+          onConfirm={(note) => payWithRepresentacion(note)}
         />
       )}
       {pseSheetOpen && (
@@ -1017,6 +1070,85 @@ export function PayClient({
  * Always lets them skip with "le digo al mesero" so it never blocks the
  * actual flow.
  */
+/**
+ * Sheet de gastos de representación: cerrar la cuenta como cortesía ($0). El
+ * mesero anota a quién se le dio (obligatorio) y confirma. No cobra nada.
+ */
+function RepresentacionSheet({
+  title,
+  amountCents,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  amountCents: number;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+}) {
+  const t = useTranslations("pay");
+  const [note, setNote] = useState("");
+  const canConfirm = note.trim().length > 0 && !busy;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+              {t("representacionKicker", { amount: fmtCOP(amountCents) })}
+            </div>
+            <h2 className="font-display text-2xl mt-1">{title}</h2>
+            <p className="text-xs text-muted mt-1">{t("representacionHint")}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label={t("close")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        <div>
+          <label
+            htmlFor="representacion-note"
+            className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2 block"
+          >
+            {t("representacionNoteLabel")}
+          </label>
+          <textarea
+            id="representacion-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 300))}
+            disabled={busy}
+            rows={2}
+            placeholder={t("representacionNotePlaceholder")}
+            className="w-full rounded-2xl border border-hairline bg-paper px-3 py-2 text-sm resize-none focus:outline-none focus:border-ink"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onConfirm(note.trim())}
+          disabled={!canConfirm}
+          className="w-full min-h-[52px] rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-40"
+        >
+          {busy ? t("representacionConfirming") : t("representacionConfirm")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CashTenderSheet({
   amountCents,
   busy,

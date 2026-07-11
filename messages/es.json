@@ -4504,6 +4504,11 @@
     "impInvErrNoneSelected": "Marca al menos un insumo para importar.",
     "impInvErrRowName": "Hay una fila incluida sin nombre.",
     "impInvErrRowQty": "Hay una fila con una cantidad o unidad inválida.",
+    "impInvErrRowsInvalid": "{count, plural, one {# fila tiene una cantidad o unidad inválida — corrígela o desmárcala.} other {# filas tienen una cantidad o unidad inválida — corrígelas o desmárcalas.}}",
+    "impInvIssueQty": "Cantidad o unidad inválida. Si es por unidades, usa un número entero; o cámbiala a Peso o Volumen.",
+    "impInvIssueName": "Falta el nombre.",
+    "impInvIssuesChip": "{count, plural, one {# con problema} other {# con problema}}",
+    "impInvExcludeIssues": "Desmarcar las que tienen problema",
     "impInvRowsIncluded": "{count, plural, one {# fila incluida} other {# filas incluidas}}"
   },
   "opDian": {

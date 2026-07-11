@@ -681,8 +681,8 @@ export function PayClient({
             />
             <ModeButton
               active={mode === "mine"}
-              label={t("modeMine")}
-              hint={t("modeMineHint")}
+              label={t(operatorMode ? "modeMineOp" : "modeMine")}
+              hint={t(operatorMode ? "modeMineHintOp" : "modeMineHint")}
               onClick={() => hasGuests && setMode("mine")}
               disabled={!hasGuests}
             />
@@ -751,7 +751,10 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
-        <Row label={t("rowYourBill")} value={fmtCOP(subtotalCents)} />
+        <Row
+          label={t(operatorMode ? "rowYourBillOp" : "rowYourBill")}
+          value={fmtCOP(subtotalCents)}
+        />
         {paidFoodCents > 0 && (
           <>
             <Row
@@ -836,6 +839,7 @@ export function PayClient({
             tenantSlug={tenantSlug}
             orderId={orderId}
             existing={null}
+            operatorMode
           />
         </div>
       )}

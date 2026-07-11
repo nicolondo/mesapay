@@ -34,10 +34,13 @@ export function InvoiceRequestPanel({
   tenantSlug,
   orderId,
   existing,
+  operatorMode = false,
 }: {
   tenantSlug: string;
   orderId: string;
   existing: ExistingSummary | null;
+  // En modo mesero (cobra por el cliente) la copia va en tercera persona.
+  operatorMode?: boolean;
 }) {
   const t = useTranslations("done");
   const [open, setOpen] = useState(false);
@@ -107,22 +110,26 @@ export function InvoiceRequestPanel({
   return (
     <>
       <div className="rounded-2xl border border-hairline bg-paper p-5">
-        <div className="font-display text-xl">{t("invNeedReceipt")}</div>
-        <p className="text-sm text-muted mt-1">{t("invReceiptIntro")}</p>
+        <div className="font-display text-xl">
+          {t(operatorMode ? "invNeedReceiptOp" : "invNeedReceipt")}
+        </div>
+        <p className="text-sm text-muted mt-1">
+          {t(operatorMode ? "invReceiptIntroOp" : "invReceiptIntro")}
+        </p>
         <div className="mt-4 space-y-2">
           <button
             type="button"
             onClick={() => setSimpleOpen(true)}
             className="w-full h-12 rounded-full bg-ink text-bone font-medium"
           >
-            {t("invSendEmail")}
+            {t(operatorMode ? "invSendEmailOp" : "invSendEmail")}
           </button>
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
           >
-            {t("invToName")}
+            {t(operatorMode ? "invToNameOp" : "invToName")}
           </button>
         </div>
       </div>

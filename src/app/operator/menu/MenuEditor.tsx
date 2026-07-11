@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { MenuTag } from "@/lib/menuTags";
 import { BulkActionBar } from "./BulkActions";
 import type {
@@ -2057,7 +2058,7 @@ function ItemSheet({
   return (
     <div
       className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
+      {...useBackdropClose(onClose)}
     >
       {/* Tarjeta centrada en todos los tamaños. (Antes era hoja inferior con
           items-end, pero en iOS `fixed inset-0` usa el viewport "grande", así

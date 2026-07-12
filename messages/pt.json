@@ -4148,6 +4148,7 @@
     "invReviewRemoveLine": "Remover item",
     "invReviewAddLine": "Adicionar item",
     "invReviewTotalNote": "Total conforme revisado",
+    "invReviewPricesIncludeTax": "Os valores das linhas já incluem IVA",
     "invTaxOtherSection": "Outros impostos do documento",
     "invTaxInc": "Imposto sobre consumo (INC)",
     "invTaxRetefuente": "Retenção na fonte",

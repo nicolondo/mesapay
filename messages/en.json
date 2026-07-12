@@ -4148,6 +4148,7 @@
     "invReviewRemoveLine": "Remove line",
     "invReviewAddLine": "Add line",
     "invReviewTotalNote": "Total as reviewed",
+    "invReviewPricesIncludeTax": "Line amounts already include VAT",
     "invTaxOtherSection": "Other taxes on the document",
     "invTaxInc": "Consumption tax (INC)",
     "invTaxRetefuente": "Withholding tax",

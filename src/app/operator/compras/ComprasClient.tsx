@@ -2094,6 +2094,21 @@ function pesosDigitsToCents(digits: string): number {
 }
 
 /**
+ * Neto de una línea desde el valor tipeado. Cuando la factura trae los montos
+ * CON IVA incluido (includeTax), se le descuenta el IVA: neto = round(bruto /
+ * (1 + tax/100)). Si no, el valor ya es neto y se usa tal cual. El ERP guarda
+ * SIEMPRE el neto; el bruto/IVA se derivan del taxPct.
+ */
+function lineNetFromTyped(
+  typedCents: number,
+  taxPct: number,
+  includeTax: boolean,
+): number {
+  if (!includeTax || !(taxPct > 0)) return typedCents;
+  return Math.round(typedCents / (1 + taxPct / 100));
+}
+
+/**
  * Costo inicial (pesos) desde la extracción: total de línea o unit×qty. El
  * input de costo (MoneyInput) es de pesos ENTEROS — sin centavos — así que se
  * redondea AL PESO. Devolver decimales ("232499.82") rompía el display:
@@ -2296,14 +2311,23 @@ function InvoiceReviewSheet({
       .slice(0, 8);
   }, [suppliers, supQ]);
 
+  // ¿Los montos de línea de la factura ya incluyen el IVA? Algunas facturas /
+  // cuentas de cobro traen el bruto por línea (no discriminan neto). Con esto
+  // en ON, se descuenta el IVA en vez de sumarlo encima.
+  const [pricesIncludeTax, setPricesIncludeTax] = useState(false);
+
   // Líneas netas + IVA para el desglose y la concordancia con la factura.
   const breakdownLines = useMemo(
     () =>
       lines.map((l) => ({
-        costCents: reviewLineCostCents(l) ?? 0,
+        costCents: lineNetFromTyped(
+          reviewLineCostCents(l) ?? 0,
+          l.taxPct,
+          pricesIncludeTax,
+        ),
         taxPct: l.taxPct,
       })),
-    [lines],
+    [lines, pricesIncludeTax],
   );
   const totals = useMemo(() => poTotals(breakdownLines), [breakdownLines]);
 
@@ -2420,11 +2444,14 @@ function InvoiceReviewSheet({
         setErr(t("invReviewErrLineQty"));
         return;
       }
-      const cost = reviewLineCostCents(l);
-      if (cost == null) {
+      const typed = reviewLineCostCents(l);
+      if (typed == null) {
         setErr(t("invReviewErrLineCost"));
         return;
       }
+      // El ERP guarda el NETO; si la factura trae los montos con IVA incluido,
+      // se descuenta acá antes de enviar.
+      const cost = lineNetFromTyped(typed, l.taxPct, pricesIncludeTax);
       payloadLines.push(
         l.ingredientId
           ? {
@@ -2692,6 +2719,7 @@ function InvoiceReviewSheet({
                 currency={currency}
                 taxRates={taxRates}
                 ingredients={ingredients}
+                pricesIncludeTax={pricesIncludeTax}
                 onChange={(changes) => updateLine(l.key, changes)}
                 onRemove={() => removeLine(l.key)}
               />
@@ -2704,6 +2732,18 @@ function InvoiceReviewSheet({
             >
               {t("invReviewAddLine")}
             </button>
+
+            {/* ¿Los montos de línea ya incluyen IVA? Cuando la factura trae el
+                bruto por línea, se descuenta el IVA en vez de sumarlo. */}
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricesIncludeTax}
+                onChange={(e) => setPricesIncludeTax(e.target.checked)}
+                className="accent-terracotta w-4 h-4"
+              />
+              <span>{t("invReviewPricesIncludeTax")}</span>
+            </label>
 
             {/* Desglose recomputado en vivo (Subtotal + IVA + Total) */}
             <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
@@ -2872,6 +2912,7 @@ function InvoiceReviewLineCard({
   currency,
   taxRates,
   ingredients,
+  pricesIncludeTax,
   onChange,
   onRemove,
 }: {
@@ -2879,6 +2920,7 @@ function InvoiceReviewLineCard({
   currency: string;
   taxRates: number[];
   ingredients: IngredientRef[] | null;
+  pricesIncludeTax: boolean;
   onChange: (changes: Partial<InvoiceReviewLine>) => void;
   onRemove: () => void;
 }) {
@@ -2896,7 +2938,13 @@ function InvoiceReviewLineCard({
 
   const qtyBase = reviewLineQtyBase(l);
   // Costo NETO de la línea en centavos (null si el input es inválido/vacío).
-  const lineNetCents = reviewLineCostCents(l);
+  // Si la factura trae los montos con IVA incluido, se descuenta acá para que
+  // el "Con IVA" mostrado coincida con lo impreso.
+  const typedCents = reviewLineCostCents(l);
+  const lineNetCents =
+    typedCents == null
+      ? null
+      : lineNetFromTyped(typedCents, l.taxPct, pricesIncludeTax);
   const readQtyStr = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 3,
   }).format(l.readQty);

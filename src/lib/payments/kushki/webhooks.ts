@@ -53,3 +53,56 @@ export function verifyKushkiSignature(
   if (!timingSafeEqual(a, b)) return { ok: false, reason: "signature mismatch" };
   return { ok: true };
 }
+
+function hexEq(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Verificación FLEXIBLE para el webhook de transacciones reales de Kushki.
+ * Kushki tiene (al menos) dos esquemas de firma según el producto:
+ *   1. HMAC-SHA256(secret, rawBody) — el simple (datáfono / notificaciones).
+ *   2. HMAC-SHA256(secret, body + "." + X-Kushki-Id) — el de "notifications"
+ *      con timestamp (suscripciones). Probamos rawBody y JSON.stringify(parse).
+ * Aceptamos si CUALQUIERA matchea. Misma política por modo que
+ * verifyKushkiSignature (mock/sandbox-sin-secret bypass; producción obligatorio).
+ */
+export function verifyKushkiWebhookFlexible(
+  rawBody: string,
+  headers: Headers,
+  restaurantSecret?: string | null,
+): { ok: true } | { ok: false; reason: string } {
+  const mode = getKushkiModeSync();
+  if (mode === "mock") return { ok: true };
+  const secret = restaurantSecret ?? env.KUSHKI_WEBHOOK_SECRET;
+  if (!secret) {
+    if (mode === "sandbox") {
+      console.warn(
+        "[kushki/webhooks] sandbox sin webhook secret — acepto sin verificar. Setealo antes de producción.",
+      );
+      return { ok: true };
+    }
+    return { ok: false, reason: "webhook secret not configured" };
+  }
+  const provided =
+    headers.get("kushki-signature") ?? headers.get("x-kushki-signature");
+  if (!provided) return { ok: false, reason: "missing signature header" };
+
+  const xId = headers.get("x-kushki-id") ?? "";
+  const candidates: string[] = [rawBody];
+  if (xId) {
+    candidates.push(`${rawBody}.${xId}`);
+    try {
+      candidates.push(`${JSON.stringify(JSON.parse(rawBody))}.${xId}`);
+    } catch {
+      /* rawBody ya se probó */
+    }
+  }
+  for (const c of candidates) {
+    const expected = createHmac("sha256", secret).update(c).digest("hex");
+    if (hexEq(provided, expected)) return { ok: true };
+  }
+  return { ok: false, reason: "signature mismatch" };
+}

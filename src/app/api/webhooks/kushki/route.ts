@@ -50,15 +50,24 @@ const KNOWN_KINDS: KushkiWebhookKind[] = [
 export async function POST(req: Request) {
   const raw = await req.text();
 
+  // Ping de validación de la URL: Kushki lo manda con el body EN BLANCO (o no
+  // necesariamente JSON). Hay que responder 200 para que la consola acepte la
+  // URL — un 400 la rechaza. Un webhook real SIEMPRE trae JSON válido.
+  if (!raw || raw.trim() === "") {
+    return NextResponse.json({ ok: true });
+  }
+
   let payload: unknown;
   try {
     payload = JSON.parse(raw);
   } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    // Cuerpo no-JSON (otra variante de handshake). Ack 200 en vez de 400 para
+    // no rechazar la validación; lo logueamos por si fuera algo inesperado.
+    console.warn("[kushki/webhook] cuerpo no-JSON", raw.slice(0, 300));
+    return NextResponse.json({ ok: true });
   }
   if (!payload || typeof payload !== "object") {
-    // Cuerpo vacío / no-objeto → ping de validación de la URL. 200 para que
-    // Kushki acepte la URL.
+    // Cuerpo JSON pero no-objeto (p.ej. "null", número) → ping/handshake. 200.
     return NextResponse.json({ ok: true });
   }
 

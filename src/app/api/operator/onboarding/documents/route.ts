@@ -6,6 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { deliverDocumentToSftp } from "@/lib/onboardingSftp";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MIME_EXT: Record<string, string> = {
@@ -105,6 +106,11 @@ export async function POST(req: Request) {
       kushkiOnboardingStatus: { set: "docs_uploaded" },
     },
   });
+
+  // Entrega best-effort por SFTP (AWS Transfer) a una carpeta por comercio.
+  // Fire-and-forget: no bloqueamos la respuesta; un cron reintenta si falla.
+  // Solo corre si el SFTP está configurado (env del server).
+  void deliverDocumentToSftp(doc.id);
 
   return NextResponse.json({ ok: true, document: doc });
 }

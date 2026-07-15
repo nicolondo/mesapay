@@ -65,6 +65,16 @@ const schema = z.object({
   // Cron auth — shared secret in `x-cron-secret` header for cron endpoints.
   CRON_SECRET: z.string().optional(),
 
+  // SFTP (AWS Transfer Family) — entrega de los documentos de onboarding a
+  // una carpeta por comercio. Best-effort: si no está configurado, se omite.
+  // La LLAVE PRIVADA es un secreto — se setea SOLO en el .env del server,
+  // nunca en el repo. Host/user/port tampoco viven en el repo.
+  MESAPAY_SFTP_HOST: z.string().optional(),
+  MESAPAY_SFTP_PORT: z.coerce.number().int().positive().default(22),
+  MESAPAY_SFTP_USER: z.string().optional(),
+  MESAPAY_SFTP_PRIVATE_KEY: z.string().optional(),
+  MESAPAY_SFTP_PASSPHRASE: z.string().optional(),
+
   // Web Push (VAPID). Generated once with:
   //   node -e "const w=require('web-push');const k=w.generateVAPIDKeys();
   //     console.log('PUBLIC='+k.publicKey);console.log('PRIVATE='+k.privateKey)"

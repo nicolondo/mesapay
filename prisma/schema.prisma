@@ -2121,10 +2121,18 @@ model KushkiDocument {
   extractedFields Json?
   reviewNotes     String?
 
+  // Entrega por SFTP a AWS Transfer (carpeta por comercio). Best-effort: el
+  // documento se guarda igual; un cron reintenta los que fallaron.
+  // sftpUploadedAt null = pendiente/no subido; sftpError = último error.
+  sftpUploadedAt  DateTime?
+  sftpError       String?
+  sftpAttempts    Int       @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([restaurantId, kind])
+  @@index([sftpUploadedAt])
 }
 
 enum KushkiTransactionKind {

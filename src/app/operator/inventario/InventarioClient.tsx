@@ -312,7 +312,7 @@ export function InventarioClient({
     <div className="space-y-4">
       {/* Segmentos Existencias / Movimientos / Conteos + acceso a ajustes */}
       <div className="flex items-center justify-between gap-2">
-        <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+        <div className="mp-seg" role="tablist">
           {(
             [
               ["stock", t("tabStock")],
@@ -323,13 +323,10 @@ export function InventarioClient({
             <button
               key={value}
               type="button"
+              role="tab"
+              aria-selected={tab === value}
               onClick={() => setTab(value)}
-              className={
-                "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-                (tab === value
-                  ? "bg-ink text-bone"
-                  : "text-op-muted hover:text-ink")
-              }
+              className="mp-seg__i"
             >
               {label}
             </button>
@@ -340,7 +337,7 @@ export function InventarioClient({
           onClick={() => setInvSettingsOpen(true)}
           aria-label={t("invSettingsTitle")}
           title={t("invSettingsTitle")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-base text-op-muted hover:text-ink hover:bg-op-bg shrink-0"
+          className="mp-icobtn shrink-0 text-base"
         >
           {"⚙"}
         </button>
@@ -353,21 +350,21 @@ export function InventarioClient({
             <button
               type="button"
               onClick={() => setSheet("entry")}
-              className="min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+              className="mp-btn mp-btn--primary mp-btn--block"
             >
               {t("actionEntry")}
             </button>
             <button
               type="button"
               onClick={() => setSheet("adjust")}
-              className="min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {t("actionAdjust")}
             </button>
             <button
               type="button"
               onClick={() => setSheet("waste")}
-              className="min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {t("actionWaste")}
             </button>
@@ -412,12 +409,7 @@ export function InventarioClient({
                 type="button"
                 onClick={() => setLowOnly((v) => !v)}
                 aria-pressed={lowOnly}
-                className={
-                  "min-h-[44px] px-4 rounded-full border text-xs font-medium transition-colors " +
-                  (lowOnly
-                    ? "border-ink bg-ink text-bone"
-                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
-                }
+                className="mp-chip"
               >
                 {t("reorderLowBadge")}
               </button>

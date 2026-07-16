@@ -72,7 +72,11 @@ const schema = z.object({
   MESAPAY_SFTP_HOST: z.string().optional(),
   MESAPAY_SFTP_PORT: z.coerce.number().int().positive().default(22),
   MESAPAY_SFTP_USER: z.string().optional(),
+  // La llave privada: inline (MESAPAY_SFTP_PRIVATE_KEY) o — recomendado — la
+  // RUTA a un archivo en el server con la llave (MESAPAY_SFTP_PRIVATE_KEY_FILE,
+  // permisos 600). El archivo evita el lío de variables multilínea.
   MESAPAY_SFTP_PRIVATE_KEY: z.string().optional(),
+  MESAPAY_SFTP_PRIVATE_KEY_FILE: z.string().optional(),
   MESAPAY_SFTP_PASSPHRASE: z.string().optional(),
 
   // Web Push (VAPID). Generated once with:

@@ -301,11 +301,11 @@ export default async function OperatorLayout({
     </>
   );
 
-  // Flag de rediseño del shell (cookie mp_shell=cockpit) — rollout seguro:
-  // los clientes reales ven el shell clásico hasta que se vuelva default.
-  const shellCockpit =
-    (await cookies()).get("mp_shell")?.value === "cockpit";
-  if (shellCockpit) {
+  // Shell "cockpit" = DEFAULT para todos. Escape: cookie mp_shell=classic
+  // (vía ?to=classic) para volver al shell anterior si hiciera falta.
+  const shellClassic =
+    (await cookies()).get("mp_shell")?.value === "classic";
+  if (!shellClassic) {
     return (
       <OperatorCockpit
         navItems={navItems}

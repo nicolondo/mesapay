@@ -38,14 +38,20 @@ export type SubmerchantCreateResponse = z.infer<
 // (como hacíamos antes), zod falla validación → kushkiFetch retry-ea
 // con el MISMO token → segundo charge devuelve 577 "token ya usado"
 // porque Kushki ya lo consumió en la primer llamada exitosa.
-export const ChargeResponseSchema = z.object({
-  ticketNumber: z.string(),
-  transactionReference: z.string(),
-  approvalCode: z.string().optional(),
-  status: z.enum(["APPROVAL", "DECLINED", "INITIALIZED"]).optional(),
-  responseText: z.string().optional(),
-  amount: z.number().optional(),
-});
+export const ChargeResponseSchema = z
+  .object({
+    ticketNumber: z.string(),
+    transactionReference: z.string(),
+    approvalCode: z.string().optional(),
+    status: z.enum(["APPROVAL", "DECLINED", "INITIALIZED"]).optional(),
+    responseText: z.string().optional(),
+    amount: z.number().optional(),
+    // fullResponse:"v2" agrega un bloque `details` con la info rica del cobro.
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  // Retenemos cualquier campo extra de Kushki (v2 mete varios) para que quede
+  // en KushkiTransaction.raw sin tener que enumerarlos todos.
+  .passthrough();
 export type ChargeResponse = z.infer<typeof ChargeResponseSchema>;
 
 export const TerminalPushResponseSchema = z.object({

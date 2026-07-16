@@ -142,21 +142,17 @@ export async function POST(
 
   const currency = await getCurrencyForCountry(tenant.country);
 
-  // contactDetails para Kushki (lo pide en el charge para el 3DS). Sólo lo
-  // mandamos si tenemos el nombre del titular; el correo va sólo si existe.
+  // contactDetails para Kushki (lo pide en el charge para el 3DS). Un solo
+  // campo `name` con el nombre completo; el correo va sólo si existe. Antes
+  // partíamos el nombre en firstName/lastName y con un nombre de una palabra
+  // mandábamos el mismo valor repetido.
   const rawName = parsed.data.contactName?.trim();
+  const rawEmail = parsed.data.contactEmail?.trim();
   const contactDetails = rawName
-    ? (() => {
-        const parts = rawName.split(/\s+/);
-        const firstName = parts[0];
-        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : parts[0];
-        const email = parsed.data.contactEmail?.trim();
-        return {
-          firstName,
-          lastName,
-          ...(email && email.includes("@") ? { email } : {}),
-        };
-      })()
+    ? {
+        name: rawName,
+        ...(rawEmail && rawEmail.includes("@") ? { email: rawEmail } : {}),
+      }
     : undefined;
 
   let charge;

@@ -75,12 +75,25 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
+  // Barrer pendings en vuelo de esta orden (intentos previos de tarjeta/
+  // datáfono/wallet abandonados o interrumpidos): el diner está haciendo ESTE
+  // cobro ahora → los anteriores quedan obsoletos. "Última intención gana",
+  // mismo patrón que el efectivo y el datáfono. SIN esto, un pending viejo
+  // consumía el outstanding y el cap rechazaba el charge con 409 ANTES de
+  // llegar a Kushki (Kushki "no veía ejecutarse el charge" tras el 3DS).
+  await db.payment.updateMany({
+    where: { orderId: order.id, status: "pending" },
+    data: { status: "declined" },
+  });
+
   // Cap before reaching out to Kushki — much better to reject the
   // overcharge here than to capture a real card transaction we'd then
-  // have to refund manually. See validateNewPaymentAmount for the
-  // pending-cash-aware logic.
+  // have to refund manually. excludePending: ya barrimos los pendings arriba,
+  // pero lo excluimos igual por si entra otro en la misma ventana.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion);
+  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
+    excludePending: true,
+  });
   if (!cap.ok) {
     return NextResponse.json(
       {

@@ -13,6 +13,7 @@ import {
   getPaymentProvider,
   getRestaurantPrivateKey,
 } from "@/lib/payments";
+import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
 /**
@@ -222,7 +223,9 @@ export async function POST(
   }
 
   // Persist the provider reference + KushkiTransaction mirror regardless of
-  // outcome so we can audit declined attempts.
+  // outcome so we can audit declined attempts. Extraemos los datos ricos de la
+  // tarjeta (fullResponse:"v2") a columnas legibles para la vista de pagos.
+  const cardInfo = extractKushkiCardInfo(charge.raw);
   await db.kushkiTransaction.create({
     data: {
       restaurantId: tenant.id,
@@ -233,6 +236,7 @@ export async function POST(
       amountCents: parsed.data.amountCents,
       raw: charge.raw as object,
       message: charge.message,
+      ...cardInfo,
     },
   });
 

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getMeseroScope } from "@/lib/meseroScope";
+import { PaymentDetailSheet, type PaymentDetail } from "./PaymentDetailSheet";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,47 @@ export default async function PaymentsPage() {
       where: { order: { restaurantId, ...tableFilter } },
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { order: { include: { table: true } } },
+      include: {
+        order: { include: { table: true } },
+        // El charge de Kushki trae los datos ricos de la tarjeta (marca,
+        // últimos 4, código de aprobación...). Tomamos el más reciente.
+        kushkiTransactions: {
+          where: { kind: "charge" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     }),
   ]);
   const counterMode = tenant?.serviceMode === "counter";
+
+  // Arma el objeto de detalle para el drawer a partir del charge de Kushki.
+  // Devuelve null si el pago no tiene datos de tarjeta (efectivo, PSE, etc.).
+  const buildDetail = (
+    p: (typeof payments)[number],
+  ): PaymentDetail | null => {
+    const tx = p.kushkiTransactions[0];
+    if (!tx || (!tx.cardBrand && !tx.cardLast4)) return null;
+    return {
+      shortCode: p.order.shortCode,
+      methodLabel: methodLabel(p.method, t),
+      statusLabel: statusLabel(p.status, t),
+      statusKind: p.status,
+      amountCents: p.amountCents,
+      tipCents: p.tipCents,
+      createdAtISO: p.createdAt.toISOString(),
+      card: {
+        brand: tx.cardBrand,
+        last4: tx.cardLast4,
+        type: tx.cardType,
+        bin: tx.cardBin,
+        holder: tx.cardHolderName,
+        approvalCode: tx.approvalCode,
+        processor: tx.processorName,
+        reference: tx.kushkiTxId,
+      },
+    };
+  };
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto w-full">
@@ -44,34 +82,45 @@ export default async function PaymentsPage() {
               <Th>{t("colOrder")}</Th>
               <Th>{counterMode ? t("colChannel") : t("colTable")}</Th>
               <Th>{t("colMethod")}</Th>
+              <Th>{t("colCard")}</Th>
               <Th>{t("colStatus")}</Th>
               <Th className="text-right">{t("colAmount")}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-op-border">
-            {payments.map((p) => (
-              <tr key={p.id}>
-                <Td>{p.createdAt.toLocaleString("es-CO")}</Td>
-                <Td className="font-mono">{p.order.shortCode}</Td>
-                <Td>
-                  {counterMode
-                    ? t("channelCounter")
-                    : t("tableNumber", { number: p.order.table.number })}
-                </Td>
-                <Td>{methodLabel(p.method, t)}</Td>
-                <Td>
-                  <span className={statusTint(p.status)}>
-                    {statusLabel(p.status, t)}
-                  </span>
-                </Td>
-                <Td className="text-right font-mono tabular">
-                  {fmtCOP(p.amountCents)}
-                </Td>
-              </tr>
-            ))}
+            {payments.map((p) => {
+              const detail = buildDetail(p);
+              return (
+                <tr key={p.id}>
+                  <Td>{p.createdAt.toLocaleString("es-CO")}</Td>
+                  <Td className="font-mono">{p.order.shortCode}</Td>
+                  <Td>
+                    {counterMode
+                      ? t("channelCounter")
+                      : t("tableNumber", { number: p.order.table.number })}
+                  </Td>
+                  <Td>{methodLabel(p.method, t)}</Td>
+                  <Td>
+                    {detail ? (
+                      <PaymentDetailSheet detail={detail} />
+                    ) : (
+                      <span className="text-op-muted">{"—"}</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className={statusTint(p.status)}>
+                      {statusLabel(p.status, t)}
+                    </span>
+                  </Td>
+                  <Td className="text-right font-mono tabular">
+                    {fmtCOP(p.amountCents)}
+                  </Td>
+                </tr>
+              );
+            })}
             {payments.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-op-muted text-center">
+                <td colSpan={7} className="px-4 py-6 text-op-muted text-center">
                   {t("empty")}
                 </td>
               </tr>
@@ -82,37 +131,45 @@ export default async function PaymentsPage() {
 
       {/* Móvil: lista de tarjetas. */}
       <div className="lg:hidden space-y-2">
-        {payments.map((p) => (
-          <div
-            key={p.id}
-            className="bg-op-surface border border-op-border rounded-2xl p-4"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-sm font-medium">
-                {p.order.shortCode}
-              </span>
-              <span className="font-mono tabular text-base font-semibold">
-                {fmtCOP(p.amountCents)}
-              </span>
+        {payments.map((p) => {
+          const detail = buildDetail(p);
+          return (
+            <div
+              key={p.id}
+              className="bg-op-surface border border-op-border rounded-2xl p-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-sm font-medium">
+                  {p.order.shortCode}
+                </span>
+                <span className="font-mono tabular text-base font-semibold">
+                  {fmtCOP(p.amountCents)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{methodLabel(p.method, t)}</span>
+                <span className={statusTint(p.status) + " shrink-0"}>
+                  {statusLabel(p.status, t)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-op-muted">
+                <span className="truncate">
+                  {counterMode
+                    ? t("channelCounter")
+                    : t("tableNumber", { number: p.order.table.number })}
+                </span>
+                <span className="shrink-0">
+                  {fmtDate(p.createdAt)} · {fmtTime(p.createdAt)}
+                </span>
+              </div>
+              {detail && (
+                <div className="mt-2 border-t border-op-border pt-2">
+                  <PaymentDetailSheet detail={detail} />
+                </div>
+              )}
             </div>
-            <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
-              <span className="truncate">{methodLabel(p.method, t)}</span>
-              <span className={statusTint(p.status) + " shrink-0"}>
-                {statusLabel(p.status, t)}
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-op-muted">
-              <span className="truncate">
-                {counterMode
-                  ? t("channelCounter")
-                  : t("tableNumber", { number: p.order.table.number })}
-              </span>
-              <span className="shrink-0">
-                {fmtDate(p.createdAt)} · {fmtTime(p.createdAt)}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {payments.length === 0 && (
           <div className="text-center py-10 text-sm text-op-muted">
             {t("empty")}

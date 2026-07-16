@@ -1060,6 +1060,11 @@ model Order {
   pickupName  String?
   pickupPhone String?
 
+  // Correo del titular capturado al pagar con tarjeta (CardSheet). Sirve para
+  // prellenar el pedido de factura en /done y no volver a pedirlo. Nullable:
+  // efectivo/Apple Pay pueden no traerlo. El último cobro con correo gana.
+  customerEmail String?
+
   needsWaiter    Boolean   @default(false)
   waiterCalledAt DateTime?
 

@@ -122,6 +122,11 @@ export class LiveKushkiProvider implements PaymentProvider {
         token: req.token,
         amount: { subtotalIva: 0, subtotalIva0: req.amount.amountCents / 100, iva: 0, currency: req.amount.currency },
         metadata: req.metadata,
+        // fullResponse v2: Kushki devuelve un bloque `details` con info rica del
+        // cobro (marca, últimos 4, bin, código de aprobación, procesador...).
+        // Lo retenemos vía .passthrough() en ChargeResponseSchema y queda
+        // guardado en KushkiTransaction.raw para auditoría/reportes.
+        fullResponse: "v2",
         ...(req.contactDetails
           ? { contactDetails: req.contactDetails }
           : {}),

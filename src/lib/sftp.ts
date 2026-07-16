@@ -1,3 +1,4 @@
+import { readFile } from "fs/promises";
 import SftpClient from "ssh2-sftp-client";
 import { env } from "@/lib/env";
 
@@ -10,8 +11,30 @@ export function sftpConfigured(): boolean {
   return Boolean(
     env.MESAPAY_SFTP_HOST &&
       env.MESAPAY_SFTP_USER &&
-      env.MESAPAY_SFTP_PRIVATE_KEY,
+      (env.MESAPAY_SFTP_PRIVATE_KEY || env.MESAPAY_SFTP_PRIVATE_KEY_FILE),
   );
+}
+
+/**
+ * Resuelve la llave privada: desde el archivo (MESAPAY_SFTP_PRIVATE_KEY_FILE,
+ * recomendado) o inline (MESAPAY_SFTP_PRIVATE_KEY). null si no se pudo obtener.
+ */
+async function resolvePrivateKey(): Promise<string | null> {
+  if (env.MESAPAY_SFTP_PRIVATE_KEY_FILE) {
+    try {
+      return await readFile(env.MESAPAY_SFTP_PRIVATE_KEY_FILE, "utf8");
+    } catch (err) {
+      console.error(
+        "[sftp] no pude leer MESAPAY_SFTP_PRIVATE_KEY_FILE",
+        env.MESAPAY_SFTP_PRIVATE_KEY_FILE,
+        err instanceof Error ? err.message : err,
+      );
+      return null;
+    }
+  }
+  return env.MESAPAY_SFTP_PRIVATE_KEY
+    ? normalizeKey(env.MESAPAY_SFTP_PRIVATE_KEY)
+    : null;
 }
 
 /**
@@ -40,7 +63,7 @@ export async function uploadFileToSftp(args: {
 }): Promise<void> {
   const host = env.MESAPAY_SFTP_HOST;
   const username = env.MESAPAY_SFTP_USER;
-  const privateKey = env.MESAPAY_SFTP_PRIVATE_KEY;
+  const privateKey = await resolvePrivateKey();
   if (!host || !username || !privateKey) {
     throw new Error("sftp_not_configured");
   }
@@ -55,7 +78,7 @@ export async function uploadFileToSftp(args: {
       host,
       port: env.MESAPAY_SFTP_PORT,
       username,
-      privateKey: normalizeKey(privateKey),
+      privateKey,
       ...(env.MESAPAY_SFTP_PASSPHRASE
         ? { passphrase: env.MESAPAY_SFTP_PASSPHRASE }
         : {}),

@@ -760,6 +760,7 @@
     "navSettings": "Settings",
     "navInsights": "Pulso",
     "navHelp": "Help",
+    "liveSection": "Live",
     "roleLabel": "Operator · {name}",
     "noRestaurant": "No restaurant",
     "adminLink": "Admin →",

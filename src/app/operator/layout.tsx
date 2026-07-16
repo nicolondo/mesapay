@@ -10,6 +10,7 @@ import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
 import { isModuleEnabled } from "@/lib/modules";
 import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";
+import { OperatorCockpit } from "./OperatorCockpit";
 import { NavDropdown } from "./NavDropdown";
 import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
 import { computeBoardActivity, type BoardActivity } from "./boardActivity";
@@ -165,8 +166,107 @@ export default async function OperatorLayout({
     redirect("/operator");
   }
 
-  return (
-    <div className="op-app-shell flex flex-col bg-op-bg text-op-text overflow-hidden">
+  // ── Nav: fuente única para ambos shells (clásico + cockpit) ──────────────
+  const erpItems: { href: string; label: string }[] = [
+    ...(isModuleEnabled(tenant?.enabledModules, "inventory")
+      ? [{ href: "/operator/inventario", label: t("navInventory") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "inventory") ||
+    isModuleEnabled(tenant?.enabledModules, "purchasing") ||
+    isModuleEnabled(tenant?.enabledModules, "recipes")
+      ? [{ href: "/operator/settings/insumos", label: t("navInsumos") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
+      ? [{ href: "/operator/compras", label: t("navPurchasing") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "recipes")
+      ? [{ href: "/operator/recetas", label: t("navRecipes") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "accounting")
+      ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "production")
+      ? [{ href: "/operator/produccion", label: t("navProduction") }]
+      : []),
+    ...(isModuleEnabled(tenant?.enabledModules, "staff")
+      ? [{ href: "/operator/horarios", label: t("navStaff") }]
+      : []),
+  ];
+  const ordersGroup = [
+    { href: "/operator/orders", label: t("navOrders") },
+    { href: "/operator/payments", label: t("navPayments") },
+    { href: "/operator/facturas", label: t("navInvoices") },
+    { href: "/operator/ratings", label: t("navRatings") },
+  ];
+  const menuGroup = [
+    { href: "/operator/menu", label: t("navMenu") },
+    { href: "/operator/menus", label: t("navMenus") },
+  ];
+  const businessGroup = [
+    { href: "/operator/reports", label: t("navClose") },
+    { href: "/operator/wallet", label: t("navWallet") },
+    { href: "/operator/insights", label: t("navInsights") },
+  ];
+  const navItems: NavEntry[] = [
+    { href: "/operator", label: t("navSummary") },
+    { href: "/operator/kitchen", label: t("navKitchen") },
+    ...(tenant?.hasBar ? [{ href: "/operator/bar", label: t("navBar") }] : []),
+    { href: "/operator/serve", label: t("navHall") },
+    {
+      href: "/operator/tables",
+      label:
+        tenant?.serviceMode === "counter" ? t("navCounter") : t("navTables"),
+    },
+    ...(tenant?.reservationsEnabled
+      ? [{ href: "/operator/reservas", label: t("navReservations") }]
+      : []),
+    { label: t("navGroupOrders"), children: ordersGroup },
+    { label: t("navGroupMenu"), children: menuGroup },
+    ...(erpItems.length > 0
+      ? [{ label: t("navErpGroup"), children: erpItems }]
+      : []),
+    { label: t("navGroupBusiness"), children: businessGroup },
+    { href: "/operator/settings", label: t("navSettings") },
+    { href: "/operator/ayuda", label: t("navHelp") },
+  ];
+  const signOutDesktop = (
+    <form
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      <button className="text-terracotta hover:underline">
+        {t("signOut")}
+      </button>
+    </form>
+  );
+  const signOutMobile = (
+    <form
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      <button
+        type="submit"
+        className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
+      >
+        {t("signOutFull")}
+      </button>
+    </form>
+  );
+
+  // Fecha de vencimiento localizada (para el banner "por vencer").
+  const dueDateStr = tenant?.periodEndsAt
+    ? new Date(tenant.periodEndsAt).toLocaleDateString(
+        localeTag((await getLocale()) as Locale),
+      )
+    : null;
+
+  // Banners (impersonación + membresía) — compartidos por ambos shells.
+  const banners = (
+    <>
       {impersonating && (
         <div className="print:hidden shrink-0 bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
           <div className="min-w-0 flex items-center gap-3 flex-wrap">
@@ -177,12 +277,7 @@ export default async function OperatorLayout({
               {isGroupAdmin ? t("impViewing") : t("impViewingAsOperator")}{" "}
               <strong>{tenant?.name ?? "…"}</strong>
             </span>
-            {/* Switcher entre restaurantes del grupo — sólo cuando hay
-                hermanos. Auto-submitea con onChange (client component). */}
-            <GroupSwitcher
-              siblings={siblingRestaurants}
-              action={switchToSibling}
-            />
+            <GroupSwitcher siblings={siblingRestaurants} action={switchToSibling} />
           </div>
           <form action={stopImpersonating} className="shrink-0">
             <button className="font-mono text-[10px] tracking-wider uppercase underline">
@@ -193,133 +288,44 @@ export default async function OperatorLayout({
       )}
       {membership === "vencido" && (
         <div className="print:hidden shrink-0 bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm">
-          {t.rich("membershipOverdue", {
-            b: (chunks) => <strong>{chunks}</strong>,
-          })}
+          {t.rich("membershipOverdue", { b: (chunks) => <strong>{chunks}</strong> })}
         </div>
       )}
       {membership === "por_vencer" && (
         <div className="print:hidden shrink-0 bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
-          {tenant?.periodEndsAt
-            ? t("membershipDueSoonDate", {
-                date: new Date(tenant.periodEndsAt).toLocaleDateString(
-                  localeTag((await getLocale()) as Locale),
-                ),
-              })
+          {dueDateStr
+            ? t("membershipDueSoonDate", { date: dueDateStr })
             : t("membershipDueSoon")}
         </div>
       )}
-      {(() => {
-        // Módulos ERP activados (gate por módulo — mismo criterio que las
-        // páginas y APIs). Van AGRUPADOS bajo un solo item con dropdown
-        // (desktop) / sección rotulada (drawer móvil) para que la nav no
-        // crezca un item por módulo.
-        const erpItems: { href: string; label: string }[] = [
-          ...(isModuleEnabled(tenant?.enabledModules, "inventory")
-            ? [{ href: "/operator/inventario", label: t("navInventory") }]
-            : []),
-          // Catálogo de insumos — antes vivía en Configuración; ahora en
-          // Administración. Mismo gate que la card (inventory/compras/recetas).
-          ...(isModuleEnabled(tenant?.enabledModules, "inventory") ||
-          isModuleEnabled(tenant?.enabledModules, "purchasing") ||
-          isModuleEnabled(tenant?.enabledModules, "recipes")
-            ? [{ href: "/operator/settings/insumos", label: t("navInsumos") }]
-            : []),
-          ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
-            ? [{ href: "/operator/compras", label: t("navPurchasing") }]
-            : []),
-          ...(isModuleEnabled(tenant?.enabledModules, "recipes")
-            ? [{ href: "/operator/recetas", label: t("navRecipes") }]
-            : []),
-          ...(isModuleEnabled(tenant?.enabledModules, "accounting")
-            ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
-            : []),
-          ...(isModuleEnabled(tenant?.enabledModules, "production")
-            ? [{ href: "/operator/produccion", label: t("navProduction") }]
-            : []),
-          ...(isModuleEnabled(tenant?.enabledModules, "staff")
-            ? [{ href: "/operator/horarios", label: t("navStaff") }]
-            : []),
-        ];
-        // Single source of truth for the nav so desktop inline + mobile
-        // drawer render the same items in the same order. Los tableros en
-        // vivo (Resumen, Cocina, Bar, Salón, Mesas, Reservas) quedan al
-        // primer nivel — son de uso constante y llevan el punto rojo de
-        // novedad. El resto va AGRUPADO en dropdowns (items/subitems) para
-        // que la nav no sea una fila larga de links planos.
-        const ordersGroup: { href: string; label: string }[] = [
-          { href: "/operator/orders", label: t("navOrders") },
-          { href: "/operator/payments", label: t("navPayments") },
-          { href: "/operator/facturas", label: t("navInvoices") },
-          { href: "/operator/ratings", label: t("navRatings") },
-        ];
-        const menuGroup: { href: string; label: string }[] = [
-          { href: "/operator/menu", label: t("navMenu") },
-          { href: "/operator/menus", label: t("navMenus") },
-        ];
-        const businessGroup: { href: string; label: string }[] = [
-          { href: "/operator/reports", label: t("navClose") },
-          { href: "/operator/wallet", label: t("navWallet") },
-          { href: "/operator/insights", label: t("navInsights") },
-        ];
-        const navItems: NavEntry[] = [
-          { href: "/operator", label: t("navSummary") },
-          { href: "/operator/kitchen", label: t("navKitchen") },
-          ...(tenant?.hasBar
-            ? [{ href: "/operator/bar", label: t("navBar") }]
-            : []),
-          { href: "/operator/serve", label: t("navHall") },
-          {
-            href: "/operator/tables",
-            label:
-              tenant?.serviceMode === "counter"
-                ? t("navCounter")
-                : t("navTables"),
-          },
-          ...(tenant?.reservationsEnabled
-            ? [{ href: "/operator/reservas", label: t("navReservations") }]
-            : []),
-          { label: t("navGroupOrders"), children: ordersGroup },
-          { label: t("navGroupMenu"), children: menuGroup },
-          ...(erpItems.length > 0
-            ? [{ label: t("navErpGroup"), children: erpItems }]
-            : []),
-          { label: t("navGroupBusiness"), children: businessGroup },
-          { href: "/operator/settings", label: t("navSettings") },
-          { href: "/operator/ayuda", label: t("navHelp") },
-        ];
-        // The signOut server-action gets rendered twice (desktop link +
-        // mobile drawer button) so we declare it once and reuse the
-        // JSX. Server actions can't be passed across the client/server
-        // boundary as functions, but as <form> children they survive.
-        const signOutDesktop = (
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <button className="text-terracotta hover:underline">
-              {t("signOut")}
-            </button>
-          </form>
-        );
-        const signOutMobile = (
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <button
-              type="submit"
-              className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
-            >
-              {t("signOutFull")}
-            </button>
-          </form>
-        );
-        return (
+    </>
+  );
+
+  // Flag de rediseño del shell (cookie mp_shell=cockpit) — rollout seguro:
+  // los clientes reales ven el shell clásico hasta que se vuelva default.
+  const shellCockpit =
+    (await cookies()).get("mp_shell")?.value === "cockpit";
+  if (shellCockpit) {
+    return (
+      <OperatorCockpit
+        navItems={navItems}
+        boardActivity={boardActivity}
+        roleLabel={t("roleLabel", { name: tenant?.name ?? t("noRestaurant") })}
+        tenantName={tenant?.name ?? t("noRestaurant")}
+        userEmail={session.user.email}
+        isAdmin={session.user.role === "platform_admin"}
+        localeSwitcher={<LocaleSwitcher />}
+        signOut={signOutMobile}
+        banners={banners}
+      >
+        {children}
+      </OperatorCockpit>
+    );
+  }
+
+  return (
+    <div className="op-app-shell flex flex-col bg-op-bg text-op-text overflow-hidden">
+      {banners}
           <header className="print:hidden border-b border-op-border bg-op-surface shrink-0 z-10">
             <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">
               <div className="flex items-center gap-4 md:gap-6 min-w-0">
@@ -381,8 +387,6 @@ export default async function OperatorLayout({
               </div>
             </div>
           </header>
-        );
-      })()}
       {/* Único scroller del panel. El header (arriba, fuera de este main)
           queda siempre visible. overflow-y-auto + flex-1 = patrón app-shell. */}
       <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>

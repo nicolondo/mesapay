@@ -287,7 +287,7 @@ export function NewGroupClient({
           type="button"
           onClick={create}
           disabled={busy || !name.trim() || !slug.trim()}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary mp-btn--sm px-5"
         >
           {busy ? t("creating") : t("createGroupCta")}
         </button>

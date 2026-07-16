@@ -78,10 +78,12 @@ export function PlanEditor({
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
           {t("plan")}
         </div>
-        <div className="inline-flex p-1 rounded-full bg-op-bg border border-op-border">
+        <div className="mp-seg" role="tablist">
           {PLAN_OPTIONS.map((p) => (
             <button
               key={p.value}
+              role="tab"
+              aria-selected={selected === p.value}
               onClick={() => {
                 setSelected(p.value);
                 if (p.value !== plan) {
@@ -90,12 +92,7 @@ export function PlanEditor({
                   setPriceCop(String(Math.round(monthlyPriceCents / 100)));
                 }
               }}
-              className={
-                "h-8 px-4 rounded-full text-xs font-medium transition-colors " +
-                (selected === p.value
-                  ? "bg-ink text-bone"
-                  : "text-op-muted hover:text-op-text")
-              }
+              className="mp-seg__i"
             >
               {p.label}
             </button>
@@ -121,7 +118,7 @@ export function PlanEditor({
         <button
           onClick={save}
           disabled={busy || !dirty}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("saving") : t("savePlan")}
         </button>
@@ -222,7 +219,7 @@ export function RecordPaymentForm({
         <button
           type="submit"
           disabled={busy}
-          className="h-9 px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
+          className="mp-btn mp-btn--accent mp-btn--sm"
         >
           {busy ? t("recording") : t("markPayment")}
         </button>
@@ -673,7 +670,7 @@ export function PickupSchedulePanel({
       <button
         onClick={save}
         disabled={busy}
-        className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+        className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {busy ? t("saving") : t("saveHours")}
       </button>

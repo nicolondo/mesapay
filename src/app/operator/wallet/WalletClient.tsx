@@ -327,7 +327,7 @@ function DisperseSheet({
           <button
             onClick={go}
             disabled={busy || amount <= 0}
-            className="w-full h-12 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
+            className="mp-btn mp-btn--accent mp-btn--block"
           >
             {busy ? t("processing") : t("sendAmount", { amount: fmtCOP(amount) })}
           </button>

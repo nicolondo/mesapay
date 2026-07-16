@@ -391,7 +391,7 @@ export function HorariosClient({
     <div className="space-y-4">
       {/* Segmentos Semana / Hoy / Equipo + engranaje de ajustes */}
       <div className="flex items-center justify-between gap-2">
-        <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+        <div className="mp-seg" role="tablist">
           {(
             [
               ["week", t("staffTabWeek")],
@@ -402,11 +402,10 @@ export function HorariosClient({
             <button
               key={value}
               type="button"
+              role="tab"
+              aria-selected={tab === value}
               onClick={() => setTab(value)}
-              className={
-                "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-                (tab === value ? "bg-ink text-bone" : "text-op-muted hover:text-ink")
-              }
+              className="mp-seg__i"
             >
               {label}
             </button>
@@ -446,7 +445,7 @@ export function HorariosClient({
             onClick={() => setSettingsOpen(true)}
             aria-label={t("staffSettingsTitle")}
             title={t("staffSettingsTitle")}
-            className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-base text-op-muted hover:text-ink hover:bg-op-bg shrink-0"
+            className="mp-icobtn shrink-0 text-base"
           >
             {"⚙"}
           </button>
@@ -657,7 +656,7 @@ function WeekTab({
           type="button"
           onClick={() => setMonday((m) => shiftDays(m, -7))}
           aria-label={t("staffWeekPrev")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+          className="mp-icobtn text-sm"
         >
           {"◀"}
         </button>
@@ -666,7 +665,7 @@ function WeekTab({
           type="button"
           onClick={() => setMonday((m) => shiftDays(m, 7))}
           aria-label={t("staffWeekNext")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+          className="mp-icobtn text-sm"
         >
           {"▶"}
         </button>
@@ -675,7 +674,7 @@ function WeekTab({
       <button
         type="button"
         onClick={() => onNew()}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("shiftNew")}
       </button>
@@ -684,7 +683,7 @@ function WeekTab({
           type="button"
           onClick={copyPrevWeek}
           disabled={copyBusy || applyBusy}
-          className="flex-1 min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
+          className="mp-btn mp-btn--secondary flex-1"
         >
           {copyBusy ? t("saving") : t("staffCopyWeek")}
         </button>
@@ -692,7 +691,7 @@ function WeekTab({
           type="button"
           onClick={applyTemplate}
           disabled={copyBusy || applyBusy}
-          className="flex-1 min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
+          className="mp-btn mp-btn--secondary flex-1"
         >
           {applyBusy ? t("saving") : t("templateApply")}
         </button>
@@ -913,7 +912,7 @@ function TodayTab({
       <button
         type="button"
         onClick={onExtra}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("shiftExtra")}
       </button>
@@ -1105,7 +1104,7 @@ function TeamTab({
       <button
         type="button"
         onClick={onNew}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("staffNewEmployee")}
       </button>

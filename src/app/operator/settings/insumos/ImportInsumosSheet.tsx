@@ -538,7 +538,7 @@ function UploadStage({
           type="button"
           onClick={onProcess}
           disabled={!file}
-          className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 inline-flex items-center gap-1.5"
+          className="mp-btn mp-btn--primary"
         >
           <span aria-hidden>{"✨"}</span>
           {t("impInvProcess")}
@@ -738,7 +738,7 @@ function ReviewStage({
                 type="button"
                 onClick={onReprocess}
                 disabled={busy}
-                className="h-9 px-4 rounded-full border border-op-border text-xs font-medium hover:bg-op-bg disabled:opacity-40 inline-flex items-center gap-1.5 shrink-0"
+                className="mp-btn mp-btn--secondary mp-btn--sm shrink-0"
               >
                 <span aria-hidden>{"↻"}</span>
                 {t("impInvReprocess")}
@@ -772,7 +772,7 @@ function ReviewStage({
             type="button"
             onClick={onConfirm}
             disabled={busy || summary.included === 0}
-            className="min-h-[44px] px-5 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40"
+            className="mp-btn mp-btn--accent"
           >
             {busy
               ? t("impInvConfirming")

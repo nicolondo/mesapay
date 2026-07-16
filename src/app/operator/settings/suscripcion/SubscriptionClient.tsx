@@ -304,7 +304,7 @@ export function SubscriptionClient({
                   type="button"
                   onClick={() => { setActionErr(null); setMode("changing_card"); }}
                   disabled={busy}
-                  className="text-sm font-medium px-4 py-2 rounded-lg border border-op-border hover:bg-op-surface/80 text-op-text disabled:opacity-50 transition-colors"
+                  className="mp-btn mp-btn--secondary"
                 >
                   {t("changeCardBtn")}
                 </button>
@@ -312,7 +312,7 @@ export function SubscriptionClient({
                   type="button"
                   onClick={handleCancel}
                   disabled={busy}
-                  className="text-sm font-medium px-4 py-2 rounded-lg border border-danger/30 text-danger hover:bg-danger/5 disabled:opacity-50 transition-colors"
+                  className="mp-btn mp-btn--danger"
                 >
                   {busy ? t("canceling") : t("cancelDebitBtn")}
                 </button>
@@ -322,7 +322,7 @@ export function SubscriptionClient({
                 type="button"
                 onClick={() => { setActionErr(null); setMode("activating"); }}
                 disabled={busy}
-                className="text-sm font-medium px-4 py-2.5 rounded-lg bg-ink text-bone hover:bg-ink/90 disabled:opacity-50 transition-colors"
+                className="mp-btn mp-btn--primary"
               >
                 {t("activateBtn")}
               </button>

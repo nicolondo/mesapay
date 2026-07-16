@@ -273,7 +273,7 @@ export function InsumosClient({
         <button
           type="button"
           onClick={() => setSheet({ mode: "create" })}
-          className="flex-1 min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+          className="flex-1 mp-btn mp-btn--primary"
         >
           {t("newIngredient")}
         </button>
@@ -281,7 +281,7 @@ export function InsumosClient({
           <button
             type="button"
             onClick={() => setImporting(true)}
-            className="flex-1 min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg inline-flex items-center justify-center gap-1.5"
+            className="flex-1 mp-btn mp-btn--secondary"
           >
             <span aria-hidden>{"✨"}</span>
             {t("impInvButton")}
@@ -310,7 +310,7 @@ export function InsumosClient({
               </option>
             ))}
           </select>
-          <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+          <div className="mp-seg" role="tablist">
             {(
               [
                 ["all", t("filterAll")],
@@ -321,13 +321,10 @@ export function InsumosClient({
               <button
                 key={value}
                 type="button"
+                role="tab"
+                aria-selected={activeFilter === value}
                 onClick={() => setActiveFilter(value)}
-                className={
-                  "min-h-[44px] px-4 text-xs font-medium transition-colors " +
-                  (activeFilter === value
-                    ? "bg-ink text-bone"
-                    : "text-op-muted hover:text-ink")
-                }
+                className="mp-seg__i"
               >
                 {label}
               </button>
@@ -442,7 +439,7 @@ export function InsumosClient({
                     type="button"
                     onClick={applyBulk}
                     disabled={bulkBusy}
-                    className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+                    className="mp-btn mp-btn--accent mp-btn--sm shrink-0"
                   >
                     {bulkBusy ? t("saving") : t("bulkApply")}
                   </button>
@@ -476,7 +473,7 @@ export function InsumosClient({
                       type="button"
                       onClick={applyBulk}
                       disabled={bulkBusy || !renameFrom || !renameTo.trim()}
-                      className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+                      className="mp-btn mp-btn--accent mp-btn--sm shrink-0"
                     >
                       {bulkBusy ? t("saving") : t("bulkApply")}
                     </button>
@@ -505,7 +502,7 @@ export function InsumosClient({
                 type="button"
                 onClick={applyBulk}
                 disabled={bulkBusy}
-                className="min-h-[40px] px-4 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-40 shrink-0"
+                className="mp-btn mp-btn--accent mp-btn--sm shrink-0"
               >
                 {bulkBusy ? t("saving") : t("bulkApply")}
               </button>
@@ -905,14 +902,14 @@ function IngredientSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
             <button
               type="submit"
               disabled={busy || name.trim().length === 0}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("saving") : t("save")}
             </button>

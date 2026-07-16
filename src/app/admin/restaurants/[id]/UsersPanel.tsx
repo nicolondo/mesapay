@@ -214,7 +214,7 @@ export function UsersPanel({
                     type="button"
                     onClick={() => savePassword(u.id)}
                     disabled={pwdValue.length < 8 || rowBusy === u.id}
-                    className="h-9 px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-50"
+                    className="mp-btn mp-btn--primary mp-btn--sm px-4"
                   >
                     {t("usersPwdSave")}
                   </button>
@@ -270,7 +270,7 @@ export function UsersPanel({
                 password.length < 8 ||
                 !role
               }
-              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+              className="mp-btn mp-btn--primary mp-btn--sm px-5"
             >
               {busy ? t("creating") : t("createUser")}
             </button>

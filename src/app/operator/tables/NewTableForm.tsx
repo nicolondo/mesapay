@@ -103,7 +103,7 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
           setOpen(true);
           setMode("single");
         }}
-        className="h-10 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
+        className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {t("newTableAdd")}
       </button>
@@ -116,32 +116,30 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
       className="bg-op-surface border border-op-border rounded-xl px-4 py-3 space-y-3"
     >
       {/* Toggle Una / Varias */}
-      <div className="inline-flex border border-op-border rounded-full p-0.5 text-sm">
+      <div className="mp-seg" role="tablist">
         <button
           type="button"
+          role="tab"
+          aria-selected={mode === "single"}
           onClick={() => {
             setMode("single");
             setErr(null);
             setMsg(null);
           }}
-          className={
-            "px-3 h-7 rounded-full inline-flex items-center " +
-            (mode === "single" ? "bg-ink text-bone" : "text-op-text/80")
-          }
+          className="mp-seg__i"
         >
           {t("bulkToggleSingle")}
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={mode === "bulk"}
           onClick={() => {
             setMode("bulk");
             setErr(null);
             setMsg(null);
           }}
-          className={
-            "px-3 h-7 rounded-full inline-flex items-center " +
-            (mode === "bulk" ? "bg-ink text-bone" : "text-op-text/80")
-          }
+          className="mp-seg__i"
         >
           {t("bulkToggleMany")}
         </button>
@@ -217,14 +215,14 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
           <button
             type="button"
             onClick={reset}
-            className="h-10 px-4 rounded-full border border-op-border text-sm"
+            className="mp-btn mp-btn--secondary mp-btn--sm"
           >
             {t("newTableCancel")}
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            className="mp-btn mp-btn--primary mp-btn--sm"
           >
             {busy
               ? mode === "single"

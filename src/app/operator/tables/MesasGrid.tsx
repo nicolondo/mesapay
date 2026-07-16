@@ -443,7 +443,7 @@ function ManageTableSheet({
           type="button"
           onClick={save}
           disabled={busy}
-          className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--primary mp-btn--block"
         >
           {tr("manageSave")}
         </button>
@@ -451,7 +451,7 @@ function ManageTableSheet({
           type="button"
           onClick={del}
           disabled={busy}
-          className="w-full h-11 rounded-full border border-danger/50 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-50"
+          className="mp-btn mp-btn--danger mp-btn--block"
         >
           {tr("deleteTable")}
         </button>

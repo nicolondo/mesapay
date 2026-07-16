@@ -139,7 +139,7 @@ export function PaymentMethodsPanel({
             type="button"
             onClick={save}
             disabled={busy || !dirty}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mp-btn mp-btn--primary mp-btn--sm"
           >
             {busy ? t("saving") : t("save")}
           </button>

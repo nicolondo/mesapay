@@ -139,7 +139,7 @@ export function ProveedoresClient({
       <button
         type="button"
         onClick={() => setSheet({ mode: "create" })}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("newSupplier")}
       </button>
@@ -545,14 +545,14 @@ function SupplierSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
             <button
               type="submit"
               disabled={busy || name.trim().length === 0}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("saving") : t("save")}
             </button>
@@ -825,7 +825,7 @@ function SupplierDetailSheet({
               <button
                 type="button"
                 onClick={() => setForm({ editing: null })}
-                className="mt-3 w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface"
+                className="mp-btn mp-btn--secondary mp-btn--block mt-3"
               >
                 {t("addItem")}
               </button>
@@ -1100,7 +1100,7 @@ function ItemForm({
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+          className="mp-btn mp-btn--secondary"
         >
           {t("cancel")}
         </button>
@@ -1112,7 +1112,7 @@ function ItemForm({
             presentation.trim().length === 0 ||
             qty.trim().length === 0
           }
-          className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary"
         >
           {busy ? t("saving") : t("save")}
         </button>

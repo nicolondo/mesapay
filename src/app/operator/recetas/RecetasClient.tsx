@@ -375,7 +375,7 @@ export function RecetasClient({ currency }: { currency: string }) {
   return (
     <div className="space-y-4">
       {/* Segmentos Platos / Sub-recetas / Ingeniería */}
-      <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+      <div className="mp-seg" role="tablist">
         {(
           [
             ["dishes", t("tabDishes")],
@@ -386,11 +386,10 @@ export function RecetasClient({ currency }: { currency: string }) {
           <button
             key={value}
             type="button"
+            role="tab"
+            aria-selected={tab === value}
             onClick={() => setTab(value)}
-            className={
-              "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-              (tab === value ? "bg-ink text-bone" : "text-op-muted hover:text-ink")
-            }
+            className="mp-seg__i"
           >
             {label}
           </button>
@@ -475,12 +474,7 @@ export function RecetasClient({ currency }: { currency: string }) {
                 type="button"
                 onClick={() => setFcHighOnly((v) => !v)}
                 aria-pressed={fcHighOnly}
-                className={
-                  "min-h-[44px] px-4 rounded-full border text-xs font-medium transition-colors " +
-                  (fcHighOnly
-                    ? "border-ink bg-ink text-bone"
-                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
-                }
+                className="mp-chip"
               >
                 {t("fcAlertFilterChip")}
               </button>
@@ -1182,7 +1176,7 @@ function RecipeSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -1190,7 +1184,7 @@ function RecipeSheet({
               type="button"
               onClick={save}
               disabled={anyBusy || lines.length === 0}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("saving") : t("save")}
             </button>
@@ -1592,7 +1586,7 @@ function SubRecipesTab({
       <button
         type="button"
         onClick={() => setOpen("new")}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("newSubRecipe")}
       </button>
@@ -2137,7 +2131,7 @@ function SubRecipeSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -2145,7 +2139,7 @@ function SubRecipeSheet({
               type="button"
               onClick={save}
               disabled={anyBusy || !output || lines.length === 0}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("saving") : t("save")}
             </button>
@@ -2247,19 +2241,18 @@ function EngineeringTab({
   return (
     <div className="space-y-4">
       {/* Período: 7 / 30 / 90 días (cacheado por período) */}
-      <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+      <div className="mp-seg" role="tablist">
         {ENG_PERIODS.map((d) => (
           <button
             key={d}
             type="button"
+            role="tab"
+            aria-selected={days === d}
             onClick={() => {
               setErr(false);
               onDaysChange(d);
             }}
-            className={
-              "min-h-[44px] px-4 text-xs font-medium transition-colors " +
-              (days === d ? "bg-ink text-bone" : "text-op-muted hover:text-ink")
-            }
+            className="mp-seg__i"
           >
             {t("engineeringPeriodDays", { days: d })}
           </button>

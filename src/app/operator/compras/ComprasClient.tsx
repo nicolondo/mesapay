@@ -472,7 +472,7 @@ export function ComprasClient({
   return (
     <div className="space-y-4">
       {/* Segmentos Órdenes / Por pagar */}
-      <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+      <div className="mp-seg" role="tablist">
         {(
           [
             ["orders", t("tabOrders")],
@@ -482,13 +482,10 @@ export function ComprasClient({
           <button
             key={value}
             type="button"
+            role="tab"
+            aria-selected={tab === value}
             onClick={() => setTab(value)}
-            className={
-              "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-              (tab === value
-                ? "bg-ink text-bone"
-                : "text-op-muted hover:text-ink")
-            }
+            className="mp-seg__i"
           >
             {label}
           </button>
@@ -503,14 +500,14 @@ export function ComprasClient({
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="min-h-[44px] px-2 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+              className="mp-btn mp-btn--primary mp-btn--block"
             >
               {t("newOrder")}
             </button>
             <button
               type="button"
               onClick={() => setSuggestOpen(true)}
-              className="min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {t("suggestedButton")}
             </button>
@@ -606,7 +603,7 @@ export function ComprasClient({
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="w-full min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {loadingMore ? t("loading") : t("loadMore")}
             </button>
@@ -1408,7 +1405,7 @@ function NewOrderSheet({
                       type="button"
                       onClick={addLine}
                       disabled={lineAddDisabled}
-                      className="w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface disabled:opacity-40"
+                      className="mp-btn mp-btn--secondary mp-btn--block"
                     >
                       {t("addLine")}
                     </button>
@@ -1443,7 +1440,7 @@ function NewOrderSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -1451,7 +1448,7 @@ function NewOrderSheet({
               type="button"
               onClick={submit}
               disabled={busy || !supplier || lines.length === 0}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("creating") : t("createOrder")}
             </button>
@@ -1852,7 +1849,7 @@ function SuggestedSheet({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            className="mp-btn mp-btn--secondary"
           >
             {t("cancel")}
           </button>
@@ -1861,7 +1858,7 @@ function SuggestedSheet({
               type="button"
               onClick={submit}
               disabled={busy}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy
                 ? t("creating")
@@ -2728,7 +2725,7 @@ function InvoiceReviewSheet({
             <button
               type="button"
               onClick={addManualLine}
-              className="w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {t("invReviewAddLine")}
             </button>
@@ -2887,7 +2884,7 @@ function InvoiceReviewSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -2895,7 +2892,7 @@ function InvoiceReviewSheet({
               type="button"
               onClick={confirm}
               disabled={busy}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
             </button>
@@ -3574,7 +3571,7 @@ function OrderDetailSheet({
                   <button
                     type="button"
                     onClick={() => setEditing(false)}
-                    className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+                    className="mp-btn mp-btn--secondary"
                   >
                     {t("cancel")}
                   </button>
@@ -3582,7 +3579,7 @@ function OrderDetailSheet({
                     type="button"
                     onClick={saveEdit}
                     disabled={busy}
-                    className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+                    className="mp-btn mp-btn--primary"
                   >
                     {busy ? t("saving") : t("save")}
                   </button>
@@ -3839,7 +3836,7 @@ function OrderDetailSheet({
                             setOkMsg(null);
                             setPayOpen(true);
                           }}
-                          className="w-full min-h-[44px] rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface mt-2"
+                          className="mp-btn mp-btn--secondary mp-btn--block mt-2"
                         >
                           {t("registerPayment")}
                         </button>
@@ -3864,7 +3861,7 @@ function OrderDetailSheet({
                   setReceiveOpen(true);
                 }}
                 disabled={busy}
-                className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90 disabled:opacity-40 mt-4"
+                className="mp-btn mp-btn--primary mp-btn--block mt-4"
               >
                 {t("receiveGoods")}
               </button>
@@ -3897,7 +3894,7 @@ function OrderDetailSheet({
                   <button
                     type="button"
                     onClick={printOrder}
-                    className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface"
+                    className="mp-btn mp-btn--secondary mp-btn--block"
                   >
                     {t("printOrder")}
                   </button>
@@ -3921,7 +3918,7 @@ function OrderDetailSheet({
                       type="button"
                       onClick={markSent}
                       disabled={busy}
-                      className="min-h-[44px] px-5 rounded-full border border-op-border bg-op-bg text-sm font-medium hover:bg-op-surface disabled:opacity-40"
+                      className="mp-btn mp-btn--secondary"
                     >
                       {busy ? t("saving") : t("markSent")}
                     </button>
@@ -4216,7 +4213,7 @@ function ReceiveSheet({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            className="mp-btn mp-btn--secondary"
           >
             {t("cancel")}
           </button>
@@ -4224,7 +4221,7 @@ function ReceiveSheet({
             type="button"
             onClick={submit}
             disabled={busy || !anyIncluded || pending.length === 0}
-            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+            className="mp-btn mp-btn--primary"
           >
             {busy ? t("receiving") : t("receiveSubmit")}
           </button>
@@ -4463,7 +4460,7 @@ function UnpaidTab({
                     <button
                       type="button"
                       onClick={() => setPayFor(o)}
-                      className="min-h-[36px] px-3 rounded-full border border-op-border bg-op-bg text-[11px] font-medium hover:bg-op-surface"
+                      className="mp-btn mp-btn--sm mp-btn--secondary"
                     >
                       {t("registerPayment")}
                     </button>
@@ -4477,7 +4474,7 @@ function UnpaidTab({
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="w-full min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {loadingMore ? t("loading") : t("loadMore")}
             </button>
@@ -4687,7 +4684,7 @@ function PaymentForm({
           type="button"
           onClick={payFull}
           disabled={busy || outstanding < 1}
-          className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface disabled:opacity-40"
+          className="mp-btn mp-btn--secondary"
         >
           {t("payFull")}
         </button>
@@ -4695,7 +4692,7 @@ function PaymentForm({
           type="button"
           onClick={submit}
           disabled={busy}
-          className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary"
         >
           {busy ? t("saving") : t("registerPayment")}
         </button>
@@ -4853,7 +4850,7 @@ function InvoiceSheet({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+            className="mp-btn mp-btn--secondary"
           >
             {t("cancel")}
           </button>
@@ -4861,7 +4858,7 @@ function InvoiceSheet({
             type="button"
             onClick={submit}
             disabled={busy}
-            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+            className="mp-btn mp-btn--primary"
           >
             {busy ? t("saving") : t("save")}
           </button>
@@ -4999,7 +4996,7 @@ function SupplierInlineForm({
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("cancel")}
         </button>
@@ -5007,7 +5004,7 @@ function SupplierInlineForm({
           type="button"
           onClick={create}
           disabled={busy || name.trim() === ""}
-          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? t("creating") : t("inlineCreate")}
         </button>
@@ -5119,7 +5116,7 @@ function IngredientInlineForm({
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("cancel")}
         </button>
@@ -5127,7 +5124,7 @@ function IngredientInlineForm({
           type="button"
           onClick={create}
           disabled={busy || name.trim() === ""}
-          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? t("creating") : t("inlineCreate")}
         </button>

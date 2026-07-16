@@ -344,7 +344,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
                 type="button"
                 onClick={createComercial}
                 disabled={repBusy || !repEmail.trim() || repPassword.length < 8}
-                className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+                className="mp-btn mp-btn--primary mp-btn--sm px-5"
               >
                 {repBusy ? t("newRepSaving") : t("newRepSave")}
               </button>
@@ -371,14 +371,14 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
                 type="button"
                 onClick={saveEdit}
                 disabled={editBusy}
-                className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+                className="mp-btn mp-btn--primary mp-btn--sm px-4"
               >
                 {editBusy ? t("mgmtEditSaving") : t("mgmtEditSave")}
               </button>
               <button
                 type="button"
                 onClick={closeEdit}
-                className="h-9 px-4 rounded-full border border-op-border bg-op-bg text-sm font-medium"
+                className="mp-btn mp-btn--secondary mp-btn--sm px-4"
               >
                 {t("mgmtEditCancel")}
               </button>
@@ -514,7 +514,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
             <button
               type="button"
               onClick={markPaid}
-              className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium"
+              className="mp-btn mp-btn--primary mp-btn--sm px-4"
             >
               {t("markPaid")}
             </button>
@@ -522,7 +522,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
           <button
             type="button"
             onClick={reverseSelected}
-            className="h-9 px-4 rounded-full border border-op-border bg-op-surface text-sm font-medium text-op-text hover:bg-op-bg"
+            className="mp-btn mp-btn--secondary mp-btn--sm px-4"
           >
             {t("reverse")}
           </button>

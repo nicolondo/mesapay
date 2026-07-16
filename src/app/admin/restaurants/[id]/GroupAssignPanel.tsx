@@ -91,7 +91,7 @@ export function GroupAssignPanel({
           type="button"
           onClick={save}
           disabled={!dirty || busy}
-          className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("saving") : t("save")}
         </button>
@@ -103,7 +103,7 @@ export function GroupAssignPanel({
               setErr(null);
             }}
             disabled={busy}
-            className="h-10 px-3 rounded-full text-sm text-op-muted hover:text-op-text"
+            className="mp-btn mp-btn--ghost mp-btn--sm"
           >
             {t("cancel")}
           </button>

@@ -11,7 +11,7 @@ export function PrintButton() {
     <button
       type="button"
       onClick={() => window.print()}
-      className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium"
+      className="mp-btn mp-btn--primary mp-btn--sm"
     >
       {t("print")}
     </button>

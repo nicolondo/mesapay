@@ -362,7 +362,7 @@ export function OnboardingClient({
             type="button"
             onClick={() => runBankCertOcr(bankCertDoc.id)}
             disabled={ocrRunning || isLocked}
-            className="mt-3 h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            className="mp-btn mp-btn--primary mp-btn--sm mt-3"
           >
             {ocrRunning ? t("reading") : t("rereadAi")}
           </button>
@@ -468,7 +468,7 @@ export function OnboardingClient({
           type="button"
           onClick={submit}
           disabled={!canSubmit || busy}
-          className="h-12 px-6 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
+          className="mp-btn mp-btn--accent"
         >
           {busy ? t("submitting") : t("submit")}
         </button>

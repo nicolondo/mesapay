@@ -405,7 +405,7 @@ export function MenuEditor({
           {!addingCategory && (
             <button
               onClick={() => setAddingCategory(true)}
-              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium whitespace-nowrap"
+              className="mp-btn mp-btn--sm mp-btn--primary"
             >
               {tr("newCategory")}
             </button>
@@ -1019,14 +1019,14 @@ function NewCategoryForm({
         <button
           type="button"
           onClick={onClose}
-          className="h-10 px-4 rounded-full border border-op-border text-sm"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy || !label.trim()}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? tr("creating") : tr("create")}
         </button>
@@ -1654,14 +1654,14 @@ function ConvertCategorySheet({
           <button
             onClick={onClose}
             disabled={busy}
-            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+            className="mp-btn mp-btn--sm mp-btn--secondary"
           >
             {tr("cancel")}
           </button>
           <button
             onClick={apply}
             disabled={busy || !target || includedOpts.length === 0}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+            className="mp-btn mp-btn--sm mp-btn--primary"
           >
             {busy
               ? tr("convertApplying")
@@ -1805,14 +1805,14 @@ function NewItemForm({
         <button
           type="button"
           onClick={onClose}
-          className="h-9 px-4 rounded-full border border-op-border text-sm"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy}
-          className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? tr("creating") : tr("createDish")}
         </button>
@@ -2373,14 +2373,14 @@ function ItemSheet({
               <button
                 onClick={onClose}
                 disabled={busy}
-                className="h-10 px-4 rounded-full border border-op-border text-sm"
+                className="mp-btn mp-btn--sm mp-btn--secondary"
               >
                 {tr("cancel")}
               </button>
               <button
                 onClick={save}
                 disabled={busy}
-                className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+                className="mp-btn mp-btn--sm mp-btn--primary"
               >
                 {busy ? tr("saving") : tr("save")}
               </button>

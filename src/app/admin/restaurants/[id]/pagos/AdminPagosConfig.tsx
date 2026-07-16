@@ -274,7 +274,7 @@ export function AdminPagosConfig({
           type="button"
           onClick={save}
           disabled={busy}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("saving") : t("save")}
         </button>

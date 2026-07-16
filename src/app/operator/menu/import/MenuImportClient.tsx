@@ -493,7 +493,7 @@ export function MenuImportClient({
                 setExtractedCats([]);
                 setCreatedCount(0);
               }}
-              className="h-10 px-5 rounded-full border border-op-border text-sm font-medium"
+              className="mp-btn mp-btn--sm mp-btn--secondary"
             >
               {tr("importAnother")}
             </button>
@@ -749,7 +749,7 @@ function UploadDrop({
           <button
             type="submit"
             disabled={!urlValid}
-            className="h-11 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+            className="mp-btn mp-btn--primary"
           >
             {tr("read")}
           </button>
@@ -998,7 +998,7 @@ function ReviewState({
             type="button"
             onClick={onConfirm}
             disabled={busy || selectedCount === 0}
-            className="w-full h-12 mt-2 rounded-full bg-terracotta text-bone font-medium disabled:opacity-50"
+            className="mp-btn mp-btn--accent mp-btn--block mt-2"
           >
             {busy
               ? tr("importing")

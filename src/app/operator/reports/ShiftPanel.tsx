@@ -122,7 +122,7 @@ function ClosedBanner({ onAbrir }: { onAbrir: () => void }) {
       <button
         type="button"
         onClick={onAbrir}
-        className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
+        className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {t("openShift")}
       </button>
@@ -163,12 +163,7 @@ function OpenPanel({
             type="button"
             onClick={onCerrar}
             disabled={!canClose}
-            className={
-              "h-10 px-5 rounded-full text-sm font-medium " +
-              (canClose
-                ? "bg-ink text-bone"
-                : "bg-op-surface border border-op-border text-op-muted cursor-not-allowed")
-            }
+            className="mp-btn mp-btn--primary mp-btn--sm"
             title={canClose ? "" : t("resolveOpenFirst")}
           >
             {t("closeShift")}
@@ -608,7 +603,7 @@ function SheetActions({
         type="button"
         onClick={onCancel}
         disabled={busy}
-        className="h-10 px-4 rounded-full text-sm text-op-text/80"
+        className="mp-btn mp-btn--ghost mp-btn--sm"
       >
         {t("cancel")}
       </button>
@@ -616,7 +611,7 @@ function SheetActions({
         type="button"
         onClick={onConfirm}
         disabled={busy}
-        className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+        className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {busy ? t("busy") : confirmLabel}
       </button>

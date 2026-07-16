@@ -236,7 +236,7 @@ function RequestCard({
         <button
           type="button"
           onClick={copyAll}
-          className="h-10 px-4 rounded-full border border-op-border text-sm font-medium hover:bg-op-bg"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("copyData")}
         </button>
@@ -246,7 +246,7 @@ function RequestCard({
             if (confirm(t("rejectConfirm"))) onMark(req.id, "rejected");
           }}
           disabled={busy}
-          className="h-10 px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--danger"
         >
           {t("reject")}
         </button>
@@ -400,7 +400,7 @@ function DianBlock({ dian }: { dian: DianInfo }) {
             type="button"
             onClick={emit}
             disabled={!canEmit}
-            className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+            className="mp-btn mp-btn--sm mp-btn--primary"
           >
             {emitting || inFlight
               ? t("dianEmitting")

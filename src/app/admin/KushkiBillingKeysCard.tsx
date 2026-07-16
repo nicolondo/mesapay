@@ -144,7 +144,7 @@ export function KushkiBillingKeysCard({
           type="button"
           onClick={save}
           disabled={busy}
-          className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary mp-btn--sm px-4"
         >
           {busy ? t("saving") : t("save")}
         </button>

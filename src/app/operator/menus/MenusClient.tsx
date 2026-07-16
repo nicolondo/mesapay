@@ -184,7 +184,7 @@ export function MenusClient({ menus: initialMenus }: { menus: Menu[] }) {
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {t("newMenu")}
         </button>
@@ -356,14 +356,14 @@ function NewMenuForm({
         <button
           type="button"
           onClick={onCancel}
-          className="h-9 px-4 rounded-full border border-op-border text-sm"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("cancel")}
         </button>
         <button
           type="submit"
           disabled={busy || !label.trim()}
-          className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? t("creating") : t("createMenu")}
         </button>

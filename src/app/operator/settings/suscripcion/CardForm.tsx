@@ -225,7 +225,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
           type="button"
           onClick={submit}
           disabled={isBusy}
-          className="flex-1 bg-ink text-bone rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-ink/90 disabled:opacity-50 transition-colors"
+          className="mp-btn mp-btn--primary flex-1"
         >
           {isBusy ? "…" : t("cardSubmit")}
         </button>
@@ -233,7 +233,7 @@ export function CardForm({ kushkiPublicKey, kushkiMode, currency, busy, onToken,
           type="button"
           onClick={onCancel}
           disabled={isBusy}
-          className="px-4 py-2.5 text-sm font-medium text-op-muted hover:text-op-text rounded-lg border border-op-border hover:bg-op-surface transition-colors disabled:opacity-50"
+          className="mp-btn mp-btn--secondary"
         >
           {t("cardCancel")}
         </button>

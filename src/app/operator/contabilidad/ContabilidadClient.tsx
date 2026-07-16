@@ -349,7 +349,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   return (
     <div className="space-y-4">
       {/* Segmentos Gastos / P&L / Libros */}
-      <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+      <div className="mp-seg" role="tablist">
         {(
           [
             ["expenses", t("tabExpenses")],
@@ -360,11 +360,10 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           <button
             key={value}
             type="button"
+            role="tab"
+            aria-selected={tab === value}
             onClick={() => setTab(value)}
-            className={
-              "min-h-[44px] px-5 text-xs font-medium transition-colors " +
-              (tab === value ? "bg-ink text-bone" : "text-op-muted hover:text-ink")
-            }
+            className="mp-seg__i"
           >
             {label}
           </button>
@@ -378,7 +377,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           type="button"
           onClick={() => setMonth((m) => shiftMonth(m, -1))}
           aria-label={t("monthPrev")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+          className="mp-icobtn text-sm"
         >
           {"◀"}
         </button>
@@ -389,7 +388,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           type="button"
           onClick={() => setMonth((m) => shiftMonth(m, 1))}
           aria-label={t("monthNext")}
-          className="min-h-[44px] min-w-[44px] rounded-full border border-op-border bg-op-surface text-sm text-op-muted hover:text-ink hover:bg-op-bg"
+          className="mp-icobtn text-sm"
         >
           {"▶"}
         </button>
@@ -418,7 +417,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           <button
             type="button"
             onClick={() => setOpen("new")}
-            className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+            className="mp-btn mp-btn--primary mp-btn--block"
           >
             {t("newExpense")}
           </button>
@@ -874,7 +873,7 @@ function TaxConfigEditor({
           type="button"
           onClick={save}
           disabled={busy}
-          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? t("taxConfigSaving") : t("taxConfigSave")}
         </button>
@@ -882,7 +881,7 @@ function TaxConfigEditor({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="min-h-[40px] px-4 rounded-full border border-op-border bg-op-surface text-xs font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("cancel")}
         </button>
@@ -1224,7 +1223,7 @@ function BooksTab({
     <div className="space-y-4">
       {/* Sub-toggle Ventas / Compras + export CSV del libro activo */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="inline-flex rounded-full border border-op-border bg-op-surface overflow-hidden">
+        <div className="mp-seg" role="tablist">
           {(
             [
               ["sales", t("bookSales")],
@@ -1234,13 +1233,10 @@ function BooksTab({
             <button
               key={value}
               type="button"
+              role="tab"
+              aria-selected={book === value}
               onClick={() => setBook(value)}
-              className={
-                "min-h-[36px] px-4 text-xs font-medium transition-colors " +
-                (book === value
-                  ? "bg-ink text-bone"
-                  : "text-op-muted hover:text-ink")
-              }
+              className="mp-seg__i"
             >
               {label}
             </button>
@@ -1908,7 +1904,7 @@ function ExpenseSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -1916,7 +1912,7 @@ function ExpenseSheet({
               type="button"
               onClick={save}
               disabled={anyBusy || category.trim() === "" || amountRaw.trim() === ""}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("saving") : t("save")}
             </button>
@@ -2028,7 +2024,7 @@ function SupplierInlineForm({
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[40px] px-3 rounded-full bg-op-bg border border-op-border text-[11px] font-medium hover:bg-op-surface"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {t("cancel")}
         </button>
@@ -2036,7 +2032,7 @@ function SupplierInlineForm({
           type="button"
           onClick={create}
           disabled={busy || name.trim() === ""}
-          className="min-h-[40px] px-4 rounded-full bg-ink text-bone text-[11px] font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? t("saving") : t("inlineCreate")}
         </button>

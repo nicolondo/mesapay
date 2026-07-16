@@ -581,7 +581,7 @@ export function FloorPlanEditor({
         <button
           type="button"
           onClick={autoArrange}
-          className="h-9 px-3 rounded-full border border-op-border bg-op-surface text-xs font-medium text-op-muted hover:text-op-text"
+          className="mp-btn mp-btn--secondary mp-btn--sm"
         >
           {tr("autoArrange")}
         </button>
@@ -591,7 +591,7 @@ export function FloorPlanEditor({
           type="button"
           onClick={save}
           disabled={saving || !dirty}
-          className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {saving ? tr("saving") : dirty ? tr("save") : tr("saved")}
         </button>

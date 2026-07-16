@@ -47,6 +47,10 @@ const schema = z.object({
   // confirmado el contrato. Defaults en cloudTerminal.ts.
   KUSHKI_CLOUD_TERMINAL_PATH: z.string().optional(),
   KUSHKI_CLOUD_TERMINAL_CANCEL_PATH: z.string().optional(),
+  // Modelo del datáfono que se manda en metadata.device del cobro. El acquirer
+  // lo valida (rechaza valores libres como "MESAPAY"). Default: el que funciona
+  // en el Postman del comercio. Override si el equipo es otro modelo Sunmi.
+  KUSHKI_CLOUD_TERMINAL_DEVICE: z.string().default("SUNMI-T2"),
   // Clave privada de la cuenta de plataforma para cobros de suscripción.
   // Requerida en sandbox/production; no necesaria en mode=mock.
   KUSHKI_BILLING_PRIVATE_KEY: z.string().optional(),

@@ -189,7 +189,10 @@ export async function pushPaymentToCloudTerminal(
     metadata: {
       reference: args.reference,
       ...(args.customerEmail ? { customer_email: args.customerEmail } : {}),
-      device: "MESAPAY",
+      // Modelo del equipo. El acquirer parece validarlo (rechazaba "MESAPAY"
+      // con ACQUIRER/E001). Default = el valor que funciona en el Postman del
+      // comercio; override por env si el datáfono es otro modelo.
+      device: env.KUSHKI_CLOUD_TERMINAL_DEVICE,
     },
   };
 

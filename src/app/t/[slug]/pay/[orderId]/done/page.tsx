@@ -188,6 +188,7 @@ export default async function PayDone({
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              prefillEmail={order.customerEmail}
               operatorMode={operator}
             />
           </div>
@@ -296,6 +297,7 @@ export default async function PayDone({
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              prefillEmail={order.customerEmail}
               operatorMode={operator}
             />
           </div>

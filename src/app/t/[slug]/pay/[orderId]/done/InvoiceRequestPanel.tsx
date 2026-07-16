@@ -34,11 +34,16 @@ export function InvoiceRequestPanel({
   tenantSlug,
   orderId,
   existing,
+  prefillEmail = null,
   operatorMode = false,
 }: {
   tenantSlug: string;
   orderId: string;
   existing: ExistingSummary | null;
+  // Correo que el diner ya tipeó al pagar con tarjeta. Si lo tenemos,
+  // prellenamos el campo de correo en los sheets de factura para no volver
+  // a pedirlo.
+  prefillEmail?: string | null;
   // En modo mesero (cobra por el cliente) la copia va en tercera persona.
   operatorMode?: boolean;
 }) {
@@ -138,6 +143,7 @@ export function InvoiceRequestPanel({
           tenantSlug={tenantSlug}
           orderId={orderId}
           initial={null}
+          prefillEmail={prefillEmail}
           onClose={() => setOpen(false)}
         />
       )}
@@ -145,6 +151,7 @@ export function InvoiceRequestPanel({
         <SimpleInvoiceSheet
           tenantSlug={tenantSlug}
           orderId={orderId}
+          prefillEmail={prefillEmail}
           onClose={() => setSimpleOpen(false)}
         />
       )}
@@ -157,14 +164,18 @@ export function InvoiceRequestPanel({
 function SimpleInvoiceSheet({
   tenantSlug,
   orderId,
+  prefillEmail = null,
   onClose,
 }: {
   tenantSlug: string;
   orderId: string;
+  prefillEmail?: string | null;
   onClose: () => void;
 }) {
   const t = useTranslations("done");
-  const [email, setEmail] = useState("");
+  // Prellenado con el correo que el diner tipeó al pagar con tarjeta: así no
+  // vuelve a escribirlo, sólo confirma y genera.
+  const [email, setEmail] = useState(prefillEmail ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{
@@ -299,11 +310,13 @@ function InvoiceFormSheet({
   tenantSlug,
   orderId,
   initial,
+  prefillEmail = null,
   onClose,
 }: {
   tenantSlug: string;
   orderId: string;
   initial: ExistingSummary | null;
+  prefillEmail?: string | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -314,7 +327,8 @@ function InvoiceFormSheet({
   const [address, setAddress] = useState(initial?.address ?? "");
   const [city, setCity] = useState(initial?.city ?? "");
   const [department, setDepartment] = useState(initial?.department ?? "");
-  const [email, setEmail] = useState(initial?.email ?? "");
+  // Correo: el de una solicitud previa manda; si no, el que tipeó al pagar.
+  const [email, setEmail] = useState(initial?.email ?? prefillEmail ?? "");
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [rawComponents, setRawComponents] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);

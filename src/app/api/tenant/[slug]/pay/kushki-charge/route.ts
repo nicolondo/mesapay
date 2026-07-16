@@ -264,6 +264,14 @@ export async function POST(
         settledAt: new Date(),
       },
     });
+    // Guardamos el correo del titular en la orden para prellenar el pedido de
+    // factura en /done y no volver a pedírselo. Sólo si vino uno válido.
+    if (rawEmail && rawEmail.includes("@")) {
+      await tx.order.update({
+        where: { id: order.id },
+        data: { customerEmail: rawEmail },
+      });
+    }
     const totals = await recomputeOrderTotalsInTx(tx, order.id);
     if (totals.fullyPaid) {
       await activateOpenRounds(tx, order.id);

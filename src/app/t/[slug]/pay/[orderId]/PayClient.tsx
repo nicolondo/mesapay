@@ -2485,10 +2485,7 @@ function PayButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={
-        "w-full h-12 rounded-full font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-60 " +
-        meta.className
-      }
+      className={"mp-pay text-sm " + meta.className}
     >
       <span className="text-base leading-none" aria-hidden>
         {meta.icon}
@@ -2515,37 +2512,37 @@ const BUTTON_META_DINER: Record<
   apple: {
     labelKey: "btnApple",
     icon: "",
-    className: "bg-ink text-bone",
+    className: "mp-pay--ink",
   },
   card: {
     labelKey: "btnCard",
     icon: "💳",
-    className: "bg-ink text-bone",
+    className: "mp-pay--ink",
   },
   terminal: {
     labelKey: "btnTerminal",
     icon: "💳",
-    className: "bg-terracotta text-paper",
+    className: "mp-pay--accent",
   },
   external_terminal: {
     labelKey: "btnExternalTerminal",
     icon: "💳",
-    className: "bg-paper text-ink border border-hairline",
+    className: "mp-pay--outline",
   },
   pse: {
     labelKey: "btnPse",
     icon: "🏦",
-    className: "bg-paper text-ink border border-hairline",
+    className: "mp-pay--outline",
   },
   cash: {
     labelKey: "btnCash",
     icon: "💵",
-    className: "bg-paper text-ink border border-hairline",
+    className: "mp-pay--outline",
   },
   demo_terminal: {
     labelKey: "btnDemoTerminal",
     icon: "🧪",
-    className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
+    className: "mp-pay--outline",
   },
 };
 
@@ -2560,28 +2557,28 @@ const BUTTON_META_OP: Record<
   card: {
     labelKey: "opBtnCard",
     icon: "💳",
-    className: "bg-ink text-bone",
+    className: "mp-pay--ink",
   },
   terminal: {
     labelKey: "opBtnTerminal",
     icon: "💳",
-    className: "bg-terracotta text-paper",
+    className: "mp-pay--accent",
   },
   external_terminal: {
     labelKey: "opBtnExternalTerminal",
     icon: "💳",
-    className: "bg-paper text-ink border border-hairline",
+    className: "mp-pay--outline",
   },
   pse: BUTTON_META_DINER.pse, // never shown in op mode, kept for type safety
   cash: {
     labelKey: "opBtnCash",
     icon: "💵",
-    className: "bg-paper text-ink border border-hairline",
+    className: "mp-pay--outline",
   },
   demo_terminal: {
     labelKey: "opBtnDemoTerminal",
     icon: "🧪",
-    className: "bg-terracotta/15 text-terracotta border border-dashed border-terracotta/40",
+    className: "mp-pay--outline",
   },
 };
 
@@ -2603,10 +2600,10 @@ function ModeButton({
       onClick={onClick}
       disabled={disabled}
       className={
-        "p-3 rounded-xl border text-left transition-colors disabled:opacity-50 " +
+        "p-3 rounded-xl border text-left transition-[transform,box-shadow,background,border-color] duration-150 disabled:opacity-50 " +
         (active
-          ? "bg-ink text-bone border-ink"
-          : "bg-paper border-hairline text-ink")
+          ? "bg-ink text-bone border-ink shadow-[0_1px_2px_rgba(26,22,19,0.14)]"
+          : "bg-paper border-hairline text-ink hover:border-ink/30 hover:-translate-y-px")
       }
     >
       <div className="font-medium text-sm">{label}</div>

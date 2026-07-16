@@ -91,6 +91,13 @@ export type ChargeRequest = {
     reservationId?: string;
     kind?: string;
   };
+  // Datos de contacto del titular. Kushki los pide en la solicitud de cobro
+  // (necesarios para el 3DS). Sólo mandamos lo que tenemos (nombre + correo).
+  contactDetails?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+  };
 };
 
 export type ChargeResult = {

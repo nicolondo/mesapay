@@ -122,6 +122,9 @@ export class LiveKushkiProvider implements PaymentProvider {
         token: req.token,
         amount: { subtotalIva: 0, subtotalIva0: req.amount.amountCents / 100, iva: 0, currency: req.amount.currency },
         metadata: req.metadata,
+        ...(req.contactDetails
+          ? { contactDetails: req.contactDetails }
+          : {}),
       },
       schema: ChargeResponseSchema,
     });

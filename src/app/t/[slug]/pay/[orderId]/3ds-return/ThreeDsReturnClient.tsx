@@ -53,15 +53,21 @@ export function ThreeDsReturnClient({
     const key = `mesapay:3ds:${orderId}`;
     let amountCents = 0;
     let tipCents = 0;
+    let contactName = "";
+    let contactEmail = "";
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw) as {
           amountCents?: number;
           tipCents?: number;
+          name?: string;
+          email?: string;
         };
         amountCents = Number(parsed.amountCents) || 0;
         tipCents = Number(parsed.tipCents) || 0;
+        contactName = typeof parsed.name === "string" ? parsed.name : "";
+        contactEmail = typeof parsed.email === "string" ? parsed.email : "";
       }
     } catch (e) {
       console.error("[3ds-return] localStorage read failed", e);
@@ -95,6 +101,8 @@ export function ThreeDsReturnClient({
               token,
               amountCents,
               tipCents,
+              ...(contactName ? { contactName } : {}),
+              ...(contactEmail ? { contactEmail } : {}),
             }),
           },
         );

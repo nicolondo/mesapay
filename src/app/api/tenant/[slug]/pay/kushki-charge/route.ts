@@ -46,6 +46,10 @@ const schema = z.object({
   token: z.string().min(1).max(2000),
   amountCents: z.number().int().min(100),
   tipCents: z.number().int().min(0).default(0),
+  // Contacto del titular para el contactDetails de Kushki (3DS). Sólo
+  // tenemos lo que el diner tipeó en el form de tarjeta (nombre + correo).
+  contactName: z.string().trim().max(120).optional(),
+  contactEmail: z.string().trim().max(160).optional(),
 });
 
 export async function POST(
@@ -138,6 +142,23 @@ export async function POST(
 
   const currency = await getCurrencyForCountry(tenant.country);
 
+  // contactDetails para Kushki (lo pide en el charge para el 3DS). Sólo lo
+  // mandamos si tenemos el nombre del titular; el correo va sólo si existe.
+  const rawName = parsed.data.contactName?.trim();
+  const contactDetails = rawName
+    ? (() => {
+        const parts = rawName.split(/\s+/);
+        const firstName = parts[0];
+        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : parts[0];
+        const email = parsed.data.contactEmail?.trim();
+        return {
+          firstName,
+          lastName,
+          ...(email && email.includes("@") ? { email } : {}),
+        };
+      })()
+    : undefined;
+
   let charge;
   try {
     charge = await provider.chargeWithToken({
@@ -151,6 +172,7 @@ export async function POST(
         paymentId: pendingPayment.id,
         tableId: order.tableId,
       },
+      ...(contactDetails ? { contactDetails } : {}),
     });
   } catch (err) {
     await db.payment.update({

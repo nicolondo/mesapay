@@ -276,12 +276,15 @@ export function PayClient({
    * para que haga el charge con la private key. Datos de la tarjeta
    * (PAN/CVV) NUNCA pasan por nuestro server, mantienen SAQ-A.
    */
-  async function payWithCardToken(token: string) {
+  async function payWithCardToken(
+    token: string,
+    contact?: { name?: string; email?: string },
+  ) {
     if (amountCents <= 0) return;
     setBusy("kushki_card");
     setErr(null);
     try {
-      await sendKushkiTokenCharge("kushki_card", token);
+      await sendKushkiTokenCharge("kushki_card", token, contact);
     } finally {
       setBusy(null);
     }
@@ -289,10 +292,12 @@ export function PayClient({
 
   // Shared backend roundtrip para los dos métodos token-based
   // (Apple Pay + tarjeta directa). El backend route /pay/kushki-charge
-  // ya está parametrizado por method.
+  // ya está parametrizado por method. `contact` (nombre/correo del titular)
+  // va al contactDetails de Kushki cuando lo tenemos.
   async function sendKushkiTokenCharge(
     method: "kushki_apple_pay" | "kushki_card",
     token: string,
+    contact?: { name?: string; email?: string },
   ) {
     const res = await fetch(`/api/tenant/${tenantSlug}/pay/kushki-charge`, {
       method: "POST",
@@ -303,6 +308,8 @@ export function PayClient({
         token,
         amountCents,
         tipCents: amountTip,
+        ...(contact?.name ? { contactName: contact.name } : {}),
+        ...(contact?.email ? { contactEmail: contact.email } : {}),
       }),
     });
     const j = await res.json().catch(() => ({}));
@@ -2108,7 +2115,10 @@ function CardSheet({
   currency: "COP" | "MXN";
   card3ds: boolean;
   onClose: () => void;
-  onTokenized: (token: string) => void;
+  onTokenized: (
+    token: string,
+    contact?: { name: string; email: string },
+  ) => void;
 }) {
   const t = useTranslations("pay");
   const [number, setNumber] = useState("");
@@ -2165,10 +2175,16 @@ function CardSheet({
       return;
     }
 
+    const contact = {
+      name: holderName.trim(),
+      email: email.trim().toLowerCase(),
+    };
+
     // Mock path: no SDK call — el mock provider acepta cualquier token.
     if (isMockMode || !kushkiPublicKey) {
       onTokenized(
         `mock-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        contact,
       );
       return;
     }
@@ -2252,7 +2268,7 @@ function CardSheet({
         try {
           localStorage.setItem(
             `mesapay:3ds:${orderId}`,
-            JSON.stringify({ amountCents, tipCents }),
+            JSON.stringify({ amountCents, tipCents, ...contact }),
           );
         } catch (e) {
           console.error("[card] localStorage stash failed", e);
@@ -2264,7 +2280,7 @@ function CardSheet({
       }
 
       // No 3DS → token listo para charge inmediato.
-      onTokenized(json.token);
+      onTokenized(json.token, contact);
     } catch (e) {
       console.error("[card] tokenize error", e);
       setErr(t("errTokenizeCard"));

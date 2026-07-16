@@ -12,7 +12,7 @@ export function PrintButton() {
     <button
       type="button"
       onClick={() => window.print()}
-      className="h-10 px-5 rounded-full bg-ink text-bone font-medium"
+      className="mp-btn mp-btn--primary mp-btn--sm"
     >
       {t("printButton")}
     </button>

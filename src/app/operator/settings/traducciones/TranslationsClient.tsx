@@ -75,7 +75,7 @@ export function TranslationsClient({
             type="button"
             onClick={() => generate(false)}
             disabled={busy}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            className="mp-btn mp-btn--primary mp-btn--sm"
           >
             {busy ? t("generating") : t("generateBtn")}
           </button>

@@ -111,7 +111,7 @@ function BusinessCodeCard({ initial }: { initial: string | null }) {
           type="button"
           onClick={save}
           disabled={busy || !dirty}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("datafonosBusinessCodeSaving") : t("datafonosBusinessCodeBtn")}
         </button>
@@ -186,7 +186,7 @@ function AddDeviceForm({ onCreated }: { onCreated: (d: Device) => void }) {
           type="button"
           onClick={create}
           disabled={busy || !label.trim()}
-          className="h-9 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("datafonosAdding") : t("datafonosAddBtn")}
         </button>

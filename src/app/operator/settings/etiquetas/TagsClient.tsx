@@ -213,7 +213,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
           type="button"
           onClick={add}
           disabled={rows.length >= MAX_MENU_TAGS}
-          className="h-10 px-4 rounded-full bg-op-surface border border-op-border text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--secondary mp-btn--sm"
         >
           {tr("tagsAddNew")}
         </button>
@@ -231,7 +231,7 @@ export function TagsClient({ initial }: { initial: MenuTag[] }) {
             type="button"
             onClick={save}
             disabled={saving}
-            className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            className="mp-btn mp-btn--primary mp-btn--sm"
           >
             {saving ? tr("tagsSaving") : tr("tagsSave")}
           </button>

@@ -485,6 +485,19 @@ input[type="time"] {
   transform: translateY(-1px);
 }
 
+/* Verde de éxito — confirmaciones "positivas" (Entregar, Confirmar, factura
+   generada). Relleno sólido con el verde de marca. */
+.mp-btn--ok {
+  background: var(--ok);
+  color: #f4fbf6;
+  box-shadow: 0 1px 2px rgba(46, 107, 76, 0.22);
+}
+.mp-btn--ok:hover {
+  background: #245a3f;
+  box-shadow: 0 5px 16px rgba(46, 107, 76, 0.28);
+  transform: translateY(-1px);
+}
+
 /* Control segmentado — riel hundido + pastilla activa elevada. */
 .mp-seg {
   display: inline-flex;

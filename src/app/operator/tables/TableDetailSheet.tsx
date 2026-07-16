@@ -523,7 +523,7 @@ export function TableDetailSheet({
                         setMoveErr(null);
                         setShowMoveSheet(true);
                       }}
-                      className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium hover:bg-op-bg"
+                      className="mp-btn mp-btn--secondary mp-btn--block"
                     >
                       {tr("moveToTable")}
                     </button>
@@ -533,7 +533,7 @@ export function TableDetailSheet({
                       type="button"
                       onClick={cancelOrder}
                       disabled={cancelOrderBusy}
-                      className="w-full h-11 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/5 disabled:opacity-60"
+                      className="mp-btn mp-btn--danger mp-btn--block"
                     >
                       {cancelOrderBusy
                         ? tr("cancelBillBusy")
@@ -1004,8 +1004,8 @@ function CancelItemSheet({
   const ctaIdle = isComp ? tr("compCtaIdle") : tr("cancelCtaIdle");
   const ctaBusy = isComp ? tr("compCtaBusy") : tr("cancelCtaBusy");
   const ctaClass = isComp
-    ? "bg-terracotta text-bone"
-    : "bg-danger text-bone";
+    ? "mp-btn--accent"
+    : "mp-btn--danger-solid";
 
   async function submit() {
     if (!canSubmit) return;
@@ -1080,10 +1080,7 @@ function CancelItemSheet({
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className={
-            "w-full h-12 rounded-2xl text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed " +
-            ctaClass
-          }
+          className={"mp-btn mp-btn--block " + ctaClass}
         >
           {busy ? ctaBusy : ctaIdle}
         </button>

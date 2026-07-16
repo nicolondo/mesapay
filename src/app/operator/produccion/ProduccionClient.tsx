@@ -199,7 +199,7 @@ export function ProduccionClient({ currency }: { currency: string }) {
       <button
         type="button"
         onClick={() => setProduceOpen(true)}
-        className="w-full min-h-[44px] rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("productionProduceButton")}
       </button>
@@ -237,7 +237,7 @@ export function ProduccionClient({ currency }: { currency: string }) {
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="w-full min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
+              className="mp-btn mp-btn--secondary mp-btn--block"
             >
               {loadingMore ? t("loading") : t("loadMore")}
             </button>
@@ -709,7 +709,7 @@ function ProduceSheet({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
             </button>
@@ -717,7 +717,7 @@ function ProduceSheet({
               type="button"
               onClick={submit}
               disabled={busy || !selected}
-              className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary"
             >
               {busy ? t("productionSubmitting") : t("productionSubmit")}
             </button>

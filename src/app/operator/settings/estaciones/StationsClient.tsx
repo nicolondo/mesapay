@@ -369,7 +369,7 @@ export function StationsClient({
                 savingId === "__sub__" ||
                 subStationsInput.trim() === barSubStations.join(", ")
               }
-              className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary mp-btn--sm"
             >
               {savingId === "__sub__" ? t("saving") : t("save")}
             </button>
@@ -574,7 +574,7 @@ export function StationsClient({
               type="button"
               onClick={applyCartaToStation}
               disabled={bulkBusy}
-              className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+              className="mp-btn mp-btn--primary mp-btn--sm"
             >
               {bulkBusy ? t("bulkCartaApplying") : t("bulkCartaApply")}
             </button>

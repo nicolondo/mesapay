@@ -162,7 +162,7 @@ export function ReservasConfigClient({
                   navigator.clipboard?.writeText(reserveUrl).catch(() => {});
                   setMsg({ kind: "ok", text: t("linkCopied") });
                 }}
-                className="shrink-0 h-9 px-3 rounded-full bg-ink text-bone text-xs font-medium"
+                className="mp-btn mp-btn--primary mp-btn--sm shrink-0"
               >
                 {t("copy")}
               </button>
@@ -199,7 +199,7 @@ export function ReservasConfigClient({
                   .catch(() => {});
                 setMsg({ kind: "ok", text: t("googleLinkCopied") });
               }}
-              className="shrink-0 h-9 px-3 rounded-full bg-ink text-bone text-xs font-medium"
+              className="mp-btn mp-btn--primary mp-btn--sm shrink-0"
             >
               {t("copy")}
             </button>
@@ -468,7 +468,7 @@ export function ReservasConfigClient({
           type="button"
           onClick={save}
           disabled={busy}
-          className="h-11 px-6 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--primary"
         >
           {busy ? t("savingChanges") : t("saveChanges")}
         </button>

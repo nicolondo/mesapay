@@ -77,7 +77,7 @@ export function UsuariosClient({
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+            className="mp-btn mp-btn--primary mp-btn--block"
           >
             {t("usuariosNewUser")}
           </button>
@@ -226,14 +226,14 @@ function CreateForm({
         <button
           type="button"
           onClick={onCancel}
-          className="h-10 px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
+          className="mp-btn mp-btn--secondary mp-btn--sm"
         >
           {t("usuariosCancel")}
         </button>
         <button
           type="submit"
           disabled={busy}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("usuariosCreating") : t("usuariosCreate")}
         </button>
@@ -465,7 +465,7 @@ function UserCard({
                 reset();
                 setEditing(false);
               }}
-              className="h-9 px-4 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:bg-op-surface"
+              className="mp-btn mp-btn--secondary mp-btn--sm"
             >
               {t("usuariosCancel")}
             </button>
@@ -473,7 +473,7 @@ function UserCard({
               type="button"
               onClick={save}
               disabled={busy || !dirty}
-              className="h-9 px-5 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              className="mp-btn mp-btn--primary mp-btn--sm"
             >
               {busy ? t("usuariosSaving") : t("usuariosSave")}
             </button>

@@ -47,8 +47,7 @@ export function BulkActionBar({
 
   if (count === 0) return null;
 
-  const btn =
-    "h-9 px-3 rounded-full text-xs font-medium border border-op-border bg-op-bg hover:bg-op-surface whitespace-nowrap";
+  const btn = "mp-btn mp-btn--sm mp-btn--secondary";
 
   return (
     <>
@@ -80,7 +79,7 @@ export function BulkActionBar({
           </button>
           <button
             onClick={() => setSheet("delete")}
-            className="h-9 px-3 rounded-full text-xs font-medium border border-danger/40 text-danger hover:bg-danger/10 whitespace-nowrap"
+            className="mp-btn mp-btn--sm mp-btn--danger"
           >
             {tr("bulkDelete")}
           </button>
@@ -276,7 +275,7 @@ function DescribeSheet({
           <p className="text-sm text-danger">{error}</p>
           <button
             onClick={() => void generate()}
-            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium"
+            className="mp-btn mp-btn--sm mp-btn--secondary"
           >
             {tr("describeRetry")}
           </button>
@@ -328,14 +327,14 @@ function DescribeSheet({
             <button
               onClick={onClose}
               disabled={saving}
-              className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+              className="mp-btn mp-btn--sm mp-btn--secondary"
             >
               {tr("cancel")}
             </button>
             <button
               onClick={save}
               disabled={saving || includedCount === 0}
-              className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+              className="mp-btn mp-btn--sm mp-btn--primary"
             >
               {saving
                 ? tr("describeSaving")
@@ -436,14 +435,14 @@ function CategorySheet({
         <button
           onClick={onClose}
           disabled={busy}
-          className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           onClick={apply}
           disabled={busy || !categoryId}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {tr("catSheetApply", { count })}
         </button>
@@ -518,14 +517,14 @@ function StationSheet({
         <button
           onClick={onClose}
           disabled={busy}
-          className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           onClick={apply}
           disabled={busy}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {tr("stationApply", { count })}
         </button>
@@ -707,14 +706,14 @@ function ModifiersCopySheet({
         <button
           onClick={onClose}
           disabled={busy}
-          className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           onClick={apply}
           disabled={busy || !source}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--primary"
         >
           {busy ? tr("modsCopyApplying") : tr("modsCopyApply", { count })}
         </button>
@@ -767,14 +766,14 @@ function DeleteSheet({
         <button
           onClick={onClose}
           disabled={busy}
-          className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--secondary"
         >
           {tr("cancel")}
         </button>
         <button
           onClick={confirm}
           disabled={busy}
-          className="h-10 px-5 rounded-full bg-danger text-bone text-sm font-medium disabled:opacity-50"
+          className="mp-btn mp-btn--sm mp-btn--danger-solid"
         >
           {tr("deleteSheetConfirm", { count })}
         </button>

@@ -308,7 +308,7 @@ function CertificateSection({
             setOpen((v) => !v);
           }}
           disabled={!canSave}
-          className="h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {status.hasCertificate ? t("certReplace") : t("certUpload")}
         </button>
@@ -341,7 +341,7 @@ function CertificateSection({
                 setOpen(false);
                 setMsg(null);
               }}
-              className="h-9 px-4 rounded-full text-xs font-medium text-op-muted hover:text-ink"
+              className="mp-btn mp-btn--ghost mp-btn--sm"
             >
               {t("cancel")}
             </button>
@@ -349,7 +349,7 @@ function CertificateSection({
               type="button"
               onClick={submit}
               disabled={busy || !canSave}
-              className="h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-40"
+              className="mp-btn mp-btn--primary mp-btn--sm"
             >
               {busy ? t("certUploading") : t("save")}
             </button>
@@ -488,7 +488,7 @@ function CredentialsSection({
           type="button"
           onClick={save}
           disabled={busy || !canSave}
-          className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("saving") : t("save")}
         </button>
@@ -570,7 +570,7 @@ function HabilitacionSection({
         type="button"
         onClick={run}
         disabled={busy || !canSave}
-        className="h-10 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
+        className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {busy && (
           <span

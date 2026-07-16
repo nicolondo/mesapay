@@ -44,7 +44,7 @@ export function InsightsChat() {
         <div className="flex flex-wrap gap-2">
           {suggestions.map((s) => (
             <button key={s} onClick={() => send(s)}
-              className="px-3 h-9 rounded-full border border-op-border bg-op-surface text-sm">
+              className="mp-btn mp-btn--sm mp-btn--secondary">
               {s}
             </button>
           ))}
@@ -64,7 +64,7 @@ export function InsightsChat() {
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex gap-2 mt-2">
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={t("placeholder")}
           className="flex-1 h-11 px-4 rounded-full border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta" />
-        <button disabled={busy} className="h-11 px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50">
+        <button disabled={busy} className="mp-btn mp-btn--primary">
           {t("send")}
         </button>
       </form>

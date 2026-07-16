@@ -230,7 +230,7 @@ export function PrintListener({
             <button
               type="button"
               onClick={testPrint}
-              className="h-10 px-4 rounded-xl border border-op-border bg-op-bg text-sm font-medium"
+              className="mp-btn mp-btn--secondary mp-btn--sm"
             >
               {t("testPrint")}
             </button>

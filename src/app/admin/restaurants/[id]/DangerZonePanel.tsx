@@ -145,7 +145,7 @@ export function DangerZonePanel({
               setConfirming(true);
             }}
             disabled={!anySelected}
-            className="ml-auto h-10 px-5 rounded-full border border-danger/50 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="ml-auto mp-btn mp-btn--danger mp-btn--sm"
           >
             {t("resetButton")}
           </button>
@@ -176,7 +176,7 @@ export function DangerZonePanel({
                 setMsg(null);
               }}
               disabled={busy}
-              className="h-10 px-4 rounded-full border border-op-border text-sm font-medium disabled:opacity-50"
+              className="mp-btn mp-btn--secondary mp-btn--sm"
             >
               {t("resetCancel")}
             </button>
@@ -184,7 +184,7 @@ export function DangerZonePanel({
               type="button"
               onClick={run}
               disabled={busy || slugInput.trim() !== slug}
-              className="h-10 px-5 rounded-full bg-danger text-bone text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              className="mp-btn mp-btn--danger-solid mp-btn--sm"
             >
               {busy ? t("resetBusy") : t("resetConfirmCta")}
             </button>

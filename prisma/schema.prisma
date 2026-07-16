@@ -2172,6 +2172,18 @@ model KushkiTransaction {
   raw         Json
   message     String?
 
+  // Detalles ricos del cobro con tarjeta, extraídos del `fullResponse:"v2"` de
+  // Kushki (viven también en `raw`, pero acá quedan en columnas legibles para
+  // la vista de pagos del operador). Sólo se llenan en charges con tarjeta que
+  // devuelven el bloque `details`. Todos nullable → aditivo, prisma db push.
+  cardBrand      String? // Visa, Mastercard, ...
+  cardLast4      String? // últimos 4 dígitos
+  cardType       String? // CREDIT / DEBIT (crudo de Kushki)
+  cardBin        String? // primeros 6 (BIN)
+  cardHolderName String?
+  approvalCode   String? // código de aprobación del emisor
+  processorName  String? // procesador/adquirente
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

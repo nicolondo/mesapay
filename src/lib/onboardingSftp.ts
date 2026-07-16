@@ -67,6 +67,9 @@ export async function deliverDocumentToSftp(documentId: string): Promise<void> {
         sftpAttempts: { increment: 1 },
       },
     });
+    console.log(
+      `[onboarding/sftp] delivered ${doc.id} → ${folder}/${remoteName}`,
+    );
   } catch (err) {
     const msg =
       err instanceof Error

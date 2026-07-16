@@ -56,34 +56,39 @@ function safeSegment(s: string): string {
  * Sube un buffer a `<folder>/<fileName>` en el SFTP, creando la carpeta si no
  * existe. Lanza si algo falla (el caller decide best-effort/reintento).
  */
-export async function uploadFileToSftp(args: {
-  folder: string;
-  fileName: string;
-  data: Buffer;
-}): Promise<void> {
+/** Abre una conexión SFTP con la config del server. Lanza si falta config. */
+async function connectSftp(): Promise<SftpClient> {
   const host = env.MESAPAY_SFTP_HOST;
   const username = env.MESAPAY_SFTP_USER;
   const privateKey = await resolvePrivateKey();
   if (!host || !username || !privateKey) {
     throw new Error("sftp_not_configured");
   }
+  const sftp = new SftpClient();
+  await sftp.connect({
+    host,
+    port: env.MESAPAY_SFTP_PORT,
+    username,
+    privateKey,
+    ...(env.MESAPAY_SFTP_PASSPHRASE
+      ? { passphrase: env.MESAPAY_SFTP_PASSPHRASE }
+      : {}),
+    readyTimeout: 20_000,
+  });
+  return sftp;
+}
 
+export async function uploadFileToSftp(args: {
+  folder: string;
+  fileName: string;
+  data: Buffer;
+}): Promise<void> {
   const folder = safeSegment(args.folder) || "sin-nombre";
   const fileName = safeSegment(args.fileName);
   if (!fileName) throw new Error("sftp_empty_filename");
 
-  const sftp = new SftpClient();
+  const sftp = await connectSftp();
   try {
-    await sftp.connect({
-      host,
-      port: env.MESAPAY_SFTP_PORT,
-      username,
-      privateKey,
-      ...(env.MESAPAY_SFTP_PASSPHRASE
-        ? { passphrase: env.MESAPAY_SFTP_PASSPHRASE }
-        : {}),
-      readyTimeout: 20_000,
-    });
     // AWS Transfer chrootea al home del usuario → la carpeta cuelga de la raíz.
     const remoteDir = `/${folder}`;
     const exists = await sftp.exists(remoteDir);
@@ -93,5 +98,32 @@ export async function uploadFileToSftp(args: {
     await sftp.put(args.data, `${remoteDir}/${fileName}`);
   } finally {
     await sftp.end().catch(() => undefined);
+  }
+}
+
+/**
+ * Diagnóstico: conecta al SFTP y lista la raíz. Para verificar credenciales/
+ * conectividad sin subir un documento real. No lanza — devuelve ok/error.
+ */
+export async function testSftpConnection(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  if (!sftpConfigured()) return { ok: false, error: "sftp_not_configured" };
+  let sftp: SftpClient | null = null;
+  try {
+    sftp = await connectSftp();
+    await sftp.list("/");
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message.slice(0, 300)
+          : String(err).slice(0, 300),
+    };
+  } finally {
+    if (sftp) await sftp.end().catch(() => undefined);
   }
 }

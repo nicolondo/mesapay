@@ -1293,6 +1293,13 @@ model Payment {
   createdAt       DateTime      @default(now())
   settledAt       DateTime?
 
+  // Devoluciones (solo Kushki tarjeta). refundedCents acumula lo reintegrado;
+  // cuando alcanza amountCents el pago pasa a status=refunded. El neto cobrado
+  // resta refundedCents. Cada devolución queda además en KushkiTransaction
+  // (kind=refund) con su detalle. Aditivo/nullable → prisma db push seguro.
+  refundedCents Int       @default(0)
+  refundedAt    DateTime?
+
   // Set when this payment is rolled into a shift close (arqueo de caja).
   // Stays null while the shift is open or if there was no open shift.
   shiftId String?

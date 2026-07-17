@@ -6,8 +6,17 @@ import { fmtCOP } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { TableActions } from "../../tables/TableActions";
+import { RefundButton } from "./RefundButton";
 
 export const dynamic = "force-dynamic";
+
+// Métodos Kushki con tarjeta que se pueden devolver (mismo criterio que el
+// endpoint /api/operator/payments/[id]/refund). Efectivo y PSE quedan fuera.
+const REFUNDABLE_METHODS = new Set([
+  "kushki_card",
+  "kushki_apple_pay",
+  "kushki_card_terminal",
+]);
 
 export default async function OperatorOrderDetail({
   params,
@@ -53,14 +62,19 @@ export default async function OperatorOrderDetail({
   }
   const multiGuest = groups.size > 1;
 
+  // Neto de devoluciones: un pago parcialmente devuelto sigue `approved` pero
+  // con refundedCents > 0, así que restamos lo reintegrado del cobrado.
   const paidSum = order.payments
     .filter((p) => p.status === "approved")
-    .reduce((s, p) => s + p.amountCents, 0);
-  // foodPaid = approved (amount - tip). Drives whether the Cobrar
+    .reduce((s, p) => s + p.amountCents - p.refundedCents, 0);
+  // foodPaid = approved (amount - tip - devuelto). Drives whether the Cobrar
   // shortcut shows on the actions card.
   const paidFood = order.payments
     .filter((p) => p.status === "approved")
-    .reduce((s, p) => s + p.amountCents - p.tipCents, 0);
+    .reduce(
+      (s, p) => s + Math.max(0, p.amountCents - p.refundedCents - p.tipCents),
+      0,
+    );
   const outstandingCents = Math.max(0, order.subtotalCents - paidFood);
 
   return (
@@ -285,8 +299,21 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {p.refundedCents > 0 && (
+                      <div className="text-[11px] text-danger mt-0.5">
+                        {t("refundedNote", { amount: fmtCOP(p.refundedCents) })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
+                    {REFUNDABLE_METHODS.has(p.method) &&
+                      p.status === "approved" &&
+                      p.amountCents - p.refundedCents > 0 && (
+                        <RefundButton
+                          paymentId={p.id}
+                          remainingCents={p.amountCents - p.refundedCents}
+                        />
+                      )}
                     <PaymentPill status={p.status} />
                     <div className="font-mono tabular text-sm">
                       {fmtCOP(p.amountCents)}

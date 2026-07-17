@@ -1047,7 +1047,18 @@
     "mKushkiCard": "Tarjeta",
     "mKushkiTerminal": "Tarjeta · datáfono",
     "mExternalTerminal": "Tarjeta · datáfono propio",
-    "mKushkiPse": "PSE"
+    "mKushkiPse": "PSE",
+    "refund": "Devolver",
+    "refundLabel": "Devolución",
+    "refundTitle": "Devolver pago",
+    "refundBody": "Se reintegra al medio de pago del cliente vía Kushki. No se puede deshacer.",
+    "refundAmount": "Monto a devolver",
+    "refundMax": "Máximo {amount}",
+    "refundCancel": "Cancelar",
+    "refundConfirm": "Devolver",
+    "refunding": "Devolviendo…",
+    "refundError": "No se pudo hacer la devolución.",
+    "refundedNote": "Devuelto {amount}"
   },
   "opReservas": {
     "noRestaurant": "Sin restaurante.",

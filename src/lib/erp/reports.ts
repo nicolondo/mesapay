@@ -20,7 +20,11 @@ async function accountSums(
 ): Promise<Sums> {
   const rows = await db.journalLine.groupBy({
     by: ["accountCode"],
-    where: { entry: { restaurantId, date: dateFilter } },
+    // Excluimos el asiento de cierre: los estados mensuales son interinos
+    // (pre-cierre); el resultado se calcula en vivo, no desde 3605.
+    where: {
+      entry: { restaurantId, date: dateFilter, source: { not: "closing" } },
+    },
     _sum: { debitCents: true, creditCents: true },
   });
   return new Map(

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { PlanCuentasTab } from "./PlanCuentasTab";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
@@ -244,7 +245,7 @@ function profitCls(cents: number): string {
 // puro (regla react-hooks/purity); la precisión de horas no importa acá.
 const NOW_MS = Date.now();
 
-type Tab = "expenses" | "pnl" | "books";
+type Tab = "expenses" | "pnl" | "books" | "chart";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
@@ -355,6 +356,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["expenses", t("tabExpenses")],
             ["pnl", t("tabPnl")],
             ["books", t("tabBooks")],
+            ["chart", t("tabChart")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -370,8 +372,9 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         ))}
       </div>
 
-      {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por los 3 tabs
-          (mismo `month` para gastos, P&L y libros). */}
+      {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por gastos/P&L/libros.
+          El Plan de cuentas no es mensual, así que ahí se oculta. */}
+      {tab !== "chart" && (
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -393,8 +396,11 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           {"▶"}
         </button>
       </div>
+      )}
 
-      {tab === "pnl" ? (
+      {tab === "chart" ? (
+        <PlanCuentasTab />
+      ) : tab === "pnl" ? (
         <PnlTab
           month={month}
           currency={currency}

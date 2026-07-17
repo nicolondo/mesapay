@@ -45,7 +45,7 @@ function ticketNumberFrom(raw: unknown): string | null {
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ paymentId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (
@@ -54,7 +54,7 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const { paymentId } = await params;
+  const { id: paymentId } = await params;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });

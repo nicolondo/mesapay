@@ -62,11 +62,17 @@ export const TerminalPushResponseSchema = z.object({
 });
 export type TerminalPushResponse = z.infer<typeof TerminalPushResponseSchema>;
 
-export const BalanceResponseSchema = z.object({
-  availableAmount: z.number(),
-  pendingAmount: z.number(),
-  currency: z.enum(["COP", "MXN"]),
-});
+// Respuesta real de GET /wallet/v1/merchant/balance:
+//   { "balanceDate": 1784307365153, "currency": "", "currentBalance": 99999533646 }
+// `currency` suele venir vacío y `currentBalance` es el saldo total (no hay
+// desglose available/pending). passthrough por si Kushki agrega campos.
+export const BalanceResponseSchema = z
+  .object({
+    currentBalance: z.number(),
+    balanceDate: z.number().optional(),
+    currency: z.string().optional(),
+  })
+  .passthrough();
 export type BalanceResponse = z.infer<typeof BalanceResponseSchema>;
 
 export const MovementResponseSchema = z.object({

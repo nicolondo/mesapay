@@ -1047,7 +1047,18 @@
     "mKushkiCard": "Card",
     "mKushkiTerminal": "Card · terminal",
     "mExternalTerminal": "Card · own terminal",
-    "mKushkiPse": "PSE"
+    "mKushkiPse": "PSE",
+    "refund": "Refund",
+    "refundLabel": "Refund",
+    "refundTitle": "Refund payment",
+    "refundBody": "The amount is returned to the customer's payment method via Kushki. This can't be undone.",
+    "refundAmount": "Amount to refund",
+    "refundMax": "Max {amount}",
+    "refundCancel": "Cancel",
+    "refundConfirm": "Refund",
+    "refunding": "Refunding…",
+    "refundError": "Couldn't process the refund.",
+    "refundedNote": "Refunded {amount}"
   },
   "opReservas": {
     "noRestaurant": "No restaurant.",

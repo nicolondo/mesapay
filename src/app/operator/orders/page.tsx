@@ -83,7 +83,10 @@ export default async function OrdersPage({
     include: {
       table: true,
       items: { select: { qty: true } },
-      payments: { where: { status: "approved" }, select: { amountCents: true } },
+      payments: {
+        where: { status: "approved" },
+        select: { amountCents: true, refundedCents: true },
+      },
     },
   });
 
@@ -108,7 +111,7 @@ export default async function OrdersPage({
     createdAt: o.createdAt,
     items: o.items.reduce((s, i) => s + i.qty, 0),
     subtotalCents: o.subtotalCents,
-    paid: o.payments.reduce((s, p) => s + p.amountCents, 0),
+    paid: o.payments.reduce((s, p) => s + p.amountCents - p.refundedCents, 0),
     place: counterMode
       ? t("channelCounter")
       : t("tableNumber", { number: o.table.number }),

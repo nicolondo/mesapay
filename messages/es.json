@@ -781,6 +781,9 @@
     "switchTo": "Cambiar a:",
     "loading": "Cargando…",
     "chooseLocal": "Elegí local",
+    "searchOrders": "Buscar orden",
+    "shiftClose": "Cierre de turno",
+    "newOrder": "Nueva orden",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
     "loggedInAs": "Sesión iniciada como"

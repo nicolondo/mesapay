@@ -8,6 +8,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { DiarioTab } from "./DiarioTab";
 import { EstadosTab } from "./EstadosTab";
+import { ImpuestosTab } from "./ImpuestosTab";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
@@ -247,7 +248,14 @@ function profitCls(cents: number): string {
 // puro (regla react-hooks/purity); la precisión de horas no importa acá.
 const NOW_MS = Date.now();
 
-type Tab = "expenses" | "pnl" | "books" | "chart" | "diario" | "estados";
+type Tab =
+  | "expenses"
+  | "pnl"
+  | "books"
+  | "chart"
+  | "diario"
+  | "estados"
+  | "impuestos";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
@@ -361,6 +369,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["chart", t("tabChart")],
             ["diario", t("tabDiario")],
             ["estados", t("tabEstados")],
+            ["impuestos", t("tabImpuestos")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -408,6 +417,8 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         <DiarioTab key={month} month={month} currency={currency} />
       ) : tab === "estados" ? (
         <EstadosTab key={month} month={month} currency={currency} />
+      ) : tab === "impuestos" ? (
+        <ImpuestosTab key={month} month={month} currency={currency} />
       ) : tab === "pnl" ? (
         <PnlTab
           month={month}

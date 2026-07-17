@@ -17,13 +17,20 @@ type Sums = Map<string, { debit: number; credit: number }>;
 async function accountSums(
   restaurantId: string,
   dateFilter: { gte?: Date; lt?: Date },
+  opts: { includeClosing: boolean },
 ): Promise<Sums> {
   const rows = await db.journalLine.groupBy({
     by: ["accountCode"],
-    // Excluimos el asiento de cierre: los estados mensuales son interinos
-    // (pre-cierre); el resultado se calcula en vivo, no desde 3605.
+    // El asiento de cierre se excluye de los estados DEL MES (ER y balance de
+    // comprobación son pre-cierre), pero se INCLUYE en el acumulado del ESF:
+    // tras el cierre las cuentas 4/5/6 quedan en cero y el resultado pasa a
+    // patrimonio (3605/3610), que es exactamente lo que el ESF debe mostrar.
     where: {
-      entry: { restaurantId, date: dateFilter, source: { not: "closing" } },
+      entry: {
+        restaurantId,
+        date: dateFilter,
+        ...(opts.includeClosing ? {} : { source: { not: "closing" } }),
+      },
     },
     _sum: { debitCents: true, creditCents: true },
   });
@@ -80,8 +87,12 @@ export async function loadStatements(
 ): Promise<Statements> {
   const [chart, monthSums, cumSums] = await Promise.all([
     loadChartOfAccounts(restaurantId),
-    accountSums(restaurantId, { gte: range.from, lt: range.to }),
-    accountSums(restaurantId, { lt: range.to }),
+    accountSums(
+      restaurantId,
+      { gte: range.from, lt: range.to },
+      { includeClosing: false },
+    ),
+    accountSums(restaurantId, { lt: range.to }, { includeClosing: true }),
   ]);
   const meta = new Map(chart.map((a) => [a.code, a]));
 

@@ -92,12 +92,13 @@ export type ChargeRequest = {
     kind?: string;
   };
   // Datos de contacto del titular. Kushki los pide en la solicitud de cobro
-  // (necesarios para el 3DS). Un solo campo `name` con el nombre completo tal
-  // cual lo tipeó el diner — antes lo partíamos en firstName/lastName y con un
-  // nombre de una sola palabra terminábamos mandando el mismo valor dos veces.
-  // El correo va sólo si lo tenemos.
+  // (necesarios para el 3DS). Su API exige `firstName` y `lastName` por
+  // separado, así que partimos el nombre completo que tipeó el diner. Con un
+  // nombre de una sola palabra repetimos el valor en lastName (Kushki lo exige
+  // no vacío). El correo va sólo si lo tenemos.
   contactDetails?: {
-    name: string;
+    firstName: string;
+    lastName: string;
     email?: string;
   };
 };

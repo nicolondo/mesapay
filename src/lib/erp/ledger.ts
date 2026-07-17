@@ -9,8 +9,11 @@ import { PUC_NIIF_G2, pucLevel, pucParentCode } from "./pucNiif";
 export async function ensureChartOfAccounts(
   restaurantId: string,
 ): Promise<void> {
+  // Idempotente: siembra la primera vez Y agrega cuentas nuevas del catálogo a
+  // comercios ya sembrados (el unique code evita duplicados). Cuando el
+  // comercio ya tiene todas las cuentas del catálogo, es sólo un count.
   const count = await db.ledgerAccount.count({ where: { restaurantId } });
-  if (count > 0) return;
+  if (count >= PUC_NIIF_G2.length) return;
   await db.ledgerAccount.createMany({
     data: PUC_NIIF_G2.map((a) => ({
       restaurantId,
@@ -24,6 +27,18 @@ export async function ensureChartOfAccounts(
     })),
     skipDuplicates: true,
   });
+}
+
+/** Mapa código→id de las cuentas del comercio (para armar asientos). */
+export async function loadAccountMap(
+  restaurantId: string,
+): Promise<Map<string, string>> {
+  await ensureChartOfAccounts(restaurantId);
+  const rows = await db.ledgerAccount.findMany({
+    where: { restaurantId },
+    select: { id: true, code: true },
+  });
+  return new Map(rows.map((r) => [r.code, r.id]));
 }
 
 export type ChartAccount = {

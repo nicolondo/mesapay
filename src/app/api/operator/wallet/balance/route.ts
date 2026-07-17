@@ -52,7 +52,8 @@ export async function GET() {
     return NextResponse.json({
       availableCents: balance.availableCents,
       pendingCents: balance.pendingCents,
-      currency: balance.currency,
+      // Kushki devuelve currency vacío en el balance → usamos la del país.
+      currency: await getCurrencyForCountry(tenant.country),
       onboarded: true,
     });
   } catch (err) {

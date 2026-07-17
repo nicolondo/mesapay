@@ -339,16 +339,25 @@ export class LiveKushkiProvider implements PaymentProvider {
   }
 
   async getBalance(merchantId: string): Promise<WalletBalance> {
-    const resp = await kushkiFetch<BalanceResponse>(`/wallet/v1/balance`, {
-      method: "GET",
-      auth: { kind: "submerchant", privateKey: merchantId },
-      mode: this.mode,
-      schema: BalanceResponseSchema,
-    });
+    // Endpoint correcto de saldo del wallet (payouts / transfer-out).
+    const resp = await kushkiFetch<BalanceResponse>(
+      `/wallet/v1/merchant/balance`,
+      {
+        method: "GET",
+        auth: { kind: "submerchant", privateKey: merchantId },
+        mode: this.mode,
+        schema: BalanceResponseSchema,
+      },
+    );
+    // Kushki devuelve el saldo en unidades mayores (pesos enteros en COP, igual
+    // que en los charges); MESAPAY trabaja en centavos → ×100. No hay desglose
+    // available/pending: todo `currentBalance` es disponible. `currency` suele
+    // venir vacío, así que el caller lo sobreescribe con la moneda del país.
+    const currency = resp.currency === "MXN" ? "MXN" : "COP";
     return {
-      availableCents: Math.round(resp.availableAmount * 100),
-      pendingCents: Math.round(resp.pendingAmount * 100),
-      currency: resp.currency,
+      availableCents: Math.round(resp.currentBalance * 100),
+      pendingCents: 0,
+      currency,
     };
   }
 

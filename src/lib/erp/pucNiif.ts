@@ -83,6 +83,8 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("236805", "ReteICA por pagar", "pasivo", "credito"),
   P("2370", "Retenciones y aportes de nómina", "pasivo", "credito"),
   P("237005", "Aportes y retenciones de nómina", "pasivo", "credito"),
+  P("2380", "Acreedores varios", "pasivo", "credito"),
+  P("238030", "Propinas por pagar", "pasivo", "credito"),
   P("24", "Impuestos, gravámenes y tasas", "pasivo", "credito"),
   P("2408", "Impuesto sobre las ventas por pagar (IVA)", "pasivo", "credito"),
   P("240805", "IVA por pagar", "pasivo", "credito"),

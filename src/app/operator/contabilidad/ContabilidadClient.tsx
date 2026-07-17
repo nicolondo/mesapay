@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
+import { DiarioTab } from "./DiarioTab";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
@@ -245,7 +246,7 @@ function profitCls(cents: number): string {
 // puro (regla react-hooks/purity); la precisión de horas no importa acá.
 const NOW_MS = Date.now();
 
-type Tab = "expenses" | "pnl" | "books" | "chart";
+type Tab = "expenses" | "pnl" | "books" | "chart" | "diario";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
@@ -357,6 +358,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["pnl", t("tabPnl")],
             ["books", t("tabBooks")],
             ["chart", t("tabChart")],
+            ["diario", t("tabDiario")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -400,6 +402,8 @@ export function ContabilidadClient({ currency }: { currency: string }) {
 
       {tab === "chart" ? (
         <PlanCuentasTab />
+      ) : tab === "diario" ? (
+        <DiarioTab key={month} month={month} currency={currency} />
       ) : tab === "pnl" ? (
         <PnlTab
           month={month}

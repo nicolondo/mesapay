@@ -316,6 +316,8 @@ model Restaurant {
   purchaseOrders         PurchaseOrder[]
   recipes                Recipe[]
   expenses               Expense[]
+  ledgerAccounts         LedgerAccount[]
+  journalEntries         JournalEntry[]
   productionBatches      ProductionBatch[]
   employees              Employee[]
   staffShifts            StaffShift[]
@@ -2631,4 +2633,81 @@ model CrmCity {
 
   @@unique([countryCode, name])
   @@index([countryCode, name])
+}
+
+// ─────────────────────── Contabilidad (doble partida) ───────────────────────
+// Fase 1: plan de cuentas (PUC NIIF Grupo 2) + estructura de asientos. El motor
+// que genera asientos automáticos vive en fases siguientes; estos modelos son
+// la fundación. Todo por comercio (multi-tenant).
+
+enum LedgerAccountType {
+  activo
+  pasivo
+  patrimonio
+  ingreso
+  gasto
+  costo
+}
+
+enum LedgerAccountNature {
+  debito
+  credito
+}
+
+/// Cuenta del plan contable (PUC). Jerárquico por longitud de código:
+/// 1=clase, 2=grupo, 4=cuenta, 6=subcuenta. Sólo las hojas (`postable`)
+/// reciben movimientos; las agrupadoras suman a sus hijas.
+model LedgerAccount {
+  id           String              @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  type         LedgerAccountType
+  nature       LedgerAccountNature
+  level        Int
+  parentCode   String?
+  postable     Boolean             @default(false)
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+
+  lines JournalLine[]
+
+  @@unique([restaurantId, code])
+  @@index([restaurantId, code])
+}
+
+/// Comprobante contable (asiento). Sus líneas suman débito == crédito.
+/// `source`+`sourceRef` dan idempotencia: un solo asiento por hecho económico.
+model JournalEntry {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime
+  source       String
+  sourceRef    String?
+  memo         String?
+  status       String     @default("posted")
+  createdAt    DateTime   @default(now())
+
+  lines JournalLine[]
+
+  @@unique([restaurantId, source, sourceRef])
+  @@index([restaurantId, date])
+}
+
+/// Movimiento de un asiento: débito O crédito sobre una cuenta.
+model JournalLine {
+  id          String        @id @default(cuid())
+  entryId     String
+  entry       JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     LedgerAccount @relation(fields: [accountId], references: [id])
+  accountCode String
+  debitCents  Int           @default(0)
+  creditCents Int           @default(0)
+  memo        String?
+
+  @@index([entryId])
+  @@index([accountId])
 }

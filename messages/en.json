@@ -781,6 +781,9 @@
     "switchTo": "Switch to:",
     "loading": "Loading…",
     "chooseLocal": "Choose location",
+    "searchOrders": "Search order",
+    "shiftClose": "Close shift",
+    "newOrder": "New order",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "loggedInAs": "Signed in as"

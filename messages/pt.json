@@ -781,6 +781,9 @@
     "switchTo": "Mudar para:",
     "loading": "Carregando…",
     "chooseLocal": "Escolher local",
+    "searchOrders": "Buscar pedido",
+    "shiftClose": "Fechamento de turno",
+    "newOrder": "Novo pedido",
     "openMenu": "Abrir menu",
     "closeMenu": "Fechar menu",
     "loggedInAs": "Sessão iniciada como"

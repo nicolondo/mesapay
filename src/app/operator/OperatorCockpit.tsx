@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
@@ -126,6 +126,10 @@ export function OperatorCockpit({
 
         {/* Banners (impersonation / membership) rendereados server-side */}
         {banners}
+
+        {/* Barra de acciones: buscar orden + accesos rápidos. Persistente
+            arriba del contenido en todas las pantallas del operador. */}
+        <CockpitTopbar />
 
         {/* Único scroller del contenido */}
         <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>
@@ -414,4 +418,93 @@ function isActive(pathname: string | null, href: string): boolean {
   if (!pathname) return false;
   if (href === "/operator") return pathname === "/operator";
   return pathname === href || pathname.startsWith(href + "/");
+}
+
+/* ───────────────────── Barra de acciones superior ─────────────────────
+   Buscar orden + accesos rápidos (cierre de turno · nueva orden). En móvil
+   los botones muestran solo el ícono; el label aparece desde `sm`. */
+function CockpitTopbar() {
+  const t = useTranslations("operator");
+  const router = useRouter();
+  const [q, setQ] = useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const term = q.trim();
+    router.push(
+      term
+        ? `/operator/orders?q=${encodeURIComponent(term)}`
+        : "/operator/orders",
+    );
+  };
+
+  return (
+    <div className="shrink-0 flex h-14 items-center gap-2 border-b border-op-border bg-op-surface px-3 md:px-5">
+      <form onSubmit={submit} className="relative min-w-0 max-w-md flex-1">
+        <svg
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-op-muted"
+          width="16"
+          height="16"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <circle cx="9" cy="9" r="6" />
+          <line x1="14" y1="14" x2="17.5" y2="17.5" />
+        </svg>
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("searchOrders")}
+          aria-label={t("searchOrders")}
+          className="h-10 w-full rounded-full border border-op-border bg-op-bg pl-9 pr-3 text-sm text-op-text placeholder:text-op-muted focus:border-op-text/30 focus:outline-none"
+        />
+      </form>
+      <Link
+        href="/operator/reports"
+        aria-label={t("shiftClose")}
+        className="mp-btn mp-btn--secondary mp-btn--sm shrink-0"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <circle cx="10" cy="10" r="7.25" />
+          <path d="M10 6v4.3l2.8 1.7" />
+        </svg>
+        <span className="hidden sm:inline">{t("shiftClose")}</span>
+      </Link>
+      <Link
+        href="/operator/tables"
+        aria-label={t("newOrder")}
+        className="mp-btn mp-btn--primary mp-btn--sm shrink-0"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <line x1="10" y1="4.5" x2="10" y2="15.5" />
+          <line x1="4.5" y1="10" x2="15.5" y2="10" />
+        </svg>
+        <span className="hidden sm:inline">{t("newOrder")}</span>
+      </Link>
+    </div>
+  );
 }

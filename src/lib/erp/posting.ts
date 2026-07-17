@@ -66,13 +66,30 @@ async function buildMonthEntries(
   restaurantId: string,
   range: MonthRange,
 ): Promise<DraftEntry[]> {
-  const [salesBook, purchasesBook, tax, pnl, refunds] = await Promise.all([
-    loadSalesBook(restaurantId, range),
-    loadPurchasesBook(restaurantId, range),
-    computeTaxSummary(restaurantId, range),
-    computeMonthPnl(restaurantId, range),
-    sumRefunds(restaurantId, range),
-  ]);
+  const [salesBook, purchasesBook, tax, pnl, refunds, grossPays] =
+    await Promise.all([
+      loadSalesBook(restaurantId, range),
+      loadPurchasesBook(restaurantId, range),
+      computeTaxSummary(restaurantId, range),
+      computeMonthPnl(restaurantId, range),
+      sumRefunds(restaurantId, range),
+      // Cobros BRUTOS por método (approved + refunded): el asiento de ventas
+      // debita lo cobrado originalmente; las devoluciones tienen su propio
+      // asiento que acredita la pasarela. Si filtráramos sólo approved, un
+      // pago totalmente devuelto (status→refunded) desaparecería del débito
+      // pero la devolución igual acreditaría → doble descuento.
+      db.payment.groupBy({
+        by: ["method"],
+        where: {
+          status: { in: ["approved", "refunded"] },
+          order: {
+            restaurantId,
+            paidAt: { gte: range.from, lt: range.to },
+          },
+        },
+        _sum: { amountCents: true },
+      }),
+    ]);
 
   const salesTaxCode =
     tax.sales.kind === "iva"
@@ -83,19 +100,20 @@ async function buildMonthEntries(
 
   const entries: DraftEntry[] = [];
 
-  // 1) VENTAS — D caja/banco/pasarela · C ingresos + impuesto + propinas.
+  // 1) VENTAS — D caja/banco/pasarela (bruto) · C ingresos + impuesto + propinas.
   {
     const lines: Line[] = [];
     let totalCash = 0;
-    for (const m of salesBook.totals.byMethod) {
-      if (m.amountCents <= 0) continue;
-      lines.push({
-        code: cashAccountForMethod(m.method),
-        debit: m.amountCents,
-        memo: m.method,
-      });
-      totalCash += m.amountCents;
+    // Consolidar por cuenta destino (varios métodos caen en la misma cuenta).
+    const byAccount = new Map<string, number>();
+    for (const m of grossPays) {
+      const amt = m._sum.amountCents ?? 0;
+      if (amt <= 0) continue;
+      const code = cashAccountForMethod(m.method);
+      byAccount.set(code, (byAccount.get(code) ?? 0) + amt);
+      totalCash += amt;
     }
+    for (const [code, amt] of byAccount) lines.push({ code, debit: amt });
     const salesTax = tax.sales.taxCents;
     const tips = salesBook.totals.tipCents;
     const income = totalCash - salesTax - tips;
@@ -105,6 +123,16 @@ async function buildMonthEntries(
         lines.push({ code: salesTaxCode, credit: salesTax });
       if (tips > 0) lines.push({ code: "238030", credit: tips });
       entries.push({ source: "sale", memo: "Ventas del mes", lines });
+    } else if (totalCash > 0) {
+      // Cobros < impuesto + propinas de los pedidos: datos inconsistentes
+      // (pagos parciales cruzando meses, etc.). No inventamos un asiento —
+      // lo dejamos trazado para diagnóstico.
+      console.error("[posting] ventas con ingreso negativo — asiento omitido", {
+        restaurantId,
+        totalCash,
+        salesTax,
+        tips,
+      });
     }
   }
 
@@ -124,8 +152,19 @@ async function buildMonthEntries(
         lines.push({ code: "236805", credit: t.reteIcaCents });
       const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
       const proveedores = invDebit + t.ivaCents - ret;
-      lines.push({ code: "220505", credit: proveedores });
-      entries.push({ source: "purchase", memo: "Compras del mes", lines });
+      if (proveedores >= 0) {
+        lines.push({ code: "220505", credit: proveedores });
+        entries.push({ source: "purchase", memo: "Compras del mes", lines });
+      } else {
+        // Retenciones > compra: datos mal capturados. Un crédito negativo no
+        // es un asiento válido — omitimos y dejamos rastro.
+        console.error("[posting] compras con proveedores negativo — omitido", {
+          restaurantId,
+          invDebit,
+          iva: t.ivaCents,
+          ret,
+        });
+      }
     }
   }
 

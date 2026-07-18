@@ -257,6 +257,10 @@ model Restaurant {
   // básico (Colombia tradicional 240 = 30×8; MX análogo). Editable en los
   // ajustes de Horarios. valor hora = Employee.monthlySalaryCents / divisor.
   staffHoursDivisor       Int     @default(240)
+  // Parámetros de liquidación de nómina (portado de zenith-erp): objeto
+  // { key: number } en unidades humanas (pesos para valores, % para tasas).
+  // null ⇒ defaults por país (CO 2026). El dueño los edita en Nómina.
+  payrollParams           Json?
   // Compras: ¿el IVA de las facturas de compra es descontable? false
   // (default) ⇒ el IVA entra al costo de inventario (lo que se paga);
   // true ⇒ el costo de inventario es el neto y el IVA se registra aparte.
@@ -318,6 +322,7 @@ model Restaurant {
   expenses               Expense[]
   ledgerAccounts         LedgerAccount[]
   journalEntries         JournalEntry[]
+  payrollRuns            PayrollRun[]
   productionBatches      ProductionBatch[]
   employees              Employee[]
   staffShifts            StaffShift[]
@@ -1914,10 +1919,43 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shifts StaffShift[]
+  shifts       StaffShift[]
+  payrollItems PayrollItem[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
+}
+
+/// Corrida de nómina mensual (liquidación legal, portada de zenith-erp).
+/// Una por comercio y mes; regenerable mientras esté en draft.
+model PayrollRun {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  month        String // "YYYY-MM"
+  status       String     @default("draft")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items PayrollItem[]
+
+  @@unique([restaurantId, month])
+}
+
+/// Concepto liquidado de un empleado en una corrida (snapshot).
+model PayrollItem {
+  id           String     @id @default(cuid())
+  runId        String
+  run          PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employeeId   String
+  employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeName String
+  conceptKey   String
+  conceptLabel String
+  kind         String // devengado | deduccion | aporte_empleador | provision
+  amountCents  Int
+
+  @@index([runId])
 }
 
 /// Turno planeado + asistencia (distinto del Shift de caja/arqueo).

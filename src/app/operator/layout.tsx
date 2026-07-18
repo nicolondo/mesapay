@@ -189,7 +189,10 @@ export default async function OperatorLayout({
       ? [{ href: "/operator/produccion", label: t("navProduction") }]
       : []),
     ...(isModuleEnabled(tenant?.enabledModules, "staff")
-      ? [{ href: "/operator/horarios", label: t("navStaff") }]
+      ? [
+          { href: "/operator/horarios", label: t("navStaff") },
+          { href: "/operator/nomina", label: t("navPayroll") },
+        ]
       : []),
   ];
   const ordersGroup = [

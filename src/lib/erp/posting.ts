@@ -15,6 +15,7 @@ import {
   loadSalesBook,
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
+import { payrollTotalsForPosting } from "./payrollData";
 
 type Line = { code: string; debit?: number; credit?: number; memo?: string };
 type DraftEntry = { source: string; memo: string; lines: Line[] };
@@ -64,6 +65,7 @@ async function sumRefunds(
  */
 async function buildMonthEntries(
   restaurantId: string,
+  month: string,
   range: MonthRange,
 ): Promise<DraftEntry[]> {
   const [salesBook, purchasesBook, tax, pnl, refunds, grossPays] =
@@ -207,18 +209,54 @@ async function buildMonthEntries(
     }
   }
 
-  // 6) NÓMINA — D gastos de personal · C salarios por pagar.
+  // 6) NÓMINA — con corrida liquidada: asiento completo (devengados, aportes,
+  // provisiones, retenciones y neto por pagar). Sin corrida: fallback simple
+  // salario+recargos del P&L.
   {
-    const labor = pnl.labor?.totalCents ?? 0;
-    if (labor > 0) {
+    const run = await payrollTotalsForPosting(restaurantId, month);
+    if (run) {
+      const lines: Line[] = [
+        { code: "510506", debit: run.devengadoCents },
+        {
+          code: "510527",
+          debit:
+            run.aportesCents +
+            run.provCesantiasCents +
+            run.provPrimaCents +
+            run.provVacacionesCents,
+        },
+        {
+          code: "250505",
+          credit: run.devengadoCents - run.deduccionesCents,
+        },
+        {
+          code: "237005",
+          credit: run.deduccionesCents + run.aportesCents,
+        },
+      ];
+      if (run.provCesantiasCents > 0)
+        lines.push({ code: "251005", credit: run.provCesantiasCents });
+      if (run.provPrimaCents > 0)
+        lines.push({ code: "252005", credit: run.provPrimaCents });
+      if (run.provVacacionesCents > 0)
+        lines.push({ code: "252505", credit: run.provVacacionesCents });
       entries.push({
         source: "payroll",
-        memo: "Nómina del mes",
-        lines: [
-          { code: "510506", debit: labor },
-          { code: "250505", credit: labor },
-        ],
+        memo: "Nómina del mes (liquidación)",
+        lines: lines.filter((l) => (l.debit ?? 0) > 0 || (l.credit ?? 0) > 0),
       });
+    } else {
+      const labor = pnl.labor?.totalCents ?? 0;
+      if (labor > 0) {
+        entries.push({
+          source: "payroll",
+          memo: "Nómina del mes",
+          lines: [
+            { code: "510506", debit: labor },
+            { code: "250505", credit: labor },
+          ],
+        });
+      }
     }
   }
 
@@ -247,7 +285,7 @@ export async function generateJournalForMonth(
 ): Promise<GenResult[]> {
   await ensureChartOfAccounts(restaurantId);
   const map = await loadAccountMap(restaurantId);
-  const drafts = await buildMonthEntries(restaurantId, range);
+  const drafts = await buildMonthEntries(restaurantId, month, range);
   // Fecha del asiento = último instante del mes.
   const date = new Date(range.to.getTime() - 1);
 

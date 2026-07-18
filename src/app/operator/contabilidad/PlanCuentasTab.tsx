@@ -85,15 +85,16 @@ export function PlanCuentasTab() {
             return (
               <li
                 key={a.code}
-                className="flex items-center gap-3 px-3 py-2"
+                className="flex items-center gap-2.5 px-3 py-2"
                 style={{ paddingLeft: 12 + (a.level - 1) * 14 }}
               >
+                {/* Sin ancho fijo: los códigos de un mismo nivel miden igual,
+                    así que el nombre queda pegado al código y alineado. */}
                 <span
                   className={
                     "font-mono text-xs tabular shrink-0 " +
                     (a.postable ? "text-op-muted" : "text-op-text")
                   }
-                  style={{ width: 64 }}
                 >
                   {a.code}
                 </span>

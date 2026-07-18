@@ -50,12 +50,14 @@ export default async function Landing() {
       <Marquee />
       <HowItWorks />
       <Features />
+      <ErpSuite />
       <Benefits />
       <FlowStrip />
       <Pricing />
       <LiveDemoStrip
         tenants={tenants.map((t) => ({ slug: t.slug, name: t.name }))}
       />
+      <Faq />
       <FinalCta />
       <SiteFooter />
     </div>
@@ -152,7 +154,7 @@ function Hero({
               href="/signup/restaurant"
               className="h-12 px-6 rounded-xl bg-ink text-bone font-medium inline-flex items-center gap-2 hover:bg-ink-2 transition-colors"
             >
-              Registrar mi restaurante
+              Empezar prueba gratis
               <span aria-hidden>→</span>
             </Link>
             {demoSlug && (
@@ -166,7 +168,7 @@ function Hero({
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted fade-up" style={{ animationDelay: "0.35s" }}>
             <span className="inline-flex items-center gap-1.5">
-              <Check /> Prueba de 14 días
+              <Check /> 14 días gratis, sin tarjeta de crédito
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Check /> Sin instalar nada en la mesa
@@ -401,6 +403,103 @@ function Features() {
             </Reveal>
           ))}
         </div>
+
+        <Reveal>
+          <div className="mt-10">
+            <Link
+              href="/signup/restaurant"
+              className="inline-flex items-center gap-2 font-medium text-terracotta hover:text-terracotta-2 transition-colors"
+            >
+              Rota más mesas desde esta semana
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- ERP suite ---------------- */
+
+function ErpSuite() {
+  const modules = [
+    {
+      title: "Inventario y compras con IA",
+      copy: "Fotografía la factura del proveedor y la IA la convierte en entrada de inventario, con impuestos y retenciones leídos.",
+    },
+    {
+      title: "Recetas y costos reales",
+      copy: "Cada plato vendido descuenta sus insumos. Sabes tu costo de venta real, no el teórico.",
+    },
+    {
+      title: "Contabilidad de verdad",
+      copy: "Plan de cuentas PUC (NIIF), asientos de doble partida, estados financieros e impuestos del mes — listos para tu contador.",
+    },
+    {
+      title: "Nómina colombiana",
+      copy: "Liquidación mensual con salud, pensión, ARL, prestaciones y recargos de festivos, parametrizada a la ley vigente.",
+    },
+    {
+      title: "Horarios y asistencia",
+      copy: "Turnos del equipo y kiosko de marcación con reconocimiento facial. Los recargos entran solos a la nómina.",
+    },
+    {
+      title: "Reservas con depósito",
+      copy: "Tu cliente reserva la mesa en el plano del salón y asegura con un abono pagado en línea.",
+    },
+    {
+      title: "Billetera y dispersiones",
+      copy: "Los pagos con tarjeta y PSE caen a tu billetera y los pasas a tu banco cuando quieras.",
+    },
+    {
+      title: "Factura para tu cliente",
+      copy: "El comensal pide su factura desde el celular y le llega al correo con sus datos, sin fila en la caja.",
+    },
+  ];
+  return (
+    <section id="sistema" className="py-20 md:py-28">
+      <div className="max-w-6xl mx-auto px-5 md:px-8">
+        <Reveal>
+          <div className="max-w-2xl">
+            <div className="font-mono text-[11px] tracking-[0.2em] uppercase text-terracotta">
+              Más que pedidos
+            </div>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl leading-[1.05] tracking-[-0.015em]">
+              El sistema operativo completo de tu restaurante.
+            </h2>
+            <p className="mt-4 text-ink-3 text-lg">
+              Lo que empieza en el QR de la mesa termina en tu contabilidad:
+              inventario, costos, nómina y estados financieros en el mismo
+              lugar, sin pegar Excels.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {modules.map((m, i) => (
+            <Reveal key={i} delayMs={(i % 4) * 60}>
+              <div className="h-full rounded-2xl border border-hairline bg-paper p-5">
+                <h3 className="font-display text-lg leading-snug">{m.title}</h3>
+                <p className="mt-2 text-sm text-ink-3 leading-relaxed">
+                  {m.copy}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal>
+          <div className="mt-10">
+            <Link
+              href="/signup/restaurant"
+              className="inline-flex items-center gap-2 font-medium text-terracotta hover:text-terracotta-2 transition-colors"
+            >
+              Maneja todo desde un solo lugar
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -433,6 +532,15 @@ function Benefits() {
               <div className="mt-3 font-mono text-[10px] tracking-wider uppercase text-muted">
                 — Operador, restaurante piloto
               </div>
+            </div>
+            <div className="mt-6">
+              <Link
+                href="/signup/restaurant"
+                className="inline-flex items-center gap-2 font-medium text-terracotta hover:text-terracotta-2 transition-colors"
+              >
+                Aumenta tus ingresos
+                <span aria-hidden>→</span>
+              </Link>
             </div>
           </Reveal>
 
@@ -800,6 +908,65 @@ function LiveDemoStrip({
   );
 }
 
+/* ---------------- FAQ ---------------- */
+
+function Faq() {
+  const faqs = [
+    {
+      q: "¿Mis clientes necesitan descargar una app?",
+      a: "No. Escanean el QR de la mesa con la cámara y el menú abre en el navegador. Piden y pagan ahí mismo, sin instalar nada ni crear cuenta.",
+    },
+    {
+      q: "¿Necesito comprar equipos nuevos?",
+      a: "Funciona con lo que ya tienes: una tablet o celular para la cocina y el salón, y los celulares de tus clientes. Si usas datáfono, también se integra.",
+    },
+    {
+      q: "¿Reemplaza a mis meseros?",
+      a: "Al contrario: los libera de tomar nota y llevar la cuenta para que asesoren y vendan. El mesero también puede ingresar pedidos y cobrar desde su celular, y varios clientes de la misma mesa piden a la vez.",
+    },
+    {
+      q: "¿Cómo me llega el dinero de los pagos en línea?",
+      a: "Los pagos con tarjeta y PSE caen a tu billetera MESAPAY y los transfieres a tu cuenta bancaria cuando quieras. El efectivo sigue funcionando como siempre, con registro trazable.",
+    },
+    {
+      q: "¿Cuánto me toma empezar?",
+      a: "El registro toma minutos. Cargas tu menú (o lo importamos con IA desde una foto de tu carta), imprimes los QR de tus mesas y listo — la prueba de 14 días no pide tarjeta de crédito.",
+    },
+  ];
+  return (
+    <section id="preguntas" className="py-20 md:py-28 bg-paper/60 border-y border-hairline">
+      <div className="max-w-3xl mx-auto px-5 md:px-8">
+        <Reveal>
+          <div className="font-mono text-[11px] tracking-[0.2em] uppercase text-terracotta">
+            Preguntas frecuentes
+          </div>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl leading-[1.05] tracking-[-0.015em]">
+            Lo que todos preguntan antes de empezar.
+          </h2>
+        </Reveal>
+        <div className="mt-10 divide-y divide-hairline rounded-2xl border border-hairline bg-bone">
+          {faqs.map((f, i) => (
+            <Reveal key={i} delayMs={i * 50}>
+              <details className="group px-5 py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-lg leading-snug">
+                  {f.q}
+                  <span
+                    aria-hidden
+                    className="shrink-0 text-terracotta transition-transform group-open:rotate-45"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm text-ink-3 leading-relaxed">{f.a}</p>
+              </details>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------------- Final CTA ---------------- */
 
 function FinalCta() {
@@ -835,6 +1002,9 @@ function FinalCta() {
                 >
                   Ya tengo cuenta
                 </Link>
+              </div>
+              <div className="mt-5 text-xs text-bone/60">
+                14 días gratis · Sin tarjeta de crédito · Cancela cuando quieras
               </div>
             </div>
           </div>

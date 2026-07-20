@@ -38,7 +38,7 @@ const BASE_URL = {
  * que forzaba prod siempre; se quitó para que el datáfono siga el modo del
  * comercio (sandbox → UAT).
  */
-function terminalBaseUrl(mode?: KushkiMode): string {
+export function terminalBaseUrl(mode?: KushkiMode): string {
   const m = mode ?? getKushkiModeSync();
   return m === "production" ? BASE_URL.production : BASE_URL.sandbox;
 }
@@ -52,7 +52,7 @@ function pushPath(serial: string): string {
 // Síncrono: la doc sugiere timeout ≥90s por la latencia del relay.
 const CHARGE_TIMEOUT_MS = 95_000;
 
-function resolveBusinessCode(explicit?: string | null): string {
+export function resolveBusinessCode(explicit?: string | null): string {
   const code = explicit || env.KUSHKI_BP_BUSINESS_CODE;
   if (!code) {
     throw new Error(
@@ -82,10 +82,10 @@ function sha512hex(s: string): string {
 function b64(s: string): string {
   return Buffer.from(s, "utf8").toString("base64");
 }
-function tokenPassword(token: string, tsSeconds: number): string {
+export function tokenPassword(token: string, tsSeconds: number): string {
   return md5hex((token + formattedDate(tsSeconds)).padEnd(32, "0"));
 }
-function buildAuthHash(
+export function buildAuthHash(
   payload: Record<string, unknown>,
   tsSeconds: number,
   password: string,
@@ -97,7 +97,7 @@ function buildAuthHash(
 function aesKey(tsSeconds: number, password: string): Buffer {
   return Buffer.from((tsSeconds + "___" + password).substring(0, 32), "utf8");
 }
-function encryptPayload(
+export function encryptPayload(
   text: string,
   tsSeconds: number,
   password: string,
@@ -107,7 +107,7 @@ function encryptPayload(
   const enc = Buffer.concat([c.update(text, "utf8"), c.final()]);
   return iv.toString("hex") + ":" + enc.toString("hex");
 }
-function decryptData(
+export function decryptData(
   data: string,
   tsSeconds: number,
   password: string,

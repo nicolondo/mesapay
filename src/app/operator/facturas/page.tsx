@@ -106,6 +106,9 @@ export default async function FacturasPage({
           paidAt: r.order.paidAt?.toISOString() ?? null,
         },
         dian: toDian(r.order, einvoicingOn),
+        // Para "Imprimir en datáfono": presente si la tirilla ya se generó,
+        // independiente del módulo einvoicing.
+        simpleInvoiceId: r.order.simpleInvoice?.id ?? null,
       }))}
       generated={generated.map((r) => ({
         id: r.id,
@@ -126,6 +129,9 @@ export default async function FacturasPage({
           paidAt: r.order.paidAt?.toISOString() ?? null,
         },
         dian: toDian(r.order, einvoicingOn),
+        // Para "Imprimir en datáfono": presente si la tirilla ya se generó,
+        // independiente del módulo einvoicing.
+        simpleInvoiceId: r.order.simpleInvoice?.id ?? null,
       }))}
     />
   );

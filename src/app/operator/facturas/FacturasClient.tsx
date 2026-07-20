@@ -32,6 +32,8 @@ type Req = {
     paidAt: string | null;
   };
   dian: DianInfo | null;
+  /** Tirilla generada de la orden — habilita "Imprimir en datáfono". */
+  simpleInvoiceId: string | null;
 };
 
 type GeneratedReq = Req & {
@@ -252,6 +254,7 @@ function RequestCard({
         </button>
       </div>
 
+      {req.simpleInvoiceId && <PrintOnTerminalButton invoiceId={req.simpleInvoiceId} />}
       {einvoicingOn && req.dian && <DianBlock dian={req.dian} />}
     </li>
   );
@@ -308,6 +311,7 @@ function GeneratedCard({
         {t("markPendingAgain")}
       </button>
 
+      {req.simpleInvoiceId && <PrintOnTerminalButton invoiceId={req.simpleInvoiceId} />}
       {einvoicingOn && req.dian && <DianBlock dian={req.dian} />}
     </li>
   );
@@ -499,6 +503,85 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
         {label}
       </div>
       <div className="mt-0.5">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * "Imprimir en datáfono" — manda la tirilla al SmartPOS vía el Print API
+ * cloud de Kushki. Si el comercio tiene varios datáfonos, el endpoint
+ * responde 409 choose_device con la lista y acá se muestra el picker.
+ */
+function PrintOnTerminalButton({ invoiceId }: { invoiceId: string }) {
+  const t = useTranslations("opFacturas");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Array<{ id: string; label: string }> | null>(null);
+
+  async function send(deviceId?: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/operator/invoices/${invoiceId}/print`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(deviceId ? { deviceId } : {}),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        devices?: Array<{ id: string; label: string }>;
+      };
+      if (res.ok) {
+        setDevices(null);
+        setSent(true);
+        setTimeout(() => setSent(false), 3000);
+      } else if (j.error === "choose_device" && j.devices?.length) {
+        setDevices(j.devices);
+      } else if (j.error === "no_devices") {
+        setErr(t("printNoDevices"));
+      } else {
+        setErr(j.message ?? t("printError"));
+      }
+    } catch {
+      setErr(t("printError"));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => send()}
+          disabled={busy}
+          className="mp-btn mp-btn--sm mp-btn--secondary"
+        >
+          {busy
+            ? t("printSending")
+            : sent
+              ? t("printSent")
+              : t("printOnTerminal")}
+        </button>
+        {devices && (
+          <>
+            {devices.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => send(d.id)}
+                disabled={busy}
+                className="mp-chip"
+              >
+                {d.label}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+      {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
     </div>
   );
 }

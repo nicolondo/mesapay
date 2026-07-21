@@ -4,10 +4,9 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import {
-  getPaymentProvider,
-  saveSubmerchantCredentials,
-} from "@/lib/payments";
-import { env } from "@/lib/env";
+  deliverPendingDocsToSftp,
+  deliverOnboardingManifest,
+} from "@/lib/onboardingSftp";
 
 const bankInfoSchema = z.object({
   bankName: z.string().min(1).max(80),
@@ -29,14 +28,15 @@ const submitSchema = z.object({
 });
 
 /**
- * Final step of the onboarding wizard. The operator has uploaded documents
- * and filled (or verified) the bank info; we package everything for the
- * provider and store the returned credentials.
+ * Paso final del wizard de onboarding. La entrega a Kushki es por SFTP, NO por
+ * la API de partner: el KYC (documentos + datos del comercio) se deposita en la
+ * carpeta del comercio en el SFTP de Kushki, ellos revisan y provisionan el
+ * sub-merchant fuera de línea, y las credenciales (public/private key) se cargan
+ * después. Acá: validamos, entregamos documentos pendientes + un manifiesto
+ * JSON al SFTP, y marcamos el comercio como `submitted`/`in_review`.
  *
- * The set of required documents and the partner endpoint will be confirmed
- * once we receive Kushki's partner docs. For now we require at least one
- * bank_cert and one cedula_rep_legal — anything else can be added later
- * from the operator's settings page.
+ * Requerimos al menos un bank_cert y un cedula_rep_legal; el resto se puede
+ * agregar luego desde la página de pagos.
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -95,75 +95,57 @@ export async function POST(req: Request) {
     );
   }
 
-  // Mark as submitted before calling the provider so a slow Kushki request
-  // doesn't leave the operator clicking "Enviar" repeatedly. If Kushki
-  // errors out we roll back below.
-  const baseUrl =
-    env.APP_PUBLIC_BASE_URL ?? "https://mesapay.co";
+  // Entrega por SFTP: manifiesto de datos + documentos pendientes. Best-effort
+  // (los helpers no lanzan) — si el SFTP no está configurado en el server, el
+  // comercio igual queda `submitted` y la entrega se completa cuando se
+  // configuren las credenciales (o vía reintento). Nunca dejamos al operador
+  // trabado por infraestructura del lado plataforma.
+  const manifest = {
+    restaurantId,
+    submittedAt: new Date().toISOString(),
+    legalName: parsed.data.legalName,
+    taxId: parsed.data.taxId,
+    contactEmail: parsed.data.contactEmail,
+    contactPhone: parsed.data.contactPhone,
+    bankInfo: parsed.data.bankInfo,
+    documents: docs.map((d) => ({
+      kind: d.kind,
+      fileName: d.fileName,
+      mimeType: d.mimeType,
+    })),
+  };
+
+  const manifestOk = await deliverOnboardingManifest(restaurantId, manifest);
+  const docsResult = await deliverPendingDocsToSftp(restaurantId);
 
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
-      kushkiOnboardingStatus: "submitted",
+      kushkiOnboardingStatus: "in_review",
       kushkiSubmittedAt: new Date(),
       bankInfo: parsed.data.bankInfo,
+      kushkiOnboardingNotes: docsResult.configured
+        ? `SFTP: ${docsResult.delivered}/${docsResult.total} docs + manifiesto ${manifestOk ? "ok" : "falló"}`
+        : "SFTP no configurado en el server — entrega pendiente",
     },
   });
 
-  try {
-    const provider = await getPaymentProvider();
-    const result = await provider.submitOnboarding({
-      legalName: parsed.data.legalName,
-      taxId: parsed.data.taxId,
-      contactEmail: parsed.data.contactEmail,
-      contactPhone: parsed.data.contactPhone,
-      bankInfo: parsed.data.bankInfo,
-      documents: docs.map((d) => ({
-        kind: d.kind,
-        fileUrl: d.fileUrl.startsWith("/")
-          ? `${baseUrl}${d.fileUrl}`
-          : d.fileUrl,
-        fileName: d.fileName,
-        mimeType: d.mimeType,
-      })),
-    });
+  console.log("[onboarding/submit] entregado por SFTP", {
+    restaurantId,
+    sftpConfigured: docsResult.configured,
+    docsDelivered: docsResult.delivered,
+    docsTotal: docsResult.total,
+    manifest: manifestOk,
+  });
 
-    await saveSubmerchantCredentials(restaurantId, {
-      merchantId: result.merchantId,
-      publicKey: result.publicKey,
-      privateKey: result.privateKey,
-    });
-
-    // Provider may return active immediately (mock + some Kushki paths) or
-    // in_review. Reflect that on the restaurant row.
-    await db.restaurant.update({
-      where: { id: restaurantId },
-      data: {
-        kushkiOnboardingStatus: result.status,
-        kushkiActivatedAt: result.status === "active" ? new Date() : null,
-        kushkiOnboardingNotes: result.notes ?? null,
-      },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      status: result.status,
-      merchantId: result.merchantId,
-    });
-  } catch (err) {
-    // Roll the status back so the operator can retry. We surface the error
-    // message but keep the submitted bankInfo so they don't re-type.
-    await db.restaurant.update({
-      where: { id: restaurantId },
-      data: {
-        kushkiOnboardingStatus: "docs_uploaded",
-        kushkiOnboardingNotes:
-          err instanceof Error ? err.message.slice(0, 500) : "submit failed",
-      },
-    });
-    return NextResponse.json(
-      { error: "submit_failed", detail: err instanceof Error ? err.message : "unknown" },
-      { status: 502 },
-    );
-  }
+  return NextResponse.json({
+    ok: true,
+    status: "in_review",
+    sftp: {
+      configured: docsResult.configured,
+      docsDelivered: docsResult.delivered,
+      docsTotal: docsResult.total,
+      manifest: manifestOk,
+    },
+  });
 }

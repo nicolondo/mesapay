@@ -3,6 +3,8 @@ import { readFile } from "fs/promises";
 import { db } from "@/lib/db";
 import { sftpConfigured, uploadFileToSftp } from "@/lib/sftp";
 
+export { sftpConfigured };
+
 /** Nombre del comercio → carpeta segura (sin tildes, espacios→-, minúsculas). */
 export function folderNameForRestaurant(name: string | null | undefined): string {
   const noAccents = (name ?? "")
@@ -82,5 +84,59 @@ export async function deliverDocumentToSftp(documentId: string): Promise<void> {
         data: { sftpError: msg, sftpAttempts: { increment: 1 } },
       })
       .catch(() => undefined);
+  }
+}
+
+/**
+ * Entrega todos los documentos de un comercio que aún no llegaron al SFTP.
+ * Best-effort: no lanza. Devuelve cuántos quedaron entregados en total.
+ */
+export async function deliverPendingDocsToSftp(
+  restaurantId: string,
+): Promise<{ configured: boolean; delivered: number; total: number }> {
+  const docs = await db.kushkiDocument.findMany({
+    where: { restaurantId },
+    select: { id: true, sftpUploadedAt: true },
+  });
+  if (!sftpConfigured()) {
+    return { configured: false, delivered: 0, total: docs.length };
+  }
+  for (const d of docs) {
+    if (!d.sftpUploadedAt) await deliverDocumentToSftp(d.id);
+  }
+  const after = await db.kushkiDocument.count({
+    where: { restaurantId, sftpUploadedAt: { not: null } },
+  });
+  return { configured: true, delivered: after, total: docs.length };
+}
+
+/**
+ * Entrega el manifiesto de datos del comercio (razón social, NIT, contacto,
+ * cuenta bancaria) como JSON en la carpeta del comercio. Es la data
+ * estructurada que Kushki necesita junto a los documentos KYC — antes iba por
+ * la API de partner; ahora viaja por SFTP con el resto. Nombre fijo para que
+ * un re-envío sobrescriba. Best-effort: no lanza.
+ */
+export async function deliverOnboardingManifest(
+  restaurantId: string,
+  manifest: Record<string, unknown>,
+): Promise<boolean> {
+  if (!sftpConfigured()) return false;
+  const r = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { name: true },
+  });
+  const folder = folderNameForRestaurant(r?.name);
+  try {
+    const data = Buffer.from(JSON.stringify(manifest, null, 2), "utf8");
+    await uploadFileToSftp({ folder, fileName: "datos-comercio.json", data });
+    console.log(`[onboarding/sftp] manifest delivered → ${folder}/datos-comercio.json`);
+    return true;
+  } catch (err) {
+    console.error(
+      "[onboarding/sftp] manifest failed",
+      err instanceof Error ? err.message.slice(0, 200) : err,
+    );
+    return false;
   }
 }

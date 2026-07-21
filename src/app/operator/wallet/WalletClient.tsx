@@ -47,6 +47,7 @@ export function WalletClient({
   } | null>(null);
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
   const [disperseOpen, setDisperseOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [policy, setPolicy] = useState<AutoPolicy>(initialPolicy);
   const [savingPolicy, setSavingPolicy] = useState(false);
 
@@ -140,6 +141,14 @@ export function WalletClient({
             className="h-10 px-5 rounded-full bg-bone text-ink text-sm font-medium disabled:opacity-50"
           >
             {t("toBank")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTransferOpen(true)}
+            disabled={!balance || balance.availableCents <= 0}
+            className="h-10 px-5 rounded-full border border-bone/30 text-bone text-sm font-medium disabled:opacity-50"
+          >
+            {t("toOther")}
           </button>
           {bankLabel && (
             <span className="font-mono text-[10px] tracking-wider uppercase opacity-70 self-center">
@@ -257,6 +266,16 @@ export function WalletClient({
           }}
         />
       )}
+      {transferOpen && balance && (
+        <TransferSheet
+          maxCents={balance.availableCents}
+          onClose={() => setTransferOpen(false)}
+          onSuccess={() => {
+            setTransferOpen(false);
+            startTx(() => router.refresh());
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -335,6 +354,238 @@ function DisperseSheet({
             {t("disperseNote")}
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Transferir a OTRA cuenta (proveedor, empleado, etc.): banco del bankList
+ * de payouts, tipo/número de cuenta, documento y nombre del titular, monto.
+ * El resultado final de la transferencia llega por ciclo ACH.
+ */
+function TransferSheet({
+  maxCents,
+  onClose,
+  onSuccess,
+}: {
+  maxCents: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const t = useTranslations("opWallet");
+  const [banks, setBanks] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [banksErr, setBanksErr] = useState(false);
+  const [bankId, setBankId] = useState("");
+  const [accountType, setAccountType] = useState<"ahorros" | "corriente">("ahorros");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA">("CC");
+  const [docNumber, setDocNumber] = useState("");
+  const [holderName, setHolderName] = useState("");
+  const [amount, setAmount] = useState<number>(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/wallet/banks")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("banks"))))
+      .then((j) => {
+        if (alive) setBanks(j.banks as Array<{ id: string; name: string }>);
+      })
+      .catch(() => {
+        if (alive) setBanksErr(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const canSend =
+    !busy &&
+    bankId !== "" &&
+    accountNumber.trim().length >= 4 &&
+    docNumber.trim().length >= 4 &&
+    holderName.trim().length >= 3 &&
+    amount > 0 &&
+    amount <= maxCents;
+
+  async function go() {
+    if (!canSend) return;
+    setBusy(true);
+    setErr(null);
+    const bank = banks?.find((b) => b.id === bankId);
+    const res = await fetch("/api/operator/wallet/disperse", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        amountCents: amount,
+        destination: {
+          bankId,
+          bankName: bank?.name ?? bankId,
+          accountType,
+          accountNumber: accountNumber.trim(),
+          docType,
+          docNumber: docNumber.trim(),
+          holderName: holderName.trim(),
+        },
+      }),
+    });
+    setBusy(false);
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(j.message ?? j.error ?? t("disperseError"));
+      return;
+    }
+    setDone(typeof j.providerRef === "string" ? j.providerRef : "");
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/50 flex items-end md:items-center justify-center"
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        className="w-full md:max-w-md bg-bone text-ink rounded-t-3xl md:rounded-3xl max-h-[92dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-hairline flex items-center justify-between">
+          <div className="font-display text-xl">{t("toOther")}</div>
+          <button onClick={onClose} className="text-muted text-sm">
+            {t("close")}
+          </button>
+        </div>
+        {done !== null ? (
+          <div className="p-5 space-y-4">
+            <p className="text-sm">{t("transferInitiated")}</p>
+            {done && (
+              <div className="font-mono text-[11px] break-all text-muted">
+                {done}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onSuccess}
+              className="mp-btn mp-btn--primary mp-btn--block"
+            >
+              {t("close")}
+            </button>
+          </div>
+        ) : (
+          <div className="p-5 space-y-3">
+            <label className="block">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                {t("transferBank")}
+              </span>
+              {banksErr ? (
+                <div className="mt-1 text-xs text-danger">{t("banksError")}</div>
+              ) : (
+                <select
+                  value={bankId}
+                  onChange={(e) => setBankId(e.target.value)}
+                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
+                >
+                  <option value="">
+                    {banks === null ? t("loadingBanks") : t("chooseBank")}
+                  </option>
+                  {(banks ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                  {t("transferAccountType")}
+                </span>
+                <select
+                  value={accountType}
+                  onChange={(e) =>
+                    setAccountType(e.target.value as "ahorros" | "corriente")
+                  }
+                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
+                >
+                  <option value="ahorros">{t("accountSavings")}</option>
+                  <option value="corriente">{t("accountChecking")}</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                  {t("transferAccountNumber")}
+                </span>
+                <input
+                  inputMode="numeric"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm tabular"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                  {t("transferDocType")}
+                </span>
+                <select
+                  value={docType}
+                  onChange={(e) =>
+                    setDocType(e.target.value as "CC" | "CE" | "NIT" | "PA")
+                  }
+                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
+                >
+                  <option value="CC">{"CC"}</option>
+                  <option value="CE">{"CE"}</option>
+                  <option value="NIT">{"NIT"}</option>
+                  <option value="PA">{t("docPassport")}</option>
+                </select>
+              </label>
+              <label className="col-span-2 block">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                  {t("transferDocNumber")}
+                </span>
+                <input
+                  inputMode="numeric"
+                  value={docNumber}
+                  onChange={(e) => setDocNumber(e.target.value)}
+                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm tabular"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                {t("transferHolder")}
+              </span>
+              <input
+                value={holderName}
+                onChange={(e) => setHolderName(e.target.value)}
+                className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
+              />
+            </label>
+            <NumberField
+              label={t("amount")}
+              value={amount}
+              onChange={(v) => setAmount(Math.min(maxCents, v))}
+              hint={t("max", { amount: fmtCOP(maxCents) })}
+            />
+            {err && <div className="text-danger text-sm">{err}</div>}
+            <button
+              onClick={go}
+              disabled={!canSend}
+              className="mp-btn mp-btn--accent mp-btn--block"
+            >
+              {busy
+                ? t("processing")
+                : t("sendAmount", { amount: fmtCOP(amount) })}
+            </button>
+            <p className="text-[11px] text-muted-2 text-center">
+              {t("transferNote")}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

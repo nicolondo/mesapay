@@ -156,6 +156,16 @@ export function WalletClient({
             </span>
           )}
         </div>
+        {/* Botón deshabilitado sin explicación = botón "que no hace nada".
+            Sin cuenta registrada, decimos por qué y a dónde ir. */}
+        {!bankLabel && (
+          <p className="mt-2 text-[11px] opacity-70">
+            {t("noBankHint")}{" "}
+            <Link href="/operator/settings/pagos" className="underline">
+              {t("noBankHintLink")}
+            </Link>
+          </p>
+        )}
       </div>
 
       <section className="mb-8">

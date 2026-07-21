@@ -2414,6 +2414,8 @@
     "balanceError": "We couldn't load the balance ({code}).",
     "toBank": "Send to bank",
     "toOther": "Transfer to another account",
+    "noBankHint": "“Send to bank” needs your registered bank account.",
+    "noBankHintLink": "Register it in Settings → Payments",
     "transferBank": "Destination bank",
     "chooseBank": "Choose a bank…",
     "loadingBanks": "Loading banks…",

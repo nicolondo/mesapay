@@ -2414,6 +2414,8 @@
     "balanceError": "Não foi possível carregar o saldo ({code}).",
     "toBank": "Enviar para o banco",
     "toOther": "Transferir para outra conta",
+    "noBankHint": "“Enviar para o banco” precisa da sua conta bancária cadastrada.",
+    "noBankHintLink": "Cadastre em Configurações → Pagamentos",
     "transferBank": "Banco de destino",
     "chooseBank": "Escolha o banco…",
     "loadingBanks": "Carregando bancos…",

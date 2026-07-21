@@ -198,7 +198,11 @@ export type WalletMovement = {
 };
 
 export type DispersionRequest = {
+  /** Private key del sub-merchant (autentica el init del payout). */
   merchantId: string;
+  /** Public key del sub-merchant — el token y el bankList de Transfer Out
+   *  van con Public-Merchant-Id (mismo patrón que la tokenización de cobros). */
+  publicKey: string;
   amount: Money;
   bankInfo: BankInfo;
   reference?: string;

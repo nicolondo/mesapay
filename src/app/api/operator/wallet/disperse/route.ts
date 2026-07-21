@@ -34,10 +34,20 @@ export async function POST(req: Request) {
   }
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { kushkiMerchantId: true, bankInfo: true, kushkiMode: true, country: true },
+    select: {
+      kushkiMerchantId: true,
+      kushkiPublicKey: true,
+      bankInfo: true,
+      kushkiMode: true,
+      country: true,
+    },
   });
   if (!tenant?.kushkiMerchantId || !tenant.bankInfo) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
+  }
+  if (!tenant.kushkiPublicKey) {
+    // Transfer Out tokeniza con la clave PÚBLICA (igual que los cobros).
+    return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
   const privateKey = await getRestaurantPrivateKey(restaurantId);
   if (!privateKey) {
@@ -51,6 +61,7 @@ export async function POST(req: Request) {
     );
     const result = await provider.disburse({
       merchantId: privateKey,
+      publicKey: tenant.kushkiPublicKey,
       amount: { amountCents: parsed.data.amountCents, currency: await getCurrencyForCountry(tenant.country) },
       bankInfo,
       reference: `mp-${Date.now()}`,

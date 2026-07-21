@@ -16,8 +16,25 @@ const OG_DESC =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "MESAPAY",
-  description: "Ordena y paga desde tu mesa",
+  // SEO: title con template (las páginas hijas anteponen lo suyo) y
+  // description con las búsquedas reales del comprador (menú QR, carta
+  // digital, sistema para restaurantes). El H1 de la landing complementa.
+  title: {
+    default: "MESAPAY — Menú QR, pedidos y pagos para restaurantes",
+    template: "%s · MESAPAY",
+  },
+  description:
+    "Carta digital con QR para restaurantes en Colombia: tus clientes piden y pagan desde el celular, sin app. Cocina en vivo, propinas, facturación, inventario, nómina y contabilidad en un solo sistema.",
+  keywords: [
+    "menú QR restaurante",
+    "carta digital QR",
+    "pedidos y pagos QR",
+    "sistema para restaurantes Colombia",
+    "software restaurante",
+    "pagar en la mesa",
+    "POS restaurante",
+  ],
+  alternates: { canonical: "/" },
   applicationName: "MESAPAY",
   // Manifest genérico vía route handler (no la convención app/manifest.ts):
   // así los layouts de sección (/comercial, /mesero, …) lo overridean con su

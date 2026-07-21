@@ -28,8 +28,10 @@ import {
   BalanceResponseSchema,
   type BalanceResponse,
   MovementResponseSchema,
-  DispersionResponseSchema,
-  type DispersionResponse,
+  TransferOutInitSchema,
+  type TransferOutInit,
+  TransferOutTokenSchema,
+  type TransferOutToken,
 } from "./schemas";
 
 /**
@@ -392,25 +394,94 @@ export class LiveKushkiProvider implements PaymentProvider {
     return out;
   }
 
+  /**
+   * Dispersión (Transfer Out / payouts) según la doc real:
+   *   1. GET  /payouts/transfer/v1/bankList  (Public-Merchant-Id) → códigos
+   *   2. POST /payouts/transfer/v1/tokens    (Public-Merchant-Id) → token 30min
+   *   3. POST /payouts/transfer/v1/init      (Private-Merchant-Id) → INITIALIZED
+   * El resultado final (aprobada/rechazada) llega por webhook o Get Status.
+   * Montos en unidades mayores (pesos), como el resto de la API.
+   */
   async disburse(req: DispersionRequest): Promise<DispersionResult> {
-    const resp = await kushkiFetch<DispersionResponse>(`/wallet/v1/dispersions`, {
-      method: "POST",
-      auth: { kind: "submerchant", privateKey: req.merchantId },
+    // 1) Resolver el bankId: el onboarding guarda el NOMBRE del banco; la API
+    // exige el código del bankList de payouts. Match por nombre normalizado.
+    const banks = await kushkiFetch<
+      Array<{ code?: string; id?: string; name?: string }>
+    >(`/payouts/transfer/v1/bankList`, {
+      method: "GET",
+      auth: { kind: "submerchant_public", publicKey: req.publicKey },
       mode: this.mode,
-      body: {
-        amount: req.amount.amountCents,
-        currency: req.amount.currency,
-        bankInfo: req.bankInfo,
-        reference: req.reference,
-      },
-      schema: DispersionResponseSchema,
     });
+    const norm = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\bbanco\b/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    const want = norm(req.bankInfo.bankName);
+    const bank = (Array.isArray(banks) ? banks : []).find((b) => {
+      const n = norm(b.name ?? "");
+      return n !== "" && (n === want || n.includes(want) || want.includes(n));
+    });
+    if (!bank || !(bank.code ?? bank.id)) {
+      throw new Error(
+        `bank_not_resolved: "${req.bankInfo.bankName}" no coincide con ningún banco del bankList de payouts. Corregí el nombre del banco en la cuenta bancaria del comercio.`,
+      );
+    }
+
+    // 2) Token del payout (clave pública). Kushki: PA → PP para pasaporte.
+    const docType =
+      req.bankInfo.holderDocType === "PA" ? "PP" : req.bankInfo.holderDocType;
+    const tokenResp = await kushkiFetch<TransferOutToken>(
+      `/payouts/transfer/v1/tokens`,
+      {
+        method: "POST",
+        auth: { kind: "submerchant_public", publicKey: req.publicKey },
+        mode: this.mode,
+        body: {
+          documentType: docType,
+          documentNumber: req.bankInfo.holderDocNumber,
+          accountType: req.bankInfo.accountType === "corriente" ? "CC" : "CA",
+          accountNumber: req.bankInfo.accountNumber,
+          bankId: String(bank.code ?? bank.id),
+          totalAmount: req.amount.amountCents / 100,
+          currency: req.amount.currency,
+          name: req.bankInfo.holderName,
+          ...(req.reference ? { paymentDescription: req.reference } : {}),
+        },
+        schema: TransferOutTokenSchema,
+        // El token es de un solo uso: si el init falla no reintentamos acá —
+        // el caller decide. retries 0 evita quemar tokens en 5xx transitorios.
+        retries: 0,
+      },
+    );
+
+    // 3) Init (clave privada). Queda INITIALIZED; lo demás llega por webhook.
+    const init = await kushkiFetch<TransferOutInit>(
+      `/payouts/transfer/v1/init`,
+      {
+        method: "POST",
+        auth: { kind: "submerchant", privateKey: req.merchantId },
+        mode: this.mode,
+        body: {
+          token: tokenResp.token,
+          amount: {
+            subtotalIva: 0,
+            subtotalIva0: req.amount.amountCents / 100,
+            iva: 0,
+          },
+          ...(req.reference ? { metadata: { reference: req.reference } } : {}),
+        },
+        schema: TransferOutInitSchema,
+        retries: 0,
+      },
+    );
+
     return {
-      providerRef: resp.dispersionId,
-      status: resp.status,
-      estimatedSettlementAt: resp.estimatedSettlementAt
-        ? new Date(resp.estimatedSettlementAt)
-        : undefined,
+      providerRef:
+        init.transactionReference ?? init.ticketNumber ?? tokenResp.token,
+      status: "processing", // INITIALIZED — el resultado final llega async
     };
   }
 }

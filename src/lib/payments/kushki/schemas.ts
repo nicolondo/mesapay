@@ -85,12 +85,23 @@ export const MovementResponseSchema = z.object({
 });
 export type MovementResponse = z.infer<typeof MovementResponseSchema>;
 
-export const DispersionResponseSchema = z.object({
-  dispersionId: z.string(),
-  status: z.enum(["queued", "processing", "completed", "failed"]),
-  estimatedSettlementAt: z.string().optional(),
-});
-export type DispersionResponse = z.infer<typeof DispersionResponseSchema>;
+// Transfer Out (payouts): respuestas reales de la doc.
+//   POST /payouts/transfer/v1/tokens → 201 { token }
+//   POST /payouts/transfer/v1/init   → 201 { status: "INITIALIZED",
+//                                            ticketNumber, transactionReference }
+export const TransferOutTokenSchema = z
+  .object({ token: z.string() })
+  .passthrough();
+export type TransferOutToken = z.infer<typeof TransferOutTokenSchema>;
+
+export const TransferOutInitSchema = z
+  .object({
+    status: z.string().optional(),
+    ticketNumber: z.string().optional(),
+    transactionReference: z.string().optional(),
+  })
+  .passthrough();
+export type TransferOutInit = z.infer<typeof TransferOutInitSchema>;
 
 export const WebhookEventSchema = z.object({
   eventId: z.string(),

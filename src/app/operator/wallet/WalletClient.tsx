@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, groupThousands } from "@/lib/format";
 
 type Movement = {
   id: string;
@@ -246,11 +246,11 @@ export function WalletClient({
                 }
               />
               {policy.mode === "threshold" ? (
-                <NumberField
+                <MoneyField
                   label={t("thresholdPesos")}
-                  value={policy.thresholdCents ?? 500000}
-                  onChange={(v) =>
-                    savePolicy({ ...policy, thresholdCents: v })
+                  valueCents={policy.thresholdCents ?? 500000}
+                  onChangeCents={(cents) =>
+                    savePolicy({ ...policy, thresholdCents: cents })
                   }
                 />
               ) : (
@@ -346,10 +346,11 @@ function DisperseSheet({
           <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
             {t("destination", { bank: bankLabel })}
           </div>
-          <NumberField
+          <MoneyField
             label={t("amount")}
-            value={amount}
-            onChange={(v) => setAmount(Math.min(maxCents, v))}
+            valueCents={amount}
+            onChangeCents={setAmount}
+            maxCents={maxCents}
             hint={t("max", { amount: fmtCOP(maxCents) })}
           />
           {err && <div className="text-danger text-sm">{err}</div>}
@@ -575,10 +576,11 @@ function TransferSheet({
                 className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
               />
             </label>
-            <NumberField
+            <MoneyField
               label={t("amount")}
-              value={amount}
-              onChange={(v) => setAmount(Math.min(maxCents, v))}
+              valueCents={amount}
+              onChangeCents={setAmount}
+              maxCents={maxCents}
               hint={t("max", { amount: fmtCOP(maxCents) })}
             />
             {err && <div className="text-danger text-sm">{err}</div>}
@@ -652,27 +654,42 @@ function Select({
   );
 }
 
-function NumberField({
+/**
+ * Campo de monto en PESOS con separador de miles. Internamente el saldo se
+ * maneja en centavos (COP no tiene decimales ⇒ pesos × 100 = centavos), pero
+ * el operador escribe y ve pesos agrupados (150.000), no centavos crudos.
+ */
+function MoneyField({
   label,
-  value,
-  onChange,
+  valueCents,
+  onChangeCents,
+  maxCents,
   hint,
 }: {
   label: string;
-  value: number;
-  onChange: (v: number) => void;
+  valueCents: number;
+  onChangeCents: (cents: number) => void;
+  maxCents?: number;
   hint?: string;
 }) {
+  const cap = maxCents ?? Number.MAX_SAFE_INTEGER;
+  const pesos = Math.floor(valueCents / 100);
+  const display = pesos > 0 ? groupThousands(String(pesos)) : "";
   return (
     <label className="block">
       <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
         {label}
       </span>
       <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
-        className="mt-1 w-full h-10 px-3 rounded-lg border border-hairline bg-paper"
+        type="text"
+        inputMode="numeric"
+        value={display}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
+          const p = digits === "" ? 0 : Number(digits);
+          onChangeCents(Math.min(cap, p * 100));
+        }}
+        className="mt-1 w-full h-10 px-3 rounded-lg border border-hairline bg-paper tabular"
       />
       {hint && <span className="text-[11px] text-muted">{hint}</span>}
     </label>

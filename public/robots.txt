@@ -19,3 +19,6 @@ Allow: /
 
 User-agent: facebookcatalog
 Allow: /
+
+# Sitemap para buscadores (generado dinámicamente por la app).
+Sitemap: https://mesapay.co/sitemap.xml

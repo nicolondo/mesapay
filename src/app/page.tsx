@@ -45,6 +45,7 @@ export default async function Landing() {
 
   return (
     <div className="flex flex-1 flex-col bg-bone text-ink">
+      <SeoJsonLd />
       <SiteHeader demoSlug={demoTenant?.slug ?? null} />
       <Hero demoSlug={demoTenant?.slug ?? null} qrSvg={qrSvg} />
       <Marquee />
@@ -910,8 +911,58 @@ function LiveDemoStrip({
 
 /* ---------------- FAQ ---------------- */
 
-function Faq() {
-  const faqs = [
+/* ---------------- SEO: JSON-LD (schema.org) ---------------- */
+
+// Datos estructurados para rich results de Google: Organization (marca),
+// SoftwareApplication (producto con precio "desde") y FAQPage (las mismas
+// preguntas visibles en #preguntas — misma fuente FAQS, nunca desincronizado).
+function SeoJsonLd() {
+  const data = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "MESAPAY",
+      url: "https://mesapay.co",
+      logo: "https://mesapay.co/og.png",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "MESAPAY",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: "https://mesapay.co",
+      description:
+        "Carta digital con QR para restaurantes: pedidos y pagos desde el celular del cliente, cocina en vivo, facturación, inventario, nómina y contabilidad.",
+      offers: {
+        "@type": "Offer",
+        price: "250000",
+        priceCurrency: "COP",
+        description: "Mensualidad fija por local, desde $250.000 COP.",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQS.map((f) => ({
+        "@type": "Question",
+        name: f.q,
+        acceptedAnswer: { "@type": "Answer", text: f.a },
+      })),
+    },
+  ];
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+    />
+  );
+}
+
+// Compartido entre la sección FAQ y el JSON-LD (schema.org FAQPage): una
+// sola fuente para que los rich results de Google nunca se desincronicen
+// del contenido visible.
+const FAQS = [
     {
       q: "¿Mis clientes necesitan descargar una app?",
       a: "No. Escanean el QR de la mesa con la cámara y el menú abre en el navegador. Piden y pagan ahí mismo, sin instalar nada ni crear cuenta.",
@@ -932,7 +983,10 @@ function Faq() {
       q: "¿Cuánto me toma empezar?",
       a: "El registro toma minutos. Cargas tu menú (o lo importamos con IA desde una foto de tu carta), imprimes los QR de tus mesas y listo — la prueba de 14 días no pide tarjeta de crédito.",
     },
-  ];
+];
+
+function Faq() {
+  const faqs = FAQS;
   return (
     <section id="preguntas" className="py-20 md:py-28 bg-paper/60 border-y border-hairline">
       <div className="max-w-3xl mx-auto px-5 md:px-8">

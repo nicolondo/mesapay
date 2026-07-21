@@ -209,6 +209,26 @@ async function handleRealKushki(
     "error",
   ].includes(statusRaw);
 
+  // Eventos de SUSCRIPCIÓN de plataforma (el cobro mensual de MESAPAY al
+  // comercio) que Kushki manda a esta URL genérica: NO son pagos de
+  // comensales, así que no hay Payment que casar — ack 200 limpio en vez
+  // del warning "no pude casar el pago". La APLICACIÓN del cobro recurrente
+  // vive en /api/webhooks/kushki-subscription (configurar el "webhook card
+  // subscriptions" del merchant de plataforma hacia esa URL).
+  const kMeta = asObj(body.kushki_metadata);
+  const isSubscriptionEvent =
+    str(kMeta.origin) === "subscription" ||
+    meta.ksh_subscriptionValidation === true ||
+    (str(meta.platform) === "mesapay" &&
+      (body.planName !== undefined || body.periodicity !== undefined));
+  if (isSubscriptionEvent) {
+    console.log("[kushki/webhook] evento de suscripción de plataforma — ack", {
+      txRef: txRef || null,
+      statusRaw: statusRaw || null,
+    });
+    return NextResponse.json({ ok: true, subscription: true });
+  }
+
   // Sin ninguna referencia → ping de validación de la URL → 200.
   if (!paymentIdHint && !orderIdHint && !txRef) {
     console.log("[kushki/webhook] handshake / validación de URL — 200");

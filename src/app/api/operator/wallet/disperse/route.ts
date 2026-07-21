@@ -13,6 +13,19 @@ import type { BankInfo } from "@/lib/payments";
 
 const schema = z.object({
   amountCents: z.number().int().min(100),
+  // Transferencia a OTRA cuenta (proveedor, empleado, etc.). Ausente ⇒
+  // dispersión a la cuenta propia registrada en el onboarding.
+  destination: z
+    .object({
+      bankId: z.string().min(1).max(20),
+      bankName: z.string().min(2).max(120),
+      accountType: z.enum(["ahorros", "corriente"]),
+      accountNumber: z.string().min(4).max(34),
+      docType: z.enum(["CC", "CE", "NIT", "PA"]),
+      docNumber: z.string().min(4).max(20),
+      holderName: z.string().min(3).max(120),
+    })
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -42,7 +55,8 @@ export async function POST(req: Request) {
       country: true,
     },
   });
-  if (!tenant?.kushkiMerchantId || !tenant.bankInfo) {
+  // La cuenta propia sólo es requisito cuando NO hay destino custom.
+  if (!tenant?.kushkiMerchantId || (!parsed.data.destination && !tenant.bankInfo)) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
   }
   if (!tenant.kushkiPublicKey) {
@@ -53,7 +67,20 @@ export async function POST(req: Request) {
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
-  const bankInfo = tenant.bankInfo as unknown as BankInfo;
+  // Destino: la cuenta propia del onboarding, o la que el operador tipeó
+  // en "Transferir a otra cuenta" (con bankId directo del dropdown).
+  const dest = parsed.data.destination;
+  const bankInfo: BankInfo = dest
+    ? {
+        bankName: dest.bankName,
+        accountType: dest.accountType,
+        accountNumber: dest.accountNumber,
+        holderName: dest.holderName,
+        holderDocType: dest.docType,
+        holderDocNumber: dest.docNumber,
+        source: "manual",
+      }
+    : (tenant.bankInfo as unknown as BankInfo);
 
   try {
     const provider = await getPaymentProvider(
@@ -64,6 +91,7 @@ export async function POST(req: Request) {
       publicKey: tenant.kushkiPublicKey,
       amount: { amountCents: parsed.data.amountCents, currency: await getCurrencyForCountry(tenant.country) },
       bankInfo,
+      ...(dest ? { bankId: dest.bankId } : {}),
       reference: `mp-${Date.now()}`,
     });
     return NextResponse.json({

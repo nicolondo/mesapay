@@ -403,31 +403,37 @@ export class LiveKushkiProvider implements PaymentProvider {
    * Montos en unidades mayores (pesos), como el resto de la API.
    */
   async disburse(req: DispersionRequest): Promise<DispersionResult> {
-    // 1) Resolver el bankId: el onboarding guarda el NOMBRE del banco; la API
-    // exige el código del bankList de payouts. Match por nombre normalizado.
-    const banks = await kushkiFetch<
-      Array<{ code?: string; id?: string; name?: string }>
-    >(`/payouts/transfer/v1/bankList`, {
-      method: "GET",
-      auth: { kind: "submerchant_public", publicKey: req.publicKey },
-      mode: this.mode,
-    });
-    const norm = (s: string) =>
-      s
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\bbanco\b/g, "")
-        .replace(/[^a-z0-9]/g, "");
-    const want = norm(req.bankInfo.bankName);
-    const bank = (Array.isArray(banks) ? banks : []).find((b) => {
-      const n = norm(b.name ?? "");
-      return n !== "" && (n === want || n.includes(want) || want.includes(n));
-    });
-    if (!bank || !(bank.code ?? bank.id)) {
-      throw new Error(
-        `bank_not_resolved: "${req.bankInfo.bankName}" no coincide con ningún banco del bankList de payouts. Corregí el nombre del banco en la cuenta bancaria del comercio.`,
-      );
+    // 1) bankId: si el caller ya lo trae (transferencia a otra cuenta, banco
+    // elegido del dropdown) se usa directo. Si no (cuenta propia del
+    // onboarding, que guarda el NOMBRE del banco), se resuelve contra el
+    // bankList de payouts con match por nombre normalizado.
+    let bankId = req.bankId;
+    if (!bankId) {
+      const banks = await kushkiFetch<
+        Array<{ code?: string; id?: string; name?: string }>
+      >(`/payouts/transfer/v1/bankList`, {
+        method: "GET",
+        auth: { kind: "submerchant_public", publicKey: req.publicKey },
+        mode: this.mode,
+      });
+      const norm = (s: string) =>
+        s
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\bbanco\b/g, "")
+          .replace(/[^a-z0-9]/g, "");
+      const want = norm(req.bankInfo.bankName);
+      const bank = (Array.isArray(banks) ? banks : []).find((b) => {
+        const n = norm(b.name ?? "");
+        return n !== "" && (n === want || n.includes(want) || want.includes(n));
+      });
+      if (!bank || !(bank.code ?? bank.id)) {
+        throw new Error(
+          `bank_not_resolved: "${req.bankInfo.bankName}" no coincide con ningún banco del bankList de payouts. Corregí el nombre del banco en la cuenta bancaria del comercio.`,
+        );
+      }
+      bankId = String(bank.code ?? bank.id);
     }
 
     // 2) Token del payout (clave pública). Kushki: PA → PP para pasaporte.
@@ -444,7 +450,7 @@ export class LiveKushkiProvider implements PaymentProvider {
           documentNumber: req.bankInfo.holderDocNumber,
           accountType: req.bankInfo.accountType === "corriente" ? "CC" : "CA",
           accountNumber: req.bankInfo.accountNumber,
-          bankId: String(bank.code ?? bank.id),
+          bankId,
           totalAmount: req.amount.amountCents / 100,
           currency: req.amount.currency,
           name: req.bankInfo.holderName,

@@ -205,6 +205,9 @@ export type DispersionRequest = {
   publicKey: string;
   amount: Money;
   bankInfo: BankInfo;
+  /** Código del banco destino (bankList de payouts). Si viene, se usa
+   *  directo; si no, se resuelve por bankInfo.bankName (match por nombre). */
+  bankId?: string;
   reference?: string;
 };
 

@@ -437,6 +437,10 @@ export class LiveKushkiProvider implements PaymentProvider {
     }
 
     // 2) Token del payout (clave pública). Kushki: PA → PP para pasaporte.
+    // OJO: NO mandar `name`. Aunque la doc lo lista como opcional, si el
+    // cuerpo lo incluye Kushki responde PT001 "Cuerpo de la petición
+    // inválido" (verificado contra UAT: el mismo body con name → PT001,
+    // sin name → 201 token). El titular no viaja en el token.
     const docType =
       req.bankInfo.holderDocType === "PA" ? "PP" : req.bankInfo.holderDocType;
     const tokenResp = await kushkiFetch<TransferOutToken>(
@@ -453,7 +457,6 @@ export class LiveKushkiProvider implements PaymentProvider {
           bankId,
           totalAmount: req.amount.amountCents / 100,
           currency: req.amount.currency,
-          name: req.bankInfo.holderName,
           ...(req.reference ? { paymentDescription: req.reference } : {}),
         },
         schema: TransferOutTokenSchema,

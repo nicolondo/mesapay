@@ -481,6 +481,18 @@ export class LiveKushkiProvider implements PaymentProvider {
             iva: 0,
           },
           ...(req.reference ? { metadata: { reference: req.reference } } : {}),
+          // Notificación del resultado final directo a nuestra URL. Kushki:
+          // esto NO reemplaza los webhooks de consola, ambos canales reciben.
+          ...(req.webhookUrl
+            ? {
+                webhooks: [
+                  {
+                    events: ["approvedTransaction", "declinedTransaction"],
+                    urls: [req.webhookUrl],
+                  },
+                ],
+              }
+            : {}),
         },
         schema: TransferOutInitSchema,
         retries: 0,
@@ -490,6 +502,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     return {
       providerRef:
         init.transactionReference ?? init.ticketNumber ?? tokenResp.token,
+      ticketNumber: init.ticketNumber ?? undefined,
       status: "processing", // INITIALIZED — el resultado final llega async
     };
   }

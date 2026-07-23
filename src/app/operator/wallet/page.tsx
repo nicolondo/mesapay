@@ -67,6 +67,12 @@ export default async function WalletPage() {
     take: 50,
   });
 
+  const payouts = await db.payout.findMany({
+    where: { restaurantId },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+  });
+
   const bank =
     (tenant.bankInfo as Record<string, unknown> | null) ?? null;
   const bankLabel =
@@ -89,6 +95,18 @@ export default async function WalletPage() {
         balanceAfterCents: m.balanceAfterCents,
         description: m.description ?? "",
         occurredAt: m.occurredAt.toISOString(),
+      }))}
+      initialPayouts={payouts.map((p) => ({
+        id: p.id,
+        amountCents: p.amountCents,
+        toOwnAccount: p.toOwnAccount,
+        bankName: p.bankName,
+        accountType: p.accountType,
+        accountLast4: p.accountLast4,
+        holderName: p.holderName,
+        status: p.status,
+        responseText: p.responseText,
+        createdAt: p.createdAt.toISOString(),
       }))}
       initialPolicy={normalisePolicy(tenant.autoDispersePolicy)}
     />

@@ -10,6 +10,7 @@ import {
 } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import type { BankInfo } from "@/lib/payments";
+import { env } from "@/lib/env";
 
 const schema = z.object({
   amountCents: z.number().int().min(100),
@@ -82,6 +83,10 @@ export async function POST(req: Request) {
       }
     : (tenant.bankInfo as unknown as BankInfo);
 
+  const reference = `mp-${Date.now()}`;
+  const currency = await getCurrencyForCountry(tenant.country);
+  const baseUrl = env.APP_PUBLIC_BASE_URL ?? "https://mesapay.co";
+
   try {
     const provider = await getPaymentProvider(
       await getRestaurantKushkiMode(tenant),
@@ -89,18 +94,63 @@ export async function POST(req: Request) {
     const result = await provider.disburse({
       merchantId: privateKey,
       publicKey: tenant.kushkiPublicKey,
-      amount: { amountCents: parsed.data.amountCents, currency: await getCurrencyForCountry(tenant.country) },
+      amount: { amountCents: parsed.data.amountCents, currency },
       bankInfo,
       ...(dest ? { bankId: dest.bankId } : {}),
-      reference: `mp-${Date.now()}`,
+      reference,
+      webhookUrl: `${baseUrl}/api/webhooks/kushki-payout`,
     });
+
+    // Historial: registramos el Transfer Out iniciado. El webhook de payouts
+    // lo pasa a approved/declined. No guardamos el número de cuenta completo.
+    const payout = await db.payout.create({
+      data: {
+        restaurantId,
+        amountCents: parsed.data.amountCents,
+        currency,
+        toOwnAccount: !dest,
+        bankName: bankInfo.bankName,
+        bankId: dest?.bankId ?? null,
+        accountType: bankInfo.accountType,
+        accountLast4: bankInfo.accountNumber.slice(-4),
+        holderName: bankInfo.holderName,
+        status: "initialized",
+        providerRef: result.providerRef,
+        ticketNumber: result.ticketNumber ?? null,
+        reference,
+        createdByEmail: session.user.email ?? null,
+      },
+      select: { id: true },
+    });
+
     return NextResponse.json({
       ok: true,
+      payoutId: payout.id,
       providerRef: result.providerRef,
       status: result.status,
       estimatedSettlementAt: result.estimatedSettlementAt?.toISOString(),
     });
   } catch (err) {
+    // Registro informativo del intento fallido (no se pudo ni iniciar).
+    await db.payout
+      .create({
+        data: {
+          restaurantId,
+          amountCents: parsed.data.amountCents,
+          currency,
+          toOwnAccount: !dest,
+          bankName: bankInfo.bankName,
+          bankId: dest?.bankId ?? null,
+          accountType: bankInfo.accountType,
+          accountLast4: bankInfo.accountNumber.slice(-4),
+          holderName: bankInfo.holderName,
+          status: "failed",
+          reference,
+          responseText: err instanceof Error ? err.message.slice(0, 300) : null,
+          createdByEmail: session.user.email ?? null,
+        },
+      })
+      .catch(() => undefined);
     return NextResponse.json(
       {
         error: "disperse_failed",

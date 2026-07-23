@@ -209,11 +209,18 @@ export type DispersionRequest = {
    *  directo; si no, se resuelve por bankInfo.bankName (match por nombre). */
   bankId?: string;
   reference?: string;
+  /** URL absoluta a la que Kushki debe notificar el resultado final del
+   *  Transfer Out (approvedTransaction/declinedTransaction). Se manda en el
+   *  `webhooks` del init. Si se omite, sólo llegan los webhooks de consola. */
+  webhookUrl?: string;
 };
 
 export type DispersionResult = {
   providerRef: string;
   status: "queued" | "processing" | "completed" | "failed";
+  /** ticketNumber numérico de Kushki (segundo identificador para casar el
+   *  webhook, además de providerRef=transactionReference). */
+  ticketNumber?: string;
   estimatedSettlementAt?: Date;
 };
 

@@ -306,6 +306,7 @@ model Restaurant {
   kushkiDocuments        KushkiDocument[]
   kushkiTransactions     KushkiTransaction[]
   walletMovements        WalletMovement[]
+  payouts                Payout[]
   terminalDevices        TerminalDevice[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
@@ -2262,6 +2263,49 @@ model WalletMovement {
 
   @@unique([restaurantId, kushkiRef])
   @@index([restaurantId, occurredAt])
+}
+
+enum PayoutStatus {
+  initialized // Transfer Out iniciado (INITIALIZED de Kushki), aún sin liquidar
+  approved // acreditado (webhook approvedTransaction)
+  declined // rechazado por el banco (webhook declinedTransaction)
+  failed // no se pudo ni iniciar (error de token/init) — registro informativo
+}
+
+/// Transfer Out (dispersión / retiro) que el comercio inicia desde la
+/// billetera: hacia su propia cuenta del onboarding o hacia una cuenta de
+/// terceros. Nace `initialized` en el init y lo actualiza el webhook de
+/// payouts a approved/declined. El número de cuenta NO se guarda completo
+/// (solo los últimos 4) — es PII y no hace falta para el historial.
+model Payout {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  amountCents Int
+  currency    String @default("COP")
+
+  // Destino
+  toOwnAccount Boolean @default(false) // true = cuenta propia registrada
+  bankName     String
+  bankId       String?
+  accountType  String // "ahorros" | "corriente"
+  accountLast4 String
+  holderName   String
+
+  status       PayoutStatus @default(initialized)
+  providerRef  String? // transactionReference (uuid) de Kushki
+  ticketNumber String? // ticketNumber numérico de Kushki
+  reference    String? // nuestra referencia (mp-<ts>)
+  responseText String? // mensaje de Kushki al liquidar (aprobada/rechazo)
+
+  createdByEmail String?
+  settledAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([providerRef])
+  @@index([ticketNumber])
 }
 
 model TerminalDevice {

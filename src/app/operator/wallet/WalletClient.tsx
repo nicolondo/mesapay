@@ -15,6 +15,19 @@ type Movement = {
   occurredAt: string;
 };
 
+type Payout = {
+  id: string;
+  amountCents: number;
+  toOwnAccount: boolean;
+  bankName: string;
+  accountType: string;
+  accountLast4: string;
+  holderName: string;
+  status: "initialized" | "approved" | "declined" | "failed";
+  responseText: string | null;
+  createdAt: string;
+};
+
 type AutoPolicy =
   | { enabled: false }
   | {
@@ -30,12 +43,14 @@ export function WalletClient({
   onboarded,
   bankLabel,
   initialMovements,
+  initialPayouts,
   initialPolicy,
 }: {
   tenantName: string;
   onboarded: boolean;
   bankLabel: string | null;
   initialMovements: Movement[];
+  initialPayouts: Payout[];
   initialPolicy: AutoPolicy;
 }) {
   const t = useTranslations("opWallet");
@@ -167,6 +182,46 @@ export function WalletClient({
           </p>
         )}
       </div>
+
+      {initialPayouts.length > 0 && (
+        <section className="mb-8">
+          <div className="font-display text-xl mb-3">{t("payoutsTitle")}</div>
+          <ul className="divide-y divide-op-border border-y border-op-border">
+            {initialPayouts.map((p) => (
+              <li
+                key={p.id}
+                className="py-3 flex items-center justify-between gap-4"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm truncate">
+                    {p.bankName} ·{" "}
+                    <span className="font-mono tabular">
+                      {"•••• "}
+                      {p.accountLast4}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                    {p.toOwnAccount ? t("payoutToOwn") : p.holderName} ·{" "}
+                    {new Date(p.createdAt).toLocaleString("es-CO")}
+                  </div>
+                  {p.responseText &&
+                    (p.status === "declined" || p.status === "failed") && (
+                      <div className="text-[11px] text-danger mt-0.5 truncate">
+                        {p.responseText}
+                      </div>
+                    )}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-mono tabular text-sm">
+                    −{fmtCOP(p.amountCents)}
+                  </div>
+                  <PayoutStatusChip status={p.status} t={t} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mb-8">
         <div className="font-display text-xl mb-3">{t("movements")}</div>
@@ -600,6 +655,32 @@ function TransferSheet({
         )}
       </div>
     </div>
+  );
+}
+
+function PayoutStatusChip({
+  status,
+  t,
+}: {
+  status: Payout["status"];
+  t: (key: string) => string;
+}) {
+  const map: Record<Payout["status"], { cls: string; key: string }> = {
+    initialized: { cls: "bg-amber-100 text-amber-800", key: "payoutInitialized" },
+    approved: { cls: "bg-ok/15 text-ok", key: "payoutApproved" },
+    declined: { cls: "bg-danger/15 text-danger", key: "payoutDeclined" },
+    failed: { cls: "bg-op-border text-op-muted", key: "payoutFailed" },
+  };
+  const { cls, key } = map[status];
+  return (
+    <span
+      className={
+        "inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium " +
+        cls
+      }
+    >
+      {t(key)}
+    </span>
   );
 }
 

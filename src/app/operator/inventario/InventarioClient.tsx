@@ -162,6 +162,12 @@ export function InventarioClient({
   const [cat, setCat] = useState<string>("all");
   // Filtro "bajo mínimo" (A4·D3) — lo activan el chip y el banner contador.
   const [lowOnly, setLowOnly] = useState(false);
+  // Filtro "con existencias" — esconde los saldos en 0 (ruido en bodegas
+  // con catálogo grande) y orden elegido por el operador.
+  const [stockedOnly, setStockedOnly] = useState(false);
+  const [sort, setSort] = useState<
+    "name" | "qtyDesc" | "qtyAsc" | "valueDesc" | "avgDesc"
+  >("name");
   const [sheet, setSheet] = useState<SheetMode | null>(null);
 
   // Historial — se carga perezoso al abrir el tab; null = sin cargar (un
@@ -186,8 +192,9 @@ export function InventarioClient({
 
   const filtered = useMemo(() => {
     const needle = fold(q.trim());
-    return rows.filter((r) => {
+    const out = rows.filter((r) => {
       if (lowOnly && !isLowStock(r)) return false;
+      if (stockedOnly && (r.stockLevel?.qtyBase ?? 0) === 0) return false;
       if (cat !== "all" && r.category !== cat) return false;
       if (needle) {
         const hay = fold(`${r.name} ${r.category ?? ""}`);
@@ -195,7 +202,22 @@ export function InventarioClient({
       }
       return true;
     });
-  }, [rows, q, cat, lowOnly]);
+    if (sort === "name") return out; // ya viene A→Z del server
+    // Costo unitario comparable entre kinds: valor/cantidad base (el factor
+    // de símbolo es constante por fila, no cambia el orden relativo).
+    const qty = (r: StockRow) => r.stockLevel?.qtyBase ?? 0;
+    const val = (r: StockRow) => r.stockLevel?.totalValueCents ?? 0;
+    const avg = (r: StockRow) => (qty(r) > 0 ? val(r) / qty(r) : -1);
+    const cmp: Record<Exclude<typeof sort, "name">, (a: StockRow, b: StockRow) => number> = {
+      qtyDesc: (a, b) => qty(b) - qty(a),
+      qtyAsc: (a, b) => qty(a) - qty(b),
+      valueDesc: (a, b) => val(b) - val(a),
+      avgDesc: (a, b) => avg(b) - avg(a),
+    };
+    return [...out].sort(
+      (a, b) => cmp[sort](a, b) || a.name.localeCompare(b.name),
+    );
+  }, [rows, q, cat, lowOnly, stockedOnly, sort]);
 
   const lowCount = useMemo(() => rows.filter(isLowStock).length, [rows]);
 
@@ -405,6 +427,17 @@ export function InventarioClient({
                   ))}
                 </select>
               )}
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as typeof sort)}
+                className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+              >
+                <option value="name">{t("sortName")}</option>
+                <option value="qtyDesc">{t("sortQtyDesc")}</option>
+                <option value="qtyAsc">{t("sortQtyAsc")}</option>
+                <option value="valueDesc">{t("sortValueDesc")}</option>
+                <option value="avgDesc">{t("sortAvgDesc")}</option>
+              </select>
               <button
                 type="button"
                 onClick={() => setLowOnly((v) => !v)}
@@ -412,6 +445,14 @@ export function InventarioClient({
                 className="mp-chip"
               >
                 {t("reorderLowBadge")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockedOnly((v) => !v)}
+                aria-pressed={stockedOnly}
+                className="mp-chip"
+              >
+                {t("stockedOnly")}
               </button>
             </div>
           </div>
@@ -500,7 +541,12 @@ export function InventarioClient({
                       </div>
                       <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
                         {[
-                          formatMoney(value, { currency, locale }),
+                          // "Total" explícito: es el valor de TODO el saldo
+                          // (cantidad × costo promedio), no un precio — sin
+                          // etiqueta se confundía con el costo unitario.
+                          t("stockTotalValue", {
+                            amount: formatMoney(value, { currency, locale }),
+                          }),
                           avg != null
                             ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
                             : null,

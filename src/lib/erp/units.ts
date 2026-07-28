@@ -103,6 +103,19 @@ export function toBaseQty(
 }
 
 /**
+ * Unidad de display que formatBaseQty elige para una cantidad: la grande
+ * (kg/L) a partir de 1000 base, si no la base (g/ml); count siempre "un".
+ * Exportada para que el COSTO unitario pueda rotularse en la MISMA unidad
+ * en que se muestra la existencia (133,8 kg → $/kg, no $/g).
+ */
+export function displayUnitFor(baseQty: number, kind: MeasureKind): DisplayUnit {
+  const units = DISPLAY_UNITS[kind];
+  const big = units[units.length - 1];
+  const useBig = big.factor > 1 && baseQty >= big.factor;
+  return useBig ? big : units[0];
+}
+
+/**
  * Formatea una cantidad en unidad base para mostrar, escalando a la unidad
  * grande cuando queda legible (2500 g → "2,5 kg"; 500 ml → "500 ml";
  * 24 un → "24 un"). Locale-aware para el separador decimal.
@@ -112,12 +125,7 @@ export function formatBaseQty(
   kind: MeasureKind,
   locale: string = "es",
 ): string {
-  const units = DISPLAY_UNITS[kind];
-  // Unidad más grande cuyo factor divide "legiblemente" la cantidad: usamos
-  // la grande a partir de 1000 base (1 kg / 1 L), si no la base.
-  const big = units[units.length - 1];
-  const useBig = big.factor > 1 && baseQty >= big.factor;
-  const unit = useBig ? big : units[0];
+  const unit = displayUnitFor(baseQty, kind);
   const value = baseQty / unit.factor;
   // Decimales según la unidad elegida (count "un" = 3; kg/L = 2; g/ml = 0).
   const maxFrac = unit.decimals ?? (unit.factor > 1 ? 2 : 0);

@@ -7,10 +7,9 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
-  BASE_SYMBOL_FACTOR,
-  BASE_UNIT_SYMBOL,
   DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
+  displayUnitFor,
   formatBaseQty,
   toBaseQty,
   type MeasureKind,
@@ -492,11 +491,10 @@ export function InventarioClient({
                 {filtered.map((r) => {
                   const qty = r.stockLevel?.qtyBase ?? 0;
                   const value = r.stockLevel?.totalValueCents ?? 0;
+                  const costUnit = displayUnitFor(qty, r.measureKind);
                   const avg =
                     qty > 0
-                      ? Math.round(
-                          (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
-                        )
+                      ? Math.round((value / qty) * costUnit.factor)
                       : null;
                   const low = isLowStock(r);
                   return (
@@ -557,7 +555,7 @@ export function InventarioClient({
                               amount: formatMoney(value, { currency, locale }),
                             }),
                             avg != null
-                              ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
+                              ? `${formatMoney(avg, { currency, locale })}/${costUnit.symbol}`
                               : null,
                           ]
                             .filter(Boolean)
@@ -642,11 +640,10 @@ export function InventarioClient({
                     {filtered.map((r) => {
                       const qty = r.stockLevel?.qtyBase ?? 0;
                       const value = r.stockLevel?.totalValueCents ?? 0;
+                      const costUnit = displayUnitFor(qty, r.measureKind);
                       const avg =
                         qty > 0
-                          ? Math.round(
-                              (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
-                            )
+                          ? Math.round((value / qty) * costUnit.factor)
                           : null;
                       const low = isLowStock(r);
                       return (
@@ -702,7 +699,7 @@ export function InventarioClient({
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-op-muted">
                             {avg != null
-                              ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
+                              ? `${formatMoney(avg, { currency, locale })}/${costUnit.symbol}`
                               : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium">

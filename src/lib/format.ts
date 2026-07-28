@@ -62,6 +62,11 @@ export function formatMoney(
   return new Intl.NumberFormat(localeTag(opts?.locale), {
     style: "currency",
     currency,
+    // "$ 229.499" y no "COP 229.499": en es-CO Intl ya usa "$", pero en
+    // en/pt antepone el código ISO — ruido visual (reporte del usuario).
+    // narrowSymbol unifica con fmtCOP ("$X") en toda la app. No hay
+    // ambigüedad COP/MXN: cada comercio ve una sola moneda (su país).
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: zeroDecimal ? 0 : 2,
     maximumFractionDigits: zeroDecimal ? 0 : 2,
   }).format(amount);

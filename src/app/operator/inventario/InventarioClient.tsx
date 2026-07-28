@@ -86,6 +86,17 @@ type CountItemRow = {
 
 type CountDetail = Omit<CountSummary, "_count"> & { items: CountItemRow[] };
 
+// Orden de la tabla de existencias: cada columna con sus dos direcciones.
+type StockSort =
+  | "name"
+  | "nameDesc"
+  | "qtyDesc"
+  | "qtyAsc"
+  | "valueDesc"
+  | "valueAsc"
+  | "avgDesc"
+  | "avgAsc";
+
 /** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
 function fold(s: string): string {
   return s
@@ -163,11 +174,11 @@ export function InventarioClient({
   // Filtro "bajo mínimo" (A4·D3) — lo activan el chip y el banner contador.
   const [lowOnly, setLowOnly] = useState(false);
   // Filtro "con existencias" — esconde los saldos en 0 (ruido en bodegas
-  // con catálogo grande) y orden elegido por el operador.
+  // con catálogo grande) y orden elegido por el operador. En desktop el
+  // orden se controla clickeando los encabezados de la tabla (toggle
+  // asc/desc); en móvil, con el select.
   const [stockedOnly, setStockedOnly] = useState(false);
-  const [sort, setSort] = useState<
-    "name" | "qtyDesc" | "qtyAsc" | "valueDesc" | "avgDesc"
-  >("name");
+  const [sort, setSort] = useState<StockSort>("name");
   const [sheet, setSheet] = useState<SheetMode | null>(null);
 
   // Historial — se carga perezoso al abrir el tab; null = sin cargar (un
@@ -208,11 +219,14 @@ export function InventarioClient({
     const qty = (r: StockRow) => r.stockLevel?.qtyBase ?? 0;
     const val = (r: StockRow) => r.stockLevel?.totalValueCents ?? 0;
     const avg = (r: StockRow) => (qty(r) > 0 ? val(r) / qty(r) : -1);
-    const cmp: Record<Exclude<typeof sort, "name">, (a: StockRow, b: StockRow) => number> = {
+    const cmp: Record<Exclude<StockSort, "name">, (a: StockRow, b: StockRow) => number> = {
+      nameDesc: (a, b) => b.name.localeCompare(a.name),
       qtyDesc: (a, b) => qty(b) - qty(a),
       qtyAsc: (a, b) => qty(a) - qty(b),
       valueDesc: (a, b) => val(b) - val(a),
+      valueAsc: (a, b) => val(a) - val(b),
       avgDesc: (a, b) => avg(b) - avg(a),
+      avgAsc: (a, b) => avg(a) - avg(b),
     };
     return [...out].sort(
       (a, b) => cmp[sort](a, b) || a.name.localeCompare(b.name),
@@ -429,14 +443,16 @@ export function InventarioClient({
               )}
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as typeof sort)}
-                className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
+                onChange={(e) => setSort(e.target.value as StockSort)}
+                className="md:hidden min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
               >
                 <option value="name">{t("sortName")}</option>
                 <option value="qtyDesc">{t("sortQtyDesc")}</option>
                 <option value="qtyAsc">{t("sortQtyAsc")}</option>
                 <option value="valueDesc">{t("sortValueDesc")}</option>
+                <option value="valueAsc">{t("sortValueAsc")}</option>
                 <option value="avgDesc">{t("sortAvgDesc")}</option>
+                <option value="avgAsc">{t("sortAvgAsc")}</option>
               </select>
               <button
                 type="button"
@@ -470,95 +486,235 @@ export function InventarioClient({
               {t("emptyFiltered")}
             </div>
           ) : (
-            <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-              {filtered.map((r) => {
-                const qty = r.stockLevel?.qtyBase ?? 0;
-                const value = r.stockLevel?.totalValueCents ?? 0;
-                // Promedio derivado (spec D3) — solo con saldo positivo.
-                // Costo por unidad BASE-SÍMBOLO (/g, /ml, /un): en count la
-                // base es la milésima, así que se escala por el factor y se
-                // redondea UNA vez a esa escala (no sobre el per-milésima).
-                const avg =
-                  qty > 0
-                    ? Math.round(
-                        (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
-                      )
-                    : null;
-                const low = isLowStock(r);
-                return (
-                  <div
-                    key={r.id}
-                    className="flex items-center gap-3 px-4 py-2.5 border-b border-op-border last:border-b-0"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
+            <>
+              {/* Móvil: lista compacta (dos líneas por fila). */}
+              <div className="md:hidden bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+                {filtered.map((r) => {
+                  const qty = r.stockLevel?.qtyBase ?? 0;
+                  const value = r.stockLevel?.totalValueCents ?? 0;
+                  const avg =
+                    qty > 0
+                      ? Math.round(
+                          (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
+                        )
+                      : null;
+                  const low = isLowStock(r);
+                  return (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-3 px-4 py-2.5 border-b border-op-border last:border-b-0"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={
+                              "text-sm font-medium truncate" +
+                              (r.active ? "" : " opacity-50")
+                            }
+                          >
+                            {r.name}
+                          </span>
+                          {!r.active && (
+                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
+                              {t("inactiveBadge")}
+                            </span>
+                          )}
+                          {low && (
+                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
+                              {t("reorderLowBadge")}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                          {[
+                            r.category ?? t("noCategory"),
+                            low && r.reorderPointBase != null
+                              ? t("reorderMinRef", {
+                                  qty: formatBaseQty(
+                                    r.reorderPointBase,
+                                    r.measureKind,
+                                    locale,
+                                  ),
+                                })
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div
                           className={
-                            "text-sm font-medium truncate" +
-                            (r.active ? "" : " opacity-50")
+                            "text-sm font-medium tabular-nums" +
+                            (qty < 0 ? " text-danger" : "")
                           }
                         >
-                          {r.name}
-                        </span>
-                        {!r.active && (
-                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                            {t("inactiveBadge")}
-                          </span>
-                        )}
-                        {low && (
-                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                            {t("reorderLowBadge")}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {[
-                          r.category ?? t("noCategory"),
-                          // Referencia del umbral ("mín. 2 kg") en filas
-                          // bajo mínimo, para leer el aviso sin abrir nada.
-                          low && r.reorderPointBase != null
-                            ? t("reorderMinRef", {
-                                qty: formatBaseQty(
-                                  r.reorderPointBase,
-                                  r.measureKind,
-                                  locale,
-                                ),
-                              })
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
+                          {formatBaseQty(qty, r.measureKind, locale)}
+                        </div>
+                        <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
+                          {[
+                            t("stockTotalValue", {
+                              amount: formatMoney(value, { currency, locale }),
+                            }),
+                            avg != null
+                              ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div
-                        className={
-                          "text-sm font-medium tabular-nums" +
-                          (qty < 0 ? " text-danger" : "")
+                  );
+                })}
+              </div>
+
+              {/* Desktop: tabla con columnas separadas y encabezados
+                  ordenables (click = alterna asc/desc en esa columna). */}
+              <div className="hidden md:block bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-op-bg">
+                    <tr>
+                      <SortableTh
+                        label={t("invColItem")}
+                        dir={
+                          sort === "name"
+                            ? "asc"
+                            : sort === "nameDesc"
+                              ? "desc"
+                              : null
                         }
-                      >
-                        {formatBaseQty(qty, r.measureKind, locale)}
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
-                        {[
-                          // "Total" explícito: es el valor de TODO el saldo
-                          // (cantidad × costo promedio), no un precio — sin
-                          // etiqueta se confundía con el costo unitario.
-                          t("stockTotalValue", {
-                            amount: formatMoney(value, { currency, locale }),
-                          }),
-                          avg != null
-                            ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        onClick={() =>
+                          setSort((s) => (s === "name" ? "nameDesc" : "name"))
+                        }
+                      />
+                      <SortableTh
+                        label={t("invColQty")}
+                        align="right"
+                        dir={
+                          sort === "qtyDesc"
+                            ? "desc"
+                            : sort === "qtyAsc"
+                              ? "asc"
+                              : null
+                        }
+                        onClick={() =>
+                          setSort((s) =>
+                            s === "qtyDesc" ? "qtyAsc" : "qtyDesc",
+                          )
+                        }
+                      />
+                      <SortableTh
+                        label={t("invColUnitCost")}
+                        align="right"
+                        dir={
+                          sort === "avgDesc"
+                            ? "desc"
+                            : sort === "avgAsc"
+                              ? "asc"
+                              : null
+                        }
+                        onClick={() =>
+                          setSort((s) =>
+                            s === "avgDesc" ? "avgAsc" : "avgDesc",
+                          )
+                        }
+                      />
+                      <SortableTh
+                        label={t("invColTotal")}
+                        align="right"
+                        dir={
+                          sort === "valueDesc"
+                            ? "desc"
+                            : sort === "valueAsc"
+                              ? "asc"
+                              : null
+                        }
+                        onClick={() =>
+                          setSort((s) =>
+                            s === "valueDesc" ? "valueAsc" : "valueDesc",
+                          )
+                        }
+                      />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const qty = r.stockLevel?.qtyBase ?? 0;
+                      const value = r.stockLevel?.totalValueCents ?? 0;
+                      const avg =
+                        qty > 0
+                          ? Math.round(
+                              (value / qty) * BASE_SYMBOL_FACTOR[r.measureKind],
+                            )
+                          : null;
+                      const low = isLowStock(r);
+                      return (
+                        <tr
+                          key={r.id}
+                          className="border-t border-op-border hover:bg-op-bg"
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={
+                                  "font-medium truncate" +
+                                  (r.active ? "" : " opacity-50")
+                                }
+                              >
+                                {r.name}
+                              </span>
+                              {!r.active && (
+                                <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
+                                  {t("inactiveBadge")}
+                                </span>
+                              )}
+                              {low && (
+                                <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
+                                  {t("reorderLowBadge")}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                              {[
+                                r.category ?? t("noCategory"),
+                                low && r.reorderPointBase != null
+                                  ? t("reorderMinRef", {
+                                      qty: formatBaseQty(
+                                        r.reorderPointBase,
+                                        r.measureKind,
+                                        locale,
+                                      ),
+                                    })
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          </td>
+                          <td
+                            className={
+                              "px-4 py-2.5 text-right tabular-nums font-medium" +
+                              (qty < 0 ? " text-danger" : "")
+                            }
+                          >
+                            {formatBaseQty(qty, r.measureKind, locale)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-op-muted">
+                            {avg != null
+                              ? `${formatMoney(avg, { currency, locale })}/${BASE_UNIT_SYMBOL[r.measureKind]}`
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                            {formatMoney(value, { currency, locale })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       ) : tab === "movements" ? (
@@ -1770,3 +1926,45 @@ function Field({
 
 const inputCls =
   "w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40";
+
+/**
+ * Encabezado de columna ordenable (tabla desktop de existencias): click
+ * alterna la dirección; la flecha marca la columna activa.
+ */
+function SortableTh({
+  label,
+  dir,
+  onClick,
+  align,
+}: {
+  label: string;
+  dir: "asc" | "desc" | null;
+  onClick: () => void;
+  align?: "right";
+}) {
+  return (
+    <th
+      aria-sort={
+        dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none"
+      }
+      className={
+        "px-4 py-2 font-mono text-[10px] tracking-wider uppercase text-op-muted font-normal" +
+        (align === "right" ? " text-right" : " text-left")
+      }
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className={
+          "inline-flex items-center gap-1 hover:text-op-text cursor-pointer" +
+          (dir ? " text-op-text" : "")
+        }
+      >
+        {label}
+        <span aria-hidden className={dir ? "" : "opacity-30"}>
+          {dir === "asc" ? "↑" : dir === "desc" ? "↓" : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}

@@ -26,7 +26,11 @@ function str(v: unknown): string {
 export async function POST(req: Request) {
   const raw = await req.text();
   if (!raw || raw.trim() === "") {
-    // Handshake / validación de URL.
+    // Handshake / validación de URL. Se loguea para que quede rastro en la
+    // app (los pings de Kushki al registrar la URL solo se veían en nginx).
+    console.log("[kushki/payout-webhook] handshake / validación de URL — 200", {
+      from: req.headers.get("x-forwarded-for") ?? "unknown",
+    });
     return NextResponse.json({ ok: true });
   }
 

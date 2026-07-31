@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import {
   addMonthsIso,
   applyRecurringCharge,
   markRecurringChargeFailed,
 } from "@/lib/billing/subscription";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { getBillingWebhookSecret } from "@/lib/platformConfig";
 
 /**
  * Listener de COBROS RECURRENTES de la suscripción (Kushki "Webhook card
@@ -57,8 +57,10 @@ function verifyBillingSignature(
   raw: string,
   parsed: Json,
   headers: Headers,
+  // Resuelto por el caller: DB (/admin/configuracion, cifrado) con fallback
+  // a env — ver getBillingWebhookSecret().
+  secret: string | null,
 ): { ok: boolean; reason: string; computed?: string } {
-  const secret = env.KUSHKI_BILLING_WEBHOOK_SECRET ?? env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) return { ok: false, reason: "no_secret" };
   const xId = headers.get("x-kushki-id");
   const provided = headers.get("x-kushki-signature");
@@ -139,11 +141,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // Firma. Con secret configurado es obligatoria; sin secret, bypass (pruebas).
-  const sig = verifyBillingSignature(raw, payload, req.headers);
+  // Firma. Con secret configurado (admin o env) es obligatoria; sin secret,
+  // bypass (pruebas).
+  const secret = await getBillingWebhookSecret();
+  const sig = verifyBillingSignature(raw, payload, req.headers, secret);
   if (sig.reason === "no_secret") {
     console.warn(
-      "[billing/webhook] sin KUSHKI_BILLING_WEBHOOK_SECRET — procesando sin verificar firma. Setealo en el VPS para producción.",
+      "[billing/webhook] sin secret de firma — procesando sin verificar. Configuralo en /admin/configuracion (o KUSHKI_BILLING_WEBHOOK_SECRET en el VPS).",
     );
   } else if (!sig.ok) {
     console.warn("[billing/webhook] firma inválida", {

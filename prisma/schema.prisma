@@ -475,6 +475,9 @@ model PlatformConfig {
   // Fallback: si están vacías, se leen de env KUSHKI_BILLING_PUBLIC_KEY / KUSHKI_BILLING_PRIVATE_KEY.
   kushkiBillingPublicKey     String?
   kushkiBillingPrivateKeyEnc String?
+  // Secret de firma del webhook de suscripciones (X-Kushki-Signature).
+  // Cifrado AES-GCM igual que la private key; editable desde /admin/configuracion.
+  kushkiBillingWebhookSecretEnc String?
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints

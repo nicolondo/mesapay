@@ -1,5 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import { getKushkiMode, getBillingCredentials } from "@/lib/platformConfig";
+import {
+  getKushkiMode,
+  getBillingCredentials,
+  getBillingWebhookSecret,
+} from "@/lib/platformConfig";
 import { db } from "@/lib/db";
 import { KushkiModeSwitcher } from "../KushkiModeSwitcher";
 import { KushkiBillingKeysCard } from "../KushkiBillingKeysCard";
@@ -19,9 +23,10 @@ const DATASETS: Record<string, { name: string; datasetSize: number }> = {
  */
 export default async function AdminConfiguracionPage() {
   const t = await getTranslations("opAdmin");
-  const [kushkiMode, billing] = await Promise.all([
+  const [kushkiMode, billing, webhookSecret] = await Promise.all([
     getKushkiMode(),
     getBillingCredentials(),
+    getBillingWebhookSecret(),
   ]);
 
   // Load country state (enabled + currency) for the card.
@@ -55,6 +60,7 @@ export default async function AdminConfiguracionPage() {
         <KushkiBillingKeysCard
           initialPublicKey={billing.publicKey}
           initialHasPrivateKey={billing.privateKey !== null}
+          initialHasWebhookSecret={webhookSecret !== null}
         />
       </section>
 

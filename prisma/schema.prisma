@@ -77,6 +77,12 @@ model Restaurant {
   kushkiPublicKey           String?
   kushkiPrivateKeyEnc       String?
   kushkiWebhookSecretEnc    String?
+  // Credenciales de Transfer Out (payouts/dispersiones). En PRODUCCIÓN Kushki
+  // entrega un par de llaves DISTINTO al de cobros/Transfer In. Regla: se usa
+  // este par sólo si AMBAS llaves están presentes; si no, fallback al par
+  // principal (UAT opera con un solo par). Private cifrada AES-GCM.
+  kushkiPayoutPublicKey     String?
+  kushkiPayoutPrivateKeyEnc String?
   // Business code del comercio en el Cloud Terminal API (datáfono físico
   // vía cloud). Lo carga el comercio desde Configuración → Datáfonos. Va
   // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth

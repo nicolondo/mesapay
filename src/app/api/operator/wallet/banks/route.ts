@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { kushkiFetch } from "@/lib/payments/kushki/client";
+import { getRestaurantPayoutCredentials } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,10 @@ export async function GET() {
     where: { id: restaurantId },
     select: { kushkiPublicKey: true, kushkiMode: true },
   });
-  if (!tenant?.kushkiPublicKey) {
+  // Llave pública de Transfer Out (par propio en producción; fallback al
+  // par principal — misma regla que la dispersión).
+  const payoutCreds = await getRestaurantPayoutCredentials(restaurantId);
+  if (!payoutCreds.publicKey) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
   }
   try {
@@ -35,8 +39,8 @@ export async function GET() {
       Array<{ code?: string; id?: string; name?: string }>
     >(`/payouts/transfer/v1/bankList`, {
       method: "GET",
-      auth: { kind: "submerchant_public", publicKey: tenant.kushkiPublicKey },
-      mode: await getRestaurantKushkiMode(tenant),
+      auth: { kind: "submerchant_public", publicKey: payoutCreds.publicKey },
+      mode: await getRestaurantKushkiMode(tenant ?? {}),
     });
     const banks = (Array.isArray(resp) ? resp : [])
       .map((b) => ({ id: String(b.code ?? b.id ?? ""), name: b.name ?? "" }))

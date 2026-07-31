@@ -6,7 +6,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import {
   getPaymentProvider,
-  getRestaurantPrivateKey,
+  getRestaurantPayoutCredentials,
 } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import type { BankInfo } from "@/lib/payments";
@@ -60,12 +60,10 @@ export async function POST(req: Request) {
   if (!tenant?.kushkiMerchantId || (!parsed.data.destination && !tenant.bankInfo)) {
     return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
   }
-  if (!tenant.kushkiPublicKey) {
-    // Transfer Out tokeniza con la clave PÚBLICA (igual que los cobros).
-    return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
-  }
-  const privateKey = await getRestaurantPrivateKey(restaurantId);
-  if (!privateKey) {
+  // Llaves de Transfer Out: en producción son un par DISTINTO al de cobros
+  // (fallback al par principal si no están configuradas — UAT usa uno solo).
+  const payoutCreds = await getRestaurantPayoutCredentials(restaurantId);
+  if (!payoutCreds.publicKey || !payoutCreds.privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
   // Destino: la cuenta propia del onboarding, o la que el operador tipeó
@@ -92,8 +90,8 @@ export async function POST(req: Request) {
       await getRestaurantKushkiMode(tenant),
     );
     const result = await provider.disburse({
-      merchantId: privateKey,
-      publicKey: tenant.kushkiPublicKey,
+      merchantId: payoutCreds.privateKey,
+      publicKey: payoutCreds.publicKey,
       amount: { amountCents: parsed.data.amountCents, currency },
       bankInfo,
       ...(dest ? { bankId: dest.bankId } : {}),

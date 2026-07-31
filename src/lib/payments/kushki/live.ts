@@ -15,7 +15,7 @@ import type {
   DispersionResult,
 } from "../types";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
-import { kushkiFetch } from "./client";
+import { kushkiFetch, KushkiHttpError } from "./client";
 import {
   pushPaymentToCloudTerminal,
   cancelCloudTerminalPayment,
@@ -342,15 +342,27 @@ export class LiveKushkiProvider implements PaymentProvider {
 
   async getBalance(merchantId: string): Promise<WalletBalance> {
     // Endpoint correcto de saldo del wallet (payouts / transfer-out).
-    const resp = await kushkiFetch<BalanceResponse>(
-      `/wallet/v1/merchant/balance`,
-      {
-        method: "GET",
-        auth: { kind: "submerchant", privateKey: merchantId },
-        mode: this.mode,
-        schema: BalanceResponseSchema,
-      },
-    );
+    let resp: BalanceResponse;
+    try {
+      resp = await kushkiFetch<BalanceResponse>(
+        `/wallet/v1/merchant/balance`,
+        {
+          method: "GET",
+          auth: { kind: "submerchant", privateKey: merchantId },
+          mode: this.mode,
+          schema: BalanceResponseSchema,
+        },
+      );
+    } catch (err) {
+      // WLT400 "El comercio no dispone de saldo en el Wallet": Kushki lo
+      // responde como 400 cuando el wallet aún no tiene fondos liquidados
+      // (comercio recién en producción). Semánticamente es saldo $0, no un
+      // error — sin esto la billetera muestra balance_failed en vez de $0.
+      if (err instanceof KushkiHttpError && err.body.includes("WLT400")) {
+        return { availableCents: 0, pendingCents: 0, currency: "COP" };
+      }
+      throw err;
+    }
     // Kushki devuelve el saldo en unidades mayores (pesos enteros en COP, igual
     // que en los charges); MESAPAY trabaja en centavos → ×100. No hay desglose
     // available/pending: todo `currentBalance` es disponible. `currency` suele

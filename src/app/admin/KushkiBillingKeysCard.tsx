@@ -21,9 +21,11 @@ import { useTranslations } from "next-intl";
 export function KushkiBillingKeysCard({
   initialPublicKey,
   initialHasPrivateKey,
+  initialHasWebhookSecret,
 }: {
   initialPublicKey: string | null;
   initialHasPrivateKey: boolean;
+  initialHasWebhookSecret: boolean;
 }) {
   const t = useTranslations("opAdmin");
   const router = useRouter();
@@ -32,6 +34,12 @@ export function KushkiBillingKeysCard({
   const [publicKey, setPublicKey] = useState(initialPublicKey ?? "");
   const [privateKey, setPrivateKey] = useState("");
   const [hasPrivateKey, setHasPrivateKey] = useState(initialHasPrivateKey);
+  // Secret de firma del webhook de suscripciones — write-only, igual que
+  // la private key.
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [hasWebhookSecret, setHasWebhookSecret] = useState(
+    initialHasWebhookSecret,
+  );
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -43,9 +51,12 @@ export function KushkiBillingKeysCard({
     const body: Record<string, string> = {};
     // Always send public key (may be empty string to clear)
     body.kushkiBillingPublicKey = publicKey.trim();
-    // Only send private key if the admin typed something
+    // Only send private key / webhook secret if the admin typed something
     if (privateKey.length > 0) {
       body.kushkiBillingPrivateKey = privateKey;
+    }
+    if (webhookSecret.length > 0) {
+      body.kushkiBillingWebhookSecret = webhookSecret;
     }
 
     const res = await fetch("/api/admin/platform-config", {
@@ -64,13 +75,16 @@ export function KushkiBillingKeysCard({
     const data = (await res.json()) as {
       kushkiBillingPublicKey: string | null;
       hasBillingPrivateKey: boolean;
+      hasBillingWebhookSecret: boolean;
     };
 
     setMsg({ kind: "ok", text: t("billingSaved") });
     // Update state from server response
     setPublicKey(data.kushkiBillingPublicKey ?? "");
     setHasPrivateKey(data.hasBillingPrivateKey);
-    setPrivateKey(""); // never keep private key in form after save
+    setHasWebhookSecret(data.hasBillingWebhookSecret);
+    setPrivateKey(""); // never keep secrets in the form after save
+    setWebhookSecret("");
 
     startTransition(() => router.refresh());
   }
@@ -124,6 +138,31 @@ export function KushkiBillingKeysCard({
           </label>
           <p className="mt-1 text-[11px] text-op-muted">
             {t("billingPrivateKeyHint")}
+          </p>
+        </div>
+
+        {/* Webhook signature secret — write-only, como la private key */}
+        <div>
+          <label className="block">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              {hasWebhookSecret
+                ? t("billingWebhookSecretLabelKeep")
+                : t("billingWebhookSecretLabel")}
+            </span>
+            <input
+              type="password"
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+              placeholder={
+                hasWebhookSecret
+                  ? t("billingWebhookSecretPlaceholderSet")
+                  : t("billingWebhookSecretPlaceholderEmpty")
+              }
+              className="mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:border-terracotta"
+            />
+          </label>
+          <p className="mt-1 text-[11px] text-op-muted">
+            {t("billingWebhookSecretHint")}
           </p>
         </div>
       </div>

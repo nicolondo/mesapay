@@ -150,16 +150,53 @@ export async function getBillingCredentials(): Promise<{
 }
 
 /**
+ * Secret de firma del webhook de suscripciones (X-Kushki-Signature).
+ * DB (cifrado) primero; fallback a env KUSHKI_BILLING_WEBHOOK_SECRET y al
+ * global KUSHKI_WEBHOOK_SECRET. null = sin configurar (el webhook procesa
+ * sin verificar firma y lo advierte en logs).
+ */
+export async function getBillingWebhookSecret(): Promise<string | null> {
+  try {
+    const row = await db.platformConfig.findUnique({
+      where: { id: "singleton" },
+      select: { kushkiBillingWebhookSecretEnc: true },
+    });
+    if (row?.kushkiBillingWebhookSecretEnc) {
+      try {
+        return decrypt(row.kushkiBillingWebhookSecretEnc);
+      } catch (err) {
+        console.error(
+          "[platformConfig] getBillingWebhookSecret: decrypt failed, falling back to env",
+          err,
+        );
+      }
+    }
+  } catch (err) {
+    console.error(
+      "[platformConfig] getBillingWebhookSecret: DB read failed, falling back to env",
+      err,
+    );
+  }
+  return (
+    env.KUSHKI_BILLING_WEBHOOK_SECRET ?? env.KUSHKI_WEBHOOK_SECRET ?? null
+  );
+}
+
+/**
  * Persiste las credenciales Kushki de cobro en el singleton.
  *
  * Reglas:
  *   - publicKey !== undefined → sobrescribir (string vacío = borrar).
- *   - privateKey es una cadena no-vacía → cifrar y sobrescribir.
- *   - privateKey undefined o vacío → NO tocar kushkiBillingPrivateKeyEnc
- *     (permite cambiar la public key sin re-ingresar la private).
+ *   - privateKey / webhookSecret con cadena no-vacía → cifrar y sobrescribir.
+ *   - privateKey / webhookSecret undefined o vacío → NO tocar el campo
+ *     (permite cambiar la public key sin re-ingresar los secretos).
  */
 export async function setBillingCredentials(
-  args: { publicKey?: string | null; privateKey?: string | null },
+  args: {
+    publicKey?: string | null;
+    privateKey?: string | null;
+    webhookSecret?: string | null;
+  },
   actorUserId: string | null,
 ): Promise<void> {
   const updateData: Record<string, unknown> = {
@@ -170,6 +207,11 @@ export async function setBillingCredentials(
   }
   if (args.privateKey && args.privateKey.trim().length > 0) {
     updateData.kushkiBillingPrivateKeyEnc = encrypt(args.privateKey.trim());
+  }
+  if (args.webhookSecret && args.webhookSecret.trim().length > 0) {
+    updateData.kushkiBillingWebhookSecretEnc = encrypt(
+      args.webhookSecret.trim(),
+    );
   }
 
   await db.platformConfig.upsert({
@@ -183,6 +225,9 @@ export async function setBillingCredentials(
       }),
       ...(args.privateKey && args.privateKey.trim().length > 0 && {
         kushkiBillingPrivateKeyEnc: encrypt(args.privateKey.trim()),
+      }),
+      ...(args.webhookSecret && args.webhookSecret.trim().length > 0 && {
+        kushkiBillingWebhookSecretEnc: encrypt(args.webhookSecret.trim()),
       }),
     },
     update: updateData,

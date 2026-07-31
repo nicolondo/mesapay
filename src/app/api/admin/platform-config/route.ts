@@ -5,6 +5,7 @@ import {
   getKushkiMode,
   setKushkiMode,
   getBillingCredentials,
+  getBillingWebhookSecret,
   setBillingCredentials,
   type KushkiMode,
 } from "@/lib/platformConfig";
@@ -23,6 +24,9 @@ const patchSchema = z.object({
   kushkiMode: z.enum(["mock", "sandbox", "production"]).optional(),
   kushkiBillingPublicKey: z.string().optional(),
   kushkiBillingPrivateKey: z.string().optional(),
+  // Secret de firma del webhook de suscripciones — write-only, como la
+  // private key: sólo se envía para (re)establecerlo, nunca se devuelve.
+  kushkiBillingWebhookSecret: z.string().optional(),
 });
 
 export async function GET() {
@@ -30,16 +34,18 @@ export async function GET() {
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const [kushkiMode, billing] = await Promise.all([
+  const [kushkiMode, billing, webhookSecret] = await Promise.all([
     getKushkiMode(),
     getBillingCredentials(),
+    getBillingWebhookSecret(),
   ]);
   return NextResponse.json({
     kushkiMode,
     kushkiBillingPublicKey: billing.publicKey,
     // hasBillingPrivateKey: true when a key is configured (DB or env).
-    // The private key itself is NEVER returned.
+    // The private key itself is NEVER returned. Ídem el webhook secret.
     hasBillingPrivateKey: billing.privateKey !== null,
+    hasBillingWebhookSecret: webhookSecret !== null,
   });
 }
 
@@ -78,12 +84,18 @@ export async function PATCH(req: Request) {
   const wantsPrivateKey =
     parsed.data.kushkiBillingPrivateKey !== undefined &&
     parsed.data.kushkiBillingPrivateKey.trim().length > 0;
+  const wantsWebhookSecret =
+    parsed.data.kushkiBillingWebhookSecret !== undefined &&
+    parsed.data.kushkiBillingWebhookSecret.trim().length > 0;
 
-  if (wantsPublicKey || wantsPrivateKey) {
+  if (wantsPublicKey || wantsPrivateKey || wantsWebhookSecret) {
     await setBillingCredentials(
       {
         ...(wantsPublicKey && { publicKey: parsed.data.kushkiBillingPublicKey }),
         ...(wantsPrivateKey && { privateKey: parsed.data.kushkiBillingPrivateKey }),
+        ...(wantsWebhookSecret && {
+          webhookSecret: parsed.data.kushkiBillingWebhookSecret,
+        }),
       },
       actorId,
     );
@@ -96,13 +108,17 @@ export async function PATCH(req: Request) {
     });
   }
 
-  // Return the updated state (never the private key).
-  const billing = await getBillingCredentials();
+  // Return the updated state (never the private key / secret).
+  const [billing, webhookSecret] = await Promise.all([
+    getBillingCredentials(),
+    getBillingWebhookSecret(),
+  ]);
   return NextResponse.json({
     ok: true,
     kushkiMode: parsed.data.kushkiMode ?? before,
     kushkiBillingPublicKey: billing.publicKey,
     hasBillingPrivateKey: billing.privateKey !== null,
+    hasBillingWebhookSecret: webhookSecret !== null,
   });
 }
 

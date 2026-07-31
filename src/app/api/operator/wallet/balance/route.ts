@@ -5,7 +5,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import {
   getPaymentProvider,
-  getRestaurantPrivateKey,
+  getRestaurantPayoutCredentials,
 } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 
@@ -40,15 +40,17 @@ export async function GET() {
       },
     );
   }
-  const privateKey = await getRestaurantPrivateKey(restaurantId);
-  if (!privateKey) {
+  // "Balance for Payouts" es de la familia Transfer Out: en producción
+  // autentica con el par de payout (fallback al principal si no está).
+  const payoutCreds = await getRestaurantPayoutCredentials(restaurantId);
+  if (!payoutCreds.privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
   try {
     const provider = await getPaymentProvider(
       await getRestaurantKushkiMode(tenant),
     );
-    const balance = await provider.getBalance(privateKey);
+    const balance = await provider.getBalance(payoutCreds.privateKey);
     return NextResponse.json({
       availableCents: balance.availableCents,
       pendingCents: balance.pendingCents,

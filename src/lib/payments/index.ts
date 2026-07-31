@@ -90,6 +90,42 @@ export async function getRestaurantPrivateKey(
 }
 
 /**
+ * Credenciales para Transfer Out (payouts/dispersiones). En PRODUCCIÓN
+ * Kushki entrega un par de llaves DISTINTO al de cobros/Transfer In.
+ * Regla: el par de payout se usa sólo si AMBAS llaves están configuradas;
+ * si falta cualquiera, fallback al par principal del comercio (UAT opera
+ * con un solo par). Se cargan en /admin/restaurants/[id]/pagos.
+ */
+export async function getRestaurantPayoutCredentials(
+  restaurantId: string,
+): Promise<{ publicKey: string | null; privateKey: string | null }> {
+  const r = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: {
+      kushkiPublicKey: true,
+      kushkiPayoutPublicKey: true,
+      kushkiPayoutPrivateKeyEnc: true,
+    },
+  });
+  if (r?.kushkiPayoutPublicKey && r.kushkiPayoutPrivateKeyEnc) {
+    try {
+      return {
+        publicKey: r.kushkiPayoutPublicKey,
+        privateKey: decrypt(r.kushkiPayoutPrivateKeyEnc),
+      };
+    } catch {
+      if (getKushkiModeSync() !== "mock") {
+        throw new Error("could not decrypt stored payout private key");
+      }
+    }
+  }
+  return {
+    publicKey: r?.kushkiPublicKey ?? null,
+    privateKey: await getRestaurantPrivateKey(restaurantId),
+  };
+}
+
+/**
  * Desencripta el webhook signing secret del comercio. Devuelve null si
  * el comercio no tiene secret configurado — el caller debe fallback al
  * KUSHKI_WEBHOOK_SECRET global (env) o rechazar el webhook según política.

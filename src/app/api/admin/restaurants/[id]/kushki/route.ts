@@ -16,6 +16,10 @@ const schema = z.object({
   // usando este secreto. Misma política que la private key: cifrada
   // at-rest, write-only en el form, "" explícito limpia el valor.
   webhookSecret: z.string().trim().max(500).nullable().optional(),
+  // Llaves de Transfer Out (payouts). En producción Kushki entrega un par
+  // DISTINTO al de cobros. Public visible; private misma política write-only.
+  payoutPublicKey: z.string().trim().max(500).nullable().optional(),
+  payoutPrivateKey: z.string().trim().max(500).nullable().optional(),
   // Modo Kushki por comercio. null = hereda el modo global de plataforma.
   // "" del form también se trata como null (heredar).
   kushkiMode: z
@@ -95,6 +99,35 @@ export async function PATCH(
     } else {
       try {
         data.kushkiPrivateKeyEnc = encrypt(parsed.data.privateKey);
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error: "encrypt_failed",
+            detail:
+              err instanceof Error
+                ? err.message.split("\n")[0]
+                : "missing MESAPAY_SECRET_KEY",
+          },
+          { status: 500 },
+        );
+      }
+    }
+  }
+  // Llaves de payout: la pública se sobrescribe si vino en el body ("" = null
+  // → vuelve el fallback al par principal); la privada, misma lógica que la
+  // private key principal.
+  if (parsed.data.payoutPublicKey !== undefined) {
+    data.kushkiPayoutPublicKey = parsed.data.payoutPublicKey || null;
+  }
+  if (
+    parsed.data.payoutPrivateKey !== undefined &&
+    parsed.data.payoutPrivateKey !== null
+  ) {
+    if (parsed.data.payoutPrivateKey.length === 0) {
+      data.kushkiPayoutPrivateKeyEnc = null;
+    } else {
+      try {
+        data.kushkiPayoutPrivateKeyEnc = encrypt(parsed.data.payoutPrivateKey);
       } catch (err) {
         return NextResponse.json(
           {

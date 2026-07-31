@@ -43,6 +43,9 @@ export function AdminPagosConfig({
     notes: string;
     hasPrivateKey: boolean;
     hasWebhookSecret: boolean;
+    // Llaves de Transfer Out (payouts) — par distinto en producción.
+    payoutPublicKey: string;
+    hasPayoutPrivateKey: boolean;
     // "" = heredar el modo global de plataforma.
     kushkiMode: string;
     // 3DS en pagos con tarjeta del comensal.
@@ -60,6 +63,10 @@ export function AdminPagosConfig({
   const [publicKey, setPublicKey] = useState(initial.publicKey);
   const [privateKey, setPrivateKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [payoutPublicKey, setPayoutPublicKey] = useState(
+    initial.payoutPublicKey,
+  );
+  const [payoutPrivateKey, setPayoutPrivateKey] = useState("");
   const [onboardingStatus, setOnboardingStatus] = useState<Status>(
     initial.onboardingStatus,
   );
@@ -87,6 +94,10 @@ export function AdminPagosConfig({
     // here means "clear the stored key"; undefined means "leave it alone".
     if (privateKey.length > 0) body.privateKey = privateKey;
     if (webhookSecret.length > 0) body.webhookSecret = webhookSecret;
+    // Payout: la pública siempre viaja ("" → null = fallback al par
+    // principal); la privada sólo si se tipeó algo.
+    body.payoutPublicKey = payoutPublicKey.trim() || null;
+    if (payoutPrivateKey.length > 0) body.payoutPrivateKey = payoutPrivateKey;
 
     const res = await fetch(
       `/api/admin/restaurants/${restaurantId}/kushki`,
@@ -105,6 +116,7 @@ export function AdminPagosConfig({
     setMsg({ kind: "ok", text: t("configSaved") });
     setPrivateKey(""); // never keep it in the form after save
     setWebhookSecret("");
+    setPayoutPrivateKey("");
     startTx(() => router.refresh());
   }
 
@@ -220,6 +232,36 @@ export function AdminPagosConfig({
               {t("clearWebhookSecret")}
             </button>
           )}
+        </div>
+        {/* Llaves de Transfer Out (payouts): par DISTINTO en producción.
+            Se usan sólo si ambas están; si no, fallback al par principal. */}
+        <Field
+          label={t("fieldPayoutPublicKey")}
+          value={payoutPublicKey}
+          onChange={setPayoutPublicKey}
+          mono
+          placeholder={t("payoutPublicKeyPlaceholder")}
+        />
+        <div>
+          <Field
+            label={
+              initial.hasPayoutPrivateKey
+                ? t("fieldPayoutPrivateKeyKeep")
+                : t("fieldPayoutPrivateKey")
+            }
+            value={payoutPrivateKey}
+            onChange={setPayoutPrivateKey}
+            type="password"
+            mono
+            placeholder={
+              initial.hasPayoutPrivateKey
+                ? t("privateKeyPlaceholderSet")
+                : t("privateKeyPlaceholderEmpty")
+            }
+          />
+          <p className="mt-1 text-[11px] text-op-muted">
+            {t("payoutKeysHint")}
+          </p>
         </div>
         <Select
           label={t("fieldOnboardingStatus")}

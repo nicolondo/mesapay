@@ -313,6 +313,8 @@ model Restaurant {
   kushkiTransactions     KushkiTransaction[]
   walletMovements        WalletMovement[]
   payouts                Payout[]
+  accountingConfig       AccountingConfig?
+  retentionConcepts      RetentionConcept[]
   terminalDevices        TerminalDevice[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
@@ -2779,12 +2781,51 @@ model JournalEntry {
   sourceRef    String?
   memo         String?
   status       String     @default("posted")
+  /// Número de comprobante consecutivo por comercio. Se asigna al CERRAR el
+  /// mes (los meses abiertos se regeneran y no pueden numerar en firme).
+  voucherNumber Int?
   createdAt    DateTime   @default(now())
 
   lines JournalLine[]
 
   @@unique([restaurantId, source, sourceRef])
   @@index([restaurantId, date])
+}
+
+/// Configuración contable del comercio (una fila por restaurante, perezosa).
+model AccountingConfig {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// Valor de la UVT en centavos (UVT 2026 = $52.374). Base de los umbrales
+  /// de retención. Editable por el contador cuando la DIAN la actualice.
+  uvtCents     Int        @default(5237400)
+  /// Último mes CERRADO ("YYYY-MM"). Los asientos de meses <= closedThrough
+  /// no se regeneran y sus comprobantes quedan numerados e inmutables.
+  closedThrough String?
+  /// Siguiente número de comprobante de la secuencia del comercio.
+  nextVoucherNumber Int   @default(1)
+  updatedAt    DateTime   @updatedAt
+}
+
+/// Concepto de retención del comercio (retefuente/reteIVA/reteICA) al estilo
+/// zenith: tarifa en basis points, base subtotal o impuesto, umbral en UVT
+/// (0 = siempre aplica) y cuenta PUC del pasivo. Se siembra un set estándar
+/// INACTIVO — el contador activa los que apliquen al régimen del comercio.
+model RetentionConcept {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  kind         String // retefuente | reteiva | reteica
+  name         String
+  rateBps      Int // 250 = 2,5% — sobre la base elegida
+  base         String     @default("subtotal") // subtotal | tax
+  thresholdUvt Int        @default(0)
+  accountCode  String // 236505 / 236705 / 236805
+  active       Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 /// Movimiento de un asiento: débito O crédito sobre una cuenta.

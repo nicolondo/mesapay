@@ -156,8 +156,163 @@ export function ImpuestosTab({
         </div>
       </Section>
 
+      <RetencionesConfigCard currency={currency} />
+
       <p className="text-[11px] text-op-muted">{t("fiscalDisclaimer")}</p>
     </div>
+  );
+}
+
+type RetConcept = {
+  id: string;
+  kind: string;
+  name: string;
+  rateBps: number;
+  base: string;
+  thresholdUvt: number;
+  accountCode: string;
+  active: boolean;
+};
+
+/**
+ * Conceptos de retención (retefuente/reteIVA/reteICA) del comercio + valor
+ * UVT. El contador activa los que apliquen; los activos alimentan la
+ * sugerencia automática en el formulario de compras.
+ */
+function RetencionesConfigCard({ currency }: { currency: string }) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [concepts, setConcepts] = useState<RetConcept[] | null>(null);
+  const [uvtCents, setUvtCents] = useState<number | null>(null);
+  const [uvtRaw, setUvtRaw] = useState("");
+  const [err, setErr] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/accounting/retenciones")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (!alive) return;
+        setConcepts(j.concepts as RetConcept[]);
+        setUvtCents(j.uvtCents as number);
+      })
+      .catch(() => {
+        if (alive) setErr(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function patch(body: Record<string, unknown>, busyKey: string) {
+    setBusyId(busyKey);
+    const r = await fetch("/api/operator/accounting/retenciones", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusyId(null);
+    if (!r.ok) {
+      setErr(true);
+      return;
+    }
+    const j = await r.json();
+    setConcepts(j.concepts as RetConcept[]);
+    setUvtCents(j.uvtCents as number);
+  }
+
+  async function saveUvt() {
+    const pesos = Number(uvtRaw.replace(/\D/g, ""));
+    if (!pesos) return;
+    await patch({ uvtCents: pesos * 100 }, "uvt");
+    setUvtRaw("");
+  }
+
+  const fmtRate = (c: RetConcept) =>
+    c.kind === "reteica"
+      ? t("retRatePerMil", { rate: (c.rateBps / 10).toLocaleString(locale) })
+      : t("retRatePct", { rate: (c.rateBps / 100).toLocaleString(locale) });
+
+  return (
+    <Section title={t("retTitle")}>
+      <div className="p-4 space-y-3">
+        <p className="text-xs text-op-muted">{t("retIntro")}</p>
+        {err ? (
+          <div className="text-sm text-danger">{t("errLoadFailed")}</div>
+        ) : concepts === null ? (
+          <div className="text-sm text-op-muted">{t("loadingEllipsis")}</div>
+        ) : (
+          <>
+            <div className="divide-y divide-op-border/60 border-y border-op-border/60">
+              {concepts.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">{c.name}</div>
+                    <div className="text-[11px] text-op-muted">
+                      {[
+                        fmtRate(c),
+                        c.base === "tax" ? t("retBaseTax") : t("retBaseSubtotal"),
+                        c.thresholdUvt > 0
+                          ? t("retThreshold", { uvt: c.thresholdUvt })
+                          : t("retNoThreshold"),
+                        c.accountCode,
+                      ].join(" · ")}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patch({ conceptId: c.id, active: !c.active }, c.id)
+                    }
+                    disabled={busyId === c.id}
+                    aria-pressed={c.active}
+                    className={
+                      "px-3 h-8 rounded-full text-xs font-medium shrink-0 border " +
+                      (c.active
+                        ? "bg-ok/15 text-ok border-ok/30"
+                        : "bg-op-bg text-op-muted border-op-border")
+                    }
+                  >
+                    {c.active ? t("retActive") : t("retInactive")}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-end gap-2">
+              <label className="block flex-1">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+                  {t("retUvtLabel", {
+                    current:
+                      uvtCents != null
+                        ? formatMoney(uvtCents, { currency, locale })
+                        : "…",
+                  })}
+                </span>
+                <input
+                  inputMode="numeric"
+                  value={uvtRaw}
+                  onChange={(e) => setUvtRaw(e.target.value)}
+                  placeholder={t("retUvtPlaceholder")}
+                  className="mt-1 w-full min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm tabular"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={saveUvt}
+                disabled={busyId === "uvt" || uvtRaw.trim() === ""}
+                className="mp-btn mp-btn--secondary mp-btn--sm px-4"
+              >
+                {t("save")}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Section>
   );
 }
 

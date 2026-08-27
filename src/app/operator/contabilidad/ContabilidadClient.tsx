@@ -6,6 +6,8 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
+import { ActivosTab } from "./ActivosTab";
+import { BancosTab } from "./BancosTab";
 import { DiarioTab } from "./DiarioTab";
 import { EstadosTab } from "./EstadosTab";
 import { ImpuestosTab } from "./ImpuestosTab";
@@ -255,7 +257,9 @@ type Tab =
   | "chart"
   | "diario"
   | "estados"
-  | "impuestos";
+  | "impuestos"
+  | "bancos"
+  | "activos";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
@@ -370,6 +374,8 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["diario", t("tabDiario")],
             ["estados", t("tabEstados")],
             ["impuestos", t("tabImpuestos")],
+            ["bancos", t("tabBancos")],
+            ["activos", t("tabActivos")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -387,7 +393,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
 
       {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por gastos/P&L/libros.
           El Plan de cuentas no es mensual, así que ahí se oculta. */}
-      {tab !== "chart" && (
+      {tab !== "chart" && tab !== "bancos" && tab !== "activos" && (
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -413,6 +419,10 @@ export function ContabilidadClient({ currency }: { currency: string }) {
 
       {tab === "chart" ? (
         <PlanCuentasTab />
+      ) : tab === "bancos" ? (
+        <BancosTab currency={currency} />
+      ) : tab === "activos" ? (
+        <ActivosTab currency={currency} />
       ) : tab === "diario" ? (
         <DiarioTab key={month} month={month} currency={currency} />
       ) : tab === "estados" ? (

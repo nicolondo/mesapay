@@ -2369,6 +2369,36 @@ function InvoiceReviewSheet({
     return { existing, toCreate: lines.length - existing };
   }, [lines]);
 
+  // Sugerir retenciones con los conceptos activos del comercio (base
+  // subtotal/IVA + umbrales UVT). Prellena los tres campos; el operador
+  // puede ajustar a mano después.
+  const [retSuggestBusy, setRetSuggestBusy] = useState(false);
+  async function suggestRetentions() {
+    setRetSuggestBusy(true);
+    try {
+      const r = await fetch("/api/operator/accounting/retenciones", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subtotalCents: totals.subtotalCents,
+          taxCents: totals.taxCents,
+        }),
+      });
+      if (r.ok) {
+        const j = (await r.json()) as {
+          retefuenteCents: number;
+          reteIvaCents: number;
+          reteIcaCents: number;
+        };
+        setRetefuentePesos(centsToPesosDigits(j.retefuenteCents) ?? "");
+        setReteIvaPesos(centsToPesosDigits(j.reteIvaCents) ?? "");
+        setReteIcaPesos(centsToPesosDigits(j.reteIcaCents) ?? "");
+      }
+    } finally {
+      setRetSuggestBusy(false);
+    }
+  }
+
   function updateLine(key: number, changes: Partial<InvoiceReviewLine>) {
     setLines((prev) =>
       prev.map((l) => (l.key === key ? { ...l, ...changes } : l)),
@@ -2755,8 +2785,22 @@ function InvoiceReviewSheet({
                 los prellena; el operador los verifica/corrige. INC suma,
                 retenciones restan al total a pagar. */}
             <div className="rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-              <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("invTaxOtherSection")}
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                  {t("invTaxOtherSection")}
+                </div>
+                {/* Sugerencia con los conceptos ACTIVOS del comercio (umbral
+                    UVT incluido) — Contabilidad → Impuestos → Retenciones. */}
+                <button
+                  type="button"
+                  onClick={suggestRetentions}
+                  disabled={retSuggestBusy || totals.subtotalCents <= 0}
+                  className="text-[11px] text-terracotta hover:underline disabled:opacity-40 shrink-0"
+                >
+                  {retSuggestBusy
+                    ? t("invTaxSuggesting")
+                    : t("invTaxSuggestRetentions")}
+                </button>
               </div>
               {(
                 [

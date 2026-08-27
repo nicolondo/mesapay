@@ -17,6 +17,7 @@ type Entry = {
   date: string;
   source: string;
   memo: string | null;
+  voucherNumber: number | null;
   lines: Line[];
 };
 
@@ -36,6 +37,10 @@ export function DiarioTab({
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Cierre de período: mes con candado = comprobantes numerados en firme.
+  const [monthClosed, setMonthClosed] = useState(false);
+  const [closedThrough, setClosedThrough] = useState<string | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
 
   // El componente se remonta por mes (key=month en el padre), así que el
   // estado ya arranca limpio — el efecto sólo hace fetch.
@@ -44,7 +49,10 @@ export function DiarioTab({
     fetch(`/api/operator/accounting/journal?month=${month}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
       .then((j) => {
-        if (alive) setEntries(j.entries as Entry[]);
+        if (!alive) return;
+        setEntries(j.entries as Entry[]);
+        setMonthClosed(Boolean(j.monthClosed));
+        setClosedThrough((j.closedThrough as string | null) ?? null);
       })
       .catch(() => {
         if (alive) setErr(true);
@@ -71,19 +79,77 @@ export function DiarioTab({
     setBusy(false);
   }
 
+  async function doClose(action: "close" | "reopen") {
+    if (
+      action === "close" &&
+      !window.confirm(t("closeConfirm", { month }))
+    ) {
+      return;
+    }
+    setCloseBusy(true);
+    const r = await fetch("/api/operator/accounting/close", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(
+        action === "close" ? { action, month } : { action },
+      ),
+    });
+    setCloseBusy(false);
+    if (!r.ok) {
+      setErr(true);
+      return;
+    }
+    const j = await r.json();
+    setClosedThrough((j.closedThrough as string | null) ?? null);
+    const ct = (j.closedThrough as string | null) ?? null;
+    setMonthClosed(ct != null && month <= ct);
+    // Refrescar para ver los números de comprobante recién asignados.
+    const jr = await fetch(`/api/operator/accounting/journal?month=${month}`);
+    if (jr.ok) {
+      const jj = await jr.json();
+      setEntries(jj.entries as Entry[]);
+    }
+  }
+
   const money = (c: number) => formatMoney(c, { currency, locale });
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-op-muted">{t("journalIntro")}</p>
-      <button
-        type="button"
-        onClick={generate}
-        disabled={busy}
-        className="mp-btn mp-btn--primary mp-btn--block"
-      >
-        {busy ? t("journalGenerating") : t("journalGenerate")}
-      </button>
+      {monthClosed ? (
+        <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm">
+            {t("monthClosedBadge", { month: closedThrough ?? month })}
+          </span>
+          <button
+            type="button"
+            onClick={() => doClose("reopen")}
+            disabled={closeBusy}
+            className="mp-btn mp-btn--ghost mp-btn--sm px-3 shrink-0"
+          >
+            {closeBusy ? t("closeWorking") : t("reopenMonth")}
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={generate}
+            disabled={busy}
+            className="mp-btn mp-btn--primary flex-1"
+          >
+            {busy ? t("journalGenerating") : t("journalGenerate")}
+          </button>
+          <button
+            type="button"
+            onClick={() => doClose("close")}
+            disabled={closeBusy || busy || entries === null || entries.length === 0}
+            className="mp-btn mp-btn--ghost px-4 shrink-0"
+          >
+            {closeBusy ? t("closeWorking") : t("closeMonth")}
+          </button>
+        </div>
+      )}
       {err ? (
         <div className="text-sm text-danger">{t("journalError")}</div>
       ) : entries === null ? (
@@ -102,7 +168,12 @@ export function DiarioTab({
                 className="rounded-2xl border border-op-border bg-op-surface overflow-hidden"
               >
                 <div className="flex items-center justify-between gap-2 border-b border-op-border bg-op-bg px-4 py-2">
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium min-w-0 truncate">
+                    {e.voucherNumber != null && (
+                      <span className="font-mono text-xs text-op-muted mr-2">
+                        {t("voucherNo", { n: e.voucherNumber })}
+                      </span>
+                    )}
                     {t(`jSource_${e.source}`)}
                   </span>
                   <span className="font-mono tabular text-xs text-op-muted">

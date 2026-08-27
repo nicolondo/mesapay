@@ -350,6 +350,7 @@ export type JournalEntryDto = {
   date: string;
   source: string;
   memo: string | null;
+  voucherNumber: number | null;
   lines: Array<{
     accountCode: string;
     accountName: string;
@@ -381,6 +382,7 @@ export async function loadJournalForMonth(
     date: e.date.toISOString(),
     source: e.source,
     memo: e.memo,
+    voucherNumber: e.voucherNumber,
     lines: e.lines
       .slice()
       .sort((a, b) => b.debitCents - a.debitCents)

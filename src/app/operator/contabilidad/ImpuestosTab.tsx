@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
 import type { Locale } from "@/i18n/config";
 
 type Tax = {
@@ -156,10 +157,249 @@ export function ImpuestosTab({
         </div>
       </Section>
 
+      <DeclaracionesCard month={month} currency={currency} />
+
+      <ExogenaCard month={month} currency={currency} />
+
       <RetencionesConfigCard currency={currency} />
 
       <p className="text-[11px] text-op-muted">{t("fiscalDisclaimer")}</p>
     </div>
+  );
+}
+
+type Filing = {
+  id: string;
+  form: string;
+  period: string;
+  declaredCents: number;
+  paidAt: string;
+};
+
+const FORM_KEYS: Record<string, string> = {
+  iva: "filingFormIva",
+  inc: "filingFormInc",
+  retefuente: "filingFormRetefuente",
+  ica: "filingFormIca",
+};
+
+/**
+ * Declaraciones y pagos de impuestos del año: registrar el pago crea el
+ * asiento (D cuenta del impuesto · C banco, fuente taxpay).
+ */
+function DeclaracionesCard({
+  month,
+  currency,
+}: {
+  month: string;
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const year = month.slice(0, 4);
+  const [filings, setFilings] = useState<Filing[] | null>(null);
+  const [form, setForm] = useState("iva");
+  const [amountPesos, setAmountPesos] = useState("");
+  const [paidDate, setPaidDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/operator/accounting/declaraciones?year=${year}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (alive) setFilings(j.filings as Filing[]);
+      })
+      .catch(() => {
+        if (alive) setFilings([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [year]);
+
+  const money = (c: number) => formatMoney(c, { currency, locale });
+
+  async function register() {
+    const declaredCents = Number(amountPesos.replace(/\D/g, "")) * 100;
+    if (!paidDate || declaredCents <= 0) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch("/api/operator/accounting/declaraciones", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ form, period: month, declaredCents, paidDate }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setMsg(
+        j.error === "already_filed"
+          ? t("filingAlready")
+          : j.error === "month_closed"
+            ? t("bankMonthClosed")
+            : t("errSaveFailed"),
+      );
+      return;
+    }
+    setMsg(t("filingRegistered"));
+    setAmountPesos("");
+    const lr = await fetch(`/api/operator/accounting/declaraciones?year=${year}`);
+    if (lr.ok) setFilings((await lr.json()).filings as Filing[]);
+  }
+
+  return (
+    <Section title={t("filingsTitle")}>
+      <div className="p-4 space-y-3">
+        <p className="text-xs text-op-muted">{t("filingsIntro")}</p>
+        <div className="grid grid-cols-3 gap-2">
+          <select
+            value={form}
+            onChange={(e) => setForm(e.target.value)}
+            aria-label={t("filingForm")}
+            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+          >
+            {Object.entries(FORM_KEYS).map(([v, k]) => (
+              <option key={v} value={v}>
+                {t(k)}
+              </option>
+            ))}
+          </select>
+          <MoneyInput
+            value={amountPesos}
+            onChange={setAmountPesos}
+            ariaLabel={t("filingAmount")}
+            placeholder={t("filingAmount")}
+            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm text-right"
+          />
+          <input
+            type="date"
+            value={paidDate}
+            onChange={(e) => setPaidDate(e.target.value)}
+            aria-label={t("filingPaidDate")}
+            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={register}
+          disabled={busy || !paidDate || amountPesos.trim() === ""}
+          className="mp-btn mp-btn--secondary mp-btn--block"
+        >
+          {busy ? t("saving") : t("filingRegister", { month })}
+        </button>
+        {msg && <p className="text-xs text-op-muted">{msg}</p>}
+        {filings && filings.length > 0 && (
+          <div className="divide-y divide-op-border/60 border-t border-op-border/60">
+            {filings.map((f) => (
+              <div
+                key={f.id}
+                className="flex items-center justify-between gap-3 py-1.5 text-sm"
+              >
+                <span className="min-w-0 truncate">
+                  {t(FORM_KEYS[f.form] ?? "filingFormIva")}{" "}
+                  <span className="font-mono text-xs text-op-muted">
+                    {f.period}
+                  </span>
+                </span>
+                <span className="font-mono tabular shrink-0">
+                  {money(f.declaredCents)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+type ExoIssue = { name: string; reason: string; pagoPesos: number };
+
+/** Exógena (formato 1001): resumen del año + descarga TXT + issues de NIT. */
+function ExogenaCard({
+  month,
+  currency,
+}: {
+  month: string;
+  currency: string;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const year = month.slice(0, 4);
+  const [data, setData] = useState<{
+    rowCount: number;
+    totalPagoPesos: number;
+    issues: ExoIssue[];
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/operator/accounting/exogena?year=${year}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (alive)
+          setData({
+            rowCount: (j.rows as unknown[]).length,
+            totalPagoPesos: j.totalPagoPesos as number,
+            issues: j.issues as ExoIssue[],
+          });
+      })
+      .catch(() => {
+        if (alive) setData({ rowCount: 0, totalPagoPesos: 0, issues: [] });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [year]);
+
+  const money = (pesos: number) =>
+    formatMoney(pesos * 100, { currency, locale });
+
+  return (
+    <Section title={t("exogenaTitle", { year })}>
+      <div className="p-4 space-y-3">
+        <p className="text-xs text-op-muted">{t("exogenaIntro")}</p>
+        {data === null ? (
+          <div className="text-sm text-op-muted">{t("loadingEllipsis")}</div>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between text-sm">
+              <span>
+                {t("exogenaSummary", { count: data.rowCount })}
+              </span>
+              <span className="font-mono tabular">
+                {money(data.totalPagoPesos)}
+              </span>
+            </div>
+            {data.issues.length > 0 && (
+              <div className="rounded-lg bg-danger/10 border border-danger/25 p-2.5 space-y-1">
+                <div className="text-xs font-medium text-danger">
+                  {t("exogenaIssues", { count: data.issues.length })}
+                </div>
+                {data.issues.slice(0, 6).map((i, idx) => (
+                  <div key={idx} className="text-[11px] text-op-muted truncate">
+                    {i.name}
+                    {" — "}
+                    {i.reason === "missing_nit"
+                      ? t("exogenaMissingNit")
+                      : t("exogenaInvalidNit")}
+                  </div>
+                ))}
+              </div>
+            )}
+            <a
+              href={`/api/operator/accounting/exogena?year=${year}&format=txt`}
+              download
+              className="mp-btn mp-btn--secondary mp-btn--block"
+            >
+              {t("exogenaDownload")}
+            </a>
+          </>
+        )}
+      </div>
+    </Section>
   );
 }
 

@@ -318,6 +318,9 @@ model Restaurant {
   bankStatementLines     BankStatementLine[]
   bankRecRules           BankRecRule[]
   fixedAssets            FixedAsset[]
+  taxFilings             TaxFiling[]
+  costCenters            CostCenter[]
+  budgets                Budget[]
   terminalDevices        TerminalDevice[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
@@ -2130,6 +2133,9 @@ model Expense {
   date        DateTime
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  // Centro de costos (opcional) — gasto por cocina/bar/salón/eventos.
+  costCenterId String?
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
   // Plantilla mensual (recurringDay 1-28, lo valida la API).
   recurring    Boolean @default(false)
@@ -2809,6 +2815,52 @@ model AccountingConfig {
   /// Siguiente número de comprobante de la secuencia del comercio.
   nextVoucherNumber Int   @default(1)
   updatedAt    DateTime   @updatedAt
+}
+
+/// Declaración/pago de un impuesto del período (IVA/INC/retefuente/ICA):
+/// registro del trámite + asiento del pago (D cuenta del impuesto · C banco).
+model TaxFiling {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  form          String // iva | inc | retefuente | ica
+  period        String // "YYYY-MM"
+  declaredCents Int
+  paidAt        DateTime
+  entryId       String? // asiento del pago (source taxpay)
+  notes         String?
+  createdAt     DateTime   @default(now())
+
+  @@index([restaurantId, period])
+}
+
+/// Centro de costos (cocina/bar/salón/eventos…). Se asigna a los gastos
+/// manuales para leer el gasto por centro.
+model CostCenter {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  expenses Expense[]
+
+  @@index([restaurantId])
+}
+
+/// Presupuesto mensual por grupo/cuenta PUC (prefijo): lo ejecutado del mes
+/// se compara sumando las líneas del libro cuyo código arranca con el prefijo.
+model Budget {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  year         Int
+  accountCode  String
+  monthlyCents Int
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([restaurantId, year, accountCode])
 }
 
 /// Línea de extracto bancario importada por CSV para conciliar: cada línea

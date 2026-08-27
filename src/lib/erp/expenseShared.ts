@@ -9,6 +9,7 @@ export const expenseBodySchema = z.object({
   amountCents: z.number().int().min(1).max(2_000_000_000),
   date: z.string().datetime(),
   supplierId: z.string().min(1).nullable().optional(),
+  costCenterId: z.string().min(1).nullable().optional(),
   recurring: z.boolean().optional(),
   recurringDay: z.number().int().min(1).max(28).nullable().optional(),
 });

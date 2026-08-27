@@ -36,12 +36,18 @@ export async function GET(req: Request) {
         date: { gte: range.from, lt: range.to },
       },
       orderBy: { date: "desc" },
-      include: { supplier: { select: { id: true, name: true } } },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        costCenter: { select: { id: true, name: true } },
+      },
     }),
     db.expense.findMany({
       where: { restaurantId: ctx.restaurantId, recurring: true },
       orderBy: { category: "asc" },
-      include: { supplier: { select: { id: true, name: true } } },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        costCenter: { select: { id: true, name: true } },
+      },
     }),
     db.expense.groupBy({
       by: ["category"],
@@ -75,6 +81,15 @@ export async function POST(req: Request) {
   if (!(await supplierOwned(b.supplierId, ctx.restaurantId))) {
     return NextResponse.json({ error: "supplier_not_found" }, { status: 400 });
   }
+  if (b.costCenterId) {
+    const cc = await db.costCenter.findFirst({
+      where: { id: b.costCenterId, restaurantId: ctx.restaurantId },
+      select: { id: true },
+    });
+    if (!cc) {
+      return NextResponse.json({ error: "invalid" }, { status: 400 });
+    }
+  }
   const session = await auth();
   const expense = await db.expense.create({
     data: {
@@ -84,11 +99,15 @@ export async function POST(req: Request) {
       amountCents: b.amountCents,
       date,
       supplierId: b.supplierId ?? null,
+      costCenterId: b.costCenterId ?? null,
       recurring: b.recurring,
       recurringDay: b.recurring ? b.recurringDay : null,
       createdById: session?.user?.id ?? null,
     },
-    include: { supplier: { select: { id: true, name: true } } },
+    include: {
+        supplier: { select: { id: true, name: true } },
+        costCenter: { select: { id: true, name: true } },
+      },
   });
   return NextResponse.json({ expense }, { status: 201 });
 }

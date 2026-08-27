@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
+import { PresupuestoTab } from "./PresupuestoTab";
 import { ActivosTab } from "./ActivosTab";
 import { BancosTab } from "./BancosTab";
 import { DiarioTab } from "./DiarioTab";
@@ -27,6 +28,8 @@ type ExpenseDto = {
   date: string;
   supplierId: string | null;
   supplier: SupplierRef | null;
+  costCenterId: string | null;
+  costCenter: { id: string; name: string } | null;
   recurring: boolean;
   /** 1-28 solo en plantillas (recurring: true). */
   recurringDay: number | null;
@@ -259,7 +262,8 @@ type Tab =
   | "estados"
   | "impuestos"
   | "bancos"
-  | "activos";
+  | "activos"
+  | "presupuesto";
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
@@ -376,6 +380,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["impuestos", t("tabImpuestos")],
             ["bancos", t("tabBancos")],
             ["activos", t("tabActivos")],
+            ["presupuesto", t("tabPresupuesto")],
           ] as [Tab, string][]
         ).map(([value, label]) => (
           <button
@@ -423,6 +428,8 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         <BancosTab currency={currency} />
       ) : tab === "activos" ? (
         <ActivosTab currency={currency} />
+      ) : tab === "presupuesto" ? (
+        <PresupuestoTab key={month} month={month} currency={currency} />
       ) : tab === "diario" ? (
         <DiarioTab key={month} month={month} currency={currency} />
       ) : tab === "estados" ? (
@@ -512,7 +519,9 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                             {formatDate(e.date, {
                               locale,
                               timeStyle: undefined,
-                            }) + (e.supplier ? ` · ${e.supplier.name}` : "")}
+                            }) +
+                              (e.supplier ? ` · ${e.supplier.name}` : "") +
+                              (e.costCenter ? ` · ${e.costCenter.name}` : "")}
                           </div>
                         </div>
                       </div>
@@ -1683,6 +1692,28 @@ function ExpenseSheet({
     expense ? isoToDateInput(expense.date) : todayDateInput(),
   );
   const [supplierId, setSupplierId] = useState(expense?.supplierId ?? "");
+  // Centros de costos (opcional): se cargan perezoso al abrir el sheet.
+  const [costCenterId, setCostCenterId] = useState(expense?.costCenterId ?? "");
+  const [centers, setCenters] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/accounting/centros")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (alive)
+          setCenters(
+            (j.centers as Array<{ id: string; name: string; active: boolean }>)
+              .filter((c) => c.active)
+              .map((c) => ({ id: c.id, name: c.name })),
+          );
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [recurring, setRecurring] = useState(expense?.recurring ?? false);
   const [dayRaw, setDayRaw] = useState(
     expense?.recurringDay != null ? String(expense.recurringDay) : "",
@@ -1747,6 +1778,7 @@ function ExpenseSheet({
       amountCents,
       date: dateInputToIso(date),
       supplierId: supplierId || null,
+      costCenterId: costCenterId || null,
       recurring,
       recurringDay: recurring ? day : null,
     };
@@ -1890,6 +1922,29 @@ function ExpenseSheet({
                   {t("createSupplierInline")}
                 </button>
               )}
+            </Field>
+          )}
+
+          {/* Centro de costos (opcional) — solo si el comercio creó alguno. */}
+          {(centers.length > 0 || costCenterId !== "") && (
+            <Field label={t("fieldCostCenter")}>
+              <select
+                value={costCenterId}
+                onChange={(e) => setCostCenterId(e.target.value)}
+                className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              >
+                <option value="">{t("noCostCenter")}</option>
+                {centers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                {costCenterId !== "" &&
+                  !centers.some((c) => c.id === costCenterId) &&
+                  expense?.costCenter && (
+                    <option value={costCenterId}>{expense.costCenter.name}</option>
+                  )}
+              </select>
             </Field>
           )}
 

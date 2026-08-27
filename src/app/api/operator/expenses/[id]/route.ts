@@ -58,6 +58,15 @@ export async function PATCH(
   ) {
     return NextResponse.json({ error: "supplier_not_found" }, { status: 400 });
   }
+  if (b.costCenterId != null) {
+    const cc = await db.costCenter.findFirst({
+      where: { id: b.costCenterId, restaurantId: ctx.restaurantId },
+      select: { id: true },
+    });
+    if (!cc) {
+      return NextResponse.json({ error: "invalid" }, { status: 400 });
+    }
+  }
 
   const expense = await db.expense.update({
     where: { id },
@@ -71,10 +80,16 @@ export async function PATCH(
       ...(b.supplierId !== undefined
         ? { supplierId: b.supplierId ?? null }
         : {}),
+      ...(b.costCenterId !== undefined
+        ? { costCenterId: b.costCenterId ?? null }
+        : {}),
       recurring,
       recurringDay: recurring ? recurringDay : null,
     },
-    include: { supplier: { select: { id: true, name: true } } },
+    include: {
+      supplier: { select: { id: true, name: true } },
+      costCenter: { select: { id: true, name: true } },
+    },
   });
   return NextResponse.json({ expense });
 }

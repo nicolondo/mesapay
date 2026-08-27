@@ -15,6 +15,7 @@ import {
   loadSalesBook,
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
+import { IVA_DESCONTABLE_CODE, ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
 
 type Line = { code: string; debit?: number; credit?: number; memo?: string };
@@ -93,9 +94,12 @@ async function buildMonthEntries(
       }),
     ]);
 
+  // IVA por TARIFA y dirección (árbol 2408 abierto en auxiliares): el IVA
+  // generado va al auxiliar de la tarifa del comercio — habilita armar el
+  // formulario 300 directo del libro. INC (restaurantes) va a 241205.
   const salesTaxCode =
     tax.sales.kind === "iva"
-      ? "240805"
+      ? ivaGeneradoCodeForPct(tax.sales.pct)
       : tax.sales.kind === "inc"
         ? "241205"
         : null;
@@ -145,7 +149,10 @@ async function buildMonthEntries(
     if (invDebit > 0 || t.ivaCents > 0) {
       const lines: Line[] = [];
       if (invDebit > 0) lines.push({ code: "143505", debit: invDebit });
-      if (t.ivaCents > 0) lines.push({ code: "240805", debit: t.ivaCents });
+      // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
+      // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
+      if (t.ivaCents > 0)
+        lines.push({ code: IVA_DESCONTABLE_CODE, debit: t.ivaCents });
       if (t.retefuenteCents > 0)
         lines.push({ code: "236505", credit: t.retefuenteCents });
       if (t.reteIvaCents > 0)

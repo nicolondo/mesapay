@@ -1,32 +1,56 @@
 import { db } from "@/lib/db";
-import { PUC_NIIF_G2, pucLevel, pucParentCode } from "./pucNiif";
+import {
+  DEMOTED_TO_PARENT,
+  PUC_NIIF_G2,
+  pucLevel,
+  pucParentCode,
+} from "./pucNiif";
 
 /**
  * Siembra el plan de cuentas base (PUC NIIF Grupo 2) para un comercio la
- * primera vez. Idempotente: si ya tiene cuentas, no hace nada. Se llama
- * perezosamente al abrir la vista de contabilidad (sin migración de datos).
+ * primera vez e incorpora las cuentas NUEVAS del catálogo a comercios ya
+ * sembrados. Idempotente y perezosa (se llama al abrir contabilidad).
+ *
+ * Diff por CÓDIGOS (no por count): un comercio con cuentas propias del
+ * contador puede superar el tamaño del catálogo y aun así faltarle cuentas
+ * nuevas. También degrada a agrupadora las subcuentas que el catálogo abrió
+ * por tarifa (DEMOTED_TO_PARENT) — sus movimientos históricos siguen válidos.
  */
 export async function ensureChartOfAccounts(
   restaurantId: string,
 ): Promise<void> {
-  // Idempotente: siembra la primera vez Y agrega cuentas nuevas del catálogo a
-  // comercios ya sembrados (el unique code evita duplicados). Cuando el
-  // comercio ya tiene todas las cuentas del catálogo, es sólo un count.
-  const count = await db.ledgerAccount.count({ where: { restaurantId } });
-  if (count >= PUC_NIIF_G2.length) return;
-  await db.ledgerAccount.createMany({
-    data: PUC_NIIF_G2.map((a) => ({
-      restaurantId,
-      code: a.code,
-      name: a.name,
-      type: a.type,
-      nature: a.nature,
-      level: pucLevel(a.code),
-      parentCode: pucParentCode(a.code),
-      postable: a.postable ?? false,
-    })),
-    skipDuplicates: true,
+  const existing = await db.ledgerAccount.findMany({
+    where: { restaurantId },
+    select: { code: true, postable: true },
   });
+  const byCode = new Map(existing.map((r) => [r.code, r]));
+
+  const missing = PUC_NIIF_G2.filter((a) => !byCode.has(a.code));
+  if (missing.length > 0) {
+    await db.ledgerAccount.createMany({
+      data: missing.map((a) => ({
+        restaurantId,
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        nature: a.nature,
+        level: pucLevel(a.code),
+        parentCode: pucParentCode(a.code),
+        postable: a.postable ?? false,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const demote = DEMOTED_TO_PARENT.filter(
+    (code) => byCode.get(code)?.postable === true,
+  );
+  if (demote.length > 0) {
+    await db.ledgerAccount.updateMany({
+      where: { restaurantId, code: { in: demote } },
+      data: { postable: false },
+    });
+  }
 }
 
 /** Mapa código→id de las cuentas del comercio (para armar asientos). */

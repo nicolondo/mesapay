@@ -315,6 +315,9 @@ model Restaurant {
   payouts                Payout[]
   accountingConfig       AccountingConfig?
   retentionConcepts      RetentionConcept[]
+  bankStatementLines     BankStatementLine[]
+  bankRecRules           BankRecRule[]
+  fixedAssets            FixedAsset[]
   terminalDevices        TerminalDevice[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
@@ -2806,6 +2809,59 @@ model AccountingConfig {
   /// Siguiente número de comprobante de la secuencia del comercio.
   nextVoucherNumber Int   @default(1)
   updatedAt    DateTime   @updatedAt
+}
+
+/// Línea de extracto bancario importada por CSV para conciliar: cada línea
+/// pendiente se contabiliza (asiento contra una cuenta elegida o por regla)
+/// o se ignora (ya registrada por otra vía). Positivo = abono, negativo = cargo.
+model BankStatementLine {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime
+  description  String
+  amountCents  Int
+  status       String     @default("pending") // pending | journalized | ignored
+  entryId      String? // JournalEntry creado desde esta línea
+  importBatch  String
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, date])
+}
+
+/// Regla de conciliación: si la descripción contiene `pattern` (sin
+/// mayúsculas/acentos), la línea se contabiliza contra `accountCode`.
+model BankRecRule {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  pattern      String
+  accountCode  String
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
+}
+
+/// Activo fijo con depreciación en línea recta mensual (estilo zenith): la
+/// depreciación arranca el MES SIGUIENTE al de compra; la cuota es
+/// (compra − salvamento) / vida, y el último mes absorbe el residuo de
+/// redondeo. El asiento mensual (516005 → 159205) lo genera el motor.
+model FixedAsset {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name             String
+  purchaseDate     DateTime
+  purchaseCents    Int
+  salvageCents     Int        @default(0)
+  usefulLifeMonths Int
+  assetAccountCode String     @default("152405")
+  active           Boolean    @default(true)
+  disposedAt       DateTime?
+  createdAt        DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 /// Concepto de retención del comercio (retefuente/reteIVA/reteICA) al estilo

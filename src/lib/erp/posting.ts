@@ -6,7 +6,7 @@
 // Las cuentas son las POSTABLES (subcuentas de 6 dígitos) del PUC NIIF sembrado.
 // El mapeo lo debe validar el contador.
 import { db } from "@/lib/db";
-import { embeddedTaxCents } from "./accounting";
+import { embeddedTaxCents, monthRange } from "./accounting";
 import {
   type MonthRange,
   computeMonthPnl,
@@ -15,6 +15,7 @@ import {
   loadSalesBook,
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
+import { depreciationForMonth } from "./activos";
 import { IVA_DESCONTABLE_CODE, ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
 
@@ -216,6 +217,22 @@ async function buildMonthEntries(
     }
   }
 
+  // 6b) DEPRECIACIÓN — cuota mensual de los activos fijos activos
+  // (línea recta, arranca el mes siguiente a la compra — ver erp/activos).
+  {
+    const dep = await depreciationForMonth(restaurantId, month);
+    if (dep > 0) {
+      entries.push({
+        source: "depreciation",
+        memo: "Depreciación del mes",
+        lines: [
+          { code: "516005", debit: dep },
+          { code: "159205", credit: dep },
+        ],
+      });
+    }
+  }
+
   // 6) NÓMINA — con corrida liquidada: asiento completo (devengados, aportes,
   // provisiones, retenciones y neto por pagar). Sin corrida: fallback simple
   // salario+recargos del P&L.
@@ -365,10 +382,16 @@ export async function loadJournalForMonth(
   restaurantId: string,
   month: string,
 ): Promise<JournalEntryDto[]> {
+  const range = monthRange(month);
   const [entries, accounts] = await Promise.all([
     db.journalEntry.findMany({
-      where: { restaurantId, sourceRef: month },
-      orderBy: [{ date: "asc" }, { source: "asc" }],
+      // Por FECHA (no por sourceRef): así el diario incluye también los
+      // asientos de conciliación bancaria (sourceRef = línea) y el cierre
+      // del ejercicio (sourceRef = año) fechados dentro del mes.
+      where: range
+        ? { restaurantId, date: { gte: range.from, lt: range.to } }
+        : { restaurantId, sourceRef: month },
+      orderBy: [{ date: "asc" }, { source: "asc" }, { createdAt: "asc" }],
       include: { lines: true },
     }),
     db.ledgerAccount.findMany({

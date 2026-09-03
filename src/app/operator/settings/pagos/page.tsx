@@ -22,6 +22,11 @@ export default async function KushkiOnboardingPage() {
       kushkiSubmittedAt: true,
       kushkiActivatedAt: true,
       bankInfo: true,
+      // Datos legales ya guardados (los llena el OCR del RUT en el primer
+      // envío). Sin esto el formulario arrancaba vacío en cada visita.
+      legalName: true,
+      taxId: true,
+      legalPhone: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -44,6 +49,11 @@ export default async function KushkiOnboardingPage() {
       initialBankInfo={
         tenant.bankInfo as Record<string, unknown> | null
       }
+      initialLegal={{
+        legalName: tenant.legalName,
+        taxId: tenant.taxId,
+        legalPhone: tenant.legalPhone,
+      }}
       initialDocuments={documents.map((d) => ({
         id: d.id,
         kind: d.kind,

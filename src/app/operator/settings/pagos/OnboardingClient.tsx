@@ -103,9 +103,26 @@ export function OnboardingClient({
   const t = useTranslations("opPagos");
   const router = useRouter();
   const [docs, setDocs] = useState<UploadedDoc[]>(initialDocuments);
-  const [bankInfo, setBankInfo] = useState<BankInfo>(() =>
-    normaliseBankInfo(initialBankInfo),
-  );
+  // Los datos bancarios sólo se PERSISTEN al enviar la solicitud, así que
+  // hasta entonces `initialBankInfo` viene null y la sección se veía vacía
+  // al recargar aunque el OCR ya hubiera leído la certificación. Igual que
+  // con los datos legales: si no hay nada guardado, se recupera lo que el
+  // OCR dejó en extractedFields del documento (marcándolo como ai_extracted
+  // para que la UI muestre el aviso de confianza).
+  const [bankInfo, setBankInfo] = useState<BankInfo>(() => {
+    if (initialBankInfo) return normaliseBankInfo(initialBankInfo);
+    const ex = initialDocuments.find(
+      (d) => d.kind === "bank_cert" && d.extractedFields,
+    )?.extractedFields as Record<string, unknown> | undefined;
+    if (!ex) return normaliseBankInfo(null);
+    const info = normaliseBankInfo(ex);
+    return {
+      ...info,
+      source: "ai_extracted",
+      aiConfidence:
+        typeof ex.confidence === "number" ? ex.confidence : undefined,
+    };
+  });
   // Los datos legales se recuperan al abrir: primero lo guardado en el
   // comercio, y si está vacío, lo que el OCR del RUT ya extrajo (queda en
   // extractedFields del documento). Antes arrancaban siempre en blanco, así

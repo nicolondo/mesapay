@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -80,6 +80,7 @@ const REQUIRED_KINDS: DocKind[] = [
 export function OnboardingClient({
   tenant,
   initialBankInfo,
+  initialLegal,
   initialDocuments,
 }: {
   tenant: {
@@ -91,6 +92,12 @@ export function OnboardingClient({
     activatedAt: string | null;
   };
   initialBankInfo: Record<string, unknown> | null;
+  /** Datos legales ya guardados en el comercio (pueden venir del OCR previo). */
+  initialLegal: {
+    legalName: string | null;
+    taxId: string | null;
+    legalPhone: string | null;
+  } | null;
   initialDocuments: UploadedDoc[];
 }) {
   const t = useTranslations("opPagos");
@@ -99,10 +106,34 @@ export function OnboardingClient({
   const [bankInfo, setBankInfo] = useState<BankInfo>(() =>
     normaliseBankInfo(initialBankInfo),
   );
-  const [legalName, setLegalName] = useState("");
-  const [taxId, setTaxId] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
+  // Los datos legales se recuperan al abrir: primero lo guardado en el
+  // comercio, y si está vacío, lo que el OCR del RUT ya extrajo (queda en
+  // extractedFields del documento). Antes arrancaban siempre en blanco, así
+  // que el operador veía la sección vacía aunque el dato existiera — y no
+  // podía enviar la solicitud porque los 4 campos son obligatorios.
+  const rutExtracted = useMemo(
+    () =>
+      (initialDocuments.find(
+        (d) => d.kind === "rut" && d.extractedFields,
+      )?.extractedFields ?? {}) as Record<string, unknown>,
+    [initialDocuments],
+  );
+  const fromRut = (key: string): string => {
+    const v = rutExtracted[key];
+    return typeof v === "string" ? v : "";
+  };
+  const [legalName, setLegalName] = useState(
+    () => initialLegal?.legalName ?? fromRut("legalName"),
+  );
+  const [taxId, setTaxId] = useState(
+    () => initialLegal?.taxId ?? fromRut("taxId"),
+  );
+  const [contactEmail, setContactEmail] = useState(() =>
+    fromRut("contactEmail"),
+  );
+  const [contactPhone, setContactPhone] = useState(
+    () => initialLegal?.legalPhone ?? fromRut("contactPhone"),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -201,7 +232,7 @@ export function OnboardingClient({
     }
   }
 
-  async function runRutOcr(docId: string) {
+  async function runRutOcr(docId: string, force = false) {
     setOcrRunning(true);
     setError(null);
     try {
@@ -220,16 +251,22 @@ export function OnboardingClient({
       // Only overwrite empty fields — if the operator already typed
       // something, respect it. Confidence is included separately so the UI
       // can show "AI · 92%" next to the fields.
-      if (typeof ex.legalName === "string" && !legalName.trim()) {
+      if (typeof ex.legalName === "string" && (force || !legalName.trim())) {
         setLegalName(ex.legalName);
       }
-      if (typeof ex.taxId === "string" && !taxId.trim()) {
+      if (typeof ex.taxId === "string" && (force || !taxId.trim())) {
         setTaxId(ex.taxId);
       }
-      if (typeof ex.contactEmail === "string" && !contactEmail.trim()) {
+      if (
+        typeof ex.contactEmail === "string" &&
+        (force || !contactEmail.trim())
+      ) {
         setContactEmail(ex.contactEmail);
       }
-      if (typeof ex.contactPhone === "string" && !contactPhone.trim()) {
+      if (
+        typeof ex.contactPhone === "string" &&
+        (force || !contactPhone.trim())
+      ) {
         setContactPhone(ex.contactPhone);
       }
       setDocs((prev) =>
@@ -424,6 +461,19 @@ export function OnboardingClient({
           <DisplayField label={t("contactEmailLabel")} value={contactEmail} t={t} />
           <DisplayField label={t("contactPhoneLabel")} value={contactPhone} t={t} />
         </div>
+        {/* Re-lectura del RUT: si el OCR falló al subirlo, sin este botón
+            había que borrar y volver a subir el archivo para reintentar
+            (la certificación bancaria sí lo tenía). */}
+        {rutDoc && (
+          <button
+            type="button"
+            onClick={() => runRutOcr(rutDoc.id, true)}
+            disabled={ocrRunning || isLocked}
+            className="mp-btn mp-btn--secondary mp-btn--sm mt-3"
+          >
+            {ocrRunning ? t("reading") : t("rereadRutAi")}
+          </button>
+        )}
       </Section>
 
       {beneficiaryCheck.kind === "match" && (

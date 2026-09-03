@@ -1777,6 +1777,7 @@
     "step2Subtitle": "Lemos com IA ao enviar para preencher o formulário automaticamente.",
     "reading": "Lendo…",
     "rereadAi": "Ler de novo com IA",
+    "rereadRutAi": "Ler o RUT de novo com IA",
     "aiReadPre": "Dados lidos automaticamente",
     "aiReadConfidence": " · confiança {pct}%",
     "aiReadPost": ". Se algo estiver errado, envie uma certificação mais nítida.",

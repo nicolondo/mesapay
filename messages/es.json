@@ -1777,6 +1777,7 @@
     "step2Subtitle": "La leemos con AI al subirla para llenar el formulario automáticamente.",
     "reading": "Leyendo…",
     "rereadAi": "Volver a leer con AI",
+    "rereadRutAi": "Volver a leer el RUT con AI",
     "aiReadPre": "Datos leídos automáticamente",
     "aiReadConfidence": " · confianza {pct}%",
     "aiReadPost": ". Si algo está mal, vuelve a subir una certificación más clara.",

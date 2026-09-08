@@ -25,6 +25,9 @@ const MIGRATED = [
   "src/app/signup/page.tsx",
   "src/app/cuenta/**/*.{ts,tsx}",
   "src/app/me/**/*.{ts,tsx}",
+  // Cuenta del comensal DENTRO del comercio (login, registro, enlace
+  // mágico, "mi cuenta"). Nació trilingüe, queda blindada de una.
+  "src/app/t/\\[slug\\]/cuenta/**/*.{ts,tsx}",
   "src/app/nicolas/**/*.{ts,tsx}",
   // OJO: los corchetes de las rutas dinámicas de Next ([slug]) son clases
   // de caracteres en glob — hay que escaparlos (\\[ \\]) o la regla no

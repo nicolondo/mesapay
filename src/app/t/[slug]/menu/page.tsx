@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
-import { getViewer } from "@/lib/customerSession";
+import { getDiner } from "@/lib/dinerSession";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
@@ -80,14 +80,12 @@ export default async function MenuPage({
     ]),
   );
 
-  // Identidad del comensal (sesión permanente o JWT). Se usa en la hoja
-  // de "dinos tu nombre": si ya tiene cuenta, se le ofrece identificarse en
-  // la mesa — que es lo que aplica su descuento.
-  const viewer = await getViewer();
-  const diner =
-    viewer && viewer.role === "customer"
-      ? { name: viewer.name, email: viewer.email }
-      : null;
+  // Identidad del comensal EN ESTE COMERCIO. Se usa en la hoja de "dinos tu
+  // nombre": si ya tiene cuenta acá, se le ofrece identificarse en la mesa
+  // — que es lo que aplica su descuento. Antes esto caía al JWT de NextAuth
+  // y le ofrecía identificarse al mesero que estuviera con sesión abierta.
+  const viewer = await getDiner(tenant.id);
+  const diner = viewer ? { name: viewer.name, email: viewer.email } : null;
 
   const table = await db.table.findUnique({ where: { qrToken: tableToken } });
   if (!table || table.restaurantId !== tenant.id) {

@@ -45,7 +45,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db", () => ({ db: h.db }));
-vi.mock("@/lib/customerSession", () => ({ getViewer: vi.fn(async () => null) }));
+vi.mock("@/lib/dinerSession", () => ({ getDiner: vi.fn(async () => null) }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/mailer", () => ({ welcomeIfFirstTime: vi.fn(async () => {}) }));
 vi.mock("@/lib/pickupEta", () => ({ computeEtaMinutes: vi.fn(async () => 15) }));

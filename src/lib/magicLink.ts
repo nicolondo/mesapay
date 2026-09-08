@@ -2,9 +2,14 @@
  * Enlace de acceso directo ("magic link") para el comensal.
  *
  * Lo que vence es el ENLACE, no la sesión. El token dura 20 minutos y es de
- * un solo uso; pero una vez canjeado crea una CustomerSession permanente —
+ * un solo uso; pero una vez canjeado crea una DinerSession permanente —
  * o sea, el comensal toca el enlace del correo una vez y no vuelve a ver un
  * login nunca más.
+ *
+ * El enlace es DEL COMERCIO que lo emitió: el token cuelga de un `Diner`,
+ * que pertenece a un solo restaurante, y la URL de canje vive bajo
+ * `/t/[slug]/cuenta/enlace/[token]`. Un enlace emitido por el restaurante A
+ * abierto en la URL del B no abre nada.
  *
  * Igual que en `passwordReset.ts`, en DB solo vive el SHA-256: el token
  * plano existe únicamente dentro del correo.

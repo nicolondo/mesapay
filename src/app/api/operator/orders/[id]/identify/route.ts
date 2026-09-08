@@ -4,10 +4,7 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { resolveLoginIdentifier } from "@/lib/customerIdentity";
-import {
-  applyCustomerToOrder,
-  findCustomerByIdentifier,
-} from "@/lib/customerDiscount";
+import { applyDinerToOrder, findDinerByIdentifier } from "@/lib/dinerDiscount";
 
 const schema = z.object({
   identifier: z.string().trim().min(1).max(120),
@@ -17,9 +14,12 @@ const schema = z.object({
  * POST /api/operator/orders/[id]/identify — el mesero identifica al
  * comensal en la cuenta de la mesa, por cédula o correo.
  *
- * Si esa persona tiene un descuento vigente EN ESTE restaurante, se aplica
- * a la cuenta. El descuento de otro restaurante no se ve ni se aplica: el
- * lookup va contra (restaurantId, userId).
+ * Solo encuentra comensales DE ESTE comercio: desde que el registro es por
+ * restaurante, la base de comensales de cada local es suya. Si la persona
+ * no tiene cuenta acá, la respuesta es "no encontrado" y tiene que
+ * registrarse — aunque coma en otro MESAPAY.
+ *
+ * Si esa persona tiene un descuento vigente, se aplica a la cuenta.
  */
 export async function POST(
   req: Request,
@@ -45,17 +45,20 @@ export async function POST(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const customer = await findCustomerByIdentifier(
-    ident.kind === "email" ? { email: ident.value } : { cedula: ident.value },
-  );
-  if (!customer || customer.role !== "customer" || customer.disabledAt) {
+  const diner = await findDinerByIdentifier({
+    restaurantId: scope.restaurantId,
+    ...(ident.kind === "email"
+      ? { email: ident.value }
+      : { cedula: ident.value }),
+  });
+  if (!diner || diner.disabledAt) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const result = await applyCustomerToOrder({
+  const result = await applyDinerToOrder({
     orderId,
     restaurantId: scope.restaurantId,
-    userId: customer.id,
+    dinerId: diner.id,
   });
   if (!result) {
     // La orden no existe, es de otro restaurante, o ya está pagada.
@@ -69,10 +72,10 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     customer: {
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      cedula: customer.cedula,
+      id: diner.id,
+      name: diner.name,
+      email: diner.email,
+      cedula: diner.cedula,
     },
     discountPct: result.discountPct,
     discountCents: result.discountCents,
@@ -111,7 +114,7 @@ export async function DELETE(
   await db.order.update({
     where: { id: order.id },
     data: {
-      customerId: null,
+      dinerId: null,
       discountPct: null,
       discountCents: 0,
       totalCents: order.subtotalCents,

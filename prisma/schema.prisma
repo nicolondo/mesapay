@@ -346,7 +346,7 @@ model Restaurant {
   categories             Category[]
   menuItems              MenuItem[]
   orders                 Order[]
-  customerDiscounts      CustomerDiscount[]
+  diners                 Diner[]
   dishRatings            DishRating[]
   membershipPayments     MembershipPayment[]
   billingSubscription    BillingSubscription?
@@ -655,6 +655,12 @@ model CommissionEntry {
 }
 
 enum Role {
+  /// LEGADO. Antes el comensal era un `User` con este rol; hoy el comensal
+  /// vive en el modelo `Diner`, atado a UN comercio (ver el porqué allá).
+  /// El valor no se puede borrar del enum porque en producción todavía hay
+  /// filas viejas que lo tienen, y Postgres no deja quitar un valor en uso.
+  /// No se crean usuarios nuevos con este rol, y `src/auth.ts` les niega el
+  /// login: `User` es SOLO personal.
   customer
   operator
   platform_admin
@@ -689,39 +695,35 @@ enum CommissionStatus {
   reversed
 }
 
+/// PERSONAL de MESAPAY: operator, mesero, kitchen, bar, terminal,
+/// platform_admin, group_admin, comercial. NO comensales — esos viven en
+/// `Diner`, uno por comercio.
+///
+/// Por eso `email` sigue siendo único en TODA la plataforma: un empleado es
+/// una persona de la organización MESAPAY, y su login (`src/auth.ts`,
+/// NextAuth + JWT) resuelve por correo sin más contexto. Esa unicidad
+/// global es la que permite que `findUnique({ where: { email } })` siga
+/// siendo correcto — y es exactamente lo que NO se puede pedirle al
+/// comensal ahora que se registra por comercio.
 model User {
-  id             String      @id @default(cuid())
-  email          String      @unique
-  name           String?
-  phone          String?
-  /// Cédula / documento del comensal. Es el identificador de login
-  /// ALTERNO al correo (una persona recuerda su cédula aunque no
-  /// recuerde con qué correo se registró).
-  ///
-  /// Opcional a propósito: los usuarios que ya existen (staff, comensales
-  /// viejos) no la tienen y el deploy corre `prisma db push`, así que la
-  /// columna tiene que ser nulable. Único, pero en Postgres un índice
-  /// UNIQUE admite múltiples NULL — los miles de usuarios sin cédula no
-  /// chocan entre sí.
-  ///
-  /// Se guarda normalizada (solo dígitos/letras, sin puntos ni espacios;
-  /// ver lib/customerIdentity.ts) para que "1.020.304" y "1020304" sean
-  /// la misma persona y el UNIQUE realmente sirva.
-  cedula         String?     @unique
-  passwordHash   String
-  role           Role        @default(customer)
-  restaurantId   String?
-  restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  phone        String?
+  passwordHash String
+  /// Sin `@default`: el rol se elige siempre a mano al crear el usuario.
+  /// Antes el default era `customer`, que ya no tiene sentido en una tabla
+  /// que es solo personal — y un default `operator` sería peor (crear un
+  /// usuario sin especificar rol le daría permisos de administración).
+  role         Role
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Mutuamente excluyente con restaurantId. Para users con
   // role=group_admin guardamos el grupo al que pertenecen — desde
   // ahí pueden impersonar cualquiera de sus restaurantes.
-  groupId        String?
-  group          Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  marketingOptIn Boolean     @default(false)
-  welcomedAt     DateTime?
-  createdAt      DateTime    @default(now())
-
-  orders Order[] @relation("OrderCustomer")
+  groupId      String?
+  group        Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
 
   uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
   terminalDevices         TerminalDevice[]
@@ -788,13 +790,87 @@ model User {
   crmEmailTemplates    CrmEmailTemplate[]
   crmWhatsappTemplates CrmWhatsappTemplate[]
   passwordResetTokens  PasswordResetToken[]
-  customerSessions     CustomerSession[]
-  magicLinkTokens      MagicLinkToken[]
-  customerDiscounts    CustomerDiscount[]
 
   @@index([restaurantId])
   @@index([groupId])
   @@index([managerId])
+}
+
+/// COMENSAL — la cuenta que crea la persona que come, y que pertenece a UN
+/// comercio.
+///
+/// ── Por qué es un modelo aparte y no un `User` con rol ────────────────
+/// Antes el comensal era un `User` con `role=customer` y `email` único en
+/// TODA la plataforma: quien se registraba comiendo en un restaurante
+/// entraba con esa misma cuenta en cualquier otro restaurante MESAPAY.
+/// El dueño del producto decidió lo contrario: cada comercio con su propia
+/// base de comensales. Consecuencia asumida: la misma persona que come en
+/// dos restaurantes se registra dos veces, y su descuento e historial no la
+/// siguen entre locales.
+///
+/// La unicidad, entonces, es COMPUESTA: `(restaurantId, email)` y
+/// `(restaurantId, cedula)`. No se pudo dejar el comensal dentro de `User`
+/// con esas llaves compuestas por una razón concreta de Postgres: en un
+/// índice UNIQUE los NULL no colisionan entre sí, y `platform_admin` /
+/// `group_admin` tienen `restaurantId = null` — un `@@unique([restaurantId,
+/// email])` sobre `User` habría dejado de proteger justo a las cuentas más
+/// privilegiadas. Además habría obligado a cambiar
+/// `findUnique({ where: { email } })` en `src/auth.ts`, que es el login del
+/// personal y no se puede tocar.
+///
+/// Con la tabla separada las dos cosas quedan resueltas por construcción:
+/// `restaurantId` acá es NOT NULL (un comensal SIEMPRE tiene comercio), y
+/// `User.email` sigue siendo único global para el personal.
+///
+/// Beneficio colateral que sí importa: `Order.dinerId` ahora solo puede
+/// apuntar a un comensal. Antes apuntaba a `User`, y en producción la
+/// mayoría de esas filas terminaron señalando al `platform_admin` o a un
+/// mesero que había abierto la carta con su propia sesión.
+model Diner {
+  id String @id @default(cuid())
+
+  /// El comercio dueño de esta cuenta. NOT NULL: es la razón de ser del
+  /// modelo. `Cascade` porque una base de comensales no sobrevive al
+  /// restaurante que la creó.
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  /// Correo. Único DENTRO del comercio: el mismo correo puede tener cuenta
+  /// en varios restaurantes, y cada una es una persona distinta para
+  /// efectos de datos.
+  email String
+
+  /// Cédula / documento. Identificador de login ALTERNO al correo — una
+  /// persona recuerda su documento aunque no recuerde con cuál de sus
+  /// correos se registró.
+  ///
+  /// Se guarda normalizada (solo dígitos/letras, sin puntos ni espacios;
+  /// ver lib/customerIdentity.ts) para que "1.020.304" y "1020304" sean la
+  /// misma persona y el UNIQUE realmente sirva. Nulable porque el operador
+  /// puede dar de alta a alguien sin pedírsela.
+  cedula String?
+
+  name           String?
+  phone          String?
+  passwordHash   String
+  marketingOptIn Boolean   @default(false)
+  welcomedAt     DateTime?
+
+  /// Comensal bloqueado por el comercio: no puede iniciar sesión.
+  /// null = activo.
+  disabledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders     Order[]          @relation("OrderDiner")
+  sessions   DinerSession[]
+  magicLinks DinerMagicLink[]
+  discount   DinerDiscount?
+
+  @@unique([restaurantId, email])
+  @@unique([restaurantId, cedula])
+  @@index([restaurantId])
 }
 
 /// Sesión del COMENSAL, persistida y revocable.
@@ -811,15 +887,15 @@ model User {
 ///
 /// Las sesiones de operator / mesero / kitchen / bar / platform_admin
 /// siguen siendo el JWT de NextAuth, intactas: conviven las dos estrategias.
-model CustomerSession {
+model DinerSession {
   id String @id @default(cuid())
 
   /// SHA-256 del token que viaja en la cookie. Igual que en
   /// PasswordResetToken: un leak de la tabla no entrega sesiones usables.
   tokenHash String @unique
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dinerId String
+  diner   Diner  @relation(fields: [dinerId], references: [id], onDelete: Cascade)
 
   /// null = viva. Revocar es un UPDATE, no un DELETE, para conservar el
   /// rastro de auditoría de desde cuándo y hasta cuándo estuvo abierta.
@@ -832,26 +908,24 @@ model CustomerSession {
   createdAt  DateTime @default(now())
   lastUsedAt DateTime @default(now())
 
-  @@index([userId])
+  @@index([dinerId])
 }
 
-/// Descuento pactado con un comensal, POR RESTAURANTE.
+/// Descuento pactado con un comensal.
 ///
-/// La identidad del comensal es GLOBAL (un correo = una persona en toda la
-/// plataforma) pero un descuento es un acuerdo comercial de UN restaurante
-/// con esa persona. Si el porcentaje viviera en `User` sería global, y el
-/// restaurante B terminaría regalando plata por una negociación del A. Por
-/// eso la llave es (restaurantId, userId) y no el usuario solo.
+/// Ya no lleva `restaurantId`: el comensal pertenece a un solo comercio, así
+/// que el descuento hereda el suyo. Antes la llave era el par
+/// (restaurantId, userId) porque la identidad era global y había que
+/// impedir que el restaurante B regalara plata por una negociación del A;
+/// hoy eso es imposible por construcción.
 ///
 /// `active` en vez de borrar: apagar un descuento y volverlo a prender es
 /// una operación comercial normal, y el historial de cuándo se pactó
 /// importa para auditar cuentas viejas.
-model CustomerDiscount {
-  id           String     @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  userId       String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+model DinerDiscount {
+  id      String @id @default(cuid())
+  dinerId String @unique
+  diner   Diner  @relation(fields: [dinerId], references: [id], onDelete: Cascade)
 
   /// Porcentaje sobre la cuenta, 1..100.
   percent Int
@@ -861,27 +935,27 @@ model CustomerDiscount {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([restaurantId, userId])
-  @@index([restaurantId])
-  @@index([userId])
 }
 
 /// Enlace de acceso directo ("magic link") enviado por correo al comensal.
 ///
 /// Lo que vence es el ENLACE, no la sesión: el token es de un solo uso y
-/// dura minutos, pero una vez canjeado la CustomerSession que crea es
+/// dura minutos, pero una vez canjeado la DinerSession que crea es
 /// permanente. Se guarda hasheado — el token plano solo existe en el correo.
-model MagicLinkToken {
+///
+/// Queda atado al comercio por transitividad (`diner.restaurantId`), y la
+/// pantalla de canje vive bajo `/t/[slug]/cuenta/enlace/[token]`: un enlace
+/// emitido por un restaurante abierto en la URL de otro no sirve.
+model DinerMagicLink {
   id        String    @id @default(cuid())
   tokenHash String    @unique
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dinerId   String
+  diner     Diner     @relation(fields: [dinerId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  @@index([userId])
+  @@index([dinerId])
 }
 
 /// Token de restablecimiento de contraseña (disparado desde admin).
@@ -1210,8 +1284,11 @@ model Order {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   tableId      String
   table        Table      @relation(fields: [tableId], references: [id])
-  customerId   String?
-  customer     User?      @relation("OrderCustomer", fields: [customerId], references: [id])
+  /// Comensal identificado en esta cuenta. Apunta a `Diner` (no a `User`):
+  /// un comensal de ESTE comercio, nunca personal ni el comensal de otro
+  /// local. Nulable — la mayoría de las cuentas son anónimas.
+  dinerId      String?
+  diner        Diner?     @relation("OrderDiner", fields: [dinerId], references: [id], onDelete: SetNull)
 
   status    OrderStatus @default(open)
   shortCode String      @unique
@@ -1287,6 +1364,7 @@ model Order {
   @@index([restaurantId, status])
   @@index([tableId])
   @@index([restaurantId, needsWaiter])
+  @@index([dinerId])
 }
 
 model Round {

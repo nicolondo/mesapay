@@ -40,7 +40,7 @@ const h = vi.hoisted(() => {
         restaurantId: "rest-1",
         status: "open",
         tableId: null,
-        customerId: null,
+        dinerId: null,
         locale: "es",
       })),
       update: record("order.update"),
@@ -121,7 +121,7 @@ beforeEach(() => {
     restaurantId: "rest-1",
     status: "open",
     tableId: null,
-    customerId: null,
+    dinerId: null,
     locale: "es",
   });
   h.validateNewPaymentAmount.mockResolvedValue({ ok: true });

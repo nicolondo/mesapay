@@ -100,7 +100,7 @@ export default async function TablesPage() {
           },
           // Comensal identificado en la cuenta — para mostrar quién es y
           // su descuento en el detalle de la mesa.
-          customer: {
+          diner: {
             select: { id: true, name: true, email: true, cedula: true },
           },
         },
@@ -274,12 +274,12 @@ export default async function TablesPage() {
         grossSubtotalCents: order.subtotalCents,
         discountCents: order.discountCents,
         discountPct: order.discountPct,
-        customer: order.customer
+        customer: order.diner
           ? {
-              id: order.customer.id,
-              name: order.customer.name,
-              email: order.customer.email,
-              cedula: order.customer.cedula,
+              id: order.diner.id,
+              name: order.diner.name,
+              email: order.diner.email,
+              cedula: order.diner.cedula,
             }
           : null,
         outstandingCents,

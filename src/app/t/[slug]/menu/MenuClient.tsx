@@ -1571,6 +1571,7 @@ export function MenuClient({
         <GuestNameSheet
           initial={guestName}
           canCancel={!!guestName}
+          loginHref={`/t/${tenant.slug}/cuenta/entrar`}
           diner={diner}
           identified={identifiedName}
           onIdentify={identifyDiner}
@@ -2810,6 +2811,7 @@ function ItemSheet({
 function GuestNameSheet({
   initial,
   canCancel,
+  loginHref,
   diner,
   identified,
   onIdentify,
@@ -2818,7 +2820,10 @@ function GuestNameSheet({
 }: {
   initial: string;
   canCancel: boolean;
-  // Comensal con sesión iniciada, si lo hay.
+  // Ingreso del comensal EN ESTE comercio: la cuenta es del restaurante,
+  // así que el enlace lleva su slug. No hay login "de MESAPAY" a secas.
+  loginHref: string;
+  // Comensal con sesión iniciada EN ESTE comercio, si lo hay.
   diner: { name: string | null; email: string } | null;
   // Nombre ya identificado en esta cuenta (tras tocar "soy yo").
   identified: string | null;
@@ -2898,9 +2903,9 @@ function GuestNameSheet({
           </p>
         </form>
 
-        {/* Identificarse con la cuenta MESAPAY. Es lo que aplica el
-            descuento que el restaurante le tenga pactado — y lo que hace
-            que esta cuenta aparezca en su historial. */}
+        {/* Identificarse con la cuenta DE ESTE restaurante. Es lo que
+            aplica el descuento que le tengan pactado — y lo que hace que
+            esta cuenta aparezca en su historial acá. */}
         <div className="px-6 pb-6 -mt-2">
           {identified ? (
             <div className="rounded-xl border border-hairline bg-ivory p-3 text-sm">
@@ -2919,7 +2924,7 @@ function GuestNameSheet({
             </button>
           ) : (
             <Link
-              href="/cuenta/entrar"
+              href={loginHref}
               className="block text-center text-sm text-terracotta underline"
             >
               {t("haveAccount")}

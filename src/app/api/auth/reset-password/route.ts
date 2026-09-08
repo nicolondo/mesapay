@@ -32,20 +32,15 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  // Este flujo es el del PERSONAL (`PasswordResetToken` cuelga de `User`),
+  // cuya sesión es el JWT de NextAuth. Ya no revoca sesiones de comensal:
+  // el comensal vive en `Diner`, con su propio cambio de contraseña en
+  // /api/tenant/[slug]/diner/password, que sí mata todos sus dispositivos.
   await db.$transaction([
     db.user.update({ where: { id: record.userId }, data: { passwordHash } }),
     db.passwordResetToken.update({
       where: { id: record.id },
       data: { usedAt: new Date() },
-    }),
-    // Restablecer la contraseña tiene que EXPULSAR a los dispositivos
-    // viejos, no solo cambiar la clave. Las sesiones del comensal son
-    // permanentes: sin esto, el celular robado que motivó el cambio
-    // seguiría adentro para siempre. Es exactamente lo que un JWT eterno
-    // no permitiría hacer.
-    db.customerSession.updateMany({
-      where: { userId: record.userId, revokedAt: null },
-      data: { revokedAt: new Date() },
     }),
   ]);
 

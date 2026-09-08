@@ -3,23 +3,27 @@ import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDate } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
-import { CustomerLookup } from "./CustomerLookup";
+import { DinerLookup } from "./DinerLookup";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Lista de comensales del restaurante.
  *
- * ── La regla que sostiene esta pantalla ───────────────────────────────
- * La identidad del comensal es GLOBAL: `User.email` es único en toda la
- * plataforma, así que una persona que come en dos restaurantes MESAPAY
- * tiene UNA sola cuenta. Pero lo que cada restaurante VE de esa persona
- * está limitado a su propio local: TODA consulta de consumo lleva
- * `restaurantId` en el where. Sin eso, el restaurante A vería lo que esa
- * persona gastó en el B — una fuga de datos entre clientes de la
- * plataforma.
+ * ── Por qué esta pantalla ahora puede listar de verdad ────────────────
+ * Antes la identidad del comensal era global (`User.email` único en toda la
+ * plataforma), así que "los comensales" no era un conjunto que le
+ * perteneciera a nadie: listar registrados le habría mostrado a cada
+ * restaurante la base de los demás. Por eso la lista solo podía armarse
+ * desde las ÓRDENES pagadas acá, y quien se había registrado sin consumir
+ * todavía era invisible.
+ *
+ * Con el registro por comercio (`Diner.restaurantId`), la base de
+ * comensales SÍ es de este local: acá se listan todos los suyos, hayan
+ * pedido o no. El consumo se sigue calculando solo sobre las órdenes de
+ * este restaurante, que por construcción son las únicas que puede tener.
  *
  * El `restaurantId` viene siempre de la sesión (getActiveRestaurantId),
  * nunca de la URL ni del cliente.
@@ -36,57 +40,54 @@ export default async function ClientesPage() {
   });
   const currency = await getCurrencyForCountry(restaurant?.country ?? "CO");
 
-  // Agrupamos por cliente SOLO sobre las órdenes de ESTE restaurante.
-  const grouped = await db.order.groupBy({
-    by: ["customerId"],
-    where: {
-      restaurantId,
-      customerId: { not: null },
-      status: "paid",
+  const diners = await db.diner.findMany({
+    where: { restaurantId },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      cedula: true,
+      createdAt: true,
+      discount: { select: { percent: true, active: true } },
     },
-    _sum: { totalCents: true },
-    _count: { _all: true },
-    orderBy: { _sum: { totalCents: "desc" } },
-    take: 100,
   });
 
-  const ids = grouped
-    .map((g) => g.customerId)
-    .filter((id): id is string => id !== null);
+  // Consumo por comensal, solo con las órdenes pagadas de ESTE restaurante.
+  const spend = diners.length
+    ? await db.order.groupBy({
+        by: ["dinerId"],
+        where: {
+          restaurantId,
+          dinerId: { in: diners.map((d) => d.id) },
+          status: "paid",
+        },
+        _sum: { totalCents: true },
+        _count: { _all: true },
+      })
+    : [];
+  const spendByDiner = new Map(
+    spend.map((g) => [
+      g.dinerId,
+      { orders: g._count._all, totalCents: g._sum.totalCents ?? 0 },
+    ]),
+  );
 
-  const [users, discounts] = await Promise.all([
-    ids.length
-      ? db.user.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, name: true, email: true, cedula: true },
-        })
-      : Promise.resolve([]),
-    // Los descuentos también se leen por restaurante: el que pactó otro
-    // local no se muestra ni se aplica acá.
-    db.customerDiscount.findMany({
-      where: { restaurantId, active: true },
-      select: { userId: true, percent: true },
-    }),
-  ]);
-
-  const userById = new Map(users.map((u) => [u.id, u]));
-  const pctByUser = new Map(discounts.map((d) => [d.userId, d.percent]));
-
-  const rows = grouped
-    .map((g) => {
-      const u = g.customerId ? userById.get(g.customerId) : undefined;
-      if (!u) return null;
-      return {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        cedula: u.cedula,
-        orders: g._count._all,
-        totalCents: g._sum.totalCents ?? 0,
-        discountPct: pctByUser.get(u.id) ?? null,
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
+  // Los que más han consumido arriba; los que todavía no consumieron,
+  // ordenados por registro más reciente (que es como llegaron de la lista).
+  const rows = diners
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      cedula: d.cedula,
+      createdAt: d.createdAt,
+      orders: spendByDiner.get(d.id)?.orders ?? 0,
+      totalCents: spendByDiner.get(d.id)?.totalCents ?? 0,
+      discountPct: d.discount?.active ? d.discount.percent : null,
+    }))
+    .sort((a, b) => b.totalCents - a.totalCents);
 
   return (
     <div className="p-6 max-w-4xl">
@@ -95,7 +96,7 @@ export default async function ClientesPage() {
       </h1>
       <p className="text-sm text-muted mb-6">{t("subtitle")}</p>
 
-      <CustomerLookup />
+      <DinerLookup />
 
       <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mt-8 mb-3">
         {t("listTitle")}
@@ -128,12 +129,27 @@ export default async function ClientesPage() {
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-display text-xl tabular">
-                      {formatMoney(r.totalCents, { currency, locale })}
-                    </div>
-                    <div className="font-mono text-[10px] text-muted">
-                      {t("ordersCount", { count: r.orders })}
-                    </div>
+                    {r.orders === 0 ? (
+                      <>
+                        <div className="font-mono text-[11px] text-muted">
+                          {t("noOrdersYet")}
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-2">
+                          {t("registeredOn", {
+                            date: formatDate(r.createdAt, { locale }),
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-display text-xl tabular">
+                          {formatMoney(r.totalCents, { currency, locale })}
+                        </div>
+                        <div className="font-mono text-[10px] text-muted">
+                          {t("ordersCount", { count: r.orders })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </Link>

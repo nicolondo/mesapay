@@ -10,9 +10,10 @@ import { signIn, getSession } from "next-auth/react";
  * Login del STAFF (operator / mesero / cocina / bar / terminal / admin).
  *
  * Sigue siendo NextAuth con sesión JWT — intacto. El comensal ya no entra
- * por acá: tiene /cuenta/entrar, con cédula-o-correo y sesión permanente
+ * por acá: su cuenta es de UN comercio y entra por
+ * /t/[slug]/cuenta/entrar, con cédula-o-correo y sesión permanente
  * revocable. Las dos estrategias conviven a propósito (ver
- * lib/customerSession.ts): una sesión que no vence tiene sentido en el
+ * lib/dinerSession.ts): una sesión que no vence tiene sentido en el
  * celular de una persona, no en la caja compartida de un restaurante.
  */
 export default function SignInPage() {

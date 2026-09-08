@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   currentMonthRange,
-  customerOrdersWhere,
+  dinerOrdersWhere,
   isIsoDate,
   isoRangeToDates,
   resolveRange,
@@ -88,27 +88,27 @@ describe("resolveRange", () => {
   });
 });
 
-describe("customerOrdersWhere", () => {
+describe("dinerOrdersWhere", () => {
   it("SIEMPRE filtra por restaurante", () => {
-    // Este test es el guardarraíl del aislamiento entre restaurantes. La
-    // identidad del comensal es global (un correo = una persona en toda la
-    // plataforma), así que sin este filtro el restaurante A vería lo que
-    // esa persona consumió en el B. Si alguien lo quita, esto falla.
-    const where = customerOrdersWhere({
+    // Este test es el guardarraíl del aislamiento entre restaurantes. El
+    // dinerId llega por la URL: sin este filtro, un operador podría pegar
+    // el id de un comensal de otro local y ver sus facturas. Si alguien
+    // quita el restaurantId, esto falla.
+    const where = dinerOrdersWhere({
       restaurantId: "rest_A",
-      customerId: "user_1",
+      dinerId: "diner_1",
       from: "2026-03-01",
       to: "2026-03-31",
     });
     expect(where.restaurantId).toBe("rest_A");
-    expect(where.customerId).toBe("user_1");
+    expect(where.dinerId).toBe("diner_1");
     expect(Object.keys(where)).toContain("restaurantId");
   });
 
   it("solo cuenta facturas pagadas dentro del rango", () => {
-    const where = customerOrdersWhere({
+    const where = dinerOrdersWhere({
       restaurantId: "rest_A",
-      customerId: "user_1",
+      dinerId: "diner_1",
       from: "2026-03-01",
       to: "2026-03-31",
     });

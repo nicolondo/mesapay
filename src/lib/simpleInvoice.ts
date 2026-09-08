@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mailer";
 import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
+import { orderTaxTotals } from "@/lib/salesTax";
 
 /** Datos del cliente para una factura personalizada. */
 export type InvoiceCustomer = {
@@ -47,7 +48,17 @@ export async function issueSimpleInvoice(opts: {
     where: { id: opts.orderId },
     include: {
       table: true,
-      items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
+      // Mismo criterio de "item vivo" que `syncOrderSubtotalFromLiveItems`:
+      // sin cancelar Y sin ronda cancelada. Antes sólo miraba `cancelledAt`,
+      // así que los platos de una ronda cancelada se imprimían en la tirilla
+      // aunque el subtotal (que sí los excluye) no los cobrara.
+      items: {
+        where: {
+          cancelledAt: null,
+          OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+        },
+        orderBy: { id: "asc" },
+      },
       simpleInvoice: true,
     },
   });
@@ -95,6 +106,19 @@ export async function issueSimpleInvoice(opts: {
   });
   const invoiceNumber = r.invoiceNextNumber - 1;
 
+  // Desglose por tipo del impuesto que las LÍNEAS LIBRES suman encima. Se pasa
+  // el comercio en "none" a propósito: así `byKind` cuenta sólo lo que se suma
+  // (cada línea bajo SU tipo) y deja afuera el impuesto embebido de los platos
+  // del menú, que ya está dentro del subtotal y no se cobra aparte.
+  const taxed = orderTaxTotals(
+    order.items.map((i) => ({
+      amountCents: i.priceCentsSnapshot * i.qty,
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+    })),
+    { kind: "none", pct: 0 },
+  );
+
   const snapshot: InvoiceSnapshot = {
     restaurantName: r.name,
     logoUrl: r.logoUrl,
@@ -119,6 +143,8 @@ export async function issueSimpleInvoice(opts: {
       priceCents: i.priceCentsSnapshot,
     })),
     subtotalCents: order.subtotalCents,
+    taxCents: order.taxCents,
+    taxByKind: taxed.byKind,
     tipCents: order.tipCents,
     totalCents: order.totalCents,
     customer: opts.customer ?? null,

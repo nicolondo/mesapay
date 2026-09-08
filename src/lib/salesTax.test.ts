@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { lineTaxOnTopCents, orderTaxTotals, type TaxedLine } from "./salesTax";
+import {
+  isValidSalesTaxRate,
+  lineTaxOnTopCents,
+  orderTaxTotals,
+  salesTaxRates,
+  type TaxedLine,
+} from "./salesTax";
 
 const INC8 = { kind: "inc" as const, pct: 8 };
 const NONE = { kind: "none" as const, pct: 0 };
@@ -65,5 +71,48 @@ describe("orderTaxTotals", () => {
       chargeableCents: 0,
       byKind: { inc: 0, iva: 0 },
     });
+  });
+});
+
+describe("salesTaxRates", () => {
+  it("el IVA usa la tabla del país", () => {
+    expect(salesTaxRates("iva", "CO")).toEqual([0, 5, 19]);
+    expect(salesTaxRates("iva", "MX")).toEqual([0, 8, 16]);
+  });
+
+  it("sin país cae en Colombia, como el resto de la app", () => {
+    expect(salesTaxRates("iva", null)).toEqual([0, 5, 19]);
+  });
+
+  it("el INC de restaurantes en Colombia es 8 y sólo 8", () => {
+    // Ofrecer varias tarifas invitaría a facturar mal: para no cobrar
+    // impuesto el tipo correcto es "none", no un INC en 0.
+    expect(salesTaxRates("inc", "CO")).toEqual([8]);
+  });
+
+  it("sin impuesto la única tarifa es 0", () => {
+    expect(salesTaxRates("none", "CO")).toEqual([0]);
+  });
+});
+
+describe("isValidSalesTaxRate", () => {
+  it("acepta las tarifas del país", () => {
+    expect(isValidSalesTaxRate("iva", 19, "CO")).toBe(true);
+    expect(isValidSalesTaxRate("inc", 8, "CO")).toBe(true);
+    expect(isValidSalesTaxRate("none", 0, "CO")).toBe(true);
+  });
+
+  it("rechaza una tarifa que no existe en el país", () => {
+    // 16 es IVA mexicano — en Colombia no se puede facturar así.
+    expect(isValidSalesTaxRate("iva", 16, "CO")).toBe(false);
+    expect(isValidSalesTaxRate("iva", 19, "MX")).toBe(false);
+  });
+
+  it("rechaza un INC con tarifa inventada", () => {
+    expect(isValidSalesTaxRate("inc", 19, "CO")).toBe(false);
+  });
+
+  it("'sin impuesto' no admite tarifa distinta de 0", () => {
+    expect(isValidSalesTaxRate("none", 19, "CO")).toBe(false);
   });
 });

@@ -8,6 +8,11 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
  * mesa del PWA mesero (poll cada 15s mientras está abierto). Devuelve
  * rondas + items con estado de cocina + timestamps suficientes para
  * computar ETA. No incluye totales, pagos ni datos sensibles.
+ *
+ * Aparte de las rondas devuelve `freeLines`: las líneas libres (servicios,
+ * alquileres, cargos sueltos) que se cobran en esta cuenta. No viven en
+ * ninguna ronda a propósito — no son un pedido a cocina — así que el mapeo de
+ * rondas nunca las vería y el mesero no tendría cómo revisarlas ni quitarlas.
  */
 export async function GET(
   _req: Request,
@@ -38,6 +43,11 @@ export async function GET(
           // por él mismo segundos antes.
           items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
         },
+      },
+      // Líneas libres vivas: sin ronda y sin cancelar.
+      items: {
+        where: { roundId: null, cancelledAt: null },
+        orderBy: { id: "asc" },
       },
     },
   });
@@ -70,6 +80,17 @@ export async function GET(
         guestName: i.guestName ?? null,
         notes: i.notes ?? null,
       })),
+    })),
+    freeLines: order.items.map((i) => ({
+      id: i.id,
+      name: i.nameSnapshot,
+      qty: i.qty,
+      priceCents: i.priceCentsSnapshot,
+      // El impuesto de una línea libre se suma ENCIMA del precio, así que el
+      // mesero necesita verlo para saber por qué la cuenta da lo que da.
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+      notes: i.notes ?? null,
     })),
   });
 }

@@ -180,7 +180,11 @@ export async function recomputeOrderTotalsInTx(
     where: { id: orderId },
     data: {
       tipCents: totals.tipsTotalCents,
-      totalCents: order.subtotalCents + totals.tipsTotalCents,
+      // + taxCents: el impuesto que las líneas libres suman encima también es
+      // plata cobrada. Sin él, aprobar un pago REBAJABA el total de la cuenta
+      // (subtotal + propina) y la factura salía por menos de lo que se cobró.
+      totalCents:
+        order.subtotalCents + order.taxCents + totals.tipsTotalCents,
       status: totals.fullyPaid ? "paid" : "paying",
       paidAt: totals.fullyPaid ? (order.paidAt ?? now) : null,
     },

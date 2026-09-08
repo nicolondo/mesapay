@@ -4,7 +4,14 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, pesosToCents } from "@/lib/format";
+import { MoneyInput } from "@/components/MoneyInput";
+import {
+  lineTaxOnTopCents,
+  salesTaxRates,
+  MAX_FREE_LINE_QTY,
+  MAX_FREE_LINE_TOTAL_CENTS,
+} from "@/lib/salesTax";
 
 type ItemDetail = {
   id: string;
@@ -16,6 +23,22 @@ type ItemDetail = {
   servedAt: string | null;
   expediteRequestedAt: string | null;
   guestName: string | null;
+  notes: string | null;
+};
+
+/**
+ * Línea libre: algo que se cobra en esta cuenta y NO sale del menú — catering
+ * de un evento, alquiler del salón, una consultoría. No pertenece a ninguna
+ * ronda porque no es un pedido a cocina, y su impuesto (propio, explícito) se
+ * SUMA ENCIMA del precio, que es como se cotiza un servicio.
+ */
+type FreeLine = {
+  id: string;
+  name: string;
+  qty: number;
+  priceCents: number;
+  taxKind: string | null;
+  taxPct: number | null;
   notes: string | null;
 };
 
@@ -74,6 +97,7 @@ export function TableDetailSheet({
   tenantSlug,
   qrToken,
   isMeseroView,
+  country,
 }: {
   orderId: string;
   shortCode: string;
@@ -114,6 +138,10 @@ export function TableDetailSheet({
   tenantSlug?: string;
   qrToken?: string;
   isMeseroView?: boolean;
+  // País del comercio (ISO-2) — decide las tarifas de impuesto que se ofrecen
+  // al agregar una línea libre. null cae en las de Colombia, igual que el
+  // resto de la app (`purchaseTaxRates`).
+  country?: string | null;
 }) {
   const tr = useTranslations("opTables");
   const [internalOpen, setInternalOpen] = useState(false);
@@ -166,6 +194,10 @@ export function TableDetailSheet({
   }, [open, orderId]);
 
   const [rounds, setRounds] = useState<Round[]>(initialRounds);
+  // Las líneas libres no viajan en los tiles del server (no son platos): las
+  // trae el mismo poll del detalle, que corre apenas abre el sheet.
+  const [freeLines, setFreeLines] = useState<FreeLine[]>([]);
+  const [showFreeLineSheet, setShowFreeLineSheet] = useState(false);
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),
   );
@@ -230,8 +262,12 @@ export function TableDetailSheet({
       try {
         const r = await fetch(`/api/operator/orders/${orderId}/detail`);
         if (!r.ok) return;
-        const j = (await r.json()) as { rounds: Round[] };
+        const j = (await r.json()) as {
+          rounds: Round[];
+          freeLines?: FreeLine[];
+        };
         setRounds(j.rounds);
+        setFreeLines(j.freeLines ?? []);
       } catch {}
     };
     void tick();
@@ -333,7 +369,62 @@ export function TableDetailSheet({
         }))
         .filter((rd) => rd.items.length > 0),
     );
+    // El id puede ser el de una línea libre — vive fuera de las rondas.
+    setFreeLines((prev) => prev.filter((l) => l.id !== itemId));
     setCancelTarget(null);
+    // El total de la cuenta cambió: la grilla de mesas lo muestra en el tile.
+    startTx(() => router.refresh());
+  }
+
+  /**
+   * Agrega una línea libre a la cuenta. El backend recalcula subtotal,
+   * impuesto y total con la función canónica; acá sólo refrescamos.
+   */
+  async function addFreeLine(input: {
+    name: string;
+    qty: number;
+    unitPriceCents: number;
+    taxKind: "none" | "inc" | "iva";
+    taxPct: number;
+  }): Promise<string | null> {
+    const r = await fetch(`/api/operator/order-items`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderId, ...input }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      return freeLineErrorMessage(j.error);
+    }
+    setShowFreeLineSheet(false);
+    // Traer la línea recién creada + el total nuevo del server.
+    try {
+      const d = await fetch(`/api/operator/orders/${orderId}/detail`);
+      if (d.ok) {
+        const j = (await d.json()) as { freeLines?: FreeLine[] };
+        setFreeLines(j.freeLines ?? []);
+      }
+    } catch {}
+    startTx(() => router.refresh());
+    return null;
+  }
+
+  /** Códigos del endpoint de líneas libres → copy traducido. */
+  function freeLineErrorMessage(code: unknown): string {
+    switch (code) {
+      case "order_paying":
+        return tr("freeLineErrorPaying");
+      case "order_closed":
+        return tr("freeLineErrorClosed");
+      case "invalid_tax_rate":
+        return tr("freeLineErrorTaxRate");
+      case "line_too_large":
+        return tr("freeLineErrorTooLarge");
+      case "order_too_large":
+        return tr("freeLineErrorOrderTooLarge");
+      default:
+        return tr("freeLineErrorGeneric");
+    }
   }
 
   async function expedite(itemId: string) {
@@ -478,7 +569,20 @@ export function TableDetailSheet({
               const canAdd =
                 isMeseroView || (tenantSlug && qrToken);
               const canMove = freeTables.length > 0;
-              if (!canAdd && !canCharge && !canMove && !canCancelOrder)
+              // Línea libre: mientras la cuenta siga abierta. En cobro no —
+              // el comensal ya está viendo un total que dejaría de ser cierto
+              // (el backend también lo rechaza).
+              const canAddFreeLine =
+                orderStatus !== "paid" &&
+                orderStatus !== "cancelled" &&
+                orderStatus !== "paying";
+              if (
+                !canAdd &&
+                !canCharge &&
+                !canMove &&
+                !canCancelOrder &&
+                !canAddFreeLine
+              )
                 return null;
               return (
                 <div className="space-y-2">
@@ -499,6 +603,15 @@ export function TableDetailSheet({
                       </span>
                       <span>{tr("addDishes")}</span>
                     </Link>
+                  )}
+                  {canAddFreeLine && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFreeLineSheet(true)}
+                      className="mp-btn mp-btn--secondary mp-btn--block"
+                    >
+                      {tr("addFreeLine")}
+                    </button>
                   )}
                   {canCharge &&
                     (isMeseroView ? (
@@ -550,7 +663,7 @@ export function TableDetailSheet({
               );
             })()}
 
-            {visibleRounds.length === 0 && (
+            {visibleRounds.length === 0 && freeLines.length === 0 && (
               <div className="text-sm text-op-muted">
                 {tr("noActiveDishes")}
               </div>
@@ -737,6 +850,79 @@ export function TableDetailSheet({
               </section>
             ))}
 
+            {/* Líneas libres: van aparte de las rondas porque no son platos
+                — nadie las prepara ni las entrega. Se muestra el impuesto de
+                cada una porque se SUMA al precio, y sin verlo el total de la
+                cuenta no cuadra con lo que el mesero digitó. */}
+            {freeLines.length > 0 && (
+              <section className="space-y-2">
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                  {tr("freeLinesTitle")}
+                </div>
+                <ul className="space-y-2">
+                  {freeLines.map((l) => {
+                    const lineCents = l.priceCents * l.qty;
+                    // Misma función que usa el backend para cobrar: si el
+                    // sheet hiciera su propia cuenta, tarde o temprano
+                    // mostraría un número distinto al que se factura.
+                    const taxCents = lineTaxOnTopCents({
+                      amountCents: lineCents,
+                      taxKind: l.taxKind,
+                      taxPct: l.taxPct,
+                    });
+                    return (
+                      <li
+                        key={l.id}
+                        className="rounded-xl border border-hairline bg-op-surface p-3"
+                      >
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-mono tabular text-muted shrink-0">
+                            {l.qty}
+                            {"×"}
+                          </span>
+                          <span className="flex-1 text-sm font-medium">
+                            {l.name}
+                          </span>
+                          <span className="font-mono tabular text-sm shrink-0">
+                            {fmtCOP(lineCents)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+                            {taxCents > 0
+                              ? tr("freeLineTaxSummary", {
+                                  kind:
+                                    l.taxKind === "inc"
+                                      ? tr("taxKindInc")
+                                      : tr("taxKindIva"),
+                                  pct: l.taxPct ?? 0,
+                                  amount: fmtCOP(taxCents),
+                                })
+                              : tr("freeLineNoTax")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCancelTarget({
+                                itemId: l.id,
+                                name: l.name,
+                                // Una línea libre nunca "se sirvió": quitarla
+                                // es cancelarla, no una cortesía de cocina.
+                                kind: "cancel",
+                              })
+                            }
+                            className="font-mono text-[10px] tracking-wider uppercase text-danger hover:bg-danger/10 px-2 py-1 rounded-full shrink-0"
+                          >
+                            {tr("cancelItem")}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+
             <p className="text-[10px] text-op-muted">
               {tr("autoRefreshNote")}
             </p>
@@ -762,6 +948,14 @@ export function TableDetailSheet({
           err={moveErr}
           onClose={() => setShowMoveSheet(false)}
           onPick={(tid) => moveOrderToTable(tid)}
+        />
+      )}
+
+      {showFreeLineSheet && (
+        <FreeLineSheet
+          country={country ?? null}
+          onClose={() => setShowFreeLineSheet(false)}
+          onSubmit={addFreeLine}
         />
       )}
 
@@ -963,6 +1157,247 @@ function MoveItemSheet({
         )}
 
         {err && <div className="text-xs text-danger">{err}</div>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Formulario de LÍNEA LIBRE: nombre, cantidad, precio unitario e impuesto.
+ *
+ * El impuesto se elige por tipo (ninguno / impoconsumo / IVA) y tarifa, y las
+ * tarifas ofrecidas salen del país del comercio. Eso es justamente lo que hace
+ * falta para facturar una consultoría o un catering con IVA 19% desde un
+ * restaurante que en la carta cobra impoconsumo del 8%.
+ *
+ * El precio se digita con `MoneyInput` (type="text" + inputMode, pesos enteros
+ * con separadores de miles). Un `<input type="number">` no sirve acá: con
+ * separador decimal el navegador devuelve "" y el valor se pierde.
+ */
+function FreeLineSheet({
+  country,
+  onClose,
+  onSubmit,
+}: {
+  country: string | null;
+  onClose: () => void;
+  /** Devuelve un mensaje de error ya traducido, o null si guardó bien. */
+  onSubmit: (input: {
+    name: string;
+    qty: number;
+    unitPriceCents: number;
+    taxKind: "none" | "inc" | "iva";
+    taxPct: number;
+  }) => Promise<string | null>;
+}) {
+  const tr = useTranslations("opTables");
+  const [name, setName] = useState("");
+  const [qtyRaw, setQtyRaw] = useState("1");
+  const [priceDigits, setPriceDigits] = useState("");
+  const [taxKind, setTaxKind] = useState<"none" | "inc" | "iva">("none");
+  const [taxPct, setTaxPct] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const rates = salesTaxRates(taxKind, country);
+  const qty = qtyRaw === "" ? 0 : Number(qtyRaw);
+  const unitPriceCents = pesosToCents(Number(priceDigits || "0"));
+  const lineCents = unitPriceCents * qty;
+  const taxCents = lineTaxOnTopCents({
+    amountCents: lineCents,
+    taxKind,
+    taxPct,
+  });
+
+  function changeKind(k: "none" | "inc" | "iva") {
+    setErr(null);
+    setTaxKind(k);
+    // La tarifa se resetea a la general del país (la última de la lista): 19%
+    // de IVA en Colombia, 16% en México, 8% de impoconsumo. Dejar la anterior
+    // al cambiar de tipo produciría combinaciones que el backend rechaza.
+    const next = salesTaxRates(k, country);
+    setTaxPct(next[next.length - 1] ?? 0);
+  }
+
+  const trimmed = name.trim();
+  const canSubmit =
+    trimmed.length >= 2 &&
+    qty >= 1 &&
+    qty <= MAX_FREE_LINE_QTY &&
+    lineCents > 0 &&
+    lineCents <= MAX_FREE_LINE_TOTAL_CENTS &&
+    !busy;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const msg = await onSubmit({
+        name: trimmed,
+        qty,
+        unitPriceCents,
+        taxKind,
+        taxPct,
+      });
+      if (msg) setErr(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              {tr("freeLinesTitle")}
+            </div>
+            <h2 className="font-display text-2xl mt-1">{tr("addFreeLine")}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label={tr("close")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        <p className="text-xs text-muted">{tr("freeLineHint")}</p>
+
+        <label className="block">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
+            {tr("freeLineName")}
+          </div>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setErr(null);
+              setName(e.target.value.slice(0, 120));
+            }}
+            placeholder={tr("freeLineNamePlaceholder")}
+            className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:border-ink/40"
+          />
+        </label>
+
+        <div className="grid grid-cols-[80px_1fr] gap-3">
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
+              {tr("freeLineQty")}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={qtyRaw}
+              onChange={(e) => {
+                setErr(null);
+                setQtyRaw(e.target.value.replace(/\D/g, "").slice(0, 3));
+              }}
+              className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm tabular focus:outline-none focus:border-ink/40"
+            />
+          </label>
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
+              {tr("freeLineUnitPrice")}
+            </div>
+            <MoneyInput
+              value={priceDigits}
+              onChange={(digits) => {
+                setErr(null);
+                setPriceDigits(digits);
+              }}
+              ariaLabel={tr("freeLineUnitPrice")}
+              className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm tabular focus:outline-none focus:border-ink/40"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
+              {tr("freeLineTaxKind")}
+            </div>
+            <select
+              value={taxKind}
+              onChange={(e) =>
+                changeKind(e.target.value as "none" | "inc" | "iva")
+              }
+              className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:border-ink/40"
+            >
+              <option value="none">{tr("taxKindNone")}</option>
+              <option value="inc">{tr("taxKindInc")}</option>
+              <option value="iva">{tr("taxKindIva")}</option>
+            </select>
+          </label>
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted mb-1">
+              {tr("freeLineTaxPct")}
+            </div>
+            <select
+              value={String(taxPct)}
+              disabled={taxKind === "none"}
+              onChange={(e) => {
+                setErr(null);
+                setTaxPct(Number(e.target.value));
+              }}
+              className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm disabled:opacity-40 focus:outline-none focus:border-ink/40"
+            >
+              {rates.map((p) => (
+                <option key={p} value={String(p)}>
+                  {tr("freeLinePctOption", { pct: p })}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* Vista previa: el impuesto se SUMA, así que el mesero tiene que ver
+            a cuánto queda la línea antes de agregarla a la cuenta. */}
+        <div className="rounded-xl border border-hairline bg-op-bg p-3 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-op-muted">{tr("freeLinePreviewBase")}</span>
+            <span className="font-mono tabular">{fmtCOP(lineCents)}</span>
+          </div>
+          {taxCents > 0 && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-op-muted">
+                {tr("freeLinePreviewTax", {
+                  kind: taxKind === "inc" ? tr("taxKindInc") : tr("taxKindIva"),
+                  pct: taxPct,
+                })}
+              </span>
+              <span className="font-mono tabular">{fmtCOP(taxCents)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-sm font-medium pt-1 border-t border-hairline">
+            <span>{tr("freeLinePreviewTotal")}</span>
+            <span className="font-mono tabular">
+              {fmtCOP(lineCents + taxCents)}
+            </span>
+          </div>
+        </div>
+
+        {err && <div className="text-xs text-danger">{err}</div>}
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="mp-btn mp-btn--block"
+        >
+          {busy ? tr("freeLineSubmitBusy") : tr("freeLineSubmit")}
+        </button>
       </div>
     </div>
   );

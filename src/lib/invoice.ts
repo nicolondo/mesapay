@@ -39,6 +39,18 @@ export type InvoiceSnapshot = {
     priceCents: number; // unitario
   }>;
   subtotalCents: number;
+  /**
+   * Impuesto que las LÍNEAS LIBRES (servicios, alquileres, cargos sueltos)
+   * suman ENCIMA del subtotal, y su desglose por tipo. Los platos del menú no
+   * aportan acá: su impuesto va embebido en el precio, ya contado dentro del
+   * subtotal.
+   *
+   * Opcionales porque las facturas emitidas antes de las líneas libres no los
+   * tienen en el snapshot; el renderer omite la fila cuando son 0 o ausentes,
+   * así una tirilla vieja se ve exactamente igual que siempre.
+   */
+  taxCents?: number;
+  taxByKind?: { inc: number; iva: number };
   tipCents: number;
   totalCents: number;
   // Datos del cliente cuando la factura es PERSONALIZADA (con razón social /
@@ -52,6 +64,41 @@ export type InvoiceSnapshot = {
     department: string;
   } | null;
 };
+
+/**
+ * Filas de impuesto que la tirilla muestra entre el subtotal y la propina.
+ *
+ * Vacío en una cuenta sólo de menú: ahí el impuesto va EMBEBIDO en el precio y
+ * ya está contado dentro del subtotal, así que una fila aparte haría parecer
+ * que se cobra dos veces. Se desglosa por tipo porque el punto de las líneas
+ * libres es justamente poder facturar un servicio con IVA en un restaurante
+ * que cobra impoconsumo.
+ */
+export function taxRows(
+  snapshot: InvoiceSnapshot,
+  // Etiquetas ya traducidas en vez del translator: la tirilla impresa
+  // (`/factura/[id]`, server component de next-intl) y el correo usan
+  // traductores de tipos distintos, y así las dos comparten esta lógica.
+  labels: { inc: string; iva: string; other: string },
+): Array<{ label: string; cents: number }> {
+  const rows: Array<{ label: string; cents: number }> = [];
+  const inc = snapshot.taxByKind?.inc ?? 0;
+  const iva = snapshot.taxByKind?.iva ?? 0;
+  if (inc > 0) rows.push({ label: labels.inc, cents: inc });
+  if (iva > 0) rows.push({ label: labels.iva, cents: iva });
+  // Fallback: facturas viejas guardaron el total sin desglose. Se muestra lo
+  // que falte como una fila genérica para que subtotal + impuesto + propina
+  // siga sumando exactamente el total cobrado.
+  const listed = rows.reduce((s, r) => s + r.cents, 0);
+  const rest = (snapshot.taxCents ?? 0) - listed;
+  if (rest > 0) rows.push({ label: labels.other, cents: rest });
+  return rows;
+}
+
+/** Etiquetas de impuesto del catálogo `emailInvoice`, para `taxRows`. */
+function taxLabelsFrom(t: Translator) {
+  return { inc: t("taxInc"), iva: t("taxIva"), other: t("tax") };
+}
 
 export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): string {
   // Zero-pad según los dígitos del límite superior de la resolución
@@ -142,6 +189,9 @@ export async function renderInvoiceEmail(args: {
     ),
     "",
     `${t("subtotal")}: ${fmtCOP(snapshot.subtotalCents)}`,
+    ...taxRows(snapshot, taxLabelsFrom(t)).map(
+      (r) => `${r.label}: ${fmtCOP(r.cents)}`,
+    ),
     snapshot.tipCents > 0
       ? `${t("tip")}: ${fmtCOP(snapshot.tipCents)}`
       : "",
@@ -400,6 +450,12 @@ function renderHtml(args: {
                       <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("subtotal"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.subtotalCents)}</td>
                     </tr>
+                    ${taxRows(snapshot, taxLabelsFrom(t))
+                      .map(
+                        (r) =>
+                          `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(r.cents)}</td></tr>`,
+                      )
+                      .join("")}
                     ${
                       snapshot.tipCents > 0
                         ? `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("tip"))}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.tipCents)}</td></tr>`

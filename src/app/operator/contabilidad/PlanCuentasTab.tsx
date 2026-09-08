@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+type ImportIssue = {
+  line: number;
+  code: string;
+  reason: string;
+};
+
 type Account = {
   code: string;
   name: string;
@@ -14,14 +20,19 @@ type Account = {
 };
 
 /**
- * Plan de cuentas (PUC NIIF Grupo 2) — vista de sólo lectura (Fase 1). Muestra
- * el catálogo jerárquico; en fases siguientes se enganchan los asientos.
+ * Plan de cuentas (PUC NIIF Grupo 2): catálogo jerárquico del comercio, con
+ * importación del PUC propio del contador (CSV pegado, aditivo).
  */
 export function PlanCuentasTab() {
   const t = useTranslations("opErp");
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [csv, setCsv] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [issues, setIssues] = useState<ImportIssue[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -37,6 +48,38 @@ export function PlanCuentasTab() {
       alive = false;
     };
   }, []);
+
+  async function runImport() {
+    if (csv.trim().length < 3) return;
+    setBusy(true);
+    setImportMsg(null);
+    setIssues([]);
+    const res = await fetch("/api/operator/accounting/chart", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ csv }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setIssues((j.issues as ImportIssue[]) ?? []);
+      setImportMsg(
+        j.error === "empty" ? t("chartImportEmpty") : t("chartImportFailed"),
+      );
+      return;
+    }
+    setIssues((j.issues as ImportIssue[]) ?? []);
+    setImportMsg(
+      t("chartImportDone", {
+        created: j.created ?? 0,
+        updated: j.updated ?? 0,
+        parents: j.parentsCreated ?? 0,
+      }),
+    );
+    setCsv("");
+    const r = await fetch("/api/operator/accounting/chart");
+    if (r.ok) setAccounts((await r.json()).accounts as Account[]);
+  }
 
   // Filtro por código/nombre que conserva las agrupadoras padres del match.
   const filtered = useMemo(() => {
@@ -68,6 +111,70 @@ export function PlanCuentasTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-op-muted">{t("cuentasIntro")}</p>
+
+      {!importOpen ? (
+        <button
+          type="button"
+          onClick={() => setImportOpen(true)}
+          className="text-[11px] text-terracotta hover:underline"
+        >
+          {t("chartImportOpen")}
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-op-border bg-op-surface p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+              {t("chartImportTitle")}
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportOpen(false)}
+              className="text-[11px] text-op-muted hover:underline shrink-0"
+            >
+              {t("chartImportClose")}
+            </button>
+          </div>
+          <p className="text-xs text-op-muted">{t("chartImportIntro")}</p>
+          <textarea
+            value={csv}
+            onChange={(e) => setCsv(e.target.value)}
+            placeholder={t("chartImportPlaceholder")}
+            rows={5}
+            aria-label={t("chartImportTitle")}
+            className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
+          />
+          <button
+            type="button"
+            onClick={runImport}
+            disabled={busy || csv.trim().length < 3}
+            className="mp-btn mp-btn--primary mp-btn--block"
+          >
+            {busy ? t("chartImporting") : t("chartImportCta")}
+          </button>
+          {importMsg && <p className="text-xs text-op-muted">{importMsg}</p>}
+          {issues.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-danger">
+                {t("chartImportIssues", { count: issues.length })}
+              </p>
+              <ul className="space-y-0.5">
+                {issues.map((i) => (
+                  <li
+                    key={`${i.line}-${i.code}`}
+                    className="text-[11px] text-op-muted"
+                  >
+                    <span className="font-mono">
+                      {t("chartIssueLine", { line: i.line })}
+                    </span>
+                    {` · ${i.code} · ${t(ISSUE_KEY[i.reason] ?? "chartIssue_not_numeric")}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       <input
         type="search"
         value={q}
@@ -119,6 +226,14 @@ export function PlanCuentasTab() {
     </div>
   );
 }
+
+const ISSUE_KEY: Record<string, string> = {
+  not_numeric: "chartIssue_not_numeric",
+  bad_length: "chartIssue_bad_length",
+  bad_class: "chartIssue_bad_class",
+  duplicate: "chartIssue_duplicate",
+  no_name: "chartIssue_no_name",
+};
 
 const TYPE_KEY: Record<string, string> = {
   activo: "ctypeActivo",

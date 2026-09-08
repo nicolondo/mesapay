@@ -1970,8 +1970,8 @@
     "fieldLegalNameLabel": "Razão social",
     "fieldLegalNamePlaceholder": "Inversiones Mi Restaurante S.A.S.",
     "fieldTaxIdLabel": "NIT",
-    "fieldTaxIdHint": "Apenas dígitos. O DV não é obrigatório.",
-    "fieldTaxIdPlaceholder": "900123456-7",
+    "fieldTaxIdHint": "Com o dígito verificador, após o hífen. Ex: 901944469-1. A nota fiscal eletrônica exige.",
+    "fieldTaxIdPlaceholder": "901944469-1",
     "fieldAddressLabel": "Endereço",
     "fieldAddressPlaceholder": "Cra 11 # 85-32",
     "fieldCityLabel": "Cidade",
@@ -1996,7 +1996,9 @@
     "saveError": "Não conseguimos salvar",
     "saved": "Salvo.",
     "saving": "Salvando…",
-    "save": "Salvar"
+    "save": "Salvar",
+    "errTaxIdDvRequired": "Falta o dígito verificador do NIT. Escreva-o após o hífen: 901944469-1.",
+    "errTaxIdDvMismatch": "O dígito verificador não corresponde a esse NIT. Confira ambos no RUT."
   },
   "opPagos": {
     "noRestaurant": "Sem restaurante.",

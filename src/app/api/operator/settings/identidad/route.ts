@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { computeNitDv } from "@/lib/erp/exogena";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -12,7 +13,13 @@ const putBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   logoUrl: z.string().max(500).nullable().optional(),
   legalName: z.string().trim().max(200).nullable().optional(),
-  // NIT: solo dígitos (con o sin DV). Sanitizamos al guardar.
+  // NIT con su dígito de verificación: "901944469-1".
+  //
+  // El DV dejó de ser opcional porque la factura electrónica lo exige (la
+  // DIAN rechaza con FAJ24/FAJ24a/FAJ47 si no viaja) y, sobre todo, porque
+  // es un dígito VERIFICADOR: contrastarlo contra el calculado detecta un
+  // NIT mal tecleado antes de que salga en una factura. Se valida abajo, no
+  // sólo se exige el formato.
   taxId: z
     .string()
     .trim()
@@ -73,6 +80,19 @@ export async function PUT(req: Request) {
   }
 
   const d = parsed.data;
+
+  // El NIT sigue siendo opcional (un comercio puede no haberlo cargado aún),
+  // pero SI viene tiene que traer un DV correcto.
+  if (d.taxId != null && d.taxId.trim() !== "") {
+    const raw = d.taxId.replace(/[^\d-]/g, "");
+    const [digits, dv] = raw.split("-");
+    if (!digits || dv == null || dv === "") {
+      return NextResponse.json({ error: "tax_id_dv_required" }, { status: 400 });
+    }
+    if (computeNitDv(digits) !== dv) {
+      return NextResponse.json({ error: "tax_id_dv_mismatch" }, { status: 400 });
+    }
+  }
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {

@@ -12,6 +12,16 @@ export const expenseBodySchema = z.object({
   costCenterId: z.string().min(1).nullable().optional(),
   recurring: z.boolean().optional(),
   recurringDay: z.number().int().min(1).max(28).nullable().optional(),
+  /** Cuenta del PUC a la que se carga el gasto. null = derivar de la categoría. */
+  accountCode: z.string().trim().min(4).max(10).nullable().optional(),
+  /** Vencimiento, si queda debiéndose. */
+  dueAt: z.string().datetime().nullable().optional(),
+  /**
+   * Pago de contado: la cuenta de donde sale la plata. Si viene, se crea el
+   * abono por el total del gasto en la misma transacción y el gasto queda
+   * saldado en un solo paso.
+   */
+  payFromAccountCode: z.string().trim().min(4).max(10).nullable().optional(),
 });
 
 /** recurring ⇔ recurringDay van juntos. */

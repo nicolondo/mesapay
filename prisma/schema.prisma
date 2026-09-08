@@ -335,6 +335,7 @@ model Restaurant {
   purchaseOrders         PurchaseOrder[]
   recipes                Recipe[]
   expenses               Expense[]
+  expensePayments        ExpensePayment[]
   ledgerAccounts         LedgerAccount[]
   journalEntries         JournalEntry[]
   payrollRuns            PayrollRun[]
@@ -691,6 +692,7 @@ model User {
   // ERP: movimientos de inventario / conteos creados por este usuario.
   stockMovements           StockMovement[]         @relation("StockMovementCreator")
   expensesCreated          Expense[]               @relation("ExpenseCreator")
+  expensePaymentsCreated   ExpensePayment[]        @relation("ExpensePaymentCreator")
   productionBatchesCreated ProductionBatch[]       @relation("ProductionBatchCreator")
   purchaseInvoiceUploads   PurchaseInvoiceUpload[]
   purchasePayments         PurchasePayment[]       @relation("PurchasePaymentCreator")
@@ -2157,6 +2159,23 @@ model Expense {
   costCenterId String?
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
+  /// Cuenta del PUC a la que se CARGA el gasto (débito). null = se deriva de
+  /// la categoría por palabras clave (expenseAccountFor), que es lo que se
+  /// hacía siempre. Con plan de cuentas propio esa heurística falla, así que
+  /// el operador puede fijarla.
+  accountCode String?
+
+  // ─── Pago (puede quedar debiéndose) ───────────────────────────────
+  /// Vencimiento, si el gasto se debe. null = sin plazo pactado.
+  dueAt     DateTime?
+  /// Abonado acumulado (centavos) — cache mantenido en la tx de cada pago.
+  /// Saldo = amountCents − paidCents.
+  paidCents Int       @default(0)
+  /// Se setea cuando el saldo llega a 0.
+  paidAt    DateTime?
+
+  payments ExpensePayment[]
+
   // Plantilla mensual (recurringDay 1-28, lo valida la API).
   recurring    Boolean @default(false)
   recurringDay Int?
@@ -2970,4 +2989,30 @@ model JournalLine {
 
   @@index([entryId])
   @@index([accountId])
+}
+
+/// Abono a un gasto. Un gasto puede pagarse de contado (la UI crea el abono
+/// al instante) o quedar debiéndose y pagarse después, incluso en varias
+/// cuotas. Cada abono dice de QUÉ cuenta salió la plata — eso es lo que el
+/// asiento acredita.
+model ExpensePayment {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  expenseId    String
+  expense      Expense    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  amountCents Int
+  /// Fecha del abono (editable) — define el mes contable del pago.
+  paidAt      DateTime
+  /// Cuenta del PUC de donde SALE la plata (caja, banco, pasarela…).
+  accountCode String
+  note        String?
+
+  createdById String?
+  createdBy   User?    @relation("ExpensePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([restaurantId, paidAt])
 }

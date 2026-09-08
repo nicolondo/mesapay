@@ -157,6 +157,9 @@ export async function POST(
       cufe: t.cufe ?? built.cufe,
       trackId: t.trackId ?? null,
       errors: t.errors.length ? t.errors : undefined,
+      // La respuesta cruda se guarda siempre: sin ella no hay forma de
+      // saber por qué la DIAN rechazó (ver InvalidSecurity de 2026-09).
+      responseXml: result.raw ?? null,
       xmlZip: new Uint8Array(zip),
       attempts: { increment: 1 },
     },

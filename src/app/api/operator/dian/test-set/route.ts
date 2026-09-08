@@ -118,6 +118,7 @@ export async function POST() {
       cufe: t.cufe ?? built.cufe,
       trackId: t.trackId ?? null,
       errors: t.errors.length ? t.errors : undefined,
+      responseXml: result.raw ?? null,
       attempts: 1,
     },
   });

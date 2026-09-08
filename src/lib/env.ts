@@ -62,6 +62,17 @@ const schema = z.object({
   // Si falta, cae al KUSHKI_WEBHOOK_SECRET global (ver verifyKushkiSignature).
   KUSHKI_BILLING_WEBHOOK_SECRET: z.string().optional(),
 
+  // Pagos demo (demo_card / demo_nequi): se aprueban solos, sin pasarela
+  // y sin sesión. Son para desarrollar sin cobrar de verdad, así que por
+  // defecto quedan APAGADOS en producción (ver src/lib/demoPayments.ts).
+  // Se prende a mano — y sólo a mano — en un staging donde haga falta
+  // probar el flujo de pago completo sin plata real.
+  //
+  // A propósito NO es un enum: un valor raro acá no puede tumbar el boot
+  // del server entero. La interpretación vive en demoPayments.ts y falla
+  // cerrada (sólo "true"/"1" prenden; cualquier otra cosa apaga).
+  MESAPAY_ALLOW_DEMO_PAYMENTS: z.string().optional(),
+
   // Anthropic — bank-certification OCR.
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-haiku-4-5"),

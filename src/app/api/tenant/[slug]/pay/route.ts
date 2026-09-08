@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import {
+  DEMO_PAYMENTS_DISABLED,
+  shouldBlockDemoPayment,
+} from "@/lib/demoPayments";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
@@ -63,6 +67,24 @@ export async function POST(
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  // Gate de pagos demo. demo_card/demo_nequi caen más abajo en la rama
+  // "approve immediately": crean un Payment aprobado sin consultar
+  // ninguna pasarela y sin pedir sesión. Esta ruta es PÚBLICA (el
+  // comensal la llama desde su celular con el orderId que ve en la URL),
+  // así que en producción eso es "marcá mi cuenta como pagada gratis".
+  // Cortamos acá, antes de leer la orden y muy antes de cualquier
+  // escritura: un demo bloqueado no deja ni un rastro en la DB.
+  //
+  // demo_cash NO pasa por acá a propósito: es el efectivo de verdad
+  // (pending del comensal / cobro del mesero con sesión verificada) y
+  // bloquearlo dejaría al restaurante sin caja.
+  if (shouldBlockDemoPayment(parsed.data.method)) {
+    return NextResponse.json(
+      { error: DEMO_PAYMENTS_DISABLED },
+      { status: 403 },
+    );
   }
 
   const order = await db.order.findUnique({ where: { id: parsed.data.orderId } });

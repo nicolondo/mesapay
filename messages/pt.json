@@ -79,6 +79,7 @@
     "demoCard": "Cartão demo · {price}",
     "demoNequi": "Demo Nequi",
     "demoHint": "Modo demo. Ative pagamentos para usar o Apple Pay.",
+    "pickupNoPaymentMethod": "Este restaurante ainda não tem pagamentos ativos para retirada. Peça no balcão ou volte mais tarde.",
     "paymentApprovalHint": "Seu pedido entra na cozinha somente quando o pagamento é aprovado.",
     "errNeedName": "Precisamos do seu nome para te chamar.",
     "errNeedPhone": "Digite seu número de celular para avisarmos quando estiver pronto.",

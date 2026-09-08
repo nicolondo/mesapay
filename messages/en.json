@@ -79,6 +79,7 @@
     "demoCard": "Demo card · {price}",
     "demoNequi": "Demo Nequi",
     "demoHint": "Demo mode. Enable payments to use Apple Pay.",
+    "pickupNoPaymentMethod": "This restaurant does not have pickup payments enabled yet. Order at the counter or come back later.",
     "paymentApprovalHint": "Your order enters the kitchen only once payment is approved.",
     "errNeedName": "We need your name to call you.",
     "errNeedPhone": "Enter your mobile number so we can let you know when it's ready.",

@@ -1976,6 +1976,11 @@
     "fieldAddressPlaceholder": "Cra 11 # 85-32",
     "fieldCityLabel": "Cidade",
     "fieldCityPlaceholder": "Bogotá",
+    "fieldCityDaneHint": "Escolha o município na lista. O código DANE dele vai dentro da nota fiscal eletrônica: é o que a DIAN usa para identificar seu ponto de faturamento.",
+    "cityMigrationNotice": "Sua cidade estava digitada à mão («{city}»), sem código DANE. Escolha na lista uma vez para que as faturas saiam com o município correto.",
+    "citySuggestion": "É {label}?",
+    "citySuggestionConfirm": "Sim, é essa",
+    "citySuggestionDismiss": "Não, vou buscar",
     "fieldPhoneLabel": "Telefone",
     "fieldPhonePlaceholder": "+57 320 123 4567",
     "dianSectionTitle": "Resolução de faturamento DIAN",
@@ -1999,6 +2004,14 @@
     "save": "Salvar",
     "errTaxIdDvRequired": "Falta o dígito verificador do NIT. Escreva-o após o hífen: 901944469-1.",
     "errTaxIdDvMismatch": "O dígito verificador não corresponde a esse NIT. Confira ambos no RUT."
+  },
+  "daneCity": {
+    "placeholder": "Busque o município (ex. Envigado)",
+    "typeMore": "Digite pelo menos 2 letras",
+    "searching": "Buscando…",
+    "noResults": "Não encontramos esse município",
+    "clear": "Remover",
+    "daneCode": "Código DANE {code}"
   },
   "opPagos": {
     "noRestaurant": "Sem restaurante.",

@@ -1976,6 +1976,11 @@
     "fieldAddressPlaceholder": "Cra 11 # 85-32",
     "fieldCityLabel": "City",
     "fieldCityPlaceholder": "Bogotá",
+    "fieldCityDaneHint": "Pick the municipality from the list. Its DANE code travels inside the e-invoice: it is what the DIAN uses to identify your billing point.",
+    "cityMigrationNotice": "Your city was typed by hand (“{city}”), with no DANE code. Pick it from the list once so invoices carry the right municipality.",
+    "citySuggestion": "Is it {label}?",
+    "citySuggestionConfirm": "Yes, that's the one",
+    "citySuggestionDismiss": "No, I'll search",
     "fieldPhoneLabel": "Phone",
     "fieldPhonePlaceholder": "+57 320 123 4567",
     "dianSectionTitle": "DIAN invoicing resolution",
@@ -1999,6 +2004,14 @@
     "save": "Save",
     "errTaxIdDvRequired": "The tax ID is missing its check digit. Add it after the hyphen: 901944469-1.",
     "errTaxIdDvMismatch": "The check digit doesn't match that tax ID. Check both against the RUT."
+  },
+  "daneCity": {
+    "placeholder": "Search the municipality (e.g. Envigado)",
+    "typeMore": "Type at least 2 letters",
+    "searching": "Searching…",
+    "noResults": "We couldn't find that municipality",
+    "clear": "Remove",
+    "daneCode": "DANE code {code}"
   },
   "opPagos": {
     "noRestaurant": "No restaurant.",

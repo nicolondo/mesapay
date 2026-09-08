@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { findMunicipioByCode, type DaneMunicipio } from "@/lib/dane/municipios";
 
 const putBody = z.object({
   // Nombre comercial del restaurante (display, distinto de razón
@@ -28,6 +29,16 @@ const putBody = z.object({
     .optional(),
   legalAddress: z.string().trim().max(200).nullable().optional(),
   legalCity: z.string().trim().max(100).nullable().optional(),
+  // Código DANE del municipio (DIVIPOLA, 5 dígitos). El cliente manda
+  // SOLO el municipio: el departamento y el nombre legible los deriva
+  // el server del catálogo, así nunca quedan en desacuerdo (y el
+  // navegador no puede inventarse un departamento que no corresponde).
+  legalCityCode: z
+    .string()
+    .trim()
+    .regex(/^\d{5}$/)
+    .nullable()
+    .optional(),
   legalPhone: z.string().trim().max(60).nullable().optional(),
   dianResolution: z.string().trim().max(200).nullable().optional(),
   // Tope 2.000.000.000, no 99.999.999: los rangos que autoriza la DIAN no
@@ -93,6 +104,18 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "tax_id_dv_mismatch" }, { status: 400 });
     }
   }
+
+  // Municipio DANE: si mandaron código, tiene que existir en DIVIPOLA.
+  // Rechazamos en vez de guardar basura — un código inválido llega a la
+  // DIAN como rechazo de la factura, mucho más tarde y sin pistas.
+  let municipio: DaneMunicipio | null = null;
+  if (d.legalCityCode) {
+    municipio = findMunicipioByCode(d.legalCityCode);
+    if (!municipio) {
+      return NextResponse.json({ error: "invalid_city_code" }, { status: 400 });
+    }
+  }
+
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
@@ -106,7 +129,24 @@ export async function PUT(req: Request) {
       ...(d.legalAddress !== undefined && {
         legalAddress: d.legalAddress || null,
       }),
-      ...(d.legalCity !== undefined && { legalCity: d.legalCity || null }),
+      // Con municipio elegido, legalCity se DERIVA del nombre oficial
+      // DANE ("Santiago de Cali", no "cali") para que el nombre impreso
+      // y el código de la factura digan lo mismo. Sin municipio (país
+      // sin DIVIPOLA, o comercio que todavía no lo eligió) legalCity
+      // sigue siendo texto libre y los códigos quedan en null.
+      ...(municipio
+        ? {
+            legalCity: municipio.name,
+            legalCityCode: municipio.code,
+            legalDeptCode: municipio.deptCode,
+          }
+        : {
+            ...(d.legalCity !== undefined && { legalCity: d.legalCity || null }),
+            ...(d.legalCityCode === null && {
+              legalCityCode: null,
+              legalDeptCode: null,
+            }),
+          }),
       ...(d.legalPhone !== undefined && { legalPhone: d.legalPhone || null }),
       ...(d.dianResolution !== undefined && {
         dianResolution: d.dianResolution || null,

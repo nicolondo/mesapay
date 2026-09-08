@@ -118,6 +118,8 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
   "src/components/CashBox.tsx",
+  // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
+  "src/components/MunicipioAutocomplete.tsx",
   "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",
   "src/app/admin/plans/**/*.{ts,tsx}",
   "src/app/admin/groups/**/*.{ts,tsx}",

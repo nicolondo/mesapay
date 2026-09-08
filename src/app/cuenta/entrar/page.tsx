@@ -211,17 +211,11 @@ function CustomerLogin() {
           </form>
         )}
 
-        <div className="mt-5 text-sm text-muted text-center space-y-1">
+        <div className="mt-5 text-sm text-muted text-center">
           <div>
             {t("noAccount")}{" "}
             <Link href="/signup" className="text-terracotta underline">
               {t("goSignup")}
-            </Link>
-          </div>
-          <div>
-            {t("staffQuestion")}{" "}
-            <Link href="/signin" className="text-terracotta underline">
-              {t("staffLink")}
             </Link>
           </div>
         </div>

@@ -908,7 +908,18 @@ function ItemForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (!ingredient || !kind) return;
+    if (!ingredient || !kind) {
+      setErr(t("errPickIngredient"));
+      return;
+    }
+    if (presentation.trim() === "") {
+      setErr(t("errPresentationRequired"));
+      return;
+    }
+    if (qty.trim() === "") {
+      setErr(t("errContentRequired"));
+      return;
+    }
 
     const contentQty = toBaseQty(Number(qty.replace(",", ".")), kind, unit);
     if (contentQty == null) {
@@ -961,7 +972,15 @@ function ItemForm({
   }
 
   return (
+    /*
+      noValidate: la validación va toda por submit(). El aviso nativo del
+      navegador no se ve si el campo vacío quedó fuera de la parte visible
+      del panel — y ahí el submit se cancela sin que nada aparezca en
+      pantalla, que es justo el síntoma que se quería eliminar. El mensaje
+      propio se pinta arriba de los botones, siempre visible.
+    */
     <form
+      noValidate
       onSubmit={submit}
       className="mt-3 rounded-2xl border border-op-border bg-op-bg/50 p-4 space-y-3"
     >
@@ -1103,14 +1122,15 @@ function ItemForm({
         >
           {t("cancel")}
         </button>
+        {/*
+          Antes se deshabilitaba también por campos vacíos y el clic no hacía
+          NADA ni explicaba qué faltaba. Ahora siempre se puede pulsar: el
+          `required` nativo enfoca el campo vacío y, para lo que el navegador
+          no valida (el insumo del combobox), submit() muestra el motivo.
+        */}
         <button
           type="submit"
-          disabled={
-            busy ||
-            !ingredient ||
-            presentation.trim().length === 0 ||
-            qty.trim().length === 0
-          }
+          disabled={busy}
           className="mp-btn mp-btn--primary"
         >
           {busy ? t("saving") : t("save")}

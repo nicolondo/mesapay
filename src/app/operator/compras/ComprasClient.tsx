@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
@@ -1333,12 +1334,10 @@ function NewOrderSheet({
                         <Field label={t("fieldQty")} required>
                           <div className="flex gap-2">
                             <input
-                              type="number"
-                              min={0}
-                              step="any"
+                              type="text"
                               inputMode="decimal"
                               value={qty}
-                              onChange={(e) => setQty(e.target.value)}
+                              onChange={(e) => setQty(sanitizeDecimalInput(e.target.value))}
                               disabled={!pickedIng}
                               className={inputCls + " flex-1 disabled:opacity-40"}
                             />
@@ -3179,12 +3178,10 @@ function InvoiceReviewLineCard({
         <Field label={t("fieldQty")} required>
           <div className="flex gap-2">
             <input
-              type="number"
-              min={0}
-              step="any"
+              type="text"
               inputMode="decimal"
               value={l.qty}
-              onChange={(e) => onChange({ qty: e.target.value })}
+              onChange={(e) => onChange({ qty: sanitizeDecimalInput(e.target.value) })}
               className={inputCls + " flex-1 min-w-0"}
             />
             <select
@@ -4205,13 +4202,11 @@ function ReceiveSheet({
                       <Field label={t("fieldQty")} required>
                         <div className="flex gap-2">
                           <input
-                            type="number"
-                            min={0}
-                            step="any"
+                            type="text"
                             inputMode="decimal"
                             value={l.qty}
                             onChange={(e) =>
-                              updateLine(l.itemId, { qty: e.target.value })
+                              updateLine(l.itemId, { qty: sanitizeDecimalInput(e.target.value) })
                             }
                             className={inputCls + " flex-1 min-w-0"}
                           />

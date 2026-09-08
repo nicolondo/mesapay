@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
@@ -934,12 +935,10 @@ function QtyUnitInput({
   return (
     <div className="flex gap-2">
       <input
-        type="number"
-        min={0}
-        step="any"
+        type="text"
         inputMode="decimal"
         value={entry.raw}
-        onChange={(e) => onChange({ ...entry, raw: e.target.value })}
+        onChange={(e) => onChange({ ...entry, raw: sanitizeDecimalInput(e.target.value) })}
         className={inputCls + " flex-1"}
       />
       <select

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useBackdropClose } from "@/lib/useBackdropClose";
@@ -1781,7 +1782,7 @@ function NewItemForm({
             type="text"
             inputMode="decimal"
             value={prepMinutes}
-            onChange={(e) => setPrepMinutes(e.target.value)}
+            onChange={(e) => setPrepMinutes(sanitizeDecimalInput(e.target.value))}
             placeholder="0.5"
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
@@ -2121,7 +2122,7 @@ function ItemSheet({
                   type="text"
                   inputMode="decimal"
                   value={prepMinutes}
-                  onChange={(e) => setPrepMinutes(e.target.value)}
+                  onChange={(e) => setPrepMinutes(sanitizeDecimalInput(e.target.value))}
                   placeholder="0.5"
                   className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
                 />

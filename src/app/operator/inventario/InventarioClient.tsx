@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -1290,13 +1291,11 @@ function MovementSheet({
           <Field label={t("fieldQty")} required>
             <div className="flex gap-2">
               <input
-                type="number"
+                type="text"
                 required
-                min={0}
-                step="any"
                 inputMode="decimal"
                 value={qty}
-                onChange={(e) => setQty(e.target.value)}
+                onChange={(e) => setQty(sanitizeDecimalInput(e.target.value))}
                 disabled={!kind}
                 className={inputCls + " flex-1 disabled:opacity-40"}
               />
@@ -1807,9 +1806,7 @@ function CountSheet({
                   {!readOnly && (
                     <div className="mt-2 flex items-center gap-2">
                       <input
-                        type="number"
-                        min={0}
-                        step="any"
+                        type="text"
                         inputMode="decimal"
                         value={entry.raw}
                         placeholder={t("notCounted")}
@@ -1817,7 +1814,7 @@ function CountSheet({
                           setSavedFlash(false);
                           setEntries((prev) => ({
                             ...prev,
-                            [it.id]: { ...prev[it.id], raw: e.target.value },
+                            [it.id]: { ...prev[it.id], raw: sanitizeDecimalInput(e.target.value) },
                           }));
                         }}
                         className={inputCls + " flex-1"}

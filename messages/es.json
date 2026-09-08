@@ -3984,6 +3984,7 @@
     "fieldContent": "Contenido por presentación",
     "contentHint": "Cuánto trae UNA presentación, en la unidad que elijas.",
     "errContentInvalid": "Cantidad inválida para esa unidad.",
+    "errQtyTooSmall": "Esa cantidad es más chica que el mínimo de la unidad ({min}). Cambiá la unidad del select o subí la cantidad.",
     "fieldPrice": "Precio por presentación",
     "fieldSupplierSku": "SKU del proveedor",
     "preferredLabel": "Proveedor preferido para este insumo",

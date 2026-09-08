@@ -716,16 +716,45 @@ type ParsedLine =
       lineCost: number | null;
     }
   | "qty_invalid"
+  | "qty_too_small"
   | "waste_invalid";
+
+/**
+ * Deja escribir una cantidad decimal con coma O punto. Los inputs de
+ * cantidad NO pueden ser type="number": en un locale con coma decimal el
+ * navegador devuelve "" al teclear "0,05", y la cantidad terminaba en 0 →
+ * "contenido inválido" sin explicación. Se filtra acá y se normaliza en
+ * parseLine.
+ */
+function sanitizeDecimal(raw: string): string {
+  const cleaned = raw.replace(/[^\d.,]/g, "");
+  const firstSep = cleaned.search(/[.,]/);
+  if (firstSep === -1) return cleaned;
+  return (
+    cleaned.slice(0, firstSep + 1) +
+    cleaned.slice(firstSep + 1).replace(/[.,]/g, "")
+  );
+}
+
+/** Menor cantidad representable en una unidad de display (1 unidad base). */
+function minQtyLabel(kind: MeasureKind, unitSymbol: string): string {
+  const unit = DISPLAY_UNITS[kind].find((u) => u.symbol === unitSymbol);
+  if (!unit) return "";
+  const min = 1 / unit.factor;
+  const decimals = String(unit.factor).length - 1;
+  return `${min.toFixed(decimals).replace(".", ",")} ${unit.symbol}`;
+}
 
 /** Parseo + costo en vivo de una línea: bruto = neto / (1 − merma%). */
 function parseLine(l: EditLine): ParsedLine {
-  const qtyBase = toBaseQty(
-    Number(l.qtyRaw.replace(",", ".")),
-    l.measureKind,
-    l.unit,
-  );
-  if (qtyBase == null) return "qty_invalid";
+  const value = Number(l.qtyRaw.replace(",", "."));
+  const qtyBase = toBaseQty(value, l.measureKind, l.unit);
+  if (qtyBase == null) {
+    // Un número positivo que no llega a 1 unidad base no es un error de
+    // tipeo: es que la unidad elegida no tiene esa resolución (0,05 ml).
+    // Se distingue para poder decir cuál es el mínimo y no un genérico.
+    return isFinite(value) && value > 0 ? "qty_too_small" : "qty_invalid";
+  }
   const wRaw = l.wasteRaw.trim();
   const wastePct = wRaw === "" ? 0 : Number(wRaw);
   if (!Number.isInteger(wastePct) || wastePct < 0 || wastePct > MAX_WASTE_PCT) {
@@ -791,7 +820,12 @@ function liveLinesTotal(lines: EditLine[]): {
   let incomplete = false;
   for (const l of lines) {
     const p = parseLine(l);
-    if (p === "qty_invalid" || p === "waste_invalid" || p.lineCost == null) {
+    if (
+      p === "qty_invalid" ||
+      p === "qty_too_small" ||
+      p === "waste_invalid" ||
+      p.lineCost == null
+    ) {
       incomplete = true;
       continue;
     }
@@ -936,6 +970,12 @@ function RecipeSheet({
         setErr(t("errContentInvalid"));
         return;
       }
+      if (p === "qty_too_small") {
+        setErr(
+          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
+        );
+        return;
+      }
       if (p === "waste_invalid") {
         setErr(t("errWasteInvalid"));
         return;
@@ -953,6 +993,12 @@ function RecipeSheet({
       const p = parseLine(l);
       if (p === "qty_invalid") {
         setErr(t("errContentInvalid"));
+        return;
+      }
+      if (p === "qty_too_small") {
+        setErr(
+          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
+        );
         return;
       }
       if (p === "waste_invalid") {
@@ -1255,7 +1301,9 @@ function LinesEditor({
           {lines.map((l) => {
             const parsed = parseLine(l);
             const invalid =
-              parsed === "qty_invalid" || parsed === "waste_invalid";
+              parsed === "qty_invalid" ||
+              parsed === "qty_too_small" ||
+              parsed === "waste_invalid";
             const unitOptions = DISPLAY_UNITS[l.measureKind];
             return (
               <div
@@ -1314,13 +1362,11 @@ function LinesEditor({
                     </button>
                   )}
                   <input
-                    type="number"
-                    min={0}
-                    step="any"
+                    type="text"
                     inputMode="decimal"
                     value={l.qtyRaw}
                     onChange={(e) =>
-                      onUpdate(l.key, { qtyRaw: e.target.value })
+                      onUpdate(l.key, { qtyRaw: sanitizeDecimal(e.target.value) })
                     }
                     aria-label={t("fieldNetQty")}
                     placeholder={t("fieldNetQty")}
@@ -1844,6 +1890,12 @@ function SubRecipeSheet({
         setErr(t("errContentInvalid"));
         return;
       }
+      if (p === "qty_too_small") {
+        setErr(
+          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
+        );
+        return;
+      }
       if (p === "waste_invalid") {
         setErr(t("errWasteInvalid"));
         return;
@@ -2004,14 +2056,12 @@ function SubRecipeSheet({
               >
                 <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    min={0}
-                    step="any"
+                    type="text"
                     inputMode="decimal"
                     value={yieldRaw}
                     onChange={(e) => {
                       setErr(null);
-                      setYieldRaw(e.target.value);
+                      setYieldRaw(sanitizeDecimal(e.target.value));
                     }}
                     className={inputCls + " flex-1 min-w-0"}
                   />

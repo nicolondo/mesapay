@@ -82,29 +82,30 @@ export function resolveRange(
  * se debe armar.
  *
  * Existe como función aparte, y no inline en la página, por una razón
- * concreta: `email` es único en toda la plataforma, así que un mismo
- * comensal puede tener facturas de varios restaurantes MESAPAY. Si alguien
- * olvidara el `restaurantId` en el where, el restaurante A vería lo que esa
- * persona gastó en el B — una fuga de datos entre clientes de la
- * plataforma. Acá el filtro no es opcional: es un parámetro obligatorio, y
- * hay un test que verifica que siempre sale en el resultado.
+ * concreta: es el punto donde el aislamiento entre restaurantes no puede
+ * quedar librado a que nadie lo olvide. Desde que el comensal se registra
+ * por comercio, un `Diner` pertenece a un solo restaurante y sus órdenes
+ * también — pero el `dinerId` llega por la URL, así que sin el
+ * `restaurantId` un operador podría pegar el id de un comensal ajeno y ver
+ * facturas que no son suyas. Acá el filtro no es opcional: es un parámetro
+ * obligatorio, y hay un test que verifica que siempre sale en el resultado.
  */
-export function customerOrdersWhere(args: {
+export function dinerOrdersWhere(args: {
   restaurantId: string;
-  customerId: string;
+  dinerId: string;
   from: IsoDate;
   to: IsoDate;
   timeZone?: string;
 }): {
   restaurantId: string;
-  customerId: string;
+  dinerId: string;
   status: "paid";
   paidAt: { gte: Date; lt: Date };
 } {
   const { gte, lt } = isoRangeToDates(args.from, args.to, args.timeZone);
   return {
     restaurantId: args.restaurantId,
-    customerId: args.customerId,
+    dinerId: args.dinerId,
     status: "paid",
     paidAt: { gte, lt },
   };

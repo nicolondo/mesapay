@@ -1,7 +1,7 @@
 import type { Prisma, PaymentMethod } from "@prisma/client";
 import { db } from "./db";
 import { orderTaxTotals } from "./salesTax";
-import { computeDiscountCents } from "./customerDiscount";
+import { computeDiscountCents } from "./dinerDiscount";
 
 /**
  * Single source of truth for how an order's totals are computed from its

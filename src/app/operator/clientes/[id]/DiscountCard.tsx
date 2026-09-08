@@ -12,10 +12,10 @@ import { useTranslations } from "next-intl";
  * restaurante no puede pactar (ni leer) el descuento de otro.
  */
 export function DiscountCard({
-  customerId,
+  dinerId,
   initial,
 }: {
-  customerId: string;
+  dinerId: string;
   initial: { percent: number; note: string | null } | null;
 }) {
   const t = useTranslations("opCustomers");
@@ -35,7 +35,7 @@ export function DiscountCard({
     setMsg(null);
     try {
       const res = await fetch(
-        `/api/operator/customers/${customerId}/discount`,
+        `/api/operator/diners/${dinerId}/discount`,
         {
           method: "PUT",
           headers: { "content-type": "application/json" },
@@ -69,7 +69,7 @@ export function DiscountCard({
     setMsg(null);
     try {
       const res = await fetch(
-        `/api/operator/customers/${customerId}/discount`,
+        `/api/operator/diners/${dinerId}/discount`,
         { method: "DELETE" },
       );
       if (!res.ok) {

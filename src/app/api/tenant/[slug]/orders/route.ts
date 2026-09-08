@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { getViewer } from "@/lib/customerSession";
+import { getDiner } from "@/lib/dinerSession";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import {
@@ -12,7 +12,7 @@ import {
 import {
   computeDiscountCents,
   getActiveDiscountPct,
-} from "@/lib/customerDiscount";
+} from "@/lib/dinerDiscount";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -50,13 +50,17 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  // getViewer resuelve la sesión permanente del comensal (fila en DB) y
-  // cae al JWT de NextAuth. Así una cuenta creada con el flujo nuevo queda
-  // enlazada al pedido igual que antes.
-  const session = await getViewer();
 
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+
+  // Comensal con sesión EN ESTE COMERCIO. El tenant se resuelve primero a
+  // propósito: la identidad del comensal no existe fuera de un restaurante.
+  // Antes esto era `getViewer()`, que caía al JWT de NextAuth y terminaba
+  // enlazando la cuenta al mesero o al platform_admin que había abierto la
+  // carta con su propia sesión — en producción la mayoría de las órdenes
+  // "con comensal" eran justamente eso.
+  const diner = await getDiner(tenant.id);
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -84,13 +88,11 @@ export async function POST(
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
-  // Descuento del comensal identificado, si tiene uno vigente EN ESTE
-  // restaurante. Se resuelve fuera de la transacción (es una lectura) y se
-  // aplica adentro. El lookup va contra (restaurantId, userId): el
-  // descuento pactado en otro local no llega hasta acá.
-  const customerDiscountPct = session?.id
-    ? await getActiveDiscountPct(tenant.id, session.id)
-    : null;
+  // Descuento del comensal identificado. Se resuelve fuera de la
+  // transacción (es una lectura) y se aplica adentro. El descuento cuelga
+  // del comensal, y el comensal de un solo comercio: el pactado en otro
+  // local no llega hasta acá ni por accidente.
+  const dinerDiscountPct = diner ? await getActiveDiscountPct(diner.id) : null;
 
   const result = await db.$transaction(async (tx) => {
     let order = parsed.data.orderId
@@ -111,14 +113,14 @@ export async function POST(
         data: {
           restaurantId: tenant.id,
           tableId: table.id,
-          customerId: session?.id,
+          dinerId: diner?.id,
           status: "open",
           shortCode: shortCode(),
           servingMode,
           locale: await getLocale(),
           // Snapshot del porcentaje pactado al abrir la cuenta. El valor en
           // pesos se calcula abajo, cuando ya se conoce el subtotal.
-          discountPct: customerDiscountPct,
+          discountPct: dinerDiscountPct,
         },
       });
     }

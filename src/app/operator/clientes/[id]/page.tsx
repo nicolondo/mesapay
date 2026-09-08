@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { formatMoney, formatDate } from "@/lib/format";
-import { resolveRange, customerOrdersWhere } from "@/lib/monthRange";
+import { resolveRange, dinerOrdersWhere } from "@/lib/monthRange";
 import type { Locale } from "@/i18n/config";
 import { DiscountCard } from "./DiscountCard";
 import { RangePicker } from "./RangePicker";
@@ -14,18 +14,17 @@ export const dynamic = "force-dynamic";
 
 /**
  * Ficha del comensal para el restaurante: su descuento y TODO lo que
- * consumió — pero solo acá.
+ * consumió acá.
  *
  * ── El filtro que no se puede omitir ──────────────────────────────────
- * `email` es único en toda la plataforma, así que esta persona puede tener
- * facturas de varios restaurantes MESAPAY. La consulta lleva
- * `restaurantId` en el where SIEMPRE, y ese id sale de la sesión
- * (getActiveRestaurantId), nunca de la URL. Sin ese filtro, el
- * restaurante A vería las facturas del B: una fuga de datos entre clientes
- * de la plataforma.
+ * El id del comensal llega por la URL. Sin el `restaurantId` en el where,
+ * un operador podría pegar el id de un comensal de otro local y ver sus
+ * facturas. Ese id sale de la sesión (getActiveRestaurantId), nunca de la
+ * URL, y lo mismo pasa con el `notFound()` de abajo: si el comensal no es
+ * de este restaurante, acá no existe.
  *
  * Por la misma razón el total del encabezado se calcula sobre las mismas
- * órdenes filtradas y no con un agregado global del usuario.
+ * órdenes filtradas y no con un agregado global.
  */
 export default async function ClienteDetallePage({
   params,
@@ -38,7 +37,7 @@ export default async function ClienteDetallePage({
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
-  const { id: customerId } = await params;
+  const { id: dinerId } = await params;
   const sp = await searchParams;
   // Sin parámetros en la URL: el mes en curso.
   const range = resolveRange(sp.from, sp.to);
@@ -46,27 +45,33 @@ export default async function ClienteDetallePage({
   const locale = (await getLocale()) as Locale;
 
   const [customer, restaurant] = await Promise.all([
-    db.user.findUnique({
-      where: { id: customerId },
-      select: { id: true, name: true, email: true, cedula: true, role: true },
+    db.diner.findUnique({
+      where: { id: dinerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        cedula: true,
+        restaurantId: true,
+      },
     }),
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { country: true },
     }),
   ]);
-  if (!customer || customer.role !== "customer") notFound();
+  if (!customer || customer.restaurantId !== restaurantId) notFound();
 
   const currency = await getCurrencyForCountry(restaurant?.country ?? "CO");
 
   const [orders, discount] = await Promise.all([
     db.order.findMany({
-      // El where lo arma `customerOrdersWhere`, que EXIGE el restaurantId
+      // El where lo arma `dinerOrdersWhere`, que EXIGE el restaurantId
       // como parámetro — así el aislamiento entre restaurantes no depende
       // de que nadie lo olvide acá. Hay un test que lo verifica.
-      where: customerOrdersWhere({
+      where: dinerOrdersWhere({
         restaurantId,
-        customerId,
+        dinerId,
         from: range.from,
         to: range.to,
       }),
@@ -85,9 +90,9 @@ export default async function ClienteDetallePage({
         simpleInvoice: { select: { id: true, invoiceNumber: true } },
       },
     }),
-    // El descuento también es por restaurante: la llave es el par.
-    db.customerDiscount.findUnique({
-      where: { restaurantId_userId: { restaurantId, userId: customerId } },
+    // El descuento cuelga del comensal, que es de un solo restaurante.
+    db.dinerDiscount.findUnique({
+      where: { dinerId },
       select: { percent: true, active: true, note: true },
     }),
   ]);
@@ -115,7 +120,7 @@ export default async function ClienteDetallePage({
       </div>
 
       <DiscountCard
-        customerId={customer.id}
+        dinerId={customer.id}
         initial={
           discount?.active
             ? { percent: discount.percent, note: discount.note }

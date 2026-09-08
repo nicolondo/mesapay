@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
-import { removeOrderDiscount } from "@/lib/customerDiscount";
+import { removeOrderDiscount } from "@/lib/dinerDiscount";
 
 /**
  * DELETE /api/operator/orders/[id]/discount — el mesero quita el descuento

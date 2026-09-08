@@ -138,8 +138,8 @@ export async function POST(
     orderId: payment.orderId,
   });
 
-  if (result.fullyPaid && payment.order.customerId) {
-    welcomeIfFirstTime(payment.order.customerId, payment.order.locale).catch((err) =>
+  if (result.fullyPaid && payment.order.dinerId) {
+    welcomeIfFirstTime(payment.order.dinerId, payment.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
   }

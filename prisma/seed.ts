@@ -272,12 +272,10 @@ async function main() {
 
   // Test accounts
   const pwHash = await bcrypt.hash("mesapay123", 10);
+  // OJO: acá solo va PERSONAL. El comensal ya no es un `User`: se registra
+  // por comercio y vive en `Diner` (ver el modelo). El comensal demo se
+  // siembra más abajo, atado a Casa Teresita.
   const accounts: Array<{ email: string; name: string; role: Role; restaurantId?: string }> = [
-    {
-      email: "cliente@mesapay.co",
-      name: "Cliente Demo",
-      role: "customer",
-    },
     {
       email: "mesero@casateresita.co",
       name: "Andrés M.",
@@ -304,6 +302,27 @@ async function main() {
     });
   }
   console.log("Seeded test accounts (password: mesapay123).");
+
+  // Comensal demo — DE Casa Teresita. Su correo y su cédula son únicos
+  // dentro de ese restaurante, no en toda la plataforma: la misma persona
+  // podría registrarse aparte en otro local.
+  await db.diner.upsert({
+    where: {
+      restaurantId_email: {
+        restaurantId: teresita.id,
+        email: "cliente@mesapay.co",
+      },
+    },
+    update: { name: "Cliente Demo" },
+    create: {
+      restaurantId: teresita.id,
+      email: "cliente@mesapay.co",
+      cedula: "1020304050",
+      name: "Cliente Demo",
+      passwordHash: pwHash,
+    },
+  });
+  console.log("Seeded demo diner for Casa Teresita.");
 }
 
 main()

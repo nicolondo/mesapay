@@ -907,6 +907,13 @@ export function InventarioClient({
           count={openCount}
           onClose={() => setOpenCount(null)}
           onClosed={handleCountClosed}
+          onDeleted={() => {
+            // Un borrador no tocó saldos: basta con cerrar el sheet e
+            // invalidar la lista (no hace falta refrescar existencias).
+            setOpenCount(null);
+            setCounts(null);
+            setCountsErr(false);
+          }}
         />
       )}
 
@@ -1536,10 +1543,12 @@ function CountSheet({
   count,
   onClose,
   onClosed,
+  onDeleted,
 }: {
   count: CountDetail;
   onClose: () => void;
   onClosed: () => void;
+  onDeleted: () => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -1699,6 +1708,31 @@ function CountSheet({
     const ok = await patchDraft();
     setBusy(false);
     if (ok) setSavedFlash(true);
+  }
+
+  /**
+   * Borra la sesión — la API solo lo permite en BORRADOR. Un conteo
+   * cerrado ya generó ajustes y movió saldos: borrarlo dejaría el stock
+   * mintiendo, por eso ni se ofrece el botón (el pie en modo lectura no lo
+   * incluye) y, si igual llegara la respuesta, se muestra el 409 traducido.
+   */
+  async function deleteSession() {
+    setErr(null);
+    setSavedFlash(false);
+    if (!window.confirm(t("deleteCountConfirm"))) return;
+    setBusy(true);
+    const r = await fetch(`/api/operator/stock/counts/${count.id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        j.error === "not_draft" ? t("errCountNotDraft") : t("errSaveFailed"),
+      );
+      return;
+    }
+    onDeleted();
   }
 
   async function closeSession() {
@@ -1974,6 +2008,15 @@ function CountSheet({
             </button>
           ) : (
             <>
+              {/* Solo en borrador: un conteo cerrado ya movió saldos. */}
+              <button
+                type="button"
+                onClick={deleteSession}
+                disabled={busy}
+                className="mr-auto min-h-[44px] px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-40"
+              >
+                {t("deleteCount")}
+              </button>
               <button
                 type="button"
                 onClick={save}

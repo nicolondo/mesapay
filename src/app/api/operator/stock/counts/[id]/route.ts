@@ -120,3 +120,45 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
+/**
+ * Borra un conteo — SOLO en borrador.
+ *
+ * Regla dura: un conteo cerrado ya generó movimientos `count_adjust` y
+ * movió los saldos. Borrarlo dejaría el libro sin la contrapartida del
+ * ajuste y el stock mintiendo, así que se rechaza con 409 y la UI ni
+ * siquiera ofrece el botón. Un borrador, en cambio, es papel de trabajo:
+ * no tocó ningún saldo, se puede tirar sin consecuencias.
+ *
+ * El estado se verifica DENTRO del deleteMany (no solo en el findUnique
+ * previo, que es únicamente para distinguir 404 de 409) para que un cierre
+ * concurrente no se cuele entre la lectura y el borrado: si la sesión dejó
+ * de ser borrador, el deleteMany no encuentra nada y se responde
+ * `not_draft`. Los items caen por cascada (StockCountItem → countId
+ * onDelete: Cascade).
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const ctx = await getErpContext(GATE);
+  if (isDenied(ctx)) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+  const { id } = await params;
+  const count = await db.stockCount.findUnique({
+    where: { id },
+    select: { restaurantId: true, status: true },
+  });
+  // 404 antes que 409: un conteo de otro comercio no debe delatar ni su
+  // existencia ni su estado.
+  if (!count || count.restaurantId !== ctx.restaurantId) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  const deleted = await db.stockCount.deleteMany({
+    where: { id, restaurantId: ctx.restaurantId, status: "draft" },
+  });
+  if (deleted.count === 0) {
+    return NextResponse.json({ error: "not_draft" }, { status: 409 });
+  }
+  return NextResponse.json({ ok: true });
+}

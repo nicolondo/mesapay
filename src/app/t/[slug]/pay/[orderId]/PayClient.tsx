@@ -39,6 +39,9 @@ export function PayClient({
   tableId,
   locationLabel,
   subtotalCents,
+  grossSubtotalCents,
+  discountCents = 0,
+  discountPct = null,
   paidCents,
   paidTipCents,
   alreadyPaid,
@@ -67,7 +70,17 @@ export function PayClient({
   shortCode: string;
   tableId: string;
   locationLabel: string;
+  /**
+   * Lo COBRABLE: el subtotal ya con el descuento del comensal restado.
+   * Toda la aritmética de la pantalla (partes iguales, lo mío, saldo)
+   * cuelga de acá, así que tiene que llegar neto — si llegara bruto, el
+   * servidor rechazaría el cobro por "excede lo pendiente".
+   */
   subtotalCents: number;
+  /** El subtotal ANTES del descuento — solo para mostrar el desglose. */
+  grossSubtotalCents: number;
+  discountCents?: number;
+  discountPct?: number | null;
   paidCents: number;
   paidTipCents: number;
   alreadyPaid: boolean;
@@ -674,13 +687,37 @@ export function PayClient({
               </li>
             ))}
           </ul>
-          <div className="flex items-baseline justify-between px-4 py-2.5 bg-ivory border-t border-hairline">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              {t("subtotal")}
-            </span>
-            <span className="font-display text-lg tabular">
-              {fmtCOP(subtotalCents)}
-            </span>
+          <div className="px-4 py-2.5 bg-ivory border-t border-hairline">
+            {discountCents > 0 && (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                    {t("subtotal")}
+                  </span>
+                  <span className="font-mono text-sm tabular text-muted">
+                    {fmtCOP(grossSubtotalCents)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-terracotta">
+                    {discountPct
+                      ? t("discountRowPct", { pct: discountPct })
+                      : t("discountRow")}
+                  </span>
+                  <span className="font-mono text-sm tabular text-terracotta">
+                    {"− " + fmtCOP(discountCents)}
+                  </span>
+                </div>
+              </>
+            )}
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                {discountCents > 0 ? t("discountedTotal") : t("subtotal")}
+              </span>
+              <span className="font-display text-lg tabular">
+                {fmtCOP(subtotalCents)}
+              </span>
+            </div>
           </div>
           {/* No mostramos "Ya pagado" aquí — esta sección es para que
               el cliente confirme que el menú coincide con lo que pidió.
@@ -801,6 +838,17 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
+        {discountCents > 0 && (
+          <Row
+            label={
+              discountPct
+                ? t("discountRowPct", { pct: discountPct })
+                : t("discountRow")
+            }
+            value={"− " + fmtCOP(discountCents)}
+            muted
+          />
+        )}
         <Row
           label={t(operatorMode ? "rowYourBillOp" : "rowYourBill")}
           value={fmtCOP(subtotalCents)}

@@ -96,7 +96,14 @@ export default async function TerminalPage() {
     // Cash payments come through demo_cash today (the table flow names it
     // that way regardless of mock vs real cash). Future: rename to "cash".
     const pendingCash = pendingPayments.find((p) => p.method === "demo_cash");
-    const totals = computeOrderTotals(order.subtotalCents, approved);
+    // El descuento del comensal identificado baja lo cobrable; sin
+    // pasarlo, el datáfono cobraría el bruto y el servidor lo rechazaría.
+    const totals = computeOrderTotals(
+      order.subtotalCents,
+      approved,
+      order.taxCents,
+      order.discountCents,
+    );
 
     // Sort priority: terminal request > cash request > generic charging.
     // Both terminal and cash requests promote the table to the top of the
@@ -155,7 +162,7 @@ export default async function TerminalPage() {
       state,
       orderId: order.id,
       shortCode: order.shortCode,
-      subtotalCents: order.subtotalCents,
+      subtotalCents: Math.max(0, order.subtotalCents - order.discountCents),
       outstandingCents: totals.outstandingCents,
       paidCents: totals.foodPaidCents,
       pendingPayments: pendingPayments.map((p) => ({

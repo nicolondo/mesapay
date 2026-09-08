@@ -35,6 +35,7 @@ export default async function MeseroCobradoPage({
       restaurantId: true,
       totalCents: true,
       subtotalCents: true,
+      discountCents: true,
       restaurant: { select: { slug: true } },
     },
   });
@@ -72,7 +73,14 @@ export default async function MeseroCobradoPage({
             {t("opChargeDone")}
           </div>
           <div className="font-display text-2xl tabular mt-0.5">
-            {fmtCOP(Math.max(order.totalCents, order.subtotalCents))}
+            {fmtCOP(
+              Math.max(
+                order.totalCents,
+                // Con descuento, subtotalCents es el BRUTO y no sirve de
+                // piso: lo cobrado es el neto.
+                Math.max(0, order.subtotalCents - order.discountCents),
+              ),
+            )}
           </div>
         </div>
         <Link

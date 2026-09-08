@@ -305,6 +305,7 @@ model Restaurant {
   categories             Category[]
   menuItems              MenuItem[]
   orders                 Order[]
+  customerDiscounts      CustomerDiscount[]
   dishRatings            DishRating[]
   membershipPayments     MembershipPayment[]
   billingSubscription    BillingSubscription?
@@ -744,6 +745,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   customerSessions     CustomerSession[]
   magicLinkTokens      MagicLinkToken[]
+  customerDiscounts    CustomerDiscount[]
 
   @@index([restaurantId])
   @@index([groupId])
@@ -785,6 +787,38 @@ model CustomerSession {
   createdAt  DateTime @default(now())
   lastUsedAt DateTime @default(now())
 
+  @@index([userId])
+}
+
+/// Descuento pactado con un comensal, POR RESTAURANTE.
+///
+/// La identidad del comensal es GLOBAL (un correo = una persona en toda la
+/// plataforma) pero un descuento es un acuerdo comercial de UN restaurante
+/// con esa persona. Si el porcentaje viviera en `User` sería global, y el
+/// restaurante B terminaría regalando plata por una negociación del A. Por
+/// eso la llave es (restaurantId, userId) y no el usuario solo.
+///
+/// `active` en vez de borrar: apagar un descuento y volverlo a prender es
+/// una operación comercial normal, y el historial de cuándo se pactó
+/// importa para auditar cuentas viejas.
+model CustomerDiscount {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Porcentaje sobre la cuenta, 1..100.
+  percent Int
+  active  Boolean @default(true)
+  /// Para qué se pactó ("empleado", "socio", "convenio X").
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
   @@index([userId])
 }
 
@@ -1149,6 +1183,18 @@ model Order {
   tipCents      Int @default(0)
   taxCents      Int @default(0)
   totalCents    Int @default(0)
+
+  /// Descuento del comensal identificado en esta cuenta.
+  ///
+  /// `discountPct` es un SNAPSHOT del porcentaje pactado al momento de
+  /// identificarlo: si mañana el restaurante le sube el descuento del 10 al
+  /// 15 %, las cuentas viejas no se reescriben. `discountCents` es el valor
+  /// en pesos, que se recalcula cada vez que cambia el subtotal (si el
+  /// comensal pide otro plato, el descuento tiene que seguirlo).
+  ///
+  /// El mesero puede quitarlo: ambos vuelven a null / 0.
+  discountPct   Int?
+  discountCents Int  @default(0)
 
   servingMode ServingMode @default(asReady)
 

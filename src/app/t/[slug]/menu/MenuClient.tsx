@@ -83,8 +83,11 @@ type CartLine = {
 };
 type ActiveOrder = {
   id: string;
-  shortCode: string;
+  /** Neto del descuento del comensal identificado. */
   subtotalCents: number;
+  shortCode: string;
+  discountCents: number;
+  discountPct: number | null;
   status: string;
   itemCount: number;
   roundCount: number;
@@ -224,6 +227,7 @@ function useLockBodyScroll(locked: boolean) {
 }
 
 export function MenuClient({
+  diner = null,
   tenant,
   tableId,
   tableQrToken,
@@ -240,6 +244,10 @@ export function MenuClient({
   dockBottomClass = "bottom-4",
   modalBottomReserveRem = 0,
 }: {
+  // Comensal con sesión iniciada, si lo hay. Cuando está presente, la
+  // hoja de "dinos tu nombre" ofrece identificarlo en la cuenta — que es
+  // lo que aplica su descuento. Cuando no, ofrece el enlace para entrar.
+  diner?: { name: string | null; email: string } | null;
   tenant: Tenant;
   tableId: string;
   // QR token de la mesa — necesario para el endpoint by-table del
@@ -335,6 +343,9 @@ export function MenuClient({
   const [layout, setLayout] = useState<MenuLayout>("list");
   const [guestName, setGuestName] = useState<string>("");
   const [showNameSheet, setShowNameSheet] = useState(false);
+  // Nombre del comensal ya identificado en ESTA cuenta (lo devuelve el
+  // endpoint). Sirve para confirmar en pantalla que el descuento aplica.
+  const [identifiedName, setIdentifiedName] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [servingMode, setServingMode] = useState<"asReady" | "together">(
@@ -932,6 +943,28 @@ export function MenuClient({
         l.key === key ? { ...l, notes: notes.trim() || undefined } : l,
       ),
     );
+  }
+
+  /**
+   * El comensal se identifica a sí mismo en la cuenta de la mesa. No manda
+   * ningún id: el servidor usa SU sesión. Si el restaurante le tiene un
+   * descuento pactado, queda aplicado a la cuenta.
+   */
+  async function identifyDiner() {
+    if (!activeOrder) return;
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenant.slug}/orders/${activeOrder.id}/identify`,
+        { method: "POST" },
+      );
+      if (!res.ok) return;
+      const j = await res.json().catch(() => ({}));
+      setIdentifiedName(j.name ?? diner?.name ?? diner?.email ?? null);
+      router.refresh();
+    } catch {
+      // Identificarse es una mejora, no un requisito para pedir: si falla,
+      // el comensal sigue con su nombre suelto y sin descuento.
+    }
   }
 
   async function sendToKitchen() {
@@ -1534,6 +1567,9 @@ export function MenuClient({
         <GuestNameSheet
           initial={guestName}
           canCancel={!!guestName}
+          diner={diner}
+          identified={identifiedName}
+          onIdentify={identifyDiner}
           onSave={saveGuestName}
           onClose={() => {
             if (guestName) setShowNameSheet(false);
@@ -2769,18 +2805,36 @@ function ItemSheet({
 function GuestNameSheet({
   initial,
   canCancel,
+  diner,
+  identified,
+  onIdentify,
   onSave,
   onClose,
 }: {
   initial: string;
   canCancel: boolean;
+  // Comensal con sesión iniciada, si lo hay.
+  diner: { name: string | null; email: string } | null;
+  // Nombre ya identificado en esta cuenta (tras tocar "soy yo").
+  identified: string | null;
+  onIdentify: () => void | Promise<void>;
   onSave: (name: string) => void;
   onClose: () => void;
 }) {
   const t = useTranslations("menu");
   const [value, setValue] = useState(initial);
+  const [identifying, setIdentifying] = useState(false);
   const trimmed = value.trim();
   const canSave = trimmed.length > 0;
+
+  async function identify() {
+    setIdentifying(true);
+    try {
+      await onIdentify();
+    } finally {
+      setIdentifying(false);
+    }
+  }
 
   return (
     <div
@@ -2838,6 +2892,35 @@ function GuestNameSheet({
             {t("namePrivacy")}
           </p>
         </form>
+
+        {/* Identificarse con la cuenta MESAPAY. Es lo que aplica el
+            descuento que el restaurante le tenga pactado — y lo que hace
+            que esta cuenta aparezca en su historial. */}
+        <div className="px-6 pb-6 -mt-2">
+          {identified ? (
+            <div className="rounded-xl border border-hairline bg-ivory p-3 text-sm">
+              {t("identifiedAs", { name: identified })}
+            </div>
+          ) : diner ? (
+            <button
+              type="button"
+              onClick={identify}
+              disabled={identifying}
+              className="w-full h-11 rounded-full border border-hairline text-sm font-medium text-ink disabled:opacity-60"
+            >
+              {identifying
+                ? t("identifying")
+                : t("identifyAs", { name: diner.name ?? diner.email })}
+            </button>
+          ) : (
+            <Link
+              href="/cuenta/entrar"
+              className="block text-center text-sm text-terracotta underline"
+            >
+              {t("haveAccount")}
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );

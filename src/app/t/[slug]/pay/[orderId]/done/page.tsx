@@ -239,7 +239,14 @@ export default async function PayDone({
   // totalCents is only set once the first tip is applied; fall back to
   // subtotal so the progress bar has a sensible denominator before anyone
   // has picked a tip.
-  const expectedCents = Math.max(order.totalCents, order.subtotalCents);
+  // Con descuento, `subtotalCents` es el BRUTO y no sirve como piso: lo
+  // esperado es el neto. Sin descuento (discountCents = 0) el cálculo
+  // queda idéntico al de antes.
+  const netSubtotalCents = Math.max(
+    0,
+    order.subtotalCents - order.discountCents,
+  );
+  const expectedCents = Math.max(order.totalCents, netSubtotalCents);
   const outstandingCents = Math.max(0, expectedCents - paidCents);
   const fullyPaid = order.status === "paid" || outstandingCents === 0;
   const progressPct = expectedCents > 0
@@ -456,10 +463,38 @@ export default async function PayDone({
             <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
               {t("subtotal")}
             </span>
-            <span className="font-display text-xl tabular">
+            <span
+              className={
+                order.discountCents > 0
+                  ? "font-mono tabular text-sm text-muted"
+                  : "font-display text-xl tabular"
+              }
+            >
               {fmtCOP(order.subtotalCents)}
             </span>
           </div>
+          {order.discountCents > 0 && (
+            <>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-terracotta">
+                  {order.discountPct
+                    ? t("discountRowPct", { pct: order.discountPct })
+                    : t("discountRow")}
+                </span>
+                <span className="font-mono tabular text-sm text-terracotta">
+                  {"− " + fmtCOP(order.discountCents)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
+                  {t("discountedTotal")}
+                </span>
+                <span className="font-display text-xl tabular">
+                  {fmtCOP(netSubtotalCents)}
+                </span>
+              </div>
+            </>
+          )}
           {order.tipCents > 0 && (
             <div className="mt-1 flex items-baseline justify-between">
               <span className="font-mono text-[10px] tracking-wider uppercase text-muted">

@@ -120,7 +120,13 @@ export async function PayFlow({
           ? "Mostrador"
           : `Mesa ${order.table.number}`
       }
-      subtotalCents={order.subtotalCents}
+      // Lo cobrable va NETO del descuento del comensal identificado: todo
+      // el cálculo de la pantalla (partes iguales, lo mío, saldo) cuelga de
+      // este número, y el tope del servidor rechazaría un cobro bruto.
+      subtotalCents={Math.max(0, order.subtotalCents - order.discountCents)}
+      grossSubtotalCents={order.subtotalCents}
+      discountCents={order.discountCents}
+      discountPct={order.discountPct}
       paidCents={paidCents}
       paidTipCents={paidTipCents}
       alreadyPaid={order.status === "paid"}

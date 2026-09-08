@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -12,7 +13,7 @@ const itemSchema = z.object({
   // Tope alto: las cartas reales (importadas de Cluvi/Justo/Shopify)
   // incluyen botellas de licor premium que superan el millón. Queda bien
   // por debajo del máximo de un Int de Postgres (~2.147M).
-  priceCents: z.number().int().min(0).max(2_000_000_000),
+  priceCents: z.number().int().min(0).max(MAX_MENU_PRICE_CENTS),
   // Either an id of an existing category or a slug of a new one (we
   // create it before the item if the slug doesn't match an existing id).
   categoryRef: z.union([

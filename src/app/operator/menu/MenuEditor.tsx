@@ -792,6 +792,17 @@ export function MenuEditor({
  * a décimas de minuto: 0.5 = 30 s, 0.1 = 6 s. Devuelve null si no es un número
  * positivo (la validación de la UI lo rechaza con un mensaje claro).
  */
+/**
+ * Nombre visible del campo que rechazó la API. Sin esto el editor mostraba
+ * el nombre interno ("priceCents"), que al operador no le dice nada.
+ */
+const FIELD_LABEL_KEY: Record<string, string> = {
+  name: "fieldName",
+  priceCents: "fieldPrice",
+  description: "fieldDescriptionOptional",
+  prepMinutes: "fieldPrep",
+};
+
 function parsePrepMinutes(raw: string): number | null {
   const n = Number(raw.trim().replace(/,/g, "."));
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -1982,7 +1993,11 @@ function ItemSheet({
       };
       setErr(
         j.field
-          ? tr("errInvalidField", { field: j.field })
+          ? tr("errInvalidField", {
+              field: FIELD_LABEL_KEY[j.field]
+                ? tr(FIELD_LABEL_KEY[j.field]!)
+                : j.field,
+            })
           : (j.error ?? tr("errGeneric")),
       );
       return;

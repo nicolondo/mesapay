@@ -1,3 +1,17 @@
+/**
+ * Tope del precio de un plato, en centavos ($5.000.000 COP / MXN).
+ *
+ * El anterior era 100_000_000 ($1.000.000) y se quedaba corto: una botella
+ * premium o una bandeja de catering lo pasan. No se sube más porque los
+ * totales de pedido y factura también son Int (máx. 2.147.483.647 centavos):
+ * con este tope caben cientos de unidades de un mismo plato sin desbordar.
+ *
+ * Vive acá para que la creación, la edición y la importación con IA usen el
+ * MISMO límite — antes la importación admitía precios que después no se
+ * podían editar.
+ */
+export const MAX_MENU_PRICE_CENTS = 500_000_000;
+
 import { db } from "@/lib/db";
 
 /**

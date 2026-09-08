@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -7,7 +8,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 const createSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().trim().min(1).max(60),
-  priceCents: z.number().int().min(0).max(100_000_000),
+  priceCents: z.number().int().min(0).max(MAX_MENU_PRICE_CENTS),
   description: z.string().trim().max(240).optional(),
   prepMinutes: z.number().min(0.1).max(120).optional(),
 });

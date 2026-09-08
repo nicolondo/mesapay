@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { env, requireAnthropicKey } from "./env";
 
@@ -52,7 +53,7 @@ const ExtractedMenuItem = z.object({
   description: z.string().max(500).nullable(),
   // Always in cents to match Prisma. Bank-cert OCR taught us model
   // returns either "$25.000" or 25000 — we ask for cents directly.
-  priceCents: z.number().int().min(0).max(100_000_000),
+  priceCents: z.number().int().min(0).max(MAX_MENU_PRICE_CENTS),
   categorySlug: z.string().min(1).max(60),
   tags: z.array(z.string().min(1).max(32)).default([]),
   // For HTML imports: the absolute URL of the dish photo when one is

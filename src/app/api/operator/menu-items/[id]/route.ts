@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -41,7 +42,7 @@ const modifierSchema = z.object({
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
-  priceCents: z.number().int().min(0).max(100_000_000).optional(),
+  priceCents: z.number().int().min(0).max(MAX_MENU_PRICE_CENTS).optional(),
   // 500 para alinear con el importador de carta (descripciones largas de
   // PDFs/Cluvi). El menú del comensal trunca con line-clamp igual.
   description: z.string().trim().max(500).nullable().optional(),

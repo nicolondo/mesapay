@@ -23,8 +23,13 @@ const putBody = z.object({
   legalCity: z.string().trim().max(100).nullable().optional(),
   legalPhone: z.string().trim().max(60).nullable().optional(),
   dianResolution: z.string().trim().max(200).nullable().optional(),
-  dianResolutionFrom: z.number().int().nonnegative().max(99_999_999).nullable().optional(),
-  dianResolutionTo: z.number().int().nonnegative().max(99_999_999).nullable().optional(),
+  // Tope 2.000.000.000, no 99.999.999: los rangos que autoriza la DIAN no
+  // caben en 8 dígitos. El set de pruebas de habilitación va de 990000000 a
+  // 995000000, así que con el tope viejo la resolución REAL era imposible de
+  // guardar — el formulario respondía "no pudimos guardar" sin decir por qué.
+  // El techo verdadero es el Int de Postgres (2.147.483.647); se deja margen.
+  dianResolutionFrom: z.number().int().nonnegative().max(2_000_000_000).nullable().optional(),
+  dianResolutionTo: z.number().int().nonnegative().max(2_000_000_000).nullable().optional(),
   dianResolutionDate: z
     .string()
     .nullable()
@@ -35,7 +40,7 @@ const putBody = z.object({
   // un número específico (ej. dianResolutionFrom + N facturas ya
   // emitidas externamente). Si lo bajan por error, no validamos
   // contra ya-emitidos en MESAPAY — confiamos en el operador.
-  invoiceNextNumber: z.number().int().min(1).max(99_999_999).optional(),
+  invoiceNextNumber: z.number().int().min(1).max(2_000_000_000).optional(),
 });
 
 /**

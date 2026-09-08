@@ -39,6 +39,10 @@ export type InvoiceSnapshot = {
     priceCents: number; // unitario
   }>;
   subtotalCents: number;
+  // Descuento del comensal identificado. Opcional: las facturas emitidas
+  // antes de esta feature no lo tienen y el renderer lo trata como 0.
+  discountCents?: number;
+  discountPct?: number | null;
   tipCents: number;
   totalCents: number;
   // Datos del cliente cuando la factura es PERSONALIZADA (con razón social /

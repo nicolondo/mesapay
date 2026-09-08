@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
+import { getViewer } from "@/lib/customerSession";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
@@ -78,6 +79,15 @@ export default async function MenuPage({
       { avg: r._avg.stars ?? 0, count: r._count.stars },
     ]),
   );
+
+  // Identidad del comensal (sesión permanente o JWT). Se usa en la hoja
+  // de "dinos tu nombre": si ya tiene cuenta, se le ofrece identificarse en
+  // la mesa — que es lo que aplica su descuento.
+  const viewer = await getViewer();
+  const diner =
+    viewer && viewer.role === "customer"
+      ? { name: viewer.name, email: viewer.email }
+      : null;
 
   const table = await db.table.findUnique({ where: { qrToken: tableToken } });
   if (!table || table.restaurantId !== tenant.id) {
@@ -164,6 +174,7 @@ export default async function MenuPage({
 
   return (
     <MenuClient
+      diner={diner}
       operatorMode={operatorMode}
       postSendHref={postSendHref}
       tenant={{
@@ -228,7 +239,14 @@ export default async function MenuPage({
           ? {
               id: activeOrder.id,
               shortCode: activeOrder.shortCode,
-              subtotalCents: activeOrder.subtotalCents,
+              // Neto del descuento del comensal identificado: es lo que
+              // el comensal ve como su cuenta.
+              subtotalCents: Math.max(
+                0,
+                activeOrder.subtotalCents - activeOrder.discountCents,
+              ),
+              discountCents: activeOrder.discountCents,
+              discountPct: activeOrder.discountPct,
               status: activeOrder.status,
               itemCount: activeOrder.items.reduce((s, i) => s + i.qty, 0),
               roundCount: activeOrder.rounds.length,

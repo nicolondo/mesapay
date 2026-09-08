@@ -197,6 +197,7 @@ export default async function OperatorLayout({
   ];
   const ordersGroup = [
     { href: "/operator/orders", label: t("navOrders") },
+    { href: "/operator/clientes", label: t("navCustomers") },
     { href: "/operator/payments", label: t("navPayments") },
     { href: "/operator/facturas", label: t("navInvoices") },
     { href: "/operator/ratings", label: t("navRatings") },

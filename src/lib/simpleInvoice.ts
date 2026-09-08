@@ -119,6 +119,8 @@ export async function issueSimpleInvoice(opts: {
       priceCents: i.priceCentsSnapshot,
     })),
     subtotalCents: order.subtotalCents,
+    discountCents: order.discountCents,
+    discountPct: order.discountPct,
     tipCents: order.tipCents,
     totalCents: order.totalCents,
     customer: opts.customer ?? null,

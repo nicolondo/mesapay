@@ -220,6 +220,21 @@ export default async function FacturaPage({
               <span>{t("subtotal")}</span>
               <span className="right">{fmtCOP(snap.subtotalCents)}</span>
             </div>
+            {/* Descuento del comensal identificado. Las facturas emitidas
+                antes de esta feature no traen el campo — se trata como 0 y
+                la tirilla se ve exactamente como antes. */}
+            {(snap.discountCents ?? 0) > 0 && (
+              <div className="row">
+                <span>
+                  {snap.discountPct
+                    ? t("discountRowPct", { pct: snap.discountPct })
+                    : t("discountRow")}
+                </span>
+                <span className="right">
+                  {"− " + fmtCOP(snap.discountCents ?? 0)}
+                </span>
+              </div>
+            )}
             {snap.tipCents > 0 && (
               <div className="row">
                 <span>{t("tip")}</span>

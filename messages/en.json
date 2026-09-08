@@ -92,7 +92,11 @@
     "countrySearchPlaceholder": "Search country or code",
     "noCountry": "We couldn't find that country.",
     "categoriesTitle": "Categories",
-    "allCategoriesAria": "View all categories"
+    "allCategoriesAria": "View all categories",
+    "identifyAs": "I'm {name} · use my account",
+    "identifying": "Identifying…",
+    "identifiedAs": "Signed in as {name}. Your discount is applied.",
+    "haveAccount": "Have a MESAPAY account? Sign in to use your discount"
   },
   "landing": {
     "welcomeTo": "Welcome to",
@@ -180,7 +184,10 @@
     "starAria": "{n, plural, one {# star} other {# stars}}",
     "orderAgain": "Back to the menu",
     "etaMax": "+{min} min",
-    "etaHeadlineMax": "Your order is out in more than {min} min"
+    "etaHeadlineMax": "Your order is out in more than {min} min",
+    "discountRow": "Discount",
+    "discountRowPct": "{pct}% discount",
+    "discountedTotal": "Total after discount"
   },
   "pay": {
     "pay": "Pay",
@@ -326,7 +333,10 @@
     "opBtnTerminal": "Charge by card reader",
     "opBtnExternalTerminal": "Charge by merchant's card reader",
     "opBtnCash": "Receive in cash",
-    "opBtnDemoTerminal": "Demo · Charge by card reader"
+    "opBtnDemoTerminal": "Demo · Charge by card reader",
+    "discountRow": "Discount",
+    "discountRowPct": "{pct}% discount",
+    "discountedTotal": "Total after discount"
   },
   "done": {
     "methodCard": "Card",
@@ -434,7 +444,10 @@
     "invErrNotPaid": "The order isn't marked as paid yet.",
     "invErrNotFound": "We couldn't find this order.",
     "invErrInvalid": "Check the details: something is incomplete.",
-    "invErrGeneric": "We couldn't send your request."
+    "invErrGeneric": "We couldn't send your request.",
+    "discountRow": "Discount",
+    "discountRowPct": "{pct}% discount",
+    "discountedTotal": "Total after discount"
   },
   "wait": {
     "totalToPay": "Total to pay",
@@ -818,7 +831,9 @@
     "dianCufeLabel": "CUFE",
     "dianQrAlt": "QR code for the DIAN electronic invoice",
     "dianVerifyCta": "Verify your invoice with the DIAN",
-    "dianVerifyLead": "Scan the QR code or validate your invoice on the DIAN portal."
+    "dianVerifyLead": "Scan the QR code or validate your invoice on the DIAN portal.",
+    "discountRow": "Discount",
+    "discountRowPct": "{pct}% discount"
   },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
@@ -907,7 +922,8 @@
     "newOrder": "New order",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "loggedInAs": "Signed in as"
+    "loggedInAs": "Signed in as",
+    "navCustomers": "Customers"
   },
   "kitchen": {
     "noRestaurant": "No restaurant.",
@@ -1181,6 +1197,49 @@
     "refundError": "Couldn't process the refund.",
     "refundedNote": "Refunded {amount}"
   },
+  "opCustomers": {
+    "title": "Customers",
+    "subtitle": "Diners who have spent at this restaurant, their discount and their invoices.",
+    "noRestaurant": "Pick a restaurant to see its customers.",
+    "searchPlaceholder": "Exact ID number or email",
+    "search": "Search",
+    "searching": "Searching…",
+    "searchNotFound": "We couldn't find an account with those details.",
+    "listTitle": "Have eaten here",
+    "empty": "No diners identified at this restaurant yet. Identify them on the table's bill.",
+    "ordersCount": "{count} invoices",
+    "discountBadge": "{pct}% discount",
+    "backToList": "← Customers",
+    "cedula": "ID number",
+    "cedulaEmpty": "Not set",
+    "discountTitle": "Customer discount",
+    "discountHelp": "Applied to the bill when you identify them at the table. It only counts at this restaurant; a waiter can remove it from a single bill.",
+    "discountPercent": "Percentage",
+    "discountNote": "Note (optional)",
+    "discountActivate": "Activate discount",
+    "discountUpdate": "Save changes",
+    "discountDeactivate": "Deactivate",
+    "discountSaved": "Discount saved.",
+    "discountRemoved": "Discount deactivated.",
+    "saving": "Saving…",
+    "errInvalidPercent": "The percentage must be a whole number from 1 to 100.",
+    "errGeneric": "We couldn't complete this. Please try again.",
+    "invoicesTitle": "Invoices",
+    "scopeNote": "Only this restaurant's invoices are shown. Whatever this customer spent at another MESAPAY venue does not appear here.",
+    "rangeFrom": "From",
+    "rangeTo": "To",
+    "rangeApply": "Apply",
+    "rangeThisMonth": "This month",
+    "statOrders": "Invoices",
+    "statTotal": "Total spent",
+    "statSaved": "Saved with the discount",
+    "noInvoices": "No invoices in this range.",
+    "table": "Table {number}",
+    "counter": "Counter",
+    "openInvoice": "View invoice →",
+    "discountApplied": "{pct}% discount",
+    "discountAppliedNoPct": "Discount"
+  },
   "opReservas": {
     "noRestaurant": "No restaurant.",
     "restaurantNotFound": "Restaurant not found.",
@@ -1367,7 +1426,17 @@
     "bulkCreating": "Creating…",
     "bulkInvalidRange": "The range isn’t valid.",
     "bulkTooMany": "Up to 200 tables at a time.",
-    "bulkResult": "Done: {created} created, {skipped} already existed."
+    "bulkResult": "Done: {created} created, {skipped} already existed.",
+    "customerTitle": "Diner",
+    "customerPlaceholder": "ID number or email",
+    "customerIdentify": "Identify",
+    "customerIdentifying": "Searching…",
+    "customerNotFound": "We couldn't find an account with those details.",
+    "customerIdentifyError": "We couldn't identify the diner.",
+    "discountApplied": "{pct}% discount",
+    "discountAppliedNoPct": "Discount",
+    "discountBefore": "was {amount}",
+    "discountRemove": "Remove discount"
   },
   "opSettings": {
     "tip_shared": "Shared",

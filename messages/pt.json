@@ -92,7 +92,11 @@
     "countrySearchPlaceholder": "Buscar país ou código",
     "noCountry": "Não encontramos esse país.",
     "categoriesTitle": "Categorias",
-    "allCategoriesAria": "Ver todas as categorias"
+    "allCategoriesAria": "Ver todas as categorias",
+    "identifyAs": "Sou {name} · usar minha conta",
+    "identifying": "Identificando…",
+    "identifiedAs": "Identificado como {name}. Seu desconto já está aplicado.",
+    "haveAccount": "Tem conta MESAPAY? Entre para usar seu desconto"
   },
   "landing": {
     "welcomeTo": "Bem-vindo a",
@@ -180,7 +184,10 @@
     "starAria": "{n, plural, one {# estrela} other {# estrelas}}",
     "orderAgain": "Voltar ao cardápio",
     "etaMax": "+{min} min",
-    "etaHeadlineMax": "Seu pedido sai em mais de {min} min"
+    "etaHeadlineMax": "Seu pedido sai em mais de {min} min",
+    "discountRow": "Desconto",
+    "discountRowPct": "Desconto de {pct}%",
+    "discountedTotal": "Total com desconto"
   },
   "pay": {
     "pay": "Pagar",
@@ -326,7 +333,10 @@
     "opBtnTerminal": "Cobrar com maquininha",
     "opBtnExternalTerminal": "Cobrar com maquininha do comércio",
     "opBtnCash": "Receber em dinheiro",
-    "opBtnDemoTerminal": "Demo · Cobrar com maquininha"
+    "opBtnDemoTerminal": "Demo · Cobrar com maquininha",
+    "discountRow": "Desconto",
+    "discountRowPct": "Desconto de {pct}%",
+    "discountedTotal": "Total com desconto"
   },
   "done": {
     "methodCard": "Cartão",
@@ -434,7 +444,10 @@
     "invErrNotPaid": "O pedido ainda não está marcado como pago.",
     "invErrNotFound": "Não encontramos este pedido.",
     "invErrInvalid": "Confira os dados: algum está incompleto.",
-    "invErrGeneric": "Não conseguimos enviar sua solicitação."
+    "invErrGeneric": "Não conseguimos enviar sua solicitação.",
+    "discountRow": "Desconto",
+    "discountRowPct": "Desconto de {pct}%",
+    "discountedTotal": "Total com desconto"
   },
   "wait": {
     "totalToPay": "Total a pagar",
@@ -818,7 +831,9 @@
     "dianCufeLabel": "CUFE",
     "dianQrAlt": "Código QR da fatura eletrônica DIAN",
     "dianVerifyCta": "Verifique sua fatura na DIAN",
-    "dianVerifyLead": "Escaneie o código QR ou valide sua fatura no portal da DIAN."
+    "dianVerifyLead": "Escaneie o código QR ou valide sua fatura no portal da DIAN.",
+    "discountRow": "Desconto",
+    "discountRowPct": "Desconto de {pct}%"
   },
   "emailMembership": {
     "subjectT7": "Seu plano MESAPAY vence em {days} dias",
@@ -907,7 +922,8 @@
     "newOrder": "Novo pedido",
     "openMenu": "Abrir menu",
     "closeMenu": "Fechar menu",
-    "loggedInAs": "Sessão iniciada como"
+    "loggedInAs": "Sessão iniciada como",
+    "navCustomers": "Clientes"
   },
   "kitchen": {
     "noRestaurant": "Sem restaurante.",
@@ -1181,6 +1197,49 @@
     "refundError": "Não foi possível fazer a devolução.",
     "refundedNote": "Devolvido {amount}"
   },
+  "opCustomers": {
+    "title": "Clientes",
+    "subtitle": "Os clientes que consumiram neste restaurante, seu desconto e suas faturas.",
+    "noRestaurant": "Escolha um restaurante para ver seus clientes.",
+    "searchPlaceholder": "Documento ou e-mail exatos",
+    "search": "Buscar",
+    "searching": "Buscando…",
+    "searchNotFound": "Não encontramos uma conta com esses dados.",
+    "listTitle": "Já consumiram aqui",
+    "empty": "Ainda não há clientes identificados neste restaurante. Identifique-os na conta da mesa.",
+    "ordersCount": "{count} faturas",
+    "discountBadge": "Desconto de {pct}%",
+    "backToList": "← Clientes",
+    "cedula": "Documento de identidade",
+    "cedulaEmpty": "Não informado",
+    "discountTitle": "Desconto do cliente",
+    "discountHelp": "É aplicado à conta ao identificá-lo na mesa. Vale só neste restaurante; o garçom pode removê-lo de uma conta específica.",
+    "discountPercent": "Percentual",
+    "discountNote": "Nota (opcional)",
+    "discountActivate": "Ativar desconto",
+    "discountUpdate": "Salvar alterações",
+    "discountDeactivate": "Desativar",
+    "discountSaved": "Desconto salvo.",
+    "discountRemoved": "Desconto desativado.",
+    "saving": "Salvando…",
+    "errInvalidPercent": "O percentual deve ser um inteiro entre 1 e 100.",
+    "errGeneric": "Não conseguimos concluir. Tente de novo.",
+    "invoicesTitle": "Faturas",
+    "scopeNote": "Só aparecem as faturas deste restaurante. O que este cliente consumiu em outra unidade MESAPAY não aparece aqui.",
+    "rangeFrom": "De",
+    "rangeTo": "Até",
+    "rangeApply": "Aplicar",
+    "rangeThisMonth": "Este mês",
+    "statOrders": "Faturas",
+    "statTotal": "Total consumido",
+    "statSaved": "Economizado com o desconto",
+    "noInvoices": "Sem faturas neste período.",
+    "table": "Mesa {number}",
+    "counter": "Balcão",
+    "openInvoice": "Ver fatura →",
+    "discountApplied": "Desconto de {pct}%",
+    "discountAppliedNoPct": "Desconto"
+  },
   "opReservas": {
     "noRestaurant": "Sem restaurante.",
     "restaurantNotFound": "Restaurante não encontrado.",
@@ -1367,7 +1426,17 @@
     "bulkCreating": "Criando…",
     "bulkInvalidRange": "O intervalo não é válido.",
     "bulkTooMany": "No máximo 200 mesas por vez.",
-    "bulkResult": "Pronto: {created} criadas, {skipped} já existiam."
+    "bulkResult": "Pronto: {created} criadas, {skipped} já existiam.",
+    "customerTitle": "Cliente",
+    "customerPlaceholder": "Documento ou e-mail",
+    "customerIdentify": "Identificar",
+    "customerIdentifying": "Buscando…",
+    "customerNotFound": "Não encontramos uma conta com esses dados.",
+    "customerIdentifyError": "Não conseguimos identificar o cliente.",
+    "discountApplied": "Desconto de {pct}%",
+    "discountAppliedNoPct": "Desconto",
+    "discountBefore": "antes {amount}",
+    "discountRemove": "Remover desconto"
   },
   "opSettings": {
     "tip_shared": "Compartilhadas",

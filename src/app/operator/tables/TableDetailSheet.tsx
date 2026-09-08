@@ -71,6 +71,10 @@ export function TableDetailSheet({
   orderStatus,
   outstandingCents,
   subtotalCents,
+  grossSubtotalCents,
+  discountCents = 0,
+  discountPct = null,
+  customer = null,
   tenantSlug,
   qrToken,
   isMeseroView,
@@ -108,7 +112,21 @@ export function TableDetailSheet({
   // estas acciones.
   orderStatus?: string;
   outstandingCents?: number;
+  /** Cobrable: el subtotal ya con el descuento del comensal restado. */
   subtotalCents?: number;
+  /** Subtotal antes del descuento — solo para el desglose. */
+  grossSubtotalCents?: number;
+  discountCents?: number;
+  discountPct?: number | null;
+  // Comensal identificado en la cuenta. Al identificarlo se aplica su
+  // descuento (si el restaurante le pactó uno); el mesero puede quitar el
+  // descuento sin perder la identidad.
+  customer?: {
+    id: string;
+    name: string | null;
+    email: string;
+    cedula: string | null;
+  } | null;
   // Para el botón "Cobrar la cuenta" + el link de agregar platos
   // en modo operator/admin (abre tab nueva del menú público).
   tenantSlug?: string;
@@ -117,6 +135,9 @@ export function TableDetailSheet({
 }) {
   const tr = useTranslations("opTables");
   const [internalOpen, setInternalOpen] = useState(false);
+  const [identifyQuery, setIdentifyQuery] = useState("");
+  const [identifyBusy, setIdentifyBusy] = useState(false);
+  const [identifyErr, setIdentifyErr] = useState<string | null>(null);
   const controlled = externalOpen !== undefined;
   const open = controlled ? externalOpen : internalOpen;
   const setOpen = (next: boolean) => {
@@ -359,6 +380,58 @@ export function TableDetailSheet({
     }
   }
 
+  /**
+   * Identificar al comensal en la cuenta por cédula o correo. Si tiene un
+   * descuento vigente EN ESTE restaurante, el servidor lo aplica.
+   */
+  async function identifyCustomer(e: React.FormEvent) {
+    e.preventDefault();
+    setIdentifyBusy(true);
+    setIdentifyErr(null);
+    try {
+      const res = await fetch(`/api/operator/orders/${orderId}/identify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier: identifyQuery.trim() }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setIdentifyErr(
+          j.error === "not_found"
+            ? tr("customerNotFound")
+            : tr("customerIdentifyError"),
+        );
+        return;
+      }
+      setIdentifyQuery("");
+      router.refresh();
+    } catch {
+      setIdentifyErr(tr("customerIdentifyError"));
+    } finally {
+      setIdentifyBusy(false);
+    }
+  }
+
+  /** Quitar el descuento de ESTA cuenta, sin perder quién es el comensal. */
+  async function dropDiscount() {
+    setIdentifyBusy(true);
+    setIdentifyErr(null);
+    try {
+      const res = await fetch(`/api/operator/orders/${orderId}/discount`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setIdentifyErr(tr("customerIdentifyError"));
+        return;
+      }
+      router.refresh();
+    } catch {
+      setIdentifyErr(tr("customerIdentifyError"));
+    } finally {
+      setIdentifyBusy(false);
+    }
+  }
+
   // Aplanamos rondas pero conservamos el seq como header — útil para
   // mostrar "Ronda 2" cuando el cliente pidió segunda vuelta.
   const visibleRounds = rounds.filter((r) => r.status !== "cancelled");
@@ -432,7 +505,78 @@ export function TableDetailSheet({
                         {tr("summaryOfTotal", { amount: fmtCOP(subtotalCents) })}
                       </div>
                     )}
+                  {discountCents > 0 && (
+                    <div className="font-mono text-[10px] text-terracotta mt-0.5">
+                      {discountPct
+                        ? tr("discountApplied", { pct: discountPct })
+                        : tr("discountAppliedNoPct")}{" "}
+                      {"− " + fmtCOP(discountCents)}
+                      {grossSubtotalCents != null && (
+                        <>
+                          {" · "}
+                          {tr("discountBefore", {
+                            amount: fmtCOP(grossSubtotalCents),
+                          })}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
+              </div>
+            )}
+
+            {/* Comensal identificado + su descuento. Identificarlo es lo
+                que aplica el beneficio; quitar el descuento NO borra la
+                identidad (el consumo del cliente se sigue registrando). */}
+            {orderStatus !== "paid" && orderStatus !== "cancelled" && (
+              <div className="rounded-xl border border-hairline bg-op-bg p-3">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+                  {tr("customerTitle")}
+                </div>
+
+                {customer ? (
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {customer.name ?? customer.email}
+                      </div>
+                      <div className="font-mono text-[10px] text-op-muted truncate">
+                        {customer.cedula ?? customer.email}
+                      </div>
+                    </div>
+                    {discountCents > 0 && (
+                      <button
+                        type="button"
+                        onClick={dropDiscount}
+                        disabled={identifyBusy}
+                        className="h-9 px-3 rounded-full border border-danger/40 text-xs text-danger disabled:opacity-60"
+                      >
+                        {tr("discountRemove")}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <form onSubmit={identifyCustomer} className="flex gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      value={identifyQuery}
+                      onChange={(e) => setIdentifyQuery(e.target.value)}
+                      placeholder={tr("customerPlaceholder")}
+                      className="flex-1 min-w-[160px] h-9 px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta"
+                    />
+                    <button
+                      type="submit"
+                      disabled={identifyBusy || identifyQuery.trim().length === 0}
+                      className="h-9 px-3 rounded-full bg-ink text-bone text-xs font-medium disabled:opacity-60"
+                    >
+                      {identifyBusy ? tr("customerIdentifying") : tr("customerIdentify")}
+                    </button>
+                  </form>
+                )}
+
+                {identifyErr && (
+                  <div className="text-danger text-xs mt-2">{identifyErr}</div>
+                )}
               </div>
             )}
 

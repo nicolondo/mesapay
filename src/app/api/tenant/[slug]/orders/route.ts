@@ -9,6 +9,10 @@ import {
   computeSelectionsPriceDelta,
   normalizeModifiers,
 } from "@/lib/modifiers";
+import {
+  computeDiscountCents,
+  getActiveDiscountPct,
+} from "@/lib/customerDiscount";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -80,6 +84,14 @@ export async function POST(
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
+  // Descuento del comensal identificado, si tiene uno vigente EN ESTE
+  // restaurante. Se resuelve fuera de la transacción (es una lectura) y se
+  // aplica adentro. El lookup va contra (restaurantId, userId): el
+  // descuento pactado en otro local no llega hasta acá.
+  const customerDiscountPct = session?.id
+    ? await getActiveDiscountPct(tenant.id, session.id)
+    : null;
+
   const result = await db.$transaction(async (tx) => {
     let order = parsed.data.orderId
       ? await tx.order.findUnique({ where: { id: parsed.data.orderId } })
@@ -104,6 +116,9 @@ export async function POST(
           shortCode: shortCode(),
           servingMode,
           locale: await getLocale(),
+          // Snapshot del porcentaje pactado al abrir la cuenta. El valor en
+          // pesos se calcula abajo, cuando ya se conoce el subtotal.
+          discountPct: customerDiscountPct,
         },
       });
     }
@@ -184,11 +199,18 @@ export async function POST(
         data: { status: "ready", readyAt: new Date() },
       });
     }
+    // El descuento sigue al subtotal: si el comensal manda otra ronda, el
+    // porcentaje pactado se re-aplica sobre la cuenta completa.
+    const discountCents = computeDiscountCents(
+      subtotalCents,
+      order.discountPct,
+    );
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {
         subtotalCents,
-        totalCents: subtotalCents, // taxes/tips applied at payment time
+        discountCents,
+        totalCents: Math.max(0, subtotalCents - discountCents), // taxes/tips applied at payment time
         // Counter-mode orders stay "open" until the payment path marks them
         // paid — they must not reach the kitchen before cash hits the till.
         status: isCounter

@@ -172,7 +172,14 @@ export default async function MeseroPedirPage({
           ? {
               id: activeOrder.id,
               shortCode: activeOrder.shortCode,
-              subtotalCents: activeOrder.subtotalCents,
+              // Neto del descuento del comensal identificado: es lo que se
+              // va a cobrar, y lo que el mesero tiene que ver.
+              subtotalCents: Math.max(
+                0,
+                activeOrder.subtotalCents - activeOrder.discountCents,
+              ),
+              discountCents: activeOrder.discountCents,
+              discountPct: activeOrder.discountPct,
               status: activeOrder.status,
               itemCount: activeOrder.items.reduce((s, i) => s + i.qty, 0),
               roundCount: activeOrder.rounds.length,

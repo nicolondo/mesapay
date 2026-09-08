@@ -362,9 +362,19 @@ export default async function OrderView({
       <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
         <div>
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            {t("subtotal")}
+            {order.discountCents > 0 ? t("discountedTotal") : t("subtotal")}
           </div>
-          <div className="font-display text-3xl">{fmtCOP(order.subtotalCents)}</div>
+          <div className="font-display text-3xl">
+            {fmtCOP(Math.max(0, order.subtotalCents - order.discountCents))}
+          </div>
+          {order.discountCents > 0 && (
+            <div className="font-mono text-[10px] text-terracotta mt-1">
+              {order.discountPct
+                ? t("discountRowPct", { pct: order.discountPct })
+                : t("discountRow")}{" "}
+              {"− " + fmtCOP(order.discountCents)}
+            </div>
+          )}
         </div>
         {/* Acciones solo cuando la cuenta sigue abierta. Una orden ya
             paid / cancelled no tiene nada más para cobrar ni para

@@ -110,7 +110,8 @@ export default async function OrdersPage({
     status: o.status,
     createdAt: o.createdAt,
     items: o.items.reduce((s, i) => s + i.qty, 0),
-    subtotalCents: o.subtotalCents,
+    // Neto del descuento del comensal identificado: es lo que se cobra.
+    subtotalCents: Math.max(0, o.subtotalCents - o.discountCents),
     paid: o.payments.reduce((s, p) => s + p.amountCents - p.refundedCents, 0),
     place: counterMode
       ? t("channelCounter")

@@ -64,7 +64,18 @@ export type ActiveOrder = {
   shortCode: string;
   status: string;
   itemCount: number;
+  /** Cobrable: el subtotal ya con el descuento del comensal restado. */
   subtotalCents: number;
+  /** Subtotal antes del descuento — solo para el desglose. */
+  grossSubtotalCents: number;
+  discountCents: number;
+  discountPct: number | null;
+  customer: {
+    id: string;
+    name: string | null;
+    email: string;
+    cedula: string | null;
+  } | null;
   outstandingCents: number;
   needsWaiter: boolean;
   rounds: Round[];
@@ -736,6 +747,10 @@ function ActiveTile({
           orderStatus={tile.order.status}
           outstandingCents={tile.order.outstandingCents}
           subtotalCents={tile.order.subtotalCents}
+          grossSubtotalCents={tile.order.grossSubtotalCents}
+          discountCents={tile.order.discountCents}
+          discountPct={tile.order.discountPct}
+          customer={tile.order.customer}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}

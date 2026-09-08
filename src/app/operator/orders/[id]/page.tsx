@@ -75,7 +75,13 @@ export default async function OperatorOrderDetail({
       (s, p) => s + Math.max(0, p.amountCents - p.refundedCents - p.tipCents),
       0,
     );
-  const outstandingCents = Math.max(0, order.subtotalCents - paidFood);
+  // Cobrable = subtotal menos el descuento del comensal identificado. Sin
+  // restarlo, el operador vería un pendiente mayor al real.
+  const chargeableCents = Math.max(
+    0,
+    order.subtotalCents - order.discountCents,
+  );
+  const outstandingCents = Math.max(0, chargeableCents - paidFood);
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
@@ -111,7 +117,7 @@ export default async function OperatorOrderDetail({
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={t("statSubtotal")} value={fmtCOP(order.subtotalCents)} />
+        <Stat label={t("statSubtotal")} value={fmtCOP(chargeableCents)} />
         <Stat
           label={t("statTip")}
           value={order.tipCents ? fmtCOP(order.tipCents) : "—"}
@@ -122,7 +128,7 @@ export default async function OperatorOrderDetail({
           value={
             order.status === "paid"
               ? "—"
-              : fmtCOP(Math.max(0, order.totalCents - paidSum) || order.subtotalCents - paidSum)
+              : fmtCOP(Math.max(0, order.totalCents - paidSum) || chargeableCents - paidSum)
           }
         />
       </div>

@@ -108,6 +108,17 @@ export function buildInvoiceCommands(
       { text: money(snapshot.subtotalCents), weight: 1, align: "RIGHT" },
     ],
   });
+  // Descuento del comensal identificado. Las facturas viejas no traen el
+  // campo (opcional en el snapshot) y la tirilla sale igual que antes.
+  if ((snapshot.discountCents ?? 0) > 0) {
+    c.push({
+      type: "columns",
+      columns: [
+        { text: "Descuento", weight: 2, align: "LEFT" },
+        { text: "-" + money(snapshot.discountCents ?? 0), weight: 1, align: "RIGHT" },
+      ],
+    });
+  }
   if (snapshot.tipCents > 0) {
     c.push({
       type: "columns",

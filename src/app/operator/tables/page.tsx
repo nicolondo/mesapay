@@ -90,6 +90,11 @@ export default async function TablesPage() {
           payments: {
             orderBy: { createdAt: "asc" },
           },
+          // Comensal identificado en la cuenta — para mostrar quién es y
+          // su descuento en el detalle de la mesa.
+          customer: {
+            select: { id: true, name: true, email: true, cedula: true },
+          },
         },
       },
       _count: { select: { orders: true } },
@@ -173,7 +178,14 @@ export default async function TablesPage() {
       (s, p) => s + p.amountCents - p.tipCents,
       0,
     );
-    const outstandingCents = Math.max(0, order.subtotalCents - foodPaid);
+    // El descuento del comensal identificado baja lo que falta por
+    // cobrar. Sin restarlo acá, el mesero vería un pendiente mayor al
+    // real y el cobro se rechazaría por "excede lo pendiente".
+    const chargeableCents = Math.max(
+      0,
+      order.subtotalCents - order.discountCents,
+    );
+    const outstandingCents = Math.max(0, chargeableCents - foodPaid);
 
     // Pending payments para Señal 1 del walkout. Excluimos los que
     // ya están pinneados a un datafono esperando aprobación (tienen
@@ -250,7 +262,18 @@ export default async function TablesPage() {
         shortCode: order.shortCode,
         status: order.status,
         itemCount,
-        subtotalCents: order.subtotalCents,
+        subtotalCents: chargeableCents,
+        grossSubtotalCents: order.subtotalCents,
+        discountCents: order.discountCents,
+        discountPct: order.discountPct,
+        customer: order.customer
+          ? {
+              id: order.customer.id,
+              name: order.customer.name,
+              email: order.customer.email,
+              cedula: order.customer.cedula,
+            }
+          : null,
         outstandingCents,
         needsWaiter: order.needsWaiter,
         rounds: order.rounds.map((r) => ({

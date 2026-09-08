@@ -32,15 +32,12 @@ export type DianParty = {
   taxLevelCode: string;
   /** Régimen: "48" responsable de IVA, "49" no responsable. */
   taxRegimeCode: "48" | "49";
-  /** Persona jurídica "1" / natural "2". */
-  personType: "1" | "2";
   /**
-   * Nombres y apellidos — sólo para persona natural (personType "2"),
-   * que obliga a informar el grupo cac:Person. Si no vienen se derivan
-   * de `name`.
+   * Persona jurídica "1" / natural "2" (cbc:AdditionalAccountID). Con "2"
+   * el Anexo Técnico obliga a informar cac:PartyIdentification (FAK61) —
+   * ver partyXml. El consumidor final SIEMPRE es "2".
    */
-  firstName?: string | null;
-  familyName?: string | null;
+  personType: "1" | "2";
   address?: {
     /** Código municipio DANE ("11001") y nombre ("Bogotá, D.C."). */
     cityCode: string;
@@ -179,22 +176,6 @@ export function softwareSecurityCode(
 
 const TAX_NAME: Record<string, string> = { "01": "IVA", "04": "INC" };
 
-/**
- * Parte el nombre en nombres/apellidos para el grupo cac:Person. Sin
- * campos separados sólo tenemos la razón social: la última palabra hace
- * de apellido y el resto de nombre. Es lo que la DIAN pide informar; no
- * pretende ser exacto para el consumidor final anónimo.
- */
-function splitPersonName(name: string): { first: string; family: string } {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { first: "", family: "" };
-  if (parts.length === 1) return { first: parts[0], family: parts[0] };
-  return {
-    first: parts.slice(0, -1).join(" "),
-    family: parts[parts.length - 1],
-  };
-}
-
 function partyXml(kind: "supplier" | "customer", p: DianParty): string {
   const tag =
     kind === "supplier" ? "AccountingSupplierParty" : "AccountingCustomerParty";
@@ -215,20 +196,27 @@ function partyXml(kind: "supplier" | "customer", p: DianParty): string {
   // El DV va en @schemeID del CompanyID y SOLO tiene sentido para NIT
   // (schemeName 31). Sin él la DIAN rechaza con FAJ24a/FAJ47 (emisor).
   const dvAttr = p.dv != null && p.idSchemeName === "31" ? ` schemeID="${esc(p.dv)}"` : "";
-  // AdditionalAccountID = 2 (persona natural) obliga a informar el grupo
-  // cac:Person con nombres y apellidos — sin él la DIAN rechaza con FAK61.
-  const derived = splitPersonName(p.name);
-  const person =
+  // FAK61 (rechazo): «Si el valor de AdditionalAccountID es igual a "2" y el
+  // grupo no es informado». El grupo que exige el Anexo Técnico 1.9
+  // (Resolución 000165/2023, pág. 47 y tabla de reglas pág. 401) NO es
+  // cac:Person —que sólo existe en el ApplicationResponse del acuse—, sino
+  // cac:PartyIdentification: FAK61 el grupo, FAK62 el cbc:ID
+  // ("222222222222" para consumidor final), FAK63 @schemeName (tipo de
+  // documento, "13" para consumidor final) y FAK64 @schemeID (el DV, y sólo
+  // cuando el documento es NIT). Va PRIMERO dentro de cac:Party: es el orden
+  // de la secuencia del esquema UBL 2.1 y el del anexo (FAK61 antes de
+  // FAK05/PartyName); fuera de sitio el XSD no valida.
+  const partyIdentification =
     p.personType === "2"
-      ? `<cac:Person>` +
-        `<cbc:FirstName>${esc(p.firstName ?? derived.first)}</cbc:FirstName>` +
-        `<cbc:FamilyName>${esc(p.familyName ?? derived.family)}</cbc:FamilyName>` +
-        `</cac:Person>`
+      ? `<cac:PartyIdentification>` +
+        `<cbc:ID${dvAttr} schemeName="${p.idSchemeName}" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">${esc(p.companyId)}</cbc:ID>` +
+        `</cac:PartyIdentification>`
       : "";
   return (
     `<cac:${tag}>` +
     `<cbc:AdditionalAccountID>${p.personType}</cbc:AdditionalAccountID>` +
     `<cac:Party>` +
+    partyIdentification +
     `<cac:PartyName><cbc:Name>${esc(p.name)}</cbc:Name></cac:PartyName>` +
     addr +
     `<cac:PartyTaxScheme>` +
@@ -247,8 +235,6 @@ function partyXml(kind: "supplier" | "customer", p: DianParty): string {
         (p.email ? `<cbc:ElectronicMail>${esc(p.email)}</cbc:ElectronicMail>` : "") +
         `</cac:Contact>`
       : "") +
-    // cac:Person cierra cac:Party (orden del esquema UBL).
-    person +
     `</cac:Party>` +
     `</cac:${tag}>`
   );

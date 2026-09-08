@@ -7,6 +7,7 @@
 // en src/lib/dian/xades.ts (B1.2).
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import forge from "node-forge";
+import { fixLatin1Mojibake } from "./certSubject";
 
 // ── Cifrado at rest (AES-256-GCM) ───────────────────────────────────────────
 //
@@ -57,6 +58,27 @@ export class DianCertError extends Error {
   }
 }
 
+/**
+ * Serializa el DN (subject/issuer) de un certificado a texto.
+ *
+ * Dos cuidados que no son cosméticos:
+ *  - `a.type` (el OID) como último recurso: node-forge no conoce todos
+ *    los atributos que meten las CA colombianas y sin esto quedaba
+ *    literalmente "undefined=9019444691" guardado en la base.
+ *  - `fixLatin1Mojibake`: el .p12 se lee con `toString("binary")`, así que
+ *    los valores llegan como UTF-8 interpretado byte a byte y "LONDOÑO"
+ *    quedaba ilegible. Se normaliza AL GUARDAR; lo que YA está guardado
+ *    se repara al mostrar (src/lib/dian/certSubject.ts).
+ */
+function distinguishedName(attrs: forge.pki.CertificateField[]): string {
+  return attrs
+    .map(
+      (a) =>
+        `${a.shortName ?? a.name ?? a.type}=${fixLatin1Mojibake(String(a.value ?? ""))}`,
+    )
+    .join(", ");
+}
+
 /** Carga un .p12: extrae certificado + llave privada y metadatos. */
 export function loadP12(p12Der: Buffer, password: string): LoadedCert {
   let p12: forge.pkcs12.Pkcs12Pfx;
@@ -85,12 +107,8 @@ export function loadP12(p12Der: Buffer, password: string): LoadedCert {
   return {
     certPem: forge.pki.certificateToPem(cert),
     keyPem: forge.pki.privateKeyToPem(key),
-    subject: cert.subject.attributes
-      .map((a) => `${a.shortName ?? a.name}=${a.value}`)
-      .join(", "),
-    issuer: cert.issuer.attributes
-      .map((a) => `${a.shortName ?? a.name}=${a.value}`)
-      .join(", "),
+    subject: distinguishedName(cert.subject.attributes),
+    issuer: distinguishedName(cert.issuer.attributes),
     notBefore: cert.validity.notBefore,
     notAfter: cert.validity.notAfter,
     certDerBase64: forge.util.encode64(der),

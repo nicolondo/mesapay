@@ -65,3 +65,9 @@ next-env.d.ts
 
 # Referencia de comportamiento DIAN (Odoo OEEL-1, propietaria — NO versionar ni copiar código)
 modulos odoo/
+
+# Llaves privadas / secretos — nunca en el repo
+*.ppk
+*.pem
+*.key
+id_rsa*

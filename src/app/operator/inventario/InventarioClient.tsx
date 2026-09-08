@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
+import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   DEFAULT_INPUT_UNIT,
@@ -81,6 +82,8 @@ type CountItemRow = {
     measureKind: MeasureKind;
     category: string | null;
     active: boolean;
+    // Código de barras del empaque — lo usa el escaneo del conteo.
+    barcode: string | null;
   };
 };
 
@@ -904,6 +907,13 @@ export function InventarioClient({
           count={openCount}
           onClose={() => setOpenCount(null)}
           onClosed={handleCountClosed}
+          onDeleted={() => {
+            // Un borrador no tocó saldos: basta con cerrar el sheet e
+            // invalidar la lista (no hace falta refrescar existencias).
+            setOpenCount(null);
+            setCounts(null);
+            setCountsErr(false);
+          }}
         />
       )}
 
@@ -1533,10 +1543,12 @@ function CountSheet({
   count,
   onClose,
   onClosed,
+  onDeleted,
 }: {
   count: CountDetail;
   onClose: () => void;
   onClosed: () => void;
+  onDeleted: () => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -1561,6 +1573,21 @@ function CountSheet({
   const [savedFlash, setSavedFlash] = useState(false);
   const [closedResult, setClosedResult] = useState<number | null>(null);
 
+  // ── Lectura de código de barras ──
+  // Los lectores del mercado son HID ("tipo teclado"): teclean el código a
+  // toda velocidad y rematan con un Enter. No hace falta cámara ni pedir
+  // permisos: alcanza con un input enfocado que capture la ráfaga y
+  // reaccione al submit. Funciona con cualquier lector USB o bluetooth.
+  const [scan, setScan] = useState("");
+  const [scanErr, setScanErr] = useState<string | null>(null);
+  // Item al que saltó el último escaneo. `seq` sube en cada lectura para
+  // que re-escanear el MISMO código vuelva a enfocar (sin él, el estado no
+  // cambia y el efecto no corre).
+  const [hit, setHit] = useState<{ itemId: string; seq: number } | null>(null);
+  const seqRef = useRef(0);
+  const scanRef = useRef<HTMLInputElement | null>(null);
+  const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   const readOnly = count.status === "closed" || closedResult !== null;
 
   const visibleItems = useMemo(() => {
@@ -1572,6 +1599,50 @@ function CountSheet({
       ),
     );
   }, [count.items, q]);
+
+  // Código de barras → item del conteo. El índice único
+  // (restaurantId, barcode) garantiza que no haya dos insumos con el mismo
+  // código, así que el mapa nunca pierde filas y el escaneo no es ambiguo.
+  const byBarcode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const it of count.items) {
+      const code = normalizeBarcode(it.ingredient.barcode);
+      if (code) m.set(code, it.id);
+    }
+    return m;
+  }, [count.items]);
+
+  /** Escaneo (o Enter manual): salta al insumo del código leído. */
+  function handleScan(e: React.FormEvent) {
+    e.preventDefault();
+    const code = normalizeBarcode(scan);
+    setScan("");
+    if (!code) return;
+    const itemId = byBarcode.get(code);
+    if (!itemId) {
+      // Nunca fallar en silencio: el operador tiene el empaque en la mano
+      // y necesita enterarse de que ese código no está en el conteo (o de
+      // que al insumo le falta cargar el código en su ficha).
+      setScanErr(t("errBarcodeNotFound", { code }));
+      return;
+    }
+    setScanErr(null);
+    // El buscador puede estar escondiendo justo la fila escaneada.
+    setQ("");
+    setHit({ itemId, seq: ++seqRef.current });
+  }
+
+  // Enfocar la cantidad del insumo escaneado. Corre DESPUÉS del render, así
+  // que la fila ya existe aunque el escaneo haya tenido que limpiar el
+  // filtro de búsqueda para revelarla.
+  useEffect(() => {
+    if (!hit) return;
+    const el = qtyRefs.current[hit.itemId];
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus();
+    el.select();
+  }, [hit]);
 
   // Desviación en vivo: contados y con diferencia (borrador usa lo
   // digitado; cerrado usa lo persistido).
@@ -1637,6 +1708,31 @@ function CountSheet({
     const ok = await patchDraft();
     setBusy(false);
     if (ok) setSavedFlash(true);
+  }
+
+  /**
+   * Borra la sesión — la API solo lo permite en BORRADOR. Un conteo
+   * cerrado ya generó ajustes y movió saldos: borrarlo dejaría el stock
+   * mintiendo, por eso ni se ofrece el botón (el pie en modo lectura no lo
+   * incluye) y, si igual llegara la respuesta, se muestra el 409 traducido.
+   */
+  async function deleteSession() {
+    setErr(null);
+    setSavedFlash(false);
+    if (!window.confirm(t("deleteCountConfirm"))) return;
+    setBusy(true);
+    const r = await fetch(`/api/operator/stock/counts/${count.id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setErr(
+        j.error === "not_draft" ? t("errCountNotDraft") : t("errSaveFailed"),
+      );
+      return;
+    }
+    onDeleted();
   }
 
   async function closeSession() {
@@ -1723,6 +1819,33 @@ function CountSheet({
           </div>
         )}
 
+        {!readOnly && (
+          <form onSubmit={handleScan} className="mb-3">
+            <Field label={t("scanBarcodeLabel")} hint={t("scanHint")}>
+              <input
+                ref={scanRef}
+                type="text"
+                value={scan}
+                // El sheet se abre listo para escanear: el lector teclea
+                // donde esté el foco, así que tiene que estar acá.
+                autoFocus
+                autoComplete="off"
+                inputMode="text"
+                onChange={(e) => {
+                  setScan(e.target.value);
+                  setScanErr(null);
+                }}
+                placeholder={t("scanBarcodePlaceholder")}
+                maxLength={BARCODE_MAX_LENGTH}
+                className={inputCls + " font-mono"}
+              />
+            </Field>
+            {scanErr && (
+              <div className="text-xs text-danger mt-1">{scanErr}</div>
+            )}
+          </form>
+        )}
+
         <input
           type="search"
           value={q}
@@ -1762,7 +1885,12 @@ function CountSheet({
               return (
                 <div
                   key={it.id}
-                  className="px-4 py-3 border-b border-op-border last:border-b-0"
+                  className={
+                    "px-4 py-3 border-b border-op-border last:border-b-0 " +
+                    // Feedback del escaneo: "es esta fila". Se apaga al
+                    // escanear otro código.
+                    (hit?.itemId === it.id ? "bg-op-bg" : "")
+                  }
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
@@ -1806,10 +1934,21 @@ function CountSheet({
                   {!readOnly && (
                     <div className="mt-2 flex items-center gap-2">
                       <input
+                        ref={(el) => {
+                          qtyRefs.current[it.id] = el;
+                        }}
                         type="text"
                         inputMode="decimal"
                         value={entry.raw}
                         placeholder={t("notCounted")}
+                        // Ciclo del conteo con lector: escanear → digitar la
+                        // cantidad → Enter devuelve el foco al escáner, listo
+                        // para el siguiente empaque sin tocar la pantalla.
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          scanRef.current?.focus();
+                        }}
                         onChange={(e) => {
                           setSavedFlash(false);
                           setEntries((prev) => ({
@@ -1869,6 +2008,15 @@ function CountSheet({
             </button>
           ) : (
             <>
+              {/* Solo en borrador: un conteo cerrado ya movió saldos. */}
+              <button
+                type="button"
+                onClick={deleteSession}
+                disabled={busy}
+                className="mr-auto min-h-[44px] px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-40"
+              >
+                {t("deleteCount")}
+              </button>
               <button
                 type="button"
                 onClick={save}

@@ -12,6 +12,7 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 
@@ -21,6 +22,7 @@ type Ingredient = {
   category: string | null;
   measureKind: MeasureKind;
   sku: string | null;
+  barcode: string | null;
   notes: string | null;
   active: boolean;
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
@@ -650,6 +652,7 @@ function IngredientSheet({
     editing?.measureKind ?? "mass",
   );
   const [sku, setSku] = useState(editing?.sku ?? "");
+  const [barcode, setBarcode] = useState(editing?.barcode ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   // A4 — punto de reorden / cantidad a pedir en unidades display; vacío =
   // null (sin aviso). Se convierten con toBaseQty al guardar.
@@ -702,6 +705,9 @@ function IngredientSheet({
       name: name.trim(),
       category: category.trim() || null,
       sku: sku.trim() || null,
+      // Se manda crudo: la API es la que normaliza (un solo punto de
+      // limpieza para el formulario y para cualquier import futuro).
+      barcode: barcode || null,
       notes: notes.trim() || null,
     };
     // Con la dimensión bloqueada ni siquiera se manda el campo.
@@ -728,9 +734,11 @@ function IngredientSheet({
       setErr(
         j.error === "name_taken"
           ? t("errNameTaken")
-          : j.error === "measure_locked"
-            ? t("errMeasureLocked")
-            : t("errSaveFailed"),
+          : j.error === "barcode_taken"
+            ? t("errBarcodeTaken")
+            : j.error === "measure_locked"
+              ? t("errMeasureLocked")
+              : t("errSaveFailed"),
       );
       return;
     }
@@ -884,6 +892,24 @@ function IngredientSheet({
               placeholder={t("skuPlaceholder")}
               maxLength={60}
               className={inputCls}
+            />
+          </Field>
+
+          <Field label={t("fieldBarcode")} hint={t("barcodeHint")}>
+            <input
+              type="text"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              // El lector HID "teclea" el código y remata con Enter: sin
+              // esto, ese Enter enviaría el formulario a medio llenar
+              // apenas se escanea el empaque.
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
+              placeholder={t("barcodePlaceholder")}
+              maxLength={BARCODE_MAX_LENGTH}
+              autoComplete="off"
+              className={inputCls + " font-mono"}
             />
           </Field>
 

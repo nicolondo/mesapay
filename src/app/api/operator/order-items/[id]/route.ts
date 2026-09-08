@@ -117,36 +117,12 @@ export async function PATCH(
             cancellationKind: kind,
           },
         });
-        // Re-derivar subtotal — el item recién cancelado ya tiene
-        // cancelledAt != null, así que el WHERE de items vivos lo
-        // saca.
-        const liveItems = await tx.orderItem.findMany({
-          where: {
-            orderId: item.order.id,
-            cancelledAt: null,
-            OR: [
-              { roundId: null },
-              { round: { status: { not: "cancelled" } } },
-            ],
-          },
-          select: { qty: true, priceCentsSnapshot: true },
-        });
-        const liveSubtotal = liveItems.reduce(
-          (s, i) => s + i.priceCentsSnapshot * i.qty,
-          0,
-        );
-        // No tocamos el subtotal si la orden ya está paga — sería
-        // una orden cerrada y mover el subtotal implicaría refund
-        // que no modelamos acá.
-        if (item.order.status !== "paid" && item.order.status !== "paying") {
-          await tx.order.update({
-            where: { id: item.order.id },
-            data: {
-              subtotalCents: liveSubtotal,
-              totalCents: liveSubtotal + item.order.tipCents,
-            },
-          });
-        }
+        // El subtotal se re-deriva DESPUÉS del tx con la función canónica
+        // (ver abajo). El cálculo inline que vivía acá sumaba sólo
+        // precio × cantidad e ignoraba `Order.taxCents`: al cancelar una
+        // línea libre, su impuesto sumado encima quedaba cobrándose igual, y
+        // al cancelar un plato de una cuenta con líneas libres el total
+        // perdía el impuesto de las que seguían vivas.
       }
       // 86 del plato: marcar el menuItem como no disponible en la carta.
       // Una línea libre no está en la carta, así que no hay qué agotar.

@@ -345,6 +345,7 @@ export default async function TablesPage() {
         isMeseroView={isMeseroView}
         freeTables={freeTables}
         allTables={allTablesForMove}
+        country={tenant!.country}
       />
     </div>
   );

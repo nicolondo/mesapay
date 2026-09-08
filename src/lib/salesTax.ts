@@ -15,6 +15,7 @@
 // de facturar un servicio con un impuesto distinto al de la carta.
 
 import { embeddedTaxCents } from "@/lib/erp/accounting";
+import { purchaseTaxRates } from "@/lib/erp/purchaseTax";
 
 export type SalesTaxKind = "none" | "inc" | "iva";
 
@@ -96,4 +97,61 @@ export function orderTaxTotals(
     chargeableCents: subtotalCents + taxOnTopCents,
     byKind,
   };
+}
+
+// ————————————————————————————————————————————————————————————————
+// Líneas libres: topes y tarifas ofrecibles
+// ————————————————————————————————————————————————————————————————
+
+/**
+ * Techo duro de los totales de una orden. `Order.subtotalCents`, `taxCents` y
+ * `totalCents` son `Int` de Postgres: pasarse no da un error de negocio, da un
+ * 500 al escribir. Por eso se valida ANTES de crear la línea.
+ */
+export const MAX_ORDER_TOTAL_CENTS = 2_147_483_647;
+
+/**
+ * Tope del TOTAL de una línea libre (precio unitario × cantidad), en centavos:
+ * $10.000.000.
+ *
+ * No se reusa `MAX_MENU_PRICE_CENTS` ($5.000.000) porque ese es el tope de UN
+ * plato, y acá lo natural es cotizar el servicio entero en una línea
+ * ("catering del evento: $8.400.000"). Tampoco se deja abierto hasta el techo
+ * del `Int`: una cuenta suma varias líneas, y si UNA sola pudiera llegar a
+ * $21.474.836 la segunda reventaría el total. Con $10.000.000 por línea caben
+ * dos servicios grandes (catering + alquiler del salón) más los platos y
+ * todavía sobra la mitad del rango; quien necesite más parte el cobro.
+ */
+export const MAX_FREE_LINE_TOTAL_CENTS = 1_000_000_000;
+
+/** Cantidad máxima de una línea libre (asistentes, horas de alquiler…). */
+export const MAX_FREE_LINE_QTY = 999;
+
+/**
+ * Tarifas que se le pueden ofrecer a una línea libre, según el tipo de
+ * impuesto y el país del comercio.
+ *
+ * El IVA reusa la tabla de compras (CO 0/5/19, MX 0/8/16) para no mantener dos
+ * listas del mismo impuesto que se desincronizan. El INC es distinto: en
+ * Colombia el de restaurantes y servicios es 8% y punto — un selector con
+ * varias tarifas sólo invitaría a facturar mal. Para no cobrar impuesto el
+ * tipo correcto es "none", no un INC en 0.
+ */
+export function salesTaxRates(
+  kind: SalesTaxKind,
+  country: string | null | undefined,
+): number[] {
+  if (kind === "none") return [0];
+  if (kind === "iva") return purchaseTaxRates(country);
+  return country === "MX" ? purchaseTaxRates(country) : [8];
+}
+
+/** ¿`pct` es una tarifa válida para ese tipo de impuesto en ese país? */
+export function isValidSalesTaxRate(
+  kind: SalesTaxKind,
+  pct: number,
+  country: string | null | undefined,
+): boolean {
+  if (kind === "none") return pct === 0;
+  return salesTaxRates(kind, country).includes(pct);
 }

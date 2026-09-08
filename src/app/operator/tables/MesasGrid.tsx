@@ -110,6 +110,7 @@ export function MesasGrid({
   isMeseroView,
   freeTables,
   allTables,
+  country,
 }: {
   tiles: TileData[];
   tenantSlug: string;
@@ -117,6 +118,9 @@ export function MesasGrid({
   isMeseroView: boolean;
   freeTables: FreeTable[];
   allTables: AllTable[];
+  // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
+  // una línea libre — el IVA de Colombia no es el de México.
+  country: string | null;
 }) {
   const tr = useTranslations("opTables");
   const [filter, setFilter] = useState<FilterChip>("all");
@@ -263,6 +267,7 @@ export function MesasGrid({
               allTables={allTables.filter((at) => at.id !== tile.id)}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
+              country={country}
             />
           );
         })}
@@ -620,6 +625,7 @@ function ActiveTile({
   allTables,
   tenantSlug,
   isMeseroView,
+  country,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
@@ -629,6 +635,7 @@ function ActiveTile({
   allTables: AllTable[];
   tenantSlug: string;
   isMeseroView: boolean;
+  country: string | null;
 }) {
   const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
@@ -732,6 +739,7 @@ function ActiveTile({
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}
+          country={country}
         />
       )}
     </>

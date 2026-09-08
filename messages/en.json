@@ -188,12 +188,7 @@
     "etaHeadlineMax": "Your order is out in more than {min} min",
     "discountRow": "Discount",
     "discountRowPct": "{pct}% discount",
-    "discountedTotal": "Total after discount",
-    "requestBill": "Ask for the bill",
-    "requestingBill": "Asking…",
-    "billOnWay": "You asked for the bill",
-    "billOnWayHint": "We're on our way with your bill.",
-    "errRequestBill": "We couldn't ask for the bill."
+    "discountedTotal": "Total after discount"
   },
   "pay": {
     "pay": "Pay",
@@ -5352,7 +5347,10 @@
     "table": "Table {number}",
     "charge": "Go charge",
     "dismiss": "Dismiss",
-    "more": "{count, plural, one {+# more table waiting} other {+# more tables waiting}}"
+    "more": "{count, plural, one {+# more table waiting} other {+# more tables waiting}}",
+    "methodCash": "Paying in cash",
+    "methodTerminal": "Paying by card terminal",
+    "methodExternalTerminal": "Paying with the venue's own card terminal"
   },
   "chargeLock": {
     "title": "The administrator handles charging",

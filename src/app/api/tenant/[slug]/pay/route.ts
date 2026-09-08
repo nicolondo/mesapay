@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { db } from "@/lib/db";
 import {
   DEMO_PAYMENTS_DISABLED,
@@ -56,9 +57,15 @@ export async function POST(
   //
   // Sólo leemos la sesión cuando la política está encendida, así el 99%
   // del tráfico (comensales) no paga el costo del lookup.
+  //
+  // Guardamos el rol: más abajo decide si el que eligió forma de pago es
+  // un comensal (y entonces hay que avisarle al administrador) o el
+  // administrador mismo cobrando.
+  let staffRole: string | null | undefined = null;
   if (tenant.adminOnlyCharge) {
     const staffSession = await auth();
-    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+    staffRole = staffSession?.user?.role;
+    if (isChargeBlockedForRole(staffRole, true)) {
       return chargeBlockedResponse();
     }
   }
@@ -325,6 +332,18 @@ export async function POST(
         url: "/mesero/salon",
       });
     })().catch((err) => console.error("[push:cash]", err));
+
+    // Con "solo el administrador inicia el cobro", que el comensal elija
+    // EFECTIVO es pedir la cuenta: alguien tiene que ir a la mesa con la
+    // devuelta. El aviso de pantalla completa del administrador escucha
+    // sólo `order.bill_requested`, así que lo emitimos además del
+    // cash_requested de arriba (que es el que alimenta Salón).
+    await announceBillRequestedOnPay({
+      tenant,
+      order,
+      role: staffRole,
+      method: "cash",
+    });
 
     return NextResponse.json({
       paymentId: payment.id,

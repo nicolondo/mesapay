@@ -11,6 +11,8 @@ import {
 } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -42,6 +44,20 @@ export async function POST(
   const { slug } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+
+  // Control de caja — "solo el administrador inicia el cobro". Bloquea al
+  // mesero en TODAS las ramas de esta ruta (pending de efectivo, settle
+  // directo y demo card/nequi), no sólo en la del settleNow. El comensal
+  // llega sin sesión y no se ve afectado: lo que se restringe es el staff.
+  //
+  // Sólo leemos la sesión cuando la política está encendida, así el 99%
+  // del tráfico (comensales) no paga el costo del lookup.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
+  }
 
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);

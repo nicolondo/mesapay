@@ -102,6 +102,7 @@ export function TableDetailSheet({
   qrToken,
   isMeseroView,
   country,
+  chargeLocked,
 }: {
   orderId: string;
   shortCode: string;
@@ -160,6 +161,10 @@ export function TableDetailSheet({
   // al agregar una línea libre. null cae en las de Colombia, igual que el
   // resto de la app (`purchaseTaxRates`).
   country?: string | null;
+  // "Solo el administrador cobra" activo y quien mira es un mesero.
+  // Cambiamos "Cobrar la cuenta" por "Pedir la cuenta": el mesero avisa
+  // a caja en vez de chocar contra un 403 del servidor.
+  chargeLocked?: boolean;
 }) {
   const tr = useTranslations("opTables");
   const [internalOpen, setInternalOpen] = useState(false);
@@ -244,8 +249,27 @@ export function TableDetailSheet({
   // ha plateado nada (status placed/in_kitchen). Una vez cancelada
   // cerramos el sheet y refrescamos.
   const [cancelOrderBusy, setCancelOrderBusy] = useState(false);
+  // "Pedir la cuenta" (sólo con el cobro bloqueado para el mesero):
+  // busy mientras vuela el POST, asked cuando ya avisamos a caja.
+  const [billBusy, setBillBusy] = useState(false);
+  const [billAsked, setBillAsked] = useState(false);
   const router = useRouter();
   const [, startTx] = useTransition();
+
+  /**
+   * El mesero avisa a caja que la mesa quiere pagar. Dispara el aviso de
+   * pantalla completa del administrador (evento order.bill_requested).
+   */
+  async function requestBill() {
+    if (!tenantSlug || billBusy) return;
+    setBillBusy(true);
+    const res = await fetch(
+      `/api/tenant/${tenantSlug}/orders/${orderId}/request-bill`,
+      { method: "POST" },
+    );
+    setBillBusy(false);
+    if (res.ok) setBillAsked(true);
+  }
 
   async function cancelOrder() {
     if (!window.confirm(tr("confirmCancelOrder"))) {
@@ -757,7 +781,27 @@ export function TableDetailSheet({
                       {tr("addFreeLine")}
                     </button>
                   )}
+                  {/* Con "solo el administrador cobra", el mesero NO ve
+                      Cobrar: ve "Pedir la cuenta", que avisa a caja. El
+                      servidor bloquea igual el cobro (chargeGuard.ts) —
+                      esto es para que no lo intente y choque contra un
+                      403. */}
+                  {canCharge && chargeLocked && (
+                    <button
+                      type="button"
+                      onClick={requestBill}
+                      disabled={billBusy || billAsked}
+                      className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95 disabled:opacity-70"
+                    >
+                      {billAsked
+                        ? tr("billRequested")
+                        : billBusy
+                          ? tr("billRequesting")
+                          : tr("requestBill")}
+                    </button>
+                  )}
                   {canCharge &&
+                    !chargeLocked &&
                     (isMeseroView ? (
                       // En la PWA del mesero navegamos in-app (scope
                       // /mesero/) — un <a target="_blank"> hacia /t/* no

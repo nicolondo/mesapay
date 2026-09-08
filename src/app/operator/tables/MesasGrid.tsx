@@ -119,6 +119,7 @@ export function MesasGrid({
   tenantSlug,
   counterMode,
   isMeseroView,
+  chargeLocked,
   freeTables,
   allTables,
   country,
@@ -127,6 +128,9 @@ export function MesasGrid({
   tenantSlug: string;
   counterMode: boolean;
   isMeseroView: boolean;
+  // "Solo el administrador cobra" activo y quien mira es un mesero: el
+  // sheet cambia "Cobrar la cuenta" por "Pedir la cuenta".
+  chargeLocked: boolean;
   freeTables: FreeTable[];
   allTables: AllTable[];
   // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
@@ -279,6 +283,7 @@ export function MesasGrid({
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
               country={country}
+              chargeLocked={chargeLocked}
             />
           );
         })}
@@ -637,6 +642,7 @@ function ActiveTile({
   tenantSlug,
   isMeseroView,
   country,
+  chargeLocked,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
@@ -647,6 +653,7 @@ function ActiveTile({
   tenantSlug: string;
   isMeseroView: boolean;
   country: string | null;
+  chargeLocked: boolean;
 }) {
   const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
@@ -755,6 +762,7 @@ function ActiveTile({
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}
           country={country}
+          chargeLocked={chargeLocked}
         />
       )}
     </>

@@ -10,6 +10,8 @@ import {
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * POST /transfer/v1/init de Kushki (server-side, con private key).
@@ -161,6 +163,15 @@ export async function POST(
       { error: "pse_not_available" },
       { status: 400 },
     );
+  }
+
+  // Control de caja: PSE también es un cobro. Con "solo el administrador
+  // cobra", un mesero no puede iniciarlo desde su PWA.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
   }
 
   const body = await req.json().catch(() => null);

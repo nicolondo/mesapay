@@ -8,6 +8,7 @@ import { LiveRefresh } from "../LiveRefresh";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { computeWalkoutRisk, computeVisualState } from "@/lib/walkoutRisk";
 import { MesasGrid, type TileData } from "./MesasGrid";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,13 @@ export default async function TablesPage() {
 
   const session = await auth();
   const isMeseroView = session?.user?.role === "mesero";
+  // Control de caja: con "solo el administrador cobra" el mesero no ve el
+  // botón de cobrar (que igual le rebotaría el servidor) sino "pedir la
+  // cuenta", que avisa a caja. Ver src/lib/chargeControl.ts.
+  const chargeLocked = isChargeBlockedForRole(
+    session?.user?.role,
+    tenant?.adminOnlyCharge ?? false,
+  );
 
   // Mesero scoped: sólo ve sus mesas asignadas.
   const scope = await getMeseroScope();
@@ -366,6 +374,7 @@ export default async function TablesPage() {
         tenantSlug={tenant!.slug}
         counterMode={counterMode}
         isMeseroView={isMeseroView}
+        chargeLocked={chargeLocked}
         freeTables={freeTables}
         allTables={allTablesForMove}
         country={tenant!.country}

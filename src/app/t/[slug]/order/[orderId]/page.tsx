@@ -10,6 +10,7 @@ import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
 import { CallWaiterButton } from "./CallWaiterButton";
+import { RequestBillButton } from "./RequestBillButton";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 
 export default async function OrderView({
@@ -136,6 +137,18 @@ export default async function OrderView({
           </div>
         </div>
       )}
+
+      {/* "Pedir la cuenta" explícito. Sólo con el control de caja activo:
+          ahí el mesero no cobra y el administrador necesita una señal que
+          no se confunda con el timbre genérico de abajo. */}
+      {tenant.adminOnlyCharge &&
+        tenant.serviceMode !== "counter" &&
+        order.status !== "paid" &&
+        order.status !== "cancelled" && (
+          <div className="mt-5">
+            <RequestBillButton tenantSlug={slug} orderId={order.id} />
+          </div>
+        )}
 
       {tenant.serviceMode !== "counter" &&
         order.status !== "paid" &&

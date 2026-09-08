@@ -9,6 +9,8 @@ import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal"
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * Push a pending datáfono Payment to a Kushki Smart POS terminal.
@@ -62,6 +64,12 @@ export async function POST(
     session.user.restaurantId !== tenant.id
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  // Control de caja: mandar el monto al datáfono ES iniciar el cobro. Con
+  // "solo el administrador cobra" el mesero no puede, aunque tenga el
+  // equipo en la mano. El rol `terminal` (la caja) sigue pudiendo.
+  if (isChargeBlockedForRole(role, tenant.adminOnlyCharge)) {
+    return chargeBlockedResponse();
   }
   // ¿Vamos al datáfono REAL (Cloud Terminal, cloudt) o al mock?
   //  - En sandbox/producción → real.

@@ -298,6 +298,17 @@ model Restaurant {
   // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
   meseroShiftWithoutLocal     String   @default("block")
+  // Control de caja: cuando está en true SOLO el administrador
+  // (operator / platform_admin) puede iniciar el cobro de una mesa. El rol
+  // `mesero` queda bloqueado en TODOS los caminos de cobro — la restricción
+  // se enforcea en el servidor (ver src/lib/chargeGuard.ts), no sólo
+  // escondiendo botones: un mesero puede pegarle a la API directo.
+  //
+  // Implica shiftPolicy = "global": si la caja la maneja una sola persona,
+  // los turnos por mesero no tienen a quién cuadrarle el arqueo. La API de
+  // políticas fuerza "global" al encender y bloquea el cambio a "by_waiter"
+  // mientras siga activo. Ver src/lib/chargeControl.ts.
+  adminOnlyCharge             Boolean  @default(false)
 
   users                  User[]
   tables                 Table[]

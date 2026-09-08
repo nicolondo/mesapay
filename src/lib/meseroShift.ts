@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
+import { effectiveShiftPolicy } from "@/lib/chargeControl";
 
 /**
  * Helpers compartidos para el turno personal del mesero — separado del
@@ -40,9 +40,19 @@ export async function meseroNeedsShiftToCharge(
   if (role !== "mesero" || !userId) return false;
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { shiftPolicy: true },
+    select: { shiftPolicy: true, adminOnlyCharge: true },
   });
-  if (resolveShiftPolicy(tenant?.shiftPolicy) !== "by_waiter") return false;
+  // Política EFECTIVA: con "solo el administrador cobra" el turno queda
+  // forzado a "único del local" — pedirle turno propio a un mesero que ni
+  // siquiera puede cobrar no tendría sentido.
+  if (
+    effectiveShiftPolicy(
+      tenant?.shiftPolicy,
+      tenant?.adminOnlyCharge ?? false,
+    ) !== "by_waiter"
+  ) {
+    return false;
+  }
   return !(await getCurrentMeseroShift(userId));
 }
 

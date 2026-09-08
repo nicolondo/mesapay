@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import {
-  resolveShiftPolicy,
-  resolveMeseroShiftWithoutLocal,
-} from "@/lib/staffPolicies";
+import { resolveMeseroShiftWithoutLocal } from "@/lib/staffPolicies";
+import { effectiveShiftPolicy } from "@/lib/chargeControl";
 import {
   getCurrentMeseroShift,
 } from "@/lib/meseroShift";
@@ -50,9 +48,20 @@ export async function POST(req: Request) {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { shiftPolicy: true, meseroShiftWithoutLocal: true },
+    select: {
+      shiftPolicy: true,
+      meseroShiftWithoutLocal: true,
+      adminOnlyCharge: true,
+    },
   });
-  if (resolveShiftPolicy(tenant?.shiftPolicy) !== "by_waiter") {
+  // Política EFECTIVA: "solo el administrador cobra" fuerza turno único del
+  // local, así que ni siquiera intentamos abrirle turno propio al mesero.
+  if (
+    effectiveShiftPolicy(
+      tenant?.shiftPolicy,
+      tenant?.adminOnlyCharge ?? false,
+    ) !== "by_waiter"
+  ) {
     return NextResponse.json(
       {
         error: "shifts_global",

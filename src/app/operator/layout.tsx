@@ -15,6 +15,7 @@ import { NavDropdown } from "./NavDropdown";
 import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
 import { computeBoardActivity, type BoardActivity } from "./boardActivity";
 import { GroupSwitcher } from "./GroupSwitcher";
+import { BillRequestAlert } from "./BillRequestAlert";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 export default async function OperatorLayout({
@@ -268,6 +269,16 @@ export default async function OperatorLayout({
       )
     : null;
 
+  // Aviso de pantalla completa "pidieron la cuenta". Va en el LAYOUT (no
+  // en una página) para que el administrador se entere esté donde esté
+  // dentro del panel. Sólo con el control de caja encendido — es la
+  // contraparte de haberle quitado el cobro al mesero. group_admin
+  // también lo ve: es dueño del local que está mirando.
+  const billAlert =
+    tenant?.adminOnlyCharge && tenant.slug ? (
+      <BillRequestAlert tenantSlug={tenant.slug} />
+    ) : null;
+
   // Banners (impersonación + membresía) — compartidos por ambos shells.
   const banners = (
     <>
@@ -311,6 +322,8 @@ export default async function OperatorLayout({
     (await cookies()).get("mp_shell")?.value === "classic";
   if (!shellClassic) {
     return (
+      <>
+      {billAlert}
       <OperatorCockpit
         navItems={navItems}
         boardActivity={boardActivity}
@@ -324,11 +337,13 @@ export default async function OperatorLayout({
       >
         {children}
       </OperatorCockpit>
+      </>
     );
   }
 
   return (
     <div className="op-app-shell flex flex-col bg-op-bg text-op-text overflow-hidden">
+      {billAlert}
       {banners}
           <header className="print:hidden border-b border-op-border bg-op-surface shrink-0 z-10">
             <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">

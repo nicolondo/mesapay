@@ -16,6 +16,11 @@
   --terracotta: #C9532E;
   --terracotta-2: #A8401F;
   --terracotta-soft: #F0D9CB;
+  /* Naranja de marca del riel del cockpit. Vivía sólo como variable
+     inline de OperatorCockpit, así que nada fuera del riel podía usarlo
+     sin repetir el hex. Ahora es un token de :root — el riel lo hereda y
+     el aviso de "pidieron la cuenta" lo reusa. */
+  --rail-accent: #E8794F;
   --olive: #5C6B3B;
   --gold: #B8893B;
   --ok: #2E6B4C;
@@ -218,6 +223,25 @@ body {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* Aviso "pidieron la cuenta": 3 destellos tipo flash y después FIJO.
+   El conteo finito es deliberado — un parpadeo indefinido a esta escala
+   es tanto una molestia como un riesgo (WCAG 2.3.1 limita los destellos
+   a menos de 3 por segundo; acá son 3 en total, a ~1.7 Hz). El
+   `forwards` deja el aviso opaco y legible al terminar. */
+@keyframes billAlertFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.18; }
+}
+.bill-alert-flash {
+  animation: billAlertFlash 0.6s steps(1, end) 3 forwards;
+}
+/* Entrada suave del panel; se apaga con reduced-motion igual que el flash. */
+@keyframes billAlertPop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.bill-alert-pop { animation: billAlertPop 0.22s cubic-bezier(.2,.8,.2,1) both; }
+
 .grain {
   background-image:
     radial-gradient(1200px 600px at 10% -10%, rgba(201,83,46,0.08), transparent 60%),
@@ -239,7 +263,12 @@ body {
   .scan-beam,
   .shimmer-text,
   .marquee-track,
-  .dot-blink {
+  .dot-blink,
+  /* El aviso de "pidieron la cuenta" SIGUE apareciendo con reduced-motion
+     — es información crítica —, pero sin destellar. Sin animación queda
+     directamente en su estado final (opaco), que es el que importa. */
+  .bill-alert-flash,
+  .bill-alert-pop {
     animation: none !important;
   }
   .reveal { opacity: 1; transform: none; transition: none; }

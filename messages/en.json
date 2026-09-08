@@ -187,7 +187,12 @@
     "etaHeadlineMax": "Your order is out in more than {min} min",
     "discountRow": "Discount",
     "discountRowPct": "{pct}% discount",
-    "discountedTotal": "Total after discount"
+    "discountedTotal": "Total after discount",
+    "requestBill": "Ask for the bill",
+    "requestingBill": "Asking…",
+    "billOnWay": "You asked for the bill",
+    "billOnWayHint": "We're on our way with your bill.",
+    "errRequestBill": "We couldn't ask for the bill."
   },
   "pay": {
     "pay": "Pay",
@@ -1068,7 +1073,8 @@
     "stationBar": "Bar",
     "stationCounter": "Cooler",
     "badgeMainsTogether": "Mains together",
-    "stillCooking": "Still being prepared ({count})"
+    "stillCooking": "Still being prepared ({count})",
+    "chargeAdminOnly": "Only the administrator can charge"
   },
   "opPayments": {
     "noRestaurant": "No restaurant.",
@@ -1467,7 +1473,10 @@
     "discountApplied": "{pct}% discount",
     "discountAppliedNoPct": "Discount",
     "discountBefore": "was {amount}",
-    "discountRemove": "Remove discount"
+    "discountRemove": "Remove discount",
+    "requestBill": "Ask for the bill",
+    "billRequesting": "Notifying…",
+    "billRequested": "Cash desk notified"
   },
   "opSettings": {
     "tip_shared": "Shared",
@@ -1712,7 +1721,16 @@
     "datafonosBusinessCodeHint": "Your business code for card-terminal charges. Your terminal provider gives it to you when activating the device.",
     "badgeDevicesEmpty": "Set up",
     "subscriptionCardTitle": "Subscription",
-    "subscriptionCardDesc": "Plan, payment history and automatic debit."
+    "subscriptionCardDesc": "Plan, payment history and automatic debit.",
+    "policiesAdminChargeKicker": "Cash control",
+    "policiesAdminChargeQuestion": "Who can start charging a table?",
+    "policiesAdminChargeIntro": "By default the waiter can charge the bill for their tables. If you'd rather have a single person handle the money, turn this on: only the administrator will be able to start a charge.",
+    "policiesAdminChargeToggle": "Only the administrator can start a charge",
+    "policiesAdminChargeEffects": "With this on: the waiter no longer sees the charge button (and the server blocks every payment method for them, including direct API calls); shifts switch to “single shift for the venue”; and when a table asks for the bill, a full-screen alert appears in your panel.",
+    "policiesAdminChargeFootnote": "Diners can still pay on their own from their phone: what's restricted is another team member handling the money.",
+    "policiesAdminChargeOpenShifts": "{count, plural, one {There is # waiter shift still open. Close it from Cash before turning this on: leaving it orphaned throws the cash count off.} other {There are # waiter shifts still open. Close them from Cash before turning this on: leaving them orphaned throws the cash count off.}}",
+    "policiesAdminChargeShiftLocked": "With charging reserved for the administrator, shifts must be single for the venue. Turn cash control off if you want per-waiter shifts.",
+    "policiesShiftsLockedByAdminCharge": "Locked: with charging reserved for the administrator, the shift is always a single one for the venue."
   },
   "opTranslations": {
     "noRestaurant": "No restaurant.",
@@ -5273,5 +5291,19 @@
     "errMissingCredentials": "DIAN credentials are still incomplete.",
     "errDecryptFailed": "The stored credentials could not be decrypted.",
     "errGeneric": "Something went wrong. Please try again."
+  },
+  "billAlert": {
+    "kickerDiner": "Bill requested",
+    "kickerStaff": "The waiter is letting you know",
+    "headline": "is asking for the bill",
+    "table": "Table {number}",
+    "charge": "Go charge",
+    "dismiss": "Dismiss",
+    "more": "{count, plural, one {+# more table waiting} other {+# more tables waiting}}"
+  },
+  "chargeLock": {
+    "title": "The administrator handles charging",
+    "body": "This venue has cash control on: only the administrator can start a charge. From the table you can tap “Ask for the bill” to let them know.",
+    "backToTables": "Back to Tables"
   }
 }

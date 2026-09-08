@@ -25,7 +25,9 @@ const RAIL_VARS = {
   ["--rail-line-2" as string]: "#3A3020",
   ["--rail-text" as string]: "#F1EADD",
   ["--rail-muted" as string]: "#9C9184",
-  ["--rail-accent" as string]: "#E8794F",
+  // --rail-accent NO va acá: vive en :root (globals.css) para que el aviso
+  // de "pidieron la cuenta", que se pinta fuera del riel, use el mismo
+  // naranja sin duplicar el hex. El riel lo hereda igual.
 } as React.CSSProperties;
 
 export function OperatorCockpit({

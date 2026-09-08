@@ -187,7 +187,12 @@
     "etaHeadlineMax": "Seu pedido sai em mais de {min} min",
     "discountRow": "Desconto",
     "discountRowPct": "Desconto de {pct}%",
-    "discountedTotal": "Total com desconto"
+    "discountedTotal": "Total com desconto",
+    "requestBill": "Pedir a conta",
+    "requestingBill": "Pedindo…",
+    "billOnWay": "Você já pediu a conta",
+    "billOnWayHint": "Estamos a caminho com a sua conta.",
+    "errRequestBill": "Não conseguimos pedir a conta."
   },
   "pay": {
     "pay": "Pagar",
@@ -1068,7 +1073,8 @@
     "stationBar": "Bar",
     "stationCounter": "Geladeira",
     "badgeMainsTogether": "Pratos principais juntos",
-    "stillCooking": "Ainda em preparo ({count})"
+    "stillCooking": "Ainda em preparo ({count})",
+    "chargeAdminOnly": "Apenas o administrador pode cobrar"
   },
   "opPayments": {
     "noRestaurant": "Sem restaurante.",
@@ -1467,7 +1473,10 @@
     "discountApplied": "Desconto de {pct}%",
     "discountAppliedNoPct": "Desconto",
     "discountBefore": "antes {amount}",
-    "discountRemove": "Remover desconto"
+    "discountRemove": "Remover desconto",
+    "requestBill": "Pedir a conta",
+    "billRequesting": "Avisando…",
+    "billRequested": "Caixa avisado"
   },
   "opSettings": {
     "tip_shared": "Compartilhadas",
@@ -1712,7 +1721,16 @@
     "datafonosBusinessCodeHint": "Código do seu comércio para cobranças via datáfono. O fornecedor do datáfono o entrega ao ativar o equipamento.",
     "badgeDevicesEmpty": "Configurar",
     "subscriptionCardTitle": "Assinatura",
-    "subscriptionCardDesc": "Plano, histórico de pagamentos e débito automático."
+    "subscriptionCardDesc": "Plano, histórico de pagamentos e débito automático.",
+    "policiesAdminChargeKicker": "Controle de caixa",
+    "policiesAdminChargeQuestion": "Quem pode iniciar a cobrança de uma mesa?",
+    "policiesAdminChargeIntro": "Por padrão o garçom pode cobrar a conta das suas mesas. Se você prefere que o dinheiro seja gerido por uma só pessoa, ative esta opção: apenas o administrador poderá iniciar a cobrança.",
+    "policiesAdminChargeToggle": "Apenas o administrador pode iniciar a cobrança",
+    "policiesAdminChargeEffects": "Com isto ativo: o garçom deixa de ver o botão de cobrar (e o servidor bloqueia todos os meios de pagamento para ele, inclusive se tentar entrar pela API); o turno fica em “único do local”; e quando uma mesa pede a conta aparece um aviso de tela cheia no seu painel.",
+    "policiesAdminChargeFootnote": "O cliente continua podendo pagar sozinho pelo celular: o que se restringe é outro membro da equipe mexer no dinheiro.",
+    "policiesAdminChargeOpenShifts": "{count, plural, one {Há # turno de garçom aberto. Feche-o no Caixa antes de ativar esta opção: deixá-lo órfão desequilibra o fechamento.} other {Há # turnos de garçom abertos. Feche-os no Caixa antes de ativar esta opção: deixá-los órfãos desequilibra o fechamento.}}",
+    "policiesAdminChargeShiftLocked": "Com a cobrança reservada ao administrador, o turno tem que ser único do local. Desligue o controle de caixa se quiser turnos por garçom.",
+    "policiesShiftsLockedByAdminCharge": "Bloqueado: com a cobrança reservada ao administrador, o turno é sempre único do local."
   },
   "opTranslations": {
     "noRestaurant": "Sem restaurante.",
@@ -5273,5 +5291,19 @@
     "errMissingCredentials": "Faltam credenciais da DIAN por concluir.",
     "errDecryptFailed": "Não foi possível decifrar as credenciais guardadas.",
     "errGeneric": "Ocorreu um erro. Tente novamente."
+  },
+  "billAlert": {
+    "kickerDiner": "Pediram a conta",
+    "kickerStaff": "O garçom está avisando",
+    "headline": "pede a conta",
+    "table": "Mesa {number}",
+    "charge": "Ir cobrar",
+    "dismiss": "Fechar",
+    "more": "{count, plural, one {+# mesa esperando} other {+# mesas esperando}}"
+  },
+  "chargeLock": {
+    "title": "Quem cobra é o administrador",
+    "body": "Este local tem o controle de caixa ativo: só o administrador pode iniciar a cobrança. Na mesa você pode tocar em “Pedir a conta” para avisá-lo.",
+    "backToTables": "Voltar para Mesas"
   }
 }

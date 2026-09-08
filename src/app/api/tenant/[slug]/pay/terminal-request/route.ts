@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -29,6 +31,15 @@ export async function POST(
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  // Control de caja: con "solo el administrador cobra" el mesero tampoco
+  // puede encolar un cobro por datáfono. Ver src/lib/chargeGuard.ts.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
   }
 
   const body = await req.json().catch(() => null);

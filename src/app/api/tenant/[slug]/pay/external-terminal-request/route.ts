@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * "Tarjeta con datáfono del comercio" — el comercio cobra con su
@@ -34,6 +36,15 @@ export async function POST(
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  // Control de caja: el datáfono propio del comercio también es un cobro
+  // que el mesero no puede iniciar cuando la política está activa.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
   }
 
   const body = await req.json().catch(() => null);

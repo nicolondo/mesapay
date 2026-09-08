@@ -169,14 +169,50 @@ describe("FAJ24 / FAJ24a / FAJ47 / FAB22a / FAB22b — DV del NIT", () => {
   });
 });
 
-describe("FAK61 — grupo cac:Person cuando AdditionalAccountID es 2", () => {
-  it("la persona natural informa nombres y apellidos", () => {
+// El grupo que pide FAK61 es cac:PartyIdentification (Anexo Técnico 1.9,
+// Resolución 000165/2023: FAK61 grupo, FAK62 cbc:ID, FAK63 @schemeName,
+// FAK64 @schemeID). NO es cac:Person: ese grupo sólo existe en el
+// ApplicationResponse del acuse de recibo (AAH12), no en la factura.
+describe("FAK61 — grupo cac:PartyIdentification cuando AdditionalAccountID es 2", () => {
+  it("la persona natural informa el documento en cac:PartyIdentification", () => {
     const { xml } = build([line()]);
-    const customerBlock = xml.split("<cac:AccountingCustomerParty>")[1];
+    const customerBlock = xml
+      .split("<cac:AccountingCustomerParty>")[1]
+      .split("</cac:AccountingCustomerParty>")[0];
     expect(customerBlock).toContain("<cbc:AdditionalAccountID>2</cbc:AdditionalAccountID>");
-    expect(customerBlock).toContain("<cac:Person>");
-    expect(customerBlock).toContain("<cbc:FirstName>Consumidor</cbc:FirstName>");
-    expect(customerBlock).toContain("<cbc:FamilyName>final</cbc:FamilyName>");
+    expect(customerBlock).toContain("<cac:PartyIdentification>");
+    // FAK62/FAK63: documento del consumidor final y su tipo.
+    expect(customerBlock).toContain(
+      '<cbc:ID schemeName="13" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">222222222222</cbc:ID>',
+    );
+  });
+
+  it("cac:PartyIdentification abre cac:Party, antes de PartyName", () => {
+    const { xml } = build([line()]);
+    const party = xml
+      .split("<cac:AccountingCustomerParty>")[1]
+      .split("</cac:AccountingCustomerParty>")[0]
+      .split("<cac:Party>")[1];
+    expect(party.indexOf("<cac:PartyIdentification>")).toBe(0);
+    expect(party.indexOf("<cac:PartyIdentification>")).toBeLessThan(
+      party.indexOf("<cac:PartyName>"),
+    );
+  });
+
+  it("con NIT el DV viaja en @schemeID del cbc:ID", () => {
+    const { xml } = build([line()], {
+      ...consumidorFinal,
+      name: "Persona natural con NIT",
+      companyId: "1020304050",
+      dv: "7",
+      idSchemeName: "31",
+    });
+    const customerBlock = xml
+      .split("<cac:AccountingCustomerParty>")[1]
+      .split("</cac:AccountingCustomerParty>")[0];
+    expect(customerBlock).toContain(
+      '<cac:PartyIdentification><cbc:ID schemeID="7" schemeName="31"',
+    );
   });
 
   it("la persona jurídica no lleva el grupo", () => {
@@ -185,7 +221,12 @@ describe("FAK61 — grupo cac:Person cuando AdditionalAccountID es 2", () => {
       .split("<cac:AccountingSupplierParty>")[1]
       .split("</cac:AccountingSupplierParty>")[0];
     expect(supplierBlock).toContain("<cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>");
-    expect(supplierBlock).not.toContain("<cac:Person>");
+    expect(supplierBlock).not.toContain("<cac:PartyIdentification>");
+  });
+
+  it("no se emite cac:Person: no existe en la factura del anexo", () => {
+    const { xml } = build([line()]);
+    expect(xml).not.toContain("<cac:Person>");
   });
 });
 

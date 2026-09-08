@@ -40,25 +40,13 @@ const putBody = z.object({
     .nullable()
     .optional(),
   legalPhone: z.string().trim().max(60).nullable().optional(),
-  dianResolution: z.string().trim().max(200).nullable().optional(),
-  // Tope 2.000.000.000, no 99.999.999: los rangos que autoriza la DIAN no
-  // caben en 8 dígitos. El set de pruebas de habilitación va de 990000000 a
-  // 995000000, así que con el tope viejo la resolución REAL era imposible de
-  // guardar — el formulario respondía "no pudimos guardar" sin decir por qué.
-  // El techo verdadero es el Int de Postgres (2.147.483.647); se deja margen.
-  dianResolutionFrom: z.number().int().nonnegative().max(2_000_000_000).nullable().optional(),
-  dianResolutionTo: z.number().int().nonnegative().max(2_000_000_000).nullable().optional(),
-  dianResolutionDate: z
-    .string()
-    .nullable()
-    .optional(), // ISO yyyy-mm-dd
-  invoicePrefix: z.string().trim().toUpperCase().max(10).nullable().optional(),
-  // Próximo consecutivo a emitir. El operador lo setea cuando ya
-  // venía emitiendo en otra plataforma y necesita continuar desde
-  // un número específico (ej. dianResolutionFrom + N facturas ya
-  // emitidas externamente). Si lo bajan por error, no validamos
-  // contra ya-emitidos en MESAPAY — confiamos en el operador.
-  invoiceNextNumber: z.number().int().min(1).max(2_000_000_000).optional(),
+  // NO acepta datos de la resolución de numeración (texto legacy, número,
+  // rango, fecha, prefijo, consecutivo). Se movieron enteros a
+  // PATCH /api/operator/dian/resolution, que es la única superficie que
+  // los escribe. Estaban duplicados con esa pantalla y los dos números
+  // podían divergir sin que el operador lo notara. Si un cliente viejo
+  // los sigue mandando, zod los descarta en silencio (el schema ignora
+  // las claves que no declara) en vez de pisar el dato bueno.
 });
 
 /**
@@ -148,26 +136,6 @@ export async function PUT(req: Request) {
             }),
           }),
       ...(d.legalPhone !== undefined && { legalPhone: d.legalPhone || null }),
-      ...(d.dianResolution !== undefined && {
-        dianResolution: d.dianResolution || null,
-      }),
-      ...(d.dianResolutionFrom !== undefined && {
-        dianResolutionFrom: d.dianResolutionFrom,
-      }),
-      ...(d.dianResolutionTo !== undefined && {
-        dianResolutionTo: d.dianResolutionTo,
-      }),
-      ...(d.dianResolutionDate !== undefined && {
-        dianResolutionDate: d.dianResolutionDate
-          ? new Date(d.dianResolutionDate)
-          : null,
-      }),
-      ...(d.invoicePrefix !== undefined && {
-        invoicePrefix: d.invoicePrefix || null,
-      }),
-      ...(d.invoiceNextNumber !== undefined && {
-        invoiceNextNumber: d.invoiceNextNumber,
-      }),
     },
   });
 

@@ -10,7 +10,11 @@ import { resolveEnabledModules, type ModuleSlug } from "@/lib/modules";
  * igual rechaza con 403 module_disabled).
  *
  * `anyOf`: basta con que UNO de los módulos esté activo — p.ej. el catálogo
- * de insumos es visible con inventory O purchasing O recipes.
+ * de insumos es visible con inventory O purchasing O recipes. Lista VACÍA
+ * = sin gate de módulo (sólo auth + restaurante activo), para superficies
+ * que todo comercio necesita aunque no haya comprado ningún módulo — hoy,
+ * la resolución de numeración, que manda el consecutivo del comprobante
+ * impreso.
  */
 export type ErpContext = { restaurantId: string; country: string | null };
 export type ErpDenied = { error: string; status: number };
@@ -33,7 +37,7 @@ export async function getErpContext(
   });
   if (!r) return { error: "no_restaurant", status: 400 };
   const enabled = resolveEnabledModules(r.enabledModules);
-  if (!anyOf.some((m) => enabled.includes(m))) {
+  if (anyOf.length > 0 && !anyOf.some((m) => enabled.includes(m))) {
     return { error: "module_disabled", status: 403 };
   }
   return { restaurantId, country: r.country };

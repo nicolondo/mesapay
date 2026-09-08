@@ -15,9 +15,19 @@ export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["einvoicing"];
 
+/**
+ * El GET no lleva gate de módulo: la misma pantalla sirve la resolución de
+ * numeración, que ahora es su única superficie de carga y que también
+ * necesitan los comercios que sólo imprimen tirilla.
+ * `status.einvoicingEnabled` le dice al cliente qué secciones puede
+ * mostrar. La escritura de credenciales (PATCH) y todo lo que toca la
+ * DIAN sí siguen gateados.
+ */
+const READ_GATE: ModuleSlug[] = [];
+
 /** Estado de la configuración DIAN — SIN secretos (vista para el cliente). */
 export async function GET() {
-  const ctx = await getErpContext(GATE);
+  const ctx = await getErpContext(READ_GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
@@ -27,7 +37,9 @@ export async function GET() {
     emisor: emisor ? emisorView(emisor) : null,
     // Último documento enviado: sin esto la pantalla perdía el resultado
     // al recargar y el operador nunca veía por qué la DIAN rechazó.
-    lastDocument: await lastTestSetDocument(ctx.restaurantId),
+    lastDocument: status.einvoicingEnabled
+      ? await lastTestSetDocument(ctx.restaurantId)
+      : null,
     // Aviso temprano si el server no puede cifrar secretos.
     masterKeyReady: /^[0-9a-fA-F]{64}$/.test(process.env.DIAN_MASTER_KEY ?? ""),
   });

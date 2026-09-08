@@ -648,6 +648,20 @@ model User {
   email          String      @unique
   name           String?
   phone          String?
+  /// Cédula / documento del comensal. Es el identificador de login
+  /// ALTERNO al correo (una persona recuerda su cédula aunque no
+  /// recuerde con qué correo se registró).
+  ///
+  /// Opcional a propósito: los usuarios que ya existen (staff, comensales
+  /// viejos) no la tienen y el deploy corre `prisma db push`, así que la
+  /// columna tiene que ser nulable. Único, pero en Postgres un índice
+  /// UNIQUE admite múltiples NULL — los miles de usuarios sin cédula no
+  /// chocan entre sí.
+  ///
+  /// Se guarda normalizada (solo dígitos/letras, sin puntos ni espacios;
+  /// ver lib/customerIdentity.ts) para que "1.020.304" y "1020304" sean
+  /// la misma persona y el UNIQUE realmente sirva.
+  cedula         String?     @unique
   passwordHash   String
   role           Role        @default(customer)
   restaurantId   String?
@@ -728,10 +742,67 @@ model User {
   crmEmailTemplates    CrmEmailTemplate[]
   crmWhatsappTemplates CrmWhatsappTemplate[]
   passwordResetTokens  PasswordResetToken[]
+  customerSessions     CustomerSession[]
+  magicLinkTokens      MagicLinkToken[]
 
   @@index([restaurantId])
   @@index([groupId])
   @@index([managerId])
+}
+
+/// Sesión del COMENSAL, persistida y revocable.
+///
+/// El requisito de producto es que al comensal nunca se le vuelva a pedir
+/// la clave. Con la sesión JWT del staff eso sería peligroso: un JWT es
+/// autocontenido — el servidor no lo consulta — así que un JWT eterno en un
+/// celular perdido conserva acceso PARA SIEMPRE y ni cambiar la contraseña
+/// lo corta. Por eso la sesión del comensal vive acá: el efecto para él es
+/// el mismo (no vence), pero se puede matar en cualquier momento — al
+/// cambiar contraseña, al "cerrar sesión en todos los dispositivos", o si
+/// reportan el celular robado. Pesa todavía más de cara al roadmap: esta
+/// misma sesión va a poder gastar plata (bonos, crédito empresarial).
+///
+/// Las sesiones de operator / mesero / kitchen / bar / platform_admin
+/// siguen siendo el JWT de NextAuth, intactas: conviven las dos estrategias.
+model CustomerSession {
+  id String @id @default(cuid())
+
+  /// SHA-256 del token que viaja en la cookie. Igual que en
+  /// PasswordResetToken: un leak de la tabla no entrega sesiones usables.
+  tokenHash String @unique
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// null = viva. Revocar es un UPDATE, no un DELETE, para conservar el
+  /// rastro de auditoría de desde cuándo y hasta cuándo estuvo abierta.
+  revokedAt DateTime?
+
+  /// Para que el comensal reconozca sus dispositivos en la lista de
+  /// sesiones activas antes de cerrarlos. Recortado a 200 chars.
+  userAgent String?
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Enlace de acceso directo ("magic link") enviado por correo al comensal.
+///
+/// Lo que vence es el ENLACE, no la sesión: el token es de un solo uso y
+/// dura minutos, pero una vez canjeado la CustomerSession que crea es
+/// permanente. Se guarda hasheado — el token plano solo existe en el correo.
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 /// Token de restablecimiento de contraseña (disparado desde admin).

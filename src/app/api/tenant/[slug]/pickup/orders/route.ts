@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getViewer } from "@/lib/customerSession";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
@@ -97,7 +97,9 @@ export async function POST(
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
-  const session = await auth();
+  // Igual que en /orders: acepta la sesión permanente del comensal además
+  // del JWT, para que el pedido para llevar quede enlazado a su cuenta.
+  const session = await getViewer();
   // Subtotal must factor modifier price deltas too — otherwise the
   // Kushki charge below would undercharge by the value of every
   // "+$5.000 Camarón" the diner added.
@@ -220,7 +222,7 @@ export async function POST(
       data: {
         restaurantId: tenant.id,
         tableId: pickupTable.id,
-        customerId: session?.user?.id,
+        customerId: session?.id,
         orderType: "pickup",
         status: "paid",
         shortCode: shortCode(),
@@ -328,8 +330,8 @@ export async function POST(
   // No more arrival-print for bar — pickup tickets print when somebody
   // taps "Empezar" at the station (see operator/order-items PATCH).
 
-  if (session?.user?.id) {
-    welcomeIfFirstTime(session.user.id, result.order.locale).catch((err) =>
+  if (session?.id) {
+    welcomeIfFirstTime(session.id, result.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
   }

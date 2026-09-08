@@ -1,31 +1,45 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
+import { getTranslations, getLocale } from "next-intl/server";
+import { signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
+import {
+  getViewer,
+  listActiveCustomerSessions,
+  touchCustomerSession,
+} from "@/lib/customerSession";
+import type { Locale } from "@/i18n/config";
 import { ProfileForm } from "./ProfileForm";
+import { SecurityPanel } from "./SecurityPanel";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Abierta",
-  placed: "En cocina",
-  in_kitchen: "En cocina",
-  ready: "Lista",
-  served: "Servida",
-  paying: "Pagando",
-  paid: "Pagada",
-  cancelled: "Cancelada",
+/** OrderStatus → clave del catálogo. */
+const STATUS_KEY: Record<string, string> = {
+  open: "statusOpen",
+  placed: "statusPlaced",
+  in_kitchen: "statusInKitchen",
+  ready: "statusReady",
+  served: "statusServed",
+  paying: "statusPaying",
+  paid: "statusPaid",
+  cancelled: "statusCancelled",
 };
 
 export default async function CustomerHome() {
-  const session = await auth();
-  if (!session?.user) redirect("/signin?callbackUrl=/me");
+  // getViewer resuelve primero la sesión revocable del comensal y cae al
+  // JWT de NextAuth si no hay: quien ya tenía sesión abierta antes de este
+  // cambio no queda en la calle.
+  const viewer = await getViewer();
+  if (!viewer) redirect("/cuenta/entrar?callbackUrl=/me");
 
-  const userId = session.user.id;
+  const t = await getTranslations("me");
+  const locale = (await getLocale()) as Locale;
+  const userId = viewer.id;
 
-  const [user, orders] = await Promise.all([
+  const [user, orders, sessions] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: {
@@ -33,6 +47,7 @@ export default async function CustomerHome() {
         email: true,
         name: true,
         phone: true,
+        cedula: true,
         marketingOptIn: true,
         createdAt: true,
       },
@@ -53,9 +68,14 @@ export default async function CustomerHome() {
         _count: { select: { items: true } },
       },
     }),
+    listActiveCustomerSessions(userId),
   ]);
 
-  if (!user) redirect("/signin?callbackUrl=/me");
+  if (!user) redirect("/cuenta/entrar?callbackUrl=/me");
+
+  // Best-effort: mantiene "última actividad" con algo útil en la lista de
+  // dispositivos. Si falla, la sesión sigue funcionando igual.
+  if (viewer.sessionId) void touchCustomerSession(viewer.sessionId);
 
   return (
     <main className="flex-1 bg-bone">
@@ -63,40 +83,45 @@ export default async function CustomerHome() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
-              MESAPAY · Mi cuenta
+              {t("eyebrow")}
             </div>
             <h1 className="font-display text-3xl tracking-[-0.015em] mt-1">
-              {user.name ?? "Hola"}
+              {user.name ?? t("greeting")}
             </h1>
             <div className="font-mono text-[11px] text-muted mt-1">
               {user.email}
             </div>
+            <div className="font-mono text-[11px] text-muted mt-0.5">
+              {t("fieldCedula")}: {user.cedula ?? t("cedulaEmpty")}
+            </div>
           </div>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <button
-              type="submit"
-              className="h-10 px-4 rounded-full border border-hairline text-sm text-ink bg-paper"
+          {/* El logout depende de cómo entró: la sesión del comensal se
+              revoca en DB (SecurityPanel); la vieja de NextAuth se cierra
+              con signOut. */}
+          {viewer.via === "nextauth" ? (
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/" });
+              }}
             >
-              Salir
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="h-10 px-4 rounded-full border border-hairline text-sm text-ink bg-paper"
+              >
+                {t("signOut")}
+              </button>
+            </form>
+          ) : null}
         </div>
 
         <section className="mb-10">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-3">
-            Tus órdenes
+            {t("ordersTitle")}
           </div>
           {orders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-hairline bg-paper p-8 text-center">
-              <div className="text-sm text-muted">
-                Aún no tienes órdenes. Cuando escanees un QR en un restaurante
-                MESAPAY, tus cuentas aparecerán aquí.
-              </div>
+              <div className="text-sm text-muted">{t("ordersEmpty")}</div>
             </div>
           ) : (
             <ul className="space-y-2">
@@ -123,14 +148,14 @@ export default async function CustomerHome() {
                                 : "bg-paper text-muted border-hairline")
                           }
                         >
-                          {STATUS_LABEL[o.status] ?? o.status}
+                          {STATUS_KEY[o.status] ? t(STATUS_KEY[o.status]) : o.status}
                         </span>
                       </div>
                       <div className="font-mono text-[11px] text-muted mt-1 truncate">
                         {o.table.number > 0
-                          ? `Mesa ${o.table.number}`
-                          : "Mostrador"}{" "}
-                        · {o.shortCode} · {o._count.items} ítems
+                          ? t("table", { number: o.table.number })
+                          : t("counter")}{" "}
+                        · {o.shortCode} · {t("items", { count: o._count.items })}
                       </div>
                       <div className="font-mono text-[10px] text-muted mt-0.5">
                         {dt.date} · {dt.time}
@@ -145,7 +170,7 @@ export default async function CustomerHome() {
                           href={`/t/${o.restaurant.slug}/order/${o.id}`}
                           className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
                         >
-                          Abrir →
+                          {t("openOrder")}
                         </Link>
                       )}
                     </div>
@@ -156,9 +181,9 @@ export default async function CustomerHome() {
           )}
         </section>
 
-        <section>
+        <section className="mb-10">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-3">
-            Tu perfil
+            {t("profileTitle")}
           </div>
           <ProfileForm
             initial={{
@@ -166,6 +191,23 @@ export default async function CustomerHome() {
               phone: user.phone ?? "",
               marketingOptIn: user.marketingOptIn,
             }}
+          />
+        </section>
+
+        <section>
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mb-3">
+            {t("securityTitle")}
+          </div>
+          <SecurityPanel
+            locale={locale}
+            viaNextAuth={viewer.via === "nextauth"}
+            currentSessionId={viewer.sessionId}
+            sessions={sessions.map((s) => ({
+              id: s.id,
+              userAgent: s.userAgent,
+              createdAt: s.createdAt.toISOString(),
+              lastUsedAt: s.lastUsedAt.toISOString(),
+            }))}
           />
         </section>
       </div>

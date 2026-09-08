@@ -38,6 +38,15 @@ export async function POST(req: Request) {
       where: { id: record.id },
       data: { usedAt: new Date() },
     }),
+    // Restablecer la contraseña tiene que EXPULSAR a los dispositivos
+    // viejos, no solo cambiar la clave. Las sesiones del comensal son
+    // permanentes: sin esto, el celular robado que motivó el cambio
+    // seguiría adentro para siempre. Es exactamente lo que un JWT eterno
+    // no permitiría hacer.
+    db.customerSession.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
   ]);
 
   return NextResponse.json({ ok: true });

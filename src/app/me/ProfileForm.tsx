@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function ProfileForm({
   initial,
 }: {
   initial: { name: string; phone: string; marketingOptIn: boolean };
 }) {
+  const t = useTranslations("me");
   const router = useRouter();
   const [name, setName] = useState(initial.name);
   const [phone, setPhone] = useState(initial.phone);
@@ -38,11 +40,10 @@ export function ProfileForm({
     });
     setBusy(false);
     if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos guardar.");
+      setErr(t("saveError"));
       return;
     }
-    setMsg("Perfil actualizado.");
+    setMsg(t("saved"));
     startTx(() => router.refresh());
   }
 
@@ -53,7 +54,7 @@ export function ProfileForm({
     >
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Nombre
+          {t("fieldName")}
         </span>
         <input
           value={name}
@@ -64,7 +65,7 @@ export function ProfileForm({
       </label>
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-          Celular
+          {t("fieldPhone")}
         </span>
         <input
           type="tel"
@@ -81,9 +82,7 @@ export function ProfileForm({
           onChange={(e) => setMarketingOptIn(e.target.checked)}
           className="mt-0.5 accent-terracotta"
         />
-        <span className="text-muted leading-snug">
-          Recibir ofertas y novedades de restaurantes aliados.
-        </span>
+        <span className="text-muted leading-snug">{t("marketingOptIn")}</span>
       </label>
       {err && <div className="text-danger text-xs">{err}</div>}
       {msg && <div className="text-[#1E5339] text-xs">{msg}</div>}
@@ -92,7 +91,7 @@ export function ProfileForm({
         disabled={busy || !dirty}
         className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
       >
-        {busy ? "Guardando…" : "Guardar"}
+        {busy ? t("saving") : t("save")}
       </button>
     </form>
   );

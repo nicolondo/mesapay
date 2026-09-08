@@ -34,6 +34,13 @@ export type DianParty = {
   taxRegimeCode: "48" | "49";
   /** Persona jurídica "1" / natural "2". */
   personType: "1" | "2";
+  /**
+   * Nombres y apellidos — sólo para persona natural (personType "2"),
+   * que obliga a informar el grupo cac:Person. Si no vienen se derivan
+   * de `name`.
+   */
+  firstName?: string | null;
+  familyName?: string | null;
   address?: {
     /** Código municipio DANE ("11001") y nombre ("Bogotá, D.C."). */
     cityCode: string;
@@ -62,6 +69,12 @@ export type DianLine = {
   taxPct: string;
   /** "01" IVA · "04" impoconsumo (INC). */
   taxSchemeId: "01" | "04";
+  /**
+   * Código del bien/servicio para StandardItemIdentification (regla
+   * FAZ09: el grupo de identificación del ítem es obligatorio). Si no
+   * viene, se usa el número de línea.
+   */
+  itemCode?: string | null;
 };
 
 export type DianResolution = {
@@ -97,15 +110,34 @@ export type DianInvoiceInput = {
 
 export type DianTotals = {
   lineExtensionCents: number;
+  /**
+   * Base imponible del documento = Σ de las bases de las líneas que
+   * DECLARAN impuesto. NO es lo mismo que lineExtensionCents: una línea
+   * excluida suma al bruto pero no aporta base imponible.
+   */
+  taxableBaseCents: number;
   taxIvaCents: number;
   taxIncCents: number;
   taxIcaCents: number;
   payableCents: number;
 };
 
+/**
+ * ¿La línea declara impuesto? Es el ÚNICO criterio: la misma función
+ * decide si se emite el cac:TaxTotal de la línea y si su base entra a la
+ * base imponible del documento. Tenerlo en un solo lugar es lo que evita
+ * que el total y el detalle se desincronicen (regla FAU04).
+ */
+export function lineDeclaresTax(l: DianLine): boolean {
+  return l.taxCents > 0;
+}
+
 /** Totales derivados EXACTOS de las líneas (enteros — nada se inventa). */
 export function computeDianTotals(lines: DianLine[]): DianTotals {
   const lineExtensionCents = lines.reduce((a, l) => a + l.lineTotalCents, 0);
+  const taxableBaseCents = lines
+    .filter(lineDeclaresTax)
+    .reduce((a, l) => a + l.lineTotalCents, 0);
   const taxIvaCents = lines
     .filter((l) => l.taxSchemeId === "01")
     .reduce((a, l) => a + l.taxCents, 0);
@@ -114,6 +146,7 @@ export function computeDianTotals(lines: DianLine[]): DianTotals {
     .reduce((a, l) => a + l.taxCents, 0);
   return {
     lineExtensionCents,
+    taxableBaseCents,
     taxIvaCents,
     taxIncCents,
     taxIcaCents: 0, // ICA no aplica en venta de restaurante
@@ -146,6 +179,22 @@ export function softwareSecurityCode(
 
 const TAX_NAME: Record<string, string> = { "01": "IVA", "04": "INC" };
 
+/**
+ * Parte el nombre en nombres/apellidos para el grupo cac:Person. Sin
+ * campos separados sólo tenemos la razón social: la última palabra hace
+ * de apellido y el resto de nombre. Es lo que la DIAN pide informar; no
+ * pretende ser exacto para el consumidor final anónimo.
+ */
+function splitPersonName(name: string): { first: string; family: string } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "", family: "" };
+  if (parts.length === 1) return { first: parts[0], family: parts[0] };
+  return {
+    first: parts.slice(0, -1).join(" "),
+    family: parts[parts.length - 1],
+  };
+}
+
 function partyXml(kind: "supplier" | "customer", p: DianParty): string {
   const tag =
     kind === "supplier" ? "AccountingSupplierParty" : "AccountingCustomerParty";
@@ -163,7 +212,19 @@ function partyXml(kind: "supplier" | "customer", p: DianParty): string {
       `<cbc:Name languageID="es">Colombia</cbc:Name></cac:Country>` +
       `</cac:Address></cac:PhysicalLocation>`
     : "";
-  const dvAttr = p.dv != null ? ` schemeID="${esc(p.dv)}"` : "";
+  // El DV va en @schemeID del CompanyID y SOLO tiene sentido para NIT
+  // (schemeName 31). Sin él la DIAN rechaza con FAJ24a/FAJ47 (emisor).
+  const dvAttr = p.dv != null && p.idSchemeName === "31" ? ` schemeID="${esc(p.dv)}"` : "";
+  // AdditionalAccountID = 2 (persona natural) obliga a informar el grupo
+  // cac:Person con nombres y apellidos — sin él la DIAN rechaza con FAK61.
+  const derived = splitPersonName(p.name);
+  const person =
+    p.personType === "2"
+      ? `<cac:Person>` +
+        `<cbc:FirstName>${esc(p.firstName ?? derived.first)}</cbc:FirstName>` +
+        `<cbc:FamilyName>${esc(p.familyName ?? derived.family)}</cbc:FamilyName>` +
+        `</cac:Person>`
+      : "";
   return (
     `<cac:${tag}>` +
     `<cbc:AdditionalAccountID>${p.personType}</cbc:AdditionalAccountID>` +
@@ -186,27 +247,38 @@ function partyXml(kind: "supplier" | "customer", p: DianParty): string {
         (p.email ? `<cbc:ElectronicMail>${esc(p.email)}</cbc:ElectronicMail>` : "") +
         `</cac:Contact>`
       : "") +
+    // cac:Person cierra cac:Party (orden del esquema UBL).
+    person +
     `</cac:Party>` +
     `</cac:${tag}>`
   );
 }
 
-function taxTotalXml(
-  schemeId: "01" | "04",
-  taxCents: number,
-  taxableCents: number,
-  pct: string,
-): string {
+type TaxSubtotal = { taxCents: number; taxableCents: number; pct: string };
+
+/**
+ * cac:TaxTotal con un cac:TaxSubtotal POR TARIFA. Antes se emitía un
+ * único subtotal con la tarifa de la primera línea del grupo: con dos
+ * tarifas del mismo impuesto (IVA 19% y 5%) la base declarada no
+ * coincidía con la de las líneas.
+ */
+function taxTotalXml(schemeId: "01" | "04", subtotals: TaxSubtotal[]): string {
+  const taxCents = subtotals.reduce((a, s) => a + s.taxCents, 0);
   return (
     `<cac:TaxTotal>` +
     `<cbc:TaxAmount currencyID="COP">${A(taxCents)}</cbc:TaxAmount>` +
-    `<cac:TaxSubtotal>` +
-    `<cbc:TaxableAmount currencyID="COP">${A(taxableCents)}</cbc:TaxableAmount>` +
-    `<cbc:TaxAmount currencyID="COP">${A(taxCents)}</cbc:TaxAmount>` +
-    `<cac:TaxCategory><cbc:Percent>${pct}</cbc:Percent>` +
-    `<cac:TaxScheme><cbc:ID>${schemeId}</cbc:ID><cbc:Name>${TAX_NAME[schemeId]}</cbc:Name></cac:TaxScheme>` +
-    `</cac:TaxCategory>` +
-    `</cac:TaxSubtotal>` +
+    subtotals
+      .map(
+        (s) =>
+          `<cac:TaxSubtotal>` +
+          `<cbc:TaxableAmount currencyID="COP">${A(s.taxableCents)}</cbc:TaxableAmount>` +
+          `<cbc:TaxAmount currencyID="COP">${A(s.taxCents)}</cbc:TaxAmount>` +
+          `<cac:TaxCategory><cbc:Percent>${s.pct}</cbc:Percent>` +
+          `<cac:TaxScheme><cbc:ID>${schemeId}</cbc:ID><cbc:Name>${TAX_NAME[schemeId]}</cbc:Name></cac:TaxScheme>` +
+          `</cac:TaxCategory>` +
+          `</cac:TaxSubtotal>`,
+      )
+      .join("") +
     `</cac:TaxTotal>`
   );
 }
@@ -245,27 +317,51 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     i.invoiceNumber,
   );
 
-  // Agrupación de impuestos a nivel documento (un TaxTotal por scheme).
+  // Agrupación de impuestos a nivel documento: un TaxTotal por scheme y
+  // dentro, un TaxSubtotal por tarifa. Sólo entran las líneas que
+  // declaran impuesto — el mismo criterio que usa el detalle, para que
+  // base del documento y suma de bases de línea sean idénticas (FAU04).
   const taxGroups: string[] = [];
   for (const schemeId of ["01", "04"] as const) {
-    const group = i.lines.filter((l) => l.taxSchemeId === schemeId && l.taxCents > 0);
+    const group = i.lines.filter(
+      (l) => l.taxSchemeId === schemeId && lineDeclaresTax(l),
+    );
     if (group.length === 0) continue;
-    const taxCents = group.reduce((a, l) => a + l.taxCents, 0);
-    const taxableCents = group.reduce((a, l) => a + l.lineTotalCents, 0);
-    taxGroups.push(taxTotalXml(schemeId, taxCents, taxableCents, group[0].taxPct));
+    const byPct = new Map<string, TaxSubtotal>();
+    for (const l of group) {
+      const acc = byPct.get(l.taxPct) ?? {
+        taxCents: 0,
+        taxableCents: 0,
+        pct: l.taxPct,
+      };
+      acc.taxCents += l.taxCents;
+      acc.taxableCents += l.lineTotalCents;
+      byPct.set(l.taxPct, acc);
+    }
+    taxGroups.push(taxTotalXml(schemeId, [...byPct.values()]));
   }
 
   const linesXml = i.lines
     .map((l, idx) => {
+      // FAZ09: el grupo de identificación del bien o servicio es
+      // obligatorio. schemeID 999 = estándar de adopción del
+      // contribuyente (no usamos UNSPSC ni GTIN en la carta).
+      const itemId = esc(String(l.itemCode ?? idx + 1));
       return (
         `<cac:InvoiceLine>` +
         `<cbc:ID>${idx + 1}</cbc:ID>` +
         `<cbc:InvoicedQuantity unitCode="EA">${l.quantity}.000000</cbc:InvoicedQuantity>` +
         `<cbc:LineExtensionAmount currencyID="COP">${A(l.lineTotalCents)}</cbc:LineExtensionAmount>` +
-        (l.taxCents > 0
-          ? taxTotalXml(l.taxSchemeId, l.taxCents, l.lineTotalCents, l.taxPct)
+        (lineDeclaresTax(l)
+          ? taxTotalXml(l.taxSchemeId, [
+              { taxCents: l.taxCents, taxableCents: l.lineTotalCents, pct: l.taxPct },
+            ])
           : "") +
-        `<cac:Item><cbc:Description>${esc(l.description)}</cbc:Description></cac:Item>` +
+        `<cac:Item><cbc:Description>${esc(l.description)}</cbc:Description>` +
+        `<cac:StandardItemIdentification>` +
+        `<cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente">${itemId}</cbc:ID>` +
+        `</cac:StandardItemIdentification>` +
+        `</cac:Item>` +
         `<cac:Price>` +
         `<cbc:PriceAmount currencyID="COP">${A(l.unitPriceCents)}</cbc:PriceAmount>` +
         `<cbc:BaseQuantity unitCode="EA">1.000000</cbc:BaseQuantity>` +
@@ -295,6 +391,11 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     `<sts:AuthorizedInvoices><sts:Prefix>${esc(i.resolution.prefix)}</sts:Prefix><sts:From>${i.resolution.from}</sts:From><sts:To>${i.resolution.to}</sts:To></sts:AuthorizedInvoices>` +
     `</sts:InvoiceControl>` +
     `<sts:InvoiceSource><cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode></sts:InvoiceSource>` +
+    // MESAPAY es SOFTWARE PROPIO: el comercio registra su propio software
+    // en el portal DIAN, así que el "Prestador de Servicios" (ProviderID)
+    // es su MISMO NIT — no el de un proveedor tecnológico externo. Lo que
+    // faltaba era el DV en @schemeID: sin él la DIAN no encuentra el NIT
+    // (FAB19a) y rechaza por DV no informado / mal calculado (FAB22a/b).
     `<sts:SoftwareProvider>` +
     `<sts:ProviderID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)"${i.supplier.dv != null ? ` schemeID="${esc(i.supplier.dv)}"` : ""} schemeName="31">${esc(i.supplier.companyId)}</sts:ProviderID>` +
     `<sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">${esc(i.softwareId)}</sts:SoftwareID>` +
@@ -308,7 +409,8 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     `</ext:UBLExtensions>` +
     `<cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>` +
     `<cbc:CustomizationID>10</cbc:CustomizationID>` +
-    `<cbc:ProfileID>DIAN 2.1: factura electrónica de venta</cbc:ProfileID>` +
+    // FAD03: la DIAN compara el literal EXACTO, con mayúsculas incluidas.
+    `<cbc:ProfileID>DIAN 2.1: Factura Electrónica de Venta</cbc:ProfileID>` +
     `<cbc:ProfileExecutionID>${i.environment}</cbc:ProfileExecutionID>` +
     `<cbc:ID>${esc(i.invoiceNumber)}</cbc:ID>` +
     `<cbc:UUID schemeID="${i.environment}" schemeName="CUFE-SHA384">${cufe}</cbc:UUID>` +
@@ -324,7 +426,10 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     taxGroups.join("") +
     `<cac:LegalMonetaryTotal>` +
     `<cbc:LineExtensionAmount currencyID="COP">${A(totals.lineExtensionCents)}</cbc:LineExtensionAmount>` +
-    `<cbc:TaxExclusiveAmount currencyID="COP">${A(totals.lineExtensionCents)}</cbc:TaxExclusiveAmount>` +
+    // TaxExclusiveAmount es la BASE IMPONIBLE, no el bruto: la DIAN la
+    // compara contra la suma de las bases de las líneas (FAU04). Antes
+    // mandábamos el bruto y con líneas sin impuesto no cuadraba nunca.
+    `<cbc:TaxExclusiveAmount currencyID="COP">${A(totals.taxableBaseCents)}</cbc:TaxExclusiveAmount>` +
     `<cbc:TaxInclusiveAmount currencyID="COP">${A(totals.payableCents)}</cbc:TaxInclusiveAmount>` +
     `<cbc:AllowanceTotalAmount currencyID="COP">0.00</cbc:AllowanceTotalAmount>` +
     `<cbc:PrepaidAmount currencyID="COP">0.00</cbc:PrepaidAmount>` +

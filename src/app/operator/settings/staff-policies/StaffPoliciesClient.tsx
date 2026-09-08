@@ -16,6 +16,7 @@ export function StaffPoliciesClient({
   initialMeseroShiftWithoutLocal,
   initialCompEnabled,
   initialCompLabel,
+  initialAdminOnlyCharge,
 }: {
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
@@ -24,6 +25,7 @@ export function StaffPoliciesClient({
   initialMeseroShiftWithoutLocal: MeseroShiftWithoutLocal;
   initialCompEnabled: boolean;
   initialCompLabel: string;
+  initialAdminOnlyCharge: boolean;
 }) {
   const t = useTranslations("opSettings");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
@@ -38,6 +40,10 @@ export function StaffPoliciesClient({
     useState<MeseroShiftWithoutLocal>(initialMeseroShiftWithoutLocal);
   const [compEnabled, setCompEnabled] = useState<boolean>(initialCompEnabled);
   const [compLabel, setCompLabel] = useState<string>(initialCompLabel);
+  // Control de caja: solo el administrador inicia el cobro.
+  const [adminOnlyCharge, setAdminOnlyCharge] = useState<boolean>(
+    initialAdminOnlyCharge,
+  );
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -50,6 +56,7 @@ export function StaffPoliciesClient({
     cutoffHour !== initialBusinessDayCutoffHour ||
     meseroWithoutLocal !== initialMeseroShiftWithoutLocal ||
     compEnabled !== initialCompEnabled ||
+    adminOnlyCharge !== initialAdminOnlyCharge ||
     compLabel.trim() !== initialCompLabel.trim();
 
   async function save() {
@@ -77,10 +84,31 @@ export function StaffPoliciesClient({
         meseroShiftWithoutLocal: meseroWithoutLocal,
         compEnabled,
         compLabel: compLabel.trim(),
+        adminOnlyCharge,
       }),
     });
     setBusy(false);
     if (!r.ok) {
+      // Errores esperables del control de caja — cada uno tiene su
+      // explicación, porque "no se pudo guardar" a secas no le dice al
+      // dueño qué hacer.
+      const j = await r.json().catch(() => ({}));
+      if (j?.error === "open_mesero_shifts") {
+        setMsg({
+          kind: "error",
+          text: t("policiesAdminChargeOpenShifts", {
+            count: Number(j.count ?? 0),
+          }),
+        });
+        // Devolvemos el switch a su estado real: no se guardó.
+        setAdminOnlyCharge(initialAdminOnlyCharge);
+        return;
+      }
+      if (j?.error === "shift_policy_locked_by_admin_charge") {
+        setMsg({ kind: "error", text: t("policiesAdminChargeShiftLocked") });
+        setShiftPolicy("global");
+        return;
+      }
       setMsg({ kind: "error", text: t("policiesSaveFailed") });
       return;
     }
@@ -115,6 +143,43 @@ export function StaffPoliciesClient({
         />
       </section>
 
+      {/* Control de caja — quién puede iniciar el cobro de una mesa */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {t("policiesAdminChargeKicker")}
+        </div>
+        <h2 className="font-display text-lg mb-1">
+          {t("policiesAdminChargeQuestion")}
+        </h2>
+        <p className="text-xs text-op-muted mb-3">
+          {t("policiesAdminChargeIntro")}
+        </p>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={adminOnlyCharge}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setAdminOnlyCharge(on);
+              // El turno por mesero es incompatible: lo dejamos en
+              // "único del local" ya en pantalla para que el dueño vea la
+              // implicación antes de guardar (el servidor lo fuerza igual).
+              if (on) setShiftPolicy("global");
+            }}
+            className="h-4 w-4 accent-ink"
+          />
+          <span className="text-sm">{t("policiesAdminChargeToggle")}</span>
+        </label>
+        {adminOnlyCharge && (
+          <p className="text-[11px] text-op-muted mt-3 leading-relaxed">
+            {t("policiesAdminChargeEffects")}
+          </p>
+        )}
+        <p className="text-[10px] text-op-muted mt-3">
+          {t("policiesAdminChargeFootnote")}
+        </p>
+      </section>
+
       {/* Turnos */}
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
@@ -138,7 +203,13 @@ export function StaffPoliciesClient({
           onChange={() => setShiftPolicy("by_waiter")}
           title={t("policiesShiftsByWaiterTitle")}
           subtitle={t("policiesShiftsByWaiterSubtitle")}
+          disabled={adminOnlyCharge}
         />
+        {adminOnlyCharge && (
+          <p className="text-[11px] text-op-muted mt-3">
+            {t("policiesShiftsLockedByAdminCharge")}
+          </p>
+        )}
       </section>
 
       {/* Mesero sin turno del local — solo relevante en turno por mesero */}
@@ -368,6 +439,7 @@ function RadioCard({
   onChange,
   title,
   subtitle,
+  disabled,
 }: {
   name: string;
   value: string;
@@ -375,11 +447,16 @@ function RadioCard({
   onChange: () => void;
   title: string;
   subtitle: string;
+  // Opción bloqueada por otra política (hoy: turno por mesero cuando el
+  // control de caja está activo). Se sigue mostrando —el dueño tiene que
+  // ver que existe— pero no se puede elegir.
+  disabled?: boolean;
 }) {
   return (
     <label
       className={
-        "flex gap-3 items-start cursor-pointer rounded-xl border p-4 mt-2 transition-colors " +
+        "flex gap-3 items-start rounded-xl border p-4 mt-2 transition-colors " +
+        (disabled ? "opacity-50 cursor-not-allowed " : "cursor-pointer ") +
         (active
           ? "border-ink bg-ink/5"
           : "border-op-border hover:border-op-text/30")
@@ -391,6 +468,7 @@ function RadioCard({
         value={value}
         checked={active}
         onChange={onChange}
+        disabled={disabled}
         className="mt-1 accent-ink shrink-0"
       />
       <div className="min-w-0">

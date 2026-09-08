@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { PayFlow } from "@/app/t/[slug]/pay/[orderId]/PayFlow";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { MeseroNeedsShift } from "./MeseroNeedsShift";
+import { ChargeLockedByAdmin } from "./ChargeLockedByAdmin";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,10 @@ export default async function MeseroCobrarPage({
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { restaurantId: true, restaurant: { select: { slug: true } } },
+    select: {
+      restaurantId: true,
+      restaurant: { select: { slug: true, adminOnlyCharge: true } },
+    },
   });
   if (!order) return notFound();
 
@@ -52,6 +57,13 @@ export default async function MeseroCobrarPage({
     session.user.restaurantId !== order.restaurantId
   ) {
     return notFound();
+  }
+
+  // Control de caja: "solo el administrador inicia el cobro". La API ya
+  // rebota al mesero en todos los caminos; acá le explicamos el porqué en
+  // vez de dejarlo pelear con un 403 dentro del flujo de pago.
+  if (isChargeBlockedForRole(role, order.restaurant.adminOnlyCharge)) {
+    return <ChargeLockedByAdmin />;
   }
 
   // En by_waiter, el mesero no puede cobrar sin turno abierto (descuadra

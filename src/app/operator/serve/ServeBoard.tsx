@@ -109,6 +109,7 @@ export function ServeBoard({
   cancelledPending,
   terminalPending,
   device,
+  chargeLocked,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
@@ -118,6 +119,11 @@ export function ServeBoard({
   cancelledPending: CancelledPending[];
   terminalPending: TerminalPending[];
   device: { id: string; label: string } | null;
+  // "Solo el administrador cobra" activo y quien mira es un mesero:
+  // escondemos TODAS las acciones de cobro del Salón (efectivo y
+  // datáfono). El servidor las bloquea igual — esto evita que el mesero
+  // las intente y choque contra un 403.
+  chargeLocked: boolean;
 }) {
   const tr = useTranslations("serve");
   const router = useRouter();
@@ -378,6 +384,7 @@ export function ServeBoard({
                 serviceMode={serviceMode}
                 tenantSlug={tenantSlug}
                 device={device}
+                chargeLocked={chargeLocked}
                 busy={chargingPaymentId === p.id}
                 onCharged={() => startTx(() => router.refresh())}
                 onExternalApproved={(orderId) => setInvoiceOrderId(orderId)}
@@ -400,6 +407,7 @@ export function ServeBoard({
                 key={c.id}
                 pending={c}
                 serviceMode={serviceMode}
+                chargeLocked={chargeLocked}
                 onSettle={() => setSettlingId(c.id)}
               />
             ))}
@@ -628,6 +636,7 @@ function TerminalPendingCard({
   serviceMode,
   tenantSlug,
   device,
+  chargeLocked,
   busy,
   onCharged,
   onExternalApproved,
@@ -637,6 +646,7 @@ function TerminalPendingCard({
   serviceMode: "table" | "counter";
   tenantSlug: string;
   device: { id: string; label: string } | null;
+  chargeLocked: boolean;
   busy: boolean;
   onCharged: () => void;
   // Se llama tras aprobar el datáfono del comercio (para ofrecer factura).
@@ -741,7 +751,13 @@ function TerminalPendingCard({
           : tr("terminalBringDevice")}
       </div>
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
-      {isExternal ? (
+      {chargeLocked ? (
+        // Cobro reservado al administrador: el mesero ve el pendiente
+        // (tiene que acompañar la mesa) pero no las acciones de plata.
+        <div className="mt-3 rounded-xl border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">
+          {tr("chargeAdminOnly")}
+        </div>
+      ) : isExternal ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -790,10 +806,12 @@ function timeAgoStr(
 function CashCard({
   pending,
   serviceMode,
+  chargeLocked,
   onSettle,
 }: {
   pending: CashPending;
   serviceMode: "table" | "counter";
+  chargeLocked: boolean;
   onSettle: () => void;
 }) {
   const tr = useTranslations("serve");
@@ -839,12 +857,18 @@ function CashCard({
             )}
           </div>
         )}
-      <button
-        onClick={onSettle}
-        className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform"
-      >
-        {tr("cashRegister")}
-      </button>
+      {chargeLocked ? (
+        <div className="rounded-xl border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">
+          {tr("chargeAdminOnly")}
+        </div>
+      ) : (
+        <button
+          onClick={onSettle}
+          className="h-11 rounded-xl bg-terracotta text-bone text-sm font-medium active:scale-[0.98] transition-transform"
+        >
+          {tr("cashRegister")}
+        </button>
+      )}
     </li>
   );
 }

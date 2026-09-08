@@ -187,7 +187,12 @@
     "etaHeadlineMax": "Tu pedido sale en más de {min} min",
     "discountRow": "Descuento",
     "discountRowPct": "Descuento {pct}%",
-    "discountedTotal": "Total con descuento"
+    "discountedTotal": "Total con descuento",
+    "requestBill": "Pedir la cuenta",
+    "requestingBill": "Pidiendo…",
+    "billOnWay": "Ya pediste la cuenta",
+    "billOnWayHint": "Vamos en camino con tu cuenta.",
+    "errRequestBill": "No pudimos pedir la cuenta."
   },
   "pay": {
     "pay": "Pagar",
@@ -1068,7 +1073,8 @@
     "stationBar": "Barra",
     "stationCounter": "Refri",
     "badgeMainsTogether": "Fuertes juntos",
-    "stillCooking": "Aún en preparación ({count})"
+    "stillCooking": "Aún en preparación ({count})",
+    "chargeAdminOnly": "Sólo el administrador puede cobrar"
   },
   "opPayments": {
     "noRestaurant": "Sin restaurante.",
@@ -1467,7 +1473,10 @@
     "discountApplied": "Descuento {pct}%",
     "discountAppliedNoPct": "Descuento",
     "discountBefore": "antes {amount}",
-    "discountRemove": "Quitar descuento"
+    "discountRemove": "Quitar descuento",
+    "requestBill": "Pedir la cuenta",
+    "billRequesting": "Avisando…",
+    "billRequested": "Caja avisada"
   },
   "opSettings": {
     "tip_shared": "Compartidas",
@@ -1712,7 +1721,16 @@
     "datafonosBusinessCodeHint": "Código de tu comercio para cobrar por datáfono. Te lo entrega el proveedor del datáfono al activarlo.",
     "badgeDevicesEmpty": "Configurar",
     "subscriptionCardTitle": "Suscripción",
-    "subscriptionCardDesc": "Plan, historial de pagos y débito automático."
+    "subscriptionCardDesc": "Plan, historial de pagos y débito automático.",
+    "policiesAdminChargeKicker": "Control de caja",
+    "policiesAdminChargeQuestion": "¿Quién puede iniciar el cobro de una mesa?",
+    "policiesAdminChargeIntro": "Por defecto el mesero puede cobrar la cuenta de sus mesas. Si preferís que la plata la maneje una sola persona, activá esta opción: sólo el administrador podrá iniciar el cobro.",
+    "policiesAdminChargeToggle": "Sólo el administrador puede iniciar el cobro",
+    "policiesAdminChargeEffects": "Con esto activo: el mesero deja de ver el botón de cobrar (y el servidor le bloquea todos los medios de pago, también si intenta entrar por la API); el turno queda en «único del local»; y cuando una mesa pide la cuenta te aparece un aviso de pantalla completa en el panel.",
+    "policiesAdminChargeFootnote": "El comensal sigue pudiendo pagar solo desde su celular: lo que se restringe es que otro miembro del equipo toque la plata.",
+    "policiesAdminChargeOpenShifts": "{count, plural, one {Hay # turno de mesero abierto. Cerralo desde Caja antes de activar esta opción: si lo dejamos huérfano el arqueo queda descuadrado.} other {Hay # turnos de mesero abiertos. Cerralos desde Caja antes de activar esta opción: si los dejamos huérfanos el arqueo queda descuadrado.}}",
+    "policiesAdminChargeShiftLocked": "Con el cobro reservado al administrador el turno tiene que ser único del local. Apagá el control de caja si querés turnos por mesero.",
+    "policiesShiftsLockedByAdminCharge": "Bloqueado: con el cobro reservado al administrador, el turno es siempre único del local."
   },
   "opTranslations": {
     "noRestaurant": "Sin restaurante.",
@@ -5273,5 +5291,19 @@
     "errMissingCredentials": "Faltan credenciales de la DIAN por completar.",
     "errDecryptFailed": "No se pudieron descifrar las credenciales guardadas.",
     "errGeneric": "Ocurrió un error. Inténtalo de nuevo."
+  },
+  "billAlert": {
+    "kickerDiner": "Pidieron la cuenta",
+    "kickerStaff": "El mesero avisa",
+    "headline": "pide la cuenta",
+    "table": "Mesa {number}",
+    "charge": "Ir a cobrar",
+    "dismiss": "Cerrar",
+    "more": "{count, plural, one {+# mesa más esperando} other {+# mesas más esperando}}"
+  },
+  "chargeLock": {
+    "title": "El cobro lo hace el administrador",
+    "body": "Este local tiene activado el control de caja: sólo el administrador puede iniciar el cobro. Desde la mesa podés tocar «Pedir la cuenta» para avisarle.",
+    "backToTables": "Volver a Mesas"
   }
 }

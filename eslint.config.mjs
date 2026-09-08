@@ -36,6 +36,9 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
   "src/app/t/\\[slug\\]/page.tsx",
   "src/app/t/\\[slug\\]/order/\\[orderId\\]/*.{ts,tsx}",
+  // Pantalla de "el cobro lo hace el administrador" del mesero. El resto
+  // de /mesero/ sigue sin migrar, por eso el glob es al archivo suelto.
+  "src/app/mesero/cobrar/\\[orderId\\]/ChargeLockedByAdmin.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/ApplePayButton.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/cash/*.{ts,tsx}",
@@ -50,6 +53,7 @@ const MIGRATED = [
   "src/app/operator/layout.tsx",
   "src/app/operator/OperatorMobileMenu.tsx",
   "src/app/operator/GroupSwitcher.tsx",
+  "src/app/operator/BillRequestAlert.tsx",
   "src/app/operator/page.tsx",
   "src/app/operator/ratings/**/*.{ts,tsx}",
   "src/app/operator/facturas/**/*.{ts,tsx}",

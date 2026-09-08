@@ -7,6 +7,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * Settle de un cobro vía datáfono propio del comercio
@@ -69,6 +70,13 @@ export async function POST(
       { error: "not an external_terminal payment" },
       { status: 400 },
     );
+  }
+  // Control de caja: bloqueamos aprobar Y rechazar. Con la política activa
+  // es el administrador quien pasa la tarjeta por el POS, así que es él
+  // quien reporta el resultado; dejar que el mesero declinara le permitiría
+  // cancelar un cobro en vuelo del administrador.
+  if (await isChargeBlocked(session.user.role, payment.order.restaurantId)) {
+    return chargeBlockedResponse();
   }
   if (payment.status !== "pending") {
     return NextResponse.json({ error: "already settled" }, { status: 409 });

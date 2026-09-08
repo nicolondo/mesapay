@@ -8,6 +8,7 @@ import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -55,6 +56,12 @@ export async function POST(
   }
   if (payment.method !== "demo_cash") {
     return NextResponse.json({ error: "not a cash payment" }, { status: 400 });
+  }
+  // Control de caja: recibir la plata y cerrar el pago es el momento del
+  // cobro. Con "solo el administrador cobra" el mesero no puede confirmar
+  // el efectivo — aunque el pending lo haya creado el comensal desde el QR.
+  if (await isChargeBlocked(session.user.role, payment.order.restaurantId)) {
+    return chargeBlockedResponse();
   }
   // En by_waiter el mesero no puede cobrar sin turno propio abierto.
   if (

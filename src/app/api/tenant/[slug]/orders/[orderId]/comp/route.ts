@@ -6,6 +6,8 @@ import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,12 @@ export async function POST(
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({
     where: { slug },
-    select: { id: true, compEnabled: true, compLabel: true },
+    select: {
+      id: true,
+      compEnabled: true,
+      compLabel: true,
+      adminOnlyCharge: true,
+    },
   });
   if (!tenant) {
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
@@ -47,6 +54,13 @@ export async function POST(
     (role === "operator" || role === "mesero" || role === "platform_admin");
   if (!staff) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  // Control de caja: cerrar una cuenta como cortesía es cerrar una cuenta
+  // sin cobrarla — la vía más barata de saltarse "solo el administrador
+  // cobra". Va bajo el mismo guardarraíl (igual que el turno abierto, acá
+  // abajo, que este endpoint ya compartía con el cobro).
+  if (isChargeBlockedForRole(role, tenant.adminOnlyCharge)) {
+    return chargeBlockedResponse();
   }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));

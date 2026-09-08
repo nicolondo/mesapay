@@ -11,6 +11,22 @@ export type OrderEvent =
   | { type: "order.cash_requested"; orderId: string; paymentId: string }
   | { type: "order.waiter_called"; orderId: string }
   | { type: "order.waiter_ack"; orderId: string }
+  // "Pidieron la cuenta" — DISTINTO de waiter_called, que es genérico
+  // (servilletas, una salsa, lo que sea). Este evento sólo lo emite
+  // /orders/[orderId]/request-bill y es el que dispara el aviso de
+  // pantalla completa del administrador cuando el comercio activó
+  // "solo el administrador cobra". Lleva la identificación de la mesa
+  // en el payload para que el aviso se pinte sin un fetch extra.
+  | {
+      type: "order.bill_requested";
+      orderId: string;
+      shortCode: string;
+      tableNumber: number;
+      tableLabel: string | null;
+      // Quién lo pidió: el comensal desde su QR, o el mesero avisándole
+      // a caja porque él ya no puede cobrar.
+      source: "diner" | "staff";
+    }
   // Datáfono / Kushki Smart POS flow. terminal_requested fires when a
   // diner taps "Tarjeta con datáfono" and a Payment lands in pending state.
   // The terminal grid surfaces it; the diner sees the result via the

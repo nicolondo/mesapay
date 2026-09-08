@@ -26,6 +26,7 @@ export default async function StaffPoliciesPage() {
       meseroShiftWithoutLocal: true,
       compEnabled: true,
       compLabel: true,
+      adminOnlyCharge: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -53,6 +54,7 @@ export default async function StaffPoliciesPage() {
         )}
         initialCompEnabled={tenant.compEnabled}
         initialCompLabel={tenant.compLabel ?? ""}
+        initialAdminOnlyCharge={tenant.adminOnlyCharge}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
@@ -15,6 +16,8 @@ import {
 } from "@/lib/payments";
 import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * Token-based charge through Kushki. Maneja DOS variantes:
@@ -67,6 +70,16 @@ export async function POST(
       { error: "tenant_not_onboarded" },
       { status: 409 },
     );
+  }
+
+  // Control de caja: el mesero tampoco puede cobrar con tarjeta desde su
+  // PWA (PayFlow op=1) cuando el comercio activó "solo el administrador
+  // cobra". El comensal pagando desde su QR llega sin sesión y pasa.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
   }
 
   const body = await req.json().catch(() => null);

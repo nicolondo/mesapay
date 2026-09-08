@@ -2,6 +2,10 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import {
+  municipioLabel,
+  suggestMunicipioFromText,
+} from "@/lib/dane/municipios";
 import { IdentidadClient } from "./IdentidadClient";
 import { LegalEntityPicker } from "./LegalEntityPicker";
 
@@ -21,7 +25,9 @@ export default async function IdentidadPage() {
       taxId: true,
       legalAddress: true,
       legalCity: true,
+      legalCityCode: true,
       legalPhone: true,
+      country: true,
       dianResolution: true,
       dianResolutionFrom: true,
       dianResolutionTo: true,
@@ -44,6 +50,24 @@ export default async function IdentidadPage() {
       })
     : [];
 
+  // El selector DANE es de Colombia: DIVIPOLA no existe en México ni en
+  // Brasil, y ofrecerle municipios colombianos a un comercio mexicano
+  // sería peor que no ofrecer nada. country es nulable en comercios
+  // viejos y MESAPAY nació en Colombia, así que null cuenta como CO.
+  const usaDane = tenant.country == null || tenant.country === "CO";
+
+  // Comercio que ya existe: tiene legalCity en texto libre y ningún
+  // código. Si el texto coincide EXACTO con un único municipio,
+  // ofrecemos ese como SUGERENCIA para que el operador la confirme con
+  // un click. Nunca se guarda sola: un match equivocado manda las
+  // facturas al municipio de otro lado, que es justo lo que queremos
+  // evitar. Si el texto es ambiguo ("Providencia") no sugerimos nada y
+  // el operador busca el municipio.
+  const cityHint =
+    usaDane && !tenant.legalCityCode
+      ? suggestMunicipioFromText(tenant.legalCity)
+      : null;
+
   return (
     <div className="p-6 max-w-2xl mx-auto w-full">
       <Link
@@ -64,6 +88,12 @@ export default async function IdentidadPage() {
       )}
 
       <IdentidadClient
+        usaDane={usaDane}
+        cityHint={
+          cityHint
+            ? { code: cityHint.code, label: municipioLabel(cityHint) }
+            : null
+        }
         initial={{
           name: tenant.name,
           logoUrl: tenant.logoUrl,
@@ -71,6 +101,7 @@ export default async function IdentidadPage() {
           taxId: tenant.taxId,
           legalAddress: tenant.legalAddress,
           legalCity: tenant.legalCity,
+          legalCityCode: tenant.legalCityCode,
           legalPhone: tenant.legalPhone,
           dianResolution: tenant.dianResolution,
           dianResolutionFrom: tenant.dianResolutionFrom,

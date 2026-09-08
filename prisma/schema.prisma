@@ -199,6 +199,28 @@ model Restaurant {
   legalCity    String?
   legalPhone   String?
 
+  // Ciudad de los datos legales como CÓDIGO DANE (DIVIPOLA), no como
+  // texto. La factura electrónica declara la ubicación del
+  // establecimiento con estos códigos y la DIAN resuelve con ellos el
+  // punto de facturación: si van mal, rechaza (FAB10a / FAJ50). Antes
+  // solo existía legalCity en texto libre, del que no se puede derivar
+  // el código sin adivinar.
+  //
+  // legalCity NO se va: es el nombre legible que ya imprimen la
+  // factura, la tirilla y el XML (cbc:CityName), y lo leen
+  // src/lib/invoice.ts, simpleInvoice.ts y dian/config.ts. Cuando el
+  // operador elige del catálogo, legalCity se DERIVA del nombre oficial
+  // DANE del municipio elegido, así nombre y código no se contradicen.
+  // Para países sin DIVIPOLA (MX, BR) legalCity sigue siendo texto
+  // libre y estos dos campos quedan en null.
+  //
+  // Nulables y aditivos: los comercios que ya existen arrancan sin
+  // código y el operador elige el municipio una vez. No se rellenan
+  // solos con un match difuso del texto — un código adivinado manda las
+  // facturas al municipio equivocado.
+  legalCityCode String? // municipio DANE, 5 dígitos ("05266" = Envigado)
+  legalDeptCode String? // departamento DANE, 2 dígitos ("05" = Antioquia)
+
   // Ubicación operativa del local (separada de los datos legales* de
   // facturación). Se captura al crear el restaurante, con autocompletado
   // de Google Places. Sirve para filtrar el portafolio por país/ciudad

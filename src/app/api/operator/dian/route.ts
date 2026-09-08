@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { encryptSecret } from "@/lib/dian/crypto";
-import { dianConfigStatus, resolveEmisor, upsertDianConfig } from "@/lib/dian/config";
+import {
+  dianConfigStatus,
+  emisorView,
+  lastTestSetDocument,
+  resolveEmisor,
+  upsertDianConfig,
+} from "@/lib/dian/config";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -18,15 +24,10 @@ export async function GET() {
   const { emisor, status } = await dianConfigStatus(ctx.restaurantId);
   return NextResponse.json({
     status,
-    emisor: emisor
-      ? {
-          kind: emisor.ref.kind,
-          legalName: emisor.legalName,
-          taxId: emisor.taxId,
-          resolution: emisor.resolution,
-          invoicePrefix: emisor.invoicePrefix,
-        }
-      : null,
+    emisor: emisor ? emisorView(emisor) : null,
+    // Último documento enviado: sin esto la pantalla perdía el resultado
+    // al recargar y el operador nunca veía por qué la DIAN rechazó.
+    lastDocument: await lastTestSetDocument(ctx.restaurantId),
     // Aviso temprano si el server no puede cifrar secretos.
     masterKeyReady: /^[0-9a-fA-F]{64}$/.test(process.env.DIAN_MASTER_KEY ?? ""),
   });

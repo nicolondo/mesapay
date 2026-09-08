@@ -216,16 +216,24 @@ model Restaurant {
   // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
   // la fecha quedan como campos separados para mostrarlos en formato
   // estandard en la tirilla.
-  dianResolution     String?
-  dianResolutionFrom Int?
-  dianResolutionTo   Int?
-  dianResolutionDate DateTime?
+  dianResolution          String?
+  dianResolutionFrom      Int?
+  dianResolutionTo        Int?
+  dianResolutionDate      DateTime?
+  // Datos EXACTOS de la resolución tal como los exige el XML UBL. El
+  // texto de dianResolution es para la tirilla y no sirve para la DIAN:
+  // InvoiceAuthorization pide el número pelado ("18760000001") y
+  // AuthorizationPeriod pide la vigencia real del rango. Mandarlos mal
+  // hace que la DIAN rechace con FAB05b/FAB07b/FAB08b/FAB11b/FAB12b.
+  dianResolutionNumber    String?
+  dianResolutionValidFrom DateTime?
+  dianResolutionValidTo   DateTime?
   // Prefijo de los números (ej "POS", "FE"). Concatena con el
   // consecutivo al renderear.
-  invoicePrefix      String?
+  invoicePrefix           String?
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
-  invoiceNextNumber  Int       @default(1)
+  invoiceNextNumber       Int       @default(1)
 
   // === Políticas del staff ================================================
   //
@@ -412,12 +420,16 @@ model LegalEntity {
 
   // Resolución DIAN propia. Comparte numeración con todos los
   // restaurantes del grupo asignados a este LegalEntity.
-  dianResolution     String?
-  dianResolutionFrom Int?
-  dianResolutionTo   Int?
-  dianResolutionDate DateTime?
-  invoicePrefix      String?
-  invoiceNextNumber  Int       @default(1)
+  dianResolution          String?
+  dianResolutionFrom      Int?
+  dianResolutionTo        Int?
+  dianResolutionDate      DateTime?
+  // Mismos campos "exactos" que Restaurant: lo que va literal al XML.
+  dianResolutionNumber    String?
+  dianResolutionValidFrom DateTime?
+  dianResolutionValidTo   DateTime?
+  invoicePrefix           String?
+  invoiceNextNumber       Int       @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

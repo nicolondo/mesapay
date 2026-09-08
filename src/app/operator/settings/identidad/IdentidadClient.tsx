@@ -70,7 +70,16 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
     });
     setBusy(false);
     if (!r.ok) {
-      setMsg({ kind: "error", text: t("saveError") });
+      // El DV del NIT tiene motivo propio: "no se pudo guardar" a secas no
+      // dice qué corregir, y es el error que más se va a ver acá.
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      const key =
+        j.error === "tax_id_dv_required"
+          ? "errTaxIdDvRequired"
+          : j.error === "tax_id_dv_mismatch"
+            ? "errTaxIdDvMismatch"
+            : "saveError";
+      setMsg({ kind: "error", text: t(key) });
       return;
     }
     setMsg({ kind: "ok", text: t("saved") });

@@ -1970,8 +1970,8 @@
     "fieldLegalNameLabel": "Legal name",
     "fieldLegalNamePlaceholder": "Inversiones Mi Restaurante S.A.S.",
     "fieldTaxIdLabel": "NIT",
-    "fieldTaxIdHint": "Digits only. The check digit is not required.",
-    "fieldTaxIdPlaceholder": "900123456-7",
+    "fieldTaxIdHint": "With the check digit, after a hyphen. E.g. 901944469-1. Electronic invoicing requires it.",
+    "fieldTaxIdPlaceholder": "901944469-1",
     "fieldAddressLabel": "Address",
     "fieldAddressPlaceholder": "Cra 11 # 85-32",
     "fieldCityLabel": "City",
@@ -1996,7 +1996,9 @@
     "saveError": "We couldn't save",
     "saved": "Saved.",
     "saving": "Saving…",
-    "save": "Save"
+    "save": "Save",
+    "errTaxIdDvRequired": "The tax ID is missing its check digit. Add it after the hyphen: 901944469-1.",
+    "errTaxIdDvMismatch": "The check digit doesn't match that tax ID. Check both against the RUT."
   },
   "opPagos": {
     "noRestaurant": "No restaurant.",

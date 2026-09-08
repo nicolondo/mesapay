@@ -99,7 +99,13 @@ export async function PATCH(
       // ya servidos hay que usar kind="comp" (semánticamente
       // distinto — la comida se entregó). El frontend rotúla el
       // botón distinto según estado.
-      if (kind === "cancel" && item.servedAt) {
+      // Excepción: las LÍNEAS LIBRES (servicios, cargos sueltos) nacen con
+      // servedAt puesto para no aparecer en la comanda de cocina. Ese sello
+      // es una marca técnica, no significa que se haya entregado comida, así
+      // que el gate de "ya servido" no les aplica: se cancelan y punto. Sin
+      // esto un cargo escrito a mano quedaba imposible de quitar de la
+      // cuenta — la UI ofrecía "Cancelar" y el servidor lo rechazaba.
+      if (kind === "cancel" && item.servedAt && item.menuItemId !== null) {
         throw new Error("CANCEL_AFTER_SERVED");
       }
       // Cancelación / comp del item. Idempotente: si ya estaba

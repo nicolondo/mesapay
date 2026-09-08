@@ -891,6 +891,14 @@ export function TableDetailSheet({
                           <span className="flex-1 text-sm font-medium">
                             {it.name}
                           </span>
+                          {/* Lo que aporta la línea a la cuenta. Sin esto el
+                              sheet mostraba el pendiente total y ningún
+                              precio por plato, así que revisar una cuenta
+                              contra la mesa obligaba a abrir la carta. Las
+                              líneas libres de más abajo ya lo mostraban. */}
+                          <span className="font-mono tabular text-sm shrink-0">
+                            {fmtCOP(it.priceCents * it.qty)}
+                          </span>
                           <StatusPill
                             status={
                               it.servedAt
@@ -902,6 +910,14 @@ export function TableDetailSheet({
                             }
                           />
                         </div>
+                        {/* El unitario sólo cuando difiere del total de la
+                            línea: con qty 1 el número de arriba YA es el
+                            unitario y repetirlo es ruido. */}
+                        {it.qty > 1 && (
+                          <div className="mt-0.5 font-mono tabular text-[11px] text-op-muted">
+                            {tr("unitEach", { amount: fmtCOP(it.priceCents) })}
+                          </div>
+                        )}
                         {(it.notes || it.guestName) && (
                           <div className="mt-1 text-xs text-op-muted flex gap-2 flex-wrap">
                             {it.guestName && (

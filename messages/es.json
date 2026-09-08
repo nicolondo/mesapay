@@ -1362,6 +1362,7 @@
     "freeLineSubmitBusy": "Agregando…",
     "freeLineTaxSummary": "{kind} {pct}% · {amount}",
     "freeLineNoTax": "Sin impuesto",
+    "unitEach": "{amount} c/u",
     "taxKindNone": "Ninguno",
     "taxKindInc": "Impoconsumo",
     "taxKindIva": "IVA",

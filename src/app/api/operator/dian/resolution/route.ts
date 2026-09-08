@@ -7,7 +7,16 @@ import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
-const GATE: ModuleSlug[] = ["einvoicing"];
+/**
+ * SIN gate de módulo a propósito. La resolución de numeración manda el
+ * prefijo y el consecutivo del comprobante IMPRESO, que existe con o sin
+ * facturación electrónica. Antes estos campos se editaban en Identidad
+ * (sin gate); si acá exigiéramos `einvoicing`, un comercio que sólo
+ * imprime tirilla se quedaría sin poder tocar su propio consecutivo — le
+ * pasó a DELIRIO, con 1.257 facturas emitidas y sin el módulo. El
+ * certificado, las credenciales y la habilitación sí siguen gateados.
+ */
+const GATE: ModuleSlug[] = [];
 
 const day = z
   .string()
@@ -24,6 +33,16 @@ const patchSchema = z.object({
   resolutionTo: z.number().int().nonnegative().max(999_999_999).nullable().optional(),
   resolutionValidFrom: day,
   resolutionValidTo: day,
+  // Fecha del acto administrativo — sólo sale impresa en el comprobante,
+  // no va al XML. Venía de Identidad.
+  resolutionDate: day,
+  // Próximo consecutivo a emitir. Venía de Identidad; vive acá porque el
+  // rango autorizado que lo acota está en esta misma pantalla.
+  invoiceNextNumber: z.number().int().min(1).max(2_000_000_000).optional(),
+  // Descarta el texto libre legacy de la resolución. Acción EXPLÍCITA del
+  // operador: nunca lo borramos solos porque puede ser el único lugar
+  // donde quedó su número real.
+  discardLegacyResolution: z.boolean().optional(),
 });
 
 /**
@@ -31,10 +50,12 @@ const patchSchema = z.object({
  * del grupo si existe, si no el propio restaurante — mismo criterio que
  * resolveEmisor).
  *
- * Existe porque estos datos no tenían superficie completa: el número de
- * resolución se guardaba dentro de un texto libre pensado para la tirilla
- * y la vigencia del rango no se guardaba en ninguna parte, así que el XML
- * mandaba la fecha de hoy y la DIAN rechazaba (FAB05b, FAB07b, FAB08b).
+ * Es la ÚNICA superficie de escritura de estos datos. Antes se pedían
+ * repartidos entre Identidad (texto libre + rango + fecha + prefijo +
+ * consecutivo) y esta pantalla (número + vigencia), y los dos números
+ * podían diferir sin que nadie lo notara: Son & Melona tenía
+ * 18764094877213 cargado en Identidad mientras el XML mandaba
+ * 18760000001.
  */
 export async function PATCH(req: Request) {
   const ctx = await getErpContext(GATE);
@@ -82,11 +103,28 @@ export async function PATCH(req: Request) {
       ? new Date(`${b.resolutionValidTo}T00:00:00.000Z`)
       : null;
   }
+  if (b.resolutionDate !== undefined) {
+    data.dianResolutionDate = b.resolutionDate
+      ? new Date(`${b.resolutionDate}T00:00:00.000Z`)
+      : null;
+  }
+  if (b.discardLegacyResolution) data.dianResolution = null;
 
   if (emisor.ref.kind === "legalEntity") {
     await db.legalEntity.update({ where: { id: emisor.ref.id }, data });
   } else {
     await db.restaurant.update({ where: { id: emisor.ref.id }, data });
+  }
+
+  // El consecutivo va SIEMPRE al Restaurant, aunque el emisor sea un
+  // LegalEntity: es la fila que `simpleInvoice.ts` incrementa al emitir.
+  // Escribirlo en el LegalEntity dejaría el contador real intacto y el
+  // operador creería que lo movió.
+  if (b.invoiceNextNumber !== undefined) {
+    await db.restaurant.update({
+      where: { id: ctx.restaurantId },
+      data: { invoiceNextNumber: b.invoiceNextNumber },
+    });
   }
 
   const { emisor: fresh, status } = await dianConfigStatus(ctx.restaurantId);

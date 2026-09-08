@@ -22,19 +22,28 @@ type DianStatus = {
   testSetId: string | null;
   missingEmisor: string[];
   missingResolution: string[];
+  missingLocation: string[];
+  einvoicingEnabled: boolean;
 };
 
 type Emisor = {
   kind: "legalEntity" | "restaurant";
   legalName: string | null;
   taxId: string | null;
+  addressLine: string | null;
+  /** "Envigado, Antioquia" — lo arma el server desde el catálogo DANE. */
+  cityLabel: string | null;
+  /** Texto libre legacy — ya no se edita, sólo se muestra si contradice. */
   resolution: string | null;
   resolutionNumber: string | null;
   resolutionFrom: number | null;
   resolutionTo: number | null;
   resolutionValidFrom: string | null;
   resolutionValidTo: string | null;
+  resolutionDate: string | null;
   invoicePrefix: string | null;
+  invoiceNextNumber: number;
+  legacyResolutionConflict: string | null;
 } | null;
 
 /** Documento enviado a la DIAN, tal como quedó persistido. */
@@ -106,72 +115,88 @@ export function DianConfigClient() {
 
   return (
     <div className="space-y-5">
-      {/* Aviso: el server no puede cifrar secretos todavía. */}
-      {!masterKeyReady && <Banner tone="error">{t("masterKeyNotReady")}</Banner>}
+      {/* Aviso: el server no puede cifrar secretos todavía. Sólo importa
+          cuando hay credenciales que cifrar. */}
+      {status.einvoicingEnabled && !masterKeyReady && (
+        <Banner tone="error">{t("masterKeyNotReady")}</Banner>
+      )}
 
       {/* Estado general */}
-      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
-          {t("statusKicker")}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <StatusBadge status={status.status} t={t} />
-          <span className="px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-paper text-op-muted">
-            {status.environment === "produccion"
-              ? t("envProduccion")
-              : t("envHabilitacion")}
-          </span>
-        </div>
-      </section>
+      {status.einvoicingEnabled && (
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
+            {t("statusKicker")}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatusBadge status={status.status} t={t} />
+            <span className="px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-paper text-op-muted">
+              {status.environment === "produccion"
+                ? t("envProduccion")
+                : t("envHabilitacion")}
+            </span>
+          </div>
+        </section>
+      )}
 
       {/* Emisor (solo lectura) */}
       <EmisorSection t={t} emisor={emisor} missing={status.missingEmisor} />
 
-      {/* Resolución de numeración (editable) */}
+      {/* Resolución de numeración — ÚNICA superficie de carga. */}
       <ResolutionSection
         t={t}
         emisor={emisor}
         missing={status.missingResolution}
+        missingLocation={status.missingLocation}
         onSaved={load}
       />
 
-      {/* Paso 1 — Certificado */}
-      <CertificateSection
-        t={t}
-        locale={locale}
-        status={status}
-        canSave={canSave}
-        onSaved={load}
-      />
+      {/* Certificado, credenciales y habilitación sólo aplican con el
+          módulo de facturación electrónica activo. Sin él la pantalla
+          existe igual, porque la resolución de arriba la necesita
+          cualquier comercio que imprima comprobante. */}
+      {status.einvoicingEnabled && (
+        <>
+          {/* Paso 1 — Certificado */}
+          <CertificateSection
+            t={t}
+            locale={locale}
+            status={status}
+            canSave={canSave}
+            onSaved={load}
+          />
 
-      {/* Paso 2 — Credenciales */}
-      <CredentialsSection
-        t={t}
-        status={status}
-        canSave={canSave}
-        onSaved={load}
-      />
+          {/* Paso 2 — Credenciales */}
+          <CredentialsSection
+            t={t}
+            status={status}
+            canSave={canSave}
+            onSaved={load}
+          />
 
-      {/* Paso 3 — Habilitación */}
-      <HabilitacionSection
-        t={t}
-        locale={locale}
-        status={status}
-        lastDocument={view.lastDocument}
-        canSave={canSave}
-        onDone={load}
-      />
+          {/* Paso 3 — Habilitación */}
+          <HabilitacionSection
+            t={t}
+            locale={locale}
+            status={status}
+            lastDocument={view.lastDocument}
+            canSave={canSave}
+            onDone={load}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 // ── Emisor ──────────────────────────────────────────────────────────────
 
+// Sólo lo que se carga en IDENTIDAD. La resolución y el prefijo salieron
+// de esta lista porque ya no se editan ahí: se avisan con
+// `missingResolution`, que es lo que de verdad bloquea el envío.
 const EMISOR_LABEL_KEY: Record<string, string> = {
   legalName: "emisorLegalName",
   taxId: "emisorTaxId",
-  resolution: "emisorResolution",
-  invoicePrefix: "emisorPrefix",
+  addressLine: "emisorAddress",
 };
 
 function EmisorSection({
@@ -191,8 +216,8 @@ function EmisorSection({
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
         <ReadonlyField label={t("emisorLegalName")} value={emisor?.legalName} t={t} />
         <ReadonlyField label={t("emisorTaxId")} value={emisor?.taxId} t={t} />
-        <ReadonlyField label={t("emisorResolution")} value={emisor?.resolution} t={t} />
-        <ReadonlyField label={t("emisorPrefix")} value={emisor?.invoicePrefix} t={t} />
+        <ReadonlyField label={t("emisorAddress")} value={emisor?.addressLine} t={t} />
+        <ReadonlyField label={t("emisorCity")} value={emisor?.cityLabel} t={t} />
       </dl>
       {missing.length > 0 && (
         <div className="mt-4">
@@ -233,7 +258,14 @@ function ReadonlyField({
 
 // ── Resolución de numeración ────────────────────────────────────────────
 //
-// La DIAN contrasta estos seis datos contra la resolución vigente del
+// ÚNICA superficie de carga de la resolución. Antes estaba partida entre
+// Identidad (texto libre + rango + fecha + prefijo + consecutivo) y esta
+// pantalla (número + vigencia). Un comercio cargó 18764094877213 en
+// Identidad creyendo que era la resolución mientras el XML que se le
+// mandaba a la DIAN llevaba 18760000001, y desde la UI no había forma de
+// notarlo.
+//
+// La DIAN contrasta estos datos contra la resolución vigente del
 // contribuyente. Si alguno no coincide rechaza el documento entero (reglas
 // FAB05b, FAB07b, FAB08b, FAB10b, FAB11b, FAB12b, FAD05c). No hay forma de
 // deducirlos: hay que copiarlos de la resolución que expide la DIAN.
@@ -247,6 +279,13 @@ const RESOLUTION_LABEL_KEY: Record<string, string> = {
   resolutionValidTo: "resolutionValidToLabel",
 };
 
+// La ubicación NO se edita acá: se elige en Identidad, del catálogo DANE
+// completo (1.122 municipios, con autocompletado). Acá sólo se avisa que
+// falta, porque es lo que bloquea el envío.
+const LOCATION_LABEL_KEY: Record<string, string> = {
+  legalCityCode: "emisorCity",
+};
+
 type ResolutionDraft = {
   resolutionNumber: string;
   invoicePrefix: string;
@@ -254,21 +293,25 @@ type ResolutionDraft = {
   resolutionTo: string;
   resolutionValidFrom: string;
   resolutionValidTo: string;
+  resolutionDate: string;
+  invoiceNextNumber: string;
 };
 
 function ResolutionSection({
   t,
   emisor,
   missing,
+  missingLocation,
   onSaved,
 }: {
   t: ReturnType<typeof useTranslations>;
   emisor: Emisor;
   missing: string[];
+  missingLocation: string[];
   onSaved: () => Promise<void>;
 }) {
-  // Si el número todavía no está pero el texto de la tirilla ya es un
-  // número pelado, se propone como valor inicial. No se guarda solo: el
+  // Si el número todavía no está pero el texto legacy de la tirilla ya es
+  // un número pelado, se propone como valor inicial. No se guarda solo: el
   // operador confirma con Guardar.
   const suggestedNumber =
     emisor?.resolution && /^\d+$/.test(emisor.resolution.trim())
@@ -281,6 +324,8 @@ function ResolutionSection({
     resolutionTo: emisor?.resolutionTo?.toString() ?? "",
     resolutionValidFrom: emisor?.resolutionValidFrom ?? "",
     resolutionValidTo: emisor?.resolutionValidTo ?? "",
+    resolutionDate: emisor?.resolutionDate ?? "",
+    invoiceNextNumber: (emisor?.invoiceNextNumber ?? 1).toString(),
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -292,20 +337,13 @@ function ResolutionSection({
     setMsg(null);
   }
 
-  async function save() {
+  async function patch(body: Record<string, unknown>) {
     setBusy(true);
     setMsg(null);
     const r = await fetch("/api/operator/dian/resolution", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        resolutionNumber: draft.resolutionNumber.trim() || null,
-        invoicePrefix: draft.invoicePrefix.trim() || null,
-        resolutionFrom: draft.resolutionFrom ? Number(draft.resolutionFrom) : null,
-        resolutionTo: draft.resolutionTo ? Number(draft.resolutionTo) : null,
-        resolutionValidFrom: draft.resolutionValidFrom || null,
-        resolutionValidTo: draft.resolutionValidTo || null,
-      }),
+      body: JSON.stringify(body),
     });
     setBusy(false);
     if (!r.ok) {
@@ -316,6 +354,21 @@ function ResolutionSection({
     setMsg({ kind: "ok", text: t("resolutionSaved") });
     await onSaved();
   }
+
+  async function save() {
+    await patch({
+      resolutionNumber: draft.resolutionNumber.trim() || null,
+      invoicePrefix: draft.invoicePrefix.trim() || null,
+      resolutionFrom: draft.resolutionFrom ? Number(draft.resolutionFrom) : null,
+      resolutionTo: draft.resolutionTo ? Number(draft.resolutionTo) : null,
+      resolutionValidFrom: draft.resolutionValidFrom || null,
+      resolutionValidTo: draft.resolutionValidTo || null,
+      resolutionDate: draft.resolutionDate || null,
+      invoiceNextNumber: Math.max(1, Number(draft.invoiceNextNumber) || 1),
+    });
+  }
+
+  const legacy = emisor?.legacyResolutionConflict ?? null;
 
   return (
     <section className="rounded-2xl border border-op-border bg-op-surface p-5">
@@ -335,6 +388,51 @@ function ResolutionSection({
                 .join(", "),
             })}
           </Banner>
+        </div>
+      )}
+
+      {/* La ubicación bloquea el envío igual que la resolución, pero se
+          corrige en Identidad (ahí está el catálogo DANE completo). */}
+      {missingLocation.length > 0 && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("locationMissing", {
+              fields: missingLocation
+                .map((m) => (LOCATION_LABEL_KEY[m] ? t(LOCATION_LABEL_KEY[m]) : m))
+                .join(", "),
+            })}
+          </Banner>
+        </div>
+      )}
+
+      {/* Dato viejo que CONTRADICE al número real. No se decide por el
+          operador: se le muestran los dos y elige. Es exactamente el caso
+          que motivó unificar las pantallas. */}
+      {legacy && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("legacyConflict", {
+              legacy,
+              current: emisor?.resolutionNumber ?? "",
+            })}
+          </Banner>
+          <div className="flex flex-wrap gap-3 mt-2">
+            <button
+              type="button"
+              onClick={() => set("resolutionNumber", legacy)}
+              className="text-[11px] text-terracotta underline"
+            >
+              {t("legacyUse", { legacy })}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => patch({ discardLegacyResolution: true })}
+              className="text-[11px] text-op-muted underline"
+            >
+              {t("legacyDiscard")}
+            </button>
+          </div>
         </div>
       )}
 
@@ -400,6 +498,43 @@ function ResolutionSection({
             />
           </FieldLabel>
         </div>
+
+        {/* Fecha del acto administrativo — sólo se imprime en el
+            comprobante, no va al XML. Venía de Identidad. */}
+        <FieldLabel
+          label={t("resolutionDateLabel")}
+          hint={t("resolutionDateHint")}
+        >
+          <input
+            type="date"
+            value={draft.resolutionDate}
+            onChange={(e) => set("resolutionDate", e.target.value)}
+            className={inputCls}
+          />
+        </FieldLabel>
+
+        {/* Próximo consecutivo — venía de Identidad. Vive acá porque el
+            rango autorizado que lo acota está en esta misma pantalla. */}
+        <FieldLabel label={t("nextNumberLabel")} hint={t("nextNumberHint")}>
+          <input
+            type="number"
+            min={1}
+            value={draft.invoiceNextNumber}
+            onChange={(e) => set("invoiceNextNumber", e.target.value)}
+            className={inputCls}
+          />
+          {draft.invoiceNextNumber === "1" &&
+            draft.resolutionFrom !== "" &&
+            Number(draft.resolutionFrom) > 1 && (
+              <button
+                type="button"
+                onClick={() => set("invoiceNextNumber", draft.resolutionFrom)}
+                className="mt-1 text-[10px] text-terracotta underline"
+              >
+                {t("startFrom", { n: Number(draft.resolutionFrom) })}
+              </button>
+            )}
+        </FieldLabel>
       </div>
 
       <div className="flex items-center justify-end gap-3 mt-4">
@@ -786,7 +921,10 @@ function HabilitacionSection({
     await onDone();
   }
 
-  const resolutionIncomplete = status.missingResolution.length > 0;
+  // La ubicación DANE bloquea igual que la resolución: sin ella el XML
+  // declararía un establecimiento que no es (FAB10a / FAJ50).
+  const resolutionIncomplete =
+    status.missingResolution.length > 0 || status.missingLocation.length > 0;
 
   if (!ready) {
     return (
@@ -826,7 +964,11 @@ function HabilitacionSection({
 
       {resolutionIncomplete && (
         <div className="mb-3">
-          <Banner tone="warning">{t("habBlockedByResolution")}</Banner>
+          <Banner tone="warning">
+            {status.missingResolution.length > 0
+              ? t("habBlockedByResolution")
+              : t("habBlockedByLocation")}
+          </Banner>
         </div>
       )}
 
@@ -1087,6 +1229,8 @@ function mapError(t: ReturnType<typeof useTranslations>, code?: string): string 
       return t("errEmisorIncomplete");
     case "resolution_incomplete":
       return t("errResolutionIncomplete");
+    case "location_incomplete":
+      return t("errLocationIncomplete");
     case "range_inverted":
       return t("errRangeInverted");
     case "dates_inverted":

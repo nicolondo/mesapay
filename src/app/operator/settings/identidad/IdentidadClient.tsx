@@ -1,9 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MunicipioAutocomplete } from "@/components/MunicipioAutocomplete";
 
+// Identidad ya NO edita la resolución de numeración. Vivía acá (texto
+// libre + rango + fecha + prefijo + consecutivo) Y en Facturación DIAN
+// (número + vigencia), y los dos números podían diferir sin que nadie lo
+// viera: un comercio tenía 18764094877213 cargado acá mientras el XML que
+// se le mandaba a la DIAN llevaba 18760000001. Ahora la única superficie
+// es /operator/settings/facturacion-dian.
 type Identidad = {
   // Nombre comercial — display público + sender de los correos
   // ("NOMBRE · MESAPAY <facturas@mesapay.co>"). Distinto de
@@ -17,15 +24,6 @@ type Identidad = {
   /** Código DANE del municipio (5 dígitos). Solo Colombia. */
   legalCityCode: string | null;
   legalPhone: string | null;
-  dianResolution: string | null;
-  dianResolutionFrom: number | null;
-  dianResolutionTo: number | null;
-  dianResolutionDate: string | null; // YYYY-MM-DD
-  invoicePrefix: string | null;
-  // Próximo consecutivo a emitir. Default 1; el operador puede
-  // ajustar si ya venía emitiendo en otra plataforma o quiere
-  // arrancar desde dianResolutionFrom.
-  invoiceNextNumber: number;
 };
 
 export function IdentidadClient({
@@ -292,104 +290,20 @@ export function IdentidadClient({
         </Field>
       </section>
 
-      {/* Resolución DIAN */}
-      <section className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+      {/* La resolución de numeración se mudó entera a Facturación DIAN.
+          Se deja el puntero para que el operador que venía a buscarla acá
+          sepa a dónde ir. */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
           {t("dianSectionTitle")}
         </div>
-        <p className="text-xs text-op-muted">{t("dianHelp")}</p>
-        <Field label={t("dianResolutionLabel")}>
-          <input
-            type="text"
-            value={v.dianResolution ?? ""}
-            onChange={(e) => set("dianResolution", e.target.value || null)}
-            placeholder={t("dianResolutionPlaceholder")}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={t("dianDateLabel")}>
-          <input
-            type="date"
-            value={v.dianResolutionDate ?? ""}
-            onChange={(e) =>
-              set("dianResolutionDate", e.target.value || null)
-            }
-            className={inputCls}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t("dianFromLabel")}>
-            <input
-              type="number"
-              min={0}
-              value={v.dianResolutionFrom ?? ""}
-              onChange={(e) =>
-                set(
-                  "dianResolutionFrom",
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              placeholder={t("dianFromPlaceholder")}
-              className={inputCls}
-            />
-          </Field>
-          <Field label={t("dianToLabel")}>
-            <input
-              type="number"
-              min={0}
-              value={v.dianResolutionTo ?? ""}
-              onChange={(e) =>
-                set(
-                  "dianResolutionTo",
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              placeholder={t("dianToPlaceholder")}
-              className={inputCls}
-            />
-          </Field>
-        </div>
-        <Field label={t("prefixLabel")} hint={t("prefixHint")}>
-          <input
-            type="text"
-            value={v.invoicePrefix ?? ""}
-            onChange={(e) => set("invoicePrefix", e.target.value || null)}
-            placeholder={t("prefixPlaceholder")}
-            maxLength={10}
-            className={inputCls + " uppercase"}
-          />
-        </Field>
-        <Field
-          label={t("nextNumberLabel")}
-          hint={t("nextNumberHint")}
+        <p className="text-xs text-op-muted mb-3">{t("dianMovedHelp")}</p>
+        <Link
+          href="/operator/settings/facturacion-dian"
+          className="mp-btn mp-btn--sm"
         >
-          <input
-            type="number"
-            min={1}
-            value={v.invoiceNextNumber}
-            onChange={(e) =>
-              set(
-                "invoiceNextNumber",
-                e.target.value ? Math.max(1, Number(e.target.value)) : 1,
-              )
-            }
-            className={inputCls}
-          />
-          {/* Sugerencia: si está en 1 (default) y hay rango DIAN
-              configurado, ofrecer arrancar desde el límite inferior
-              del rango. */}
-          {v.invoiceNextNumber === 1 &&
-            v.dianResolutionFrom != null &&
-            v.dianResolutionFrom > 1 && (
-              <button
-                type="button"
-                onClick={() => set("invoiceNextNumber", v.dianResolutionFrom!)}
-                className="mt-1 text-[10px] text-terracotta underline"
-              >
-                {t("startFrom", { n: v.dianResolutionFrom })}
-              </button>
-            )}
-        </Field>
+          {t("dianMovedLink")}
+        </Link>
       </section>
 
       <div className="flex items-center justify-end gap-3">

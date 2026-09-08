@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
+import {
+  DEMO_PAYMENTS_DISABLED,
+  shouldBlockDemoPayment,
+} from "@/lib/demoPayments";
 import { getViewer } from "@/lib/customerSession";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
@@ -68,6 +72,17 @@ export async function POST(
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  // Mismo agujero que en /pay, y acá sale más caro: pickup es prepago,
+  // así que un demo_card crea la orden ya en `paid` Y la manda a cocina.
+  // Sin gate, cualquiera con el link público de recogida pedía comida
+  // gratis. Cortamos antes de tocar la DB.
+  if (shouldBlockDemoPayment(parsed.data.method)) {
+    return NextResponse.json(
+      { error: DEMO_PAYMENTS_DISABLED },
+      { status: 403 },
+    );
   }
 
   const pickupTable = await db.table.findUnique({

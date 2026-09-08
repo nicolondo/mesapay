@@ -269,6 +269,10 @@ export function MenuClient({
     kushkiReady: boolean;
     kushkiPublicKey: string | null;
     isMockMode: boolean;
+    // Resuelto en el server (src/lib/demoPayments.ts). Si el backend no
+    // acepta pagos demo, no mostramos los botones demo: sería un botón
+    // que siempre devuelve 403.
+    demoPaymentsEnabled: boolean;
   } | null;
   // Server-verified flag: this view is being driven by a logged-in
   // operator taking a pedido on behalf of a diner who doesn't have a
@@ -1555,6 +1559,7 @@ export function MenuClient({
           kushkiReady={pickup.kushkiReady}
           kushkiPublicKey={pickup.kushkiPublicKey}
           isMockMode={pickup.isMockMode}
+          demoPaymentsEnabled={pickup.demoPaymentsEnabled}
           onClose={() => setShowPickupSheet(false)}
           onSuccess={(orderId) => {
             try {
@@ -2860,6 +2865,7 @@ function PickupCheckoutSheet({
   kushkiReady,
   kushkiPublicKey,
   isMockMode,
+  demoPaymentsEnabled,
   onClose,
   onSuccess,
 }: {
@@ -2874,6 +2880,7 @@ function PickupCheckoutSheet({
   kushkiReady: boolean;
   kushkiPublicKey: string | null;
   isMockMode: boolean;
+  demoPaymentsEnabled: boolean;
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
@@ -3001,6 +3008,11 @@ function PickupCheckoutSheet({
         setErr(t("errClosed"));
       } else if (j.error === "charge_declined") {
         setErr(j.message ?? t("errDeclined"));
+      } else if (j.error === "demo_payments_disabled") {
+        // El backend rechazó un método demo. Con demoPaymentsEnabled los
+        // botones ni se muestran, así que esto sólo pasa si el flag
+        // cambió entre el render y el tap.
+        setErr(t("pickupNoPaymentMethod"));
       } else {
         setErr(j.error ?? t("errGeneric"));
       }
@@ -3156,7 +3168,7 @@ function PickupCheckoutSheet({
                   : t("payApple", { price: fmtCOP(subtotal) })}
               </button>
             )}
-            {isMockMode && !kushkiReady && (
+            {demoPaymentsEnabled && !kushkiReady && (
               <>
                 <button
                   onClick={() => placeAndPay("demo_card")}
@@ -3179,6 +3191,16 @@ function PickupCheckoutSheet({
                 </div>
               </>
             )}
+            {/* Sin Apple Pay activo y sin pagos demo (el caso normal en
+                producción cuando el comercio todavía no terminó el
+                onboarding de la pasarela) no hay con qué prepagar la
+                recogida. Se lo decimos en vez de dejar la hoja muda. */}
+            {!(kushkiReady && hasApplePay) &&
+              !(demoPaymentsEnabled && !kushkiReady) && (
+                <div className="text-[13px] text-muted text-center py-2">
+                  {t("pickupNoPaymentMethod")}
+                </div>
+              )}
             <div className="text-[11px] text-muted text-center mt-1">
               {t("paymentApprovalHint")}
             </div>

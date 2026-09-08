@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { demoPaymentsAllowed } from "@/lib/demoPayments";
 import {
   formatNextOpening,
   pickupStatus,
@@ -195,6 +196,7 @@ export default async function PickupPage({
           tenant.kushkiOnboardingStatus === "active",
         kushkiPublicKey: tenant.kushkiPublicKey,
         isMockMode: (await getRestaurantKushkiMode(tenant)) === "mock",
+        demoPaymentsEnabled: demoPaymentsAllowed(),
       }}
     />
   );

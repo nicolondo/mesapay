@@ -278,9 +278,10 @@ function Rail({
         </nav>
       </div>
 
-      {/* Pie: idioma + usuario + salir */}
+      {/* Pie: usuario + idioma + salir. El selector de idioma vivía en su
+          propia fila y dejaba una franja vacía del ancho del cajón para una
+          pastilla de dos palabras; va en la misma fila del usuario. */}
       <div className="p-3" style={{ borderTop: "1px solid var(--rail-line)" }}>
-        <div className="mb-2.5">{localeSwitcher}</div>
         <div className="flex items-center gap-2.5 px-1 py-1.5">
           <div
             className="w-8 h-8 rounded-[9px] font-display text-[17px] flex items-center justify-center shrink-0"
@@ -297,7 +298,10 @@ function Rail({
               {userEmail}
             </div>
           </div>
-          <div className="ml-auto shrink-0">{signOut}</div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {localeSwitcher}
+            {signOut}
+          </div>
         </div>
       </div>
     </div>

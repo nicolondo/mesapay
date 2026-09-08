@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -599,14 +600,12 @@ function ProduceSheet({
               >
                 <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    min={0}
-                    step="any"
+                    type="text"
                     inputMode="decimal"
                     value={qtyRaw}
                     onChange={(e) => {
                       setErr(null);
-                      setQtyRaw(e.target.value);
+                      setQtyRaw(sanitizeDecimalInput(e.target.value));
                     }}
                     className={inputCls + " flex-1 min-w-0"}
                   />

@@ -14,6 +14,7 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
@@ -719,23 +720,6 @@ type ParsedLine =
   | "qty_too_small"
   | "waste_invalid";
 
-/**
- * Deja escribir una cantidad decimal con coma O punto. Los inputs de
- * cantidad NO pueden ser type="number": en un locale con coma decimal el
- * navegador devuelve "" al teclear "0,05", y la cantidad terminaba en 0 →
- * "contenido inválido" sin explicación. Se filtra acá y se normaliza en
- * parseLine.
- */
-function sanitizeDecimal(raw: string): string {
-  const cleaned = raw.replace(/[^\d.,]/g, "");
-  const firstSep = cleaned.search(/[.,]/);
-  if (firstSep === -1) return cleaned;
-  return (
-    cleaned.slice(0, firstSep + 1) +
-    cleaned.slice(firstSep + 1).replace(/[.,]/g, "")
-  );
-}
-
 /** Menor cantidad representable en una unidad de display (1 unidad base). */
 function minQtyLabel(kind: MeasureKind, unitSymbol: string): string {
   const unit = DISPLAY_UNITS[kind].find((u) => u.symbol === unitSymbol);
@@ -747,7 +731,7 @@ function minQtyLabel(kind: MeasureKind, unitSymbol: string): string {
 
 /** Parseo + costo en vivo de una línea: bruto = neto / (1 − merma%). */
 function parseLine(l: EditLine): ParsedLine {
-  const value = Number(l.qtyRaw.replace(",", "."));
+  const value = parseDecimalInput(l.qtyRaw);
   const qtyBase = toBaseQty(value, l.measureKind, l.unit);
   if (qtyBase == null) {
     // Un número positivo que no llega a 1 unidad base no es un error de
@@ -1366,7 +1350,7 @@ function LinesEditor({
                     inputMode="decimal"
                     value={l.qtyRaw}
                     onChange={(e) =>
-                      onUpdate(l.key, { qtyRaw: sanitizeDecimal(e.target.value) })
+                      onUpdate(l.key, { qtyRaw: sanitizeDecimalInput(e.target.value) })
                     }
                     aria-label={t("fieldNetQty")}
                     placeholder={t("fieldNetQty")}
@@ -1861,7 +1845,7 @@ function SubRecipeSheet({
     const { total, complete } = liveLinesTotal(lines);
     const yieldBase = output
       ? toBaseQty(
-          Number(yieldRaw.replace(",", ".")),
+          parseDecimalInput(yieldRaw),
           output.measureKind,
           yieldUnit,
         )
@@ -1874,7 +1858,7 @@ function SubRecipeSheet({
     setErr(null);
     if (!output) return;
     const yieldBase = toBaseQty(
-      Number(yieldRaw.replace(",", ".")),
+      parseDecimalInput(yieldRaw),
       output.measureKind,
       yieldUnit,
     );
@@ -2061,7 +2045,7 @@ function SubRecipeSheet({
                     value={yieldRaw}
                     onChange={(e) => {
                       setErr(null);
-                      setYieldRaw(sanitizeDecimal(e.target.value));
+                      setYieldRaw(sanitizeDecimalInput(e.target.value));
                     }}
                     className={inputCls + " flex-1 min-w-0"}
                   />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
 import {
   DEFAULT_INPUT_UNIT,
@@ -882,12 +883,10 @@ function TableRow({
       </td>
       <td className="p-1.5 align-top w-[76px]">
         <input
-          type="number"
-          min={0}
-          step="any"
+          type="text"
           inputMode="decimal"
           value={row.qty}
-          onChange={(e) => onPatch(row.localId, { qty: e.target.value })}
+          onChange={(e) => onPatch(row.localId, { qty: sanitizeDecimalInput(e.target.value) })}
           className={cellInput + " text-right tabular"}
         />
       </td>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney, localeTag } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
@@ -314,7 +315,9 @@ function ParamsSheet({
   async function save() {
     const parsedEntries: Record<string, number> = {};
     for (const [k, v] of Object.entries(values)) {
-      const n = Number(v);
+      // parseDecimalInput trata la coma como decimal: antes "12,5" daba NaN
+      // y el parámetro se descartaba en silencio.
+      const n = parseDecimalInput(v);
       if (!Number.isFinite(n)) continue;
       parsedEntries[k] = n;
     }
@@ -354,7 +357,10 @@ function ParamsSheet({
                   inputMode="decimal"
                   value={values[c.key] ?? ""}
                   onChange={(e) =>
-                    setValues((v) => ({ ...v, [c.key]: e.target.value }))
+                    setValues((v) => ({
+                      ...v,
+                      [c.key]: sanitizeDecimalInput(e.target.value),
+                    }))
                   }
                   aria-label={c.label}
                   className="h-10 w-32 rounded-lg border border-op-border bg-op-bg px-3 pr-7 text-right text-sm tabular focus:outline-none focus:border-op-text/40"

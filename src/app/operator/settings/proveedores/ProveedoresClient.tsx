@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney, pesosToCents } from "@/lib/format";
@@ -1041,13 +1042,11 @@ function ItemForm({
       <Field label={t("fieldContent")} required hint={t("contentHint")}>
         <div className="flex gap-2">
           <input
-            type="number"
+            type="text"
             required
-            min={0}
-            step="any"
             inputMode="decimal"
             value={qty}
-            onChange={(e) => setQty(e.target.value)}
+            onChange={(e) => setQty(sanitizeDecimalInput(e.target.value))}
             disabled={!kind}
             className={inputCls + " flex-1 disabled:opacity-40"}
           />

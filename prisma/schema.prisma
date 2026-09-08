@@ -254,50 +254,50 @@ model Restaurant {
 
   // C2 (ERP staff) — asistencia estricta: turno pasado sin check-in =
   // falta ($0) en vez del estimado C1. Se enciende al adoptar el kiosko.
-  staffStrictAttendance   Boolean @default(false)
+  staffStrictAttendance       Boolean  @default(false)
   // C2 — recargo % sobre la hora ordinaria en festivos y domingos
   // (default 75/75, estándar CO; 0 = sin recargo).
-  staffHolidayPct         Int     @default(75)
-  staffSundayPct          Int     @default(75)
+  staffHolidayPct             Int      @default(75)
+  staffSundayPct              Int      @default(75)
   // Divisor mensual para derivar el valor de la hora ordinaria del salario
   // básico (Colombia tradicional 240 = 30×8; MX análogo). Editable en los
   // ajustes de Horarios. valor hora = Employee.monthlySalaryCents / divisor.
-  staffHoursDivisor       Int     @default(240)
+  staffHoursDivisor           Int      @default(240)
   // Parámetros de liquidación de nómina (portado de zenith-erp): objeto
   // { key: number } en unidades humanas (pesos para valores, % para tasas).
   // null ⇒ defaults por país (CO 2026). El dueño los edita en Nómina.
-  payrollParams           Json?
+  payrollParams               Json?
   // Compras: ¿el IVA de las facturas de compra es descontable? false
   // (default) ⇒ el IVA entra al costo de inventario (lo que se paga);
   // true ⇒ el costo de inventario es el neto y el IVA se registra aparte.
-  purchaseIvaDeductible   Boolean @default(false)
+  purchaseIvaDeductible       Boolean  @default(false)
   // Ventas: impuesto que aplica el restaurante sobre el subtotal (ERP A3).
   // "none" ⇒ no se discrimina impuesto (precio final); "inc" ⇒ Impuesto al
   // Consumo (impoconsumo, típico restaurantes CO); "iva" ⇒ IVA. El impuesto
   // se calcula EMBEBIDO en el precio del menú (no se suma encima): el
   // componente = subtotal × pct/(100+pct). Solo para reportes/contabilidad.
-  salesTaxKind            String  @default("none") // none | inc | iva
-  salesTaxPct             Int     @default(0) // p.ej. 8 (INC) o 19 (IVA)
+  salesTaxKind                String   @default("none") // none | inc | iva
+  salesTaxPct                 Int      @default(0) // p.ej. 8 (INC) o 19 (IVA)
   // Gastos de representación (ERP A3): permitir al mesero cerrar una cuenta
   // como cortesía ($0) sin cobrarla, con nota de a quién se le dio. El nombre
   // es configurable; null ⇒ etiqueta por defecto de i18n ("Gastos de
   // representación").
-  compEnabled             Boolean @default(true)
-  compLabel               String?
+  compEnabled                 Boolean  @default(true)
+  compLabel                   String?
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.
   inventoryExcludedCategories String[] @default([])
-  shiftPolicy             String  @default("global")
+  shiftPolicy                 String   @default("global")
   // Hora de corte del día contable (hora Bogotá, 0–23). El día de
   // reportes/caja arranca a esta hora — para comercios que cierran de
   // madrugada (corte 5 = 05:00, así lo de 00:00–05:00 cuenta como el
   // día anterior). 0 = medianoche.
-  businessDayCutoffHour   Int     @default(5)
+  businessDayCutoffHour       Int      @default(5)
   // Qué hacer si un mesero abre su turno sin que el local haya abierto el
   // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
-  meseroShiftWithoutLocal String  @default("block")
+  meseroShiftWithoutLocal     String   @default("block")
 
   users                  User[]
   tables                 Table[]
@@ -471,24 +471,24 @@ model PlanConfig {
 /// necesidad de redeploy, pero está pensado para crecer (otros
 /// toggles plataforma-wide). La fila usa id="singleton" como pk.
 model PlatformConfig {
-  id                         String   @id @default("singleton")
+  id                            String   @id @default("singleton")
   /// "mock" | "sandbox" | "production". Usamos String en vez de enum
   /// para permitir modos futuros sin schema migration. Si el valor
   /// no matchea ninguno conocido, el helper cae a env.KUSHKI_MODE.
-  kushkiMode                 String   @default("mock")
-  updatedAt                  DateTime @updatedAt
-  updatedById                String?
+  kushkiMode                    String   @default("mock")
+  updatedAt                     DateTime @updatedAt
+  updatedById                   String?
   // Default global de mensajes/día del asistente Pulso (override por comercio
   // en Restaurant.aiDailyMessageLimit).
-  aiDailyMessageLimit        Int      @default(50)
+  aiDailyMessageLimit           Int      @default(50)
   // Default global de comisión en basis points; override por comercial y por comercio.
-  salesCommissionBps         Int      @default(1000)
+  salesCommissionBps            Int      @default(1000)
   // Credenciales Kushki de plataforma para cobro de suscripciones a restaurantes.
   // La clave pública es segura (se pasa al browser para tokenizar tarjetas).
   // La clave privada se almacena cifrada con AES-GCM (ver src/lib/crypto.ts).
   // Fallback: si están vacías, se leen de env KUSHKI_BILLING_PUBLIC_KEY / KUSHKI_BILLING_PRIVATE_KEY.
-  kushkiBillingPublicKey     String?
-  kushkiBillingPrivateKeyEnc String?
+  kushkiBillingPublicKey        String?
+  kushkiBillingPrivateKeyEnc    String?
   // Secret de firma del webhook de suscripciones (X-Kushki-Signature).
   // Cifrado AES-GCM igual que la private key; editable desde /admin/configuracion.
   kushkiBillingWebhookSecretEnc String?
@@ -1474,11 +1474,11 @@ model Ingredient {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
-  supplierItems      SupplierIngredient[]
-  stockLevel         StockLevel?
-  stockMovements     StockMovement[]
-  stockCountItems    StockCountItem[]
-  purchaseOrderItems PurchaseOrderItem[]
+  supplierItems       SupplierIngredient[]
+  stockLevel          StockLevel?
+  stockMovements      StockMovement[]
+  stockCountItems     StockCountItem[]
+  purchaseOrderItems  PurchaseOrderItem[]
   recipe              Recipe?              @relation("IngredientRecipe")
   recipeItems         RecipeItem[]
   modifierRecipeItems ModifierRecipeItem[]
@@ -1700,6 +1700,13 @@ model PurchaseOrder {
   // Saldo = total bruto de la OC − paidCents.
   paidCents             Int       @default(0)
 
+  // Descuento del PIE de la factura (sobre el total). Se prorratea entre las
+  // líneas al guardar, así el IVA por tarifa, el costo de inventario y la CxP
+  // siguen saliendo del neto de cada línea sin tratamiento especial.
+  // discountPct guarda el % si se digitó así; discountCents, el valor.
+  discountPct   Int?
+  discountCents Int  @default(0)
+
   // Impuestos de la factura capturados/verificados por el operador (ERP A3).
   // El IVA se deriva de las líneas (taxPct); estos son los demás que la
   // factura discrimina a nivel documento, para la contabilidad/reportes.
@@ -1735,12 +1742,25 @@ model PurchaseOrderItem {
 
   // Pedido (spec D2): SIEMPRE en unidad base; presentations solo cuando la
   // línea viene de la lista de precios (qtyOrderedBase = n × contentQty).
-  qtyOrderedBase    Int
-  presentations     Int?
+  qtyOrderedBase Int
+  presentations  Int?
+
+  // Descuentos. expectedCostCents SIEMPRE es lo que se paga (lista − ambos
+  // descuentos), que es de donde cuelgan IVA, inventario y CxP. Estos campos
+  // guardan cómo se llegó a ese neto, para mostrar "subtotal / descuento /
+  // total" como lo trae la factura. Filas viejas: listCostCents null ⇒ sin
+  // descuento ⇒ lista = neto.
+  listCostCents      Int?
+  /// % de descuento de la línea, si se digitó en % (null si fue valor fijo).
+  discountPct        Int?
+  /// Valor del descuento propio de la línea.
+  discountCents      Int  @default(0)
+  /// Parte del descuento del pie que le tocó a esta línea al prorratear.
+  orderDiscountCents Int  @default(0)
   // NETO (sin IVA) esperado de la línea. Filas viejas: taxPct 0 ⇒ neto = bruto.
-  expectedCostCents Int
+  expectedCostCents  Int
   // IVA % de la línea (0/5/19 CO, 0/8/16 MX). El bruto se deriva: neto + IVA.
-  taxPct            Int @default(0)
+  taxPct             Int  @default(0)
 
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
   receivedQtyBase   Int @default(0)
@@ -1764,8 +1784,8 @@ model PurchasePayment {
   method          String? // efectivo / transferencia / … (texto libre)
   note            String?
   createdById     String?
-  createdBy       User?    @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
+  createdBy       User?         @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
 
   @@index([purchaseOrderId])
   @@index([restaurantId, paidAt])
@@ -1903,9 +1923,9 @@ model Employee {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  name            String
+  name               String
   // Cargo libre con datalist (criterio categorías de insumos/gastos).
-  position        String
+  position           String
   // Salario básico mensual en centavos. null = sin salario: no aporta a
   // la base laboral del mes y se marca "sin salario" — nunca se inventa.
   // El valor de la hora ordinaria se DERIVA: salario / staffHoursDivisor
@@ -1916,12 +1936,12 @@ model Employee {
   // UPDATE "Employee" SET "monthlySalaryCents" = "hourlyRateCents" * 240
   //   WHERE "monthlySalaryCents" IS NULL AND "hourlyRateCents" IS NOT NULL;
   // Sin uso en el código desde el modelo de salario mensual.
-  hourlyRateCents Int?
-  active          Boolean @default(true)
+  hourlyRateCents    Int?
+  active             Boolean @default(true)
   // Cuenta del app opcional (mesero con login). Hoy informativo; deja la
   // puerta abierta al self check-in.
-  userId          String? @unique
-  user            User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId             String? @unique
+  user               User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // C2 — plantilla semanal: [{weekday: 0-6 (0=lunes), ranges:
   // [{startMinutes, endMinutes}]}] (0-2 rangos/día, reglas de StaffShift).
@@ -2009,9 +2029,9 @@ model StaffShift {
   // (la cámara funcionó pero el reconocimiento facial no matcheó → alguien
   // eligió su nombre a mano). El admin revisa que la foto concuerde con la
   // persona; reviewedAt lo cierra.
-  reviewNeededAt   DateTime?
-  reviewedAt       DateTime?
-  reviewedByEmail  String?
+  reviewNeededAt  DateTime?
+  reviewedAt      DateTime?
+  reviewedByEmail String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2126,13 +2146,13 @@ model Expense {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  category    String
-  description String?
-  amountCents Int
+  category     String
+  description  String?
+  amountCents  Int
   // Fecha CONTABLE del gasto (editable) — no confundir con createdAt.
-  date        DateTime
-  supplierId  String?
-  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  date         DateTime
+  supplierId   String?
+  supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   // Centro de costos (opcional) — gasto por cocina/bar/salón/eventos.
   costCenterId String?
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
@@ -2197,9 +2217,9 @@ model KushkiDocument {
   // Entrega por SFTP a AWS Transfer (carpeta por comercio). Best-effort: el
   // documento se guarda igual; un cron reintenta los que fallaron.
   // sftpUploadedAt null = pendiente/no subido; sftpError = último error.
-  sftpUploadedAt  DateTime?
-  sftpError       String?
-  sftpAttempts    Int       @default(0)
+  sftpUploadedAt DateTime?
+  sftpError      String?
+  sftpAttempts   Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2782,18 +2802,18 @@ model LedgerAccount {
 /// Comprobante contable (asiento). Sus líneas suman débito == crédito.
 /// `source`+`sourceRef` dan idempotencia: un solo asiento por hecho económico.
 model JournalEntry {
-  id           String     @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  date         DateTime
-  source       String
-  sourceRef    String?
-  memo         String?
-  status       String     @default("posted")
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date          DateTime
+  source        String
+  sourceRef     String?
+  memo          String?
+  status        String     @default("posted")
   /// Número de comprobante consecutivo por comercio. Se asigna al CERRAR el
   /// mes (los meses abiertos se regeneran y no pueden numerar en firme).
   voucherNumber Int?
-  createdAt    DateTime   @default(now())
+  createdAt     DateTime   @default(now())
 
   lines JournalLine[]
 
@@ -2803,18 +2823,18 @@ model JournalEntry {
 
 /// Configuración contable del comercio (una fila por restaurante, perezosa).
 model AccountingConfig {
-  id           String     @id @default(cuid())
-  restaurantId String     @unique
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id                String     @id @default(cuid())
+  restaurantId      String     @unique
+  restaurant        Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   /// Valor de la UVT en centavos (UVT 2026 = $52.374). Base de los umbrales
   /// de retención. Editable por el contador cuando la DIAN la actualice.
-  uvtCents     Int        @default(5237400)
+  uvtCents          Int        @default(5237400)
   /// Último mes CERRADO ("YYYY-MM"). Los asientos de meses <= closedThrough
   /// no se regeneran y sus comprobantes quedan numerados e inmutables.
-  closedThrough String?
+  closedThrough     String?
   /// Siguiente número de comprobante de la secuencia del comercio.
-  nextVoucherNumber Int   @default(1)
-  updatedAt    DateTime   @updatedAt
+  nextVoucherNumber Int        @default(1)
+  updatedAt         DateTime   @updatedAt
 }
 
 /// Declaración/pago de un impuesto del período (IVA/INC/retefuente/ICA):

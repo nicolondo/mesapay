@@ -30,11 +30,17 @@ const lineSchema = z.object({
   expectedCostCents: z.number().int().min(0).max(2_000_000_000),
   // IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0.
   taxPct: z.number().int().min(0).max(100).optional(),
+  // Descuento de la línea: % o valor fijo (el % manda si vienen los dos).
+  discountPct: z.number().int().min(0).max(100).nullish(),
+  discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
 });
 
 const createSchema = z.object({
   supplierId: z.string().min(1),
   lines: z.array(lineSchema).min(1).max(200),
+  // Descuento del pie, sobre el total ya descontado por línea.
+  discountPct: z.number().int().min(0).max(100).nullish(),
+  discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
   notes: z.string().trim().max(1000).nullable().optional(),
   expectedAt: z.string().datetime().nullable().optional(),
 });
@@ -102,6 +108,8 @@ export async function POST(req: Request) {
         restaurantId: ctx.restaurantId,
         supplierId: b.supplierId,
         lines: b.lines,
+        discountPct: b.discountPct,
+        discountCents: b.discountCents,
         notes: b.notes ?? null,
         expectedAt: b.expectedAt ? new Date(b.expectedAt) : null,
         createdById: session?.user?.id ?? null,

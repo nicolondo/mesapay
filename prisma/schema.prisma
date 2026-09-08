@@ -234,13 +234,17 @@ model Restaurant {
   countryName String? // nombre legible (Colombia, México, …)
   placeId     String? // Google Places place_id (referencia futura)
 
-  // Resolución DIAN — texto descriptivo del acto administrativo
-  // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
-  // la fecha quedan como campos separados para mostrarlos en formato
-  // estandard en la tirilla.
+  // LEGACY — texto libre del acto administrativo, como se pedía en
+  // Identidad antes de que existieran los campos estructurados. Ya NO
+  // se edita en ninguna pantalla: la única fuente es
+  // dianResolutionNumber. Se conserva porque hay comercios que lo
+  // tienen cargado y porque las tirillas viejas lo imprimieron; sirve
+  // de fallback del comprobante y de aviso cuando difiere del número
+  // real (ver src/lib/dian/config.ts → legacyResolutionConflict).
   dianResolution          String?
   dianResolutionFrom      Int?
   dianResolutionTo        Int?
+  // Fecha del acto administrativo — sale impresa en el comprobante.
   dianResolutionDate      DateTime?
   // Datos EXACTOS de la resolución tal como los exige el XML UBL. El
   // texto de dianResolution es para la tirilla y no sirve para la DIAN:
@@ -250,8 +254,16 @@ model Restaurant {
   dianResolutionNumber    String?
   dianResolutionValidFrom DateTime?
   dianResolutionValidTo   DateTime?
+  // Código DIVIPOLA (DANE) del municipio del establecimiento, 5 dígitos
+  // ("05266" = Envigado). El departamento son sus dos primeros dígitos.
+  // Antes el XML mandaba Bogotá (11001/11) fijo para todo el mundo, que
+  // es lo que alimenta los rechazos FAB10a/FAJ50: la DIAN resuelve el
+  // punto de facturación por la ubicación del establecimiento.
+  // legalCity NO sirve para esto (es texto libre). Ver src/lib/dian/dane.ts.
+  daneCityCode            String?
   // Prefijo de los números (ej "POS", "FE"). Concatena con el
-  // consecutivo al renderear.
+  // consecutivo al renderear. Va atado a la resolución, así que se
+  // edita en Facturación DIAN junto con el resto.
   invoicePrefix           String?
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
@@ -442,6 +454,7 @@ model LegalEntity {
 
   // Resolución DIAN propia. Comparte numeración con todos los
   // restaurantes del grupo asignados a este LegalEntity.
+  // dianResolution es LEGACY (texto libre), igual que en Restaurant.
   dianResolution          String?
   dianResolutionFrom      Int?
   dianResolutionTo        Int?
@@ -450,6 +463,8 @@ model LegalEntity {
   dianResolutionNumber    String?
   dianResolutionValidFrom DateTime?
   dianResolutionValidTo   DateTime?
+  // Código DIVIPOLA (DANE) del municipio, 5 dígitos. Ver Restaurant.
+  daneCityCode            String?
   invoicePrefix           String?
   invoiceNextNumber       Int       @default(1)
 

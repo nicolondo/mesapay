@@ -8,7 +8,9 @@
 // firmar).
 import { db } from "@/lib/db";
 import { decryptSecret, loadP12, type LoadedCert } from "@/lib/dian/crypto";
+import { isValidDaneCode, resolveDaneLocation } from "@/lib/dian/dane";
 import { computeNitDv } from "@/lib/erp/exogena";
+import { isModuleEnabled } from "@/lib/modules";
 import type { DianParty, DianResolution } from "@/lib/dian/ubl";
 
 export type EmisorRef =
@@ -21,7 +23,11 @@ export type EmisorData = {
   taxId: string | null;
   addressLine: string | null;
   cityName: string | null;
-  /** Resolución de numeración (del emisor). */
+  /**
+   * LEGACY — texto libre de la resolución que se pedía en Identidad. Ya no
+   * se edita: sobrevive como fallback del comprobante impreso y para
+   * avisarle al operador cuando NO coincide con `resolutionNumber`.
+   */
   resolution: string | null;
   resolutionFrom: number | null;
   resolutionTo: number | null;
@@ -30,7 +36,18 @@ export type EmisorData = {
   /** Vigencia del rango, "YYYY-MM-DD" (lo que va a AuthorizationPeriod). */
   resolutionValidFrom: string | null;
   resolutionValidTo: string | null;
+  /** Fecha del acto administrativo, "YYYY-MM-DD" — para el comprobante. */
+  resolutionDate: string | null;
+  /** Código DIVIPOLA del municipio del establecimiento ("05266"). */
+  daneCityCode: string | null;
   invoicePrefix: string | null;
+  /**
+   * Próximo consecutivo a emitir. OJO: sale SIEMPRE del Restaurant, aun
+   * cuando el emisor es un LegalEntity, porque el que lo incrementa
+   * atómicamente al emitir es `simpleInvoice.ts` sobre el Restaurant.
+   * Leerlo del LegalEntity mostraría un número que nadie consume.
+   */
+  invoiceNextNumber: number;
 };
 
 /** Fecha → "YYYY-MM-DD" (la DIAN no acepta timestamps en la vigencia). */
@@ -51,10 +68,13 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
       dianResolution: true,
       dianResolutionFrom: true,
       dianResolutionTo: true,
+      dianResolutionDate: true,
       dianResolutionNumber: true,
       dianResolutionValidFrom: true,
       dianResolutionValidTo: true,
+      daneCityCode: true,
       invoicePrefix: true,
+      invoiceNextNumber: true,
       legalEntity: {
         select: {
           id: true,
@@ -65,9 +85,11 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
           dianResolution: true,
           dianResolutionFrom: true,
           dianResolutionTo: true,
+          dianResolutionDate: true,
           dianResolutionNumber: true,
           dianResolutionValidFrom: true,
           dianResolutionValidTo: true,
+          daneCityCode: true,
           invoicePrefix: true,
         },
       },
@@ -88,7 +110,11 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
       resolutionNumber: le.dianResolutionNumber,
       resolutionValidFrom: isoDay(le.dianResolutionValidFrom),
       resolutionValidTo: isoDay(le.dianResolutionValidTo),
+      resolutionDate: isoDay(le.dianResolutionDate),
+      daneCityCode: le.daneCityCode,
       invoicePrefix: le.invoicePrefix,
+      // Del restaurante a propósito — ver el comentario del campo.
+      invoiceNextNumber: r.invoiceNextNumber,
     };
   }
   return {
@@ -103,7 +129,10 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
     resolutionNumber: r.dianResolutionNumber,
     resolutionValidFrom: isoDay(r.dianResolutionValidFrom),
     resolutionValidTo: isoDay(r.dianResolutionValidTo),
+    resolutionDate: isoDay(r.dianResolutionDate),
+    daneCityCode: r.daneCityCode,
     invoicePrefix: r.invoicePrefix,
+    invoiceNextNumber: r.invoiceNextNumber,
   };
 }
 
@@ -112,27 +141,59 @@ export type EmisorView = {
   kind: "legalEntity" | "restaurant";
   legalName: string | null;
   taxId: string | null;
+  cityName: string | null;
   resolution: string | null;
   resolutionNumber: string | null;
   resolutionFrom: number | null;
   resolutionTo: number | null;
   resolutionValidFrom: string | null;
   resolutionValidTo: string | null;
+  resolutionDate: string | null;
+  daneCityCode: string | null;
   invoicePrefix: string | null;
+  invoiceNextNumber: number;
+  /**
+   * El texto legacy dice un número DISTINTO al que se manda a la DIAN.
+   * Es exactamente el caso que motivó unificar las pantallas: el operador
+   * cargó 18764094877213 en Identidad y el XML llevaba 18760000001, y
+   * desde la UI no había forma de notarlo. Se expone para que la pantalla
+   * muestre AMBOS y el operador elija — nunca se decide por él.
+   */
+  legacyResolutionConflict: string | null;
 };
+
+/**
+ * Texto legacy que contradice al número real. Devuelve null cuando no hay
+ * texto, cuando no hay número todavía (ahí el texto es candidato, no
+ * conflicto) o cuando el texto contiene al número (p.ej. "Resolución
+ * 18760000001 del 1 de enero"), que es el caso sano.
+ */
+export function legacyResolutionConflict(
+  emisor: Pick<EmisorData, "resolution" | "resolutionNumber">,
+): string | null {
+  const legacy = emisor.resolution?.trim();
+  const real = emisor.resolutionNumber?.trim();
+  if (!legacy || !real) return null;
+  return legacy.includes(real) ? null : legacy;
+}
 
 export function emisorView(emisor: EmisorData): EmisorView {
   return {
     kind: emisor.ref.kind,
     legalName: emisor.legalName,
     taxId: emisor.taxId,
+    cityName: emisor.cityName,
     resolution: emisor.resolution,
     resolutionNumber: emisor.resolutionNumber,
     resolutionFrom: emisor.resolutionFrom,
     resolutionTo: emisor.resolutionTo,
     resolutionValidFrom: emisor.resolutionValidFrom,
     resolutionValidTo: emisor.resolutionValidTo,
+    resolutionDate: emisor.resolutionDate,
+    daneCityCode: emisor.daneCityCode,
     invoicePrefix: emisor.invoicePrefix,
+    invoiceNextNumber: emisor.invoiceNextNumber,
+    legacyResolutionConflict: legacyResolutionConflict(emisor),
   };
 }
 
@@ -181,6 +242,31 @@ export function emisorResolution(emisor: EmisorData): DianResolution | null {
   };
 }
 
+/**
+ * Datos de UBICACIÓN que faltan para poder enviar. Mismo criterio que la
+ * resolución: preferimos bloquear a mandar un dato inventado.
+ *
+ * El emisor mandaba Bogotá (11001/11) fijo para todos los comercios. La
+ * DIAN resuelve el punto de facturación por la ubicación declarada del
+ * establecimiento, así que un código que no es el del comercio alimenta
+ * los rechazos FAB10a y FAJ50. No hay default honesto posible: si el
+ * comercio no cargó su código DIVIPOLA, no se envía.
+ */
+export const LOCATION_FIELDS = ["daneCityCode", "cityName"] as const;
+
+export type LocationField = (typeof LOCATION_FIELDS)[number];
+
+export function missingLocationFields(emisor: EmisorData): LocationField[] {
+  // Código ausente o con forma/departamento inválidos.
+  if (!isValidDaneCode(emisor.daneCityCode)) return ["daneCityCode"];
+  // Código válido pero fuera de la lista acotada y sin ciudad cargada:
+  // el XML igual necesita un CityName y no lo vamos a inventar.
+  if (!resolveDaneLocation(emisor.daneCityCode, emisor.cityName)) {
+    return ["cityName"];
+  }
+  return [];
+}
+
 async function findConfig(ref: EmisorRef) {
   return db.dianConfig.findUnique({
     where:
@@ -208,6 +294,10 @@ export type DianConfigStatus = {
   missingEmisor: string[];
   /** Datos de la resolución de numeración que faltan (bloquean el envío). */
   missingResolution: ResolutionField[];
+  /** Ubicación DANE del establecimiento que falta (bloquea el envío). */
+  missingLocation: LocationField[];
+  /** ¿El módulo de facturación electrónica está activo para el comercio? */
+  einvoicingEnabled: boolean;
 };
 
 /** Último documento enviado a la DIAN — para mostrar el resultado real. */
@@ -279,14 +369,23 @@ export async function dianConfigStatus(
   restaurantId: string,
 ): Promise<{ emisor: EmisorData | null; status: DianConfigStatus }> {
   const emisor = await resolveEmisor(restaurantId);
+  // `missingEmisor` es lo que se carga en IDENTIDAD (razón social, NIT,
+  // dirección). La resolución y el prefijo ya NO viven ahí: se avisan
+  // aparte con missingResolution, que es lo que de verdad bloquea.
   const missingEmisor: string[] = [];
   if (emisor) {
     if (!emisor.legalName) missingEmisor.push("legalName");
     if (!emisor.taxId) missingEmisor.push("taxId");
-    if (!emisor.resolution) missingEmisor.push("resolution");
-    if (!emisor.invoicePrefix) missingEmisor.push("invoicePrefix");
+    if (!emisor.addressLine) missingEmisor.push("addressLine");
   }
   const config = emisor ? await findConfig(emisor.ref) : null;
+  // El módulo vive en el RESTAURANTE (no en el emisor): la resolución de
+  // numeración se configura con o sin facturación electrónica, pero el
+  // certificado y la habilitación sólo aplican con el módulo activo.
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { enabledModules: true },
+  });
   const now = Date.now();
   const status: DianConfigStatus = {
     exists: !!config,
@@ -305,6 +404,8 @@ export async function dianConfigStatus(
     testSetId: config?.testSetId ?? null,
     missingEmisor,
     missingResolution: emisor ? missingResolutionFields(emisor) : [],
+    missingLocation: emisor ? missingLocationFields(emisor) : [],
+    einvoicingEnabled: isModuleEnabled(tenant?.enabledModules, "einvoicing"),
   };
   return { emisor, status };
 }
@@ -381,12 +482,20 @@ export async function loadDianConfig(
  * guión ya separa el DV; si no, se calcula por módulo 11 (computeNitDv,
  * el mismo del formato 1001 de exógena). Sin DV la DIAN rechaza el
  * documento (FAJ24, FAJ24a, FAJ47 y, en el SoftwareProvider, FAB22a/b).
+ *
+ * La ubicación sale del código DIVIPOLA que cargó el comercio. Antes iba
+ * Bogotá (11001/11) hardcodeado y el departamento repetía el nombre de la
+ * ciudad, así que toda factura declaraba un establecimiento en Bogotá
+ * aunque estuviera en Envigado — candidato directo a FAB10a/FAJ50. Si el
+ * código no está cargado se devuelve `address: null`; los callers ya
+ * bloquean antes con `missingLocationFields`.
  */
 export function emisorToSupplierParty(emisor: EmisorData): DianParty {
   const raw = (emisor.taxId ?? "").trim();
   // Con guión, lo de la derecha es el DV escrito por el comercio; se
   // ignora y se recalcula, que es lo que la DIAN valida.
   const nit = (raw.includes("-") ? raw.split("-")[0] : raw).replace(/\D/g, "");
+  const loc = resolveDaneLocation(emisor.daneCityCode, emisor.cityName);
   return {
     name: emisor.legalName ?? "",
     companyId: nit,
@@ -395,12 +504,12 @@ export function emisorToSupplierParty(emisor: EmisorData): DianParty {
     taxLevelCode: "O-13",
     taxRegimeCode: "49",
     personType: "1",
-    address: emisor.cityName
+    address: loc
       ? {
-          cityCode: "11001",
-          cityName: emisor.cityName,
-          deptCode: "11",
-          deptName: emisor.cityName,
+          cityCode: loc.cityCode,
+          cityName: loc.cityName,
+          deptCode: loc.deptCode,
+          deptName: loc.deptName,
           line: emisor.addressLine ?? "",
         }
       : null,

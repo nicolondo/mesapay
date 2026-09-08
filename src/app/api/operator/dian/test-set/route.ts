@@ -6,6 +6,7 @@ import {
   emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingLocationFields,
   missingResolutionFields,
   resolveEmisor,
 } from "@/lib/dian/config";
@@ -61,6 +62,16 @@ export async function POST() {
   if (!resolution) {
     return NextResponse.json(
       { error: "resolution_incomplete", missingResolution },
+      { status: 400 },
+    );
+  }
+  // Misma lógica para la ubicación: sin el código DANE real del
+  // establecimiento no se envía. Antes se mandaba Bogotá por defecto y la
+  // DIAN resolvía mal el punto de facturación (FAB10a / FAJ50).
+  const missingLocation = missingLocationFields(emisor);
+  if (missingLocation.length > 0) {
+    return NextResponse.json(
+      { error: "location_incomplete", missingLocation },
       { status: 400 },
     );
   }

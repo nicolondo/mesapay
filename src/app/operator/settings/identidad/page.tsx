@@ -28,12 +28,6 @@ export default async function IdentidadPage() {
       legalCityCode: true,
       legalPhone: true,
       country: true,
-      dianResolution: true,
-      dianResolutionFrom: true,
-      dianResolutionTo: true,
-      dianResolutionDate: true,
-      invoicePrefix: true,
-      invoiceNextNumber: true,
       groupId: true,
       legalEntityId: true,
     },
@@ -103,14 +97,6 @@ export default async function IdentidadPage() {
           legalCity: tenant.legalCity,
           legalCityCode: tenant.legalCityCode,
           legalPhone: tenant.legalPhone,
-          dianResolution: tenant.dianResolution,
-          dianResolutionFrom: tenant.dianResolutionFrom,
-          dianResolutionTo: tenant.dianResolutionTo,
-          dianResolutionDate: tenant.dianResolutionDate
-            ? tenant.dianResolutionDate.toISOString().slice(0, 10)
-            : null,
-          invoicePrefix: tenant.invoicePrefix,
-          invoiceNextNumber: tenant.invoiceNextNumber,
         }}
       />
     </div>

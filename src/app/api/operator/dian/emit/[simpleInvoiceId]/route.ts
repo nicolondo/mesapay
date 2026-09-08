@@ -6,6 +6,7 @@ import {
   emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingLocationFields,
   missingResolutionFields,
   resolveEmisor,
 } from "@/lib/dian/config";
@@ -104,6 +105,20 @@ export async function POST(
         error: "resolution_incomplete",
         missingResolution: missingResolutionFields(emisor),
       },
+      { status: 400 },
+    );
+  }
+  // Ubicación DANE del establecimiento: mismo criterio que la resolución.
+  // Mandar Bogotá fijo hacía que la DIAN resolviera mal el punto de
+  // facturación (FAB10a / FAJ50) y quemaba el consecutivo en el rechazo.
+  const missingLocation = missingLocationFields(emisor);
+  if (missingLocation.length > 0) {
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: { state: "error", errors: ["location_incomplete"] },
+    });
+    return NextResponse.json(
+      { error: "location_incomplete", missingLocation },
       { status: 400 },
     );
   }

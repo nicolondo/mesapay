@@ -98,6 +98,7 @@ export async function issueSimpleInvoice(opts: {
       legalCity: true,
       legalPhone: true,
       dianResolution: true,
+      dianResolutionNumber: true,
       dianResolutionFrom: true,
       dianResolutionTo: true,
       dianResolutionDate: true,
@@ -127,7 +128,12 @@ export async function issueSimpleInvoice(opts: {
     legalAddress: r.legalAddress,
     legalCity: r.legalCity,
     legalPhone: r.legalPhone,
-    dianResolution: r.dianResolution,
+    // El comprobante imprime el MISMO número que se le manda a la DIAN.
+    // Antes imprimía `dianResolution` (texto libre de Identidad) mientras
+    // el XML llevaba `dianResolutionNumber`: podían ser dos números
+    // distintos y nadie tenía cómo notarlo. El texto legacy queda de
+    // fallback para los comercios que nunca cargaron el número.
+    dianResolution: r.dianResolutionNumber ?? r.dianResolution,
     dianResolutionFrom: r.dianResolutionFrom,
     dianResolutionTo: r.dianResolutionTo,
     dianResolutionDate: r.dianResolutionDate?.toISOString() ?? null,

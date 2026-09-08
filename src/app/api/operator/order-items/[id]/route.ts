@@ -149,7 +149,8 @@ export async function PATCH(
         }
       }
       // 86 del plato: marcar el menuItem como no disponible en la carta.
-      if (parsed.data.cancel.markUnavailable) {
+      // Una línea libre no está en la carta, así que no hay qué agotar.
+      if (parsed.data.cancel.markUnavailable && item.menuItemId) {
         await tx.menuItem.update({
           where: { id: item.menuItemId },
           data: { available: false },

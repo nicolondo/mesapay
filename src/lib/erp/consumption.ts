@@ -165,7 +165,13 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         round: { select: { status: true } },
       },
     });
-    const menuItemIds = [...new Set(items.map((i) => i.menuItemId))];
+    // Las líneas libres (servicios, bonos) no salen de la carta y no tienen
+    // receta: no descuentan inventario. Se excluyen antes de explotar el
+    // consumo para no buscarles una receta que no existe.
+    const menuLines = items.filter(
+      (i): i is typeof i & { menuItemId: string } => i.menuItemId !== null,
+    );
+    const menuItemIds = [...new Set(menuLines.map((i) => i.menuItemId))];
     const recipes = await db.recipe.findMany({
       where: {
         restaurantId: order.restaurantId,
@@ -196,7 +202,7 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         ]),
     );
     totals = explodeOrderConsumption(
-      items.map((i) => ({
+      menuLines.map((i) => ({
         menuItemId: i.menuItemId,
         qty: i.qty,
         cancelledAt: i.cancelledAt,

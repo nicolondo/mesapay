@@ -126,14 +126,17 @@ export default async function ReportsPage({
     { name: string; qty: number; revenue: number }
   >();
   for (const i of paidItems) {
-    const e = dishAgg.get(i.menuItemId) ?? {
+    // Las líneas libres no tienen plato: se agrupan por nombre para que un
+    // servicio facturado igual aparezca en el ranking de ventas.
+    const key = i.menuItemId ?? `free:${i.nameSnapshot}`;
+    const e = dishAgg.get(key) ?? {
       name: i.nameSnapshot,
       qty: 0,
       revenue: 0,
     };
     e.qty += i.qty;
     e.revenue += i.qty * i.priceCentsSnapshot;
-    dishAgg.set(i.menuItemId, e);
+    dishAgg.set(key, e);
   }
   const topDishes = Array.from(dishAgg.values())
     .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)

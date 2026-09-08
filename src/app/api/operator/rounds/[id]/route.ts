@@ -115,8 +115,13 @@ export async function PATCH(
       // dish stops showing in the customer menu. Triggered when the cook
       // explicitly says "no está disponible" — see CANCEL_PRESETS.
       if (parsed.data.markUnavailable && items.length > 0) {
+        // Las líneas libres no apuntan a ningún plato: se descartan.
         const menuItemIds = Array.from(
-          new Set(items.map((i) => i.menuItemId)),
+          new Set(
+            items
+              .map((i) => i.menuItemId)
+              .filter((id): id is string => id !== null),
+          ),
         );
         await tx.menuItem.updateMany({
           where: {

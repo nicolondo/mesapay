@@ -246,7 +246,10 @@ export async function POST(req: Request) {
     select: { menuItemId: true },
     distinct: ["menuItemId"],
   });
-  const archivedIds = used.map((u) => u.menuItemId);
+  // Las líneas libres no apuntan a ningún plato: se descartan.
+  const archivedIds = used
+    .map((u) => u.menuItemId)
+    .filter((id): id is string => id !== null);
   const archivedSet = new Set(archivedIds);
   const deletableIds = ownedIds.filter((id) => !archivedSet.has(id));
   await db.$transaction([

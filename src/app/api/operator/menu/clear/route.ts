@@ -33,7 +33,10 @@ export async function POST() {
       select: { menuItemId: true },
       distinct: ["menuItemId"],
     });
-    const usedIds = usedRows.map((r) => r.menuItemId);
+    // Las líneas libres no apuntan a ningún plato: se descartan.
+    const usedIds = usedRows
+      .map((r) => r.menuItemId)
+      .filter((id): id is string => id !== null);
 
     if (usedIds.length) {
       await tx.menuItem.updateMany({

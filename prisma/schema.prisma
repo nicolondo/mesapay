@@ -1154,17 +1154,26 @@ model Round {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   roundId    String?
-  round      Round?   @relation(fields: [roundId], references: [id])
-  menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  round      Round?    @relation(fields: [roundId], references: [id])
+  /// null = línea LIBRE (servicio, bono, cargo suelto): no sale del menú.
+  /// El nombre y el precio ya viajaban en los snapshots de abajo, así que
+  /// una línea libre no necesita nada más para facturarse.
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id])
 
   qty                  Int          @default(1)
   nameSnapshot         String
   priceCentsSnapshot   Int
+  /// Impuesto de la línea. null en los platos del menú: esos usan el del
+  /// comercio (salesTaxKind/salesTaxPct) y va EMBEBIDO en el precio.
+  /// En las líneas libres es explícito y se SUMA ENCIMA del precio, que es
+  /// como se cotiza un servicio ("$2.400.000 + IVA").
+  taxKind              String? // inc | iva | none
+  taxPct               Int?
   modifierSelections   Json?
   notes                String?
   guestName            String?

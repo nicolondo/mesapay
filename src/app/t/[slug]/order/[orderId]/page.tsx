@@ -81,7 +81,8 @@ export default async function OrderView({
     placedAt: r.placedAt,
     kitchenStartedAt: r.kitchenStartedAt,
     readyAt: r.readyAt,
-    itemPrepMinutes: r.items.map((i) => i.menuItem.prepMinutes),
+    // Línea libre: no pasa por cocina, no aporta al tiempo de la ronda.
+    itemPrepMinutes: r.items.map((i) => i.menuItem?.prepMinutes ?? 0),
   }));
   const etas = computeRoundEtas(etaInputs);
   const t = await getTranslations("order");

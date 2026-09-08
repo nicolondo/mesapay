@@ -43,6 +43,7 @@ export type AuditKind =
   | "order.cancel"
   | "order_item.cancel"
   | "order_item.comp"
+  | "order_item.move"
   // Grupos
   | "restaurant.create"
   | "restaurant.group.update"
@@ -91,6 +92,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order.cancel": "Canceló orden",
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",
+  "order_item.move": "Movió plato de mesa",
   "restaurant.create": "Creó restaurante",
   "restaurant.group.update": "Cambió grupo del comercio",
   "restaurant.country.update": "Cambió país del comercio",

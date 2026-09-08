@@ -259,15 +259,21 @@ export function TableDetailSheet({
     startTx(() => router.refresh());
   }
 
-  // Mapa de códigos de error del endpoint de mover-plato a copy i18n.
+  // Mapa de códigos de error del endpoint de mover-plato a copy i18n. El
+  // endpoint devuelve SOLO códigos (nunca texto): la copy vive acá para que
+  // el mesero la lea en su idioma.
   function moveItemErrorMessage(code: string | undefined): string {
     switch (code) {
-      case "item_served":
-        return tr("moveItemServed");
       case "item_cancelled":
         return tr("moveItemCancelled");
       case "order_closed":
         return tr("moveItemOrderClosed");
+      case "order_paying":
+        return tr("moveItemOrderPaying");
+      case "target_order_closed":
+        return tr("moveItemTargetClosed");
+      case "target_order_paying":
+        return tr("moveItemTargetPaying");
       case "same_table":
         return tr("moveItemSameTable");
       case "target_out_of_scope":
@@ -286,7 +292,7 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      setMoveItemErr(j.message ?? moveItemErrorMessage(j.error));
+      setMoveItemErr(moveItemErrorMessage(j.error));
       return;
     }
     // El plato se fue a otra mesa; cerramos picker + sheet y forzamos
@@ -635,11 +641,16 @@ export function TableDetailSheet({
                           </div>
                           <div className="flex items-center gap-1.5">
                             {/* Mover — reasigna ESTE plato a otra
-                                mesa (el mesero lo cargó en la mesa
-                                equivocada). Solo si no está servido y
-                                hay otras mesas a donde mover. El plato
-                                puede unirse a una mesa ocupada. */}
-                            {!it.servedAt && allTables.length > 0 && (
+                                mesa. Dos casos reales: el mesero lo
+                                cargó en la mesa equivocada, o el
+                                comensal se cambió de mesa a mitad de
+                                la comida. El segundo caso ocurre con
+                                el plato YA ENTREGADO, así que el botón
+                                también se muestra para los servidos —
+                                el plato conserva su estado y no vuelve
+                                a entrar a cocina. El plato puede
+                                unirse a una mesa ocupada. */}
+                            {allTables.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => {

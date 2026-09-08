@@ -89,9 +89,10 @@ export function OperatorCockpit({
 
   return (
     <div className="op-app-shell md:grid md:grid-cols-[264px_1fr] bg-op-bg text-op-text overflow-hidden">
-      {/* Riel desktop */}
+      {/* Riel desktop. print:hidden — el chrome del panel no va al papel
+          (páginas como los QRs de mesa se imprimen desde acá). */}
       <aside
-        className="hidden md:flex sticky top-0 h-[100dvh]"
+        className="hidden md:flex print:hidden sticky top-0 h-[100dvh]"
         style={RAIL_VARS}
       >
         {rail}
@@ -100,7 +101,7 @@ export function OperatorCockpit({
       {/* Columna de contenido */}
       <div className="flex min-w-0 flex-col h-[100dvh] overflow-hidden">
         {/* Topbar móvil (hamburguesa) */}
-        <div className="md:hidden shrink-0 flex items-center gap-3 px-4 h-14 border-b border-op-border bg-op-surface">
+        <div className="md:hidden print:hidden shrink-0 flex items-center gap-3 px-4 h-14 border-b border-op-border bg-op-surface">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -439,7 +440,7 @@ function CockpitTopbar() {
   };
 
   return (
-    <div className="shrink-0 flex h-14 items-center gap-2 border-b border-op-border bg-op-surface px-3 md:px-5">
+    <div className="shrink-0 print:hidden flex h-14 items-center gap-2 border-b border-op-border bg-op-surface px-3 md:px-5">
       <form onSubmit={submit} className="relative min-w-0 max-w-md flex-1">
         <svg
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-op-muted"

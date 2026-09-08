@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getViewer } from "@/lib/customerSession";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import {
@@ -46,7 +46,10 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const session = await auth();
+  // getViewer resuelve la sesión permanente del comensal (fila en DB) y
+  // cae al JWT de NextAuth. Así una cuenta creada con el flujo nuevo queda
+  // enlazada al pedido igual que antes.
+  const session = await getViewer();
 
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
@@ -96,7 +99,7 @@ export async function POST(
         data: {
           restaurantId: tenant.id,
           tableId: table.id,
-          customerId: session?.user?.id,
+          customerId: session?.id,
           status: "open",
           shortCode: shortCode(),
           servingMode,

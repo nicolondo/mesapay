@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { getViewer } from "@/lib/customerSession";
 
 const schema = z.object({
   name: z.string().trim().min(1).max(80).nullable().optional(),
@@ -17,17 +17,19 @@ const schema = z.object({
 });
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
+  // getViewer acepta las dos identidades: la sesión revocable del comensal
+  // y el JWT de NextAuth (staff, o comensal con sesión previa al cambio).
+  const viewer = await getViewer();
+  if (!viewer) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+    return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   await db.user.update({
-    where: { id: session.user.id },
+    where: { id: viewer.id },
     data: {
       name: parsed.data.name ?? null,
       phone: parsed.data.phone ?? null,

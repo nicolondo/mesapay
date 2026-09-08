@@ -20,6 +20,11 @@ import i18next from "eslint-plugin-i18next";
 const MIGRATED = [
   "src/i18n/**/*.{ts,tsx}",
   "src/components/LocaleSwitcher.tsx",
+  // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
+  "src/app/signin/page.tsx",
+  "src/app/signup/page.tsx",
+  "src/app/cuenta/**/*.{ts,tsx}",
+  "src/app/me/**/*.{ts,tsx}",
   "src/app/nicolas/**/*.{ts,tsx}",
   // OJO: los corchetes de las rutas dinámicas de Next ([slug]) son clases
   // de caracteres en glob — hay que escaparlos (\\[ \\]) o la regla no

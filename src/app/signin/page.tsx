@@ -3,8 +3,18 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { signIn, getSession } from "next-auth/react";
 
+/**
+ * Login del STAFF (operator / mesero / cocina / bar / terminal / admin).
+ *
+ * Sigue siendo NextAuth con sesión JWT — intacto. El comensal ya no entra
+ * por acá: tiene /cuenta/entrar, con cédula-o-correo y sesión permanente
+ * revocable. Las dos estrategias conviven a propósito (ver
+ * lib/customerSession.ts): una sesión que no vence tiene sentido en el
+ * celular de una persona, no en la caja compartida de un restaurante.
+ */
 export default function SignInPage() {
   return (
     <Suspense fallback={null}>
@@ -14,6 +24,7 @@ export default function SignInPage() {
 }
 
 function SignIn() {
+  const t = useTranslations("signin");
   const router = useRouter();
   const search = useSearchParams();
   const callbackUrl = search.get("callbackUrl") ?? "/";
@@ -33,7 +44,7 @@ function SignIn() {
     });
     setBusy(false);
     if (res?.error) {
-      setErr("Email o contraseña incorrectos.");
+      setErr(t("error"));
       return;
     }
     // Decide where to land based on role. Honour an explicit ?callbackUrl=
@@ -64,16 +75,20 @@ function SignIn() {
         className="w-full max-w-sm bg-paper rounded-2xl p-7 border border-hairline"
       >
         <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-2">
-          MESAPAY
+          {"MESAPAY"}
         </div>
         <h1 className="font-display text-3xl tracking-[-0.015em] mb-6">
-          Bienvenido de vuelta
+          {t("title")}
         </h1>
 
-        <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-          Correo
+        <label
+          htmlFor="email"
+          className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1"
+        >
+          {t("fieldEmail")}
         </label>
         <input
+          id="email"
           type="email"
           required
           autoComplete="email"
@@ -82,10 +97,14 @@ function SignIn() {
           className="w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-ink mb-4 focus:outline-none focus:border-terracotta"
         />
 
-        <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-          Contraseña
+        <label
+          htmlFor="password"
+          className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1"
+        >
+          {t("fieldPassword")}
         </label>
         <input
+          id="password"
           type="password"
           required
           autoComplete="current-password"
@@ -101,20 +120,20 @@ function SignIn() {
           disabled={busy}
           className="w-full h-11 rounded-lg bg-ink text-bone font-medium disabled:opacity-60"
         >
-          {busy ? "Ingresando…" : "Ingresar"}
+          {busy ? t("submitting") : t("submit")}
         </button>
 
         <div className="mt-5 text-sm text-muted text-center space-y-1">
           <div>
-            ¿Eres cliente?{" "}
-            <Link href="/signup" className="text-terracotta underline">
-              Crea tu cuenta
+            {t("customerQuestion")}{" "}
+            <Link href="/cuenta/entrar" className="text-terracotta underline">
+              {t("customerLink")}
             </Link>
           </div>
           <div>
-            ¿Eres restaurante?{" "}
+            {t("restaurantQuestion")}{" "}
             <Link href="/signup/restaurant" className="text-terracotta underline">
-              Registra tu restaurante
+              {t("restaurantLink")}
             </Link>
           </div>
         </div>

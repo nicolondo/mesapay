@@ -119,6 +119,18 @@ export default async function PrintTablesPage({
             print-color-adjust: exact !important;
           }
           .no-print { display: none !important; }
+          /* La unidad que NO se puede partir es la FILA, no la tarjeta:
+             las cards son flex items y los navegadores aplican
+             break-inside sobre flex items de forma inconsistente, así
+             que el salto de página caía a media altura de la última
+             fila y los QR salían cortados por la mitad. Marcando la
+             fila (un bloque flex normal) el salto se corre entero a la
+             página siguiente. Se conserva el de .qr-card como refuerzo
+             para los motores que sí lo respetan. */
+          .qr-row {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
           .qr-card { break-inside: avoid; }
           .print-sheet {
             padding: 0 !important;

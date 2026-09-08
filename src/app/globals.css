@@ -335,13 +335,22 @@ input[type="time"] {
   }
 }
 @media print {
-  .op-app-shell {
+  /* Deshacer la altura fija y el overflow del shell para imprimir TODO.
+     Esto se escribió para el shell clásico, donde <main> es hijo DIRECTO
+     de .op-app-shell. En el cockpit (hoy el shell por defecto) <main> es
+     NIETO: cuelga de la columna de contenido, que además arrastra su
+     propio h-[100dvh] + overflow-hidden. Con el selector viejo esa
+     columna y ese <main> seguían siendo scroll containers al imprimir, y
+     un scroll container es MONOLÍTICO en medios paginados: el navegador
+     no fragmenta su interior — ignora los break-inside de adentro y
+     rebana el contenido a la altura de página, que es por qué la última
+     fila de QRs salía cortada al medio. Por eso el reset ahora alcanza
+     también a los hijos directos y a cualquier <main> del shell. */
+  .op-app-shell,
+  .op-app-shell > *,
+  .op-app-shell main {
     height: auto;
     overflow: visible;
-  }
-  .op-app-shell > main {
-    overflow: visible;
-    height: auto;
   }
 }
 

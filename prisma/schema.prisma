@@ -347,6 +347,7 @@ model Restaurant {
   menuItems              MenuItem[]
   orders                 Order[]
   customerDiscounts      CustomerDiscount[]
+  customerLinks          RestaurantCustomer[]
   dishRatings            DishRating[]
   membershipPayments     MembershipPayment[]
   billingSubscription    BillingSubscription?
@@ -791,6 +792,10 @@ model User {
   customerSessions     CustomerSession[]
   magicLinkTokens      MagicLinkToken[]
   customerDiscounts    CustomerDiscount[]
+  /// Restaurantes a cuya lista de clientes pertenece este comensal. OJO:
+  /// no confundir con `restaurantId` de arriba, que es la pertenencia del
+  /// STAFF a su local. Un comensal puede estar vinculado a varios.
+  restaurantLinks      RestaurantCustomer[]
 
   @@index([restaurantId])
   @@index([groupId])
@@ -861,6 +866,62 @@ model CustomerDiscount {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
+  @@index([userId])
+}
+
+/// Cómo nació el vínculo entre un comensal y un restaurante.
+///
+/// Solo hay dos formas de que exista una fila: el comensal creó su cuenta
+/// desde la carta de ese restaurante, o alguien del local lo buscó por
+/// cédula/correo y lo agregó a su lista. Las dos son actos deliberados. NO
+/// existe un "source" automático: atribuirle un restaurante a un comensal
+/// sin un hecho que lo respalde sería inventar el vínculo.
+enum CustomerLinkSource {
+  /// Se registró desde la carta / el flujo de pago de ese restaurante.
+  signup
+  /// El operador lo buscó y lo agregó a su lista de clientes.
+  added
+}
+
+/// Vínculo explícito de un comensal con UN restaurante.
+///
+/// ── Por qué hace falta esta tabla ─────────────────────────────────────
+/// La cuenta del comensal es GLOBAL: `User.email` es único en toda la
+/// plataforma y la misma persona come en varios restaurantes MESAPAY. Por
+/// eso la lista de "mis clientes" NO puede ser `role = customer` — eso le
+/// mostraría a cada restaurante la base de comensales de los demás (nombre,
+/// correo y cédula de gente que nunca pisó su local), que además de ser un
+/// negocio ajeno es dato personal (Ley 1581).
+///
+/// La lista se arma con los comensales que tienen una relación REAL con el
+/// restaurante, y hay tres orígenes:
+///   1. consumieron ahí  → `Order.customerId` + `Order.restaurantId`
+///   2. tienen descuento → `CustomerDiscount` (ya es por restaurante)
+///   3. esta tabla       → se registraron desde ahí, o los agregaron a mano
+///
+/// Los dos primeros ya existían en los datos. El tercero es el que faltaba:
+/// hasta hoy no guardábamos de qué restaurante venía un comensal recién
+/// registrado, así que alguien con 0 pedidos era invisible para el local
+/// donde de hecho se había registrado.
+///
+/// Borrar la fila NO borra la cuenta del comensal: es un vínculo, no la
+/// identidad. Por eso `onDelete: Cascade` desde Restaurant es correcto
+/// (muere el restaurante, muere el vínculo) y desde User también (muere la
+/// persona, muere el vínculo), pero la persona sobrevive a cualquier
+/// restaurante.
+model RestaurantCustomer {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  source CustomerLinkSource @default(added)
+
+  createdAt DateTime @default(now())
 
   @@unique([restaurantId, userId])
   @@index([restaurantId])

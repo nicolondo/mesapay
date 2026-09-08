@@ -5,6 +5,7 @@ import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { sendWelcomeEmail } from "@/lib/mailer";
 import { createCustomerSession } from "@/lib/customerSession";
+import { linkSignupRestaurant } from "@/lib/customerLink";
 import {
   normalizeCedula,
   isValidCedula,
@@ -33,6 +34,20 @@ const schema = z.object({
     .regex(/^[+\d][\d\s().-]*$/)
     .optional(),
   marketingOptIn: z.boolean().optional(),
+  /**
+   * Restaurante desde el cual se está registrando: viene del `?r=<slug>`
+   * que arrastran la carta y el login del comensal. Es lo que hace que
+   * quien crea su cuenta escaneando el QR de un local aparezca en la lista
+   * de clientes de ESE local aunque todavía no haya pedido nada.
+   *
+   * Opcional a propósito: quien se registra desde la home de MESAPAY no
+   * llega por ningún restaurante y no se le inventa uno — queda sin
+   * vínculo. Y como este endpoint es público, el slug es solo una
+   * afirmación del cliente: lo único que puede lograr alguien que lo
+   * falsee es meter SU PROPIA cuenta nueva en la lista de un restaurante.
+   * No lee ni expone nada de nadie más.
+   */
+  restaurantSlug: z.string().trim().min(1).max(80).optional(),
 });
 
 export async function POST(req: Request) {
@@ -84,6 +99,10 @@ export async function POST(req: Request) {
     // defensa real; acá solo lo traducimos a un 409 entendible.
     return NextResponse.json({ error: "email_taken" }, { status: 409 });
   }
+
+  // De dónde viene. Va después del create y no dentro: la cuenta es
+  // global y tiene que quedar creada aunque el vínculo falle.
+  await linkSignupRestaurant(user.id, parsed.data.restaurantSlug);
 
   // Sesión permanente PERO revocable (fila en DB, no JWT eterno): el
   // comensal no vuelve a ver un login, y nosotros podemos matarla.

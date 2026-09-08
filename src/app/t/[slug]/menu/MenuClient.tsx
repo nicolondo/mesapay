@@ -1571,6 +1571,7 @@ export function MenuClient({
         <GuestNameSheet
           initial={guestName}
           canCancel={!!guestName}
+          tenantSlug={tenant.slug}
           diner={diner}
           identified={identifiedName}
           onIdentify={identifyDiner}
@@ -2810,6 +2811,7 @@ function ItemSheet({
 function GuestNameSheet({
   initial,
   canCancel,
+  tenantSlug,
   diner,
   identified,
   onIdentify,
@@ -2818,6 +2820,11 @@ function GuestNameSheet({
 }: {
   initial: string;
   canCancel: boolean;
+  // Slug del restaurante desde el que se está mirando la carta. Viaja en
+  // el enlace de "ya tengo cuenta" para que, si termina creando una, el
+  // alta quede atribuida a ESTE local y la persona aparezca en su lista de
+  // clientes aunque todavía no haya pedido nada.
+  tenantSlug: string;
   // Comensal con sesión iniciada, si lo hay.
   diner: { name: string | null; email: string } | null;
   // Nombre ya identificado en esta cuenta (tras tocar "soy yo").
@@ -2919,7 +2926,7 @@ function GuestNameSheet({
             </button>
           ) : (
             <Link
-              href="/cuenta/entrar"
+              href={`/cuenta/entrar?r=${encodeURIComponent(tenantSlug)}`}
               className="block text-center text-sm text-terracotta underline"
             >
               {t("haveAccount")}

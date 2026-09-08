@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { resolveLoginIdentifier } from "@/lib/customerIdentity";
+import { getCustomerOrigins } from "@/lib/customerLink";
 
 /**
  * GET /api/operator/customers?q=<cédula o correo>
@@ -49,12 +50,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ customer: null });
   }
 
-  const discount = await db.customerDiscount.findUnique({
-    where: {
-      restaurantId_userId: { restaurantId: scope.restaurantId, userId: user.id },
-    },
-    select: { percent: true, active: true, note: true },
-  });
+  const [discount, origins] = await Promise.all([
+    db.customerDiscount.findUnique({
+      where: {
+        restaurantId_userId: {
+          restaurantId: scope.restaurantId,
+          userId: user.id,
+        },
+      },
+      select: { percent: true, active: true, note: true },
+    }),
+    // Para no ofrecer "agregar a mis clientes" a alguien que ya está en la
+    // lista. También sale del restaurante de la sesión.
+    getCustomerOrigins(scope.restaurantId, user.id),
+  ]);
 
   return NextResponse.json({
     customer: {
@@ -63,6 +72,8 @@ export async function GET(req: Request) {
       email: user.email,
       cedula: user.cedula,
       discount: discount?.active ? discount : null,
+      /** true si ya aparece en la lista de clientes de este restaurante. */
+      inList: origins.length > 0,
     },
   });
 }

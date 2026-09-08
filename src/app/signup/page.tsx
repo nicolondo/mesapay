@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -15,10 +15,28 @@ import { useTranslations } from "next-intl";
  * Ya no pasa por `signIn("credentials")` de NextAuth: el endpoint abre
  * directamente la sesión permanente y revocable del comensal (ver
  * lib/customerSession.ts). El staff sigue con NextAuth en /signin.
+ *
+ * `useSearchParams` obliga a envolver en Suspense (mismo patrón que
+ * /cuenta/entrar): sin el borde, Next no puede prerenderizar la página.
  */
 export default function SignUp() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpForm />
+    </Suspense>
+  );
+}
+
+function SignUpForm() {
   const t = useTranslations("customerAuth");
   const router = useRouter();
+  const search = useSearchParams();
+  // Restaurante desde el que llegó, si llegó por uno: la carta pone
+  // `?r=<slug>` y /cuenta/entrar lo arrastra hasta acá. Es lo que hace que
+  // quien crea su cuenta escaneando el QR de un local aparezca en la lista
+  // de clientes de ESE local con cero pedidos. Sin parámetro no se
+  // atribuye a ninguno.
+  const fromRestaurant = search.get("r");
   const [name, setName] = useState("");
   const [cedula, setCedula] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +78,7 @@ export default function SignUp() {
           phone: phone.trim() || undefined,
           password,
           marketingOptIn,
+          restaurantSlug: fromRestaurant ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -201,7 +220,14 @@ export default function SignUp() {
 
         <div className="mt-5 text-sm text-muted text-center">
           {t("haveAccount")}{" "}
-          <Link href="/cuenta/entrar" className="text-terracotta underline">
+          <Link
+            href={
+              fromRestaurant
+                ? `/cuenta/entrar?r=${encodeURIComponent(fromRestaurant)}`
+                : "/cuenta/entrar"
+            }
+            className="text-terracotta underline"
+          >
             {t("goLogin")}
           </Link>
         </div>

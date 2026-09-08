@@ -31,6 +31,14 @@ function CustomerLogin() {
   const router = useRouter();
   const search = useSearchParams();
   const callbackUrl = search.get("callbackUrl") ?? "/me";
+  // Restaurante desde el que llegó (la carta pone `?r=<slug>`). Acá no se
+  // usa para nada — quien ya tiene cuenta ya tiene su historial — pero se
+  // arrastra hasta el alta: si termina creando la cuenta, el vínculo con
+  // ESTE restaurante es lo que lo hace visible en su lista de clientes.
+  const fromRestaurant = search.get("r");
+  const signupHref = fromRestaurant
+    ? `/signup?r=${encodeURIComponent(fromRestaurant)}`
+    : "/signup";
 
   const [mode, setMode] = useState<Mode>("password");
   const [identifier, setIdentifier] = useState("");
@@ -214,7 +222,7 @@ function CustomerLogin() {
         <div className="mt-5 text-sm text-muted text-center">
           <div>
             {t("noAccount")}{" "}
-            <Link href="/signup" className="text-terracotta underline">
+            <Link href={signupHref} className="text-terracotta underline">
               {t("goSignup")}
             </Link>
           </div>

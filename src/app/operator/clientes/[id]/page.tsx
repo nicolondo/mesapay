@@ -6,9 +6,11 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { formatMoney, formatDate } from "@/lib/format";
 import { resolveRange, customerOrdersWhere } from "@/lib/monthRange";
+import { getCustomerOrigins } from "@/lib/customerLink";
 import type { Locale } from "@/i18n/config";
 import { DiscountCard } from "./DiscountCard";
 import { RangePicker } from "./RangePicker";
+import { RemoveFromListButton } from "./RemoveFromListButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +61,7 @@ export default async function ClienteDetallePage({
 
   const currency = await getCurrencyForCountry(restaurant?.country ?? "CO");
 
-  const [orders, discount] = await Promise.all([
+  const [orders, discount, origins] = await Promise.all([
     db.order.findMany({
       // El where lo arma `customerOrdersWhere`, que EXIGE el restaurantId
       // como parámetro — así el aislamiento entre restaurantes no depende
@@ -90,10 +92,32 @@ export default async function ClienteDetallePage({
       where: { restaurantId_userId: { restaurantId, userId: customerId } },
       select: { percent: true, active: true, note: true },
     }),
+    // Por qué esta persona está (o no) en la lista de clientes de ESTE
+    // restaurante. También se resuelve con el restaurantId de la sesión.
+    getCustomerOrigins(restaurantId, customerId),
   ]);
 
   const totalCents = orders.reduce((s, o) => s + o.totalCents, 0);
   const savedCents = orders.reduce((s, o) => s + o.discountCents, 0);
+
+  // Un texto, el más informativo de los orígenes que tenga.
+  const linkNote = origins.includes("orders")
+    ? t("linkWhyOrders")
+    : origins.includes("discount")
+      ? t("linkWhyDiscount")
+      : origins.includes("signup")
+        ? t("linkWhySignup")
+        : origins.includes("added")
+          ? t("linkWhyAdded")
+          : t("linkWhyNone");
+
+  // Quitar solo tiene efecto real cuando el vínculo explícito es el único
+  // motivo: con facturas o descuento de por medio la persona sigue en la
+  // lista pase lo que pase.
+  const canRemove =
+    (origins.includes("signup") || origins.includes("added")) &&
+    !origins.includes("orders") &&
+    !origins.includes("discount");
 
   return (
     <div className="p-6 max-w-4xl">
@@ -112,6 +136,14 @@ export default async function ClienteDetallePage({
       </div>
       <div className="font-mono text-[11px] text-muted mb-6">
         {t("cedula")}: {customer.cedula ?? t("cedulaEmpty")}
+      </div>
+
+      <div className="rounded-2xl border border-hairline bg-paper p-5 mb-4">
+        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
+          {t("linkTitle")}
+        </div>
+        <p className="text-sm text-muted">{linkNote}</p>
+        {canRemove && <RemoveFromListButton customerId={customer.id} />}
       </div>
 
       <DiscountCard

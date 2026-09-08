@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ const patchSchema = z.object({
   // cambiar la dimensión con datos históricos corrompería cantidades.
   measureKind: z.enum(["mass", "volume", "count"]).optional(),
   sku: z.string().trim().max(60).nullable().optional(),
+  // Crudo del lector; se normaliza abajo (ver POST /ingredients).
+  barcode: z.string().max(BARCODE_MAX_LENGTH).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   active: z.boolean().optional(),
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
@@ -71,6 +74,22 @@ export async function PATCH(
     if (dup) return NextResponse.json({ error: "name_taken" }, { status: 409 });
   }
 
+  // El código de barras es único por comercio (si no, el escaneo en el
+  // conteo sería ambiguo): se avisa con un error legible antes del índice.
+  const barcode =
+    b.barcode !== undefined ? normalizeBarcode(b.barcode) : undefined;
+  if (barcode != null && barcode !== ing.barcode) {
+    const dupCode = await db.ingredient.findUnique({
+      where: {
+        restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode },
+      },
+      select: { id: true },
+    });
+    if (dupCode) {
+      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+    }
+  }
+
   const updated = await db.ingredient.update({
     where: { id },
     data: {
@@ -78,6 +97,7 @@ export async function PATCH(
       ...(b.category !== undefined ? { category: b.category || null } : {}),
       ...(b.measureKind !== undefined ? { measureKind: b.measureKind } : {}),
       ...(b.sku !== undefined ? { sku: b.sku || null } : {}),
+      ...(barcode !== undefined ? { barcode } : {}),
       ...(b.notes !== undefined ? { notes: b.notes || null } : {}),
       ...(b.active !== undefined ? { active: b.active } : {}),
       ...(b.reorderPointBase !== undefined

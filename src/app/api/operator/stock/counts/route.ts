@@ -18,6 +18,8 @@ const ITEM_INCLUDE = {
       measureKind: true,
       category: true,
       active: true,
+      // El conteo salta al insumo escaneando su código (lector HID).
+      barcode: true,
     },
   },
 } as const;

@@ -1476,6 +1476,14 @@ model Ingredient {
   category         String?
   measureKind      MeasureKind
   sku              String?
+  // Código de barras del empaque (EAN/UPC/Code128). Opcional y único por
+  // comercio: si dos insumos compartieran código, el escaneo en el conteo
+  // sería ambiguo y no habría forma de saber a cuál saltar. El índice es
+  // sobre una columna nullable, así que Postgres admite N insumos sin
+  // código (NULL nunca colisiona con NULL) — imprescindible para no romper
+  // el catálogo ya existente. Limitación conocida: UN código por insumo,
+  // así que dos presentaciones del mismo producto necesitan dos insumos.
+  barcode          String?
   notes            String?
   active           Boolean     @default(true)
   // A4 — punto de reorden en unidad base (null = sin aviso) y cantidad
@@ -1496,6 +1504,7 @@ model Ingredient {
   productionBatches   ProductionBatch[]    @relation("BatchOutput")
 
   @@unique([restaurantId, name])
+  @@unique([restaurantId, barcode])
   @@index([restaurantId, active])
 }
 

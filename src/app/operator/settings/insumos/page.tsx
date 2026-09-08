@@ -50,6 +50,7 @@ export default async function InsumosSettingsPage() {
       category: true,
       measureKind: true,
       sku: true,
+      barcode: true,
       notes: true,
       active: true,
       // A4 — punto de reorden editable en el sheet.

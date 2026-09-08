@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,10 @@ const createSchema = z.object({
   category: z.string().trim().max(60).nullable().optional(),
   measureKind: z.enum(["mass", "volume", "count"]),
   sku: z.string().trim().max(60).nullable().optional(),
+  // Código de barras: llega crudo del lector (puede traer Enter/espacios)
+  // y se normaliza acá, nunca en el cliente — así el mismo empaque guarda
+  // el mismo string venga del formulario o de una importación futura.
+  barcode: z.string().max(BARCODE_MAX_LENGTH).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
 });
 
@@ -52,6 +57,21 @@ export async function POST(req: Request) {
   if (dup) {
     return NextResponse.json({ error: "name_taken" }, { status: 409 });
   }
+  // Mismo trato para el código de barras: error legible antes de que
+  // reviente el índice único (dos insumos con el mismo código harían
+  // ambiguo el escaneo en el conteo).
+  const barcode = normalizeBarcode(b.barcode);
+  if (barcode) {
+    const dupCode = await db.ingredient.findUnique({
+      where: {
+        restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode },
+      },
+      select: { id: true },
+    });
+    if (dupCode) {
+      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+    }
+  }
   const ingredient = await db.ingredient.create({
     data: {
       restaurantId: ctx.restaurantId,
@@ -59,6 +79,7 @@ export async function POST(req: Request) {
       category: b.category || null,
       measureKind: b.measureKind,
       sku: b.sku || null,
+      barcode,
       notes: b.notes || null,
     },
   });

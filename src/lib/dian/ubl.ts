@@ -176,7 +176,12 @@ export function softwareSecurityCode(
 
 const TAX_NAME: Record<string, string> = { "01": "IVA", "04": "INC" };
 
-function partyXml(kind: "supplier" | "customer", p: DianParty): string {
+function partyXml(
+  kind: "supplier" | "customer",
+  p: DianParty,
+  /** Prefijo de la resolución — sólo para el emisor (ver abajo). */
+  invoicePrefix?: string,
+): string {
   const tag =
     kind === "supplier" ? "AccountingSupplierParty" : "AccountingCustomerParty";
   const roleTag = kind === "supplier" ? "SupplierAssignedAccountID" : "";
@@ -228,6 +233,14 @@ function partyXml(kind: "supplier" | "customer", p: DianParty): string {
     `<cac:PartyLegalEntity>` +
     `<cbc:RegistrationName>${esc(p.name)}</cbc:RegistrationName>` +
     `<cbc:CompanyID${dvAttr} schemeName="${p.idSchemeName}" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">${esc(p.companyId)}</cbc:CompanyID>` +
+    // FAB10a (rechazo) y FAJ50: "el prefijo de numeración no es igual al
+    // código de la sucursal correspondiente a este punto de facturación".
+    // El código de sucursal se declara acá, en CorporateRegistrationScheme,
+    // y NO se estaba mandando: la DIAN comparaba el prefijo contra nada y la
+    // regla no podía cumplirse nunca. Sólo aplica al emisor.
+    (kind === "supplier" && invoicePrefix
+      ? `<cac:CorporateRegistrationScheme><cbc:ID>${esc(invoicePrefix)}</cbc:ID></cac:CorporateRegistrationScheme>`
+      : "") +
     `</cac:PartyLegalEntity>` +
     (p.email || p.phone
       ? `<cac:Contact>` +
@@ -406,7 +419,7 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     (i.note ? `<cbc:Note>${esc(i.note)}</cbc:Note>` : "") +
     `<cbc:DocumentCurrencyCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listID="ISO 4217 Alpha">COP</cbc:DocumentCurrencyCode>` +
     `<cbc:LineCountNumeric>${i.lines.length}</cbc:LineCountNumeric>` +
-    partyXml("supplier", i.supplier) +
+    partyXml("supplier", i.supplier, i.resolution.prefix) +
     partyXml("customer", i.customer) +
     `<cac:PaymentMeans><cbc:ID>1</cbc:ID><cbc:PaymentMeansCode>${esc(i.paymentMeansCode)}</cbc:PaymentMeansCode><cbc:PaymentDueDate>${i.issueDate}</cbc:PaymentDueDate><cbc:PaymentID>1</cbc:PaymentID></cac:PaymentMeans>` +
     taxGroups.join("") +

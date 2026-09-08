@@ -91,23 +91,49 @@ export async function POST(req: Request) {
     }
   }
   const session = await auth();
-  const expense = await db.expense.create({
-    data: {
-      restaurantId: ctx.restaurantId,
-      category: b.category,
-      description: b.description ?? null,
-      amountCents: b.amountCents,
-      date,
-      supplierId: b.supplierId ?? null,
-      costCenterId: b.costCenterId ?? null,
-      recurring: b.recurring,
-      recurringDay: b.recurring ? b.recurringDay : null,
-      createdById: session?.user?.id ?? null,
-    },
-    include: {
+  // Pago de contado: el abono se crea en la MISMA transacción que el gasto.
+  // Para el operador es un solo paso; contablemente quedan los dos asientos
+  // (gasto contra por-pagar, y por-pagar contra la cuenta elegida).
+  const payNow = !b.recurring ? (b.payFromAccountCode ?? null) : null;
+  const expense = await db.$transaction(async (tx) => {
+    const created = await tx.expense.create({
+      data: {
+        restaurantId: ctx.restaurantId,
+        category: b.category,
+        description: b.description ?? null,
+        amountCents: b.amountCents,
+        date,
+        supplierId: b.supplierId ?? null,
+        costCenterId: b.costCenterId ?? null,
+        accountCode: b.accountCode ?? null,
+        dueAt: b.dueAt ? new Date(b.dueAt) : null,
+        recurring: b.recurring,
+        recurringDay: b.recurring ? b.recurringDay : null,
+        paidCents: payNow ? b.amountCents : 0,
+        paidAt: payNow ? date : null,
+        createdById: session?.user?.id ?? null,
+      },
+    });
+    if (payNow) {
+      await tx.expensePayment.create({
+        data: {
+          restaurantId: ctx.restaurantId,
+          expenseId: created.id,
+          amountCents: b.amountCents,
+          paidAt: date,
+          accountCode: payNow,
+          createdById: session?.user?.id ?? null,
+        },
+      });
+    }
+    return tx.expense.findUnique({
+      where: { id: created.id },
+      include: {
         supplier: { select: { id: true, name: true } },
         costCenter: { select: { id: true, name: true } },
+        payments: { orderBy: { paidAt: "desc" } },
       },
+    });
   });
   return NextResponse.json({ expense }, { status: 201 });
 }

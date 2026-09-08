@@ -17,6 +17,13 @@ import { ImpuestosTab } from "./ImpuestosTab";
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
 // categorías para el datalist) y de GET /api/operator/suppliers (picker).
 
+type ChartAccountRef = {
+  code: string;
+  name: string;
+  type: string;
+  postable: boolean;
+};
+
 type SupplierRef = { id: string; name: string };
 
 type ExpenseDto = {
@@ -29,6 +36,10 @@ type ExpenseDto = {
   supplierId: string | null;
   supplier: SupplierRef | null;
   costCenterId: string | null;
+  accountCode?: string | null;
+  dueAt?: string | null;
+  paidCents?: number;
+  paidAt?: string | null;
   costCenter: { id: string; name: string } | null;
   recurring: boolean;
   /** 1-28 solo en plantillas (recurring: true). */
@@ -1714,6 +1725,31 @@ function ExpenseSheet({
       alive = false;
     };
   }, []);
+  const [accountCode, setAccountCode] = useState(expense?.accountCode ?? "");
+  const [dueDate, setDueDate] = useState("");
+  // Al crear, lo normal es que ya se pagó. Al editar no se toca el pago:
+  // los abonos se registran aparte.
+  const [paidNow, setPaidNow] = useState(true);
+  const [payAccountCode, setPayAccountCode] = useState("");
+  const [accounts, setAccounts] = useState<ChartAccountRef[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/accounting/chart")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (!alive) return;
+        const rows = (j.accounts as ChartAccountRef[]).filter((a) => a.postable);
+        setAccounts(rows);
+        // Default del pago: la primera cuenta de caja/bancos del plan.
+        setPayAccountCode((prev) => prev || (rows.find((a) => a.code.startsWith("11"))?.code ?? ""));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const [recurring, setRecurring] = useState(expense?.recurring ?? false);
   const [dayRaw, setDayRaw] = useState(
     expense?.recurringDay != null ? String(expense.recurringDay) : "",
@@ -1781,6 +1817,12 @@ function ExpenseSheet({
       costCenterId: costCenterId || null,
       recurring,
       recurringDay: recurring ? day : null,
+      accountCode: accountCode || null,
+      dueAt: !recurring && !paidNow && dueDate ? dateInputToIso(dueDate) : null,
+      // Solo al CREAR: el abono de contado se hace en la misma transacción.
+      // Editando, los pagos se registran por su propia ruta.
+      payFromAccountCode:
+        !expense && !recurring && paidNow ? payAccountCode || null : null,
     };
     setBusy(true);
     const r = await fetch(
@@ -1946,6 +1988,68 @@ function ExpenseSheet({
                   )}
               </select>
             </Field>
+          )}
+
+          {/* Cuenta contable del gasto. Vacío = se deriva de la categoría por
+              palabras clave, que es lo que se hacía siempre; con plan de
+              cuentas propio conviene fijarla. */}
+          {accounts.length > 0 && (
+            <Field label={t("fieldExpenseAccount")} hint={t("expenseAccountHint")}>
+              <select
+                value={accountCode}
+                onChange={(e) => setAccountCode(e.target.value)}
+                className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+              >
+                <option value="">{t("expenseAccountAuto")}</option>
+                {accounts
+                  .filter((a) => a.type === "gasto" || a.type === "costo")
+                  .map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {`${a.code} · ${a.name}`}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
+
+          {!recurring && !expense && (
+            <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+              <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={paidNow}
+                  onChange={(e) => setPaidNow(e.target.checked)}
+                  className="w-4 h-4 accent-ink"
+                />
+                <span className="text-sm">{t("expensePaidNow")}</span>
+              </label>
+              {paidNow ? (
+                <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
+                  <select
+                    value={payAccountCode}
+                    onChange={(e) => setPayAccountCode(e.target.value)}
+                    className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                  >
+                    {accounts
+                      .filter((a) => a.code.startsWith("11"))
+                      .map((a) => (
+                        <option key={a.code} value={a.code}>
+                          {`${a.code} · ${a.name}`}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              ) : (
+                <Field label={t("fieldDueDate")} hint={t("expenseOwedHint")}>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                  />
+                </Field>
+              )}
+            </div>
           )}
 
           <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">

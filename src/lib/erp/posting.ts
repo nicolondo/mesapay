@@ -31,6 +31,12 @@ function cashAccountForMethod(method: string): string {
   return "112005"; // kushki_* → saldo en pasarela
 }
 
+/**
+ * Cuenta donde se acumulan los gastos por pagar. El gasto acredita acá al
+ * registrarse y se cancela contra la caja/banco al pagarse.
+ */
+export const EXPENSE_PAYABLE_CODE = "233505";
+
 /** Categoría del gasto → cuenta PUC (heurística por palabras clave). */
 export function expenseAccountFor(category: string): string {
   const c = category.toLowerCase();
@@ -202,18 +208,65 @@ async function buildMonthEntries(
     });
   }
 
-  // 5) GASTOS — D gasto por categoría · C bancos.
+  // 5) GASTOS del mes — D la cuenta del gasto · C costos y gastos por pagar.
+  //
+  // Antes acreditaba bancos directo, o sea que daba por pagado TODO gasto en
+  // el momento de registrarlo. Un gasto que se debe no puede sacar plata del
+  // banco: nace como pasivo y se cancela con el asiento 5b cuando se paga.
+  // La cuenta del débito sale del gasto si el operador la fijó; si no, de la
+  // heurística por categoría de siempre.
   {
-    const cats = pnl.expensesByCategory.filter((e) => e.amountCents > 0);
-    const total = cats.reduce((s, e) => s + e.amountCents, 0);
+    const rows = await db.expense.findMany({
+      where: {
+        restaurantId,
+        recurring: false, // las plantillas no son gasto (igual que el P&L)
+        date: { gte: range.from, lt: range.to },
+      },
+      select: { amountCents: true, category: true, accountCode: true },
+    });
+    const byAccount = new Map<string, { amount: number; memo: string }>();
+    for (const e of rows) {
+      if (e.amountCents <= 0) continue;
+      const code = e.accountCode ?? expenseAccountFor(e.category);
+      const cur = byAccount.get(code);
+      byAccount.set(code, {
+        amount: (cur?.amount ?? 0) + e.amountCents,
+        memo: cur?.memo ?? e.category,
+      });
+    }
+    const total = [...byAccount.values()].reduce((s, v) => s + v.amount, 0);
     if (total > 0) {
-      const lines: Line[] = cats.map((e) => ({
-        code: expenseAccountFor(e.category),
-        debit: e.amountCents,
-        memo: e.category,
+      const lines: Line[] = [...byAccount].map(([code, v]) => ({
+        code,
+        debit: v.amount,
+        memo: v.memo,
       }));
-      lines.push({ code: "111005", credit: total });
+      lines.push({ code: EXPENSE_PAYABLE_CODE, credit: total });
       entries.push({ source: "expense", memo: "Gastos del mes", lines });
+    }
+  }
+
+  // 5b) PAGOS DE GASTOS — D costos y gastos por pagar · C de donde salió.
+  // Se agrupa por la cuenta que eligió el operador en cada abono, así el
+  // crédito cae en la caja o el banco real y no en uno fijo.
+  {
+    const pays = await db.expensePayment.findMany({
+      where: {
+        restaurantId,
+        paidAt: { gte: range.from, lt: range.to },
+      },
+      select: { amountCents: true, accountCode: true },
+    });
+    const byAccount = new Map<string, number>();
+    for (const p of pays) {
+      if (p.amountCents <= 0) continue;
+      byAccount.set(p.accountCode, (byAccount.get(p.accountCode) ?? 0) + p.amountCents);
+    }
+    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
+    if (total > 0) {
+      const lines: Line[] = [{ code: EXPENSE_PAYABLE_CODE, debit: total }];
+      for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
+      entries.push({ source: "expense_payment", memo: "Pagos de gastos", lines });
     }
   }
 

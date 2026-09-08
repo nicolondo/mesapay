@@ -1,6 +1,7 @@
 import type { Prisma, PurchaseOrderStatus } from "@prisma/client";
 import { applyStockMovement } from "@/lib/erp/stock";
 import { inventoryCostCents, normalizeTaxPct } from "@/lib/erp/purchaseTax";
+import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 
 // Lógica central de compras (ERP Fase A2).
 //
@@ -36,10 +37,17 @@ export type CreatePoLine = {
   presentations?: number | null;
   /** Cantidad en unidad base (requerida si NO hay presentación). */
   qtyBase?: number | null;
-  /** Costo NETO (sin IVA) esperado de la línea, en centavos. */
+  /**
+   * Costo NETO (sin IVA) de LISTA de la línea, en centavos — lo que digita el
+   * operador ANTES de descuentos. Lo que se persiste en expectedCostCents es
+   * este valor ya descontado.
+   */
   expectedCostCents: number;
   /** IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0. */
   taxPct?: number | null;
+  /** Descuento propio de la línea: % o valor fijo (el % manda). */
+  discountPct?: number | null;
+  discountCents?: number | null;
 };
 
 export async function createPurchaseOrder(
@@ -48,6 +56,9 @@ export async function createPurchaseOrder(
     restaurantId: string;
     supplierId: string;
     lines: CreatePoLine[];
+    /** Descuento del pie, sobre el total ya descontado por línea. */
+    discountPct?: number | null;
+    discountCents?: number | null;
     notes?: string | null;
     expectedAt?: Date | null;
     createdById?: string | null;
@@ -70,7 +81,10 @@ export async function createPurchaseOrder(
     supplierItemId: string | null;
     presentations: number | null;
     qtyOrderedBase: number;
-    expectedCostCents: number;
+    /** Neto de lista digitado (antes de descuentos). */
+    listCostCents: number;
+    discountPct: number | null;
+    discountCents: number | null;
     taxPct: number;
   }> = [];
 
@@ -116,7 +130,9 @@ export async function createPurchaseOrder(
         supplierItemId: line.supplierItemId,
         presentations: n,
         qtyOrderedBase: n * si.contentQty,
-        expectedCostCents: line.expectedCostCents,
+        listCostCents: line.expectedCostCents,
+        discountPct: line.discountPct ?? null,
+        discountCents: line.discountCents ?? null,
         taxPct: normalizeTaxPct(line.taxPct ?? 0),
       });
     } else {
@@ -129,7 +145,9 @@ export async function createPurchaseOrder(
         supplierItemId: null,
         presentations: null,
         qtyOrderedBase: q,
-        expectedCostCents: line.expectedCostCents,
+        listCostCents: line.expectedCostCents,
+        discountPct: line.discountPct ?? null,
+        discountCents: line.discountCents ?? null,
         taxPct: normalizeTaxPct(line.taxPct ?? 0),
       });
     }
@@ -143,6 +161,17 @@ export async function createPurchaseOrder(
   });
   const number = (last?.number ?? 0) + 1;
 
+  // Descuentos: primero el de cada línea, después el del pie prorrateado
+  // sobre lo que quedó. expectedCostCents queda ya descontado — de ahí
+  // cuelgan IVA, costo de inventario y CxP sin tratamiento especial.
+  const applied = resolveOrderDiscounts(
+    resolved.map((r) => ({
+      listCents: r.listCostCents,
+      discount: { pct: r.discountPct, cents: r.discountCents },
+    })),
+    { pct: args.discountPct, cents: args.discountCents },
+  );
+
   return tx.purchaseOrder.create({
     data: {
       restaurantId,
@@ -151,7 +180,25 @@ export async function createPurchaseOrder(
       notes: args.notes || null,
       expectedAt: args.expectedAt ?? null,
       createdById: args.createdById ?? null,
-      items: { create: resolved },
+      discountPct: args.discountPct ?? null,
+      discountCents: applied.subtotalCents - applied.netCents,
+      items: {
+        create: resolved.map((r, i) => {
+          const a = applied.lines[i]!;
+          return {
+            ingredientId: r.ingredientId,
+            supplierItemId: r.supplierItemId,
+            presentations: r.presentations,
+            qtyOrderedBase: r.qtyOrderedBase,
+            taxPct: r.taxPct,
+            expectedCostCents: a.netCents,
+            listCostCents: a.listCents,
+            discountPct: r.discountPct,
+            discountCents: a.lineDiscountCents,
+            orderDiscountCents: a.orderDiscountCents,
+          };
+        }),
+      },
     },
     include: {
       items: {

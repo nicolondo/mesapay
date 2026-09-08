@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { sanitizeDecimalInput } from "@/lib/decimalInput";
+import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
+import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
@@ -341,16 +342,23 @@ function TaxBreakdown({
   currency,
   totalLabel,
   alwaysBreakdown,
+  discountCents,
+  listSubtotalCents,
 }: {
   lines: { costCents: number; taxPct: number }[];
   currency: string;
   totalLabel?: string;
   alwaysBreakdown?: boolean;
+  /** Descuento ya aplicado a `lines`; se muestra como fila aparte. */
+  discountCents?: number;
+  /** Subtotal ANTES del descuento (precio de lista). */
+  listSubtotalCents?: number;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
   const { subtotalCents, taxCents, totalCents } = poTotals(lines);
-  const showBreakdown = alwaysBreakdown || taxCents > 0;
+  const discount = discountCents ?? 0;
+  const showBreakdown = alwaysBreakdown || taxCents > 0 || discount > 0;
   const money = (c: number) => formatMoney(c, { currency, locale });
   return (
     <div className="bg-op-bg/50">
@@ -359,9 +367,19 @@ function TaxBreakdown({
           <div className="flex items-center justify-between px-3 py-1.5">
             <span className="text-[11px] text-op-muted">{t("subtotalLabel")}</span>
             <span className="text-[11px] text-op-muted tabular-nums">
-              {money(subtotalCents)}
+              {money(listSubtotalCents ?? subtotalCents)}
             </span>
           </div>
+          {discount > 0 && (
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className="text-[11px] text-op-muted">
+                {t("discountLabel")}
+              </span>
+              <span className="text-[11px] text-ok tabular-nums">
+                {`− ${money(discount)}`}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between px-3 py-1.5">
             <span className="text-[11px] text-op-muted">{t("taxLabel")}</span>
             <span className="text-[11px] text-op-muted tabular-nums">
@@ -683,9 +701,24 @@ type DraftLine = {
   expectedCostCents: number;
   /** IVA de la línea (0–100); el bruto = neto + IVA. */
   taxPct: number;
+  /** Descuento digitado en la línea: el texto y si es % o valor. */
+  discRaw: string;
+  discIsPct: boolean;
 };
 
 type LineMode = "list" | "free";
+
+/** Convierte lo digitado en el control de descuento al input del núcleo. */
+function toDiscount(raw: string, isPct: boolean): {
+  pct: number | null;
+  cents: number | null;
+} {
+  const n = parseDecimalInput(raw);
+  if (!Number.isFinite(n) || n <= 0) return { pct: null, cents: null };
+  return isPct
+    ? { pct: Math.min(Math.round(n), 100), cents: null }
+    : { pct: null, cents: Math.round(n * 100) };
+}
 
 let lineKeySeq = 0;
 
@@ -715,6 +748,8 @@ function NewOrderSheet({
 
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [notes, setNotes] = useState("");
+  const [orderDiscRaw, setOrderDiscRaw] = useState("");
+  const [orderDiscIsPct, setOrderDiscIsPct] = useState(true);
   const [expectedAt, setExpectedAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -884,6 +919,8 @@ function NewOrderSheet({
           qtyBase: n * pickedItem.contentQty,
           expectedCostCents,
           taxPct,
+          discRaw: "",
+          discIsPct: true,
         },
       ]);
     } else {
@@ -910,6 +947,8 @@ function NewOrderSheet({
           qtyBase,
           expectedCostCents,
           taxPct,
+          discRaw: "",
+          discIsPct: true,
         },
       ]);
     }
@@ -933,14 +972,17 @@ function NewOrderSheet({
                 presentations: l.presentations,
                 expectedCostCents: l.expectedCostCents,
                 taxPct: l.taxPct,
+                ...toDiscount(l.discRaw, l.discIsPct),
               }
             : {
                 ingredientId: l.ingredientId,
                 qtyBase: l.qtyBase,
                 expectedCostCents: l.expectedCostCents,
                 taxPct: l.taxPct,
+                ...toDiscount(l.discRaw, l.discIsPct),
               },
         ),
+        ...toDiscount(orderDiscRaw, orderDiscIsPct),
         notes: notes.trim() || null,
         expectedAt: expectedAt ? dateInputToIso(expectedAt) : null,
       }),
@@ -955,6 +997,20 @@ function NewOrderSheet({
     const j = await r.json();
     onCreated((j.order as { id: string }).id);
   }
+
+  // Mismo cálculo que hace el servidor al guardar: descuento por línea y
+  // después el del pie prorrateado sobre lo que quedó.
+  const applied = useMemo(
+    () =>
+      resolveOrderDiscounts(
+        lines.map((l) => ({
+          listCents: l.expectedCostCents,
+          discount: toDiscount(l.discRaw, l.discIsPct),
+        })),
+        toDiscount(orderDiscRaw, orderDiscIsPct),
+      ),
+    [lines, orderDiscRaw, orderDiscIsPct],
+  );
 
   const lineAddDisabled =
     effectiveMode === "list"
@@ -1105,6 +1161,46 @@ function NewOrderSheet({
                               </div>
                             )}
                           </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={l.discRaw}
+                              onChange={(e) =>
+                                setLines((prev) =>
+                                  prev.map((x) =>
+                                    x.key === l.key
+                                      ? {
+                                          ...x,
+                                          discRaw: sanitizeDecimalInput(
+                                            e.target.value,
+                                          ),
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              placeholder={t("discountPlaceholder")}
+                              aria-label={t("discountLabel")}
+                              className="w-16 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs text-right tabular"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLines((prev) =>
+                                  prev.map((x) =>
+                                    x.key === l.key
+                                      ? { ...x, discIsPct: !x.discIsPct }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              aria-label={t("discountToggleUnit")}
+                              className="min-h-[36px] w-8 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
+                            >
+                              {l.discIsPct ? "%" : currency}
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={() =>
@@ -1118,13 +1214,44 @@ function NewOrderSheet({
                           </button>
                         </div>
                       ))}
+                      {/* Descuento del pie: se prorratea entre las líneas,
+                          igual que en el servidor, para que el IVA y el total
+                          en pantalla sean los que se van a guardar. */}
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-op-border">
+                        <span className="text-[11px] text-op-muted">
+                          {t("orderDiscountLabel")}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={orderDiscRaw}
+                            onChange={(e) =>
+                              setOrderDiscRaw(sanitizeDecimalInput(e.target.value))
+                            }
+                            placeholder={t("discountPlaceholder")}
+                            aria-label={t("orderDiscountLabel")}
+                            className="w-20 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs text-right tabular"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setOrderDiscIsPct((v) => !v)}
+                            aria-label={t("discountToggleUnit")}
+                            className="min-h-[36px] w-8 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
+                          >
+                            {orderDiscIsPct ? "%" : currency}
+                          </button>
+                        </div>
+                      </div>
                       <TaxBreakdown
-                        lines={lines.map((l) => ({
-                          costCents: l.expectedCostCents,
-                          taxPct: l.taxPct,
+                        lines={applied.lines.map((a, i) => ({
+                          costCents: a.netCents,
+                          taxPct: lines[i]!.taxPct,
                         }))}
                         currency={currency}
                         totalLabel={t("orderTotalLabel")}
+                        discountCents={applied.discountCents}
+                        listSubtotalCents={applied.subtotalCents}
                       />
                     </div>
                   )}

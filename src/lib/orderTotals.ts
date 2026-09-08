@@ -1,5 +1,6 @@
 import type { Prisma, PaymentMethod } from "@prisma/client";
 import { db } from "./db";
+import { orderTaxTotals } from "./salesTax";
 
 /**
  * Single source of truth for how an order's totals are computed from its
@@ -8,8 +9,11 @@ import { db } from "./db";
  *
  * The rules:
  * - tipCents on the order = sum of tipCents across approved payments
- * - totalCents = subtotalCents + tipsTotal (taxes are computed elsewhere)
- * - fullyPaid = (sum of approved amountCents) - tipsTotal >= subtotalCents
+ * - totalCents = subtotalCents + taxCents + tipsTotal. taxCents es el
+ *   impuesto que las LÍNEAS LIBRES suman encima de su precio (servicios,
+ *   bonos); los platos del menú lo llevan embebido y no aportan acá, así que
+ *   en una cuenta normal taxCents es 0 y todo funciona como antes.
+ * - fullyPaid = (sum of approved amountCents) - tipsTotal >= subtotal + tax
  *   i.e. the food portion of what diners paid covers the bill regardless of
  *   how generous (or stingy) anyone was with the tip
  */
@@ -25,7 +29,10 @@ export type OrderRecompute = {
 export function computeOrderTotals(
   subtotalCents: number,
   approvedPayments: Array<{ amountCents: number; tipCents: number }>,
+  /** Impuesto sumado encima (Order.taxCents). 0 en cuentas solo de menú. */
+  taxOnTopCents = 0,
 ): OrderRecompute {
+  const chargeableCents = subtotalCents + taxOnTopCents;
   const paidSumCents = approvedPayments.reduce(
     (s, p) => s + p.amountCents,
     0,
@@ -35,8 +42,8 @@ export function computeOrderTotals(
     0,
   );
   const foodPaidCents = paidSumCents - tipsTotalCents;
-  const fullyPaid = foodPaidCents >= subtotalCents;
-  const outstandingCents = Math.max(0, subtotalCents - foodPaidCents);
+  const fullyPaid = foodPaidCents >= chargeableCents;
+  const outstandingCents = Math.max(0, chargeableCents - foodPaidCents);
   return {
     paidSumCents,
     tipsTotalCents,
@@ -94,7 +101,7 @@ export async function validateNewPaymentAmount(
 ): Promise<PaymentValidation> {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { subtotalCents: true, status: true },
+    select: { subtotalCents: true, taxCents: true, status: true },
   });
   if (!order) {
     return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
@@ -133,7 +140,7 @@ export async function validateNewPaymentAmount(
     where,
     select: { amountCents: true, tipCents: true },
   });
-  const totals = computeOrderTotals(order.subtotalCents, claims);
+  const totals = computeOrderTotals(order.subtotalCents, claims, order.taxCents);
   // 1 peso of slack swallows the rounding loss when partes-iguales
   // splits an odd number of pesos across N people.
   const SLACK = 1;
@@ -160,14 +167,14 @@ export async function recomputeOrderTotalsInTx(
 ): Promise<OrderRecompute> {
   const order = await tx.order.findUnique({
     where: { id: orderId },
-    select: { subtotalCents: true, paidAt: true },
+    select: { subtotalCents: true, taxCents: true, paidAt: true },
   });
   if (!order) throw new Error(`order ${orderId} vanished`);
   const approved = await tx.payment.findMany({
     where: { orderId, status: "approved" },
     select: { amountCents: true, tipCents: true },
   });
-  const totals = computeOrderTotals(order.subtotalCents, approved);
+  const totals = computeOrderTotals(order.subtotalCents, approved, order.taxCents);
   const now = new Date();
   await tx.order.update({
     where: { id: orderId },
@@ -200,6 +207,7 @@ export async function syncOrderSubtotalFromLiveItems(
       id: true,
       status: true,
       subtotalCents: true,
+      taxCents: true,
       tipCents: true,
       totalCents: true,
     },
@@ -223,15 +231,29 @@ export async function syncOrderSubtotalFromLiveItems(
       cancelledAt: null,
       OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
     },
-    select: { qty: true, priceCentsSnapshot: true },
+    select: {
+      qty: true,
+      priceCentsSnapshot: true,
+      taxKind: true,
+      taxPct: true,
+    },
   });
-  const liveSubtotal = items.reduce(
-    (s, i) => s + i.priceCentsSnapshot * i.qty,
-    0,
+  const taxed = orderTaxTotals(
+    items.map((i) => ({
+      amountCents: i.priceCentsSnapshot * i.qty,
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+    })),
+    // El tipo/tarifa del comercio sólo afecta el desglose por tipo, que acá
+    // no se usa: para el total sólo cuenta lo que las líneas libres suman.
+    { kind: "none", pct: 0 },
   );
-  const liveTotal = liveSubtotal + order.tipCents;
+  const liveSubtotal = taxed.subtotalCents;
+  const liveTax = taxed.taxOnTopCents;
+  const liveTotal = liveSubtotal + liveTax + order.tipCents;
   if (
     liveSubtotal === order.subtotalCents &&
+    liveTax === order.taxCents &&
     liveTotal === order.totalCents
   ) {
     return {
@@ -242,7 +264,11 @@ export async function syncOrderSubtotalFromLiveItems(
   }
   await db.order.update({
     where: { id: orderId },
-    data: { subtotalCents: liveSubtotal, totalCents: liveTotal },
+    data: {
+      subtotalCents: liveSubtotal,
+      taxCents: liveTax,
+      totalCents: liveTotal,
+    },
   });
   return { subtotalCents: liveSubtotal, totalCents: liveTotal, changed: true };
 }

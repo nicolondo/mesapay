@@ -66,8 +66,12 @@ async function computeCategoryBreakdown(
   const cmv = new Map<string, number>();
   if (cmvEnabled) {
     // Consumen: vivos + comp (se prepararon aunque no se cobren); cancel no.
+    // Las líneas libres no tienen receta ni descuentan inventario, así que
+    // tampoco aportan al costo de ventas.
     const consuming = items.filter(
-      (it) => !it.cancelledAt || it.cancellationKind === "comp",
+      (it): it is typeof it & { menuItemId: string } =>
+        it.menuItemId !== null &&
+        (!it.cancelledAt || it.cancellationKind === "comp"),
     );
     const menuItemIds = [...new Set(consuming.map((i) => i.menuItemId))];
     const recipes = await db.recipe.findMany({

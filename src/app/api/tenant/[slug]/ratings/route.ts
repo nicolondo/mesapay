@@ -36,6 +36,11 @@ export async function POST(
   if (!item.servedAt) {
     return NextResponse.json({ error: "not served yet" }, { status: 400 });
   }
+  // Las líneas libres (servicios, bonos) no son un plato de la carta: no hay
+  // qué calificar ni a qué colgarle la calificación.
+  if (!item.menuItemId) {
+    return NextResponse.json({ error: "not rateable" }, { status: 400 });
+  }
 
   try {
     await db.dishRating.create({

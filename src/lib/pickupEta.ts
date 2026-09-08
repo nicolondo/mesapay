@@ -28,7 +28,8 @@ export async function computeQueueMinutes(restaurantId: string): Promise<number>
     select: { qty: true, menuItem: { select: { prepMinutes: true } } },
   });
   const total = rows.reduce(
-    (sum, r) => sum + r.qty * r.menuItem.prepMinutes,
+    // Una línea libre (servicio, bono) no pasa por cocina: no suma tiempo.
+    (sum, r) => sum + r.qty * (r.menuItem?.prepMinutes ?? 0),
     0,
   );
   return total;

@@ -24,6 +24,8 @@ export const DIAN_ENDPOINTS = {
 
 const ACTION_BASE = "http://wcf.dian.colombia/IWcfDianCustomerServices";
 
+export type DianEnvironment = keyof typeof DIAN_ENDPOINTS;
+
 // ── ZIP del documento (la DIAN recibe el XML zippeado en base64) ────────────
 
 export async function zipInvoice(fileName: string, xml: string): Promise<Buffer> {
@@ -74,19 +76,32 @@ export function buildSignedSoapEnvelope(
   service: string,
   bodyInner: string,
   cert: LoadedCert,
+  environment: DianEnvironment = "produccion",
   now: () => string = () => nowPlus(0),
 ): string {
   const tokenId = "X509-" + randomUUID();
+  const strId = "STR-" + randomUUID();
   const tsId = "TS-" + randomUUID();
+  const toId = "To-" + randomUUID();
   const sigId = "SIG-" + randomUUID();
   const created = now();
-  const expires = nowPlus(60000);
+  const expires = nowPlus(60);
+
+  // El wsa:To DEBE ser el endpoint real al que se postea: la DIAN lo compara
+  // y con el de producción apuntando a habilitación responde InvalidSecurity.
+  const to = DIAN_ENDPOINTS[environment];
 
   const template =
     `<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" ` +
-    `xmlns:wcf="http://wcf.dian.colombia">` +
-    `<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">` +
-    `<wsse:Security xmlns:wsse="${WSSE}" xmlns:wsu="${WSU}" soap:mustUnderstand="true">` +
+    `xmlns:wcf="http://wcf.dian.colombia" ` +
+    `xmlns:wsa="http://www.w3.org/2005/08/addressing" xmlns:wsu="${WSU}">` +
+    `<soap:Header>` +
+    `<wsse:Security xmlns:wsse="${WSSE}" soap:mustUnderstand="true">` +
+    // ORDEN OBLIGATORIO: Timestamp, luego el token, luego la firma. Con el
+    // Timestamp al final la DIAN responde InvalidSecurity (verificado).
+    `<wsu:Timestamp wsu:Id="${tsId}">` +
+    `<wsu:Created>${created}</wsu:Created><wsu:Expires>${expires}</wsu:Expires>` +
+    `</wsu:Timestamp>` +
     `<wsse:BinarySecurityToken EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary" ` +
     `ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3" ` +
     `wsu:Id="${tokenId}">${cert.certDerBase64}</wsse:BinarySecurityToken>` +
@@ -94,7 +109,10 @@ export function buildSignedSoapEnvelope(
     `<ds:SignedInfo>` +
     `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:CanonicalizationMethod>` +
     `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
-    `<ds:Reference URI="#${tsId}">` +
+    // Se firma ÚNICAMENTE el wsa:To, y sin InclusiveNamespaces/PrefixList.
+    // Agregar más referencias (Timestamp, Body, Action) o el PrefixList hace
+    // que la DIAN rechace con InvalidSecurity (verificado contra vpfe-hab).
+    `<ds:Reference URI="#${toId}">` +
     `<ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:Transform></ds:Transforms>` +
     `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
     `<ds:DigestValue></ds:DigestValue>` +
@@ -102,18 +120,16 @@ export function buildSignedSoapEnvelope(
     `</ds:SignedInfo>` +
     `<ds:SignatureValue></ds:SignatureValue>` +
     `<ds:KeyInfo>` +
-    `<wsse:SecurityTokenReference xmlns:wsse="${WSSE}">` +
+    `<wsse:SecurityTokenReference wsu:Id="${strId}">` +
     `<wsse:Reference URI="#${tokenId}" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"></wsse:Reference>` +
     `</wsse:SecurityTokenReference>` +
     `</ds:KeyInfo>` +
     `</ds:Signature>` +
-    `<wsu:Timestamp xmlns:wsu="${WSU}" wsu:Id="${tsId}">` +
-    `<wsu:Created>${created}</wsu:Created>` +
-    `<wsu:Expires>${expires}</wsu:Expires>` +
-    `</wsu:Timestamp>` +
     `</wsse:Security>` +
     `<wsa:Action>${ACTION_BASE}/${service}</wsa:Action>` +
-    `<wsa:To xmlns:wsu="${WSU}" wsu:Id="To-${randomUUID()}">HTTPS://VPFE.DIAN.GOV.CO/WCFDIANCUSTOMERSERVICES.SVC</wsa:To>` +
+    `<wsa:To wsu:Id="${toId}">${to}</wsa:To>` +
+    `<wsa:MessageID>urn:uuid:${randomUUID()}</wsa:MessageID>` +
+    `<wsa:ReplyTo><wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address></wsa:ReplyTo>` +
     `</soap:Header>` +
     `<soap:Body><wcf:${service}>${bodyInner}</wcf:${service}></soap:Body>` +
     `</soap:Envelope>`;
@@ -138,15 +154,13 @@ export function buildSignedSoapEnvelope(
     return walk(doc.documentElement as unknown as XmlNode);
   };
 
-  const timestamp = findId(tsId)!;
+  const toEl = findId(toId)!;
   const sig = findId(sigId)! as unknown as Element;
   const signedInfo = sig.getElementsByTagNameNS(DS, "SignedInfo").item(0)! as unknown as XmlNode;
   const digestValue = sig.getElementsByTagNameNS(DS, "DigestValue").item(0)!;
   const signatureValue = sig.getElementsByTagNameNS(DS, "SignatureValue").item(0)!;
 
-  // Digest del Timestamp (exc-c14n con ns heredados).
-  digestValue.appendChild(doc.createTextNode(sha256b64(excC14n(timestamp))) as never);
-  // Firmar el SignedInfo.
+  digestValue.appendChild(doc.createTextNode(sha256b64(excC14n(toEl))) as never);
   const md = forge.md.sha256.create();
   md.update(excC14n(signedInfo), "utf8");
   const key = forge.pki.privateKeyFromPem(cert.keyPem);
@@ -189,6 +203,8 @@ export type DianResult = {
   statusMessage?: string | null;
   cufe?: string | null;
   zipKey?: string | null;
+  /** Respuesta cruda de la DIAN — se persiste para poder diagnosticar. */
+  raw?: string;
   errors: string[];
 };
 
@@ -223,6 +239,23 @@ export function parseDianResponse(responseXml: string): DianResult {
   } catch {
     return { state: "error", errors: ["respuesta ilegible de la DIAN"] };
   }
+
+  // SOAP Fault: la DIAN rechazó el mensaje ANTES de mirar el documento
+  // (típicamente InvalidSecurity). Es un error de canal, no un trámite en
+  // curso — antes caía en el `pending` de abajo y se mostraba "en proceso".
+  const faultReason = text1(root, "Text") ?? text1(root, "faultstring");
+  if (textAll(root, "Fault").length > 0 || faultReason) {
+    const subcode = textAll(root, "Value").find((v) => v.includes(":")) ?? null;
+    return {
+      state: "error",
+      statusCode: subcode,
+      statusMessage: faultReason,
+      errors: [
+        subcode ? `${subcode}: ${faultReason ?? "rechazado por la DIAN"}` : (faultReason ?? "rechazado por la DIAN"),
+      ],
+    };
+  }
+
   const isValid = text1(root, "IsValid") === "true";
   const statusCode = text1(root, "StatusCode");
   const statusMessage = text1(root, "StatusDescription") ?? text1(root, "StatusMessage");
@@ -241,11 +274,13 @@ export function parseDianResponse(responseXml: string): DianResult {
   if (statusCode || allErrors.length > 0) {
     return { state: "rejected", statusCode, statusMessage, cufe, errors: allErrors };
   }
+  // Sin Fault, sin IsValid, sin ZipKey y sin StatusCode: no se entiende. Es un
+  // error, NO un pendiente — asumir "en proceso" ocultaba fallos reales.
   return {
-    state: "pending",
+    state: "error",
     statusCode,
-    statusMessage: statusMessage ?? "en proceso",
-    errors: [],
+    statusMessage,
+    errors: ["respuesta no reconocida de la DIAN"],
   };
 }
 
@@ -280,7 +315,7 @@ async function call(
   bodyInner: string,
   args: SendArgs,
 ): Promise<DianResult> {
-  const envelope = buildSignedSoapEnvelope(service, bodyInner, args.cert);
+  const envelope = buildSignedSoapEnvelope(service, bodyInner, args.cert, args.environment);
   const transport = args.transport ?? fetchTransport;
   let res: { status: number; body: string };
   try {
@@ -298,7 +333,7 @@ async function call(
   if (!res.body) {
     return { state: "error", errors: ["la DIAN no respondió"] };
   }
-  return parseDianResponse(res.body);
+  return { ...parseDianResponse(res.body), raw: res.body };
 }
 
 export async function sendBillSync(

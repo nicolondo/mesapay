@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCrmContext } from "@/lib/crm/access";
@@ -35,7 +36,7 @@ const PutSchema = z.object({
   smtpPass: z.string().optional(), // if omitted on update, keep existing
 });
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -63,7 +64,7 @@ export async function GET() {
   });
 }
 
-export async function PUT(req: Request) {
+async function PUTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -143,3 +144,7 @@ export async function PUT(req: Request) {
 
   return NextResponse.json({ account: { ...account, hasPassword: true } });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PUT = secureApi(PUTHandler);

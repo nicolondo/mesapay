@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -36,7 +37,7 @@ const schema = z.object({
   adminPassword: z.string().min(6).max(120).optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -155,3 +156,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, groupId: group.id });
 }
+
+export const POST = secureApi(POSTHandler);

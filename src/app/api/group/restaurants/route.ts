@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -58,7 +59,7 @@ const RESERVED = new Set([
   "static",
 ]);
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   // Acepta tanto group_admin como platform_admin impersonando grupo.
   // El helper sólo devuelve contexto si alguno aplica.
   const ctx = await getActiveGroupShellContext();
@@ -141,3 +142,5 @@ export async function POST(req: Request) {
     slug: result.slug,
   });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -18,11 +19,11 @@ const schema = z
   .refine((d) => d.to >= d.from, { message: "range" })
   .refine((d) => d.to - d.from + 1 <= 200, { message: "tooMany" });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -65,3 +66,5 @@ export async function POST(req: Request) {
     skipped: taken.size,
   });
 }
+
+export const POST = secureApi(POSTHandler);

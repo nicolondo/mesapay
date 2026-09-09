@@ -1,3 +1,6 @@
+import { lockOrder } from "@/lib/orderLock";
+import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -17,11 +20,11 @@ import { sendPushToMeserosForTable } from "@/lib/push";
 
 const schema = z.object({
   orderId: z.string().min(1),
-  amountCents: z.number().int().min(100),
-  tipCents: z.number().int().min(0).default(0),
-});
+  amountCents: amountCentsSchema,
+  tipCents: tipCentsSchema,
+}).refine(validPaymentAmounts, { message: "invalid_amount" });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -55,7 +58,7 @@ export async function POST(
   // 99% (single payer cambia de método) este sweep es lo correcto.
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePending: true,
+    excludePending: false,
   });
   if (!cap.ok) {
     return NextResponse.json(
@@ -85,6 +88,9 @@ export async function POST(
       : null;
 
   const payment = await db.$transaction(async (tx) => {
+    await lockOrder(tx, order.id);
+    const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     // Sweep de TODOS los pendings de esta orden, no solo del mismo
     // método. Casos típicos:
     //   - Diner tocó "Tarjeta con datáfono", no completó, vuelve a
@@ -95,13 +101,7 @@ export async function POST(
     //     sweep del external_terminal pending
     // El cap arriba ya usa excludePending=true para que esta
     // operación sea consistente.
-    await tx.payment.updateMany({
-      where: {
-        orderId: order.id,
-        status: "pending",
-      },
-      data: { status: "declined" },
-    });
+
     const p = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -152,3 +152,5 @@ export async function POST(
     pending: true,
   });
 }
+
+export const POST = secureApi(POSTHandler);

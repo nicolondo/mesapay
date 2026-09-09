@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -82,7 +83,7 @@ const bodySchema = z.discriminatedUnion("action", [
 
 const PICKUP_TABLE_NUMBER = -1;
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -391,3 +392,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

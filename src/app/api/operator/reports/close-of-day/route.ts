@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -21,11 +22,11 @@ function csvField(v: string | number | null | undefined): string {
   return s;
 }
 
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -126,3 +127,5 @@ export async function GET(req: Request) {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

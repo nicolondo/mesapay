@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { writeFile, mkdir } from "fs/promises";
@@ -38,11 +39,11 @@ function uploadDir() {
   );
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, document: doc });
 }
 
-export async function GET() {
+async function GETHandler() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no restaurant" }, { status: 400 });
@@ -127,11 +128,11 @@ export async function GET() {
   return NextResponse.json({ documents: docs });
 }
 
-export async function DELETE(req: Request) {
+async function DELETEHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -153,3 +154,9 @@ export async function DELETE(req: Request) {
   // a deletion was accidental. A cron can sweep orphaned files later.
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const GET = secureApi(GETHandler);
+
+export const DELETE = secureApi(DELETEHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -18,7 +19,7 @@ const GATE: ModuleSlug[] = ["purchasing"];
  * Requiere purchasing (gate) + inventory (el punto de reorden se compara
  * contra existencias): sin inventory el "bajo mínimo" no significa nada.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -145,3 +146,5 @@ export async function GET() {
   );
   return NextResponse.json({ suppliers, unassigned });
 }
+
+export const GET = secureApi(GETHandler);

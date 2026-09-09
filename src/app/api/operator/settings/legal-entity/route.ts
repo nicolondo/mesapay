@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -21,7 +22,7 @@ const bodySchema = z.object({
   legalEntityId: z.string().nullable(),
 });
 
-export async function PUT(req: Request) {
+async function PUTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
@@ -94,3 +95,5 @@ export async function PUT(req: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const PUT = secureApi(PUTHandler);

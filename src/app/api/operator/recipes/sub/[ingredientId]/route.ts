@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ const putSchema = z.object({
 });
 
 /** Upsert de la sub-receta de un insumo elaborado. */
-export async function PUT(
+async function PUTHandler(
   req: Request,
   { params }: { params: Promise<{ ingredientId: string }> },
 ) {
@@ -113,7 +114,7 @@ export async function PUT(
 }
 
 /** Borra la sub-receta. El insumo sigue existiendo (solo pierde su costo derivado). */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ ingredientId: string }> },
 ) {
@@ -132,3 +133,7 @@ export async function DELETE(
 }
 
 class CycleError extends Error {}
+
+export const PUT = secureApi(PUTHandler);
+
+export const DELETE = secureApi(DELETEHandler);

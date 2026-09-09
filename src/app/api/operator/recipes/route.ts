@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -17,7 +18,7 @@ const GATE: ModuleSlug[] = ["recipes"];
  * (con su flag) — que un plato salga de carta una noche no borra su
  * receta del editor.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -280,3 +281,5 @@ async function computePriceAlerts(
   }
   return alerts.sort((a, b) => b.pctIncrease - a.pctIncrease);
 }
+
+export const GET = secureApi(GETHandler);

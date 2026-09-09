@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
@@ -70,7 +71,7 @@ async function guard(id: string) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return { error: "unauthorized" as const };
   }
@@ -83,7 +84,7 @@ async function guard(id: string) {
   return { item, session };
 }
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -159,7 +160,7 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -179,3 +180,7 @@ export async function DELETE(
   await db.menuItem.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

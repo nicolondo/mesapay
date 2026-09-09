@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -30,7 +31,7 @@ const schema = z.object({
 /** POST /api/operator/purchase-orders/[id]/receive — recepción total o
  *  parcial. Genera purchase_in en el libro, actualiza costos y precios del
  *  proveedor, y recalcula el estado (spec D3/D4). */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -85,3 +86,5 @@ export async function POST(
     throw err;
   }
 }
+
+export const POST = secureApi(POSTHandler);

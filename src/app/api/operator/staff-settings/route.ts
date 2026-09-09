@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -15,7 +16,7 @@ const SELECT = {
   staffHoursDivisor: true,
 } as const;
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -37,7 +38,7 @@ const patchSchema = z.object({
 });
 
 /** Ajustes de Horarios (C2 · D4/D5): modo estricto + recargos. */
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -53,3 +54,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ settings });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

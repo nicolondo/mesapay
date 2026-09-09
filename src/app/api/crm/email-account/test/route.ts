@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { getCrmContext } from "@/lib/crm/access";
@@ -18,7 +19,7 @@ function isPrivateHost(host: string): boolean {
   return false;
 }
 
-export async function POST() {
+async function POSTHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -84,3 +85,5 @@ export async function POST() {
     );
   }
 }
+
+export const POST = secureApi(POSTHandler);

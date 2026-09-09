@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ function isoDate(d: Date | null): string {
  * con punto decimal, encabezados en el idioma del usuario. Columnas
  * genéricas mapeables a Siigo/Alegra/Contpaqi.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -144,3 +145,5 @@ export async function GET(req: Request) {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

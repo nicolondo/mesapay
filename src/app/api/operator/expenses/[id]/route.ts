@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -21,7 +22,7 @@ async function loadOwned(id: string, restaurantId: string) {
   return e;
 }
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -95,7 +96,7 @@ export async function PATCH(
 }
 
 /** Borrar. Plantilla: las copias ya materializadas quedan (templateId → null). */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -111,3 +112,7 @@ export async function DELETE(
   await db.expense.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

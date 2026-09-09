@@ -1,14 +1,12 @@
+import { reservePayment, markPaymentUncertain } from "@/lib/payments/intent";
+import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
+import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
-import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
-import { activateOpenRounds } from "@/lib/prepaidRounds";
-import {
-  recomputeOrderTotalsInTx,
-  validateNewPaymentAmount,
-} from "@/lib/orderTotals";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -45,15 +43,15 @@ const schema = z.object({
   // kushki_card     = tarjeta tipeada en MESAPAY (token de Kushki.js)
   method: z.enum(["kushki_apple_pay", "kushki_card"]),
   token: z.string().min(1).max(2000),
-  amountCents: z.number().int().min(100),
-  tipCents: z.number().int().min(0).default(0),
+  amountCents: amountCentsSchema,
+  tipCents: tipCentsSchema,
   // Contacto del titular para el contactDetails de Kushki (3DS). Sólo
   // tenemos lo que el diner tipeó en el form de tarjeta (nombre + correo).
   contactName: z.string().trim().max(120).optional(),
   contactEmail: z.string().trim().max(160).optional(),
-});
+}).refine(validPaymentAmounts, { message: "invalid_amount" });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -80,66 +78,12 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Barrer pendings en vuelo de esta orden (intentos previos de tarjeta/
-  // datáfono/wallet abandonados o interrumpidos): el diner está haciendo ESTE
-  // cobro ahora → los anteriores quedan obsoletos. "Última intención gana",
-  // mismo patrón que el efectivo y el datáfono. SIN esto, un pending viejo
-  // consumía el outstanding y el cap rechazaba el charge con 409 ANTES de
-  // llegar a Kushki (Kushki "no veía ejecutarse el charge" tras el 3DS).
-  await db.payment.updateMany({
-    where: { orderId: order.id, status: "pending" },
-    data: { status: "declined" },
-  });
-
-  // Cap before reaching out to Kushki — much better to reject the
-  // overcharge here than to capture a real card transaction we'd then
-  // have to refund manually. excludePending: ya barrimos los pendings arriba,
-  // pero lo excluimos igual por si entra otro en la misma ventana.
-  const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePending: true,
-  });
-  if (!cap.ok) {
-    return NextResponse.json(
-      {
-        error: cap.reason,
-        outstandingCents: cap.outstandingCents,
-        message:
-          cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
-      },
-      { status: 409 },
-    );
-  }
-
-  // Pre-create the payment row so we can reference it from logs/webhooks even
-  // if the provider call fails. Status starts pending; we flip it after the
-  // provider replies.
-  const pendingPayment = await db.payment.create({
-    data: {
-      orderId: order.id,
-      method: parsed.data.method,
-      status: "pending",
-      amountCents: parsed.data.amountCents,
-      tipCents: parsed.data.tipCents,
-    },
-  });
-
-  const provider = await getPaymentProvider(
-    await getRestaurantKushkiMode(tenant),
-  );
+  const provider = await getPaymentProvider(await getRestaurantKushkiMode(tenant));
   const privateKey = await getRestaurantPrivateKey(tenant.id);
-  if (!privateKey) {
-    await db.payment.update({
-      where: { id: pendingPayment.id },
-      data: { status: "declined" },
-    });
-    return NextResponse.json(
-      { error: "credentials_missing" },
-      { status: 500 },
-    );
-  }
+  if (!privateKey) return NextResponse.json({ error: "credentials_missing" }, { status: 503 });
+  const intent = await reservePayment({ orderId: order.id, method: parsed.data.method, status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents }, parsed.data.token);
+  const pendingPayment = intent.payment;
+  if (!intent.created) return NextResponse.json({ paymentId: pendingPayment.id, approved: pendingPayment.status === "approved", pending: pendingPayment.status === "pending" });
 
   const currency = await getCurrencyForCountry(tenant.country);
 
@@ -179,67 +123,25 @@ export async function POST(
       ...(contactDetails ? { contactDetails } : {}),
     });
   } catch (err) {
-    await db.payment.update({
-      where: { id: pendingPayment.id },
-      data: { status: "declined" },
-    });
-    publishOrderEvent(tenant.id, {
-      type: "payment.declined",
-      orderId: order.id,
-      paymentId: pendingPayment.id,
-      reason: err instanceof Error ? err.message : "provider_error",
-    });
-    // Surface the underlying Kushki error so el diner (y devs viendo
-    // consola) entienden qué pasó. Para errores estándar como CVV
-    // inválido / fondos insuficientes la mensaje cruda de Kushki es
-    // más útil que "charge_failed" genérico.
-    const detail =
-      err instanceof Error ? err.message.slice(0, 300) : "provider_error";
-    console.error("[kushki-charge] FAILED", { detail });
-    // Parse common Kushki codes para mensaje user-friendly.
-    let userMessage = "El pago falló. Probá con otra tarjeta o método.";
-    if (detail.includes('"code":"022"') || detail.includes("(022)")) {
-      userMessage = "Tarjeta declinada — CVV inválido.";
-    } else if (detail.includes('"code":"021"') || detail.includes("(021)")) {
-      userMessage = "Tarjeta declinada — fondos insuficientes.";
-    } else if (detail.includes('"code":"017"') || detail.includes("(017)")) {
-      userMessage = "Tarjeta inválida.";
-    } else if (detail.includes('"code":"023"') || detail.includes("(023)")) {
-      userMessage = "Tarjeta bloqueada.";
-    } else if (detail.includes('"code":"577"')) {
-      // Token ya usado. Pasa cuando un charge anterior consumió el
-      // token (con éxito o no) y el cliente intenta cobrarlo de nuevo.
-      // Le pedimos al diner que cierre y reabra el form para forzar
-      // una tokenización fresca.
-      userMessage =
-        "El intento anterior expiró. Cerrá esta ventana y volvé a ingresar los datos.";
-    } else if (detail.includes('"code":"K040"')) {
-      userMessage =
-        "Credenciales del comercio no configuradas correctamente. Avisá al restaurante.";
-    } else if (detail.includes("K220")) {
-      userMessage = "Error procesando el cobro — reintentá.";
-    }
-    return NextResponse.json(
-      {
-        error: "charge_failed",
-        message: userMessage,
-        detail,
-      },
-      { status: 502 },
-    );
+    await markPaymentUncertain(pendingPayment.id);
+    console.error("charge_uncertain", { paymentId: pendingPayment.id, error: err instanceof Error ? err.name : "provider_error" });
+    return NextResponse.json({ error: "payment_pending", paymentId: pendingPayment.id, pending: true }, { status: 202 });
   }
+
 
   // Persist the provider reference + KushkiTransaction mirror regardless of
   // outcome so we can audit declined attempts. Extraemos los datos ricos de la
   // tarjeta (fullResponse:"v2") a columnas legibles para la vista de pagos.
   const cardInfo = extractKushkiCardInfo(charge.raw);
-  await db.kushkiTransaction.create({
-    data: {
+  await db.kushkiTransaction.upsert({
+    where: { kushkiTxId: charge.providerRef },
+    update: {},
+    create: {
       restaurantId: tenant.id,
       paymentId: pendingPayment.id,
       kushkiTxId: charge.providerRef,
       kind: "charge",
-      status: charge.status === "approved" ? "approved" : "declined",
+      status: charge.status,
       amountCents: parsed.data.amountCents,
       raw: charge.raw as object,
       message: charge.message,
@@ -247,59 +149,23 @@ export async function POST(
     },
   });
 
-  if (charge.status !== "approved") {
-    await db.payment.update({
-      where: { id: pendingPayment.id },
-      data: { status: "declined", providerRef: charge.providerRef },
-    });
-    publishOrderEvent(tenant.id, {
-      type: "payment.declined",
-      orderId: order.id,
-      paymentId: pendingPayment.id,
-      reason: charge.message ?? "declined",
-    });
-    return NextResponse.json({
-      paymentId: pendingPayment.id,
-      approved: false,
-      message: charge.message ?? "Pago rechazado",
-    });
+  if (charge.status === "pending") {
+    await db.payment.updateMany({ where: { id: pendingPayment.id, status: "pending" }, data: { providerRef: charge.providerRef, reconciliationRequired: true } });
+    return NextResponse.json({ paymentId: pendingPayment.id, pending: true }, { status: 202 });
   }
-
-  // Approved: flip payment, recompute order, release rounds if fully paid.
-  const result = await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: pendingPayment.id },
-      data: {
-        status: "approved",
-        providerRef: charge.providerRef,
-        settledAt: new Date(),
-      },
-    });
-    // Guardamos el correo del titular en la orden para prellenar el pedido de
-    // factura en /done y no volver a pedírselo. Sólo si vino uno válido.
-    if (rawEmail && rawEmail.includes("@")) {
-      await tx.order.update({
-        where: { id: order.id },
-        data: { customerEmail: rawEmail },
-      });
-    }
-    const totals = await recomputeOrderTotalsInTx(tx, order.id);
-    if (totals.fullyPaid) {
-      await activateOpenRounds(tx, order.id);
-    }
-    return { fullyPaid: totals.fullyPaid };
+  const processed = await processKushkiWebhook({
+    eventId: `charge:${pendingPayment.id}:${charge.status}`, type: charge.status === "approved" ? "charge.approved" : "charge.declined",
+    paymentId: pendingPayment.id, restaurantId: tenant.id, providerRef: charge.providerRef,
+    amountCents: parsed.data.amountCents, raw: charge.raw,
   });
-
-  publishOrderEvent(tenant.id, {
-    type: "payment.approved",
-    orderId: order.id,
-    paymentId: pendingPayment.id,
-  });
-  publishOrderEvent(tenant.id, {
-    type: result.fullyPaid ? "order.paid" : "order.updated",
-    orderId: order.id,
-  });
-
+  if (processed.status === "error") {
+    await markPaymentUncertain(pendingPayment.id);
+    return NextResponse.json({ paymentId: pendingPayment.id, pending: true }, { status: 202 });
+  }
+  if (charge.status !== "approved") return NextResponse.json({ paymentId: pendingPayment.id, approved: false, error: "payment_declined" });
+  if (rawEmail?.includes("@")) await db.order.update({ where: { id: order.id }, data: { customerEmail: rawEmail } });
+  const settled = await db.order.findUniqueOrThrow({ where: { id: order.id }, select: { status: true } });
+  const result = { fullyPaid: settled.status === "paid" };
   if (result.fullyPaid && order.customerId) {
     welcomeIfFirstTime(order.customerId, order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
@@ -312,3 +178,5 @@ export async function POST(
     paid: result.fullyPaid,
   });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -15,7 +16,7 @@ const schema = z.object({
 });
 
 /** Cierre de período: numera comprobantes y fija el candado (o lo retrocede). */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
 }
 
 /** Estado del cierre (para pintar el candado sin cargar el diario). */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -53,3 +54,7 @@ export async function GET() {
   const cfg = await getAccountingConfig(ctx.restaurantId);
   return NextResponse.json(cfg);
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const GET = secureApi(GETHandler);

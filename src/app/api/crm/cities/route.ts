@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -6,7 +7,7 @@ const CRM_ROLES = new Set(["comercial", "gerente_comercial", "platform_admin"]);
 
 // ── GET /api/crm/cities?country=CO&q=med ────────────────────────────────────
 
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const session = await auth();
   if (!session?.user?.role || !CRM_ROLES.has(session.user.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -35,3 +36,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ cities });
 }
+
+export const GET = secureApi(GETHandler);

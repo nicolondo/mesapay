@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -11,7 +12,7 @@ const schema = z.object({
   guestName: z.string().trim().max(40).optional(),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -71,3 +72,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

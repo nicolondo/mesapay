@@ -1,8 +1,9 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeTerm } from "@/lib/ai/searchTerm";
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+async function POSTHandler(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   let body: { term?: string; resultCount?: number; locale?: string };
   try {
@@ -33,3 +34,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   }
   return new NextResponse(null, { status: 204 });
 }
+
+export const POST = secureApi(POSTHandler);

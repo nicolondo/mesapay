@@ -155,8 +155,15 @@ export async function applyRecurringCharge(args: {
   providerRef: string | null;
   periodStart: Date;
   periodEnd: Date;
-}): Promise<void> {
-  await db.$transaction(async (tx) => {
+}): Promise<boolean> {
+  if (!args.providerRef) throw new Error("missing_provider_reference");
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Restaurant" WHERE id = ${args.restaurantId} FOR UPDATE`;
+    if (await tx.membershipPayment.findFirst({ where: { restaurantId: args.restaurantId, providerRef: args.providerRef } })) return false;
+    const restaurant = await tx.restaurant.findUniqueOrThrow({ where: { id: args.restaurantId } });
+    const now = new Date();
+    const base = restaurant.periodEndsAt && restaurant.periodEndsAt > now ? restaurant.periodEndsAt : now;
+    const periodEnd = new Date(addMonthsIso(base, 1));
     await tx.membershipPayment.create({
       data: {
         restaurantId: args.restaurantId,
@@ -166,22 +173,23 @@ export async function applyRecurringCharge(args: {
         providerRef: args.providerRef,
         recordedByEmail: "kushki-webhook",
         periodStart: args.periodStart,
-        periodEnd: args.periodEnd,
+        periodEnd: periodEnd,
       },
     });
     await tx.restaurant.update({
       where: { id: args.restaurantId },
-      data: { periodEndsAt: args.periodEnd, suspended: false },
+      data: { periodEndsAt: periodEnd, suspended: false },
     });
     await tx.billingSubscription.update({
       where: { restaurantId: args.restaurantId },
       data: {
         status: "active",
         failedAttempts: 0,
-        currentPeriodEnd: args.periodEnd,
-        nextChargeAt: args.periodEnd,
+        currentPeriodEnd: periodEnd,
+        nextChargeAt: periodEnd,
       },
     });
+    return true;
   });
 }
 

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /** Libros del mes (spec B2 · D5): ventas (órdenes pagadas) o compras (OCs recibidas). */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -28,3 +29,5 @@ export async function GET(req: Request) {
   const { rows, totals } = await loadPurchasesBook(ctx.restaurantId, range);
   return NextResponse.json({ book, rows, totals });
 }
+
+export const GET = secureApi(GETHandler);

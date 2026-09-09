@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { DianCertError, encryptSecret, loadP12 } from "@/lib/dian/crypto";
@@ -18,7 +19,7 @@ const MAX_BYTES = 512 * 1024; // los .p12 pesan pocos KB
  * con la contraseña), se cifra at rest y se guardan subject/vencimiento.
  * La contraseña y el .p12 NUNCA vuelven al cliente.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -60,3 +61,5 @@ export async function POST(req: Request) {
   const { status } = await dianConfigStatus(ctx.restaurantId);
   return NextResponse.json({ status });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -39,10 +39,10 @@ export default async function TenantLanding({
 
         <div className="mt-10">
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
-            {t("chooseTable")}
+            {t(process.env.NODE_ENV === "production" ? "scanTable" : "chooseTable")}
           </div>
           <div className="grid grid-cols-5 gap-2">
-            {tenant.tables.map((t) => (
+            {(process.env.NODE_ENV === "production" ? [] : tenant.tables).map((t) => (
               <Link
                 key={t.id}
                 href={`/t/${slug}/menu?table=${t.qrToken}`}
@@ -52,7 +52,7 @@ export default async function TenantLanding({
               </Link>
             ))}
           </div>
-          <p className="mt-4 text-xs text-muted-2">{t("devTableHint")}</p>
+          {process.env.NODE_ENV !== "production" && <p className="mt-4 text-xs text-muted-2">{t("devTableHint")}</p>}
         </div>
 
         <div className="mt-10 pt-6 border-t border-hairline">

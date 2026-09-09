@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -16,11 +17,11 @@ const schema = z.object({
   openingCashCents: z.number().int().min(0).max(10_000_000_000),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -55,3 +56,5 @@ export async function POST(req: Request) {
   publishOrderEvent(restaurantId, { type: "cash.updated" });
   return NextResponse.json({ ok: true, shiftId: shift.id });
 }
+
+export const POST = secureApi(POSTHandler);

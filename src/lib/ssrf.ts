@@ -1,83 +1,74 @@
-import { lookup } from "dns/promises";
+import { lookup } from "node:dns/promises";
+import { isIP, BlockList } from "node:net";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { Readable } from "node:stream";
+import { createGunzip, createInflate, createBrotliDecompress } from "node:zlib";
 
-/**
- * Defensive guard against Server-Side Request Forgery. Used when the
- * server fetches a URL provided by an untrusted caller (e.g. "import
- * menu from this URL"). Without this an attacker could ask us to fetch
- * http://localhost:3300/admin/... or http://169.254.169.254/latest/meta-data
- * and leak internal data.
- *
- * Returns "ok" when the URL is safe to fetch, or an error string with a
- * short reason. Always resolve and check the IP — DNS rebinding attacks
- * use a public domain that points to a private IP.
- */
+const blockedV4 = new BlockList();
+const blockedV6 = new BlockList();
+for (const [ip, prefix] of [["0.0.0.0",8],["10.0.0.0",8],["100.64.0.0",10],["127.0.0.0",8],["169.254.0.0",16],["172.16.0.0",12],["192.0.0.0",24],["192.0.2.0",24],["192.168.0.0",16],["198.18.0.0",15],["198.51.100.0",24],["203.0.113.0",24],["224.0.0.0",4],["240.0.0.0",4]] as const) blockedV4.addSubnet(ip, prefix, "ipv4");
+for (const [ip, prefix] of [["::",128],["::1",128],["::ffff:0:0",96],["64:ff9b::",96],["64:ff9b:1::",48],["100::",64],["2001::",32],["2001:db8::",32],["2002::",16],["fc00::",7],["fe80::",10],["ff00::",8]] as const) blockedV6.addSubnet(ip,prefix,"ipv6");
 
-const PRIVATE_HOSTNAMES = new Set([
-  "localhost",
-  "0.0.0.0",
-  "::",
-  "::1",
-]);
-
-export type SsrfCheck =
-  | { ok: true }
-  | { ok: false; reason: string };
-
-export async function checkUrlSafe(urlStr: string): Promise<SsrfCheck> {
-  let url: URL;
-  try {
-    url = new URL(urlStr);
-  } catch {
-    return { ok: false, reason: "URL inválida." };
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return { ok: false, reason: "Solo http(s)." };
-  }
-  const hostname = url.hostname.toLowerCase();
-  if (PRIVATE_HOSTNAMES.has(hostname)) {
-    return { ok: false, reason: "Hostname privado." };
-  }
-  // If the hostname is already an IP literal, check that directly.
-  if (isIpLiteral(hostname)) {
-    if (isPrivateIp(hostname)) {
-      return { ok: false, reason: "IP privada." };
-    }
-    return { ok: true };
-  }
-  // Resolve and check the actual IP — protects against DNS rebinding.
-  try {
-    const { address } = await lookup(hostname);
-    if (isPrivateIp(address)) {
-      return { ok: false, reason: "Hostname apunta a IP privada." };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, reason: "No pudimos resolver el dominio." };
-  }
+export function isPublicIp(value: string): boolean {
+  const ip = value.replace(/^\[|\]$/g, "");
+  const family = isIP(ip);
+  return !!family && !(family === 4 ? blockedV4 : blockedV6).check(ip, family === 4 ? "ipv4" : "ipv6");
 }
 
-function isIpLiteral(host: string): boolean {
-  return /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":");
+async function resolvePublicUrl(value: string) {
+  const url = new URL(value);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("unsafe_url");
+  const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const addresses = isIP(host) ? [{ address: host, family: isIP(host) }] : await lookup(host, { all: true });
+  if (!addresses.length || addresses.some(a => !isPublicIp(a.address))) throw new Error("private_address");
+  return { url, addresses };
 }
 
-function isPrivateIp(ip: string): boolean {
-  // IPv6 loopback / link-local
-  if (ip === "::1") return true;
-  if (ip.toLowerCase().startsWith("fe80:")) return true;
-  if (ip.toLowerCase().startsWith("fc") || ip.toLowerCase().startsWith("fd")) {
-    return true; // unique local addresses
+export type SsrfCheck = { ok: true } | { ok: false; reason: string };
+export async function checkUrlSafe(value: string): Promise<SsrfCheck> {
+  try { await resolvePublicUrl(value); return { ok: true }; }
+  catch { return { ok: false, reason: "unsafe_url" }; }
+}
+
+/** Each hop is validated BEFORE connecting; DNS is pinned to validated addresses. */
+export async function fetchPublicUrl(value: string, init: RequestInit = {}): Promise<Response> {
+  if (init.method && init.method !== "GET") throw new Error("unsupported_method");
+  let current = value;
+  const signal = init.signal ?? AbortSignal.timeout(30_000);
+  for (let hop = 0; hop <= 5; hop++) {
+    const { url, addresses } = await resolvePublicUrl(current);
+    signal.throwIfAborted();
+    const headers = Object.fromEntries(new Headers(init.headers));
+    // Never forward credentials from callers to imported sites or redirects.
+    delete headers.authorization; delete headers.cookie; delete headers.host;
+    headers["accept-encoding"] = "identity";
+    const response = await new Promise<import("node:http").IncomingMessage>((resolve, reject) => {
+      const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+        headers, signal,
+        lookup: (_hostname, options, callback) => {
+          if (options.all) callback(null, addresses);
+          else callback(null, addresses[0].address, addresses[0].family);
+        },
+      }, resolve);
+      request.on("error", reject);
+      request.end();
+    });
+    if ([301,302,303,307,308].includes(response.statusCode ?? 0) && response.headers.location) {
+      response.destroy();
+      current = new URL(response.headers.location, url).href;
+      continue;
+    }
+    const outHeaders = new Headers();
+    for (const [key, val] of Object.entries(response.headers)) {
+      if (val != null && !["content-encoding", "content-length", "transfer-encoding", "connection"].includes(key)) outHeaders.set(key, Array.isArray(val) ? val.join(", ") : val);
+    }
+    const encoding = response.headers["content-encoding"];
+    const stream = encoding === "gzip" ? response.pipe(createGunzip()) : encoding === "deflate" ? response.pipe(createInflate()) : encoding === "br" ? response.pipe(createBrotliDecompress()) : response;
+    const status = response.statusCode ?? 502;
+    const result = new Response([204,304].includes(status) ? null : Readable.toWeb(stream) as ReadableStream<Uint8Array>, { status, headers: outHeaders });
+    Object.defineProperty(result, "url", { value: url.href });
+    return result;
   }
-  // IPv4
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => Number.isNaN(p))) {
-    return false;
-  }
-  const [a, b] = parts;
-  if (a === 10) return true; // 10.0.0.0/8
-  if (a === 127) return true; // 127.0.0.0/8 loopback
-  if (a === 192 && b === 168) return true; // 192.168.0.0/16
-  if (a === 169 && b === 254) return true; // 169.254.0.0/16 link-local + AWS/GCP metadata
-  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
-  if (a === 0) return true; // 0.0.0.0/8
-  return false;
+  throw new Error("too_many_redirects");
 }

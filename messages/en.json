@@ -98,7 +98,8 @@
     "welcomeTo": "Welcome to",
     "chooseTable": "Choose your table",
     "devTableHint": "In real life this step doesn't exist: your table has a QR that takes you straight to the menu.",
-    "operatorAccess": "Operator access"
+    "operatorAccess": "Operator access",
+    "scanTable": "Scan the QR code at your table to begin."
   },
   "order": {
     "locationCounter": "Counter · {name}",
@@ -5055,5 +5056,24 @@
     "errMissingCredentials": "DIAN credentials are still incomplete.",
     "errDecryptFailed": "The stored credentials could not be decrypted.",
     "errGeneric": "Something went wrong. Please try again."
+  },
+  "paymentPending": {
+    "title": "We are checking your payment",
+    "body": "The result has not been confirmed yet. Do not pay this amount again. This page will update when we receive confirmation.",
+    "failed": "The payment was declined. You can choose another method.",
+    "back": "Back to the bill"
+  },
+  "apiErrors": {
+    "internal_error": "The operation could not be completed. Try again later.",
+    "operation_conflict": "The bill changed or an operation is already pending. Refresh before continuing.",
+    "payment_pending": "The operation is awaiting confirmation. Do not repeat the payment or refund.",
+    "payment_declined": "The payment was declined. You can choose another method.",
+    "forbidden": "You cannot access this bill. Scan the QR code at your table.",
+    "unauthorized": "Sign in to continue.",
+    "rate_limited": "Too many attempts. Please wait a minute.",
+    "restaurant_suspended": "This restaurant cannot accept new operations.",
+    "method_disabled": "This payment method is not enabled.",
+    "credentials_missing": "Payment is currently unavailable.",
+    "generic": "The operation could not be completed. Refresh and try again."
   }
 }

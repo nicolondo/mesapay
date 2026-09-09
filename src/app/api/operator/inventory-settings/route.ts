@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -10,7 +11,7 @@ const GATE: ModuleSlug[] = ["inventory"];
 
 /** Ajustes de inventario: categorías que NO manejan stock + las categorías
  *  existentes del comercio (para elegir). */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -40,7 +41,7 @@ const patchSchema = z.object({
   inventoryExcludedCategories: z.array(z.string().trim().min(1).max(60)).max(200),
 });
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -57,3 +58,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ excludedCategories: excluded });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

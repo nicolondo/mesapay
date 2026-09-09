@@ -1,3 +1,6 @@
+import { reservePayment, markPaymentUncertain } from "@/lib/payments/intent";
+import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -9,7 +12,6 @@ import {
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
-import { validateNewPaymentAmount } from "@/lib/orderTotals";
 
 /**
  * POST /transfer/v1/init de Kushki (server-side, con private key).
@@ -82,6 +84,8 @@ async function chargeTransferInit(args: {
       "Private-Merchant-Id": args.privateKey,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+    redirect: "error",
   });
   const text = await res.text();
   console.log(
@@ -122,8 +126,8 @@ async function chargeTransferInit(args: {
 // Distinguimos por la presencia del campo `token` en el body.
 const schema = z.object({
   orderId: z.string().min(1),
-  amountCents: z.number().int().min(100),
-  tipCents: z.number().int().min(0).default(0),
+  amountCents: amountCentsSchema,
+  tipCents: tipCentsSchema,
   bankCode: z.string().trim().min(1),
   buyer: z.object({
     email: z.string().trim().email(),
@@ -136,9 +140,9 @@ const schema = z.object({
   // el provider mock.
   token: z.string().trim().min(1).optional(),
   redirectUrl: z.string().trim().url().optional(),
-});
+}).refine(validPaymentAmounts, { message: "invalid_amount" });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -179,24 +183,10 @@ export async function POST(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePending: true,
-  });
-  if (!cap.ok) {
-    return NextResponse.json(
-      {
-        error: cap.reason,
-        outstandingCents: cap.outstandingCents,
-        message:
-          cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
-      },
-      { status: 409 },
-    );
-  }
-
+  if (mode !== "mock" && !parsed.data.token) return NextResponse.json({ error: "missing_token" }, { status: 400 });
+  if (mode === "mock" && process.env.NODE_ENV === "production") return NextResponse.json({ error: "mock_payments_disabled" }, { status: 409 });
+  const privateKey = await getRestaurantPrivateKey(tenant.id);
+  if (!privateKey) return NextResponse.json({ error: "credentials_missing" }, { status: 503 });
   // Tracking de quién inicia el cobro (mesero/operator/diner anon).
   const session = await auth();
   const collectedByUserId =
@@ -212,68 +202,17 @@ export async function POST(
   // no la que ve el cliente. Preferimos APP_PUBLIC_BASE_URL (canónica)
   // → headers x-forwarded-host/proto que nginx forwardea → fallback a
   // req.url para dev local sin proxy.
-  const origin = (() => {
-    if (env.APP_PUBLIC_BASE_URL) {
-      return env.APP_PUBLIC_BASE_URL.replace(/\/$/, "");
-    }
-    const xfHost = req.headers.get("x-forwarded-host");
-    const xfProto = req.headers.get("x-forwarded-proto") ?? "https";
-    if (xfHost) return `${xfProto}://${xfHost}`;
-    const host = req.headers.get("host");
-    if (host) {
-      const proto = host.includes("localhost") ? "http" : "https";
-      return `${proto}://${host}`;
-    }
-    return new URL(req.url).origin;
-  })();
-
-  // 1. Crear pending Payment + sweep otros pendings (mismo patrón
-  //    que cash / terminal). El providerRef se completa después con
-  //    el ticket que devuelve Kushki.
-  const payment = await db.$transaction(async (tx) => {
-    await tx.payment.updateMany({
-      where: { orderId: order.id, status: "pending" },
-      data: { status: "declined" },
-    });
-    const p = await tx.payment.create({
-      data: {
-        orderId: order.id,
-        method: "kushki_pse",
-        status: "pending",
-        amountCents: parsed.data.amountCents,
-        tipCents: parsed.data.tipCents,
-        collectedByUserId,
-      },
-    });
-    await tx.order.update({
-      where: { id: order.id },
-      data: {
-        status: order.status === "paid" ? order.status : "paying",
-      },
-    });
-    return p;
-  });
+  const origin = env.APP_PUBLIC_BASE_URL ?? new URL(req.url).origin;
+  // Reserve before network I/O; retries reuse the token's request key.
+  const intent = await reservePayment({ orderId: order.id, method: "kushki_pse", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId }, parsed.data.token ?? req.headers.get("Idempotency-Key") ?? undefined);
+  const payment = intent.payment;
+  if (!intent.created) return NextResponse.json({ error: "payment_pending", paymentId: payment.id, pending: payment.status === "pending", approved: payment.status === "approved" }, { status: 202 });
 
   // 2. Si el browser ya tokenizó con Kushki.js (sandbox/prod), llamamos
   //    a /transfer/v1/init server-side con la private key + el token
   //    para obtener la URL del banco. Kushki PSE v1 NO devuelve la URL
   //    en la respuesta de tokenización — solo el token.
   if (parsed.data.token) {
-    const privateKey = await getRestaurantPrivateKey(tenant.id);
-    if (!privateKey) {
-      await db.payment.update({
-        where: { id: payment.id },
-        data: { status: "declined" },
-      });
-      return NextResponse.json(
-        {
-          error: "missing_credentials",
-          message:
-            "Falta la private key del sub-merchant para completar PSE.",
-        },
-        { status: 500 },
-      );
-    }
     try {
       const initResp = await chargeTransferInit({
         token: parsed.data.token,
@@ -296,30 +235,15 @@ export async function POST(
       }
       await db.payment.update({
         where: { id: payment.id },
-        data: { providerRef: parsed.data.token },
+        data: { providerRef: typeof initResp.transactionReference === "string" ? initResp.transactionReference : null },
       });
       return NextResponse.json({
         paymentId: payment.id,
         redirectUrl,
       });
-    } catch (err) {
-      console.error("[pse-init] transfer init FAILED", err);
-      await db.payment.update({
-        where: { id: payment.id },
-        data: { status: "declined" },
-      });
-      const detail =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message: unknown }).message).slice(0, 300)
-          : "Error desconocido";
-      return NextResponse.json(
-        {
-          error: "init_failed",
-          message: "No pudimos iniciar la transferencia con Kushki.",
-          detail,
-        },
-        { status: 502 },
-      );
+    } catch {
+      await markPaymentUncertain(payment.id);
+      return NextResponse.json({ error: "payment_pending", paymentId: payment.id, pending: true }, { status: 202 });
     }
   }
 
@@ -372,25 +296,10 @@ export async function POST(
       paymentId: payment.id,
       redirectUrl: absoluteRedirect,
     });
-  } catch (err) {
-    console.error("[pse-init] provider failed", err);
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { status: "declined" },
-    });
-    // Surface the underlying error message so we can debug. Para
-    // Kushki nuestros KushkiHttpError tienen body con el mensaje.
-    const detail =
-      err && typeof err === "object" && "message" in err
-        ? String((err as { message: unknown }).message).slice(0, 300)
-        : "Error desconocido";
-    return NextResponse.json(
-      {
-        error: "provider_error",
-        message: "No pudimos iniciar PSE.",
-        detail,
-      },
-      { status: 502 },
-    );
+  } catch {
+    await markPaymentUncertain(payment.id);
+    return NextResponse.json({ error: "payment_pending", paymentId: payment.id, pending: true }, { status: 202 });
   }
 }
+
+export const POST = secureApi(POSTHandler);

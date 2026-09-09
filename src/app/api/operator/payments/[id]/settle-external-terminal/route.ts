@@ -1,3 +1,5 @@
+import { lockOrder } from "@/lib/orderLock";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -31,7 +33,7 @@ const schema = z.object({
   declineReason: z.string().trim().max(120).optional(),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -39,7 +41,7 @@ export async function POST(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "terminal" &&
       session.user.role !== "mesero")
   ) {
@@ -97,6 +99,9 @@ export async function POST(
   // Approve path — marca como pagado, recompute totals, activa
   // rounds si correspondía y emite el evento de paid.
   const result = await db.$transaction(async (tx) => {
+    await lockOrder(tx, payment.orderId);
+    const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
+    if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
     const now = new Date();
     const updated = await tx.payment.update({
       where: { id: payment.id },
@@ -133,3 +138,5 @@ export async function POST(
     paid: result.fullyPaid,
   });
 }
+
+export const POST = secureApi(POSTHandler);

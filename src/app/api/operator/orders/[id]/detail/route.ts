@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -9,7 +10,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
  * rondas + items con estado de cocina + timestamps suficientes para
  * computar ETA. No incluye totales, pagos ni datos sensibles.
  */
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -18,7 +19,7 @@ export async function GET(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "mesero" &&
       session.user.role !== "kitchen" &&
       session.user.role !== "bar")
@@ -73,3 +74,5 @@ export async function GET(
     })),
   });
 }
+
+export const GET = secureApi(GETHandler);

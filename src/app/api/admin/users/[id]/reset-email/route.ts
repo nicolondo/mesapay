@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -15,7 +16,7 @@ const BASE_URL = process.env.NEXTAUTH_URL ?? "https://mesapay.co";
  * POST /api/admin/users/[id]/reset-email — sends a password-reset link.
  * platform_admin only. El link es de un solo uso y vence en 1 hora.
  */
-export async function POST(
+async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -66,3 +67,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true, sent });
 }
+
+export const POST = secureApi(POSTHandler);

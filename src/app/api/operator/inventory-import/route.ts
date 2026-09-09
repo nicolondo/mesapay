@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -117,7 +118,7 @@ async function loadContext(restaurantId: string) {
  * revisar. NADA se persiste — el archivo no se guarda; reintentar =
  * re-procesar con otras instrucciones (el cliente conserva el archivo).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -165,3 +166,5 @@ export async function POST(req: Request) {
     categories: matchCtx.categories,
   });
 }
+
+export const POST = secureApi(POSTHandler);

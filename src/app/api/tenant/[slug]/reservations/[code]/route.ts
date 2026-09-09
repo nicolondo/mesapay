@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
@@ -10,7 +11,7 @@ import { publishOrderEvent } from "@/lib/events";
  *
  * DELETE /api/tenant/[slug]/reservations/[code]
  */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ slug: string; code: string }> },
 ) {
@@ -49,3 +50,5 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const DELETE = secureApi(DELETEHandler);

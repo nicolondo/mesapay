@@ -25,6 +25,7 @@ import type { PaymentProvider } from "./types";
 const providerCache = new Map<KushkiMode, PaymentProvider>();
 
 function providerFor(mode: KushkiMode): PaymentProvider {
+  if (mode === "mock" && process.env.NODE_ENV === "production") throw new Error("mock_payments_disabled");
   const hit = providerCache.get(mode);
   if (hit) return hit;
   const provider: PaymentProvider =

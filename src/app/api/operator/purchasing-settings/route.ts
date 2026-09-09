@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -11,7 +12,7 @@ const GATE: ModuleSlug[] = ["purchasing"];
 const SELECT = { purchaseIvaDeductible: true } as const;
 
 /** Ajustes de compras (F5): IVA descontable + país (para las tarifas de IVA). */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -27,7 +28,7 @@ const patchSchema = z.object({
   purchaseIvaDeductible: z.boolean().optional(),
 });
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -43,3 +44,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ settings });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

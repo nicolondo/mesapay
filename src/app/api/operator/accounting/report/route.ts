@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -30,7 +31,7 @@ function isoDate(d: Date | null): string {
  * dependencias) con hojas: Ventas, Retenciones, Costos de ventas (CMV) e
  * Inventarios. Montos como número para que el contador los sume/filtre.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -180,3 +181,5 @@ export async function GET(req: Request) {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

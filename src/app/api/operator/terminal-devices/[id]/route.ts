@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -30,7 +31,7 @@ function guard(role?: string) {
  * "Cobrar con datáfono" the system already knows which device to push
  * to — no Salón roundtrip needed.
  */
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -97,3 +98,5 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, device: updated });
 }
+
+export const PATCH = secureApi(PATCHHandler);

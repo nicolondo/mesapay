@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 // browsers anyway (the service worker passes it to PushManager.subscribe).
 // We expose via API rather than NEXT_PUBLIC_ env so the client doesn't
 // have to know its own bundle constants and so we can rotate at runtime.
-export async function GET() {
+async function GETHandler() {
   const pub = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!pub) {
     return NextResponse.json(
@@ -17,3 +18,5 @@ export async function GET() {
   }
   return NextResponse.json({ publicKey: pub });
 }
+
+export const GET = secureApi(GETHandler);

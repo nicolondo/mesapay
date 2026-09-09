@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
@@ -12,7 +13,7 @@ const GATE: ModuleSlug[] = ["accounting"];
  * Estados contables del mes derivados del Libro Diario: balance de
  * comprobación, estado de resultados y estado de situación financiera.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -26,3 +27,5 @@ export async function GET(req: Request) {
   const statements = await loadStatements(ctx.restaurantId, range);
   return NextResponse.json({ month, statements });
 }
+
+export const GET = secureApi(GETHandler);

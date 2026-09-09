@@ -1,3 +1,5 @@
+import { lockOrder } from "@/lib/orderLock";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -43,18 +45,21 @@ function ticketNumberFrom(raw: unknown): string | null {
   return null;
 }
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id: paymentId } = await params;
+  const requestId = req.headers.get("idempotency-key");
+  if (!requestId || !/^[a-zA-Z0-9-]{16,100}$/.test(requestId)) return NextResponse.json({ error: "idempotency_key_required" }, { status: 400 });
+  const operationKey = `refund:${paymentId}:${requestId}`;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
@@ -74,13 +79,15 @@ export async function POST(
   if (!payment || payment.order.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "payment_not_found" }, { status: 404 });
   }
+  const previous = await db.financialOperation.findUnique({ where: { key: operationKey } });
+  if (previous) return NextResponse.json({ ok: previous.status === "completed", pending: previous.status !== "completed", operationId: previous.key }, { status: previous.status === "completed" ? 200 : 202 });
   if (!REFUNDABLE_METHODS.has(payment.method)) {
     return NextResponse.json({ error: "not_refundable_method" }, { status: 409 });
   }
   if (payment.status !== "approved") {
     return NextResponse.json({ error: "not_approved" }, { status: 409 });
   }
-  const remaining = payment.amountCents - payment.refundedCents;
+  const remaining = payment.amountCents - payment.refundedCents - payment.refundReservedCents;
   if (remaining <= 0) {
     return NextResponse.json({ error: "already_refunded" }, { status: 409 });
   }
@@ -116,6 +123,16 @@ export async function POST(
   // Total sólo si es el primer reintegro por el monto completo del cargo.
   const full = payment.refundedCents === 0 && amountCents === payment.amountCents;
 
+  const reserved = await db.$transaction(async tx => {
+    await lockOrder(tx, payment.orderId);
+    if (await tx.financialOperation.findUnique({ where: { key: operationKey } })) return false;
+    const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (current.status !== "approved" || current.refundReservedCents > 0 || amountCents > current.amountCents - current.refundedCents) throw new Error("operation_conflict");
+    await tx.financialOperation.create({ data: { key: operationKey, paymentId, kind: "refund", amountCents } });
+    await tx.payment.update({ where: { id: payment.id }, data: { refundReservedCents: { increment: amountCents } } });
+    return true;
+  });
+  if (!reserved) return NextResponse.json({ pending: true, operationId: operationKey }, { status: 202 });
   let outcome;
   try {
     outcome = await refundKushkiCharge({
@@ -126,28 +143,24 @@ export async function POST(
       amountCents,
       full,
     });
-  } catch (err) {
-    const detail =
-      err instanceof Error ? err.message.slice(0, 300) : "provider_error";
-    console.error("[kushki-refund] FAILED", { paymentId, detail });
-    return NextResponse.json(
-      {
-        error: "refund_failed",
-        detail,
-        message: "La devolución falló. Reintentá o revisá el estado en Kushki.",
-      },
-      { status: 502 },
-    );
+    if (!outcome.ok) throw new Error("refund_unconfirmed");
+  } catch {
+    await db.financialOperation.update({ where: { key: operationKey }, data: { status: "uncertain" } });
+    await db.payment.update({ where: { id: payment.id }, data: { reconciliationRequired: true } });
+    return NextResponse.json({ error: "payment_pending", pending: true, operationId: operationKey }, { status: 202 });
   }
 
   const newRefunded = payment.refundedCents + amountCents;
   const fullyRefunded = newRefunded >= payment.amountCents;
 
   await db.$transaction(async (tx) => {
+    await lockOrder(tx, payment.orderId);
+    await tx.financialOperation.update({ where: { key: operationKey }, data: { status: "completed" } });
     await tx.payment.update({
       where: { id: payment.id },
       data: {
-        refundedCents: newRefunded,
+        refundedCents: { increment: amountCents },
+        refundReservedCents: { decrement: amountCents },
         refundedAt: new Date(),
         ...(fullyRefunded ? { status: "refunded" as const } : {}),
       },
@@ -158,7 +171,7 @@ export async function POST(
         paymentId: payment.id,
         // kushkiTxId es @unique; sintetizamos uno propio (la respuesta de la
         // devolución no siempre trae una referencia estable).
-        kushkiTxId: `refund:${crypto.randomUUID()}`,
+        kushkiTxId: operationKey,
         kind: "refund",
         status: "approved",
         amountCents,
@@ -181,3 +194,5 @@ export async function POST(
     amountCents,
   });
 }
+
+export const POST = secureApi(POSTHandler);

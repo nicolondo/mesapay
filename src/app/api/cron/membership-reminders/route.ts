@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { renderMembershipReminderEmail, sendEmail } from "@/lib/mailer";
@@ -57,7 +58,7 @@ function localeForCountry(country: string | null | undefined): string {
   }
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
   if (!expected || secret !== expected) {
@@ -215,3 +216,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, ...result });
 }
+
+export const POST = secureApi(POSTHandler);

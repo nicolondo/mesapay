@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -11,7 +12,7 @@ const schema = z.object({
 });
 
 /** Registra un egreso/ingreso de la caja general (operator o admin). */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   const role = session?.user?.role;
   if (!session?.user || (role !== "operator" && role !== "platform_admin")) {
@@ -35,3 +36,5 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

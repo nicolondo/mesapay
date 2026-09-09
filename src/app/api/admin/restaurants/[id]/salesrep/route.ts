@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -9,7 +10,7 @@ const schema = z.object({
   salesRepCommissionBps: z.number().int().min(0).max(5000).nullable(),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -94,3 +95,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

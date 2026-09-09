@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -72,12 +73,12 @@ const schema = z.object({
     .optional(),
 });
 
-export async function PUT(req: Request) {
+async function PUTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
@@ -128,3 +129,5 @@ export async function PUT(req: Request) {
 
   return NextResponse.json({ ok: true, saved: ownedIds.size });
 }
+
+export const PUT = secureApi(PUTHandler);

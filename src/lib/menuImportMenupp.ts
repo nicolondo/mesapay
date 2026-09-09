@@ -27,7 +27,7 @@
 
 import type { MenuExtraction } from "@/lib/anthropic";
 import { localizeImagesWithFallback } from "@/lib/menuImportImages";
-import { checkUrlSafe } from "@/lib/ssrf";
+import { checkUrlSafe, fetchPublicUrl } from "@/lib/ssrf";
 
 // Fixed, public host — never derived from user input, so no SSRF surface on
 // the host. Only the {slug}/{id} path segments come from the URL and are
@@ -174,7 +174,7 @@ async function fsFetch(url: string): Promise<unknown | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await fetchPublicUrl(url, {
       signal: controller.signal,
       redirect: "follow",
       headers: { accept: "application/json" },

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -47,7 +48,7 @@ const schema = z
     { message: "served, kitchenStatus, expedite or cancel required" },
   );
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -62,7 +63,7 @@ export async function PATCH(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "kitchen" &&
       session.user.role !== "bar" &&
       session.user.role !== "mesero")
@@ -412,3 +413,5 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);

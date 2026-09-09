@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -66,7 +67,7 @@ async function getLeadInScope(id: string, visibleUserIds: string[] | null) {
 
 // ── GET /api/crm/leads/[id] ──────────────────────────────────────────────────
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -96,7 +97,7 @@ export async function GET(
 
 // ── PATCH /api/crm/leads/[id] ────────────────────────────────────────────────
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -220,7 +221,7 @@ export async function PATCH(
 
 // ── DELETE /api/crm/leads/[id] ───────────────────────────────────────────────
 
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -247,3 +248,9 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

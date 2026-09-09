@@ -1,3 +1,5 @@
+import { db } from "@/lib/db";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { sweepUnconsumedOrders } from "@/lib/erp/consumption";
 
@@ -13,12 +15,17 @@ export const dynamic = "force-dynamic";
  *
  * Auth y verbo iguales a los otros crons (x-cron-secret + POST).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
   if (!expected || secret !== expected) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const summary = await sweepUnconsumedOrders();
-  return NextResponse.json(summary);
+  await db.rateLimitBucket.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+  await db.platformEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86400_000) } } });
+  const reconciliationRequired = await db.payment.count({ where: { reconciliationRequired: true } });
+  return NextResponse.json({ ...summary, reconciliationRequired });
 }
+
+export const POST = secureApi(POSTHandler);

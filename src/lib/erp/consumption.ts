@@ -261,7 +261,7 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
 
 /**
  * Barrido de respaldo (cron): procesa órdenes pagadas sin consumir de las
- * últimas 48 h. Cubre caídas del proceso, deploys a mitad de pago y paths
+ * todos los períodos. Cubre caídas del proceso, deploys a mitad de pago y paths
  * que no publiquen `order.paid`.
  */
 export async function sweepUnconsumedOrders(): Promise<{
@@ -270,9 +270,8 @@ export async function sweepUnconsumedOrders(): Promise<{
   modulesOff: number;
   errors: number;
 }> {
-  const since = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const orders = await db.order.findMany({
-    where: { status: "paid", stockConsumedAt: null, paidAt: { gte: since } },
+    where: { status: "paid", stockConsumedAt: null, paidAt: { not: null } },
     select: { id: true },
     orderBy: { paidAt: "asc" },
     take: 500,

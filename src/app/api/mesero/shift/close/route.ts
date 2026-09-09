@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -18,7 +19,7 @@ const schema = z.object({
  * efectivo cobrado por él) y la diferencia. Devuelve el resumen para
  * que la UI muestre un summary modal al cerrar.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "mesero") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -110,3 +111,5 @@ export async function POST(req: Request) {
     },
   });
 }
+
+export const POST = secureApi(POSTHandler);

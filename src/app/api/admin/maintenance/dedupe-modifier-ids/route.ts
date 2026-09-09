@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -35,7 +36,7 @@ const bodySchema = z
   })
   .optional();
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -140,3 +141,5 @@ export async function POST(req: Request) {
     changed: changed.slice(0, 200),
   });
 }
+
+export const POST = secureApi(POSTHandler);

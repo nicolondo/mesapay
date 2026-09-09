@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { auth } from "@/auth";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  *   GET /api/operator/shell-flag?to=cockpit  → vuelve al default (cockpit)
  * Setea/borra la cookie mp_shell y redirige a /operator. Requiere sesión staff.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const session = await auth();
   const role = session?.user?.role;
   if (
@@ -37,3 +38,5 @@ export async function GET(req: Request) {
   }
   return NextResponse.redirect(new URL("/operator", req.url));
 }
+
+export const GET = secureApi(GETHandler);

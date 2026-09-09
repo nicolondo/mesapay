@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -32,7 +33,7 @@ const schema = z.object({
  * required and validated. platform_admin users are global and ignore
  * restaurantId.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -93,3 +94,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, user });
 }
+
+export const POST = secureApi(POSTHandler);

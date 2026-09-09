@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -29,7 +30,7 @@ const schema = z.object({
   rawComponents: z.unknown().optional(),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string; orderId: string }> },
 ) {
@@ -133,3 +134,5 @@ export async function POST(
     invoiceUrl: inv.ok ? inv.invoiceUrl : null,
   });
 }
+
+export const POST = secureApi(POSTHandler);

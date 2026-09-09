@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ const bodySchema = z.object({
  * No requiere auth — el cliente acaba de pagar y eligió mandarse la factura.
  * La validación de que la orden esté paga (en el helper) es la barrera.
  */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string; orderId: string }> },
 ) {
@@ -95,3 +96,5 @@ export async function POST(
     invoiceUrl: result.invoiceUrl,
   });
 }
+
+export const POST = secureApi(POSTHandler);

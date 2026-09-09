@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCrmContext } from "@/lib/crm/access";
@@ -9,7 +10,7 @@ const CreateSchema = z.object({
   scope: z.enum(["global", "user"]).default("user"),
 });
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -26,7 +27,7 @@ export async function GET() {
   return NextResponse.json({ templates });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -56,3 +57,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ template }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

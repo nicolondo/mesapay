@@ -19,6 +19,8 @@ import i18next from "eslint-plugin-i18next";
  */
 const MIGRATED = [
   "src/i18n/**/*.{ts,tsx}",
+  "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pending/*.{ts,tsx}",
+  "src/app/operator/orders/\\[id\\]/RefundButton.tsx",
   "src/components/LocaleSwitcher.tsx",
   "src/app/nicolas/**/*.{ts,tsx}",
   // OJO: los corchetes de las rutas dinámicas de Next ([slug]) son clases
@@ -139,6 +141,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".claude/**",
+    ".agents/**",
+    ".codex/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

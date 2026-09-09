@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 /**
  * PATCH /api/crm/team/[id] — edit a comercial in the caller's team
  *
@@ -34,7 +35,7 @@ const patchSchema = z
     { message: "at_least_one_field" },
   );
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -118,3 +119,5 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, user: updated });
 }
+
+export const PATCH = secureApi(PATCHHandler);

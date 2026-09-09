@@ -59,6 +59,7 @@ export function useVisibleEventSource(
       if (esRef.current) return;
       const es = new EventSource(url);
       setupRef.current(es);
+      es.addEventListener("open", () => resumeRef.current?.());
       esRef.current = es;
     }
     function close() {
@@ -69,7 +70,6 @@ export function useVisibleEventSource(
     function onVisibility() {
       if (document.visibilityState === "visible") {
         open();
-        resumeRef.current?.();
       } else {
         close();
       }

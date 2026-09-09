@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
@@ -21,7 +22,7 @@ import { sendPushToMeserosForTable } from "@/lib/push";
  * Validación: tenant slug + qrToken tienen que coincidir. Sin
  * auth (el cliente está en el QR público).
  */
-export async function POST(
+async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ slug: string; qrToken: string }> },
 ) {
@@ -130,3 +131,5 @@ async function notifyMeseros(
     console.error("[push:waiter-by-table]", err);
   }
 }
+
+export const POST = secureApi(POSTHandler);

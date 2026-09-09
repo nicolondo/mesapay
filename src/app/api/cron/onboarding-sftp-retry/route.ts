@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { deliverDocumentToSftp } from "@/lib/onboardingSftp";
@@ -18,7 +19,7 @@ const BATCH = 25;
  *
  * Auth y verbo iguales a los otros crons (x-cron-secret + POST).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
   if (!expected || secret !== expected) {
@@ -51,3 +52,5 @@ export async function POST(req: Request) {
     failed: pending.length - delivered,
   });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["staff"];
 
 /** Corrida de nómina del mes + parámetros efectivos del comercio. */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
 }
 
 /** Genera (o regenera) la corrida del mes. */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -65,7 +66,7 @@ const patchSchema = z.object({
 });
 
 /** Guarda los parámetros de liquidación del comercio. */
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -81,3 +82,9 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ ok: true, params: parsed.data.params });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);
+
+export const PATCH = secureApi(PATCHHandler);

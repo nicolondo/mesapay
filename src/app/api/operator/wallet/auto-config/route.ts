@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -15,7 +16,7 @@ const policySchema = z.discriminatedUnion("enabled", [
   }),
 ]);
 
-export async function GET() {
+async function GETHandler() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no restaurant" }, { status: 400 });
@@ -29,11 +30,11 @@ export async function GET() {
   });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -52,3 +53,7 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

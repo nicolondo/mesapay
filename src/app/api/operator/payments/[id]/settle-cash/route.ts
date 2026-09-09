@@ -1,3 +1,5 @@
+import { lockOrder } from "@/lib/orderLock";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -14,7 +16,7 @@ const schema = z.object({
   changeGivenCents: z.number().int().min(0).max(100_000_000),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -28,7 +30,7 @@ export async function POST(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "terminal" &&
       session.user.role !== "mesero")
   ) {
@@ -95,6 +97,9 @@ export async function POST(
   const extraTipCents = netReceived - payment.amountCents;
 
   const result = await db.$transaction(async (tx) => {
+    await lockOrder(tx, payment.orderId);
+    const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
+    if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
     const now = new Date();
     // "Keep the change" tips land on this specific payment so the per-payment
     // tip stays coherent with the ledger.
@@ -143,3 +148,5 @@ export async function POST(
     extraTipCents,
   });
 }
+
+export const POST = secureApi(POSTHandler);

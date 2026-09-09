@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -15,7 +16,7 @@ const schema = z.object({
   conversationId: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   const role = session?.user?.role;
   if (
@@ -103,3 +104,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ conversationId: conv.id, text: result.text, toolCalls: result.toolCalls });
 }
+
+export const POST = secureApi(POSTHandler);

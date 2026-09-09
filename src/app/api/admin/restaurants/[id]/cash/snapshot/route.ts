@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -5,7 +6,7 @@ import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 /** Snapshot de caja en vivo de un comercio, desde el admin de plataforma. */
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -27,3 +28,5 @@ export async function GET(
   );
   return NextResponse.json(snapshot);
 }
+
+export const GET = secureApi(GETHandler);

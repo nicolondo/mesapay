@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -63,7 +64,7 @@ function guard(role?: string) {
  *   - Si cambia el rol, reseteamos `assignedTableNumbers` salvo que
  *     el rol nuevo siga siendo mesero — el array solo aplica a meseros.
  */
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -180,7 +181,7 @@ export async function PATCH(
  * Si el usuario es el dueño de pedidos abiertos (Order.userId), Prisma
  * lo bloqueará por la FK — devolvemos 409 con mensaje legible.
  */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -235,3 +236,7 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

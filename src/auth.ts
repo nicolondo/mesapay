@@ -1,3 +1,4 @@
+import { rateLimit } from "@/lib/rateLimit";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
@@ -26,6 +27,7 @@ declare module "next-auth" {
     };
   }
   interface User {
+    sessionVersion?: number;
     role: Role;
     restaurantId?: string | null;
     groupId?: string | null;
@@ -34,6 +36,7 @@ declare module "next-auth" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    sessionVersion?: number;
     role: Role;
     restaurantId?: string | null;
     groupId?: string | null;
@@ -51,9 +54,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (raw) => {
+      authorize: async (raw, req) => {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
+        if (!await rateLimit(`login:${parsed.data.email.toLowerCase()}`, 10, 300) || !await rateLimit(`login-ip:${req.headers.get("x-real-ip") ?? "unknown"}`, 60, 300)) return null;
         const user = await db.user.findUnique({
           where: { email: parsed.data.email.toLowerCase() },
           select: {
@@ -65,6 +69,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             restaurantId: true,
             groupId: true,
             disabledAt: true,
+            sessionVersion: true,
           },
         });
         if (!user) return null;
@@ -74,6 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.disabledAt != null) return null;
         return {
           id: user.id,
+          sessionVersion: user.sessionVersion,
           email: user.email,
           name: user.name ?? undefined,
           role: user.role,
@@ -86,11 +92,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.sessionVersion = user.sessionVersion;
         token.userId = user.id as string;
         token.role = (user as { role: Role }).role;
         token.restaurantId = (user as { restaurantId?: string | null }).restaurantId ?? null;
         token.groupId = (user as { groupId?: string | null }).groupId ?? null;
       }
+      const current = await db.user.findUnique({
+        where: { id: token.userId },
+        select: { sessionVersion: true, disabledAt: true, role: true, restaurantId: true, groupId: true },
+      });
+      if (!current || current.disabledAt || token.sessionVersion !== current.sessionVersion) return null;
+      token.role = current.role;
+      token.restaurantId = current.restaurantId;
+      token.groupId = current.groupId;
       return token;
     },
     async session({ session, token }) {

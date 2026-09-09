@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -22,7 +23,7 @@ function guard(role?: string) {
  * own restaurant so an admin of restaurant A can't reassign tables
  * for a mesero of restaurant B by guessing the user id.
  */
-export async function PUT(
+async function PUTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -78,3 +79,5 @@ export async function PUT(
 
   return NextResponse.json({ ok: true, tableNumbers: clean });
 }
+
+export const PUT = secureApi(PUTHandler);

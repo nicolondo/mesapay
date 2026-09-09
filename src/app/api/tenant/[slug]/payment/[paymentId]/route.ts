@@ -1,7 +1,8 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ slug: string; paymentId: string }> },
 ) {
@@ -20,3 +21,5 @@ export async function GET(
     orderStatus: payment.order.status,
   });
 }
+
+export const GET = secureApi(GETHandler);

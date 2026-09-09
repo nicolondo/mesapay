@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -66,12 +67,12 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete"), itemIds: idsSchema }),
 ]);
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -267,3 +268,5 @@ export async function POST(req: Request) {
   ]);
   return NextResponse.json({ ok: true, deletedIds: deletableIds, archivedIds });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ import { isCashMethod } from "@/lib/shift";
  * tipPolicy="by_waiter". En "shared" devolvemos null en tipsCents
  * para que el cliente muestre un copy distinto ("propinas del local").
  */
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   if (!session?.user || session.user.role !== "mesero") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -113,3 +114,5 @@ export async function GET() {
     tableCount,
   });
 }
+
+export const GET = secureApi(GETHandler);

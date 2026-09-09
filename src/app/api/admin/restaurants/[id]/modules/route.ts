@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -22,7 +23,7 @@ function guard(role?: string) {
   return role === "platform_admin";
 }
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -41,7 +42,7 @@ export async function GET(
   });
 }
 
-export async function PUT(
+async function PUTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -90,3 +91,7 @@ export async function PUT(
     modules: resolveEnabledModules(updated.enabledModules),
   });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PUT = secureApi(PUTHandler);

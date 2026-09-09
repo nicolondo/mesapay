@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -40,7 +41,7 @@ const putSchema = z.object({
 });
 
 /** Upsert (o borrado con items: []) de la receta de un plato. */
-export async function PUT(
+async function PUTHandler(
   req: Request,
   { params }: { params: Promise<{ menuItemId: string }> },
 ) {
@@ -154,3 +155,5 @@ export async function PUT(
   const cost = costRecipeItems(costCtx, recipe.items);
   return NextResponse.json({ recipe, cost });
 }
+
+export const PUT = secureApi(PUTHandler);

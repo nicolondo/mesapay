@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -32,7 +33,7 @@ const schema = z.object({
  * saldo = total − paidCents; se rechaza un abono que exceda el saldo.
  * Cuando el saldo llega a 0, la OC queda pagada (paidAt).
  */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -112,3 +113,5 @@ export async function POST(
     throw err;
   }
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
@@ -21,7 +22,7 @@ import { getRestaurantWebhookSecret } from "@/lib/payments";
  * logueamos el body crudo para ajustar cuando se pruebe con un cobro real.
  */
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const raw = await req.text();
   console.log("[kushki/cloud-terminal] webhook raw", raw.slice(0, 800));
 
@@ -117,3 +118,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ ok: true, status: result.status });
 }
+
+export const POST = secureApi(POSTHandler);

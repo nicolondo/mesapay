@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -46,7 +47,7 @@ const confirmSchema = z.object({
   reteIcaCents: cents,
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -215,3 +216,5 @@ export async function POST(
     throw err;
   }
 }
+
+export const POST = secureApi(POSTHandler);

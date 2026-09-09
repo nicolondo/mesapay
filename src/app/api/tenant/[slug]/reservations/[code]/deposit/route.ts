@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -50,7 +51,7 @@ function mapKushkiError(detail: string): string {
   return "El pago falló. Probá con otra tarjeta.";
 }
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string; code: string }> },
 ) {
@@ -215,3 +216,5 @@ export async function POST(
     confirmationCode: reservation.confirmationCode,
   });
 }
+
+export const POST = secureApi(POSTHandler);

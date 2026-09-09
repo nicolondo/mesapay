@@ -1,3 +1,4 @@
+import { lockStock } from "@/lib/orderLock";
 import type { Prisma, StockMovementKind, WasteReason } from "@prisma/client";
 
 // Lógica central de inventario (ERP Fase A1).
@@ -163,6 +164,7 @@ export async function applyStockMovement(
     throw new StockError("cost_invalid");
   }
 
+  await lockStock(tx, restaurantId);
   const ingredient = await tx.ingredient.findUnique({
     where: { id: ingredientId },
     select: { restaurantId: true, active: true },

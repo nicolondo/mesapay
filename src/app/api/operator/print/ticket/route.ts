@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -18,7 +19,7 @@ import { formatItemSelections } from "@/lib/modifiers";
  * lives on the listener page and handles `@page` sizing for the
  * configured paper width.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const session = await auth();
   // Kitchen / bar también imprimen — sus pantallas (/cocina, /bar)
   // re-exportan los boards del operador y la auto-impresión dispara
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "kitchen" &&
       session.user.role !== "bar")
   ) {
@@ -93,3 +94,5 @@ export async function GET(req: Request) {
     })),
   });
 }
+
+export const GET = secureApi(GETHandler);

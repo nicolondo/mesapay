@@ -15,7 +15,7 @@
 
 import type { MenuExtraction } from "@/lib/anthropic";
 import { localizeImagesWithFallback } from "@/lib/menuImportImages";
-import { checkUrlSafe } from "@/lib/ssrf";
+import { checkUrlSafe, fetchPublicUrl } from "@/lib/ssrf";
 
 type ShopifyVariant = {
   id: number;
@@ -127,7 +127,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await fetchPublicUrl(url, {
       signal: controller.signal,
       redirect: "follow",
       headers: {

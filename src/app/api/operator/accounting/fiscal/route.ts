@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /** Posición fiscal del mes (impuestos) + estado del cierre del año. */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 }
 
 /** Genera (o refresca) el asiento de cierre del año `year`. */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -46,3 +47,7 @@ export async function POST(req: Request) {
   const closing = await generateYearClosing(ctx.restaurantId, year);
   return NextResponse.json({ year, closing });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

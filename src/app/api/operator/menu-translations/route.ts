@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -23,7 +24,7 @@ function guard(role?: string) {
  * POST → genera/cachea con IA las traducciones de TODA la carta (en/pt).
  * Body { force?: true } → rehace las automáticas (conserva las manuales).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -103,7 +104,7 @@ async function sourceText(
  * PATCH → guarda (o borra) un override MANUAL de una traducción. source=
  * "manual" + sourceHash vigente → no lo pisa la regeneración con IA.
  */
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -157,3 +158,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const PATCH = secureApi(PATCHHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -37,7 +38,7 @@ async function getContactInScope(
 
 // ── PATCH /api/crm/contacts/[id] ─────────────────────────────────────────────
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -96,7 +97,7 @@ export async function PATCH(
 
 // ── DELETE /api/crm/contacts/[id] ────────────────────────────────────────────
 
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -112,3 +113,7 @@ export async function DELETE(
   await db.crmContact.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

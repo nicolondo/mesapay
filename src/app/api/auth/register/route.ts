@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -19,7 +20,7 @@ const schema = z.object({
   marketingOptIn: z.boolean().optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -55,3 +56,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, id: user.id });
 }
+
+export const POST = secureApi(POSTHandler);

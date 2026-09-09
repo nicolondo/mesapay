@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useApiError } from "@/lib/useApiError";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -147,6 +148,7 @@ export function PayClient({
   const isMockMode = kushkiMode === "mock";
   const router = useRouter();
   const t = useTranslations("pay");
+  const apiError = useApiError();
   const [tipPct, setTipPct] = useState<number>(10);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -315,9 +317,12 @@ export function PayClient({
     const j = await res.json().catch(() => ({}));
     // Log completo (incluye detail crudo de Kushki) sólo en console
     // para debug. En la UI mostramos solo el mensaje amigable.
-    console.log("[kushki-charge] response", { status: res.status, body: j });
+    if (j.pending && j.paymentId) {
+      router.push(`/t/${tenantSlug}/pay/${orderId}/pending?pid=${encodeURIComponent(j.paymentId)}`);
+      return;
+    }
     if (!res.ok) {
-      setErr(j.message ?? j.error ?? t("errPayFailed"));
+      setErr(apiError(j, t("errPayFailed")));
       return;
     }
     if (j.approved && j.paymentId) {
@@ -327,7 +332,7 @@ export function PayClient({
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
-      setErr(j.message ?? t("errDeclined"));
+      setErr(apiError(j, t("errDeclined")));
     }
   }
 
@@ -492,6 +497,7 @@ export function PayClient({
         `[pse-timing] backend /kushki-pse-init: ${Math.round(performance.now() - t0)}ms`,
       );
       const j = await res.json().catch(() => ({}));
+      if (j.pending && j.paymentId) { router.push(`/t/${tenantSlug}/pay/${orderId}/pending?pid=${encodeURIComponent(j.paymentId)}`); return; }
       if (!res.ok || !j.redirectUrl) {
         // Si Kushki devolvió detalle del error, lo concatenamos al
         // mensaje principal — sirve para debug rápido sin pedirle al

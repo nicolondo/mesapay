@@ -20,7 +20,7 @@ export async function getErpContext(
 ): Promise<ErpContext | ErpDenied> {
   const session = await auth();
   const role = session?.user?.role;
-  if (role !== "operator" && role !== "platform_admin") {
+  if (role !== "operator" && role !== "platform_admin" && role !== "group_admin") {
     return { error: "unauthorized", status: 401 };
   }
   const restaurantId = await getActiveRestaurantId();

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -20,7 +21,7 @@ const GATE: ModuleSlug[] = ["accounting"];
  * TXT; sin formato devuelve el resumen JSON con los issues (NIT faltante o
  * inválido) para corregir antes de descargar.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -145,3 +146,5 @@ export async function GET(req: Request) {
     totalPagoPesos: rows.reduce((s, r) => s + r.pagoPesos, 0),
   });
 }
+
+export const GET = secureApi(GETHandler);

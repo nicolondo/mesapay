@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { lockOrder } from "@/lib/orderLock";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -22,6 +24,8 @@ async function reconcileViaStatusApi(args: {
   restaurantId: string;
   orderId: string;
 }): Promise<boolean> {
+  const intent = await db.payment.findUnique({ where: { id: args.paymentId } });
+  if (!intent || intent.requestKey !== createHash("sha256").update(`${args.orderId}:kushki_pse:${args.token}`).digest("hex")) return false;
   const privateKey = await getRestaurantPrivateKey(args.restaurantId);
   if (!privateKey) return false;
   const rest = await db.restaurant.findUnique({
@@ -41,6 +45,7 @@ async function reconcileViaStatusApi(args: {
         method: "GET",
         headers: { "Private-Merchant-Id": privateKey },
         cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
       },
     );
     if (!res.ok) return false;
@@ -56,6 +61,9 @@ async function reconcileViaStatusApi(args: {
     }
     const isApproved = status === "approvedTransaction";
     const result = await db.$transaction(async (tx) => {
+      await lockOrder(tx, args.orderId);
+      const current = await tx.payment.findUniqueOrThrow({ where: { id: args.paymentId } });
+      if (current.status !== "pending") throw new Error("operation_conflict");
       const updated = await tx.payment.update({
         where: { id: args.paymentId },
         data: {

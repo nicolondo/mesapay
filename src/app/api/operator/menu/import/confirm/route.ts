@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
@@ -89,12 +90,12 @@ const schema = z.object({
  * For new categories: dedupe by slug within this batch (multiple items
  * pointing to the same new slug share one new Category row).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -276,3 +277,5 @@ export async function POST(req: Request) {
     items: result.items,
   });
 }
+
+export const POST = secureApi(POSTHandler);

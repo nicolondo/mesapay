@@ -648,6 +648,7 @@ model User {
   email          String      @unique
   name           String?
   phone          String?
+  sessionVersion Int @default(0)
   passwordHash   String
   role           Role        @default(customer)
   restaurantId   String?
@@ -1319,6 +1320,9 @@ model Payment {
   status          PaymentStatus @default(pending)
   amountCents     Int
   tipCents        Int           @default(0)
+  requestKey      String? @unique
+  reconciliationRequired Boolean @default(false)
+  refundReservedCents Int @default(0)
   splitOfCount    Int?
   providerRef     String?
   // Only set for cash payments where the diner declared upfront with how
@@ -3033,4 +3037,35 @@ model ExpensePayment {
 
   @@index([expenseId])
   @@index([restaurantId, paidAt])
+}
+
+// Shared event log. Order changes are inserted transactionally by SQL trigger.
+model PlatformEvent {
+  id BigInt @id @default(autoincrement())
+  restaurantId String
+  orderId String?
+  payload Json
+  createdAt DateTime @default(now())
+  @@index([restaurantId, id])
+  @@index([createdAt])
+}
+
+model RateLimitBucket {
+  key String @id
+  hits Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+// One durable record per financial operation (including uncertain refunds).
+model FinancialOperation {
+  key String @id
+  paymentId String
+  kind String
+  amountCents Int
+  status String @default("pending")
+  providerRef String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, createdAt])
 }

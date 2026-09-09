@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /** Conceptos de retención del comercio + valor UVT vigente. */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -36,7 +37,7 @@ const patchSchema = z.object({
   uvtCents: z.number().int().min(100_000).max(100_000_000).optional(),
 });
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -92,7 +93,7 @@ const previewSchema = z.object({
  * conceptos ACTIVOS con los umbrales UVT. La usa el formulario de compras
  * para prellenar retefuente/reteIVA/reteICA (el operador puede ajustar).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -116,3 +117,9 @@ export async function POST(req: Request) {
   );
   return NextResponse.json(result);
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /** Libro Diario del mes: asientos-resumen ya generados. */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
 }
 
 /** Genera (o refresca) los asientos-resumen del mes a partir de la operación. */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -60,3 +61,7 @@ export async function POST(req: Request) {
   const entries = await loadJournalForMonth(ctx.restaurantId, month);
   return NextResponse.json({ month, results, entries });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

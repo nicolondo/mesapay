@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -32,7 +33,7 @@ const createSchema = z
     message: "waste_reason_required",
   });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -96,3 +97,7 @@ export async function GET(req: Request) {
     movements.length === 30 ? movements[movements.length - 1].id : undefined;
   return NextResponse.json({ movements, nextCursor });
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const GET = secureApi(GETHandler);

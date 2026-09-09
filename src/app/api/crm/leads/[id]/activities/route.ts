@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -28,7 +29,7 @@ async function getLeadInScope(id: string, visibleUserIds: string[] | null) {
 
 // ── POST /api/crm/leads/[id]/activities ─────────────────────────────────────
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -76,3 +77,5 @@ export async function POST(
 
   return NextResponse.json({ activity }, { status: 201 });
 }
+
+export const POST = secureApi(POSTHandler);

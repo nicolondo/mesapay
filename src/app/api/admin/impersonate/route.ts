@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
 
 const postSchema = z.object({ restaurantId: z.string().min(1) });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE() {
+async function DELETEHandler() {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -43,3 +44,7 @@ export async function DELETE() {
   jar.delete(IMPERSONATE_COOKIE);
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const DELETE = secureApi(DELETEHandler);

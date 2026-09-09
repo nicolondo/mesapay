@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -29,7 +30,7 @@ function parseDay(iso: string): Date | null {
  * Turnos de una semana (?week=YYYY-MM-DD, DEBE ser lunes) con el costo
  * de cada uno (real si está punchado, planeado si no — D4) y totales.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -131,7 +132,7 @@ const createSchema = z.object({
   note: z.string().trim().max(300).nullable().optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -182,3 +183,7 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ shift }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

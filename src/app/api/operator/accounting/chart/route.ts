@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -14,7 +15,7 @@ const GATE: ModuleSlug[] = ["accounting"];
  * Plan de cuentas del comercio (PUC NIIF Grupo 2). Lo siembra perezosamente
  * la primera vez.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -35,7 +36,7 @@ const importSchema = z.object({ csv: z.string().min(3).max(500_000) });
  * sólo suman las cuentas imputables (reports.ts) — cerrar una cuenta base
  * dejaría movimientos fuera del P&G. Abrirla (false→true) sí se permite.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -109,3 +110,7 @@ export async function POST(req: Request) {
     issues,
   });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

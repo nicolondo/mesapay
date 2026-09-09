@@ -104,12 +104,12 @@ export async function kushkiFetch<T>(
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   };
 
-  const maxAttempts = (opts.retries ?? 2) + 1;
+  const maxAttempts = (init.method === "GET" ? (opts.retries ?? 2) : 0) + 1;
   let lastErr: unknown = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const res = await fetch(url, init);
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
       const text = await res.text();
       if (!res.ok) {
         // Retry transient 5xx; surface 4xx immediately.

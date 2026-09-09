@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * módulo accounting activo; las apagadas se listan sin números. Grupos
  * multi-país agrupan por moneda — sin conversión (honesto y simple).
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const shell = await getActiveGroupShellContext();
   if (!shell) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -95,3 +96,5 @@ export async function GET(req: Request) {
     consolidated: [...byCurrency.values()],
   });
 }
+
+export const GET = secureApi(GETHandler);

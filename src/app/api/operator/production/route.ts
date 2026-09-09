@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["production"];
 
 /** Historial de batches (paginado 20, cursor — patrón purchase-orders). */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -55,7 +56,7 @@ const createSchema = z.object({
   note: z.string().trim().max(500).nullable().optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -93,3 +94,7 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

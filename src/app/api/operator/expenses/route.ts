@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -19,7 +20,7 @@ const GATE: ModuleSlug[] = ["accounting"];
  * Gastos del mes (recurring:false) + TODAS las plantillas (no dependen
  * del mes) + categorías existentes para el datalist (criterio insumos).
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
   });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -137,3 +138,7 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ expense }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

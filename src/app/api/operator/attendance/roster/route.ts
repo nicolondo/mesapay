@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -12,7 +13,7 @@ const GATE: ModuleSlug[] = ["staff"];
  * faciales para el match LOCAL en el navegador. Solo tras el gate staff
  * — los descriptores son dato sensible y no salen de acá.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -38,3 +39,5 @@ export async function GET() {
     })),
   });
 }
+
+export const GET = secureApi(GETHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ export const BUDGET_GROUPS: Array<{ code: string; credit: boolean }> = [
  * Presupuesto del año + ejecutado del MES pedido, por grupo PUC. Lo
  * ejecutado suma las líneas del libro cuyo código arranca con el prefijo.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -82,7 +83,7 @@ const putSchema = z.object({
 });
 
 /** Guarda el presupuesto mensual del año (upsert por grupo). */
-export async function PUT(req: Request) {
+async function PUTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -115,3 +116,7 @@ export async function PUT(req: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PUT = secureApi(PUTHandler);

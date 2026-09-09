@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -26,7 +27,7 @@ const bodySchema = z.object({
  * Publica `order.updated` con el restaurantId para que ambas mesas
  * (origen y destino) refresquen sus tarjetas en la grid de Mesas.
  */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -142,3 +143,5 @@ export async function POST(
     targetTableNumber: target.number,
   });
 }
+
+export const POST = secureApi(POSTHandler);

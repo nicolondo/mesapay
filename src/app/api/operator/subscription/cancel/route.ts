@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -10,7 +11,7 @@ function guard(role?: string | null) {
   return role === "operator" || role === "platform_admin";
 }
 
-export async function POST() {
+async function POSTHandler() {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -59,3 +60,5 @@ export async function POST() {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

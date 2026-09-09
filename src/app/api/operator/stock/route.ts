@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -13,7 +14,7 @@ const GATE: ModuleSlug[] = ["inventory"];
  * (level null → 0). Los inactivos solo aparecen si conservan saldo ≠ 0
  * — un insumo descatalogado con stock sigue siendo plata en la bodega.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -40,3 +41,5 @@ export async function GET() {
   );
   return NextResponse.json({ stock: rows });
 }
+
+export const GET = secureApi(GETHandler);

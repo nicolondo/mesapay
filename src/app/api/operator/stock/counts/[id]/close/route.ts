@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -20,7 +21,7 @@ const GATE: ModuleSlug[] = ["inventory"];
  * pies del que cuenta). Items con countedQty null se SALTAN: "sin contar"
  * no es lo mismo que "conté cero".
  */
-export async function POST(
+async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -97,3 +98,5 @@ export async function POST(
   }
   return NextResponse.json({ ok: true, adjustments });
 }
+
+export const POST = secureApi(POSTHandler);

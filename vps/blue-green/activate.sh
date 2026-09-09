@@ -10,7 +10,7 @@
 # /opt/mesapay/shared/repo.git and extracted the working tree into
 # /opt/mesapay/releases/<sha>. Our job is to:
 #
-#   1. Build the release (npm ci + prisma db push + next build)
+#   1. Build the release (npm ci + checks + next build + versioned migrations)
 #   2. Repoint the INACTIVE color's symlink at the new release
 #   3. Restart the inactive systemd service
 #   4. Poll /api/health on the inactive port until 200 (60s timeout)
@@ -26,6 +26,7 @@
 set -euo pipefail
 
 SHA="${1:?usage: activate.sh <sha>}"
+[[ "$SHA" =~ ^[0-9a-f]{7,40}$ ]] || { echo "Invalid release SHA" >&2; exit 1; }
 
 # ── Config ────────────────────────────────────────────────────────────
 APP_DIR="/opt/mesapay"
@@ -35,7 +36,7 @@ RELEASE_DIR="$RELEASES_DIR/$SHA"
 ACTIVE_COLOR_FILE="$APP_DIR/active-color"
 NGINX_UPSTREAM_FILE="/etc/nginx/mesapay-active.conf"
 HEALTH_TIMEOUT=60     # seconds to wait for new color to come up
-DRAIN_SECONDS=30      # seconds to let old color finish in-flight requests
+DRAIN_SECONDS=100      # seconds to let old color finish in-flight requests
 KEEP_RELEASES=5
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
@@ -62,13 +63,23 @@ if [[ ! -f "$RELEASE_DIR/.next/BUILD_ID" ]]; then
   # Schema changes apply once here, while the OLD color is still
   # serving. We rely on expand-contract so the OLD color tolerates
   # the new schema for the ~10s gap before traffic swaps.
-  npx prisma db push --accept-data-loss --skip-generate
   npx prisma generate
+  npm test
+  npm run lint
   npm run build
   log "Build complete"
 else
   log "Release $SHA already built — reusing"
 fi
+
+# Serialize deployments so concurrent webhooks cannot swap/prune each other's release.
+# The lock is held until this process exits.
+exec 9>"$SHARED_DIR/deploy.lock"
+flock -n 9 || fail "another deployment is in progress"
+# Existing db-push installations require the documented, verified baseline once.
+# migrate deploy fails closed on drift/failed migrations; never reset or accept data loss.
+log "Applying reviewed, backward-compatible migrations..."
+npx prisma migrate deploy
 
 # ── 2. Pick the inactive color ───────────────────────────────────────
 CURRENT=$(cat "$ACTIVE_COLOR_FILE" 2>/dev/null || echo "")
@@ -106,11 +117,20 @@ fi
 
 # ── 5. Atomic nginx swap ─────────────────────────────────────────────
 log "Swapping nginx upstream to port $NEXT_PORT..."
+UPSTREAM_BACKUP=$(mktemp)
+if [[ -f "$NGINX_UPSTREAM_FILE" ]]; then cp "$NGINX_UPSTREAM_FILE" "$UPSTREAM_BACKUP"; fi
 echo "server 127.0.0.1:$NEXT_PORT;" | sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" > /dev/null
 if ! sudo /usr/sbin/nginx -t > /dev/null 2>&1; then
+  sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" < "$UPSTREAM_BACKUP" > /dev/null
+  rm -f "$UPSTREAM_BACKUP"
   fail "nginx config test failed — leaving traffic on ${CURRENT:-<none>}"
 fi
-sudo /usr/sbin/nginx -s reload
+if ! sudo /usr/sbin/nginx -s reload; then
+  sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" < "$UPSTREAM_BACKUP" > /dev/null
+  rm -f "$UPSTREAM_BACKUP"
+  fail "nginx reload failed; restored upstream config"
+fi
+rm -f "$UPSTREAM_BACKUP"
 log "nginx now points at $NEXT"
 
 # ── 6. Mark new color as active ──────────────────────────────────────

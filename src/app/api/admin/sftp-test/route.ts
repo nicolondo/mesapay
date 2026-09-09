@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { sftpConfigured, testSftpConnection } from "@/lib/sftp";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * GET /api/admin/sftp-test → { configured, ok, error? }. Sirve para verificar
  * las credenciales sin subir un documento real. No expone la llave ni el host.
  */
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -24,3 +25,5 @@ export async function GET() {
   const result = await testSftpConnection();
   return NextResponse.json({ configured: true, ...result });
 }
+
+export const GET = secureApi(GETHandler);

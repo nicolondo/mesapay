@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -20,7 +21,7 @@ const createSchema = z.object({
 
 /** POST /api/operator/suppliers/[id]/items — agrega un insumo a la lista
  *  de precios del proveedor. */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -91,3 +92,5 @@ export async function POST(
 
   return NextResponse.json({ item }, { status: 201 });
 }
+
+export const POST = secureApi(POSTHandler);

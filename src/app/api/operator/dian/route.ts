@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["einvoicing"];
 
 /** Estado de la configuración DIAN — SIN secretos (vista para el cliente). */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -41,7 +42,7 @@ const patchSchema = z.object({
 });
 
 /** Credenciales del portal DIAN (Software ID/PIN, clave técnica, ambiente). */
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -70,3 +71,7 @@ export async function PATCH(req: Request) {
   const { status } = await dianConfigStatus(ctx.restaurantId);
   return NextResponse.json({ status });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

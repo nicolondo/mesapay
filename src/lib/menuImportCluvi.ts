@@ -39,7 +39,7 @@
 
 import type { MenuExtraction } from "@/lib/anthropic";
 import { localizeImagesWithFallback } from "@/lib/menuImportImages";
-import { checkUrlSafe } from "@/lib/ssrf";
+import { checkUrlSafe, fetchPublicUrl } from "@/lib/ssrf";
 
 type CluviImage = {
   blog?: string | null;
@@ -323,7 +323,7 @@ async function fetchJson(
     }
   }
   try {
-    const res = await fetch(url, {
+    const res = await fetchPublicUrl(url, {
       signal: controller.signal,
       redirect: "follow",
       headers,

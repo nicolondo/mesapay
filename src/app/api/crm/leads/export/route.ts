@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCrmContext } from "@/lib/crm/access";
@@ -20,7 +21,7 @@ function csvRow(cells: unknown[]): string {
   return cells.map(csvEscape).join(",");
 }
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -95,3 +96,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

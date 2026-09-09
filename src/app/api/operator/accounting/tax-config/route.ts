@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -15,7 +16,7 @@ const SELECT = { salesTaxKind: true, salesTaxPct: true } as const;
  * impuesto se calcula EMBEBIDO en el precio del menú (no se suma encima) y
  * solo alimenta la contabilidad/reportes.
  */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -32,7 +33,7 @@ const patchSchema = z.object({
   salesTaxPct: z.number().int().min(0).max(100).optional(),
 });
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -53,3 +54,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ settings });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getCrmContext } from "@/lib/crm/access";
 import { db } from "@/lib/db";
@@ -7,7 +8,7 @@ import { db } from "@/lib/db";
  * Returns CrmCountry rows visible to CRM roles.
  * Used by the create-lead form to populate country selector.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -22,3 +23,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ countries });
 }
+
+export const GET = secureApi(GETHandler);

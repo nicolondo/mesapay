@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { registerRestaurant } from "@/lib/registerRestaurant";
@@ -16,7 +17,7 @@ const schema = z.object({
   placeId: z.string().trim().max(300).optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -47,3 +48,5 @@ export async function POST(req: Request) {
     restaurantSlug: result.restaurantSlug,
   });
 }
+
+export const POST = secureApi(POSTHandler);

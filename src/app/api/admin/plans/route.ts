@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -44,7 +45,7 @@ async function requireAdmin() {
   return session;
 }
 
-export async function GET() {
+async function GETHandler() {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -53,7 +54,7 @@ export async function GET() {
   return NextResponse.json({ plans });
 }
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -95,3 +96,7 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ ok: true, plan: updated });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

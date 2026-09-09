@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -19,7 +20,7 @@ const schema = z.object({
  * relativa de toWeek, saltando choques con lo ya planeado. Empleados
  * inactivados desde entonces no se copian.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -71,3 +72,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ copied: toCreate.length, skipped });
 }
+
+export const POST = secureApi(POSTHandler);

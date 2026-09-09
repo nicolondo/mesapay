@@ -49,6 +49,7 @@ export interface SubscriptionProvider {
 const providerCache = new Map<KushkiMode, SubscriptionProvider>();
 
 function providerFor(mode: KushkiMode): SubscriptionProvider {
+  if (mode === "mock" && process.env.NODE_ENV === "production") throw new Error("mock_payments_disabled");
   const hit = providerCache.get(mode);
   if (hit) return hit;
   const provider: SubscriptionProvider =

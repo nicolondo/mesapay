@@ -26,10 +26,10 @@ export function verifyKushkiSignature(
   restaurantSecret?: string | null,
 ): { ok: true } | { ok: false; reason: string } {
   const mode = getKushkiModeSync();
-  if (mode === "mock") return { ok: true };
+  if (mode === "mock" && env.NODE_ENV !== "production") return { ok: true };
   const secret = restaurantSecret ?? env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) {
-    if (mode === "sandbox") {
+    if (mode === "sandbox" && env.NODE_ENV !== "production") {
       // Permisivo en sandbox para destrabar testing antes de tener el
       // webhook secret. Log explícito para que no pase desapercibido
       // si alguien se olvida de setearlo después.
@@ -75,10 +75,10 @@ export function verifyKushkiWebhookFlexible(
   restaurantSecret?: string | null,
 ): { ok: true } | { ok: false; reason: string } {
   const mode = getKushkiModeSync();
-  if (mode === "mock") return { ok: true };
+  if (mode === "mock" && env.NODE_ENV !== "production") return { ok: true };
   const secret = restaurantSecret ?? env.KUSHKI_WEBHOOK_SECRET;
   if (!secret) {
-    if (mode === "sandbox") {
+    if (mode === "sandbox" && env.NODE_ENV !== "production") {
       console.warn(
         "[kushki/webhooks] sandbox sin webhook secret — acepto sin verificar. Setealo antes de producción.",
       );

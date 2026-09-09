@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -23,7 +24,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const raw = await req.text();
   if (!raw || raw.trim() === "") {
     // Handshake / validación de URL. Se loguea para que quede rastro en la
@@ -133,3 +134,5 @@ export async function POST(req: Request) {
   );
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

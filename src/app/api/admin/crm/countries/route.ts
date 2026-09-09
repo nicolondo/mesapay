@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -40,7 +41,7 @@ const VALID_CODES = Object.keys(DATASETS) as [string, ...string[]];
 
 // ── GET /api/admin/crm/countries ─────────────────────────────────────────────
 
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -85,7 +86,7 @@ const schema = z.object({
   currency: z.enum(["COP", "MXN"]).optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -150,3 +151,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, seeded });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

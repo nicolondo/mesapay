@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { writeFile, mkdir } from "fs/promises";
@@ -19,7 +20,7 @@ function uploadDir() {
   return path.join(base, "crm");
 }
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -36,7 +37,7 @@ export async function GET() {
   return NextResponse.json({ documents: docs });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -94,3 +95,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ document: doc }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

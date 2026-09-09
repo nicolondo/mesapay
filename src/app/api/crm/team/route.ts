@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 /**
  * GET  /api/crm/team  — list team members (gerente: their team; admin: all comercial+gerente)
  * POST /api/crm/team  — create a new comercial user (gerente or admin)
@@ -24,7 +25,7 @@ const createSchema = z.object({
 
 // ── GET /api/crm/team ────────────────────────────────────────────────────────
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -77,7 +78,7 @@ export async function GET() {
 
 // ── POST /api/crm/team ───────────────────────────────────────────────────────
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -161,3 +162,7 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

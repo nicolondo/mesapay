@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { canAccessOrder } from "@/lib/guestAccess";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
@@ -14,7 +15,7 @@ export default async function PickupStatusPage({
 }) {
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
-  if (!tenant) return notFound();
+  if (!tenant || !await canAccessOrder(tenant.id, orderId)) return notFound();
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -25,6 +26,11 @@ export default async function PickupStatusPage({
   });
   if (!order || order.restaurantId !== tenant.id || order.orderType !== "pickup") {
     return notFound();
+  }
+
+  if (order.status === "paying") {
+    const pending = await db.payment.findFirst({ where: { orderId, status: "pending" }, select: { id: true } });
+    if (pending) redirect(`/t/${slug}/pay/${orderId}/pending?pid=${pending.id}`);
   }
 
   const round = order.rounds[0] ?? null;

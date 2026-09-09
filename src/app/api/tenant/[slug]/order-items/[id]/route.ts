@@ -1,8 +1,11 @@
+import { secureApi } from "@/lib/secureApi";
+import { lockOrder } from "@/lib/orderLock";
+import { recomputeOrderLinesInTx } from "@/lib/orders";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ slug: string; id: string }> },
 ) {
@@ -30,7 +33,10 @@ export async function DELETE(
     return NextResponse.json({ error: "order_closed" }, { status: 409 });
   }
 
-  await db.$transaction(async (tx) => {
+  const changed = await db.$transaction(async (tx) => {
+    await lockOrder(tx, item.orderId);
+    const current = await tx.orderItem.findUnique({ where: { id }, include: { order: true } });
+    if (!current || current.kitchenStatus !== "placed" || ["paid", "cancelled", "paying"].includes(current.order.status)) return false;
     await tx.orderItem.delete({ where: { id: item.id } });
 
     if (item.roundId) {
@@ -42,33 +48,13 @@ export async function DELETE(
       }
     }
 
-    const orderItems = await tx.orderItem.findMany({
-      where: { orderId: item.orderId },
-    });
-    const subtotal = orderItems.reduce(
-      (s, i) => s + i.priceCentsSnapshot * i.qty,
-      0,
-    );
-
-    if (orderItems.length === 0) {
-      await tx.order.update({
-        where: { id: item.orderId },
-        data: {
-          subtotalCents: 0,
-          totalCents: 0,
-          status: "cancelled",
-        },
-      });
-    } else {
-      await tx.order.update({
-        where: { id: item.orderId },
-        data: {
-          subtotalCents: subtotal,
-          totalCents: subtotal,
-        },
-      });
-    }
+    await recomputeOrderLinesInTx(tx, item.orderId);
+    const live = await tx.orderItem.count({ where: { orderId: item.orderId, cancelledAt: null } });
+    if (!live) await tx.order.update({ where: { id: item.orderId }, data: { status: "cancelled" } });
+    return true;
   });
+
+  if (!changed) return NextResponse.json({ error: "order_closed" }, { status: 409 });
 
   publishOrderEvent(tenant.id, {
     type: "order.updated",
@@ -77,3 +63,5 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const DELETE = secureApi(DELETEHandler);

@@ -1,3 +1,5 @@
+import { secureApi } from "@/lib/secureApi";
+import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -16,11 +18,7 @@ import {
 const bodySchema = z.object({ targetTableId: z.string().min(1) });
 
 /** Consecutivo corto de la orden (mismo formato que el checkout). */
-function shortCode() {
-  const n = Math.floor(1000 + Math.random() * 9000);
-  const letters = ["T", "M", "C", "N", "B"][Math.floor(Math.random() * 5)];
-  return `${letters}-${n}`;
-}
+
 
 /**
  * Mover UN plato (order-item) a otra mesa. Casos reales: el comensal se
@@ -36,7 +34,7 @@ function shortCode() {
  * Los errores viajan como código (`error`), nunca como texto: el cliente los
  * traduce. Este endpoint no puede hardcodear español — MESAPAY es trilingüe.
  */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -264,3 +262,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true, targetTableNumber: target.number });
 }
+
+export const POST = secureApi(POSTHandler);

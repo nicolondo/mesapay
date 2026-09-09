@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -16,11 +17,11 @@ const bodySchema = z.object({
  * info via Claude. Persists the extracted fields on the document row so a
  * second extraction is cheap if the operator re-opens the wizard.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -73,3 +74,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, extracted });
 }
+
+export const POST = secureApi(POSTHandler);

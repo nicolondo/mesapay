@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -48,7 +49,7 @@ async function loadOwned(id: string, restaurantId: string) {
   return e;
 }
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -135,7 +136,7 @@ export async function PATCH(
  * (empleado que ya no trabaja) hay que DESACTIVAR en su lugar (PATCH
  * active:false), no borrar.
  */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -150,3 +151,7 @@ export async function DELETE(
   await db.employee.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

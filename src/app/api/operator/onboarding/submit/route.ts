@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -38,11 +39,11 @@ const submitSchema = z.object({
  * Requerimos al menos un bank_cert y un cedula_rep_legal; el resto se puede
  * agregar luego desde la página de pagos.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -149,3 +150,5 @@ export async function POST(req: Request) {
     },
   });
 }
+
+export const POST = secureApi(POSTHandler);

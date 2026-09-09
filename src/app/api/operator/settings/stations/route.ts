@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -43,12 +44,12 @@ const schema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -162,3 +163,5 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);

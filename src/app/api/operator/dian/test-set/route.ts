@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -24,7 +25,7 @@ const GATE: ModuleSlug[] = ["einvoicing"];
  * DianDocument. Requiere ambiente habilitación + testSetId + credenciales
  * completas. NUNCA bloquea: los errores de la DIAN se devuelven legibles.
  */
-export async function POST() {
+async function POSTHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -141,3 +142,5 @@ export async function POST() {
     },
   });
 }
+
+export const POST = secureApi(POSTHandler);

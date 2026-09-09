@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -27,7 +28,7 @@ function guard(role?: string) {
   return role === "operator" || role === "platform_admin";
 }
 
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -40,7 +41,7 @@ export async function GET() {
   return NextResponse.json({ tags });
 }
 
-export async function PUT(req: Request) {
+async function PUTHandler(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -81,3 +82,7 @@ export async function PUT(req: Request) {
 
   return NextResponse.json({ ok: true, tags: parsed.data.tags });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PUT = secureApi(PUTHandler);

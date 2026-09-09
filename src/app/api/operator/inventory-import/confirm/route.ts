@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -35,7 +36,7 @@ const bodySchema = z.object({
  * transacción. Los que ya existen no se re-crean; solo se les siembra
  * stock si `updateExisting`.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -122,3 +123,5 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+export const POST = secureApi(POSTHandler);

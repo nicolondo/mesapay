@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -8,7 +9,7 @@ import type { CommissionStatus, Prisma } from "@prisma/client";
 
 // ── GET ──────────────────────────────────────────────────────────────────────
 
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -86,7 +87,7 @@ const reverseSchema = z.object({
 
 const bodySchema = z.discriminatedUnion("action", [markPaidSchema, reverseSchema]);
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -160,3 +161,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, updated: result.count });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

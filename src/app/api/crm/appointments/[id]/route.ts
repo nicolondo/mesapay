@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -13,7 +14,7 @@ const patchSchema = z.object({
   status: z.enum(["scheduled", "done", "cancelled"]).optional(),
 });
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -62,3 +63,5 @@ export async function PATCH(
 
   return NextResponse.json({ appointment: updated });
 }
+
+export const PATCH = secureApi(PATCHHandler);

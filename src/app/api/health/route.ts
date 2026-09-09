@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -13,16 +14,17 @@ import { db } from "@/lib/db";
  */
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function GETHandler() {
   try {
-    // SELECT 1 — cheapest round-trip that proves the connection pool
-    // can talk to Postgres. If the schema is mid-migration this still
-    // returns OK (we want green to be marked healthy as soon as it
-    // can serve requests, which is the moment its Prisma client is
-    // initialised).
-    await db.$queryRaw`SELECT 1`;
+    // Readiness requires the new columns and the database financial guard.
+    await db.$queryRaw`SELECT "requestKey", "refundReservedCents" FROM "Payment" LIMIT 0`;
+    await db.$queryRaw`SELECT "sessionVersion" FROM "User" LIMIT 0`;
+    const triggers = await db.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM pg_trigger WHERE tgname IN ('reserve_payment', 'revoke_sessions', 'order_event') AND tgenabled <> 'D'`;
+    if (Number(triggers[0]?.count) !== 3) throw new Error("schema_not_ready");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 }
+
+export const GET = secureApi(GETHandler);

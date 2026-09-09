@@ -98,7 +98,8 @@
     "welcomeTo": "Bem-vindo a",
     "chooseTable": "Escolha sua mesa",
     "devTableHint": "Na vida real esta etapa não existe: sua mesa tem um QR que leva direto ao cardápio.",
-    "operatorAccess": "Acesso operador"
+    "operatorAccess": "Acesso operador",
+    "scanTable": "Escaneie o QR code da sua mesa para começar."
   },
   "order": {
     "locationCounter": "Balcão · {name}",
@@ -5055,5 +5056,24 @@
     "errMissingCredentials": "Faltam credenciais da DIAN por concluir.",
     "errDecryptFailed": "Não foi possível decifrar as credenciais guardadas.",
     "errGeneric": "Ocorreu um erro. Tente novamente."
+  },
+  "paymentPending": {
+    "title": "Estamos verificando seu pagamento",
+    "body": "O resultado ainda não foi confirmado. Não pague este valor novamente. Esta página será atualizada quando recebermos a confirmação.",
+    "failed": "O pagamento foi recusado. Você pode escolher outro método.",
+    "back": "Voltar à conta"
+  },
+  "apiErrors": {
+    "internal_error": "Não foi possível concluir a operação. Tente novamente mais tarde.",
+    "operation_conflict": "A conta mudou ou já existe uma operação pendente. Atualize antes de continuar.",
+    "payment_pending": "A operação está aguardando confirmação. Não repita o pagamento ou o reembolso.",
+    "payment_declined": "O pagamento foi recusado. Você pode escolher outro método.",
+    "forbidden": "Você não tem acesso a esta conta. Escaneie o QR code da sua mesa.",
+    "unauthorized": "Entre para continuar.",
+    "rate_limited": "Muitas tentativas. Aguarde um minuto.",
+    "restaurant_suspended": "Este restaurante não pode receber novas operações.",
+    "method_disabled": "Este método de pagamento não está habilitado.",
+    "credentials_missing": "O pagamento está indisponível no momento.",
+    "generic": "Não foi possível concluir a operação. Atualize e tente novamente."
   }
 }

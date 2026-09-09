@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -22,7 +23,7 @@ function fold(s: string): string {
 }
 
 /** Extracto pendiente + reglas (para el tab Bancos). */
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -127,7 +128,7 @@ const ruleSchema = z.object({
 });
 
 /** Importa un CSV de extracto (body {csv}) o crea una regla (body {addRule}). */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -189,7 +190,7 @@ const patchSchema = z.object({
  * Acciones de conciliación: ignorar línea, contabilizarla contra una cuenta,
  * aplicar las reglas a todas las pendientes o borrar una regla.
  */
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -299,3 +300,9 @@ export async function PATCH(req: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);
+
+export const PATCH = secureApi(PATCHHandler);

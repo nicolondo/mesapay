@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -10,7 +11,7 @@ const GATE: ModuleSlug[] = ["purchasing"];
 
 /** Reversar un abono (corregir un error). Descuenta de paidCents y, si el
  *  saldo vuelve a ser > 0, quita la marca de pagada. */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string; paymentId: string }> },
 ) {
@@ -60,3 +61,5 @@ export async function DELETE(
   }
   return NextResponse.json({ ok: true, ...result });
 }
+
+export const DELETE = secureApi(DELETEHandler);

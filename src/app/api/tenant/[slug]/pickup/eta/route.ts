@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -18,7 +19,7 @@ const schema = z.object({
     .min(1),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -43,3 +44,5 @@ export async function POST(
     maxEtaMinutes: tenant.pickupMaxEtaMinutes,
   });
 }
+
+export const POST = secureApi(POSTHandler);

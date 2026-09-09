@@ -1,3 +1,7 @@
+import { secureApi } from "@/lib/secureApi";
+import { lockOrder } from "@/lib/orderLock";
+import { recomputeOrderLinesInTx } from "@/lib/orders";
+import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
@@ -24,7 +28,7 @@ const itemSchema = z.object({
 
 const createSchema = z.object({
   tableId: z.string().min(1),
-  items: z.array(itemSchema).min(1),
+  items: z.array(itemSchema).min(1).max(100),
   // If omitted, create a new order. Otherwise add a new round to an existing order.
   orderId: z.string().optional(),
   // Display name of the guest sending the round. Shown in the shared bill
@@ -35,13 +39,9 @@ const createSchema = z.object({
   servingMode: z.enum(["asReady", "together"]).optional(),
 });
 
-function shortCode() {
-  const n = Math.floor(1000 + Math.random() * 9000);
-  const letters = ["T", "M", "C", "N", "B"][Math.floor(Math.random() * 5)];
-  return `${letters}-${n}`;
-}
 
-export async function POST(
+
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -65,7 +65,7 @@ export async function POST(
   // Resolve menu items + prices (snapshot at order time)
   const menuIds = Array.from(new Set(parsed.data.items.map((i) => i.menuItemId)));
   const menuItems = await db.menuItem.findMany({
-    where: { id: { in: menuIds }, restaurantId: tenant.id },
+    where: { id: { in: menuIds }, restaurantId: tenant.id, available: true },
     include: {
       category: {
         select: { kind: true, prepStation: true, barSubStation: true },
@@ -78,11 +78,13 @@ export async function POST(
   }
 
   const result = await db.$transaction(async (tx) => {
+    if (parsed.data.orderId) await lockOrder(tx, parsed.data.orderId);
     let order = parsed.data.orderId
       ? await tx.order.findUnique({ where: { id: parsed.data.orderId } })
       : null;
+    if (parsed.data.orderId && (!order || ["paid", "cancelled", "paying"].includes(order.status))) return null;
     if (order && (order.restaurantId !== tenant.id || order.tableId !== table.id)) {
-      throw new Error("order mismatch");
+      return null;
     }
     if (!order) {
       // Counter-mode tenants (food trucks, mostrador) have no
@@ -105,7 +107,7 @@ export async function POST(
       });
     }
 
-    const existingRounds = await tx.round.count({ where: { orderId: order.id } });
+    const existingRounds = await tx.round.aggregate({ where: { orderId: order.id }, _max: { seq: true } });
     // Counter-mode tenants (food trucks, mostrador) are prepay — the round is
     // created in "open" state so the kitchen board (which filters on
     // placed/in_kitchen/ready) doesn't pick it up until the payment approval
@@ -114,7 +116,7 @@ export async function POST(
     const round = await tx.round.create({
       data: {
         orderId: order.id,
-        seq: existingRounds + 1,
+        seq: (existingRounds._max.seq ?? 0) + 1,
         status: isCounter ? "open" : "placed",
       },
     });
@@ -161,10 +163,7 @@ export async function POST(
 
     // Recalculate subtotal / total
     const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
-    const subtotalCents = items.reduce(
-      (s, i) => s + i.priceCentsSnapshot * i.qty,
-      0,
-    );
+
 
     // If every item in this round was auto-ready (counter / bar-without-
     // bartender), the round is already done — no station ever has to
@@ -184,8 +183,6 @@ export async function POST(
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {
-        subtotalCents,
-        totalCents: subtotalCents, // taxes/tips applied at payment time
         // Counter-mode orders stay "open" until the payment path marks them
         // paid — they must not reach the kitchen before cash hits the till.
         status: isCounter
@@ -196,8 +193,11 @@ export async function POST(
         placedAt: isCounter ? order.placedAt : (order.placedAt ?? new Date()),
       },
     });
-    return { order: updated, round, roundItems };
+    const recalculated = await recomputeOrderLinesInTx(tx, updated.id);
+    return { order: recalculated, round, roundItems };
   });
+
+  if (!result) return NextResponse.json({ error: "order_closed" }, { status: 409 });
 
   publishOrderEvent(tenant.id, { type: "order.updated", orderId: result.order.id });
 
@@ -211,3 +211,5 @@ export async function POST(
     roundSeq: result.round.seq,
   });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -23,7 +24,7 @@ const createSchema = z.object({
   notes: z.string().trim().max(1000).nullable().optional(),
 });
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -36,7 +37,7 @@ export async function GET() {
   return NextResponse.json({ ingredients });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -85,3 +86,7 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ingredient }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

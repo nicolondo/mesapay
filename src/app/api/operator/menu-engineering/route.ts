@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -22,7 +23,7 @@ const PERIODS = [7, 30, 90];
  * 70% del promedio de unidades por plato; margen ≥ promedio. Platos sin
  * receta, con costo incompleto o sin ventas van a la lista "sin datos".
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -137,3 +138,5 @@ export async function GET(req: Request) {
     noData,
   });
 }
+
+export const GET = secureApi(GETHandler);

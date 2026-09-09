@@ -32,6 +32,7 @@ export async function refundKushkiCharge(opts: {
 }): Promise<RefundOutcome> {
   // En modo mock no hay Kushki real: simulamos éxito para que el flujo del
   // operador funcione en demo/local sin tocar la pasarela.
+  if (opts.mode === "mock" && process.env.NODE_ENV === "production") throw new Error("mock_payments_disabled");
   if (opts.mode === "mock") {
     return {
       ok: true,

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments";
@@ -19,7 +20,7 @@ type CachedBanks = {
 let cached: CachedBanks | null = null;
 const TTL_MS = 60 * 60 * 1000;
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -68,3 +69,5 @@ export async function GET(
     );
   }
 }
+
+export const GET = secureApi(GETHandler);

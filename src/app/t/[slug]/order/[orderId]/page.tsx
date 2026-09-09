@@ -1,3 +1,4 @@
+import { canAccessOrder } from "@/lib/guestAccess";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -19,7 +20,7 @@ export default async function OrderView({
 }) {
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
-  if (!tenant) return notFound();
+  if (!tenant || !await canAccessOrder(tenant.id, orderId)) return notFound();
 
   // Defensive: re-derive subtotal from live items in case a previous
   // cancellation didn't recompute it (older code path, race, etc.). This

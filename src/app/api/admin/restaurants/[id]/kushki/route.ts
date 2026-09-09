@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -47,7 +48,7 @@ const schema = z.object({
  * was onboarded through Kushki's portal directly, not through our wizard),
  * or fix a wedged state — flip a stuck "submitted" back to "active", etc.
  */
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -174,3 +175,5 @@ export async function PATCH(
     flipped: !wasActive && willBeActive,
   });
 }
+
+export const PATCH = secureApi(PATCHHandler);

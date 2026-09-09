@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -44,7 +45,7 @@ function punchTime(d: Date | null, country: string | null): string {
  * ambos inclusive). Una fila por turno: empleado, planeado, punch real,
  * horas, estado y método. UTF-8 con BOM (Excel muestra bien los acentos).
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -118,3 +119,5 @@ export async function GET(req: Request) {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import path from "path";
@@ -44,7 +45,7 @@ function filePathFromUrl(fileUrl: string): string | null {
   return resolved;
 }
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -294,3 +295,5 @@ export async function POST(
     stage: autoAdvance ? "contactado" : lead.stage,
   });
 }
+
+export const POST = secureApi(POSTHandler);

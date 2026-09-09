@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * Las FALTAS no se persisten (derivadas al leer, modo estricto).
  * Idempotente: autoClosed=true no se re-visita.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
   if (!expected || secret !== expected) {
@@ -64,3 +65,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ scanned: open.length, closed });
 }
+
+export const POST = secureApi(POSTHandler);

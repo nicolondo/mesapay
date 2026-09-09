@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -13,7 +14,7 @@ const schema = z.object({
  * POST /api/admin/users/[id]/password — set a user's password directly.
  * platform_admin only. No permite tocar a otros platform_admin.
  */
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -54,3 +55,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCrmContext } from "@/lib/crm/access";
@@ -7,7 +8,7 @@ const PatchSchema = z.object({
   name: z.string().trim().min(1).max(80),
 });
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -20,7 +21,7 @@ export async function GET() {
   return NextResponse.json({ user });
 }
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -41,3 +42,7 @@ export async function PATCH(req: Request) {
 
   return NextResponse.json({ user });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

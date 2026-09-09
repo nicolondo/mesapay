@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -43,7 +44,7 @@ const schema = z.object({
   erp: z.boolean().optional().default(false),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -208,3 +209,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true, counts });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,16 +1,9 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
+import { lockOrder } from "@/lib/orderLock";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
-
-/**
- * Shared business logic for processing Kushki webhook events. Used by both
- * the real HTTP webhook route and the in-process mock bus so terminal flows
- * close end-to-end in dev without a real Kushki callback.
- *
- * Idempotency: each event has a unique eventId. We upsert a
- * KushkiWebhookEvent row and bail if processedAt is already set.
- */
 
 export type KushkiWebhookKind =
   | "charge.approved"
@@ -41,184 +34,66 @@ export type WebhookProcessResult = {
   message?: string;
 };
 
-export async function processKushkiWebhook(
-  payload: KushkiWebhookPayload,
-): Promise<WebhookProcessResult> {
-  // Idempotency gate. Even if we error processing, the row's `error` column
-  // captures it so we can retry by clearing processedAt manually.
-  const existing = await db.kushkiWebhookEvent.findUnique({
-    where: { eventId: payload.eventId },
-  });
-  if (existing?.processedAt) {
-    return { status: "duplicate" };
-  }
-  const eventRow =
-    existing ??
-    (await db.kushkiWebhookEvent.create({
-      data: {
-        eventId: payload.eventId,
-        type: payload.type,
-        restaurantId: payload.restaurantId ?? null,
-        payload: payload as object,
-      },
-    }));
-
+/** The event claim and every ledger change commit together. */
+export async function processKushkiWebhook(payload: KushkiWebhookPayload): Promise<WebhookProcessResult> {
   try {
-    await dispatch(payload);
-    await db.kushkiWebhookEvent.update({
-      where: { id: eventRow.id },
-      data: { processedAt: new Date(), error: null },
+    const result = await db.$transaction(async tx => {
+      await tx.kushkiWebhookEvent.createMany({ data: [{ eventId: payload.eventId, type: payload.type, restaurantId: payload.restaurantId, payload: payload as object }], skipDuplicates: true });
+      await tx.$queryRaw`SELECT id FROM "KushkiWebhookEvent" WHERE "eventId" = ${payload.eventId} FOR UPDATE`;
+      const event = await tx.kushkiWebhookEvent.findUniqueOrThrow({ where: { eventId: payload.eventId } });
+      if (event.processedAt) return { duplicate: true, order: null };
+      const order = await dispatch(tx, payload);
+      await tx.kushkiWebhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date(), error: null } });
+      return { duplicate: false, order };
     });
-    return { status: "ok" };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    await db.kushkiWebhookEvent.update({
-      where: { id: eventRow.id },
-      data: { error: msg.slice(0, 500) },
-    });
-    return { status: "error", message: msg };
+    if (result.order) publishOrderEvent(result.order.restaurantId, { type: result.order.paid ? "order.paid" : "order.updated", orderId: result.order.id });
+    return { status: result.duplicate ? "duplicate" : "ok" };
+  } catch {
+    // A failed transaction leaves no processed claim; provider retries remain safe.
+    console.error("webhook_processing_failed", { eventId: payload.eventId, paymentId: payload.paymentId });
+    return { status: "error", message: "webhook_processing_failed" };
   }
 }
 
-async function dispatch(payload: KushkiWebhookPayload): Promise<void> {
-  switch (payload.type) {
-    case "charge.approved":
-    case "terminal.approved":
-    case "pse.approved":
-      await handleApproved(payload);
-      return;
-    case "charge.declined":
-    case "terminal.declined":
-    case "pse.declined":
-      await handleDeclined(payload);
-      return;
-    case "dispersion.completed":
-    case "dispersion.failed":
-      // Wallet sync handles these via the wallet movement log. We log the
-      // event but don't mutate payments — see Phase 6 wallet route.
-      return;
-    case "merchant.activated":
-    case "merchant.rejected":
-      await handleMerchantStatus(payload);
-      return;
+async function dispatch(tx: Prisma.TransactionClient, payload: KushkiWebhookPayload) {
+  if (payload.type.startsWith("merchant.")) {
+    if (!payload.restaurantId) throw new Error("missing_restaurant");
+    const active = payload.type === "merchant.activated";
+    await tx.restaurant.update({ where: { id: payload.restaurantId }, data: { kushkiOnboardingStatus: active ? "active" : "rejected", kushkiActivatedAt: active ? new Date() : null, kushkiOnboardingNotes: payload.message ?? null } });
+    return null;
   }
-}
-
-async function handleApproved(payload: KushkiWebhookPayload): Promise<void> {
-  if (!payload.paymentId) {
-    throw new Error("approved webhook missing paymentId");
-  }
-  const payment = await db.payment.findUnique({
-    where: { id: payload.paymentId },
-    include: { order: true },
-  });
-  if (!payment) {
-    throw new Error(`payment ${payload.paymentId} not found`);
-  }
-  if (payment.status === "approved") {
-    // Already settled by another path. Idempotency catches duplicates but
-    // a manual re-emit could land here.
-    return;
-  }
-
-  const result = await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "approved",
-        providerRef: payload.providerRef ?? payment.providerRef,
-        settledAt: new Date(),
-      },
-    });
-    const totals = await recomputeOrderTotalsInTx(tx, payment.orderId);
-    if (totals.fullyPaid) {
-      await activateOpenRounds(tx, payment.orderId);
-    }
-    if (payload.providerRef) {
-      // Upsert KushkiTransaction so we have a mirror even if the charge
-      // route didn't pre-record one (e.g., terminal flow).
-      await tx.kushkiTransaction.upsert({
-        where: { kushkiTxId: payload.providerRef },
-        create: {
-          restaurantId: payment.order.restaurantId,
-          paymentId: payment.id,
-          kushkiTxId: payload.providerRef,
-          kind: "charge",
-          status: "approved",
-          amountCents: payment.amountCents,
-          raw: (payload.raw ?? {}) as object,
-        },
-        update: {
-          status: "approved",
-          message: payload.message,
-        },
-      });
-    }
-    return { fullyPaid: totals.fullyPaid };
-  });
-
-  publishOrderEvent(payment.order.restaurantId, {
-    type: "payment.approved",
-    orderId: payment.orderId,
-    paymentId: payment.id,
-  });
-  publishOrderEvent(payment.order.restaurantId, {
-    type: result.fullyPaid ? "order.paid" : "order.updated",
-    orderId: payment.orderId,
-  });
-}
-
-async function handleDeclined(payload: KushkiWebhookPayload): Promise<void> {
-  if (!payload.paymentId) return;
-  const payment = await db.payment.findUnique({
-    where: { id: payload.paymentId },
-    include: { order: true },
-  });
-  if (!payment) return;
-  if (payment.status !== "pending") return;
-
-  await db.payment.update({
-    where: { id: payment.id },
-    data: {
-      status: "declined",
-      providerRef: payload.providerRef ?? payment.providerRef,
-    },
-  });
+  if (payload.type.startsWith("dispersion.")) return null;
+  if (!payload.paymentId) throw new Error("missing_payment");
+  const hint = await tx.payment.findUniqueOrThrow({ where: { id: payload.paymentId }, select: { orderId: true } });
+  await lockOrder(tx, hint.orderId);
+  const payment = await tx.payment.findUniqueOrThrow({ where: { id: payload.paymentId }, include: { order: true } });
+  if (payload.restaurantId && payload.restaurantId !== payment.order.restaurantId) throw new Error("wrong_restaurant");
+  if (payload.orderId && payload.orderId !== payment.orderId) throw new Error("wrong_order");
+  if (payload.amountCents !== undefined && payload.amountCents !== payment.amountCents) throw new Error("wrong_amount");
+  if (payload.providerRef && payment.providerRef && payload.providerRef !== payment.providerRef) throw new Error("wrong_reference");
+  // A delayed delivery must never resurrect a refunded charge or undo approval.
+  if (payment.status === "refunded" || payment.status === "approved") return null;
+  const approved = payload.type.endsWith(".approved");
+  const status = approved ? "approved" : "declined";
+  const lateApproval = approved && (payment.status === "declined" || payment.order.status === "cancelled");
+  if (!approved && payment.status !== "pending") return null;
   if (payload.providerRef) {
-    await db.kushkiTransaction.upsert({
-      where: { kushkiTxId: payload.providerRef },
-      create: {
-        restaurantId: payment.order.restaurantId,
-        paymentId: payment.id,
-        kushkiTxId: payload.providerRef,
-        kind: "charge",
-        status: "declined",
-        amountCents: payment.amountCents,
-        raw: (payload.raw ?? {}) as object,
-        message: payload.message,
-      },
-      update: { status: "declined", message: payload.message },
-    });
+    const ledger = await tx.kushkiTransaction.findUnique({ where: { kushkiTxId: payload.providerRef } });
+    if (ledger?.paymentId && ledger.paymentId !== payment.id) throw new Error("reference_in_use");
+    await tx.kushkiTransaction.upsert({ where: { kushkiTxId: payload.providerRef }, create: {
+      restaurantId: payment.order.restaurantId, paymentId: payment.id, kushkiTxId: payload.providerRef,
+      kind: "charge", status, amountCents: payment.amountCents, raw: (payload.raw ?? {}) as object,
+    }, update: { status, message: payload.message } });
   }
-  publishOrderEvent(payment.order.restaurantId, {
-    type: "payment.declined",
-    orderId: payment.orderId,
-    paymentId: payment.id,
-    reason: payload.message,
-  });
-}
-
-async function handleMerchantStatus(
-  payload: KushkiWebhookPayload,
-): Promise<void> {
-  if (!payload.restaurantId) return;
-  const isActivated = payload.type === "merchant.activated";
-  await db.restaurant.update({
-    where: { id: payload.restaurantId },
-    data: {
-      kushkiOnboardingStatus: isActivated ? "active" : "rejected",
-      kushkiActivatedAt: isActivated ? new Date() : null,
-      kushkiOnboardingNotes: payload.message ?? null,
-    },
-  });
+  await tx.payment.update({ where: { id: payment.id }, data: {
+    status, providerRef: payload.providerRef ?? payment.providerRef, reconciliationRequired: lateApproval,
+    ...(approved ? { settledAt: new Date() } : {}),
+  } });
+  let paid = false;
+  if (approved && payment.order.status !== "cancelled") {
+    const totals = await recomputeOrderTotalsInTx(tx, payment.orderId);
+    paid = totals.fullyPaid;
+    if (paid) await activateOpenRounds(tx, payment.orderId);
+  }
+  return { id: payment.orderId, restaurantId: payment.order.restaurantId, paid };
 }

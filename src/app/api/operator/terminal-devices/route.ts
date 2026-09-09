@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -22,7 +23,7 @@ function guard(role?: string) {
   return role === "operator" || role === "platform_admin";
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -59,3 +60,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, device });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
-import { checkUrlSafe } from "@/lib/ssrf";
+import { checkUrlSafe, fetchPublicUrl } from "@/lib/ssrf";
 
 /**
  * Download an external image discovered during menu extraction and save
@@ -48,7 +48,7 @@ export async function downloadMenuImage(
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(externalUrl, {
+    res = await fetchPublicUrl(externalUrl, {
       signal: controller.signal,
       redirect: "follow",
       headers: {

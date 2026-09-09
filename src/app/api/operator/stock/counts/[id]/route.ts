@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ const ITEM_INCLUDE = {
 /** Sesión completa: cabecera + items con su insumo. La desviación de una
  * sesión cerrada se deriva de los items (counted − expected); el valor en
  * pesos vive en los movimientos count_adjust del libro. */
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -65,7 +66,7 @@ const patchSchema = z.object({
 });
 
 /** Guarda cantidades contadas parciales — el borrador es reanudable. */
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -136,7 +137,7 @@ export async function PATCH(
  * `not_draft`. Los items caen por cascada (StockCountItem → countId
  * onDelete: Cascade).
  */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -162,3 +163,9 @@ export async function DELETE(
   }
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

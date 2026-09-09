@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
@@ -98,7 +99,7 @@ function outcomeFromName(
   return "ignore"; // subscriptionApproved (inicial, ya lo maneja activate) / desconocido
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const raw = await req.text();
 
   const headerDump: Record<string, string> = {};
@@ -145,14 +146,9 @@ export async function POST(req: Request) {
   // bypass (pruebas).
   const secret = await getBillingWebhookSecret();
   const sig = verifyBillingSignature(raw, payload, req.headers, secret);
-  if (sig.reason === "no_secret") {
-    console.warn(
-      "[billing/webhook] sin secret de firma — procesando sin verificar. Configuralo en /admin/configuracion (o KUSHKI_BILLING_WEBHOOK_SECRET en el VPS).",
-    );
-  } else if (!sig.ok) {
+  if (!sig.ok) {
     console.warn("[billing/webhook] firma inválida", {
       reason: sig.reason,
-      computed: sig.computed,
       received: req.headers.get("x-kushki-signature"),
     });
     return NextResponse.json(
@@ -235,7 +231,7 @@ export async function POST(req: Request) {
           : now;
       const periodEnd = new Date(addMonthsIso(base, 1));
 
-      await applyRecurringCharge({
+      const applied = await applyRecurringCharge({
         restaurantId: sub.restaurantId,
         amountCents: sub.amountCents,
         currency: sub.currency,
@@ -243,6 +239,7 @@ export async function POST(req: Request) {
         periodStart: now,
         periodEnd,
       });
+      if (!applied) return NextResponse.json({ ok: true, status: "already_processed" });
       await recordAuditEvent({
         kind: "subscription.charge.recurring",
         restaurantId: sub.restaurantId,
@@ -267,3 +264,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "processing_error" }, { status: 500 });
   }
 }
+
+export const POST = secureApi(POSTHandler);

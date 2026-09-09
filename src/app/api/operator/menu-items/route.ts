@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
@@ -13,11 +14,11 @@ const createSchema = z.object({
   prepMinutes: z.number().min(0.1).max(120).optional(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -60,3 +61,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ id: item.id });
 }
+
+export const POST = secureApi(POSTHandler);

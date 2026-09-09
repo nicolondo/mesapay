@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -37,7 +38,7 @@ const bodySchema = z.discriminatedUnion("action", [
  * cantidades (lista de precios del proveedor) — mismo criterio que el PATCH
  * individual (measure_locked). Esos se OMITEN y se reportan (skipped).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -107,3 +108,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ updated: changedIds.length, skipped, changedIds });
 }
+
+export const POST = secureApi(POSTHandler);

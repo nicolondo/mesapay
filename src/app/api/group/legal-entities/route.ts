@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -34,7 +35,7 @@ async function requireGroupShell() {
   return getActiveGroupShellContext();
 }
 
-export async function GET() {
+async function GETHandler() {
   const ctx = await requireGroupShell();
   if (!ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -47,7 +48,7 @@ export async function GET() {
   return NextResponse.json({ items: list });
 }
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await requireGroupShell();
   if (!ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -88,3 +89,7 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ok: true, id: created.id });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

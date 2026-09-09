@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ const FORM_ACCOUNT: Record<string, string> = {
 const BANK_CODE = "111005";
 
 /** Declaraciones registradas del año. */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -55,7 +56,7 @@ const createSchema = z.object({
  * monto es > 0, contabiliza el pago (D cuenta del impuesto · C banco) con
  * fuente `taxpay`. Respeta el candado de cierre.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -140,7 +141,7 @@ export async function POST(req: Request) {
 }
 
 /** Borra un registro de declaración (y su asiento de pago si existe). */
-export async function DELETE(req: Request) {
+async function DELETEHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -167,3 +168,9 @@ export async function DELETE(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);
+
+export const DELETE = secureApi(DELETEHandler);

@@ -1,5 +1,6 @@
 import type { Prisma, PaymentMethod } from "@prisma/client";
 import { db } from "./db";
+import { lockOrder } from "./orderLock";
 import { orderTaxTotals } from "./salesTax";
 
 /**
@@ -57,7 +58,7 @@ export type PaymentValidation =
   | { ok: true }
   | {
       ok: false;
-      reason: "order_already_paid" | "amount_exceeds_outstanding";
+      reason: "order_already_paid" | "amount_exceeds_outstanding" | "invalid_amount";
       outstandingCents: number;
     };
 
@@ -99,6 +100,9 @@ export async function validateNewPaymentAmount(
     excludePendingMethods?: PaymentMethod[];
   } = {},
 ): Promise<PaymentValidation> {
+  if (!Number.isSafeInteger(newFoodCents) || newFoodCents < 0) {
+    return { ok: false, reason: "invalid_amount", outstandingCents: 0 };
+  }
   const order = await db.order.findUnique({
     where: { id: orderId },
     select: { subtotalCents: true, taxCents: true, status: true },
@@ -106,7 +110,7 @@ export async function validateNewPaymentAmount(
   if (!order) {
     return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
   }
-  if (order.status === "paid") {
+  if (order.status === "paid" || order.status === "cancelled") {
     return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
   }
   // By default count approved AND pending(cash) payments — a pending
@@ -165,6 +169,7 @@ export async function recomputeOrderTotalsInTx(
   tx: Prisma.TransactionClient,
   orderId: string,
 ): Promise<OrderRecompute> {
+  await lockOrder(tx, orderId);
   const order = await tx.order.findUnique({
     where: { id: orderId },
     select: { subtotalCents: true, taxCents: true, paidAt: true },
@@ -180,7 +185,7 @@ export async function recomputeOrderTotalsInTx(
     where: { id: orderId },
     data: {
       tipCents: totals.tipsTotalCents,
-      totalCents: order.subtotalCents + totals.tipsTotalCents,
+      totalCents: order.subtotalCents + order.taxCents + totals.tipsTotalCents,
       status: totals.fullyPaid ? "paid" : "paying",
       paidAt: totals.fullyPaid ? (order.paidAt ?? now) : null,
     },
@@ -201,7 +206,9 @@ export async function recomputeOrderTotalsInTx(
 export async function syncOrderSubtotalFromLiveItems(
   orderId: string,
 ): Promise<{ subtotalCents: number; totalCents: number; changed: boolean }> {
-  const order = await db.order.findUnique({
+  return db.$transaction(async tx => {
+  await lockOrder(tx, orderId);
+  const order = await tx.order.findUnique({
     where: { id: orderId },
     select: {
       id: true,
@@ -215,7 +222,7 @@ export async function syncOrderSubtotalFromLiveItems(
   if (!order) {
     return { subtotalCents: 0, totalCents: 0, changed: false };
   }
-  if (order.status === "paid" || order.status === "paying") {
+  if (order.status === "paid" || order.status === "paying" || order.status === "cancelled") {
     return {
       subtotalCents: order.subtotalCents,
       totalCents: order.totalCents,
@@ -225,7 +232,7 @@ export async function syncOrderSubtotalFromLiveItems(
   // Live items = items whose round is either null (legacy) or not cancelled,
   // y que tampoco fueron cancelados individualmente desde el detail sheet
   // del mesero (cancelledAt != null).
-  const items = await db.orderItem.findMany({
+  const items = await tx.orderItem.findMany({
     where: {
       orderId,
       cancelledAt: null,
@@ -262,7 +269,7 @@ export async function syncOrderSubtotalFromLiveItems(
       changed: false,
     };
   }
-  await db.order.update({
+  await tx.order.update({
     where: { id: orderId },
     data: {
       subtotalCents: liveSubtotal,
@@ -271,4 +278,5 @@ export async function syncOrderSubtotalFromLiveItems(
     },
   });
   return { subtotalCents: liveSubtotal, totalCents: liveTotal, changed: true };
+  });
 }

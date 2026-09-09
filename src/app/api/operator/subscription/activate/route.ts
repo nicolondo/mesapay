@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -24,7 +25,7 @@ const bodySchema = z.object({
   planTier: z.enum(["trial", "basic", "pro"]),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!guard(session?.user?.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -227,3 +228,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, subscriptionId, cardLast4: card.last4 });
 }
+
+export const POST = secureApi(POSTHandler);

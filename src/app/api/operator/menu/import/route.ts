@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -28,12 +29,12 @@ const ALLOWED_MIMES = new Set([
  * We also surface existing categories so the client can match-by-slug
  * during review and not create duplicates.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -114,3 +115,5 @@ export async function POST(req: Request) {
     existingCategories,
   });
 }
+
+export const POST = secureApi(POSTHandler);

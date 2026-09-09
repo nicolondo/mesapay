@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { monthRange } from "@/lib/erp/accounting";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /** P&L del mes (spec B2 · D3) — derivado en vivo, nada persistido. */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -25,3 +26,5 @@ export async function GET(req: Request) {
   ]);
   return NextResponse.json({ month, pnl, taxSummary });
 }
+
+export const GET = secureApi(GETHandler);

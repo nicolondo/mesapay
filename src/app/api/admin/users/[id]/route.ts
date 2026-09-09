@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -26,7 +27,7 @@ const patchSchema = z.object({
  * Edit or disable/reactivate a comercial. platform_admin only.
  * Only allowed when target user role === "comercial".
  */
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -131,7 +132,7 @@ export async function PATCH(
  * For role=comercial: only allowed when they have zero CommissionEntry rows.
  * Cannot delete your own account.
  */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -175,3 +176,7 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

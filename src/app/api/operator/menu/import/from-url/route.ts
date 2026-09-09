@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -5,7 +6,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { extractMenuFromDocument } from "@/lib/anthropic";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
-import { checkUrlSafe } from "@/lib/ssrf";
+import { checkUrlSafe, fetchPublicUrl } from "@/lib/ssrf";
 import { downloadMenuImages } from "@/lib/menuImportImages";
 import { tryImportShopify } from "@/lib/menuImportShopify";
 import { tryImportJusto } from "@/lib/menuImportJusto";
@@ -37,12 +38,12 @@ const ALLOWED_MIMES = new Set([
  *  - Huge HTML pages (marketing sites with embedded videos): the
  *    extractor itself slices to 250k chars after stripping scripts.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin")
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -172,7 +173,7 @@ export async function POST(req: Request) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      resp = await fetch(url, {
+      resp = await fetchPublicUrl(url, {
         signal: controller.signal,
         redirect: "follow",
         headers: {
@@ -355,3 +356,5 @@ export async function POST(req: Request) {
     contentType,
   });
 }
+
+export const POST = secureApi(POSTHandler);

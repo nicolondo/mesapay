@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -39,7 +40,7 @@ function parseDay(isoDay: string): Date | null {
  * la plantilla del día (o now→now+8h sin plantilla). La foto queda de
  * evidencia en el turno.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -168,3 +169,5 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ shift, action: "in", implicit: true });
 }
+
+export const POST = secureApi(POSTHandler);

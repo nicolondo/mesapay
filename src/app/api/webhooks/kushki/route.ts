@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
@@ -47,7 +48,7 @@ const KNOWN_KINDS: KushkiWebhookKind[] = [
   "merchant.rejected",
 ];
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const raw = await req.text();
 
   // Ping de validación de la URL: Kushki lo manda con el body EN BLANCO (o no
@@ -114,11 +115,12 @@ async function handleNormalized(
   headers: Headers,
 ): Promise<Response> {
   let restaurantId: string | null = payload.restaurantId ?? null;
-  if (!restaurantId && payload.paymentId) {
+  if (payload.paymentId) {
     const p = await db.payment.findUnique({
       where: { id: payload.paymentId },
       select: { order: { select: { restaurantId: true } } },
     });
+    if (payload.restaurantId && payload.restaurantId !== p?.order.restaurantId) return NextResponse.json({ error: "invalid_reference" }, { status: 400 });
     restaurantId = p?.order.restaurantId ?? null;
   }
   if (!restaurantId && payload.orderId) {
@@ -165,7 +167,7 @@ async function handleRealKushki(
   headers: Headers,
 ): Promise<Response> {
   // Log del crudo para poder ajustar los alias con la primera transacción real.
-  console.log("[kushki/webhook] real payload", raw.slice(0, 1000));
+  // Raw payloads may contain payer data; do not write them to application logs.
 
   // Nuestra metadata (mandamos { orderId, paymentId } al cobrar) — puede venir
   // en la raíz, bajo `metadata`, o bajo `transaction.metadata`.
@@ -278,29 +280,7 @@ async function handleRealKushki(
       }
     }
   }
-  if (!paymentId && orderIdHint) {
-    // Último recurso: el pago Kushki pendiente más reciente de esa orden.
-    const p = await db.payment.findFirst({
-      where: {
-        orderId: orderIdHint,
-        status: "pending",
-        method: {
-          in: [
-            "kushki_pse",
-            "kushki_card",
-            "kushki_apple_pay",
-            "kushki_card_terminal",
-          ],
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, order: { select: { restaurantId: true } } },
-    });
-    if (p) {
-      paymentId = p.id;
-      restaurantId = p.order.restaurantId;
-    }
-  }
+  // An order can contain multiple simultaneous payments. Never guess the latest one.
 
   if (!paymentId) {
     console.warn("[kushki/webhook] no pude casar el pago", {
@@ -310,7 +290,7 @@ async function handleRealKushki(
       statusRaw,
     });
     // Ack 200 para que Kushki no reintente infinito; queda en logs.
-    return NextResponse.json({ ok: true, unmatched: true });
+    return NextResponse.json({ error: "unmatched_payment" }, { status: 422 });
   }
 
   // Firma (secret del comercio si está, si no el global del partner).
@@ -348,3 +328,5 @@ async function handleRealKushki(
   }
   return NextResponse.json({ ok: true, status: result.status });
 }
+
+export const POST = secureApi(POSTHandler);

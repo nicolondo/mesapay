@@ -1,3 +1,4 @@
+import { canAccessTable } from "@/lib/guestAccess";
 import { db } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -82,6 +83,13 @@ export default async function MenuPage({
   const table = await db.table.findUnique({ where: { qrToken: tableToken } });
   if (!table || table.restaurantId !== tenant.id) {
     return notFound();
+  }
+
+  if (!await canAccessTable(tenant.id, table.id)) {
+    const query = new URLSearchParams({ table: tableToken });
+    if (sp.order) query.set("order", sp.order);
+    if (sp.op) query.set("op", sp.op);
+    redirect(`/api/tenant/${slug}/guest?${query}`);
   }
 
   // Find active (non-paid) order for this table. If ?order= is given, prefer it.

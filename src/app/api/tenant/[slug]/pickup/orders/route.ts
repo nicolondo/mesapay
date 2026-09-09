@@ -1,3 +1,10 @@
+import { createHash } from "node:crypto";
+import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
+import { markPaymentUncertain } from "@/lib/payments/intent";
+import { grantGuestAccess } from "@/lib/guestAccess";
+import { demoPaymentsAllowed } from "@/lib/payments/validation";
+import { secureApi } from "@/lib/secureApi";
+import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
@@ -45,16 +52,12 @@ const schema = z.object({
   ]),
   // Required when method is kushki_*; ignored for demo methods.
   token: z.string().min(1).max(2000).optional(),
-  items: z.array(itemSchema).min(1),
+  items: z.array(itemSchema).min(1).max(100),
 });
 
-function shortCode() {
-  const n = Math.floor(1000 + Math.random() * 9000);
-  const letters = ["P", "R", "K"][Math.floor(Math.random() * 3)];
-  return `${letters}-${n}`;
-}
 
-export async function POST(
+
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -69,6 +72,8 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
+
+  if (parsed.data.method.startsWith("demo_") && !demoPaymentsAllowed()) return NextResponse.json({ error: "payment_method_disabled" }, { status: 403 });
 
   const pickupTable = await db.table.findUnique({
     where: { id: parsed.data.tableId },
@@ -138,64 +143,12 @@ export async function POST(
   const now = new Date();
   const readyEta = new Date(now.getTime() + etaMinutes * 60_000);
 
-  // Kushki path: charge BEFORE creating the order so a declined card doesn't
-  // leave food in the kitchen queue. Demo path: stay with the legacy
-  // immediate-approval flow so local dev works without onboarding.
   const isKushki = parsed.data.method === "kushki_apple_pay";
-
-  let providerRef: string | null = null;
-
-  if (isKushki) {
-    if (!tenant.kushkiMerchantId) {
-      return NextResponse.json(
-        { error: "tenant_not_onboarded" },
-        { status: 409 },
-      );
-    }
-    if (!parsed.data.token) {
-      return NextResponse.json(
-        { error: "missing_token" },
-        { status: 400 },
-      );
-    }
-    const privateKey = await getRestaurantPrivateKey(tenant.id);
-    if (!privateKey) {
-      return NextResponse.json(
-        { error: "credentials_missing" },
-        { status: 500 },
-      );
-    }
-    try {
-      const provider = await getPaymentProvider(
-        await getRestaurantKushkiMode(tenant),
-      );
-      const charge = await provider.chargeWithToken({
-        merchantId: privateKey,
-        amount: { amountCents: subtotalCents, currency: await getCurrencyForCountry(tenant.country) },
-        token: parsed.data.token,
-        metadata: {
-          orderId: "pending", // No order id yet; we annotate later via webhook reconciliation.
-          paymentId: "pending",
-          tableId: pickupTable.id,
-        },
-      });
-      if (charge.status !== "approved") {
-        return NextResponse.json(
-          { error: "charge_declined", message: charge.message },
-          { status: 402 },
-        );
-      }
-      providerRef = charge.providerRef;
-    } catch (err) {
-      return NextResponse.json(
-        {
-          error: "charge_failed",
-          message: err instanceof Error ? err.message : "unknown",
-        },
-        { status: 502 },
-      );
-    }
-  }
+  const provider = isKushki ? await getPaymentProvider(await getRestaurantKushkiMode(tenant)) : null;
+  const privateKey = isKushki ? await getRestaurantPrivateKey(tenant.id) : null;
+  if (isKushki && (!tenant.kushkiMerchantId || !privateKey || !parsed.data.token)) return NextResponse.json({ error: "credentials_missing" }, { status: 409 });
+  if (!Number.isSafeInteger(subtotalCents) || subtotalCents <= 0 || subtotalCents > 2_000_000_000) return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
+  const requestKey = parsed.data.token ? createHash("sha256").update(`pickup:${tenant.id}:${parsed.data.token}`).digest("hex") : null;
 
   // Translate to enum values that exist in the schema. demo_nequi is a UI
   // label only — on the books it rides on wompi_nequi until we drop the
@@ -213,6 +166,14 @@ export async function POST(
   }
 
   const result = await db.$transaction(async (tx) => {
+    if (requestKey) {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${requestKey}), 735)`;
+      const previous = await tx.payment.findUnique({ where: { requestKey }, include: { order: true } });
+      if (previous) {
+        if (previous.amountCents !== subtotalCents) throw new Error("operation_conflict");
+        return { order: previous.order, payment: previous, created: false };
+      }
+    }
     // Prepaid: the bill is closed at creation (status=paid, paidAt=now) so
     // reports count it. The kitchen still sees it through Round.status, which
     // is what the kitchen board actually queries — not Order.status.
@@ -222,7 +183,7 @@ export async function POST(
         tableId: pickupTable.id,
         customerId: session?.user?.id,
         orderType: "pickup",
-        status: "paid",
+        status: isKushki ? "paying" : "paid",
         shortCode: shortCode(),
         locale: await getLocale(),
         subtotalCents,
@@ -232,7 +193,7 @@ export async function POST(
         pickupName: parsed.data.pickupName,
         pickupPhone: parsed.data.pickupPhone,
         placedAt: now,
-        paidAt: now,
+        paidAt: isKushki ? null : now,
       },
     });
 
@@ -241,7 +202,7 @@ export async function POST(
       data: {
         orderId: order.id,
         seq: 1,
-        status: "placed",
+        status: isKushki ? "open" : "placed",
       },
     });
 
@@ -283,7 +244,7 @@ export async function POST(
       select: { kitchenStatus: true },
     });
     if (
-      createdItems.length > 0 &&
+      !isKushki && createdItems.length > 0 &&
       createdItems.every((i) => i.kitchenStatus === "ready")
     ) {
       await tx.round.update({
@@ -296,29 +257,39 @@ export async function POST(
       data: {
         orderId: order.id,
         method: paymentMethod,
-        status: "approved",
+        status: isKushki ? "pending" : "approved",
         amountCents: subtotalCents,
-        providerRef,
-        settledAt: now,
+        requestKey,
+        settledAt: isKushki ? null : now,
       },
     });
 
-    if (isKushki && providerRef) {
-      await tx.kushkiTransaction.create({
-        data: {
-          restaurantId: tenant.id,
-          paymentId: payment.id,
-          kushkiTxId: providerRef,
-          kind: "charge",
-          status: "approved",
-          amountCents: subtotalCents,
-          raw: { pickup: true, orderId: order.id },
-        },
-      });
-    }
-
-    return { order };
+    return { order, payment, created: true };
   });
+  await grantGuestAccess({ restaurantId: tenant.id, orderId: result.order.id });
+  if (isKushki && result.created && provider && privateKey && parsed.data.token) {
+    try {
+      const charge = await provider.chargeWithToken({
+        merchantId: privateKey, token: parsed.data.token,
+        amount: { amountCents: subtotalCents, currency: await getCurrencyForCountry(tenant.country) },
+        metadata: { orderId: result.order.id, paymentId: result.payment.id, tableId: pickupTable.id },
+      });
+      if (charge.status === "pending") {
+        await markPaymentUncertain(result.payment.id);
+      } else {
+        const processed = await processKushkiWebhook({
+          eventId: `pickup:${result.payment.id}:${charge.status}`,
+          type: charge.status === "approved" ? "charge.approved" : "charge.declined",
+          paymentId: result.payment.id, restaurantId: tenant.id,
+          providerRef: charge.providerRef, amountCents: subtotalCents, raw: charge.raw,
+        });
+        if (processed.status === "error") await markPaymentUncertain(result.payment.id);
+      }
+    } catch { await markPaymentUncertain(result.payment.id); }
+  }
+  const finalPayment = await db.payment.findUniqueOrThrow({ where: { id: result.payment.id } });
+  if (finalPayment.status === "declined") return NextResponse.json({ error: "payment_declined", orderId: result.order.id }, { status: 402 });
+  if (finalPayment.status === "pending") return NextResponse.json({ pending: true, orderId: result.order.id, paymentId: result.payment.id }, { status: 202 });
 
   publishOrderEvent(tenant.id, {
     type: "order.updated",
@@ -334,9 +305,12 @@ export async function POST(
     );
   }
 
+  await grantGuestAccess({ restaurantId: tenant.id, orderId: result.order.id });
   return NextResponse.json({
     orderId: result.order.id,
     shortCode: result.order.shortCode,
     etaMinutes,
   });
 }
+
+export const POST = secureApi(POSTHandler);

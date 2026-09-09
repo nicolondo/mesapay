@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -29,7 +30,7 @@ const patchSchema = z.object({
   kushkiBillingWebhookSecret: z.string().optional(),
 });
 
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -49,7 +50,7 @@ export async function GET() {
   });
 }
 
-export async function PATCH(req: Request) {
+async function PATCHHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -124,3 +125,7 @@ export async function PATCH(req: Request) {
 
 
 
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);

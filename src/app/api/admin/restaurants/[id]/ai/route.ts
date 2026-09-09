@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -8,7 +9,7 @@ const schema = z.object({
   aiDailyMessageLimit: z.number().int().min(1).max(1000).nullable(),
 });
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (session?.user?.role !== "platform_admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const { id } = await params;
@@ -17,3 +18,5 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   await db.restaurant.update({ where: { id }, data: parsed.data });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);

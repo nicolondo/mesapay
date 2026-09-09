@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 // Expected CSV columns (tolerate missing ones).
 // nombre, ciudad, telefono, email, zona, prioridad, notas
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -171,3 +172,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ created, skipped, errors });
 }
+
+export const POST = secureApi(POSTHandler);

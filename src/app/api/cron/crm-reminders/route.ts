@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
  *
  * Llamar cada ~5 min via systemd timer o Vercel cron.
  */
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret") ?? "";
   const expected = process.env.CRON_SECRET ?? "";
   // M3: Use timing-safe comparison to prevent timing oracle on the secret.
@@ -87,3 +88,5 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, reminded, total: appointments.length });
 }
+
+export const GET = secureApi(GETHandler);

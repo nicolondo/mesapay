@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ const schema = z.object({
  * lo ya planeado. Reusa el motor anti-solape de copyWeekPlan (los
  * candidatos ya vienen con la fecha destino ⇒ from == to).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -85,3 +86,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ created: toCreate.length, skipped });
 }
+
+export const POST = secureApi(POSTHandler);

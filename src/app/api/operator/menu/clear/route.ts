@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -13,11 +14,11 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
  * lo archivamos (available=false) para que salga de la carta sin perder
  * el historial. El mismo criterio que el DELETE de un solo plato.
  */
-export async function POST() {
+async function POSTHandler() {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin")
+    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -68,3 +69,5 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, ...result });
 }
+
+export const POST = secureApi(POSTHandler);

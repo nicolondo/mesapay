@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -47,7 +48,7 @@ function appOrigin(req: Request): string {
   return new URL(req.url).origin;
 }
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string; code: string }> },
 ) {
@@ -239,3 +240,5 @@ function sendDepositEmail(
 // (resolveReservationConfig importado por consistencia con el flujo de
 // órdenes; el slot ya está fijo en la reserva, así que no se usa acá.)
 void resolveReservationConfig;
+
+export const POST = secureApi(POSTHandler);

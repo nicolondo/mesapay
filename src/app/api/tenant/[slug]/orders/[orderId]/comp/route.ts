@@ -1,6 +1,8 @@
+import { secureApi } from "@/lib/secureApi";
+import { staffForRestaurant, COLLECTOR_ROLES } from "@/lib/staffAccess";
+import { lockOrder } from "@/lib/orderLock";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
@@ -24,7 +26,7 @@ const schema = z.object({
   note: z.string().trim().min(1).max(300),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string; orderId: string }> },
 ) {
@@ -40,7 +42,7 @@ export async function POST(
     return NextResponse.json({ error: "comp_disabled" }, { status: 403 });
   }
 
-  const session = await auth();
+  const session = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
   const role = session?.user?.role;
   const staff =
     !!session?.user &&
@@ -77,6 +79,11 @@ export async function POST(
   const label = tenant.compLabel?.trim() || "Gastos de representación";
 
   const result = await db.$transaction(async (tx) => {
+    await lockOrder(tx, order.id);
+    const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    if (["paid", "cancelled"].includes(current.status)) return null;
+    const payments = await tx.payment.count({ where: { orderId: order.id, status: { in: ["approved", "pending"] } } });
+    if (payments) return null;
     // Ítems vivos = no cancelados y en rounds no cancelados. Valor de venta
     // regalado = Σ precio (para el registro; luego el subtotal queda en 0).
     const items = await tx.orderItem.findMany({
@@ -117,6 +124,7 @@ export async function POST(
       where: { id: order.id },
       data: {
         subtotalCents: 0,
+        taxCents: 0,
         compedAt: now,
         compNote: parsed.data.note,
         compLabel: label,
@@ -130,6 +138,8 @@ export async function POST(
     return { fullyPaid: totals.fullyPaid, compAmountCents };
   });
 
+  if (!result) return NextResponse.json({ error: "order_closed_or_payment_pending" }, { status: 409 });
+
   // Dispara el consumo de inventario (los ítems comp consumen) + cierra la
   // mesa en los tableros.
   publishOrderEvent(tenant.id, {
@@ -142,3 +152,5 @@ export async function POST(
     compAmountCents: result.compAmountCents,
   });
 }
+
+export const POST = secureApi(POSTHandler);

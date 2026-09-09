@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -12,7 +13,7 @@ import { publishOrderEvent } from "@/lib/events";
  *
  * Same role gate que el ack de order — mesero también puede.
  */
-export async function POST(
+async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -20,7 +21,7 @@ export async function POST(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -65,3 +66,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

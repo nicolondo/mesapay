@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -27,7 +28,7 @@ async function loadOwned(id: string, restaurantId: string) {
   return s;
 }
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -55,7 +56,7 @@ export async function GET(
   return NextResponse.json({ supplier });
 }
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -107,7 +108,7 @@ export async function PATCH(
 }
 
 /** DELETE = soft-delete (active:false) — igual que insumos. */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -122,3 +123,9 @@ export async function DELETE(
   await db.supplier.update({ where: { id }, data: { active: false } });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

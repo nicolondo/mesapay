@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -46,7 +47,7 @@ const schema = z.object({
   source: z.enum(["direct", "google_maps", "whatsapp", "phone"]).default("direct"),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -255,3 +256,5 @@ export async function POST(
     depositMethods: requiresDeposit ? depositMethods : [],
   });
 }
+
+export const POST = secureApi(POSTHandler);

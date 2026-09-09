@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ const schema = z.object({
   assign: z.boolean(),
 });
 
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!session?.user || !userId || session.user.role !== "mesero") {
@@ -130,3 +131,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+export const POST = secureApi(POSTHandler);

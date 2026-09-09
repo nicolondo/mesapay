@@ -1,3 +1,6 @@
+import { lockOrder } from "@/lib/orderLock";
+import { markPaymentUncertain } from "@/lib/payments/intent";
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -27,7 +30,7 @@ const schema = z.object({
   deviceId: z.string().min(1),
 });
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -115,6 +118,17 @@ export async function POST(
     return NextResponse.json({ error: "invalid_device" }, { status: 400 });
   }
 
+  if (useRealTerminal && !device.serialNumber) return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
+  if (!useRealTerminal && process.env.NODE_ENV === "production") return NextResponse.json({ error: "mock_payments_disabled" }, { status: 409 });
+  const claimed = await db.$transaction(async tx => {
+    await lockOrder(tx, payment.orderId);
+    const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
+    if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
+    const result = await tx.financialOperation.createMany({ data: [{ key: `terminal:${payment.id}`, paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents }], skipDuplicates: true });
+    return result.count === 1;
+  });
+  if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+
   await db.terminalDevice.update({
     where: { id: device.id },
     data: { lastSeenAt: new Date() },
@@ -143,14 +157,9 @@ export async function POST(
         // Host del Cloud Terminal según el modo efectivo del comercio.
         mode,
       });
-    } catch (err) {
-      return NextResponse.json(
-        {
-          error: "push_failed",
-          message: err instanceof Error ? err.message : "unknown",
-        },
-        { status: 502 },
-      );
+    } catch {
+      await markPaymentUncertain(payment.id);
+      return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
     }
 
     await db.payment.update({
@@ -193,12 +202,9 @@ export async function POST(
       );
     }
 
-    // status === "error": timeout / 5xx / red. NO cobrado, NO settle —
-    // dejamos el Payment pending para reintentar.
-    return NextResponse.json(
-      { ok: false, status: "error", message: result.message },
-      { status: 502 },
-    );
+    // Transport failure does not establish whether the terminal charged.
+    await markPaymentUncertain(payment.id);
+    return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
   }
 
   const currency = await getCurrencyForCountry(tenant.country);
@@ -213,15 +219,10 @@ export async function POST(
       amount: { amountCents: payment.amountCents, currency },
       metadata: { orderId: payment.orderId, paymentId: payment.id },
     });
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: "push_failed",
-        message: err instanceof Error ? err.message : "unknown",
-      },
-      { status: 502 },
-    );
-  }
+  } catch {
+      await markPaymentUncertain(payment.id);
+      return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+    }
   await db.payment.update({
     where: { id: payment.id },
     data: { providerRef: push.providerRef },
@@ -232,3 +233,5 @@ export async function POST(
     status: push.status,
   });
 }
+
+export const POST = secureApi(POSTHandler);

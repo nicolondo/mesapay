@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -6,7 +7,7 @@ import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
 
 /** Snapshot de caja en vivo del restaurante activo (operator o admin). */
-export async function GET() {
+async function GETHandler() {
   const session = await auth();
   const role = session?.user?.role;
   if (!session?.user || (role !== "operator" && role !== "platform_admin")) {
@@ -26,3 +27,5 @@ export async function GET() {
   );
   return NextResponse.json(snapshot);
 }
+
+export const GET = secureApi(GETHandler);

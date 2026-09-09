@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["purchasing"];
 
 /** Re-abre una carga (para editar la extracción sin re-subir). */
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -35,7 +36,7 @@ export async function GET(
 }
 
 /** Descartar una carga (no borra la imagen — evidencia). */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -60,3 +61,7 @@ export async function DELETE(
   });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const DELETE = secureApi(DELETEHandler);

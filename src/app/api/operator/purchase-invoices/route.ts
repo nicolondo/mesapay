@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { writeFile, mkdir } from "fs/promises";
@@ -73,7 +74,7 @@ async function loadMatchContext(restaurantId: string): Promise<MatchContext> {
  * en el catálogo — solo se guarda la carga (PurchaseInvoiceUpload) y la
  * imagen de evidencia.
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -127,3 +128,5 @@ export async function POST(req: Request) {
     match,
   });
 }
+
+export const POST = secureApi(POSTHandler);

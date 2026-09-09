@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useApiError } from "@/lib/useApiError";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
@@ -19,6 +20,8 @@ export function RefundButton({
   remainingCents: number;
 }) {
   const t = useTranslations("opOrders");
+  const apiError = useApiError();
+  const requestKey = useRef<string | null>(null);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pesos, setPesos] = useState(String(Math.round(remainingCents / 100)));
@@ -33,19 +36,22 @@ export function RefundButton({
     if (!valid || busy) return;
     setBusy(true);
     setErr(null);
-    const res = await fetch(`/api/operator/payments/${paymentId}/refund`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(isFull ? {} : { amountCents: cents }),
-    });
-    setBusy(false);
-    if (!res.ok) {
+    requestKey.current ??= crypto.randomUUID();
+    try {
+      const res = await fetch(`/api/operator/payments/${paymentId}/refund`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": requestKey.current },
+        body: JSON.stringify(isFull ? {} : { amountCents: cents }),
+      });
       const j = await res.json().catch(() => ({}));
-      setErr(j.message ?? j.error ?? t("refundError"));
-      return;
-    }
-    setOpen(false);
-    router.refresh();
+      if (j.pending) { setErr(apiError({ error: "payment_pending" })); return; }
+      if (!res.ok) { setErr(apiError(j, t("refundError"))); return; }
+      requestKey.current = null;
+      setOpen(false);
+      router.refresh();
+    } catch {
+      setErr(apiError({ error: "payment_pending" }));
+    } finally { setBusy(false); }
   }
 
   return (

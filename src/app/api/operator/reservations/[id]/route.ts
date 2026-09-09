@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -36,7 +37,7 @@ const body = z.object({
   action: z.enum(["apply_deposit"]).optional(),
 });
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -44,7 +45,7 @@ export async function PATCH(
   if (
     !session?.user ||
     (session.user.role !== "operator" &&
-      session.user.role !== "platform_admin" &&
+      session.user.role !== "platform_admin" && session.user.role !== "group_admin" &&
       session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -218,3 +219,5 @@ async function applyDeposit(
   });
   return { ok: true };
 }
+
+export const PATCH = secureApi(PATCHHandler);

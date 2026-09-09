@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ async function loadOwned(id: string, restaurantId: string) {
   return item;
 }
 
-export async function PATCH(
+async function PATCHHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -94,7 +95,7 @@ export async function PATCH(
 
 /** DELETE físico: una fila de lista de precios no tiene historia propia en
  *  A0 (el historial de precios nace en A2 con las recepciones de OC). */
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -109,3 +110,7 @@ export async function DELETE(
   await db.supplierIngredient.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = secureApi(PATCHHandler);
+
+export const DELETE = secureApi(DELETEHandler);

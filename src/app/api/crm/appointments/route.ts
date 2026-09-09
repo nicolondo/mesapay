@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -14,7 +15,7 @@ const createSchema = z.object({
 });
 
 // ── GET /api/crm/appointments?from=ISO&to=ISO ─────────────────────────────
-export async function GET(req: Request) {
+async function GETHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
 }
 
 // ── POST /api/crm/appointments ────────────────────────────────────────────
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const ctx = await getCrmContext();
   if (!ctx) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
@@ -126,3 +127,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ appointment }, { status: 201 });
 }
+
+export const GET = secureApi(GETHandler);
+
+export const POST = secureApi(POSTHandler);

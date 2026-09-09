@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -41,7 +42,7 @@ async function uniqueSlug(base: string): Promise<string> {
 // Gate: lead must be in scope (comercial owner, gerente of team, or admin).
 // Creates a Restaurant, links lead.restaurantId, changes stage → ganado.
 
-export async function POST(
+async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -199,3 +200,5 @@ export async function POST(
     restaurantSlug: restaurant.slug,
   });
 }
+
+export const POST = secureApi(POSTHandler);

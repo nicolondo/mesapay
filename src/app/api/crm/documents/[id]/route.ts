@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { unlink } from "fs/promises";
 import path from "path";
@@ -10,7 +11,7 @@ function uploadDir() {
   return path.join(base, "crm");
 }
 
-export async function DELETE(
+async function DELETEHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -45,3 +46,5 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const DELETE = secureApi(DELETEHandler);

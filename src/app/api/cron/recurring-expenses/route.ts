@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
  * Solo comercios con el módulo accounting activo (una plantilla creada
  * antes de apagar el módulo deja de materializarse).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET ?? "";
   if (!expected || secret !== expected) {
@@ -82,3 +83,5 @@ export async function POST(req: Request) {
     created,
   });
 }
+
+export const POST = secureApi(POSTHandler);

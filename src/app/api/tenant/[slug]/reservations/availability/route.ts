@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAvailability } from "@/lib/reservationAvailability";
@@ -7,7 +8,7 @@ import { getAvailability } from "@/lib/reservationAvailability";
  *   GET ?date=YYYY-MM-DD&party=N
  * Devuelve los slots del día con mesas libres que entran al grupo.
  */
-export async function GET(
+async function GETHandler(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
@@ -56,3 +57,5 @@ export async function GET(
     floorPlan,
   });
 }
+
+export const GET = secureApi(GETHandler);

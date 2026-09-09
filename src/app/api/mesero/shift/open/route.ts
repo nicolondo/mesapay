@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -28,7 +29,7 @@ const schema = z.object({
  * al cerrar hace arqueo personal (cuenta el efectivo y se calcula la
  * diferencia contra lo esperado = base + efectivo cobrado).
  */
-export async function POST(req: Request) {
+async function POSTHandler(req: Request) {
   const session = await auth();
   if (!session?.user || session.user.role !== "mesero") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -151,3 +152,5 @@ export async function POST(req: Request) {
     localAutoOpened,
   });
 }
+
+export const POST = secureApi(POSTHandler);

@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
@@ -29,7 +30,7 @@ const GATE: ModuleSlug[] = ["einvoicing"];
  * reintentable. La venta NUNCA se bloquea — un rechazo/caída deja el
  * documento con estado y errores para reintentar.
  */
-export async function POST(
+async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ simpleInvoiceId: string }> },
 ) {
@@ -177,7 +178,7 @@ export async function POST(
 }
 
 /** Estado del documento DIAN de una factura simple (para la UI). */
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ simpleInvoiceId: string }> },
 ) {
@@ -195,3 +196,7 @@ export async function GET(
   }
   return NextResponse.json({ document: doc });
 }
+
+export const POST = secureApi(POSTHandler);
+
+export const GET = secureApi(GETHandler);

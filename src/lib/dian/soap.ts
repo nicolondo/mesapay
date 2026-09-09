@@ -245,7 +245,14 @@ export function parseDianResponse(responseXml: string): DianResult {
   // curso — antes caía en el `pending` de abajo y se mostraba "en proceso".
   const faultReason = text1(root, "Text") ?? text1(root, "faultstring");
   if (textAll(root, "Fault").length > 0 || faultReason) {
-    const subcode = textAll(root, "Value").find((v) => v.includes(":")) ?? null;
+    // El código útil es el del Subcode ("a:InvalidSecurity"), no el genérico
+    // del Code ("s:Sender"): sin esto el error quedaba como "s:Sender: An
+    // error occurred…", que no dice qué pasó. Se cae al primer Value con ":"
+    // sólo si el Fault viene sin Subcode.
+    const subcode =
+      text1(root, "Subcode")?.trim() ||
+      textAll(root, "Value").find((v) => v.includes(":")) ||
+      null;
     return {
       state: "error",
       statusCode: subcode,
@@ -271,17 +278,45 @@ export function parseDianResponse(responseXml: string): DianResult {
   if (zipKey) {
     return { state: "pending", statusCode, statusMessage, zipKey, errors: [] };
   }
+  // La DIAN todavía está validando el lote: se vuelve a consultar, NO es un
+  // fallo. Hay que detectarlo por el texto porque el anexo no le asigna
+  // código (StatusCode llega vacío) y no hay reglas todavía; sin esto el
+  // documento en curso se mostraba como "error" (ver isStillValidating).
+  if (allErrors.length === 0 && isStillValidating(root)) {
+    return { state: "pending", statusCode, statusMessage, errors: [] };
+  }
   if (statusCode || allErrors.length > 0) {
     return { state: "rejected", statusCode, statusMessage, cufe, errors: allErrors };
   }
-  // Sin Fault, sin IsValid, sin ZipKey y sin StatusCode: no se entiende. Es un
-  // error, NO un pendiente — asumir "en proceso" ocultaba fallos reales.
+  // Sin Fault, sin IsValid, sin ZipKey, sin StatusCode y sin "en proceso": la
+  // respuesta no se entiende. Es un error, NO un pendiente — dar por sentado
+  // "en curso" ante cualquier cosa desconocida ocultaba fallos reales.
   return {
     state: "error",
     statusCode,
     statusMessage,
     errors: ["respuesta no reconocida de la DIAN"],
   };
+}
+
+/**
+ * ¿La respuesta dice que el lote sigue en validación?
+ *
+ * La DIAN no publica un código para este estado (la tabla de StatusCode del
+ * anexo sólo tiene 00, 66, 90 y 99) y de hecho lo devuelve VACÍO: el único
+ * indicio es el texto. Verificado contra vpfe-hab consultando GetStatusZip
+ * inmediatamente después de enviar:
+ *
+ *   <b:ErrorMessage i:nil="true"/><b:IsValid>false</b:IsValid>
+ *   <b:StatusCode/><b:StatusDescription>Batch en proceso de validación.
+ *   </b:StatusDescription><b:StatusMessage i:nil="true"/>
+ *
+ * Se mira tanto StatusDescription como StatusMessage porque cuál de los dos
+ * trae la frase depende de la operación (GetStatus / GetStatusZip).
+ */
+function isStillValidating(root: XmlNode): boolean {
+  const texts = [...textAll(root, "StatusDescription"), ...textAll(root, "StatusMessage")];
+  return texts.some((t) => /en proceso/i.test(t));
 }
 
 // ── Transporte HTTP ─────────────────────────────────────────────────────────

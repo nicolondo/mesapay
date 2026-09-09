@@ -1,4 +1,6 @@
 "use client";
+import { startTransition } from "react";
+import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -83,8 +85,11 @@ type CartLine = {
 };
 type ActiveOrder = {
   id: string;
-  shortCode: string;
+  /** Neto del descuento del comensal identificado. */
   subtotalCents: number;
+  shortCode: string;
+  discountCents: number;
+  discountPct: number | null;
   status: string;
   itemCount: number;
   roundCount: number;
@@ -224,6 +229,7 @@ function useLockBodyScroll(locked: boolean) {
 }
 
 export function MenuClient({
+  diner = null,
   tenant,
   tableId,
   tableQrToken,
@@ -240,6 +246,10 @@ export function MenuClient({
   dockBottomClass = "bottom-4",
   modalBottomReserveRem = 0,
 }: {
+  // Comensal con sesión iniciada, si lo hay. Cuando está presente, la
+  // hoja de "dinos tu nombre" ofrece identificarlo en la cuenta — que es
+  // lo que aplica su descuento. Cuando no, ofrece el enlace para entrar.
+  diner?: { name: string | null; email: string } | null;
   tenant: Tenant;
   tableId: string;
   // QR token de la mesa — necesario para el endpoint by-table del
@@ -269,6 +279,10 @@ export function MenuClient({
     kushkiReady: boolean;
     kushkiPublicKey: string | null;
     isMockMode: boolean;
+    // Resuelto en el server (src/lib/demoPayments.ts). Si el backend no
+    // acepta pagos demo, no mostramos los botones demo: sería un botón
+    // que siempre devuelve 403.
+    demoPaymentsEnabled: boolean;
   } | null;
   // Server-verified flag: this view is being driven by a logged-in
   // operator taking a pedido on behalf of a diner who doesn't have a
@@ -335,6 +349,9 @@ export function MenuClient({
   const [layout, setLayout] = useState<MenuLayout>("list");
   const [guestName, setGuestName] = useState<string>("");
   const [showNameSheet, setShowNameSheet] = useState(false);
+  // Nombre del comensal ya identificado en ESTA cuenta (lo devuelve el
+  // endpoint). Sirve para confirmar en pantalla que el descuento aplica.
+  const [identifiedName, setIdentifiedName] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [servingMode, setServingMode] = useState<"asReady" | "together">(
@@ -463,6 +480,7 @@ export function MenuClient({
   const CART_TTL_MS = 6 * 60 * 60 * 1000; // discard carts older than 6h
 
   useEffect(() => {
+    startTransition(() => {
     const savedLayout = localStorage.getItem("mesapay.menuLayout");
     if (
       savedLayout === "list" ||
@@ -505,6 +523,7 @@ export function MenuClient({
       localStorage.removeItem(cartKey);
     }
     setHydrated(true);
+    });
   }, [nameKey, cartKey, CART_TTL_MS]);
 
   useEffect(() => {
@@ -569,7 +588,7 @@ export function MenuClient({
   // where scrolling down then back to the top wouldn't re-activate
   // "Entrada" because the stale closure still thought it was active.
   const activeCatRef = useRef(activeCat);
-  activeCatRef.current = activeCat;
+  useEffect(() => { activeCatRef.current = activeCat; }, [activeCat]);
   useEffect(() => {
     if (scopedCategories.length === 0) return;
     // El "activo" debe ser siempre una categoría HOJA (la cepa que el comensal
@@ -745,7 +764,7 @@ export function MenuClient({
    * skip the scroll entirely.
    */
   const openItemRef = useRef(openItem);
-  openItemRef.current = openItem;
+  useEffect(() => { openItemRef.current = openItem; }, [openItem]);
   function closeItemSheet() {
     const closedId = openItemRef.current?.id ?? null;
     setOpenItem(null);
@@ -932,6 +951,28 @@ export function MenuClient({
         l.key === key ? { ...l, notes: notes.trim() || undefined } : l,
       ),
     );
+  }
+
+  /**
+   * El comensal se identifica a sí mismo en la cuenta de la mesa. No manda
+   * ningún id: el servidor usa SU sesión. Si el restaurante le tiene un
+   * descuento pactado, queda aplicado a la cuenta.
+   */
+  async function identifyDiner() {
+    if (!activeOrder) return;
+    try {
+      const res = await fetch(
+        `/api/tenant/${tenant.slug}/orders/${activeOrder.id}/identify`,
+        { method: "POST" },
+      );
+      if (!res.ok) return;
+      const j = await res.json().catch(() => ({}));
+      setIdentifiedName(j.name ?? diner?.name ?? diner?.email ?? null);
+      router.refresh();
+    } catch {
+      // Identificarse es una mejora, no un requisito para pedir: si falla,
+      // el comensal sigue con su nombre suelto y sin descuento.
+    }
   }
 
   async function sendToKitchen() {
@@ -1534,6 +1575,10 @@ export function MenuClient({
         <GuestNameSheet
           initial={guestName}
           canCancel={!!guestName}
+          loginHref={`/t/${tenant.slug}/cuenta/entrar`}
+          diner={diner}
+          identified={identifiedName}
+          onIdentify={identifyDiner}
           onSave={saveGuestName}
           onClose={() => {
             if (guestName) setShowNameSheet(false);
@@ -1555,6 +1600,7 @@ export function MenuClient({
           kushkiReady={pickup.kushkiReady}
           kushkiPublicKey={pickup.kushkiPublicKey}
           isMockMode={pickup.isMockMode}
+          demoPaymentsEnabled={pickup.demoPaymentsEnabled}
           onClose={() => setShowPickupSheet(false)}
           onSuccess={(orderId) => {
             try {
@@ -2495,23 +2541,19 @@ function ItemSheet({
     return () => el.removeEventListener("touchmove", onMove);
   }, []);
 
-  // El sheet ya NO se remonta al cambiar de plato (sin `key` en el padre), así
-  // que reseteamos a mano la selección/cantidad/notas y subimos el scroll cuando
-  // cambia `item`. Antes esto lo hacía el remonte — pero el remonte era lo que
-  // causaba el parpadeo. La imagen (background-image) se intercambia in situ.
-  useEffect(() => {
-    const ms = item.modifiers ?? [];
-    setPicked(
-      ms.map((m) => {
-        const i = m.default ? m.opts.findIndex((o) => o.label === m.default) : -1;
-        return i >= 0 ? [i] : [];
-      }),
-    );
+  // Reset only the form when its item changes; preserve the sheet DOM.
+  const [previousItem, setPreviousItem] = useState(item);
+  if (previousItem !== item) {
+    setPreviousItem(item);
+    setPicked((item.modifiers ?? []).map(m => {
+      const i = m.default ? m.opts.findIndex(o => o.label === m.default) : -1;
+      return i >= 0 ? [i] : [];
+    }));
     setQty(1);
     setNotes("");
     setShowReqErrors(false);
-    sheetScrollRef.current?.scrollTo({ top: 0 });
-  }, [item]);
+  }
+  useEffect(() => { sheetScrollRef.current?.scrollTo({ top: 0 }); }, [item]);
 
   return (
     <div
@@ -2769,18 +2811,40 @@ function ItemSheet({
 function GuestNameSheet({
   initial,
   canCancel,
+  loginHref,
+  diner,
+  identified,
+  onIdentify,
   onSave,
   onClose,
 }: {
   initial: string;
   canCancel: boolean;
+  // Ingreso del comensal EN ESTE comercio: la cuenta es del restaurante,
+  // así que el enlace lleva su slug. No hay login "de MESAPAY" a secas.
+  loginHref: string;
+  // Comensal con sesión iniciada EN ESTE comercio, si lo hay.
+  diner: { name: string | null; email: string } | null;
+  // Nombre ya identificado en esta cuenta (tras tocar "soy yo").
+  identified: string | null;
+  onIdentify: () => void | Promise<void>;
   onSave: (name: string) => void;
   onClose: () => void;
 }) {
   const t = useTranslations("menu");
   const [value, setValue] = useState(initial);
+  const [identifying, setIdentifying] = useState(false);
   const trimmed = value.trim();
   const canSave = trimmed.length > 0;
+
+  async function identify() {
+    setIdentifying(true);
+    try {
+      await onIdentify();
+    } finally {
+      setIdentifying(false);
+    }
+  }
 
   return (
     <div
@@ -2838,6 +2902,35 @@ function GuestNameSheet({
             {t("namePrivacy")}
           </p>
         </form>
+
+        {/* Identificarse con la cuenta DE ESTE restaurante. Es lo que
+            aplica el descuento que le tengan pactado — y lo que hace que
+            esta cuenta aparezca en su historial acá. */}
+        <div className="px-6 pb-6 -mt-2">
+          {identified ? (
+            <div className="rounded-xl border border-hairline bg-ivory p-3 text-sm">
+              {t("identifiedAs", { name: identified })}
+            </div>
+          ) : diner ? (
+            <button
+              type="button"
+              onClick={identify}
+              disabled={identifying}
+              className="w-full h-11 rounded-full border border-hairline text-sm font-medium text-ink disabled:opacity-60"
+            >
+              {identifying
+                ? t("identifying")
+                : t("identifyAs", { name: diner.name ?? diner.email })}
+            </button>
+          ) : (
+            <Link
+              href={loginHref}
+              className="block text-center text-sm text-terracotta underline"
+            >
+              {t("haveAccount")}
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2860,6 +2953,7 @@ function PickupCheckoutSheet({
   kushkiReady,
   kushkiPublicKey,
   isMockMode,
+  demoPaymentsEnabled,
   onClose,
   onSuccess,
 }: {
@@ -2874,6 +2968,7 @@ function PickupCheckoutSheet({
   kushkiReady: boolean;
   kushkiPublicKey: string | null;
   isMockMode: boolean;
+  demoPaymentsEnabled: boolean;
   onClose: () => void;
   onSuccess: (orderId: string) => void;
 }) {
@@ -2898,18 +2993,15 @@ function PickupCheckoutSheet({
   }>({ minutes: 0, loading: true, saturated: false, closed: false });
   const [busy, setBusy] = useState<PickupMethod | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [hasApplePay, setHasApplePay] = useState(false);
+  const hasApplePay = useApplePaySupport();
 
-  useEffect(() => {
-    const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
-    setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
-  }, []);
+
 
   // Aggregate qty by menuItemId for ETA (ETA only needs items+qty, not modifiers).
   useEffect(() => {
     if (cart.length === 0) return;
     let cancelled = false;
-    setEta((e) => ({ ...e, loading: true }));
+    startTransition(() => setEta((e) => ({ ...e, loading: true })));
     const agg = new Map<string, number>();
     for (const l of cart) agg.set(l.menuItemId, (agg.get(l.menuItemId) ?? 0) + l.qty);
     const payload = {
@@ -3001,6 +3093,11 @@ function PickupCheckoutSheet({
         setErr(t("errClosed"));
       } else if (j.error === "charge_declined") {
         setErr(j.message ?? t("errDeclined"));
+      } else if (j.error === "demo_payments_disabled") {
+        // El backend rechazó un método demo. Con demoPaymentsEnabled los
+        // botones ni se muestran, así que esto sólo pasa si el flag
+        // cambió entre el render y el tap.
+        setErr(t("pickupNoPaymentMethod"));
       } else {
         setErr(j.error ?? t("errGeneric"));
       }
@@ -3156,7 +3253,7 @@ function PickupCheckoutSheet({
                   : t("payApple", { price: fmtCOP(subtotal) })}
               </button>
             )}
-            {isMockMode && !kushkiReady && (
+            {demoPaymentsEnabled && !kushkiReady && (
               <>
                 <button
                   onClick={() => placeAndPay("demo_card")}
@@ -3179,6 +3276,16 @@ function PickupCheckoutSheet({
                 </div>
               </>
             )}
+            {/* Sin Apple Pay activo y sin pagos demo (el caso normal en
+                producción cuando el comercio todavía no terminó el
+                onboarding de la pasarela) no hay con qué prepagar la
+                recogida. Se lo decimos en vez de dejar la hoja muda. */}
+            {!(kushkiReady && hasApplePay) &&
+              !(demoPaymentsEnabled && !kushkiReady) && (
+                <div className="text-[13px] text-muted text-center py-2">
+                  {t("pickupNoPaymentMethod")}
+                </div>
+              )}
             <div className="text-[11px] text-muted text-center mt-1">
               {t("paymentApprovalHint")}
             </div>

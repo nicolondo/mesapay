@@ -7,7 +7,10 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +36,12 @@ async function POSTHandler(
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({
     where: { slug },
-    select: { id: true, compEnabled: true, compLabel: true },
+    select: {
+      id: true,
+      compEnabled: true,
+      compLabel: true,
+      adminOnlyCharge: true,
+    },
   });
   if (!tenant) {
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
@@ -49,6 +57,13 @@ async function POSTHandler(
     (role === "operator" || role === "mesero" || role === "platform_admin");
   if (!staff) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  // Control de caja: cerrar una cuenta como cortesía es cerrar una cuenta
+  // sin cobrarla — la vía más barata de saltarse "solo el administrador
+  // cobra". Va bajo el mismo guardarraíl (igual que el turno abierto, acá
+  // abajo, que este endpoint ya compartía con el cobro).
+  if (isChargeBlockedForRole(role, tenant.adminOnlyCharge)) {
+    return chargeBlockedResponse();
   }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
@@ -146,6 +161,15 @@ async function POSTHandler(
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: order.id,
   });
+
+  // La cortesía cierra la cuenta en $0: sigue siendo una cuenta pagada y, si
+  // alguien pidió factura, hay que emitirla igual.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: tenant.id,
+      orderId: order.id,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

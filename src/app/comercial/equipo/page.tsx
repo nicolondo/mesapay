@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
@@ -52,7 +53,7 @@ export default async function CrmEquipoPage() {
   const countMap = Object.fromEntries(counts.map((r) => [r.assignedToUserId, r._count.id]));
 
   // ── Metrics (last 30 days) ────────────────────────────────────────────────
-  const rangeStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rangeStart = new Date((await requestTime()) - 30 * 24 * 60 * 60 * 1000);
   const memberIds = members.map((m) => m.id);
 
   const [leadsForMetrics, activitiesForMetrics] = await Promise.all([

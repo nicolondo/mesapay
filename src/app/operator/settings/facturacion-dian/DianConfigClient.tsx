@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate } from "@/lib/format";
+import { fixLatin1Mojibake, parseCertSubject } from "@/lib/dian/certSubject";
 
 // ── Tipos que espeja el contrato de /api/operator/dian ──────────────────
 
@@ -21,28 +22,48 @@ type DianStatus = {
   softwareId: string | null;
   testSetId: string | null;
   missingEmisor: string[];
+  missingResolution: string[];
+  missingLocation: string[];
+  einvoicingEnabled: boolean;
 };
 
 type Emisor = {
   kind: "legalEntity" | "restaurant";
   legalName: string | null;
   taxId: string | null;
+  addressLine: string | null;
+  /** "Envigado, Antioquia" — lo arma el server desde el catálogo DANE. */
+  cityLabel: string | null;
+  /** Texto libre legacy — ya no se edita, sólo se muestra si contradice. */
   resolution: string | null;
+  resolutionNumber: string | null;
+  resolutionFrom: number | null;
+  resolutionTo: number | null;
+  resolutionValidFrom: string | null;
+  resolutionValidTo: string | null;
+  resolutionDate: string | null;
   invoicePrefix: string | null;
+  invoiceNextNumber: number;
+  legacyResolutionConflict: string | null;
 } | null;
 
-type DianView = {
-  status: DianStatus;
-  emisor: Emisor;
-  masterKeyReady: boolean;
-};
-
-type TestResult = {
-  state: "accepted" | "pending" | "rejected" | "error";
+/** Documento enviado a la DIAN, tal como quedó persistido. */
+type DianDocument = {
+  id: string;
+  state: string;
   cufe: string | null;
   trackId: string | null;
   errors: string[];
   statusMessage: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type DianView = {
+  status: DianStatus;
+  emisor: Emisor;
+  lastDocument: DianDocument | null;
+  masterKeyReady: boolean;
 };
 
 export function DianConfigClient() {
@@ -95,57 +116,88 @@ export function DianConfigClient() {
 
   return (
     <div className="space-y-5">
-      {/* Aviso: el server no puede cifrar secretos todavía. */}
-      {!masterKeyReady && <Banner tone="error">{t("masterKeyNotReady")}</Banner>}
+      {/* Aviso: el server no puede cifrar secretos todavía. Sólo importa
+          cuando hay credenciales que cifrar. */}
+      {status.einvoicingEnabled && !masterKeyReady && (
+        <Banner tone="error">{t("masterKeyNotReady")}</Banner>
+      )}
 
       {/* Estado general */}
-      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
-          {t("statusKicker")}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <StatusBadge status={status.status} t={t} />
-          <span className="px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-paper text-op-muted">
-            {status.environment === "produccion"
-              ? t("envProduccion")
-              : t("envHabilitacion")}
-          </span>
-        </div>
-      </section>
+      {status.einvoicingEnabled && (
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
+            {t("statusKicker")}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatusBadge status={status.status} t={t} />
+            <span className="px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium bg-paper text-op-muted">
+              {status.environment === "produccion"
+                ? t("envProduccion")
+                : t("envHabilitacion")}
+            </span>
+          </div>
+        </section>
+      )}
 
       {/* Emisor (solo lectura) */}
       <EmisorSection t={t} emisor={emisor} missing={status.missingEmisor} />
 
-      {/* Paso 1 — Certificado */}
-      <CertificateSection
+      {/* Resolución de numeración — ÚNICA superficie de carga. */}
+      <ResolutionSection
         t={t}
-        locale={locale}
-        status={status}
-        canSave={canSave}
+        emisor={emisor}
+        missing={status.missingResolution}
+        missingLocation={status.missingLocation}
         onSaved={load}
       />
 
-      {/* Paso 2 — Credenciales */}
-      <CredentialsSection
-        t={t}
-        status={status}
-        canSave={canSave}
-        onSaved={load}
-      />
+      {/* Certificado, credenciales y habilitación sólo aplican con el
+          módulo de facturación electrónica activo. Sin él la pantalla
+          existe igual, porque la resolución de arriba la necesita
+          cualquier comercio que imprima comprobante. */}
+      {status.einvoicingEnabled && (
+        <>
+          {/* Paso 1 — Certificado */}
+          <CertificateSection
+            t={t}
+            locale={locale}
+            status={status}
+            canSave={canSave}
+            onSaved={load}
+          />
 
-      {/* Paso 3 — Habilitación */}
-      <HabilitacionSection t={t} status={status} canSave={canSave} onDone={load} />
+          {/* Paso 2 — Credenciales */}
+          <CredentialsSection
+            t={t}
+            status={status}
+            canSave={canSave}
+            onSaved={load}
+          />
+
+          {/* Paso 3 — Habilitación */}
+          <HabilitacionSection
+            t={t}
+            locale={locale}
+            status={status}
+            lastDocument={view.lastDocument}
+            canSave={canSave}
+            onDone={load}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 // ── Emisor ──────────────────────────────────────────────────────────────
 
+// Sólo lo que se carga en IDENTIDAD. La resolución y el prefijo salieron
+// de esta lista porque ya no se editan ahí: se avisan con
+// `missingResolution`, que es lo que de verdad bloquea el envío.
 const EMISOR_LABEL_KEY: Record<string, string> = {
   legalName: "emisorLegalName",
   taxId: "emisorTaxId",
-  resolution: "emisorResolution",
-  invoicePrefix: "emisorPrefix",
+  addressLine: "emisorAddress",
 };
 
 function EmisorSection({
@@ -165,8 +217,8 @@ function EmisorSection({
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
         <ReadonlyField label={t("emisorLegalName")} value={emisor?.legalName} t={t} />
         <ReadonlyField label={t("emisorTaxId")} value={emisor?.taxId} t={t} />
-        <ReadonlyField label={t("emisorResolution")} value={emisor?.resolution} t={t} />
-        <ReadonlyField label={t("emisorPrefix")} value={emisor?.invoicePrefix} t={t} />
+        <ReadonlyField label={t("emisorAddress")} value={emisor?.addressLine} t={t} />
+        <ReadonlyField label={t("emisorCity")} value={emisor?.cityLabel} t={t} />
       </dl>
       {missing.length > 0 && (
         <div className="mt-4">
@@ -202,6 +254,308 @@ function ReadonlyField({
         {value || t("emisorEmpty")}
       </dd>
     </div>
+  );
+}
+
+// ── Resolución de numeración ────────────────────────────────────────────
+//
+// ÚNICA superficie de carga de la resolución. Antes estaba partida entre
+// Identidad (texto libre + rango + fecha + prefijo + consecutivo) y esta
+// pantalla (número + vigencia). Un comercio cargó 18764094877213 en
+// Identidad creyendo que era la resolución mientras el XML que se le
+// mandaba a la DIAN llevaba 18760000001, y desde la UI no había forma de
+// notarlo.
+//
+// La DIAN contrasta estos datos contra la resolución vigente del
+// contribuyente. Si alguno no coincide rechaza el documento entero (reglas
+// FAB05b, FAB07b, FAB08b, FAB10b, FAB11b, FAB12b, FAD05c). No hay forma de
+// deducirlos: hay que copiarlos de la resolución que expide la DIAN.
+
+const RESOLUTION_LABEL_KEY: Record<string, string> = {
+  resolutionNumber: "resolutionNumberLabel",
+  invoicePrefix: "resolutionPrefixLabel",
+  resolutionFrom: "resolutionFromLabel",
+  resolutionTo: "resolutionToLabel",
+  resolutionValidFrom: "resolutionValidFromLabel",
+  resolutionValidTo: "resolutionValidToLabel",
+};
+
+// La ubicación NO se edita acá: se elige en Identidad, del catálogo DANE
+// completo (1.122 municipios, con autocompletado). Acá sólo se avisa que
+// falta, porque es lo que bloquea el envío.
+const LOCATION_LABEL_KEY: Record<string, string> = {
+  legalCityCode: "emisorCity",
+};
+
+type ResolutionDraft = {
+  resolutionNumber: string;
+  invoicePrefix: string;
+  resolutionFrom: string;
+  resolutionTo: string;
+  resolutionValidFrom: string;
+  resolutionValidTo: string;
+  resolutionDate: string;
+  invoiceNextNumber: string;
+};
+
+function ResolutionSection({
+  t,
+  emisor,
+  missing,
+  missingLocation,
+  onSaved,
+}: {
+  t: ReturnType<typeof useTranslations>;
+  emisor: Emisor;
+  missing: string[];
+  missingLocation: string[];
+  onSaved: () => Promise<void>;
+}) {
+  // Si el número todavía no está pero el texto legacy de la tirilla ya es
+  // un número pelado, se propone como valor inicial. No se guarda solo: el
+  // operador confirma con Guardar.
+  const suggestedNumber =
+    emisor?.resolution && /^\d+$/.test(emisor.resolution.trim())
+      ? emisor.resolution.trim()
+      : "";
+  const [draft, setDraft] = useState<ResolutionDraft>({
+    resolutionNumber: emisor?.resolutionNumber ?? suggestedNumber,
+    invoicePrefix: emisor?.invoicePrefix ?? "",
+    resolutionFrom: emisor?.resolutionFrom?.toString() ?? "",
+    resolutionTo: emisor?.resolutionTo?.toString() ?? "",
+    resolutionValidFrom: emisor?.resolutionValidFrom ?? "",
+    resolutionValidTo: emisor?.resolutionValidTo ?? "",
+    resolutionDate: emisor?.resolutionDate ?? "",
+    invoiceNextNumber: (emisor?.invoiceNextNumber ?? 1).toString(),
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+
+  function set<K extends keyof ResolutionDraft>(key: K, value: string) {
+    setDraft((p) => ({ ...p, [key]: value }));
+    setMsg(null);
+  }
+
+  async function patch(body: Record<string, unknown>) {
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch("/api/operator/dian/resolution", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setMsg({ kind: "error", text: mapError(t, j.error) });
+      return;
+    }
+    setMsg({ kind: "ok", text: t("resolutionSaved") });
+    await onSaved();
+  }
+
+  async function save() {
+    await patch({
+      resolutionNumber: draft.resolutionNumber.trim() || null,
+      invoicePrefix: draft.invoicePrefix.trim() || null,
+      resolutionFrom: draft.resolutionFrom ? Number(draft.resolutionFrom) : null,
+      resolutionTo: draft.resolutionTo ? Number(draft.resolutionTo) : null,
+      resolutionValidFrom: draft.resolutionValidFrom || null,
+      resolutionValidTo: draft.resolutionValidTo || null,
+      resolutionDate: draft.resolutionDate || null,
+      invoiceNextNumber: Math.max(1, Number(draft.invoiceNextNumber) || 1),
+    });
+  }
+
+  const legacy = emisor?.legacyResolutionConflict ?? null;
+
+  return (
+    <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+      <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
+        {t("resolutionKicker")}
+      </div>
+      <p className="text-xs text-op-muted mb-3">{t("resolutionHelp")}</p>
+
+      {missing.length > 0 && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("resolutionMissing", {
+              fields: missing
+                .map((m) =>
+                  RESOLUTION_LABEL_KEY[m] ? t(RESOLUTION_LABEL_KEY[m]) : m,
+                )
+                .join(", "),
+            })}
+          </Banner>
+        </div>
+      )}
+
+      {/* La ubicación bloquea el envío igual que la resolución, pero se
+          corrige en Identidad (ahí está el catálogo DANE completo). */}
+      {missingLocation.length > 0 && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("locationMissing", {
+              fields: missingLocation
+                .map((m) => (LOCATION_LABEL_KEY[m] ? t(LOCATION_LABEL_KEY[m]) : m))
+                .join(", "),
+            })}
+          </Banner>
+        </div>
+      )}
+
+      {/* Dato viejo que CONTRADICE al número real. No se decide por el
+          operador: se le muestran los dos y elige. Es exactamente el caso
+          que motivó unificar las pantallas. */}
+      {legacy && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("legacyConflict", {
+              legacy,
+              current: emisor?.resolutionNumber ?? "",
+            })}
+          </Banner>
+          <div className="flex flex-wrap gap-3 mt-2">
+            <button
+              type="button"
+              onClick={() => set("resolutionNumber", legacy)}
+              className="text-[11px] text-terracotta underline"
+            >
+              {t("legacyUse", { legacy })}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => patch({ discardLegacyResolution: true })}
+              className="text-[11px] text-op-muted underline"
+            >
+              {t("legacyDiscard")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <FieldLabel
+          label={t("resolutionNumberLabel")}
+          hint={t("resolutionNumberHint")}
+        >
+          <input
+            type="text"
+            value={draft.resolutionNumber}
+            onChange={(e) => set("resolutionNumber", e.target.value)}
+            className={inputCls}
+          />
+        </FieldLabel>
+        <FieldLabel
+          label={t("resolutionPrefixLabel")}
+          hint={t("resolutionPrefixHint")}
+        >
+          <input
+            type="text"
+            value={draft.invoicePrefix}
+            onChange={(e) => set("invoicePrefix", e.target.value.toUpperCase())}
+            maxLength={10}
+            className={inputCls + " uppercase"}
+          />
+        </FieldLabel>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FieldLabel label={t("resolutionFromLabel")}>
+            <input
+              type="number"
+              min={0}
+              value={draft.resolutionFrom}
+              onChange={(e) => set("resolutionFrom", e.target.value)}
+              className={inputCls}
+            />
+          </FieldLabel>
+          <FieldLabel label={t("resolutionToLabel")}>
+            <input
+              type="number"
+              min={0}
+              value={draft.resolutionTo}
+              onChange={(e) => set("resolutionTo", e.target.value)}
+              className={inputCls}
+            />
+          </FieldLabel>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FieldLabel label={t("resolutionValidFromLabel")}>
+            <input
+              type="date"
+              value={draft.resolutionValidFrom}
+              onChange={(e) => set("resolutionValidFrom", e.target.value)}
+              className={inputCls}
+            />
+          </FieldLabel>
+          <FieldLabel label={t("resolutionValidToLabel")}>
+            <input
+              type="date"
+              value={draft.resolutionValidTo}
+              onChange={(e) => set("resolutionValidTo", e.target.value)}
+              className={inputCls}
+            />
+          </FieldLabel>
+        </div>
+
+        {/* Fecha del acto administrativo — sólo se imprime en el
+            comprobante, no va al XML. Venía de Identidad. */}
+        <FieldLabel
+          label={t("resolutionDateLabel")}
+          hint={t("resolutionDateHint")}
+        >
+          <input
+            type="date"
+            value={draft.resolutionDate}
+            onChange={(e) => set("resolutionDate", e.target.value)}
+            className={inputCls}
+          />
+        </FieldLabel>
+
+        {/* Próximo consecutivo — venía de Identidad. Vive acá porque el
+            rango autorizado que lo acota está en esta misma pantalla. */}
+        <FieldLabel label={t("nextNumberLabel")} hint={t("nextNumberHint")}>
+          <input
+            type="number"
+            min={1}
+            value={draft.invoiceNextNumber}
+            onChange={(e) => set("invoiceNextNumber", e.target.value)}
+            className={inputCls}
+          />
+          {draft.invoiceNextNumber === "1" &&
+            draft.resolutionFrom !== "" &&
+            Number(draft.resolutionFrom) > 1 && (
+              <button
+                type="button"
+                onClick={() => set("invoiceNextNumber", draft.resolutionFrom)}
+                className="mt-1 text-[10px] text-terracotta underline"
+              >
+                {t("startFrom", { n: Number(draft.resolutionFrom) })}
+              </button>
+            )}
+        </FieldLabel>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 mt-4">
+        {msg && (
+          <span
+            className={"text-xs " + (msg.kind === "ok" ? "text-ok" : "text-danger")}
+          >
+            {msg.text}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="mp-btn mp-btn--primary mp-btn--sm"
+        >
+          {busy ? t("saving") : t("save")}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -277,7 +631,7 @@ function CertificateSection({
             )}
           </div>
           {status.certSubject && (
-            <div className="text-sm mt-2 break-words">{status.certSubject}</div>
+            <CertificateSubject t={t} subject={status.certSubject} />
           )}
           {status.certNotAfter && (
             <div
@@ -289,6 +643,10 @@ function CertificateSection({
                 date: formatDate(status.certNotAfter, {
                   locale,
                   dateStyle: "medium",
+                  // `formatDate` trae timeStyle: "short" por defecto y la
+                  // hora exacta del vencimiento es ruido ("17/08/2028,
+                  // 4:34 p. m."). Sólo la fecha.
+                  timeStyle: undefined,
                 }),
               })}
             </div>
@@ -357,6 +715,92 @@ function CertificateSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Etiquetas de los campos del DN que sabemos nombrar — por shortName y por
+ * nombre largo, en minúsculas. Lo que no está acá se muestra con la clave
+ * cruda; el valor nunca se esconde.
+ */
+const CERT_FIELD_LABELS: Record<string, string> = {
+  cn: "certFieldCommonName",
+  commonname: "certFieldCommonName",
+  o: "certFieldOrganization",
+  organizationname: "certFieldOrganization",
+  ou: "certFieldOrgUnit",
+  organizationalunitname: "certFieldOrgUnit",
+  l: "certFieldLocality",
+  localityname: "certFieldLocality",
+  st: "certFieldState",
+  stateorprovincename: "certFieldState",
+  c: "certFieldCountry",
+  countryname: "certFieldCountry",
+  serialnumber: "certFieldSerialNumber",
+  streetaddress: "certFieldStreetAddress",
+  givenname: "certFieldGivenName",
+  surname: "certFieldSurname",
+  email: "certFieldEmail",
+  emailaddress: "certFieldEmail",
+};
+
+/**
+ * Datos del certificado, legibles.
+ *
+ * Antes se pintaba el DN crudo tal como lo devuelve node-forge: una línea
+ * de 200 caracteres con "undefined=9019444691" y el apellido del titular
+ * roto. Ahora arriba va lo único que el dueño necesita reconocer (a nombre
+ * de quién está el certificado) y el volcado completo queda a un clic.
+ */
+function CertificateSubject({
+  t,
+  subject,
+}: {
+  t: ReturnType<typeof useTranslations>;
+  subject: string;
+}) {
+  const parsed = parseCertSubject(subject);
+  // Sin CN ni O no hay nada que resumir: mejor el DN entero (reparado)
+  // que una tarjeta vacía.
+  const main = parsed.commonName ?? parsed.organization ?? fixLatin1Mojibake(subject);
+  const place = [parsed.locality, parsed.state, parsed.country]
+    .filter(Boolean)
+    .join(", ");
+  const secondary = [
+    parsed.organization !== parsed.commonName ? parsed.organization : null,
+    place || null,
+    parsed.serialNumber ? t("certSerial", { serial: parsed.serialNumber }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="mt-2">
+      <div className="text-sm font-medium break-words">{main}</div>
+      {secondary && (
+        <div className="text-xs text-op-muted break-words mt-0.5">{secondary}</div>
+      )}
+      {parsed.fields.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[11px] text-op-muted cursor-pointer select-none">
+            {t("certSubjectDetails")}
+          </summary>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            {parsed.fields.map((f, i) => {
+              const labelKey = f.key ? CERT_FIELD_LABELS[f.key.toLowerCase()] : undefined;
+              return (
+                <div key={`${f.key ?? ""}-${i}`}>
+                  <dt className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-0.5">
+                    {labelKey ? t(labelKey) : f.key}
+                  </dt>
+                  <dd className="text-sm break-words">{f.value}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -501,18 +945,27 @@ function CredentialsSection({
 
 function HabilitacionSection({
   t,
+  locale,
   status,
+  lastDocument,
   canSave,
   onDone,
 }: {
   t: ReturnType<typeof useTranslations>;
+  locale: Locale;
   status: DianStatus;
+  lastDocument: DianDocument | null;
   canSave: boolean;
   onDone: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<TestResult | null>(null);
+  const [polling, setPolling] = useState(false);
+  // Resultado del último envío/consulta hecho en esta pantalla; si no hay,
+  // se muestra el documento persistido (sobrevive a recargar la página).
+  const [result, setResult] = useState<DianDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const doc = result ?? lastDocument;
 
   // Solo visible con certificado + credenciales + testSetId + habilitación.
   const ready =
@@ -522,20 +975,6 @@ function HabilitacionSection({
     status.hasTechnicalKey &&
     !!status.testSetId &&
     status.environment === "habilitacion";
-
-  if (!ready) {
-    return (
-      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
-        <StepHeader index={3} title={t("habTitle")} t={t} />
-        <p className="text-xs text-op-muted mt-1">{t("habNotReady")}</p>
-        {(status.status === "testing" || status.status === "enabled") && (
-          <div className="mt-3">
-            <StatusBadge status={status.status} t={t} />
-          </div>
-        )}
-      </section>
-    );
-  }
 
   async function run() {
     setBusy(true);
@@ -548,12 +987,69 @@ function HabilitacionSection({
       setError(mapError(t, j.error));
       return;
     }
-    const j = (await r.json()) as { result: TestResult };
+    const j = (await r.json()) as { result: DianDocument };
     setResult(j.result);
     await onDone();
   }
 
-  const ok = result && (result.state === "accepted" || result.state === "pending");
+  // Consulta explícita a la DIAN (GetStatusZip). Es manual a propósito:
+  // la validación es asíncrona y no tiene sentido machacar su servicio con
+  // un poller — el operador consulta cuando le interesa el resultado.
+  async function checkStatus(id: string) {
+    setPolling(true);
+    setError(null);
+    const r = await fetch(`/api/operator/dian/documents/${id}/status`, {
+      method: "POST",
+    });
+    setPolling(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      setError(mapError(t, j.error));
+      return;
+    }
+    const j = (await r.json()) as { document: DianDocument };
+    setResult(j.document);
+    await onDone();
+  }
+
+  // La ubicación DANE bloquea igual que la resolución: sin ella el XML
+  // declararía un establecimiento que no es (FAB10a / FAJ50).
+  const resolutionIncomplete =
+    status.missingResolution.length > 0 || status.missingLocation.length > 0;
+
+  if (!ready) {
+    return (
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <StepHeader index={3} title={t("habTitle")} t={t} />
+        {/*
+          Un comercio ya habilitado cae acá (pasa a Producción y deja de
+          cumplir `ready`), y el copy de "te falta configurar" era falso y
+          alarmante: no le falta nada, ya emite.
+        */}
+        <p className="text-xs text-op-muted mt-1">
+          {status.status === "enabled"
+            ? t("habAlreadyEnabled")
+            : t("habNotReady")}
+        </p>
+        {(status.status === "testing" || status.status === "enabled") && (
+          <div className="mt-3">
+            <StatusBadge status={status.status} t={t} />
+          </div>
+        )}
+        {doc && (
+          <div className="mt-4">
+            <DocumentResult
+              t={t}
+              locale={locale}
+              doc={doc}
+              polling={polling}
+              onCheck={checkStatus}
+            />
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-op-border bg-op-surface p-5">
@@ -566,10 +1062,20 @@ function HabilitacionSection({
         </div>
       )}
 
+      {resolutionIncomplete && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {status.missingResolution.length > 0
+              ? t("habBlockedByResolution")
+              : t("habBlockedByLocation")}
+          </Banner>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={run}
-        disabled={busy || !canSave}
+        disabled={busy || !canSave || resolutionIncomplete}
         className="mp-btn mp-btn--primary mp-btn--sm"
       >
         {busy && (
@@ -587,42 +1093,117 @@ function HabilitacionSection({
         </div>
       )}
 
-      {result && (
-        <div
-          className={
-            "mt-4 rounded-xl border p-4 " +
-            (ok
-              ? "border-ok/40 bg-ok/10"
-              : "border-danger/40 bg-danger/10")
-          }
-        >
-          <div className={"text-sm font-medium " + (ok ? "text-ok" : "text-danger")}>
-            {result.state === "accepted"
-              ? t("habResultAccepted")
-              : result.state === "pending"
-                ? t("habResultPending")
-                : t("habResultRejected")}
-          </div>
-          {result.statusMessage && (
-            <div className="text-xs text-op-muted mt-1">{result.statusMessage}</div>
-          )}
-          {ok && result.cufe && (
-            <div className="text-[11px] font-mono break-all mt-2 text-op-muted">
-              {t("habCufe", { cufe: result.cufe })}
-            </div>
-          )}
-          {!ok && result.errors.length > 0 && (
-            <ul className="list-disc list-inside text-xs text-danger mt-2 space-y-1">
-              {result.errors.map((e, i) => (
-                <li key={i} className="break-words">
-                  {e}
-                </li>
-              ))}
-            </ul>
-          )}
+      {doc && (
+        <div className="mt-4">
+          <DocumentResult
+            t={t}
+            locale={locale}
+            doc={doc}
+            polling={polling}
+            onCheck={checkStatus}
+          />
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Resultado real del documento: estado, mensaje de la DIAN y — lo que
+ * importa cuando rechaza — la lista completa de reglas incumplidas. Antes
+ * esto no se mostraba nunca y la pantalla se quedaba en "en proceso".
+ */
+function DocumentResult({
+  t,
+  locale,
+  doc,
+  polling,
+  onCheck,
+}: {
+  t: ReturnType<typeof useTranslations>;
+  locale: Locale;
+  doc: DianDocument;
+  polling: boolean;
+  onCheck: (id: string) => Promise<void>;
+}) {
+  const accepted = doc.state === "accepted";
+  const inFlight =
+    doc.state === "pending" || doc.state === "sent" || doc.state === "to_send";
+  const tone = accepted
+    ? "border-ok/40 bg-ok/10"
+    : inFlight
+      ? "border-op-border bg-op-bg"
+      : "border-danger/40 bg-danger/10";
+  const titleCls = accepted
+    ? "text-ok"
+    : inFlight
+      ? "text-op-text"
+      : "text-danger";
+  const label = accepted
+    ? t("habResultAccepted")
+    : doc.state === "rejected"
+      ? t("habResultRejected")
+      : inFlight
+        ? t("habResultPending")
+        : t("habResultError");
+
+  return (
+    <div className={"rounded-xl border p-4 " + tone}>
+      <div className={"text-sm font-medium " + titleCls}>{label}</div>
+      {doc.statusMessage && (
+        <div className="text-xs text-op-muted mt-1">{doc.statusMessage}</div>
+      )}
+      {doc.updatedAt && (
+        <div className="text-[11px] text-op-muted mt-1">
+          {t("habUpdatedAt", {
+            date: formatDate(doc.updatedAt, {
+              locale,
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+          })}
+        </div>
+      )}
+      {accepted && doc.cufe && (
+        <div className="text-[11px] font-mono break-all mt-2 text-op-muted">
+          {t("habCufe", { cufe: doc.cufe })}
+        </div>
+      )}
+      {doc.trackId && (
+        <div className="text-[11px] font-mono break-all mt-1 text-op-muted">
+          {t("habTrackId", { trackId: doc.trackId })}
+        </div>
+      )}
+
+      {doc.errors.length > 0 && (
+        <div className="mt-3">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+            {t("habRulesKicker", { count: doc.errors.length })}
+          </div>
+          <ul className="list-disc list-inside text-xs text-danger space-y-1">
+            {doc.errors.map((e, i) => (
+              <li key={i} className="break-words">
+                {e}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {doc.trackId && inFlight && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => onCheck(doc.id)}
+            disabled={polling}
+            className="mp-btn mp-btn--ghost mp-btn--sm"
+          >
+            {polling ? t("habChecking") : t("habCheckStatus")}
+          </button>
+          <p className="text-[11px] text-op-muted mt-2">{t("habCheckHint")}</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -746,6 +1327,18 @@ function mapError(t: ReturnType<typeof useTranslations>, code?: string): string 
       return t("errNotHabilitacion");
     case "emisor_incomplete":
       return t("errEmisorIncomplete");
+    case "resolution_incomplete":
+      return t("errResolutionIncomplete");
+    case "location_incomplete":
+      return t("errLocationIncomplete");
+    case "range_inverted":
+      return t("errRangeInverted");
+    case "dates_inverted":
+      return t("errDatesInverted");
+    case "no_track_id":
+      return t("errNoTrackId");
+    case "not_found":
+      return t("errDocumentNotFound");
     case "no_certificate":
       return t("errNoCertificate");
     case "missing_credentials":

@@ -1,4 +1,5 @@
 "use client";
+import { startTransition } from "react";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -222,7 +223,7 @@ export function KitchenBoard({
         const startedMs = new Date(i.preparationStartedAt).getTime();
         if (nowMs - startedMs >= i.prepMinutesSnapshot * 60_000) {
           autoAdvancedRef.current.add(i.id);
-          advanceItems([i.id], "ready");
+          startTransition(() => { void advanceItems([i.id], "ready"); });
         }
       }
     }
@@ -848,12 +849,15 @@ function CancelControl({
       // try to focus it (the parent state flip + paint).
       const t = setTimeout(() => ref.current?.focus(), 0);
       return () => clearTimeout(t);
-    } else {
-      setReason("");
-      setMarkUnavailable(false);
-      setErr(null);
     }
   }, [open]);
+  const [previousOpen, setPreviousOpen] = useState(open);
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
+    setReason("");
+    setMarkUnavailable(false);
+    setErr(null);
+  }
 
   if (!open) {
     return (

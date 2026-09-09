@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolContext } from "./tools/types";
 
-export type AgentMessage = { role: "user" | "assistant"; content: any };
+export type AgentMessage = Anthropic.Messages.MessageParam;
 export type AgentResult = {
   text: string;
   toolCalls: { name: string; input: unknown }[];
@@ -18,7 +18,7 @@ export async function runInsightsAgent(args: {
   maxIterations?: number;
 }): Promise<AgentResult> {
   const { client, model, system, ctx, executeTool } = args;
-  const messages: any[] = [...args.messages];
+  const messages: AgentMessage[] = [...args.messages];
   const toolCalls: { name: string; input: unknown }[] = [];
   const maxIterations = args.maxIterations ?? 8;
 
@@ -35,15 +35,15 @@ export async function runInsightsAgent(args: {
     );
     if (res.stop_reason !== "tool_use" || toolUses.length === 0) {
       const text = (res.content ?? [])
-        .filter((b: any) => b.type === "text")
-        .map((b: any) => b.text)
+        .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+        .map((b) => b.text)
         .join("\n")
         .trim();
       return { text: text || "(sin respuesta)", toolCalls };
     }
     // Ejecutar todas las tools pedidas y devolver los resultados.
     messages.push({ role: "assistant", content: res.content });
-    const results: any[] = [];
+    const results: Anthropic.Messages.ToolResultBlockParam[] = [];
     for (const tu of toolUses) {
       toolCalls.push({ name: tu.name, input: tu.input });
       const out = await executeTool(tu.name, tu.input, ctx);

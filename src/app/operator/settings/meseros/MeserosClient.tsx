@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+
+/** Espera antes de guardar, para no disparar un PUT por cada mesa tocada. */
+const AUTOSAVE_DELAY_MS = 600;
+
+const sorted = (nums: Iterable<number>) =>
+  Array.from(nums).sort((a, b) => a - b);
+
+const sameNums = (a: number[], b: number[]) =>
+  a.length === b.length && a.every((n, i) => n === b[i]);
 
 type Mesero = {
   id: string;
@@ -24,13 +33,16 @@ export function MeserosClient({
 }) {
   const [meseros, setMeseros] = useState<Mesero[]>(initial);
 
-  function applyChange(meseroId: string, tableNumbers: number[]) {
+  // Estable a propósito: cada tarjeta la usa como dependencia de su
+  // efecto de autoguardado. Si cambiara de identidad en cada render,
+  // guardar una tarjeta reiniciaría la espera de las demás.
+  const applyChange = useCallback((meseroId: string, tableNumbers: number[]) => {
     setMeseros((prev) =>
       prev.map((m) =>
         m.id === meseroId ? { ...m, assignedTableNumbers: tableNumbers } : m,
       ),
     );
-  }
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -39,7 +51,7 @@ export function MeserosClient({
           key={m.id}
           mesero={m}
           tables={tables}
-          onChange={(tns) => applyChange(m.id, tns)}
+          onChange={applyChange}
         />
       ))}
     </div>
@@ -53,7 +65,9 @@ function MeseroCard({
 }: {
   mesero: Mesero;
   tables: Table[];
-  onChange: (tns: number[]) => void;
+  // Recibe el id para que la referencia sea estable entre renders (ver
+  // el useCallback del padre): es la dependencia del autoguardado.
+  onChange: (meseroId: string, tns: number[]) => void;
 }) {
   const tr = useTranslations("opSettings");
   const [selected, setSelected] = useState<Set<number>>(
@@ -61,14 +75,19 @@ function MeseroCard({
   );
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<
-    { kind: "ok" | "error"; text: string } | null
-  >(null);
+  const [rangeError, setRangeError] = useState(false);
+  const [state, setState] = useState<"clean" | "saving" | "saved" | "error">(
+    "clean",
+  );
 
-  const dirty =
-    selected.size !== mesero.assignedTableNumbers.length ||
-    mesero.assignedTableNumbers.some((n) => !selected.has(n));
+  // Lo que el servidor tiene confirmado. Comparar contra esto (y no
+  // contra el prop) evita re-guardar lo mismo y hace idempotente el
+  // reintento: el endpoint es un reemplazo completo del arreglo.
+  const savedRef = useRef<number[]>(sorted(mesero.assignedTableNumbers));
+  // Última intención del usuario, para reanudar con lo más nuevo si algo
+  // cambió mientras un guardado estaba en vuelo.
+  const latestRef = useRef<number[]>(savedRef.current);
+  const runningRef = useRef(false);
 
   function toggle(num: number) {
     setSelected((prev) => {
@@ -77,22 +96,19 @@ function MeseroCard({
       else next.add(num);
       return next;
     });
-    setMsg(null);
   }
 
   function selectAll() {
     setSelected(new Set(tables.map((t) => t.number)));
-    setMsg(null);
   }
   function clearAll() {
     setSelected(new Set());
-    setMsg(null);
   }
   function applyRange() {
     const from = parseInt(rangeFrom, 10);
     const to = parseInt(rangeTo, 10);
     if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) {
-      setMsg({ kind: "error", text: tr("meserosRangeInvalid") });
+      setRangeError(true);
       return;
     }
     setSelected((prev) => {
@@ -104,26 +120,80 @@ function MeseroCard({
     });
     setRangeFrom("");
     setRangeTo("");
-    setMsg(null);
+    setRangeError(false);
   }
 
-  async function save() {
-    setBusy(true);
-    setMsg(null);
-    const payload = Array.from(selected).sort((a, b) => a - b);
-    const r = await fetch(`/api/operator/users/${mesero.id}/tables`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tableNumbers: payload }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      setMsg({ kind: "error", text: tr("meserosSaveFailed") });
+  /**
+   * Guarda serializado: nunca hay dos PUT en vuelo. Si el usuario sigue
+   * tocando mesas mientras uno viaja, al terminar se manda lo último
+   * (`latestRef`) — así el servidor no puede recibir dos reemplazos en
+   * orden invertido y quedarse con el estado viejo.
+   */
+  const save = useCallback(
+    async function save(target: number[]) {
+      // Ya hay uno en vuelo: no encolamos nada acá, el que está
+      // corriendo se encarga de reanudar con `latestRef` al terminar.
+      if (runningRef.current) return;
+      if (sameNums(target, savedRef.current)) return;
+      runningRef.current = true;
+      setState("saving");
+      try {
+        const r = await fetch(`/api/operator/users/${mesero.id}/tables`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tableNumbers: target }),
+        });
+        if (!r.ok) throw new Error("save_failed");
+        // El servidor descarta números de mesas que no existen: nos
+        // quedamos con SU versión, no con la que mandamos.
+        const j = (await r.json()) as { tableNumbers?: number[] };
+        savedRef.current = j.tableNumbers ?? target;
+        onChange(mesero.id, savedRef.current);
+        setState("saved");
+      } catch {
+        // No reintentamos solos: un error persistente se convertiría en
+        // un bucle contra el servidor. El usuario reintenta, y cualquier
+        // cambio nuevo vuelve a agendar el guardado.
+        setState("error");
+        return;
+      } finally {
+        runningRef.current = false;
+      }
+      if (!sameNums(latestRef.current, savedRef.current)) {
+        void save(latestRef.current);
+      }
+    },
+    [mesero.id, onChange],
+  );
+
+  // Autoguardado: cada cambio reinicia la espera. El cleanup cancela el
+  // timer anterior, así diez mesas seguidas son UN solo PUT.
+  useEffect(() => {
+    const target = sorted(selected);
+    latestRef.current = target;
+    if (sameNums(target, savedRef.current)) {
+      // Nada que guardar: o no cambió nada, o el usuario deshizo lo que
+      // había tocado. NO pisamos "saved" — es la única confirmación que
+      // ve, y este efecto vuelve a correr apenas termina un guardado.
+      // Un error sí se limpia: ya no hay nada pendiente que reportar.
+      setState((s) => (s === "error" ? "clean" : s));
       return;
     }
-    onChange(payload);
-    setMsg({ kind: "ok", text: tr("meserosSaved") });
-  }
+    const id = setTimeout(() => void save(target), AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [selected, save]);
+
+  // Cerrar la pestaña con un cambio sin confirmar lo perdería en
+  // silencio. La ventana es corta (la espera de arriba) pero existe.
+  const pending = state === "saving" || state === "error";
+  useEffect(() => {
+    if (!pending) return;
+    function warn(e: BeforeUnloadEvent) {
+      e.preventDefault();
+    }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pending]);
 
   const displayName = mesero.name?.trim() || mesero.email;
 
@@ -192,6 +262,14 @@ function MeseroCard({
         </div>
       </div>
 
+      {/* El error del rango vive junto al rango, no en el pie: allá abajo
+          ahora sólo se habla del guardado. */}
+      {rangeError && (
+        <div className="-mt-1 mb-3 text-xs text-danger text-right">
+          {tr("meserosRangeInvalid")}
+        </div>
+      )}
+
       {/* Pill grid — one per mesa */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-2">
         {tables.map((t) => {
@@ -216,24 +294,33 @@ function MeseroCard({
         })}
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-3">
-        {msg && (
-          <span
-            className={
-              "text-xs " + (msg.kind === "ok" ? "text-ok" : "text-danger")
-            }
-          >
-            {msg.text}
-          </span>
+      {/* Se guarda solo. Sin botón: el estado del guardado ES el feedback,
+          y ocupa el lugar donde antes estaba el botón para que la tarjeta
+          no salte de alto al aparecer y desaparecer. */}
+      <div
+        className="mt-4 h-6 flex items-center justify-end gap-3"
+        aria-live="polite"
+      >
+        {state === "saving" && (
+          <span className="text-xs text-op-muted">{tr("meserosSaving")}</span>
         )}
-        <button
-          type="button"
-          onClick={save}
-          disabled={busy || !dirty}
-          className="mp-btn mp-btn--primary mp-btn--sm"
-        >
-          {busy ? tr("meserosSaving") : tr("meserosSave")}
-        </button>
+        {state === "saved" && (
+          <span className="text-xs text-ok">{tr("meserosSaved")}</span>
+        )}
+        {state === "error" && (
+          <>
+            <span className="text-xs text-danger">
+              {tr("meserosSaveFailed")}
+            </span>
+            <button
+              type="button"
+              onClick={() => void save(latestRef.current)}
+              className="mp-btn mp-btn--ghost mp-btn--sm"
+            >
+              {tr("meserosSaveRetry")}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

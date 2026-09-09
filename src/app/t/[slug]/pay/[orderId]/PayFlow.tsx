@@ -7,6 +7,7 @@ import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { getAssignedDevice } from "@/lib/meseroDevice";
+import type { InvoiceIntent } from "@/components/invoice/types";
 
 /**
  * Núcleo del flujo de cobro, compartido por dos puntos de entrada:
@@ -61,6 +62,29 @@ export async function PayFlow({
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
+
+  // Factura pedida en un intento anterior de esta misma cuenta (el comensal
+  // recargó, o volvió del banco). Sin esto el checkout le volvería a
+  // preguntar por algo que ya contestó.
+  const invoiceRequest = await db.invoiceRequest.findFirst({
+    where: { orderId: order.id, status: "pending" },
+    orderBy: { createdAt: "desc" },
+    select: {
+      status: true,
+      customerName: true,
+      docType: true,
+      docNumber: true,
+      email: true,
+      address: true,
+      city: true,
+      department: true,
+    },
+  });
+  const invoiceIntent: InvoiceIntent | null = invoiceRequest
+    ? { kind: "formal", summary: invoiceRequest }
+    : order.simpleInvoiceEmail
+      ? { kind: "simple", email: order.simpleInvoiceEmail }
+      : null;
 
   const approved = order.payments.filter((p) => p.status === "approved");
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
@@ -120,7 +144,13 @@ export async function PayFlow({
           ? "Mostrador"
           : `Mesa ${order.table.number}`
       }
-      subtotalCents={order.subtotalCents}
+      // Lo cobrable va NETO del descuento del comensal identificado: todo
+      // el cálculo de la pantalla (partes iguales, lo mío, saldo) cuelga de
+      // este número, y el tope del servidor rechazaría un cobro bruto.
+      subtotalCents={Math.max(0, order.subtotalCents - order.discountCents)}
+      grossSubtotalCents={order.subtotalCents}
+      discountCents={order.discountCents}
+      discountPct={order.discountPct}
       paidCents={paidCents}
       paidTipCents={paidTipCents}
       alreadyPaid={order.status === "paid"}
@@ -145,6 +175,12 @@ export async function PayFlow({
       // datáfono o PSE — sirve para que el diner entienda por qué
       // volvió al checkout y elija otro método.
       declinedFlag={declined === "1"}
+      // La factura se pide ACÁ, durante el cobro. `invoiceIntent` es lo que
+      // ya haya pedido en esta cuenta (para mostrar el resumen en vez del
+      // formulario) y `invoicePrefillEmail`, el correo del último cobro con
+      // tarjeta para no volver a pedírselo.
+      invoiceIntent={invoiceIntent}
+      invoicePrefillEmail={order.customerEmail}
     />
   );
 }

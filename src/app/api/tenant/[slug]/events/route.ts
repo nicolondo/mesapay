@@ -1,3 +1,4 @@
+import { getDiner } from "@/lib/dinerSession";
 import { secureApi } from "@/lib/secureApi";
 import { db } from "@/lib/db";
 import { subscribeTenant } from "@/lib/events";
@@ -13,13 +14,14 @@ async function GETHandler(req: Request, { params }: { params: Promise<{ slug: st
   if (!tenant) return new Response(null, { status: 404 });
   const staff = await staffForRestaurant(tenant.id);
   const scopes = staff ? [] : await guestScopes(tenant.id);
-  if (!staff && !scopes.length) return new Response(null, { status: 403 });
+  const diner = staff ? null : await getDiner(tenant.id);
+  if (!staff && !diner && !scopes.length) return new Response(null, { status: 403 });
   const permitted = new Set<string>();
   if (!staff) {
-    const orders = await db.order.findMany({ where: { restaurantId: tenant.id, OR: scopes.flatMap(s => [
+    const orders = await db.order.findMany({ where: { restaurantId: tenant.id, OR: [...(diner ? [{ dinerId: diner.id }] : []), ...scopes.flatMap(s => [
       ...(s.orderId ? [{ id: s.orderId }] : []),
       ...(s.tableId ? [{ tableId: s.tableId, orderType: "dineIn" as const }] : []),
-    ]) }, select: { id: true } });
+    ])] }, select: { id: true } });
     for (const order of orders) permitted.add(order.id);
   }
   let cleanup = () => {};
@@ -33,7 +35,7 @@ async function GETHandler(req: Request, { params }: { params: Promise<{ slug: st
       });
       const heartbeat = setInterval(() => { if (!closed) controller.enqueue(new TextEncoder().encode(": ping\n\n")); }, 15_000);
       // Reconnect rechecks session revocation and guest expiry. No permanent grants.
-      const expiresIn = staff ? 55_000 : Math.max(1, Math.min(55_000, ...scopes.map(s => s.expires - Date.now())));
+      const expiresIn = staff || diner ? 55_000 : Math.max(1, Math.min(55_000, ...scopes.map(s => s.expires - Date.now())));
       const expire = setTimeout(() => { cleanup(); controller.close(); }, expiresIn);
       cleanup = () => { if (closed) return; closed = true; clearInterval(heartbeat); clearTimeout(expire); unsubscribe(); req.signal.removeEventListener("abort", abort); };
       const abort = () => { cleanup(); try { controller.close(); } catch { /* already cancelled */ } };

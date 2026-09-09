@@ -1,3 +1,5 @@
+> Estado histórico de la pausa. El trabajo se reanudó; consulta [la integración del 9 de septiembre](estado-integracion-codex-2026-09-09.md).
+
 # Estado de trabajo para continuar con Claude
 
 El usuario pidió cerrar esta tanda rápidamente y pausar para trabajar con Claude. No se hicieron commits, push ni despliegues. Se preservaron los commits de Claude hasta `0186de0`.

@@ -1,4 +1,5 @@
 "use client";
+import { usePushSupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useState } from "react";
 
@@ -52,6 +53,7 @@ const MESERO_COPY: PushCopy = {
 };
 
 export function PushSetup({ copy }: { copy?: PushCopy }) {
+  const supported = usePushSupport();
   const strings = copy ?? MESERO_COPY;
   const [status, setStatus] = useState<Status>("default");
 
@@ -62,7 +64,6 @@ export function PushSetup({ copy }: { copy?: PushCopy }) {
       !("serviceWorker" in navigator) ||
       !("PushManager" in window)
     ) {
-      setStatus("unsupported");
       return;
     }
 
@@ -157,6 +158,7 @@ export function PushSetup({ copy }: { copy?: PushCopy }) {
 
   // No UI when nothing actionable is left.
   if (
+    !supported ||
     status === "subscribed" ||
     status === "unsupported" ||
     status === "not_configured"

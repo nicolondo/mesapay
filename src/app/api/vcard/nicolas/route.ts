@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { CONTACT } from "@/app/nicolas/contact";
 
 /**
@@ -5,7 +6,7 @@ import { CONTACT } from "@/app/nicolas/contact";
  * Es la vía universal de "guardar en el teléfono" (no requiere certificados
  * de Apple Wallet ni cuenta issuer de Google Wallet).
  */
-export async function GET() {
+async function GETHandler() {
   // ORG y NOTE llevan palabras clave del negocio a propósito: la búsqueda de
   // contactos de iOS/Android indexa empresa y notas, así quien guardó el
   // contacto lo encuentra buscando "QR", "menú", "carta" o "restaurante"
@@ -35,3 +36,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

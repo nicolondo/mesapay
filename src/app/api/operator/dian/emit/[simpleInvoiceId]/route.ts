@@ -4,8 +4,11 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
   DianConfigError,
+  emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingLocationFields,
+  missingResolutionFields,
   resolveEmisor,
 } from "@/lib/dian/config";
 import { buildDianInvoiceXml, type DianInvoiceInput } from "@/lib/dian/ubl";
@@ -47,6 +50,7 @@ async function POSTHandler(
       restaurantId: true,
       invoiceNumber: true,
       snapshot: true,
+      restaurant: { select: { salesTaxKind: true, salesTaxPct: true } },
       order: {
         select: {
           items: {
@@ -55,6 +59,8 @@ async function POSTHandler(
               qty: true,
               priceCentsSnapshot: true,
               cancelledAt: true,
+              taxKind: true,
+              taxPct: true,
             },
           },
         },
@@ -84,8 +90,38 @@ async function POSTHandler(
     }
     throw err;
   }
-  if (!emisor?.resolution || !emisor.invoicePrefix) {
-    return NextResponse.json({ error: "emisor_incomplete" }, { status: 400 });
+  if (!emisor) {
+    return NextResponse.json({ error: "no_emisor" }, { status: 400 });
+  }
+  // Sin la resolución completa NO se envía: la DIAN rechazaría el
+  // documento y el consecutivo quedaría quemado (FAB05b…FAD05c).
+  const resolution = emisorResolution(emisor);
+  if (!resolution) {
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: { state: "error", errors: ["resolution_incomplete"] },
+    });
+    return NextResponse.json(
+      {
+        error: "resolution_incomplete",
+        missingResolution: missingResolutionFields(emisor),
+      },
+      { status: 400 },
+    );
+  }
+  // Ubicación DANE del establecimiento: mismo criterio que la resolución.
+  // Mandar Bogotá fija hacía que la DIAN resolviera mal el punto de
+  // facturación (FAB10a / FAJ50) y quemaba el consecutivo en el rechazo.
+  const missingLocation = missingLocationFields(emisor);
+  if (missingLocation.length > 0) {
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: { state: "error", errors: ["location_incomplete"] },
+    });
+    return NextResponse.json(
+      { error: "location_incomplete", missingLocation },
+      { status: 400 },
+    );
   }
   const snap = inv.snapshot as unknown as InvoiceSnapshot;
   const invoiceNumber = formatInvoiceNumber(snap, inv.invoiceNumber);
@@ -93,9 +129,12 @@ async function POSTHandler(
   const issueDate = now.toISOString().slice(0, 10);
   const env: "1" | "2" = config.environment === "produccion" ? "1" : "2";
 
-  // Impuesto: 0% por defecto (la mayoría de las facturas simples no
-  // discriminan IVA/INC hoy). La tarifa configurable llega como mejora.
-  const lines = orderToInvoiceLines(inv.order.items, 0, "01");
+  // Impuesto real: el del comercio para los platos (embebido) y el
+  // propio de cada línea libre (sumado encima) — ver salesTax.ts.
+  const lines = orderToInvoiceLines(inv.order.items, {
+    kind: inv.restaurant.salesTaxKind as "none" | "inc" | "iva",
+    pct: inv.restaurant.salesTaxPct,
+  });
   if (lines.length === 0) {
     await db.dianDocument.update({
       where: { id: claim.id },
@@ -104,20 +143,12 @@ async function POSTHandler(
     return NextResponse.json({ error: "no_lines" }, { status: 400 });
   }
 
-  const num = emisor.resolutionFrom ?? inv.invoiceNumber;
   const input: DianInvoiceInput = {
     environment: env,
     softwareId: config.softwareId,
     softwarePin: config.softwarePin,
     technicalKey: config.technicalKey,
-    resolution: {
-      number: emisor.resolution,
-      startDate: issueDate,
-      endDate: issueDate,
-      prefix: emisor.invoicePrefix,
-      from: emisor.resolutionFrom ?? num,
-      to: emisor.resolutionTo ?? num,
-    },
+    resolution,
     invoiceNumber,
     issueDate,
     issueTime: bogotaIssueTime(now),

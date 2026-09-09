@@ -1,3 +1,4 @@
+import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 
 /**
@@ -71,7 +72,7 @@ const VARIANTS: Record<
   },
 };
 
-export async function GET(
+async function GETHandler(
   _req: Request,
   { params }: { params: Promise<{ kind: string }> },
 ) {
@@ -127,3 +128,5 @@ export async function GET(
     },
   });
 }
+
+export const GET = secureApi(GETHandler);

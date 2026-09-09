@@ -19,6 +19,9 @@ async function GETHandler() {
     // Readiness requires the new columns and the database financial guard.
     await db.$queryRaw`SELECT "requestKey", "refundReservedCents" FROM "Payment" LIMIT 0`;
     await db.$queryRaw`SELECT "sessionVersion" FROM "User" LIMIT 0`;
+    await db.$queryRaw`SELECT "stockConsumptionRetryAt" FROM "Order" LIMIT 0`;
+    await db.$queryRaw`SELECT key FROM "FinancialOperation" LIMIT 0`;
+    await db.$queryRaw`SELECT key FROM "RateLimitBucket" LIMIT 0`;
     const triggers = await db.$queryRaw<{ count: bigint }[]>`SELECT count(*) FROM pg_trigger WHERE tgname IN ('reserve_payment', 'revoke_sessions', 'order_event') AND tgenabled <> 'D'`;
     if (Number(triggers[0]?.count) !== 3) throw new Error("schema_not_ready");
     return NextResponse.json({ ok: true });

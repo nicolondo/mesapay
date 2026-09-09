@@ -33,7 +33,9 @@ const ROUTES = [
   // ---- Public ----
   { path: "/", kind: "public", note: "landing" },
   { path: "/signin", kind: "public" },
-  { path: "/signup", kind: "public" },
+  // La cuenta del comensal es por comercio: /signup y /me ya no existen
+  // como pantallas globales, redirigen a la explicación de escanear el QR.
+  { path: "/cuenta/entrar", kind: "public", note: "sin comercio: explica el QR" },
   { path: "/signup/restaurant", kind: "public" },
   { path: "/nicolas", kind: "public", note: "contact card" },
   { path: "/nicolas/qr", kind: "public" },
@@ -88,7 +90,6 @@ const ROUTES = [
   { path: "/comercial/calendario", kind: "gated" },
   { path: "/comercial/equipo", kind: "gated" },
   { path: "/comercial/mas", kind: "gated" },
-  { path: "/me", kind: "gated" },
   { path: "/mesero", kind: "gated" },
   { path: "/mesero/mesas", kind: "gated" },
   { path: "/mesero/salon", kind: "gated" },

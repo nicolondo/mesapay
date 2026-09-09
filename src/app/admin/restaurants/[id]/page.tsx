@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -271,7 +272,7 @@ export default async function RestaurantDetail({
             <MiniStat
               label={t("daysLeft")}
               value={
-                rest.periodEndsAt ? <DaysLeft date={rest.periodEndsAt} t={t} /> : "—"
+                rest.periodEndsAt ? <DaysLeft now={await requestTime()} date={rest.periodEndsAt} t={t} /> : "—"
               }
             />
           </div>
@@ -532,13 +533,15 @@ function Row({
 }
 
 function DaysLeft({
+  now,
   date,
   t,
 }: {
+  now: number;
   date: Date;
   t: Awaited<ReturnType<typeof getTranslations<"opAdmin">>>;
 }) {
-  const days = Math.floor((date.getTime() - Date.now()) / 86400000);
+  const days = Math.floor((date.getTime() - now) / 86400000);
   if (days < 0)
     return (
       <span className="text-danger font-mono tabular">

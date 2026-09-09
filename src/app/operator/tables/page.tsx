@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -8,6 +9,7 @@ import { LiveRefresh } from "../LiveRefresh";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { computeWalkoutRisk, computeVisualState } from "@/lib/walkoutRisk";
 import { MesasGrid, type TileData } from "./MesasGrid";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,13 @@ export default async function TablesPage() {
 
   const session = await auth();
   const isMeseroView = session?.user?.role === "mesero";
+  // Control de caja: con "solo el administrador cobra" el mesero no ve el
+  // botón de cobrar (que igual le rebotaría el servidor) sino "pedir la
+  // cuenta", que avisa a caja. Ver src/lib/chargeControl.ts.
+  const chargeLocked = isChargeBlockedForRole(
+    session?.user?.role,
+    tenant?.adminOnlyCharge ?? false,
+  );
 
   // Mesero scoped: sólo ve sus mesas asignadas.
   const scope = await getMeseroScope();
@@ -56,7 +65,7 @@ export default async function TablesPage() {
       : {};
 
   const RECENTLY_PAID_MS = 15 * 60 * 1000;
-  const recentlyPaidSince = new Date(Date.now() - RECENTLY_PAID_MS);
+  const recentlyPaidSince = new Date((await requestTime()) - RECENTLY_PAID_MS);
 
   const allTables = await db.table.findMany({
     where: { restaurantId, ...tableNumberFilter },
@@ -89,6 +98,11 @@ export default async function TablesPage() {
           // el reloj de Señal 2.
           payments: {
             orderBy: { createdAt: "asc" },
+          },
+          // Comensal identificado en la cuenta — para mostrar quién es y
+          // su descuento en el detalle de la mesa.
+          diner: {
+            select: { id: true, name: true, email: true, cedula: true },
           },
         },
       },
@@ -173,7 +187,14 @@ export default async function TablesPage() {
       (s, p) => s + p.amountCents - p.tipCents,
       0,
     );
-    const outstandingCents = Math.max(0, order.subtotalCents - foodPaid);
+    // El descuento del comensal identificado baja lo que falta por
+    // cobrar. Sin restarlo acá, el mesero vería un pendiente mayor al
+    // real y el cobro se rechazaría por "excede lo pendiente".
+    const chargeableCents = Math.max(
+      0,
+      order.subtotalCents - order.discountCents,
+    );
+    const outstandingCents = Math.max(0, chargeableCents - foodPaid);
 
     // Pending payments para Señal 1 del walkout. Excluimos los que
     // ya están pinneados a un datafono esperando aprobación (tienen
@@ -250,7 +271,18 @@ export default async function TablesPage() {
         shortCode: order.shortCode,
         status: order.status,
         itemCount,
-        subtotalCents: order.subtotalCents,
+        subtotalCents: chargeableCents,
+        grossSubtotalCents: order.subtotalCents,
+        discountCents: order.discountCents,
+        discountPct: order.discountPct,
+        customer: order.diner
+          ? {
+              id: order.diner.id,
+              name: order.diner.name,
+              email: order.diner.email,
+              cedula: order.diner.cedula,
+            }
+          : null,
         outstandingCents,
         needsWaiter: order.needsWaiter,
         rounds: order.rounds.map((r) => ({
@@ -339,12 +371,15 @@ export default async function TablesPage() {
       )}
 
       <MesasGrid
+        initialTime={await requestTime()}
         tiles={tiles}
         tenantSlug={tenant!.slug}
         counterMode={counterMode}
         isMeseroView={isMeseroView}
+        chargeLocked={chargeLocked}
         freeTables={freeTables}
         allTables={allTablesForMove}
+        country={tenant!.country}
       />
     </div>
   );

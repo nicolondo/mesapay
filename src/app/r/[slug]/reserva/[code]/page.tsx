@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -54,7 +55,7 @@ export default async function ManageReservationPage({
   // Cancelable solo si está pendiente/confirmada y todavía no empezó.
   const cancelable =
     (reservation.status === "pending" || reservation.status === "confirmed") &&
-    reservation.startsAt.getTime() > Date.now();
+    reservation.startsAt.getTime() > (await requestTime());
 
   return (
     <main className="min-h-dvh bg-bone text-ink flex flex-col items-center px-6 py-12">

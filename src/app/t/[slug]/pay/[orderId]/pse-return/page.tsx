@@ -9,6 +9,7 @@ import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { publishOrderEvent } from "@/lib/events";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
 /**
  * Si todavía estamos en pending y tenemos un token en la URL (lo
@@ -83,6 +84,15 @@ async function reconcileViaStatusApi(args: {
       type: isApproved && result.fullyPaid ? "order.paid" : "order.updated",
       orderId: args.orderId,
     });
+    // El webhook de Kushki puede no llegar nunca (sandbox) o llegar tarde: si
+    // el que cerró la cuenta fue este reconcile, la factura pedida en el
+    // checkout sale desde acá. Idempotente con el riel del webhook.
+    if (isApproved && result.fullyPaid) {
+      await issueRequestedInvoiceOnPaid({
+        tenantId: args.restaurantId,
+        orderId: args.orderId,
+      });
+    }
     return true;
   } catch (err) {
     console.error("[pse-return] status check failed", err);

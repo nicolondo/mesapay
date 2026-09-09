@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -47,7 +48,7 @@ export default async function OperatorReservasPage() {
   // tomamos las últimas 6h para mostrar las que recién pasaron / están
   // en curso). Cerradas (completed/cancelled/no_show) viejas no se
   // listan para no saturar.
-  const since = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const since = new Date((await requestTime()) - 6 * 60 * 60 * 1000);
   const reservations = await db.reservation.findMany({
     where: {
       restaurantId,
@@ -79,7 +80,7 @@ export default async function OperatorReservasPage() {
   // Reservas por fuente en los últimos 30 días — métrica para medir
   // de dónde vienen (especialmente cuánto trae Google Maps). Solo
   // cuenta las que no se cancelaron.
-  const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyAgo = new Date((await requestTime()) - 30 * 24 * 60 * 60 * 1000);
   const bySource = await db.reservation.groupBy({
     by: ["source"],
     where: {
@@ -124,7 +125,7 @@ export default async function OperatorReservasPage() {
         </div>
       )}
 
-      <ReservasBoard initialRows={rows} />
+      <ReservasBoard initialRows={rows} initialTime={await requestTime()} />
     </div>
   );
 }

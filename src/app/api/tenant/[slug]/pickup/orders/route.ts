@@ -9,7 +9,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import {
+  DEMO_PAYMENTS_DISABLED,
+  shouldBlockDemoPayment,
+} from "@/lib/demoPayments";
+import { getDiner } from "@/lib/dinerSession";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
@@ -73,7 +77,16 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
-  if (parsed.data.method.startsWith("demo_") && !demoPaymentsAllowed()) return NextResponse.json({ error: "payment_method_disabled" }, { status: 403 });
+  // Mismo agujero que en /pay, y acá sale más caro: pickup es prepago,
+  // así que un demo_card crea la orden ya en `paid` Y la manda a cocina.
+  // Sin gate, cualquiera con el link público de recogida pedía comida
+  // gratis. Cortamos antes de tocar la DB.
+  if (shouldBlockDemoPayment(parsed.data.method)) {
+    return NextResponse.json(
+      { error: DEMO_PAYMENTS_DISABLED },
+      { status: 403 },
+    );
+  }
 
   const pickupTable = await db.table.findUnique({
     where: { id: parsed.data.tableId },
@@ -102,7 +115,9 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
-  const session = await auth();
+  // Igual que en /orders: el comensal con sesión EN ESTE COMERCIO, para que
+  // el pedido para llevar quede enlazado a su cuenta de acá.
+  const diner = await getDiner(tenant.id);
   // Subtotal must factor modifier price deltas too — otherwise the
   // Kushki charge below would undercharge by the value of every
   // "+$5.000 Camarón" the diner added.
@@ -167,7 +182,7 @@ async function POSTHandler(
 
   const result = await db.$transaction(async (tx) => {
     if (requestKey) {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${requestKey}), 735)`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${requestKey}), 735)`;
       const previous = await tx.payment.findUnique({ where: { requestKey }, include: { order: true } });
       if (previous) {
         if (previous.amountCents !== subtotalCents) throw new Error("operation_conflict");
@@ -181,7 +196,7 @@ async function POSTHandler(
       data: {
         restaurantId: tenant.id,
         tableId: pickupTable.id,
-        customerId: session?.user?.id,
+        dinerId: diner?.id,
         orderType: "pickup",
         status: isKushki ? "paying" : "paid",
         shortCode: shortCode(),
@@ -299,8 +314,8 @@ async function POSTHandler(
   // No more arrival-print for bar — pickup tickets print when somebody
   // taps "Empezar" at the station (see operator/order-items PATCH).
 
-  if (session?.user?.id) {
-    welcomeIfFirstTime(session.user.id, result.order.locale).catch((err) =>
+  if (diner) {
+    welcomeIfFirstTime(diner.id, result.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
   }

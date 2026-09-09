@@ -4,10 +4,13 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -32,6 +35,18 @@ async function POSTHandler(
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  // Control de caja: con "solo el administrador cobra" el mesero tampoco
+  // puede encolar un cobro por datáfono. Ver src/lib/chargeGuard.ts.
+  //
+  // Una sola lectura de sesión para los tres usos que tiene en esta ruta:
+  // el guard de caja, la atribución del cobro (collectedByUserId) y saber
+  // si quien eligió el método es un comensal.
+  const session = await auth();
+  const role = session?.user?.role;
+  if (tenant.adminOnlyCharge && isChargeBlockedForRole(role, true)) {
+    return chargeBlockedResponse();
   }
 
   const body = await req.json().catch(() => null);
@@ -78,12 +93,9 @@ async function POSTHandler(
   // desde su PWA, lo registramos para reportes de propinas/turno
   // personal — el webhook que luego aprueba el pago preserva esta
   // referencia (sólo cambia status + settledAt).
-  const session = await auth();
   const collectedByUserId =
     session?.user &&
-    (session.user.role === "mesero" ||
-      session.user.role === "operator" ||
-      session.user.role === "platform_admin")
+    (role === "mesero" || role === "operator" || role === "platform_admin")
       ? session.user.id
       : null;
 
@@ -91,17 +103,9 @@ async function POSTHandler(
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
-    // Sweep de TODOS los pendings de esta orden, no solo del mismo
-    // método. Casos típicos:
-    //   - Diner tocó "Tarjeta con datáfono", no completó, vuelve a
-    //     tocarlo → sweep del datáfono pending viejo
-    //   - Diner tocó "Efectivo" y cambia a "Tarjeta con datáfono" →
-    //     sweep del cash pending para liberar outstanding
-    //   - Diner tocó "Datáfono del comercio" y cambia a Kushki →
-    //     sweep del external_terminal pending
-    // El cap arriba ya usa excludePending=true para que esta
-    // operación sea consistente.
-
+    const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "kushki_card_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });
+    if (existing) return existing;
+    // Other pending payments keep their reservation until their outcome is confirmed.
     const p = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -146,6 +150,17 @@ async function POSTHandler(
       url: "/mesero/salon",
     });
   })().catch((err) => console.error("[push:terminal]", err));
+
+  // Con "solo el administrador inicia el cobro", que el comensal pida el
+  // datáfono ES pedir la cuenta: alguien tiene que llevarle el equipo a la
+  // mesa. El aviso de pantalla completa del administrador escucha sólo
+  // `order.bill_requested`.
+  await announceBillRequestedOnPay({
+    tenant,
+    order,
+    role,
+    method: "kushki_card_terminal",
+  });
 
   return NextResponse.json({
     paymentId: payment.id,

@@ -1,6 +1,6 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
   addMonthsIso,
@@ -34,7 +34,7 @@ import { getBillingWebhookSecret } from "@/lib/platformConfig";
  *            (env KUSHKI_BILLING_WEBHOOK_SECRET, fallback al global).
  *
  * Política: si el secret está configurado, la firma es OBLIGATORIA (401 si no
- * matchea). Sin secret → bypass con warning (fase de pruebas). La petición de
+ * matchea). Sin secret → rechazo. La petición de
  * validación de la URL (body {}) responde 200 sin pedir firma.
  */
 
@@ -102,13 +102,6 @@ function outcomeFromName(
 async function POSTHandler(req: Request) {
   const raw = await req.text();
 
-  const headerDump: Record<string, string> = {};
-  req.headers.forEach((v, k) => {
-    headerDump[k] = v;
-  });
-  console.log("[billing/webhook] headers", JSON.stringify(headerDump));
-  console.log("[billing/webhook] body", raw.slice(0, 1500) || "(empty)");
-
   let payload: Json = null;
   try {
     payload = raw ? JSON.parse(raw) : null;
@@ -143,13 +136,12 @@ async function POSTHandler(req: Request) {
   }
 
   // Firma. Con secret configurado (admin o env) es obligatoria; sin secret,
-  // bypass (pruebas).
+  // también se rechaza.
   const secret = await getBillingWebhookSecret();
   const sig = verifyBillingSignature(raw, payload, req.headers, secret);
   if (!sig.ok) {
     console.warn("[billing/webhook] firma inválida", {
       reason: sig.reason,
-      received: req.headers.get("x-kushki-signature"),
     });
     return NextResponse.json(
       { error: "invalid_signature", reason: sig.reason },
@@ -251,7 +243,9 @@ async function POSTHandler(req: Request) {
 
     // Declinado / reintento fallido. NO avanza el período → el cron de
     // vencimiento suspende cuando vence.
-    await markRecurringChargeFailed(sub.restaurantId);
+    const failureKey = createHash("sha256").update(JSON.stringify({ subscriptionId, name, reference: providerRef ?? ev ?? payload })).digest("hex");
+    const applied = await markRecurringChargeFailed(sub.restaurantId, failureKey);
+    if (!applied) return NextResponse.json({ ok: true, status: "already_processed" });
     await recordAuditEvent({
       kind: "subscription.charge.failed",
       restaurantId: sub.restaurantId,

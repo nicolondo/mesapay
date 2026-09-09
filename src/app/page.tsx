@@ -179,11 +179,11 @@ function Hero({
             </span>
           </div>
           <div className="mt-5 text-xs text-muted fade-up" style={{ animationDelay: "0.45s" }}>
-            ¿Cliente?{" "}
-            <Link href="/signup" className="text-terracotta underline">
-              Crea tu cuenta
-            </Link>{" "}
-            para guardar tu historial y pagar más rápido.
+            {/* La cuenta del comensal es de cada restaurante: se crea
+                escaneando el QR de la mesa, no desde acá. */}
+            ¿Comensal? Tu cuenta la creas en el restaurante donde comes:
+            escanea el QR de tu mesa y desde ahí guardas tu historial y
+            pagas más rápido.
           </div>
         </div>
 
@@ -1115,11 +1115,6 @@ function SiteFooter() {
             <li>
               <Link href="/signup/restaurant" className="hover:text-ink">
                 Registrar restaurante
-              </Link>
-            </li>
-            <li>
-              <Link href="/signup" className="hover:text-ink">
-                Crear cuenta de cliente
               </Link>
             </li>
             <li>

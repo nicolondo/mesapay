@@ -1,4 +1,5 @@
 "use client";
+import { startTransition } from "react";
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -73,7 +74,7 @@ export function ThreeDsReturnClient({
       console.error("[3ds-return] localStorage read failed", e);
     }
     if (amountCents <= 0) {
-      setError(t("tdsErrNoAmount"));
+      startTransition(() => setError(t("tdsErrNoAmount")));
       // Damos un segundo al user para leer y luego mandamos a checkout.
       const timer = setTimeout(() => {
         router.replace(`/t/${tenantSlug}/pay/${orderId}?declined=1`);
@@ -114,7 +115,9 @@ export function ThreeDsReturnClient({
           );
           return;
         }
-        if (j.approved && j.paymentId) {
+        if (j.pending && j.paymentId) {
+          router.replace(`/t/${tenantSlug}/pay/${orderId}/pending?pid=${j.paymentId}`);
+        } else if (j.approved && j.paymentId) {
           router.replace(
             `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
           );

@@ -4,10 +4,13 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * "Tarjeta con datáfono del comercio" — el comercio cobra con su
@@ -37,6 +40,18 @@ async function POSTHandler(
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  // Control de caja: el datáfono propio del comercio también es un cobro
+  // que el mesero no puede iniciar cuando la política está activa.
+  //
+  // Una sola lectura de sesión para los tres usos que tiene en esta ruta:
+  // el guard de caja, la atribución del cobro (collectedByUserId) y saber
+  // si quien eligió el método es un comensal.
+  const session = await auth();
+  const role = session?.user?.role;
+  if (tenant.adminOnlyCharge && isChargeBlockedForRole(role, true)) {
+    return chargeBlockedResponse();
   }
 
   const body = await req.json().catch(() => null);
@@ -77,12 +92,9 @@ async function POSTHandler(
 
   // Tracking de quién lo inicia — útil si es un mesero/operator
   // cobrando desde su PWA para reportes de propinas.
-  const session = await auth();
   const collectedByUserId =
     session?.user &&
-    (session.user.role === "mesero" ||
-      session.user.role === "operator" ||
-      session.user.role === "platform_admin")
+    (role === "mesero" || role === "operator" || role === "platform_admin")
       ? session.user.id
       : null;
 
@@ -90,11 +102,9 @@ async function POSTHandler(
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
-    // Sweep de TODOS los pendings de esta orden, no solo del mismo
-    // método. Maneja switches "efectivo → external_terminal",
-    // "Kushki → external_terminal", etc. El cap arriba usa
-    // excludePending=true para que la operación sea consistente.
-
+    const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "external_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });
+    if (existing) return existing;
+    // Other pending payments keep their reservation until their outcome is confirmed.
     const p = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -142,6 +152,17 @@ async function POSTHandler(
       url: "/mesero/salon",
     });
   })().catch((err) => console.error("[push:external_terminal]", err));
+
+  // Con "solo el administrador inicia el cobro", que el comensal elija el
+  // datáfono del comercio ES pedir la cuenta: alguien tiene que ir a la
+  // mesa a pasar la tarjeta. El aviso de pantalla completa del
+  // administrador escucha sólo `order.bill_requested`.
+  await announceBillRequestedOnPay({
+    tenant,
+    order,
+    role,
+    method: "external_terminal",
+  });
 
   return NextResponse.json({
     paymentId: payment.id,

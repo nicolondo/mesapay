@@ -71,3 +71,7 @@ modulos odoo/
 *.pem
 *.key
 id_rsa*
+
+# Agente de impresión (Go) — binarios compilados
+/agent/dist/
+/agent/*.exe

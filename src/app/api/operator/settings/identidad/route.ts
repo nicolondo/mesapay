@@ -1,9 +1,11 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
+import { computeNitDv } from "@/lib/erp/exogena";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { findMunicipioByCode, type DaneMunicipio } from "@/lib/dane/municipios";
 
 const putBody = z.object({
   // Nombre comercial del restaurante (display, distinto de razón
@@ -13,7 +15,13 @@ const putBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   logoUrl: z.string().max(500).nullable().optional(),
   legalName: z.string().trim().max(200).nullable().optional(),
-  // NIT: solo dígitos (con o sin DV). Sanitizamos al guardar.
+  // NIT con su dígito de verificación: "901944469-1".
+  //
+  // El DV dejó de ser opcional porque la factura electrónica lo exige (la
+  // DIAN rechaza con FAJ24/FAJ24a/FAJ47 si no viaja) y, sobre todo, porque
+  // es un dígito VERIFICADOR: contrastarlo contra el calculado detecta un
+  // NIT mal tecleado antes de que salga en una factura. Se valida abajo, no
+  // sólo se exige el formato.
   taxId: z
     .string()
     .trim()
@@ -22,21 +30,24 @@ const putBody = z.object({
     .optional(),
   legalAddress: z.string().trim().max(200).nullable().optional(),
   legalCity: z.string().trim().max(100).nullable().optional(),
-  legalPhone: z.string().trim().max(60).nullable().optional(),
-  dianResolution: z.string().trim().max(200).nullable().optional(),
-  dianResolutionFrom: z.number().int().nonnegative().max(99_999_999).nullable().optional(),
-  dianResolutionTo: z.number().int().nonnegative().max(99_999_999).nullable().optional(),
-  dianResolutionDate: z
+  // Código DANE del municipio (DIVIPOLA, 5 dígitos). El cliente manda
+  // SOLO el municipio: el departamento y el nombre legible los deriva
+  // el server del catálogo, así nunca quedan en desacuerdo (y el
+  // navegador no puede inventarse un departamento que no corresponde).
+  legalCityCode: z
     .string()
+    .trim()
+    .regex(/^\d{5}$/)
     .nullable()
-    .optional(), // ISO yyyy-mm-dd
-  invoicePrefix: z.string().trim().toUpperCase().max(10).nullable().optional(),
-  // Próximo consecutivo a emitir. El operador lo setea cuando ya
-  // venía emitiendo en otra plataforma y necesita continuar desde
-  // un número específico (ej. dianResolutionFrom + N facturas ya
-  // emitidas externamente). Si lo bajan por error, no validamos
-  // contra ya-emitidos en MESAPAY — confiamos en el operador.
-  invoiceNextNumber: z.number().int().min(1).max(99_999_999).optional(),
+    .optional(),
+  legalPhone: z.string().trim().max(60).nullable().optional(),
+  // NO acepta datos de la resolución de numeración (texto legacy, número,
+  // rango, fecha, prefijo, consecutivo). Se movieron enteros a
+  // PATCH /api/operator/dian/resolution, que es la única superficie que
+  // los escribe. Estaban duplicados con esa pantalla y los dos números
+  // podían divergir sin que el operador lo notara. Si un cliente viejo
+  // los sigue mandando, zod los descarta en silencio (el schema ignora
+  // las claves que no declara) en vez de pisar el dato bueno.
 });
 
 /**
@@ -69,6 +80,31 @@ async function PUTHandler(req: Request) {
   }
 
   const d = parsed.data;
+
+  // El NIT sigue siendo opcional (un comercio puede no haberlo cargado aún),
+  // pero SI viene tiene que traer un DV correcto.
+  if (d.taxId != null && d.taxId.trim() !== "") {
+    const raw = d.taxId.replace(/[^\d-]/g, "");
+    const [digits, dv] = raw.split("-");
+    if (!digits || dv == null || dv === "") {
+      return NextResponse.json({ error: "tax_id_dv_required" }, { status: 400 });
+    }
+    if (computeNitDv(digits) !== dv) {
+      return NextResponse.json({ error: "tax_id_dv_mismatch" }, { status: 400 });
+    }
+  }
+
+  // Municipio DANE: si mandaron código, tiene que existir en DIVIPOLA.
+  // Rechazamos en vez de guardar basura — un código inválido llega a la
+  // DIAN como rechazo de la factura, mucho más tarde y sin pistas.
+  let municipio: DaneMunicipio | null = null;
+  if (d.legalCityCode) {
+    municipio = findMunicipioByCode(d.legalCityCode);
+    if (!municipio) {
+      return NextResponse.json({ error: "invalid_city_code" }, { status: 400 });
+    }
+  }
+
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
@@ -82,28 +118,25 @@ async function PUTHandler(req: Request) {
       ...(d.legalAddress !== undefined && {
         legalAddress: d.legalAddress || null,
       }),
-      ...(d.legalCity !== undefined && { legalCity: d.legalCity || null }),
+      // Con municipio elegido, legalCity se DERIVA del nombre oficial
+      // DANE ("Santiago de Cali", no "cali") para que el nombre impreso
+      // y el código de la factura digan lo mismo. Sin municipio (país
+      // sin DIVIPOLA, o comercio que todavía no lo eligió) legalCity
+      // sigue siendo texto libre y los códigos quedan en null.
+      ...(municipio
+        ? {
+            legalCity: municipio.name,
+            legalCityCode: municipio.code,
+            legalDeptCode: municipio.deptCode,
+          }
+        : {
+            ...(d.legalCity !== undefined && { legalCity: d.legalCity || null }),
+            ...(d.legalCityCode === null && {
+              legalCityCode: null,
+              legalDeptCode: null,
+            }),
+          }),
       ...(d.legalPhone !== undefined && { legalPhone: d.legalPhone || null }),
-      ...(d.dianResolution !== undefined && {
-        dianResolution: d.dianResolution || null,
-      }),
-      ...(d.dianResolutionFrom !== undefined && {
-        dianResolutionFrom: d.dianResolutionFrom,
-      }),
-      ...(d.dianResolutionTo !== undefined && {
-        dianResolutionTo: d.dianResolutionTo,
-      }),
-      ...(d.dianResolutionDate !== undefined && {
-        dianResolutionDate: d.dianResolutionDate
-          ? new Date(d.dianResolutionDate)
-          : null,
-      }),
-      ...(d.invoicePrefix !== undefined && {
-        invoicePrefix: d.invoicePrefix || null,
-      }),
-      ...(d.invoiceNextNumber !== undefined && {
-        invoiceNextNumber: d.invoiceNextNumber,
-      }),
     },
   });
 

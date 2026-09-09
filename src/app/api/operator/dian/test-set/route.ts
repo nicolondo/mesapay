@@ -4,11 +4,18 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
   DianConfigError,
+  emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingLocationFields,
+  missingResolutionFields,
   resolveEmisor,
 } from "@/lib/dian/config";
-import { buildDianInvoiceXml, type DianInvoiceInput } from "@/lib/dian/ubl";
+import {
+  buildDianInvoiceXml,
+  splitTaxIncludedCents,
+  type DianInvoiceInput,
+} from "@/lib/dian/ubl";
 import { signXmlDian } from "@/lib/dian/xades";
 import { sendTestSetAsync, zipInvoice } from "@/lib/dian/soap";
 import { transitionAfterSend } from "@/lib/dian/documentState";
@@ -48,13 +55,44 @@ async function POSTHandler() {
   if (!config.testSetId) {
     return NextResponse.json({ error: "no_test_set" }, { status: 400 });
   }
-  if (!emisor.resolution || !emisor.invoicePrefix) {
-    return NextResponse.json({ error: "emisor_incomplete" }, { status: 400 });
+  // La resolución se valida ANTES de enviar: mandar un número, un
+  // prefijo o unas fechas que no existen en el registro del
+  // contribuyente es un rechazo garantizado (FAB05b…FAB12b, FAD05c).
+  const missingResolution = missingResolutionFields(emisor);
+  const resolution = emisorResolution(emisor);
+  if (!resolution) {
+    return NextResponse.json(
+      { error: "resolution_incomplete", missingResolution },
+      { status: 400 },
+    );
+  }
+  // Misma lógica para la ubicación: sin el municipio DANE real del
+  // establecimiento no se envía. Antes se mandaba Bogotá por defecto y la
+  // DIAN resolvía mal el punto de facturación (FAB10a / FAJ50).
+  const missingLocation = missingLocationFields(emisor);
+  if (missingLocation.length > 0) {
+    return NextResponse.json(
+      { error: "location_incomplete", missingLocation },
+      { status: 400 },
+    );
   }
 
-  // Número dentro del rango autorizado (from si existe, si no 990000001).
-  const num = emisor.resolutionFrom ?? 990000001;
-  const invoiceNumber = `${emisor.invoicePrefix}${num}`;
+  // Impuesto de venta del comercio: el documento de prueba tiene que
+  // parecerse a lo que va a emitir de verdad.
+  const tenant = await db.restaurant.findUnique({
+    where: { id: ctx.restaurantId },
+    select: { salesTaxKind: true, salesTaxPct: true },
+  });
+  const restaurantTax = {
+    kind: (tenant?.salesTaxKind ?? "none") as "none" | "inc" | "iva",
+    pct: tenant?.salesTaxPct ?? 0,
+  };
+  const testTaxPct = restaurantTax.kind === "none" ? 0 : restaurantTax.pct;
+  const testLine = splitTaxIncludedCents(100_000, testTaxPct * 100);
+
+  // Número dentro del rango autorizado.
+  const num = resolution.from;
+  const invoiceNumber = `${resolution.prefix}${num}`;
   const now = new Date();
   const issueDate = now.toISOString().slice(0, 10);
   const issueTime =
@@ -66,14 +104,7 @@ async function POSTHandler() {
     softwareId: config.softwareId,
     softwarePin: config.softwarePin,
     technicalKey: config.technicalKey,
-    resolution: {
-      number: emisor.resolution,
-      startDate: issueDate,
-      endDate: issueDate,
-      prefix: emisor.invoicePrefix,
-      from: emisor.resolutionFrom ?? num,
-      to: emisor.resolutionTo ?? num,
-    },
+    resolution,
     invoiceNumber,
     issueDate,
     issueTime,
@@ -86,15 +117,18 @@ async function POSTHandler() {
       taxRegimeCode: "49",
       personType: "2",
     },
+    // Línea representativa: mismo régimen de impuesto que la carta del
+    // comercio (precio con el impuesto por dentro), no un 0% ficticio.
     lines: [
       {
         description: "Servicio de prueba de habilitación",
         quantity: 1,
-        unitPriceCents: 100_000,
-        lineTotalCents: 100_000,
-        taxCents: 0,
-        taxPct: "0.00",
-        taxSchemeId: "01",
+        itemCode: "PRUEBA-1",
+        unitPriceCents: testLine.baseCents,
+        lineTotalCents: testLine.baseCents,
+        taxCents: testLine.taxCents,
+        taxPct: testTaxPct.toFixed(2),
+        taxSchemeId: restaurantTax.kind === "inc" ? "04" : "01",
       },
     ],
     paymentMeansCode: "10",
@@ -111,7 +145,7 @@ async function POSTHandler() {
   });
   const t = transitionAfterSend(result, built.cufe);
 
-  await db.dianDocument.create({
+  const doc = await db.dianDocument.create({
     data: {
       restaurantId: ctx.restaurantId,
       kind: "invoice",
@@ -120,8 +154,12 @@ async function POSTHandler() {
       trackId: t.trackId ?? null,
       errors: t.errors.length ? t.errors : undefined,
       responseXml: result.raw ?? null,
+      // El ZIP firmado también se guarda: sin él no hay forma de
+      // reproducir qué se envió cuando la DIAN devuelve reglas.
+      xmlZip: new Uint8Array(zip),
       attempts: 1,
     },
+    select: { id: true },
   });
 
   // Al aceptar/quedar pendiente, el comercio ya está "en pruebas".
@@ -134,6 +172,7 @@ async function POSTHandler() {
 
   return NextResponse.json({
     result: {
+      id: doc.id,
       state: t.state,
       cufe: t.cufe,
       trackId: t.trackId,

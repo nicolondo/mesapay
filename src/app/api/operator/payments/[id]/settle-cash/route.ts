@@ -9,7 +9,9 @@ import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -57,6 +59,12 @@ async function POSTHandler(
   }
   if (payment.method !== "demo_cash") {
     return NextResponse.json({ error: "not a cash payment" }, { status: 400 });
+  }
+  // Control de caja: recibir la plata y cerrar el pago es el momento del
+  // cobro. Con "solo el administrador cobra" el mesero no puede confirmar
+  // el efectivo — aunque el pending lo haya creado el comensal desde el QR.
+  if (await isChargeBlocked(session.user.role, payment.order.restaurantId)) {
+    return chargeBlockedResponse();
   }
   // En by_waiter el mesero no puede cobrar sin turno propio abierto.
   if (
@@ -136,10 +144,19 @@ async function POSTHandler(
     orderId: payment.orderId,
   });
 
-  if (result.fullyPaid && payment.order.customerId) {
-    welcomeIfFirstTime(payment.order.customerId, payment.order.locale).catch((err) =>
+  if (result.fullyPaid && payment.order.dinerId) {
+    welcomeIfFirstTime(payment.order.dinerId, payment.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
+  }
+
+  // La cuenta quedó cerrada: si el comensal pidió factura en el checkout, se
+  // emite y se envía ahora. Fuera de la transacción y a prueba de fallos.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: payment.order.restaurantId,
+      orderId: payment.orderId,
+    });
   }
 
   return NextResponse.json({

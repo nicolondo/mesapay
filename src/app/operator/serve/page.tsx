@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
 import { getMeseroScope } from "@/lib/meseroScope";
+import { auth } from "@/auth";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { ServeBoard } from "./ServeBoard";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,13 @@ export default async function ServePage() {
   // no filter. The filter targets order.table.number which works whether
   // the table is dine-in (real number) or the pickup pseudo-table (-1).
   const scope = await getMeseroScope();
+  // Control de caja: con "solo el administrador cobra" el mesero no ve las
+  // acciones de plata del Salón (registrar efectivo, aprobar datáfono).
+  const session = await auth();
+  const chargeLocked = isChargeBlockedForRole(
+    session?.user?.role,
+    tenant?.adminOnlyCharge ?? false,
+  );
   const tableFilter = scope.scoped
     ? { table: { number: { in: scope.tableNumbers ?? [] } } }
     : {};
@@ -264,6 +273,7 @@ export default async function ServePage() {
       device={
         device ? { id: device.kushkiDeviceId, label: device.label } : null
       }
+      chargeLocked={chargeLocked}
     />
   );
 }

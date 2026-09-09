@@ -1,3 +1,5 @@
+import { staffForRestaurant, OPERATOR_ROLES } from "@/lib/staffAccess";
+import { ReconcilePayment } from "./ReconcilePayment";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -28,6 +30,7 @@ export default async function OperatorOrderDetail({
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
+  const canReconcile = !!await staffForRestaurant(restaurantId, OPERATOR_ROLES);
   const order = await db.order.findUnique({
     where: { id },
     include: {
@@ -75,7 +78,13 @@ export default async function OperatorOrderDetail({
       (s, p) => s + Math.max(0, p.amountCents - p.refundedCents - p.tipCents),
       0,
     );
-  const outstandingCents = Math.max(0, order.subtotalCents - paidFood);
+  // Cobrable = subtotal menos el descuento del comensal identificado. Sin
+  // restarlo, el operador vería un pendiente mayor al real.
+  const chargeableCents = Math.max(
+    0,
+    order.subtotalCents - order.discountCents,
+  );
+  const outstandingCents = Math.max(0, chargeableCents - paidFood);
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
@@ -111,7 +120,7 @@ export default async function OperatorOrderDetail({
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={t("statSubtotal")} value={fmtCOP(order.subtotalCents)} />
+        <Stat label={t("statSubtotal")} value={fmtCOP(chargeableCents)} />
         <Stat
           label={t("statTip")}
           value={order.tipCents ? fmtCOP(order.tipCents) : "—"}
@@ -122,7 +131,7 @@ export default async function OperatorOrderDetail({
           value={
             order.status === "paid"
               ? "—"
-              : fmtCOP(Math.max(0, order.totalCents - paidSum) || order.subtotalCents - paidSum)
+              : fmtCOP(Math.max(0, order.totalCents - paidSum) || chargeableCents - paidSum)
           }
         />
       </div>
@@ -283,7 +292,7 @@ export default async function OperatorOrderDetail({
               {order.payments.map((p) => (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between px-4 py-3"
+                  className="flex flex-col items-stretch gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div>
                     <div className="text-sm">
@@ -299,6 +308,7 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {canReconcile && p.reconciliationRequired && <ReconcilePayment paymentId={p.id} refund={p.refundReservedCents > 0} pending={p.status === "pending"} />}
                     {p.refundedCents > 0 && (
                       <div className="text-[11px] text-danger mt-0.5">
                         {t("refundedNote", { amount: fmtCOP(p.refundedCents) })}
@@ -306,8 +316,8 @@ export default async function OperatorOrderDetail({
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {REFUNDABLE_METHODS.has(p.method) &&
-                      p.status === "approved" &&
+                    {canReconcile && REFUNDABLE_METHODS.has(p.method) &&
+                      p.status === "approved" && !p.reconciliationRequired && !p.refundReservedCents &&
                       p.amountCents - p.refundedCents > 0 && (
                         <RefundButton
                           paymentId={p.id}

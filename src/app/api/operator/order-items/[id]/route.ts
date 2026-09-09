@@ -1,3 +1,5 @@
+import { lockOrder } from "@/lib/orderLock";
+import { requireMutableOrderInTx, recomputeOrderLinesInTx } from "@/lib/orders";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -7,6 +9,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { enqueueRoundTicketSafe } from "@/lib/print/enqueue";
 
 const schema = z
   .object({
@@ -92,25 +95,34 @@ async function PATCHHandler(
 
   try {
     await db.$transaction(async (tx) => {
+    await lockOrder(tx, item.orderId);
+    const currentItem = await tx.orderItem.findUniqueOrThrow({ where: { id: item.id }, include: { order: true } });
     const now = new Date();
 
     if (parsed.data.cancel) {
+      await requireMutableOrderInTx(tx, currentItem.orderId);
       const kind = parsed.data.cancel.kind ?? "cancel";
       // Gate: kind="cancel" sólo si NO ha sido servido. Para items
       // ya servidos hay que usar kind="comp" (semánticamente
       // distinto — la comida se entregó). El frontend rotúla el
       // botón distinto según estado.
-      if (kind === "cancel" && item.servedAt) {
+      // Excepción: las LÍNEAS LIBRES (servicios, cargos sueltos) nacen con
+      // servedAt puesto para no aparecer en la comanda de cocina. Ese sello
+      // es una marca técnica, no significa que se haya entregado comida, así
+      // que el gate de "ya servido" no les aplica: se cancelan y punto. Sin
+      // esto un cargo escrito a mano quedaba imposible de quitar de la
+      // cuenta — la UI ofrecía "Cancelar" y el servidor lo rechazaba.
+      if (kind === "cancel" && currentItem.servedAt && currentItem.menuItemId !== null) {
         throw new Error("CANCEL_AFTER_SERVED");
       }
-      // Cancelación / comp del item. Idempotente: si ya estaba
+      // Cancelación / comp del currentItem. Idempotente: si ya estaba
       // cancelado no re-pisamos timestamps ni recalculamos. Si no,
       // marcamos y re-derivamos el subtotal de la orden a partir
       // de los items vivos restantes (excluye este recién cancelado
       // por el WHERE).
-      if (!item.cancelledAt) {
+      if (!currentItem.cancelledAt) {
         await tx.orderItem.update({
-          where: { id: item.id },
+          where: { id: currentItem.id },
           data: {
             cancelledAt: now,
             cancellationReason: parsed.data.cancel.reason,
@@ -118,42 +130,18 @@ async function PATCHHandler(
             cancellationKind: kind,
           },
         });
-        // Re-derivar subtotal — el item recién cancelado ya tiene
-        // cancelledAt != null, así que el WHERE de items vivos lo
-        // saca.
-        const liveItems = await tx.orderItem.findMany({
-          where: {
-            orderId: item.order.id,
-            cancelledAt: null,
-            OR: [
-              { roundId: null },
-              { round: { status: { not: "cancelled" } } },
-            ],
-          },
-          select: { qty: true, priceCentsSnapshot: true },
-        });
-        const liveSubtotal = liveItems.reduce(
-          (s, i) => s + i.priceCentsSnapshot * i.qty,
-          0,
-        );
-        // No tocamos el subtotal si la orden ya está paga — sería
-        // una orden cerrada y mover el subtotal implicaría refund
-        // que no modelamos acá.
-        if (item.order.status !== "paid" && item.order.status !== "paying") {
-          await tx.order.update({
-            where: { id: item.order.id },
-            data: {
-              subtotalCents: liveSubtotal,
-              totalCents: liveSubtotal + item.order.tipCents,
-            },
-          });
-        }
+        // El subtotal se re-deriva DESPUÉS del tx con la función canónica
+        // (ver abajo). El cálculo inline que vivía acá sumaba sólo
+        // precio × cantidad e ignoraba `Order.taxCents`: al cancelar una
+        // línea libre, su impuesto sumado encima quedaba cobrándose igual, y
+        // al cancelar un plato de una cuenta con líneas libres el total
+        // perdía el impuesto de las que seguían vivas.
       }
       // 86 del plato: marcar el menuItem como no disponible en la carta.
       // Una línea libre no está en la carta, así que no hay qué agotar.
-      if (parsed.data.cancel.markUnavailable && item.menuItemId) {
+      if (parsed.data.cancel.markUnavailable && currentItem.menuItemId) {
         await tx.menuItem.update({
-          where: { id: item.menuItemId },
+          where: { id: currentItem.menuItemId },
           data: { available: false },
         });
       }
@@ -161,13 +149,13 @@ async function PATCHHandler(
       // mover el round a "cancelled" para que el kitchen board lo
       // saque del flujo. UX coherente: si la última cosa del round
       // se canceló, la ronda entera está cancelada.
-      if (item.roundId) {
+      if (currentItem.roundId) {
         const remaining = await tx.orderItem.count({
-          where: { roundId: item.roundId, cancelledAt: null },
+          where: { roundId: currentItem.roundId, cancelledAt: null },
         });
         if (remaining === 0) {
           await tx.round.update({
-            where: { id: item.roundId },
+            where: { id: currentItem.roundId },
             data: {
               status: "cancelled",
               cancelledAt: now,
@@ -177,16 +165,17 @@ async function PATCHHandler(
           });
         }
       }
+      await recomputeOrderLinesInTx(tx, currentItem.orderId);
       // Skip todas las otras ramas — cancelar es exclusivo.
       return;
     }
 
-    if (parsed.data.expedite === true && !item.expediteRequestedAt) {
+    if (parsed.data.expedite === true && !currentItem.expediteRequestedAt) {
       // Solo registramos el primer apurón — clicks repetidos no
       // re-pisan el timestamp ni cambian el email. El badge en el
       // kitchen board se mantiene hasta que el item pasa a ready.
       await tx.orderItem.update({
-        where: { id: item.id },
+        where: { id: currentItem.id },
         data: {
           expediteRequestedAt: now,
           expediteRequestedByEmail: session.user.email,
@@ -204,7 +193,7 @@ async function PATCHHandler(
       // restart it. This is what feeds the bar countdown.
       if (
         parsed.data.kitchenStatus === "in_kitchen" &&
-        item.preparationStartedAt == null
+        currentItem.preparationStartedAt == null
       ) {
         updates.preparationStartedAt = now;
       }
@@ -212,23 +201,23 @@ async function PATCHHandler(
         updates.preparationStartedAt = null;
       }
       await tx.orderItem.update({
-        where: { id: item.id },
+        where: { id: currentItem.id },
         data: updates,
       });
     }
 
     if (parsed.data.served !== undefined) {
       await tx.orderItem.update({
-        where: { id: item.id },
+        where: { id: currentItem.id },
         data: {
           servedAt: parsed.data.served ? now : null,
           // Serving implies the kitchen finished this one.
-          kitchenStatus: parsed.data.served ? "ready" : item.kitchenStatus,
+          kitchenStatus: parsed.data.served ? "ready" : currentItem.kitchenStatus,
         },
       });
     }
 
-    if (item.roundId) {
+    if (currentItem.roundId) {
       // Derive round.status from the weakest link of its items:
       //  - any placed → placed
       //  - any in_kitchen (none placed) → in_kitchen
@@ -236,11 +225,11 @@ async function PATCHHandler(
       // Excluimos cancelled — un item cancelado no debe pegar la
       // ronda en "placed" cuando los demás ya están en cocina.
       const siblings = await tx.orderItem.findMany({
-        where: { roundId: item.roundId, cancelledAt: null },
+        where: { roundId: currentItem.roundId, cancelledAt: null },
         select: { id: true, kitchenStatus: true, servedAt: true },
       });
       const effective = siblings.map((s) => {
-        if (s.id !== item.id) return s.kitchenStatus;
+        if (s.id !== currentItem.id) return s.kitchenStatus;
         if (parsed.data.kitchenStatus !== undefined) return parsed.data.kitchenStatus;
         if (parsed.data.served === true) return "ready" as const;
         return s.kitchenStatus;
@@ -249,7 +238,7 @@ async function PATCHHandler(
       if (effective.some((s) => s === "placed")) roundStatus = "placed";
       else if (effective.some((s) => s === "in_kitchen")) roundStatus = "in_kitchen";
 
-      const round = await tx.round.findUnique({ where: { id: item.roundId } });
+      const round = await tx.round.findUnique({ where: { id: currentItem.roundId } });
       const roundData: {
         status: typeof roundStatus;
         kitchenStartedAt?: Date;
@@ -266,7 +255,7 @@ async function PATCHHandler(
         // Someone pulled an item back from ready — round is no longer done.
         roundData.readyAt = null;
       }
-      await tx.round.update({ where: { id: item.roundId }, data: roundData });
+      await tx.round.update({ where: { id: currentItem.roundId }, data: roundData });
     }
 
     // Roll-up de round/order.status se mueve AFUERA del tx (abajo).
@@ -341,16 +330,16 @@ async function PATCHHandler(
         (r) => r.status === "served" || r.status === "cancelled",
       );
       if (allRoundsServed && item.order.status !== "paid") {
-        await db.order.update({
-          where: { id: item.order.id },
+        await db.order.updateMany({
+          where: { id: item.order.id, status: { notIn: ["paid", "paying", "cancelled"] } },
           data: { status: "served", servedAt: new Date() },
         });
       }
     } else if (!parsed.data.served && item.order.status === "served") {
       // Re-servido a false en un item que estaba marcando la order
       // como served → rollback de la order a "ready".
-      await db.order.update({
-        where: { id: item.order.id },
+      await db.order.updateMany({
+        where: { id: item.order.id, status: "served" },
         data: { status: "ready", servedAt: null },
       });
     }
@@ -405,6 +394,18 @@ async function PATCHHandler(
         type: "ticket.printable",
         roundId: item.roundId,
         orderId: item.orderId,
+        station: item.station,
+        barSubStation: item.barSubStation ?? null,
+      });
+      // Además del evento SSE: encolar la comanda para las impresoras de
+      // red del local (agente ESC/POS). Los dos caminos CONVIVEN durante
+      // la transición — un restaurante sin impresoras registradas se
+      // comporta exactamente como antes. Nunca lanza: si la cola falla,
+      // el ítem igual quedó en in_kitchen y la pestaña sigue de respaldo.
+      await enqueueRoundTicketSafe({
+        restaurantId: item.order.restaurantId,
+        orderId: item.orderId,
+        roundId: item.roundId,
         station: item.station,
         barSubStation: item.barSubStation ?? null,
       });

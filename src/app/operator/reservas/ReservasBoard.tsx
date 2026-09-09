@@ -1,4 +1,5 @@
 "use client";
+import { useClock } from "@/lib/browser/clock";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -71,9 +72,12 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 
 export function ReservasBoard({
   initialRows,
+  initialTime,
 }: {
   initialRows: ReservationRow[];
+  initialTime: number;
 }) {
+  const now = useClock(initialTime);
   const t = useTranslations("opReservas");
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
@@ -119,7 +123,7 @@ export function ReservasBoard({
   }
 
   const todayBogota = (() => {
-    const b = new Date(Date.now() + OFFSET_MS);
+    const b = new Date(now + OFFSET_MS);
     return `${b.getUTCFullYear()}-${b.getUTCMonth()}-${b.getUTCDate()}`;
   })();
 

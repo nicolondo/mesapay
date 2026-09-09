@@ -20,7 +20,7 @@ async function guard(req: Request): Promise<Response | null> {
     // nginx must replace X-Real-IP; never trust a caller-controlled forwarded chain.
     const ip = req.headers.get("x-real-ip") ?? "unattributed";
     const expensive = /import|ocr|insights/.test(path);
-    const limit = path.startsWith("/api/auth/") ? 15 : expensive ? 20 : 120;
+    const limit = (path.startsWith("/api/auth/") || /\/diner\/(login|register|magic-link|password)$/.test(path)) ? 15 : expensive ? 20 : 120;
     if (!await rateLimit(`api:${path}:${ip}`, limit, 60)) {
       const response = deny("rate_limited", 429); response.headers.set("Retry-After", "60"); return response;
     }

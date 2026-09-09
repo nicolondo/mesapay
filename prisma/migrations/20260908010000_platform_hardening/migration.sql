@@ -83,7 +83,7 @@ BEGIN
     IF o.status = 'cancelled' THEN RAISE EXCEPTION 'order_closed' USING ERRCODE = '23514'; END IF;
     SELECT COALESCE(SUM("amountCents" - "tipCents"), 0) INTO claimed
       FROM "Payment" WHERE "orderId" = NEW."orderId" AND status IN ('pending', 'approved');
-    IF claimed + NEW."amountCents" - NEW."tipCents" > o."subtotalCents"::bigint + o."taxCents" + 1 THEN
+    IF claimed + NEW."amountCents" - NEW."tipCents" > GREATEST(0, o."subtotalCents"::bigint + o."taxCents" - o."discountCents") + 1 THEN
       RAISE EXCEPTION 'amount_exceeds_outstanding' USING ERRCODE = '23514';
     END IF;
   END IF;

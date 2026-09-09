@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -56,11 +57,11 @@ async function POSTHandler(req: Request) {
   // Historial previo (sin incluir el mensaje actual) — últimos 20
   const priorHistory = await db.aiMessage.findMany({
     where: { conversationId: conv.id },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take: 20,
   });
   const messages = [
-    ...priorHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ...priorHistory.reverse().map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user" as const, content: parsed.data.message },
   ];
 
@@ -98,7 +99,7 @@ async function POSTHandler(req: Request) {
   await db.$transaction([
     db.aiMessage.create({ data: { conversationId: conv.id, role: "user", content: parsed.data.message } }),
     db.aiMessage.create({
-      data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as any },
+      data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as Prisma.InputJsonValue },
     }),
   ]);
 

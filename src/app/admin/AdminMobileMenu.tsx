@@ -30,9 +30,11 @@ export function AdminMobileMenu({
   // Close the drawer automatically when the route changes — otherwise
   // tapping a link leaves the overlay covering the page you just
   // navigated to.
-  useEffect(() => {
+  const [previousPath, setPreviousPath] = useState(pathname);
+  if (previousPath !== pathname) {
+    setPreviousPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // Lock body scroll while the drawer is open so the page underneath
   // doesn't slide around with the menu.

@@ -1,4 +1,5 @@
 "use client";
+import { startTransition } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -849,7 +850,7 @@ export function CrmPipelineClient({
     refreshAll();
     if (initialCursor) {
       // Runs only if refreshAll was skipped (kanbanLoadingRef guards double-run).
-      loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: initialCursor });
+      startTransition(() => { void loadAllKanbanPages({ stage: activeStage, q, assignedTo, startCursor: initialCursor }); });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MESAPAY
 
-## Getting Started
+Plataforma de operación de restaurantes: carta y pedidos por QR, caja y pagos, reservas, inventario, facturación e impresión. Next.js 16, React 19, PostgreSQL y Prisma 6. Importes internos en centavos enteros; país y moneda se definen por comercio, e idioma por sesión.
 
-First, run the development server:
+## Desarrollo local
 
-```bash
+Requiere Node.js 22+, npm y PostgreSQL. Configura una base **local desechable** en `.env` con `DATABASE_URL` y un `AUTH_SECRET` propio. No copies credenciales productivas para desarrollar.
+
+```sh
+npm ci
+npm run db:migrate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+La aplicación se abre en `http://localhost:3300`. `npm run db:seed` carga datos de demostración: úsalo solamente en una base local de pruebas. Los conectores externos requieren su configuración; un proveedor simulado no debe registrar pagos operativos.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Comprobaciones
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-## Learn More
+Las pruebas de PostgreSQL exigen una URL explícita de localhost y una base cuyo nombre cumpla `mesapay_*test` o `mesapay_*validation`. No limpian tablas completas: crean y eliminan sus propios fixtures.
 
-To learn more about Next.js, take a look at the following resources:
+```sh
+DATABASE_URL=postgresql://usuario@127.0.0.1:5548/mesapay_local_test npm run db:migrate
+DATABASE_URL=postgresql://usuario@127.0.0.1:5548/mesapay_local_test npm run test:integration
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Cubren reservas concurrentes de pagos, reintentos, webhooks, devoluciones, descuentos, inventario e invalidación de sesiones. `e2e/README.md` documenta las comprobaciones de navegador. La integración continua ejecuta pruebas, lint, migraciones sobre PostgreSQL aislado y build.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Operación
 
-## Deploy on Vercel
+- [Despliegue blue/green](vps/blue-green/SETUP.md). Se usa `prisma migrate deploy`; no se acepta pérdida automática de datos. Las instalaciones anteriores con `db push` necesitan verificar y adoptar el baseline antes de desplegar.
+- [Auditoría y hallazgos originales](docs/auditoria-plataforma-2026-09-08.md).
+- [Estado de la integración y validación](docs/estado-integracion-codex-2026-09-09.md).
+- [Agente de impresión Windows](agent/README.md).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Un timeout de pago conserva el saldo reservado. Los operadores pueden conciliar desde el detalle del pedido después de verificar estado e importe con Kushki; la evidencia queda registrada en auditoría. Esa acción no solicita dinero ni ejecuta devoluciones. El cron de consumo recupera inventario pendiente, programa reintentos y señala operaciones financieras antiguas sin resultado confirmado.

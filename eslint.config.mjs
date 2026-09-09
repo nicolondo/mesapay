@@ -22,6 +22,14 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pending/*.{ts,tsx}",
   "src/app/operator/orders/\\[id\\]/RefundButton.tsx",
   "src/components/LocaleSwitcher.tsx",
+  // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
+  "src/app/signin/page.tsx",
+  "src/app/signup/page.tsx",
+  "src/app/cuenta/**/*.{ts,tsx}",
+  "src/app/me/**/*.{ts,tsx}",
+  // Cuenta del comensal DENTRO del comercio (login, registro, enlace
+  // mágico, "mi cuenta"). Nació trilingüe, queda blindada de una.
+  "src/app/t/\\[slug\\]/cuenta/**/*.{ts,tsx}",
   "src/app/nicolas/**/*.{ts,tsx}",
   // OJO: los corchetes de las rutas dinámicas de Next ([slug]) son clases
   // de caracteres en glob — hay que escaparlos (\\[ \\]) o la regla no
@@ -33,6 +41,9 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
   "src/app/t/\\[slug\\]/page.tsx",
   "src/app/t/\\[slug\\]/order/\\[orderId\\]/*.{ts,tsx}",
+  // Pantalla de "el cobro lo hace el administrador" del mesero. El resto
+  // de /mesero/ sigue sin migrar, por eso el glob es al archivo suelto.
+  "src/app/mesero/cobrar/\\[orderId\\]/ChargeLockedByAdmin.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/ApplePayButton.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/cash/*.{ts,tsx}",
@@ -47,11 +58,14 @@ const MIGRATED = [
   "src/app/operator/layout.tsx",
   "src/app/operator/OperatorMobileMenu.tsx",
   "src/app/operator/GroupSwitcher.tsx",
+  "src/app/operator/BillRequestAlert.tsx",
   "src/app/operator/page.tsx",
   "src/app/operator/ratings/**/*.{ts,tsx}",
   "src/app/operator/facturas/**/*.{ts,tsx}",
   "src/app/operator/wallet/**/*.{ts,tsx}",
   "src/app/operator/print/\\[station\\]/**/*.{ts,tsx}",
+  // Configuración → Impresoras de red. Nació trilingüe, queda blindada.
+  "src/app/operator/settings/impresoras/**/*.{ts,tsx}",
   "src/app/operator/kitchen/page.tsx",
   "src/app/operator/kitchen/KitchenBoard.tsx",
   "src/app/operator/bar/page.tsx",
@@ -111,6 +125,11 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
   "src/components/CashBox.tsx",
+  // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació
+  // trilingüe cuando se extrajo de done/InvoiceRequestPanel.
+  "src/components/invoice/**/*.{ts,tsx}",
+  // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
+  "src/components/MunicipioAutocomplete.tsx",
   "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",
   "src/app/admin/plans/**/*.{ts,tsx}",
   "src/app/admin/groups/**/*.{ts,tsx}",

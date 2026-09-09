@@ -1,4 +1,6 @@
 "use client";
+import { startTransition } from "react";
+import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
@@ -7,6 +9,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
+import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
+import type { InvoiceIntent } from "@/components/invoice/types";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
@@ -40,6 +44,9 @@ export function PayClient({
   tableId,
   locationLabel,
   subtotalCents,
+  grossSubtotalCents,
+  discountCents = 0,
+  discountPct = null,
   paidCents,
   paidTipCents,
   alreadyPaid,
@@ -61,6 +68,8 @@ export function PayClient({
   doneHref = "",
   compEnabled = false,
   compLabel = null,
+  invoiceIntent = null,
+  invoicePrefillEmail = null,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -68,7 +77,17 @@ export function PayClient({
   shortCode: string;
   tableId: string;
   locationLabel: string;
+  /**
+   * Lo COBRABLE: el subtotal ya con el descuento del comensal restado.
+   * Toda la aritmética de la pantalla (partes iguales, lo mío, saldo)
+   * cuelga de acá, así que tiene que llegar neto — si llegara bruto, el
+   * servidor rechazaría el cobro por "excede lo pendiente".
+   */
   subtotalCents: number;
+  /** El subtotal ANTES del descuento — solo para mostrar el desglose. */
+  grossSubtotalCents: number;
+  discountCents?: number;
+  discountPct?: number | null;
   paidCents: number;
   paidTipCents: number;
   alreadyPaid: boolean;
@@ -136,6 +155,11 @@ export function PayClient({
   // comercio lo habilitó. compLabel = nombre configurable (null ⇒ default i18n).
   compEnabled?: boolean;
   compLabel?: string | null;
+  // Factura que el comensal ya pidió en esta cuenta (si pidió). Se muestra
+  // como resumen corto en vez de volver a abrirle el formulario.
+  invoiceIntent?: InvoiceIntent | null;
+  // Correo del último cobro con tarjeta, para prellenar los sheets.
+  invoicePrefillEmail?: string | null;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -154,7 +178,7 @@ export function PayClient({
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<PayMode>("full");
   const [splitCount, setSplitCount] = useState<number>(2);
-  const [hasApplePay, setHasApplePay] = useState(false);
+  const hasApplePay = useApplePaySupport();
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
@@ -162,10 +186,7 @@ export function PayClient({
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
-  useEffect(() => {
-    const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
-    setHasApplePay(!!w.ApplePaySession?.canMakePayments?.());
-  }, []);
+
 
   // Pre-cargar el SDK de Kushki en background. Pesa ~500KB y se usa
   // cuando el diner abre el sheet de PSE o tarjeta, o cuando arranca
@@ -212,7 +233,7 @@ export function PayClient({
     const match =
       guestTotals.find((g) => g.name === name) ??
       guestTotals.find((g) => g.name.toLowerCase() === name.toLowerCase());
-    if (match) setMyGuest(match.name);
+    if (match) startTransition(() => setMyGuest(match.name));
     // Solo al montar: si el usuario cambia la selección a mano, no se la pisamos.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -514,6 +535,7 @@ export function PayClient({
     }
   }
 
+  const cashRequestKey = useRef<string | null>(null);
   async function payWithCash(
     cashTenderCents: number | null,
     changeGivenCents: number | null = null,
@@ -521,10 +543,11 @@ export function PayClient({
     if (amountCents <= 0) return;
     setBusy("demo_cash");
     setErr(null);
+    cashRequestKey.current ??= crypto.randomUUID();
     try {
       const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "idempotency-key": cashRequestKey.current },
         body: JSON.stringify({
           orderId,
           method: "demo_cash",
@@ -544,6 +567,7 @@ export function PayClient({
         setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
         return;
       }
+      cashRequestKey.current = null;
       if (operatorMode) {
         // Cobro cerrado (o parcial). Va a la pantalla de "listo" DENTRO del
         // scope del que cobra (mesero: su PWA con bottom nav), donde se
@@ -554,6 +578,8 @@ export function PayClient({
       if (j.pending && j.paymentId) {
         router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
       }
+    } catch {
+      setErr(apiError({ error: "payment_pending" }));
     } finally {
       setBusy(null);
     }
@@ -680,13 +706,37 @@ export function PayClient({
               </li>
             ))}
           </ul>
-          <div className="flex items-baseline justify-between px-4 py-2.5 bg-ivory border-t border-hairline">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-              {t("subtotal")}
-            </span>
-            <span className="font-display text-lg tabular">
-              {fmtCOP(subtotalCents)}
-            </span>
+          <div className="px-4 py-2.5 bg-ivory border-t border-hairline">
+            {discountCents > 0 && (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                    {t("subtotal")}
+                  </span>
+                  <span className="font-mono text-sm tabular text-muted">
+                    {fmtCOP(grossSubtotalCents)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-terracotta">
+                    {discountPct
+                      ? t("discountRowPct", { pct: discountPct })
+                      : t("discountRow")}
+                  </span>
+                  <span className="font-mono text-sm tabular text-terracotta">
+                    {"− " + fmtCOP(discountCents)}
+                  </span>
+                </div>
+              </>
+            )}
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+                {discountCents > 0 ? t("discountedTotal") : t("subtotal")}
+              </span>
+              <span className="font-display text-lg tabular">
+                {fmtCOP(subtotalCents)}
+              </span>
+            </div>
           </div>
           {/* No mostramos "Ya pagado" aquí — esta sección es para que
               el cliente confirme que el menú coincide con lo que pidió.
@@ -807,6 +857,17 @@ export function PayClient({
       )}
 
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
+        {discountCents > 0 && (
+          <Row
+            label={
+              discountPct
+                ? t("discountRowPct", { pct: discountPct })
+                : t("discountRow")
+            }
+            value={"− " + fmtCOP(discountCents)}
+            muted
+          />
+        )}
         <Row
           label={t(operatorMode ? "rowYourBillOp" : "rowYourBill")}
           value={fmtCOP(subtotalCents)}
@@ -885,8 +946,17 @@ export function PayClient({
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
-      {/* La factura NO se pide acá (antes del pago): se ofrece DESPUÉS del
-          cobro exitoso, en la página de "listo" (done), en modo mesero. */}
+      {/* La factura se pide ACÁ, antes de confirmar el pago: es el momento en
+          que el comensal todavía tiene el celular en la mano. Los datos se
+          guardan al instante; la factura se emite cuando el cobro se confirma
+          (puede ser minutos después si paga en efectivo). */}
+      <InvoiceCheckoutCard
+        tenantSlug={tenantSlug}
+        orderId={orderId}
+        initialIntent={invoiceIntent}
+        prefillEmail={invoicePrefillEmail}
+        operatorMode={operatorMode}
+      />
 
       <div className="mt-6 space-y-2">
         {/* Apple Pay requires the diner's own iPhone — the waiter can't
@@ -1495,16 +1565,10 @@ function PseSheet({
     // sheet y el bundle pesado generaba un "Cargando bancos..." de
     // 3-5 seg innecesario.
     setTokenizing(true);
-    // Timing logs — útil para identificar cuál paso del flow es el
-    // cuello de botella en cada test. Removible una vez que sepamos
-    // dónde optimizar.
-    const t0 = performance.now();
-    const ts = (label: string) =>
-      console.log(`[pse-timing] ${label}: ${Math.round(performance.now() - t0)}ms`);
     try {
       if (!kushkiRef.current) {
         const mod = await import("@kushki/js");
-        ts("SDK import");
+
         const KushkiCtor =
           mod.Kushki ?? (mod as { default?: unknown }).default;
         if (typeof KushkiCtor !== "function") {
@@ -1521,9 +1585,9 @@ function PseSheet({
           // El modo lo controla el admin desde /admin/configuracion.
           inTestEnvironment: kushkiMode !== "production",
         });
-        ts("SDK init");
+
       } else {
-        ts("SDK ya cacheado");
+
       }
       // El callbackUrl debe ser ABSOLUTO y apuntar a nuestro /pse-return.
       // El SDK no la usa internamente pero Kushki la requiere para que
@@ -1565,7 +1629,7 @@ function PseSheet({
           (resp: any) => resolve(resp),
         );
       });
-      ts("requestTransferToken (incl Sift + merchant settings + tokens)");
+
 
       console.log("[pse] kushki tokens response", response);
 

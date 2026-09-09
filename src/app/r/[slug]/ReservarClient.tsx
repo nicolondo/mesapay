@@ -1,4 +1,6 @@
 "use client";
+import { startTransition } from "react";
+import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -123,9 +125,11 @@ export function ReservarClient({
   // Cargar disponibilidad cuando cambia fecha o tamaño de grupo.
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setSelectedSlot(null);
-    setSelectedTableId(null);
+    startTransition(() => {
+      setLoading(true);
+      setSelectedSlot(null);
+      setSelectedTableId(null);
+    });
     (async () => {
       try {
         const res = await fetch(
@@ -857,18 +861,9 @@ function DepositPay({
   // (Safari en iPhone/Mac). En el resto lo ocultamos del selector para
   // no mostrar una opción muerta.
   const tr = useTranslations("reservar");
-  const [appleOk, setAppleOk] = useState(false);
+  const appleOk = useApplePaySupport();
   const [selected, setSelected] = useState("");
-  useEffect(() => {
-    try {
-      const w = window as unknown as {
-        ApplePaySession?: { canMakePayments?: () => boolean };
-      };
-      setAppleOk(!!w.ApplePaySession?.canMakePayments?.());
-    } catch {
-      /* sin soporte */
-    }
-  }, []);
+
 
   const known = methods.filter((m) => m in DEPOSIT_METHOD_NAMES);
   const available = known.filter(

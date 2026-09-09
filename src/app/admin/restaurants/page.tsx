@@ -1,3 +1,4 @@
+import { requestTime } from "@/lib/requestTime";
 import Link from "next/link";
 import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -19,6 +20,7 @@ export default async function RestaurantsAdmin({
   searchParams: Promise<{ ok?: string; country?: string; city?: string }>;
 }) {
   const sp = await searchParams;
+  const now = await requestTime();
   const t = await getTranslations("opAdmin");
   const tl = await getTranslations("location");
   const locale = await getLocale();
@@ -255,7 +257,7 @@ export default async function RestaurantsAdmin({
                     <MiniStat label={t("colPaid")} value={paid} />
                     <MiniStat
                       label={t("colLast")}
-                      value={last ? <RelTime date={last} t={t} /> : "—"}
+                      value={last ? <RelTime now={now} date={last} t={t} /> : "—"}
                     />
                   </div>
                 </Link>
@@ -332,7 +334,7 @@ export default async function RestaurantsAdmin({
                     <Td>{paid}</Td>
                     <Td>
                       {last ? (
-                        <RelTime date={last} t={t} />
+                        <RelTime now={now} date={last} t={t} />
                       ) : (
                         <span className="text-op-muted">—</span>
                       )}
@@ -480,8 +482,8 @@ function MembershipPill({
   );
 }
 
-function RelTime({ date, t }: { date: Date; t: Translate }) {
-  const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+function RelTime({ date, t, now }: { date: Date; t: Translate; now: number }) {
+  const days = Math.floor((now - date.getTime()) / 86400000);
   const label =
     days === 0
       ? t("relToday")

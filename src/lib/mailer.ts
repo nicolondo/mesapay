@@ -4,6 +4,9 @@
 
 import { getEmailTranslator } from "./emailIntl";
 
+/** Base de las URLs que van en los correos. Mismo criterio que magic-link. */
+const BASE_URL = process.env.NEXTAUTH_URL ?? "https://mesapay.co";
+
 type SendArgs = {
   to: string;
   subject: string;
@@ -52,11 +55,18 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
 export async function renderWelcomeEmail(
   name: string | null,
   locale?: string | null,
+  /**
+   * A dónde manda el botón "mi cuenta". La cuenta del comensal es de UN
+   * comercio, así que el enlace tiene que llevar su slug
+   * (`/t/<slug>/cuenta`); sin él aterrizaría en la pantalla que solo
+   * explica que hay que escanear el QR.
+   */
+  accountUrl?: string | null,
 ): Promise<{ html: string; text: string; subject: string }> {
   const { t, locale: lang } = await getEmailTranslator(locale, "emailWelcome");
   const greeting = name ? t("greetingNamed", { name }) : t("greeting");
   const subject = t("subject");
-  const meUrl = "https://mesapay.co/me";
+  const meUrl = accountUrl ?? "https://mesapay.co/cuenta/entrar";
   const text = [
     `${greeting},`,
     "",
@@ -106,8 +116,13 @@ export async function renderWelcomeEmail(
 export async function sendWelcomeEmail(
   user: { email: string; name: string | null },
   locale?: string | null,
+  accountUrl?: string | null,
 ): Promise<boolean> {
-  const { html, text, subject } = await renderWelcomeEmail(user.name, locale);
+  const { html, text, subject } = await renderWelcomeEmail(
+    user.name,
+    locale,
+    accountUrl,
+  );
   return sendEmail({ to: user.email, subject, html, text });
 }
 
@@ -165,6 +180,66 @@ export async function sendPasswordResetEmail(
   locale?: string | null,
 ): Promise<boolean> {
   const { html, text, subject } = await renderPasswordResetEmail(user.name, resetUrl, locale);
+  return sendEmail({ to: user.email, subject, html, text });
+}
+
+/**
+ * Enlace de acceso directo del comensal ("magic link"). Reusa la misma
+ * tubería de envío que las facturas y el restablecimiento — no monta otra.
+ *
+ * Ojo con el copy: lo que vence es el ENLACE (20 min, un solo uso), no la
+ * sesión. Una vez lo toca, queda adentro para siempre.
+ */
+export async function renderMagicLinkEmail(
+  name: string | null,
+  magicUrl: string,
+  locale?: string | null,
+): Promise<{ html: string; text: string; subject: string }> {
+  const { t, locale: lang } = await getEmailTranslator(locale, "emailMagicLink");
+  const greeting = name ? t("greetingNamed", { name }) : t("greeting");
+  const subject = t("subject");
+
+  const text = [
+    greeting,
+    "",
+    t("intro"),
+    "",
+    t("ctaText", { url: magicUrl }),
+    "",
+    t("expires"),
+    t("ignore"),
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html lang="${lang}"><body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#1A1613;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF7F2;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFBF3;border:1px solid #EAE1D0;border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:32px 36px 28px 36px;">
+          <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#8B7B65;">MESAPAY</div>
+          <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:30px;line-height:1.1;margin:8px 0 16px 0;color:#1A1613;">${escapeHtml(t("title"))}</h1>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(greeting)}</p>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(t("intro"))}</p>
+          <p style="margin:24px 0;">
+            <a href="${magicUrl}" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:500;font-size:14px;">${escapeHtml(t("cta"))}</a>
+          </p>
+          <p style="font-size:12px;line-height:1.5;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("fallback"))}<br/><a href="${magicUrl}" style="color:#C9532E;word-break:break-all;">${magicUrl}</a></p>
+          <p style="font-size:12px;color:#8B7B65;margin:16px 0 0 0;">${escapeHtml(t("expires"))}<br/>${escapeHtml(t("ignore"))}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  return { html, text, subject };
+}
+
+export async function sendMagicLinkEmail(
+  user: { email: string; name: string | null },
+  magicUrl: string,
+  locale?: string | null,
+): Promise<boolean> {
+  const { html, text, subject } = await renderMagicLinkEmail(user.name, magicUrl, locale);
   return sendEmail({ to: user.email, subject, html, text });
 }
 
@@ -375,24 +450,35 @@ function escapeHtml(s: string): string {
 
 // Fire-and-forget: called after a guest's first paid order when we want to
 // welcome them without blocking the payment response. Safe to call multiple
-// times — the welcomedAt guard ensures only one email per user.
+// times — the welcomedAt guard ensures only one email per diner.
 export async function welcomeIfFirstTime(
-  userId: string,
+  dinerId: string,
   locale?: string | null,
 ): Promise<void> {
   const { db } = await import("./db");
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { id: true, email: true, name: true, welcomedAt: true, role: true },
+  const diner = await db.diner.findUnique({
+    where: { id: dinerId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      welcomedAt: true,
+      restaurant: { select: { slug: true } },
+    },
   });
-  if (!user || user.welcomedAt || user.role !== "customer") return;
+  // Ya no hace falta chequear el rol: `Diner` son solo comensales. Antes
+  // esto apuntaba a `User` y había que filtrar por role=customer para no
+  // mandarle el correo de bienvenida a un mesero que había abierto la carta
+  // con su propia sesión.
+  if (!diner || diner.welcomedAt) return;
   const sent = await sendWelcomeEmail(
-    { email: user.email, name: user.name },
+    { email: diner.email, name: diner.name },
     locale,
+    `${BASE_URL}/t/${diner.restaurant.slug}/cuenta`,
   );
   if (sent) {
-    await db.user.update({
-      where: { id: user.id },
+    await db.diner.update({
+      where: { id: diner.id },
       data: { welcomedAt: new Date() },
     });
   }

@@ -79,7 +79,13 @@ async function POSTHandler(
   if (!payment || payment.order.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "payment_not_found" }, { status: 404 });
   }
+  const body = await req.json().catch(() => ({}));
+  const parsed = schema.safeParse(body ?? {});
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid" }, { status: 400 });
+  }
   const previous = await db.financialOperation.findUnique({ where: { key: operationKey } });
+  if (previous && parsed.data.amountCents !== undefined && parsed.data.amountCents !== previous.amountCents) return NextResponse.json({ error: "operation_conflict" }, { status: 409 });
   if (previous) return NextResponse.json({ ok: previous.status === "completed", pending: previous.status !== "completed", operationId: previous.key }, { status: previous.status === "completed" ? 200 : 202 });
   if (!REFUNDABLE_METHODS.has(payment.method)) {
     return NextResponse.json({ error: "not_refundable_method" }, { status: 409 });
@@ -92,11 +98,6 @@ async function POSTHandler(
     return NextResponse.json({ error: "already_refunded" }, { status: 409 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const parsed = schema.safeParse(body ?? {});
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
-  }
   const amountCents = parsed.data.amountCents ?? remaining;
   if (amountCents > remaining) {
     return NextResponse.json(
@@ -153,6 +154,7 @@ async function POSTHandler(
   const newRefunded = payment.refundedCents + amountCents;
   const fullyRefunded = newRefunded >= payment.amountCents;
 
+  try {
   await db.$transaction(async (tx) => {
     await lockOrder(tx, payment.orderId);
     await tx.financialOperation.update({ where: { key: operationKey }, data: { status: "completed" } });
@@ -181,6 +183,11 @@ async function POSTHandler(
       },
     });
   });
+  } catch {
+    await db.financialOperation.update({ where: { key: operationKey }, data: { status: "uncertain" } });
+    await db.payment.update({ where: { id: payment.id }, data: { reconciliationRequired: true } });
+    return NextResponse.json({ error: "payment_pending", pending: true, operationId: operationKey }, { status: 202 });
+  }
 
   publishOrderEvent(restaurantId, {
     type: "order.updated",

@@ -27,3 +27,10 @@ Reports are written to `e2e/reports/crawl-<stamp>.{md,json}` (gitignored).
 never production.** Note `.env.local` points `DATABASE_URL` at the prod VPS, so
 to test locally you must run the app with a local `DATABASE_URL` override and a
 seeded local DB (`npm run db:seed` → accounts use password `mesapay123`).
+
+
+## Regresiones de la auditoría
+
+`npm run test:browser` usa `playwright.hardening.config.ts`: inicia y detiene una build local en el puerto 3390 y crea fixtures propios en una base desechable. Requiere `DATABASE_URL` explícito de localhost con nombre `mesapay_*test` o `mesapay_*validation`, migraciones aplicadas y `npm run build` terminado. No reutiliza servidores existentes.
+
+Ejecutar `npx playwright install chromium` una vez. El flujo verifica QR firmado, pedidos, rechazos de acceso/cobros y conciliación con operador en escritorio y móvil Chromium. No usa el servidor productivo ni envía pagos a Kushki.

@@ -271,23 +271,31 @@ export async function sweepUnconsumedOrders(): Promise<{
   errors: number;
 }> {
   const orders = await db.order.findMany({
-    where: { status: "paid", stockConsumedAt: null, paidAt: { not: null } },
-    select: { id: true },
+    where: { status: "paid", stockConsumedAt: null, paidAt: { not: null }, OR: [{ stockConsumptionRetryAt: null }, { stockConsumptionRetryAt: { lte: new Date() } }] },
+    select: { id: true, stockConsumptionAttempts: true },
     orderBy: { paidAt: "asc" },
     take: 500,
   });
   let consumed = 0;
   let modulesOff = 0;
   let errors = 0;
+  const startedAt = Date.now();
+  let scanned = 0;
   for (const o of orders) {
+    if (Date.now() - startedAt > 45_000) break;
+    scanned++;
     try {
       const r = await consumeOrderStock(o.id);
       if (r.status === "consumed") consumed++;
       else if (r.status === "modules_off") modulesOff++;
     } catch (err) {
       errors++;
+      const delay = Math.min(86400_000, 60_000 * 2 ** Math.min(o.stockConsumptionAttempts, 10));
+      await db.order.updateMany({ where: { id: o.id, stockConsumedAt: null }, data: {
+        stockConsumptionAttempts: { increment: 1 }, stockConsumptionRetryAt: new Date(Date.now() + delay),
+      } });
       console.error(`[consumption] sweep order ${o.id}`, err);
     }
   }
-  return { scanned: orders.length, consumed, modulesOff, errors };
+  return { scanned, consumed, modulesOff, errors };
 }

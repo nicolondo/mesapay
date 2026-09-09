@@ -26,9 +26,11 @@ export function CallWaiterButton({
   const calledAtISO =
     initialCalledAtISO ?? (optimisticCalled ? new Date().toISOString() : null);
 
-  useEffect(() => {
-    if (!initialNeedsWaiter && optimisticCalled) setOptimisticCalled(false);
-  }, [initialNeedsWaiter, optimisticCalled]);
+  const [previousCalled, setPreviousCalled] = useState(initialNeedsWaiter);
+  if (previousCalled !== initialNeedsWaiter) {
+    setPreviousCalled(initialNeedsWaiter);
+    setOptimisticCalled(false);
+  }
 
   async function call() {
     setBusy(true);

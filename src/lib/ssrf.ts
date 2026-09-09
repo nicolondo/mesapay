@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP, BlockList } from "node:net";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { Readable } from "node:stream";
+import { Readable, Transform, pipeline } from "node:stream";
 import { createGunzip, createInflate, createBrotliDecompress } from "node:zlib";
 
 const blockedV4 = new BlockList();
@@ -35,7 +35,8 @@ export async function checkUrlSafe(value: string): Promise<SsrfCheck> {
 export async function fetchPublicUrl(value: string, init: RequestInit = {}): Promise<Response> {
   if (init.method && init.method !== "GET") throw new Error("unsupported_method");
   let current = value;
-  const signal = init.signal ?? AbortSignal.timeout(30_000);
+  const deadline = AbortSignal.timeout(30_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
   for (let hop = 0; hop <= 5; hop++) {
     const { url, addresses } = await resolvePublicUrl(current);
     signal.throwIfAborted();
@@ -64,9 +65,19 @@ export async function fetchPublicUrl(value: string, init: RequestInit = {}): Pro
       if (val != null && !["content-encoding", "content-length", "transfer-encoding", "connection"].includes(key)) outHeaders.set(key, Array.isArray(val) ? val.join(", ") : val);
     }
     const encoding = response.headers["content-encoding"];
-    const stream = encoding === "gzip" ? response.pipe(createGunzip()) : encoding === "deflate" ? response.pipe(createInflate()) : encoding === "br" ? response.pipe(createBrotliDecompress()) : response;
+    let received = 0;
+    const bounded = new Transform({ transform(chunk: Buffer, _encoding, callback) {
+      received += chunk.length;
+      callback(received > 20 * 1024 * 1024 ? new Error("response_too_large") : null, chunk);
+    } });
+    const decoder = encoding === "gzip" ? createGunzip() : encoding === "deflate" ? createInflate() : encoding === "br" ? createBrotliDecompress() : null;
+    // pipeline forwards source/decompression errors and cancels upstream on abort.
+    if (decoder) pipeline(response, decoder, bounded, () => {});
+    else pipeline(response, bounded, () => {});
     const status = response.statusCode ?? 502;
-    const result = new Response([204,304].includes(status) ? null : Readable.toWeb(stream) as ReadableStream<Uint8Array>, { status, headers: outHeaders });
+    const noBody = [204, 304].includes(status);
+    if (noBody) bounded.destroy();
+    const result = new Response(noBody ? null : Readable.toWeb(bounded) as ReadableStream<Uint8Array>, { status, headers: outHeaders });
     Object.defineProperty(result, "url", { value: url.href });
     return result;
   }

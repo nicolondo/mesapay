@@ -126,7 +126,7 @@ export function FloorPlanEditor({
 
   // Mínimos de la grilla: no podés encogerla por debajo de lo que ya
   // está ocupado (mesas, zonas que terminan en x+w, markers).
-  const { minCols, minRows } = useMemo(() => {
+  const { minCols, minRows } = (() => {
     let maxX = -1;
     let maxY = -1;
     for (const t of placed) {
@@ -147,7 +147,7 @@ export function FloorPlanEditor({
       minCols: Math.max(FLOOR_MIN_COLS, maxX + 1),
       minRows: Math.max(FLOOR_MIN_ROWS, maxY + 1),
     };
-  }, [placed, zones, markers]);
+  })();
 
   function markDirty() {
     setDirty(true);

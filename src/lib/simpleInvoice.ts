@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mailer";
 import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
+import { orderTaxTotals } from "@/lib/salesTax";
+import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 
 /** Datos del cliente para una factura personalizada. */
 export type InvoiceCustomer = {
@@ -36,6 +38,10 @@ export function invoiceUrlFor(id: string): string {
  * pagada. Fuente ÚNICA de la numeración + snapshot — la usan la tirilla
  * genérica (consumidor final) y la factura personalizada (con datos del
  * cliente). El envío de correo lo hace el caller (varía por flujo).
+ *
+ * Acá adentro sí se encola la IMPRESIÓN en la impresora de facturas del
+ * local, justamente porque este es el único punto por el que pasan todos
+ * los flujos. Es best-effort: ver `print/invoiceQueue.ts`.
  */
 export async function issueSimpleInvoice(opts: {
   tenantId: string;
@@ -47,7 +53,17 @@ export async function issueSimpleInvoice(opts: {
     where: { id: opts.orderId },
     include: {
       table: true,
-      items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
+      // Mismo criterio de "item vivo" que `syncOrderSubtotalFromLiveItems`:
+      // sin cancelar Y sin ronda cancelada. Antes sólo miraba `cancelledAt`,
+      // así que los platos de una ronda cancelada se imprimían en la tirilla
+      // aunque el subtotal (que sí los excluye) no los cobrara.
+      items: {
+        where: {
+          cancelledAt: null,
+          OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+        },
+        orderBy: { id: "asc" },
+      },
       simpleInvoice: true,
     },
   });
@@ -60,12 +76,26 @@ export async function issueSimpleInvoice(opts: {
 
   // Idempotencia — ya emitida antes: devolvemos esa (no re-numeramos).
   if (order.simpleInvoice) {
+    const snapshot = order.simpleInvoice
+      .snapshot as unknown as InvoiceSnapshot;
+    // Se vuelve a intentar el encolado a propósito: si la primera vez la
+    // impresora de la caja no existía todavía (o el encolado falló), esta
+    // llamada la imprime. El `dedupeKey` impide el duplicado en el caso
+    // normal, que es el que importa.
+    await enqueueInvoicePrintSafe({
+      restaurantId: opts.tenantId,
+      orderId: order.id,
+      invoiceId: order.simpleInvoice.id,
+      invoiceNumber: order.simpleInvoice.invoiceNumber,
+      snapshot,
+      locale: order.locale,
+    });
     return {
       ok: true,
       invoiceId: order.simpleInvoice.id,
       invoiceUrl: invoiceUrlFor(order.simpleInvoice.id),
       invoiceNumber: order.simpleInvoice.invoiceNumber,
-      snapshot: order.simpleInvoice.snapshot as unknown as InvoiceSnapshot,
+      snapshot,
       email: order.simpleInvoice.email,
       locale: order.locale,
       alreadyIssued: true,
@@ -87,6 +117,7 @@ export async function issueSimpleInvoice(opts: {
       legalCity: true,
       legalPhone: true,
       dianResolution: true,
+      dianResolutionNumber: true,
       dianResolutionFrom: true,
       dianResolutionTo: true,
       dianResolutionDate: true,
@@ -94,6 +125,19 @@ export async function issueSimpleInvoice(opts: {
     },
   });
   const invoiceNumber = r.invoiceNextNumber - 1;
+
+  // Desglose por tipo del impuesto que las LÍNEAS LIBRES suman encima. Se pasa
+  // el comercio en "none" a propósito: así `byKind` cuenta sólo lo que se suma
+  // (cada línea bajo SU tipo) y deja afuera el impuesto embebido de los platos
+  // del menú, que ya está dentro del subtotal y no se cobra aparte.
+  const taxed = orderTaxTotals(
+    order.items.map((i) => ({
+      amountCents: i.priceCentsSnapshot * i.qty,
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+    })),
+    { kind: "none", pct: 0 },
+  );
 
   const snapshot: InvoiceSnapshot = {
     restaurantName: r.name,
@@ -103,7 +147,12 @@ export async function issueSimpleInvoice(opts: {
     legalAddress: r.legalAddress,
     legalCity: r.legalCity,
     legalPhone: r.legalPhone,
-    dianResolution: r.dianResolution,
+    // El comprobante imprime el MISMO número que se le manda a la DIAN.
+    // Antes imprimía `dianResolution` (texto libre de Identidad) mientras
+    // el XML llevaba `dianResolutionNumber`: podían ser dos números
+    // distintos y nadie tenía cómo notarlo. El texto legacy queda de
+    // fallback para los comercios que nunca cargaron el número.
+    dianResolution: r.dianResolutionNumber ?? r.dianResolution,
     dianResolutionFrom: r.dianResolutionFrom,
     dianResolutionTo: r.dianResolutionTo,
     dianResolutionDate: r.dianResolutionDate?.toISOString() ?? null,
@@ -119,6 +168,10 @@ export async function issueSimpleInvoice(opts: {
       priceCents: i.priceCentsSnapshot,
     })),
     subtotalCents: order.subtotalCents,
+    taxCents: order.taxCents,
+    taxByKind: taxed.byKind,
+    discountCents: order.discountCents,
+    discountPct: order.discountPct,
     tipCents: order.tipCents,
     totalCents: order.totalCents,
     customer: opts.customer ?? null,
@@ -133,6 +186,18 @@ export async function issueSimpleInvoice(opts: {
       snapshot: snapshot as unknown as object,
       totalCents: order.totalCents,
     },
+  });
+
+  // La tirilla sale por la impresora de la caja en el mismo momento del
+  // cobro. Se AWAITEA (son dos queries y un insert) pero no puede fallar
+  // hacia afuera: la factura ya está emitida y numerada.
+  await enqueueInvoicePrintSafe({
+    restaurantId: opts.tenantId,
+    orderId: order.id,
+    invoiceId: inv.id,
+    invoiceNumber,
+    snapshot,
+    locale: order.locale,
   });
 
   return {

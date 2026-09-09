@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 
 // Lista hardcoded para mostrar el nombre del banco en la pantalla.
 // Coincide con MOCK_PSE_BANKS en kushki/mock.ts.
@@ -37,6 +37,7 @@ export default async function PseMockBankPage({
     decide?: string;
   }>;
 }) {
+  if (process.env.NODE_ENV === "production" || process.env.KUSHKI_MODE !== "mock") notFound();
   const params = await searchParams;
   const ref = params.ref;
   const returnUrl = params.return;
@@ -62,9 +63,7 @@ export default async function PseMockBankPage({
   const outcome: "approved" | "declined" =
     params.decide === "approved" || params.decide === "declined"
       ? params.decide
-      : Math.random() < 0.9
-        ? "approved"
-        : "declined";
+      : "approved";
 
   // Antes de resolver, aseguramos que el bridge esté instalado en
   // este proceso — sino el evento simulado no tiene listener que lo

@@ -1,4 +1,5 @@
 "use client";
+import { useClock } from "@/lib/browser/clock";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -64,7 +65,18 @@ export type ActiveOrder = {
   shortCode: string;
   status: string;
   itemCount: number;
+  /** Cobrable: el subtotal ya con el descuento del comensal restado. */
   subtotalCents: number;
+  /** Subtotal antes del descuento — solo para el desglose. */
+  grossSubtotalCents: number;
+  discountCents: number;
+  discountPct: number | null;
+  customer: {
+    id: string;
+    name: string | null;
+    email: string;
+    cedula: string | null;
+  } | null;
   outstandingCents: number;
   needsWaiter: boolean;
   rounds: Round[];
@@ -104,19 +116,29 @@ type AllTable = {
 type FilterChip = "all" | "by_pay" | "recent" | "free";
 
 export function MesasGrid({
+  initialTime,
   tiles,
   tenantSlug,
   counterMode,
   isMeseroView,
+  chargeLocked,
   freeTables,
   allTables,
+  country,
 }: {
+  initialTime: number;
   tiles: TileData[];
   tenantSlug: string;
   counterMode: boolean;
   isMeseroView: boolean;
+  // "Solo el administrador cobra" activo y quien mira es un mesero: el
+  // sheet cambia "Cobrar la cuenta" por "Pedir la cuenta".
+  chargeLocked: boolean;
   freeTables: FreeTable[];
   allTables: AllTable[];
+  // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
+  // una línea libre — el IVA de Colombia no es el de México.
+  country: string | null;
 }) {
   const tr = useTranslations("opTables");
   const [filter, setFilter] = useState<FilterChip>("all");
@@ -241,6 +263,7 @@ export function MesasGrid({
           if (tile.state === "recently_paid") {
             return (
               <RecentlyPaidTile
+                initialTime={initialTime}
                 key={tile.id}
                 tile={tile}
                 counterMode={counterMode}
@@ -263,6 +286,8 @@ export function MesasGrid({
               allTables={allTables.filter((at) => at.id !== tile.id)}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
+              country={country}
+              chargeLocked={chargeLocked}
             />
           );
         })}
@@ -555,20 +580,23 @@ function FreeTile({
  * un grupo nuevo puede llegar enseguida — mismo target que FreeTile).
  */
 function RecentlyPaidTile({
+  initialTime,
   tile,
   counterMode,
   isMeseroView,
   tenantSlug,
 }: {
+  initialTime: number;
   tile: Extract<TileData, { state: "recently_paid" }>;
   counterMode: boolean;
   isMeseroView: boolean;
   tenantSlug: string;
 }) {
   const tr = useTranslations("opTables");
+  const now = useClock(initialTime);
   const minsAgo = Math.max(
     0,
-    Math.floor((Date.now() - new Date(tile.paidAt).getTime()) / 60000),
+    Math.floor((now - new Date(tile.paidAt).getTime()) / 60000),
   );
   // Mismo href + target que FreeTile — la mesa está libre para
   // recibir un grupo nuevo, sólo que recordamos el pago previo como
@@ -620,6 +648,8 @@ function ActiveTile({
   allTables,
   tenantSlug,
   isMeseroView,
+  country,
+  chargeLocked,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
@@ -629,6 +659,8 @@ function ActiveTile({
   allTables: AllTable[];
   tenantSlug: string;
   isMeseroView: boolean;
+  country: string | null;
+  chargeLocked: boolean;
 }) {
   const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
@@ -729,9 +761,15 @@ function ActiveTile({
           orderStatus={tile.order.status}
           outstandingCents={tile.order.outstandingCents}
           subtotalCents={tile.order.subtotalCents}
+          grossSubtotalCents={tile.order.grossSubtotalCents}
+          discountCents={tile.order.discountCents}
+          discountPct={tile.order.discountPct}
+          customer={tile.order.customer}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}
+          country={country}
+          chargeLocked={chargeLocked}
         />
       )}
     </>

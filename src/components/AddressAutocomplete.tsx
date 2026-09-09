@@ -103,7 +103,7 @@ export function AddressAutocomplete({
 
   // Emitimos cambios al padre sin bucles: onChange en ref.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => {
     onChangeRef.current?.({ address, city, country, countryName, placeId });
     // eslint-disable-next-line react-hooks/exhaustive-deps

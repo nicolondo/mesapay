@@ -23,8 +23,8 @@ export function StatCountUp({
     const el = ref.current;
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
-      setDisplay(value);
-      return;
+      const frame = requestAnimationFrame(() => setDisplay(value));
+      return () => cancelAnimationFrame(frame);
     }
     const obs = new IntersectionObserver(
       ([entry]) => {

@@ -199,6 +199,28 @@ model Restaurant {
   legalCity    String?
   legalPhone   String?
 
+  // Ciudad de los datos legales como CÓDIGO DANE (DIVIPOLA), no como
+  // texto. La factura electrónica declara la ubicación del
+  // establecimiento con estos códigos y la DIAN resuelve con ellos el
+  // punto de facturación: si van mal, rechaza (FAB10a / FAJ50). Antes
+  // solo existía legalCity en texto libre, del que no se puede derivar
+  // el código sin adivinar.
+  //
+  // legalCity NO se va: es el nombre legible que ya imprimen la
+  // factura, la tirilla y el XML (cbc:CityName), y lo leen
+  // src/lib/invoice.ts, simpleInvoice.ts y dian/config.ts. Cuando el
+  // operador elige del catálogo, legalCity se DERIVA del nombre oficial
+  // DANE del municipio elegido, así nombre y código no se contradicen.
+  // Para países sin DIVIPOLA (MX, BR) legalCity sigue siendo texto
+  // libre y estos dos campos quedan en null.
+  //
+  // Nulables y aditivos: los comercios que ya existen arrancan sin
+  // código y el operador elige el municipio una vez. No se rellenan
+  // solos con un match difuso del texto — un código adivinado manda las
+  // facturas al municipio equivocado.
+  legalCityCode String? // municipio DANE, 5 dígitos ("05266" = Envigado)
+  legalDeptCode String? // departamento DANE, 2 dígitos ("05" = Antioquia)
+
   // Ubicación operativa del local (separada de los datos legales* de
   // facturación). Se captura al crear el restaurante, con autocompletado
   // de Google Places. Sirve para filtrar el portafolio por país/ciudad
@@ -216,16 +238,24 @@ model Restaurant {
   // ("Resolución 18760000001 del 1 de enero de 2024"). El rango y
   // la fecha quedan como campos separados para mostrarlos en formato
   // estandard en la tirilla.
-  dianResolution     String?
-  dianResolutionFrom Int?
-  dianResolutionTo   Int?
-  dianResolutionDate DateTime?
+  dianResolution          String?
+  dianResolutionFrom      Int?
+  dianResolutionTo        Int?
+  dianResolutionDate      DateTime?
+  // Datos EXACTOS de la resolución tal como los exige el XML UBL. El
+  // texto de dianResolution es para la tirilla y no sirve para la DIAN:
+  // InvoiceAuthorization pide el número pelado ("18760000001") y
+  // AuthorizationPeriod pide la vigencia real del rango. Mandarlos mal
+  // hace que la DIAN rechace con FAB05b/FAB07b/FAB08b/FAB11b/FAB12b.
+  dianResolutionNumber    String?
+  dianResolutionValidFrom DateTime?
+  dianResolutionValidTo   DateTime?
   // Prefijo de los números (ej "POS", "FE"). Concatena con el
   // consecutivo al renderear.
-  invoicePrefix      String?
+  invoicePrefix           String?
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
-  invoiceNextNumber  Int       @default(1)
+  invoiceNextNumber       Int       @default(1)
 
   // === Políticas del staff ================================================
   //
@@ -298,6 +328,17 @@ model Restaurant {
   // general (solo by_waiter): "block" (no dejar) | "auto_open" (abrir el del
   // local con la misma base que declara el mesero). Ver staffPolicies.ts.
   meseroShiftWithoutLocal     String   @default("block")
+  // Control de caja: cuando está en true SOLO el administrador
+  // (operator / platform_admin) puede iniciar el cobro de una mesa. El rol
+  // `mesero` queda bloqueado en TODOS los caminos de cobro — la restricción
+  // se enforcea en el servidor (ver src/lib/chargeGuard.ts), no sólo
+  // escondiendo botones: un mesero puede pegarle a la API directo.
+  //
+  // Implica shiftPolicy = "global": si la caja la maneja una sola persona,
+  // los turnos por mesero no tienen a quién cuadrarle el arqueo. La API de
+  // políticas fuerza "global" al encender y bloquea el cambio a "by_waiter"
+  // mientras siga activo. Ver src/lib/chargeControl.ts.
+  adminOnlyCharge             Boolean  @default(false)
 
   users                  User[]
   tables                 Table[]
@@ -305,6 +346,7 @@ model Restaurant {
   categories             Category[]
   menuItems              MenuItem[]
   orders                 Order[]
+  diners                 Diner[]
   dishRatings            DishRating[]
   membershipPayments     MembershipPayment[]
   billingSubscription    BillingSubscription?
@@ -322,6 +364,9 @@ model Restaurant {
   costCenters            CostCenter[]
   budgets                Budget[]
   terminalDevices        TerminalDevice[]
+  printers               Printer[]
+  printAgents            PrintAgent[]
+  printJobs              PrintJob[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
   simpleInvoices         SimpleInvoice[]
@@ -400,12 +445,16 @@ model LegalEntity {
 
   // Resolución DIAN propia. Comparte numeración con todos los
   // restaurantes del grupo asignados a este LegalEntity.
-  dianResolution     String?
-  dianResolutionFrom Int?
-  dianResolutionTo   Int?
-  dianResolutionDate DateTime?
-  invoicePrefix      String?
-  invoiceNextNumber  Int       @default(1)
+  dianResolution          String?
+  dianResolutionFrom      Int?
+  dianResolutionTo        Int?
+  dianResolutionDate      DateTime?
+  // Mismos campos "exactos" que Restaurant: lo que va literal al XML.
+  dianResolutionNumber    String?
+  dianResolutionValidFrom DateTime?
+  dianResolutionValidTo   DateTime?
+  invoicePrefix           String?
+  invoiceNextNumber       Int       @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -609,6 +658,12 @@ model CommissionEntry {
 }
 
 enum Role {
+  /// LEGADO. Antes el comensal era un `User` con este rol; hoy el comensal
+  /// vive en el modelo `Diner`, atado a UN comercio (ver el porqué allá).
+  /// El valor no se puede borrar del enum porque en producción todavía hay
+  /// filas viejas que lo tienen, y Postgres no deja quitar un valor en uso.
+  /// No se crean usuarios nuevos con este rol, y `src/auth.ts` les niega el
+  /// login: `User` es SOLO personal.
   customer
   operator
   platform_admin
@@ -643,26 +698,36 @@ enum CommissionStatus {
   reversed
 }
 
+/// PERSONAL de MESAPAY: operator, mesero, kitchen, bar, terminal,
+/// platform_admin, group_admin, comercial. NO comensales — esos viven en
+/// `Diner`, uno por comercio.
+///
+/// Por eso `email` sigue siendo único en TODA la plataforma: un empleado es
+/// una persona de la organización MESAPAY, y su login (`src/auth.ts`,
+/// NextAuth + JWT) resuelve por correo sin más contexto. Esa unicidad
+/// global es la que permite que `findUnique({ where: { email } })` siga
+/// siendo correcto — y es exactamente lo que NO se puede pedirle al
+/// comensal ahora que se registra por comercio.
 model User {
-  id             String      @id @default(cuid())
-  email          String      @unique
-  name           String?
-  phone          String?
   sessionVersion Int @default(0)
-  passwordHash   String
-  role           Role        @default(customer)
-  restaurantId   String?
-  restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  phone        String?
+  passwordHash String
+  /// Sin `@default`: el rol se elige siempre a mano al crear el usuario.
+  /// Antes el default era `customer`, que ya no tiene sentido en una tabla
+  /// que es solo personal — y un default `operator` sería peor (crear un
+  /// usuario sin especificar rol le daría permisos de administración).
+  role         Role
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Mutuamente excluyente con restaurantId. Para users con
   // role=group_admin guardamos el grupo al que pertenecen — desde
   // ahí pueden impersonar cualquiera de sus restaurantes.
-  groupId        String?
-  group          Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  marketingOptIn Boolean     @default(false)
-  welcomedAt     DateTime?
-  createdAt      DateTime    @default(now())
-
-  orders Order[] @relation("OrderCustomer")
+  groupId      String?
+  group        Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
 
   uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
   terminalDevices         TerminalDevice[]
@@ -733,6 +798,168 @@ model User {
   @@index([restaurantId])
   @@index([groupId])
   @@index([managerId])
+}
+
+/// COMENSAL — la cuenta que crea la persona que come, y que pertenece a UN
+/// comercio.
+///
+/// ── Por qué es un modelo aparte y no un `User` con rol ────────────────
+/// Antes el comensal era un `User` con `role=customer` y `email` único en
+/// TODA la plataforma: quien se registraba comiendo en un restaurante
+/// entraba con esa misma cuenta en cualquier otro restaurante MESAPAY.
+/// El dueño del producto decidió lo contrario: cada comercio con su propia
+/// base de comensales. Consecuencia asumida: la misma persona que come en
+/// dos restaurantes se registra dos veces, y su descuento e historial no la
+/// siguen entre locales.
+///
+/// La unicidad, entonces, es COMPUESTA: `(restaurantId, email)` y
+/// `(restaurantId, cedula)`. No se pudo dejar el comensal dentro de `User`
+/// con esas llaves compuestas por una razón concreta de Postgres: en un
+/// índice UNIQUE los NULL no colisionan entre sí, y `platform_admin` /
+/// `group_admin` tienen `restaurantId = null` — un `@@unique([restaurantId,
+/// email])` sobre `User` habría dejado de proteger justo a las cuentas más
+/// privilegiadas. Además habría obligado a cambiar
+/// `findUnique({ where: { email } })` en `src/auth.ts`, que es el login del
+/// personal y no se puede tocar.
+///
+/// Con la tabla separada las dos cosas quedan resueltas por construcción:
+/// `restaurantId` acá es NOT NULL (un comensal SIEMPRE tiene comercio), y
+/// `User.email` sigue siendo único global para el personal.
+///
+/// Beneficio colateral que sí importa: `Order.dinerId` ahora solo puede
+/// apuntar a un comensal. Antes apuntaba a `User`, y en producción la
+/// mayoría de esas filas terminaron señalando al `platform_admin` o a un
+/// mesero que había abierto la carta con su propia sesión.
+model Diner {
+  id String @id @default(cuid())
+
+  /// El comercio dueño de esta cuenta. NOT NULL: es la razón de ser del
+  /// modelo. `Cascade` porque una base de comensales no sobrevive al
+  /// restaurante que la creó.
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  /// Correo. Único DENTRO del comercio: el mismo correo puede tener cuenta
+  /// en varios restaurantes, y cada una es una persona distinta para
+  /// efectos de datos.
+  email String
+
+  /// Cédula / documento. Identificador de login ALTERNO al correo — una
+  /// persona recuerda su documento aunque no recuerde con cuál de sus
+  /// correos se registró.
+  ///
+  /// Se guarda normalizada (solo dígitos/letras, sin puntos ni espacios;
+  /// ver lib/customerIdentity.ts) para que "1.020.304" y "1020304" sean la
+  /// misma persona y el UNIQUE realmente sirva. Nulable porque el operador
+  /// puede dar de alta a alguien sin pedírsela.
+  cedula String?
+
+  name           String?
+  phone          String?
+  passwordHash   String
+  marketingOptIn Boolean   @default(false)
+  welcomedAt     DateTime?
+
+  /// Comensal bloqueado por el comercio: no puede iniciar sesión.
+  /// null = activo.
+  disabledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders     Order[]          @relation("OrderDiner")
+  sessions   DinerSession[]
+  magicLinks DinerMagicLink[]
+  discount   DinerDiscount?
+
+  @@unique([restaurantId, email])
+  @@unique([restaurantId, cedula])
+  @@index([restaurantId])
+}
+
+/// Sesión del COMENSAL, persistida y revocable.
+///
+/// El requisito de producto es que al comensal nunca se le vuelva a pedir
+/// la clave. Con la sesión JWT del staff eso sería peligroso: un JWT es
+/// autocontenido — el servidor no lo consulta — así que un JWT eterno en un
+/// celular perdido conserva acceso PARA SIEMPRE y ni cambiar la contraseña
+/// lo corta. Por eso la sesión del comensal vive acá: el efecto para él es
+/// el mismo (no vence), pero se puede matar en cualquier momento — al
+/// cambiar contraseña, al "cerrar sesión en todos los dispositivos", o si
+/// reportan el celular robado. Pesa todavía más de cara al roadmap: esta
+/// misma sesión va a poder gastar plata (bonos, crédito empresarial).
+///
+/// Las sesiones de operator / mesero / kitchen / bar / platform_admin
+/// siguen siendo el JWT de NextAuth, intactas: conviven las dos estrategias.
+model DinerSession {
+  id String @id @default(cuid())
+
+  /// SHA-256 del token que viaja en la cookie. Igual que en
+  /// PasswordResetToken: un leak de la tabla no entrega sesiones usables.
+  tokenHash String @unique
+
+  dinerId String
+  diner   Diner  @relation(fields: [dinerId], references: [id], onDelete: Cascade)
+
+  /// null = viva. Revocar es un UPDATE, no un DELETE, para conservar el
+  /// rastro de auditoría de desde cuándo y hasta cuándo estuvo abierta.
+  revokedAt DateTime?
+
+  /// Para que el comensal reconozca sus dispositivos en la lista de
+  /// sesiones activas antes de cerrarlos. Recortado a 200 chars.
+  userAgent String?
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([dinerId])
+}
+
+/// Descuento pactado con un comensal.
+///
+/// Ya no lleva `restaurantId`: el comensal pertenece a un solo comercio, así
+/// que el descuento hereda el suyo. Antes la llave era el par
+/// (restaurantId, userId) porque la identidad era global y había que
+/// impedir que el restaurante B regalara plata por una negociación del A;
+/// hoy eso es imposible por construcción.
+///
+/// `active` en vez de borrar: apagar un descuento y volverlo a prender es
+/// una operación comercial normal, y el historial de cuándo se pactó
+/// importa para auditar cuentas viejas.
+model DinerDiscount {
+  id      String @id @default(cuid())
+  dinerId String @unique
+  diner   Diner  @relation(fields: [dinerId], references: [id], onDelete: Cascade)
+
+  /// Porcentaje sobre la cuenta, 1..100.
+  percent Int
+  active  Boolean @default(true)
+  /// Para qué se pactó ("empleado", "socio", "convenio X").
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Enlace de acceso directo ("magic link") enviado por correo al comensal.
+///
+/// Lo que vence es el ENLACE, no la sesión: el token es de un solo uso y
+/// dura minutos, pero una vez canjeado la DinerSession que crea es
+/// permanente. Se guarda hasheado — el token plano solo existe en el correo.
+///
+/// Queda atado al comercio por transitividad (`diner.restaurantId`), y la
+/// pantalla de canje vive bajo `/t/[slug]/cuenta/enlace/[token]`: un enlace
+/// emitido por un restaurante abierto en la URL de otro no sirve.
+model DinerMagicLink {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  dinerId   String
+  diner     Diner     @relation(fields: [dinerId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([dinerId])
 }
 
 /// Token de restablecimiento de contraseña (disparado desde admin).
@@ -933,6 +1160,19 @@ enum PrepStation {
   counter
 }
 
+// Qué IMPRIME una impresora de red. Una térmica en la parrilla y la de
+// la caja son el mismo aparato pero no el mismo papel: la de cocina saca
+// comandas (qué preparar) y la de caja saca la tirilla del cliente (qué
+// se cobró). Sin esta distinción el ruteo sólo podía separar por estación
+// de preparación, y una factura no es una estación de preparación.
+//
+//   comanda → tickets de cocina/barra. Exige `station`.
+//   factura → tirilla del cliente. NO lleva `station`.
+enum PrinterKind {
+  comanda
+  factura
+}
+
 // A "menu" is a top-level grouping of categories — the diner-facing
 // equivalent of a physical menu book. Most restaurants only need one
 // (the "Carta"), but places with extensive wine lists or separate
@@ -1056,13 +1296,18 @@ enum OrderType {
 }
 
 model Order {
+  stockConsumptionAttempts Int @default(0)
+  stockConsumptionRetryAt DateTime?
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   tableId      String
   table        Table      @relation(fields: [tableId], references: [id])
-  customerId   String?
-  customer     User?      @relation("OrderCustomer", fields: [customerId], references: [id])
+  /// Comensal identificado en esta cuenta. Apunta a `Diner` (no a `User`):
+  /// un comensal de ESTE comercio, nunca personal ni el comensal de otro
+  /// local. Nulable — la mayoría de las cuentas son anónimas.
+  dinerId      String?
+  diner        Diner?     @relation("OrderDiner", fields: [dinerId], references: [id], onDelete: SetNull)
 
   status    OrderStatus @default(open)
   shortCode String      @unique
@@ -1080,6 +1325,18 @@ model Order {
   taxCents      Int @default(0)
   totalCents    Int @default(0)
 
+  /// Descuento del comensal identificado en esta cuenta.
+  ///
+  /// `discountPct` es un SNAPSHOT del porcentaje pactado al momento de
+  /// identificarlo: si mañana el restaurante le sube el descuento del 10 al
+  /// 15 %, las cuentas viejas no se reescriben. `discountCents` es el valor
+  /// en pesos, que se recalcula cada vez que cambia el subtotal (si el
+  /// comensal pide otro plato, el descuento tiene que seguirlo).
+  ///
+  /// El mesero puede quitarlo: ambos vuelven a null / 0.
+  discountPct   Int?
+  discountCents Int  @default(0)
+
   servingMode ServingMode @default(asReady)
 
   orderType   OrderType @default(dineIn)
@@ -1092,6 +1349,17 @@ model Order {
   // prellenar el pedido de factura en /done y no volver a pedirlo. Nullable:
   // efectivo/Apple Pay pueden no traerlo. El último cobro con correo gana.
   customerEmail String?
+
+  /// Correo al que hay que mandar la factura GENÉRICA (tirilla a consumidor
+  /// final) cuando la cuenta quede pagada. Lo deja el comensal en el CHECKOUT,
+  /// antes de pagar; `issueRequestedInvoiceOnPaid` la emite y la envía cuando
+  /// el cobro se confirma (efectivo/datáfono pueden confirmarse minutos
+  /// después). Deliberadamente separado de `customerEmail`: ese es el correo
+  /// del titular de la tarjeta y lo pisa cada cobro — tenerlo lleno NO
+  /// significa que alguien haya pedido factura. Null ⇒ nadie pidió la
+  /// genérica. La factura personalizada usa `InvoiceRequest`, que sí guarda
+  /// nombre/documento/dirección.
+  simpleInvoiceEmail String?
 
   needsWaiter    Boolean   @default(false)
   waiterCalledAt DateTime?
@@ -1126,6 +1394,7 @@ model Order {
   @@index([restaurantId, status])
   @@index([tableId])
   @@index([restaurantId, needsWaiter])
+  @@index([dinerId])
 }
 
 model Round {
@@ -3068,4 +3337,268 @@ model FinancialOperation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])
+}
+
+// ===========================================================================
+// COLA DE IMPRESIÓN — comandas a impresoras térmicas de red (ESC/POS 9100)
+// ===========================================================================
+//
+// El problema que resuelve: hoy la comanda se imprime desde una pestaña de
+// Chrome abierta en un PC de la cocina (/operator/print/[station]). Esa
+// pestaña escucha el bus SSE y, si se oculta (pantalla bloqueada, Chrome
+// minimizado, cambio de pestaña), el EventSource se cierra y los eventos
+// `ticket.printable` de ese rato se PIERDEN — la comanda no se imprime
+// nunca y nadie se entera. Tampoco hay reimpresión, ni acuse, ni registro.
+//
+// El reemplazo: un programa que corre como servicio en un PC Windows del
+// local (el "agente") le pide trabajos a MESAPAY por HTTP, abre un socket
+// TCP a la IP de la impresora térmica y le escribe los bytes. Nada se
+// pierde porque la cola vive en la DB: si el PC estuvo apagado, al volver
+// pide y recibe lo pendiente.
+//
+// El agente es un PUENTE TONTO a propósito: MESAPAY renderiza los bytes
+// ESC/POS completos (src/lib/escpos) y el agente sólo los escribe al
+// socket. Así cambiar el diseño de la comanda NO obliga a actualizar el
+// .exe instalado en cada cocina.
+//
+// Los dos caminos CONVIVEN: el evento SSE se sigue emitiendo igual, y un
+// restaurante sin impresoras registradas se comporta exactamente como
+// antes de esta feature.
+
+/// Estado de un trabajo de impresión. El ciclo feliz es
+/// pending → delivered → printed. `delivered` es "el agente ya se lo
+/// llevó pero todavía no confirmó que salió por la impresora": es el
+/// estado donde vive la incertidumbre (el PC se pudo apagar entre que
+/// recibió los bytes y que la impresora los escupió), y por eso un
+/// trabajo `delivered` vuelve a entregarse pasado un rato — ver
+/// CLAIM_RETRY_MS en src/lib/print/claim.ts.
+enum PrintJobStatus {
+  pending
+  delivered
+  printed
+  failed
+}
+
+/// Una impresora térmica de red del local. Ethernet/WiFi, hablando
+/// ESC/POS crudo por TCP al puerto 9100 (RAW / JetDirect), que es lo
+/// que traen absolutamente todas las térmicas del mercado.
+///
+/// Por qué host+puerto y no "la impresora predeterminada del sistema":
+/// con la pestaña de Chrome la impresora la elegía el sistema operativo,
+/// así que un restaurante con cocina + barra necesitaba DOS PCs. Acá un
+/// solo agente le habla a N impresoras por IP.
+model Printer {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  /// Qué agente reporta esta impresora. La IP de la impresora se escribe
+  /// en la config del PROGRAMA, no en la web: quien instala está parado
+  /// frente a la impresora y es el único que puede resolver un cambio de
+  /// IP del router. El agente publica su set con POST /printers y la web
+  /// sólo lo MUESTRA — es diagnóstico y soporte, no un editor.
+  ///
+  /// Nullable porque el modelo admite impresoras sin agente (creadas a
+  /// mano en soporte); el flujo normal siempre trae agentId.
+  agentId String?
+  agent   PrintAgent? @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// El identificador que usa el programa para ESTA impresora en su
+  /// config local ("cocina", "barra1"). Es la llave del upsert: el mismo
+  /// localKey actualiza la fila en vez de crear otra, así que reinstalar
+  /// el agente o cambiarle la IP a la impresora no duplica nada ni
+  /// desprende los PrintJob viejos.
+  localKey String?
+
+  /// Rótulo humano — "Cocina caliente", "Barra cócteles". Es lo que ve
+  /// el operador en la pantalla de configuración y lo que viaja en el
+  /// job para que el agente lo loguee.
+  label String
+  /// IP o hostname en la red del local. No se valida como IP a
+  /// propósito: hay locales que le ponen nombre DNS a la impresora.
+  host  String
+  port  Int    @default(9100)
+
+  /// Qué imprime: comandas de cocina/barra o la tirilla del cliente.
+  /// Default `comanda` para que las filas que ya existen (todas de
+  /// cocina/barra) sigan significando exactamente lo mismo sin tocarlas.
+  kind PrinterKind @default(comanda)
+
+  /// A qué estación sirve. Reusa el mismo enum que Category/OrderItem
+  /// para que el ruteo de la comanda sea el snapshot que ya existe en
+  /// OrderItem.station — no hay una segunda noción de "estación".
+  ///
+  /// Opcional desde que existe `kind`: una impresora de FACTURA no
+  /// prepara nada, así que no tiene estación. En una de tipo `comanda`
+  /// es obligatoria — sin estación no habría a qué ruta engancharla y
+  /// no recibiría nunca un trabajo. Eso se valida al registrar.
+  station       PrepStation?
+  /// Sólo cuando station=bar y el comercio definió Restaurant.barSubStations.
+  /// null = impresora "de toda la barra": recibe TODO lo que va al bar,
+  /// tenga o no sub-estación. Con valor = sólo recibe esa sub-estación.
+  /// Es la misma semántica que ya usa /operator/print/bar?sub=…
+  barSubStation String?
+
+  /// Ancho del papel de ESTA impresora. null = hereda
+  /// Restaurant.printPaperWidthMm. Existe porque un local puede tener la
+  /// de cocina en 80mm y una de 58mm en la barra, y el ancho decide
+  /// cuántas columnas entran (48 vs 32) — o sea, el corte de línea.
+  paperWidthMm Int?
+
+  /// Apagar una impresora sin borrarla (se dañó, se la llevaron a
+  /// reparar) sin perder el historial de sus trabajos.
+  active Boolean @default(true)
+
+  jobs PrintJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Un localKey por agente. En Postgres varios NULL no chocan entre sí,
+  /// así que las impresoras sin agente (soporte) siguen siendo posibles.
+  @@unique([agentId, localKey])
+  @@index([restaurantId, active])
+  @@index([restaurantId, station, active])
+  /// El encolado de la factura busca por acá: "las impresoras de factura
+  /// activas de este comercio". Corre en el momento del cobro, que es el
+  /// peor momento para hacer un scan.
+  @@index([restaurantId, kind, active])
+}
+
+/// El programa que corre como servicio en el PC Windows del local. Un
+/// local normalmente tiene UNO (le habla a todas sus impresoras por IP),
+/// pero se admiten varios: dos sedes en la misma DB, o un PC de respaldo.
+///
+/// Ojo con "varios agentes del mismo restaurante": los trabajos se
+/// entregan por restaurante, no por agente, así que dos agentes vivos
+/// del mismo local se REPARTEN los trabajos (el primero que pide se lo
+/// lleva). Eso es lo deseable — no queremos imprimir dos veces — pero
+/// significa que un agente de respaldo debe estar apagado, no en
+/// paralelo.
+model PrintAgent {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  label String
+
+  /// SHA-256 hex del token, NUNCA el token en claro — mismo criterio que
+  /// DinerSession.tokenHash / PasswordResetToken: un leak de la tabla no
+  /// puede dar acceso. El token se muestra UNA vez al generarlo y se
+  /// pega en el instalador del agente.
+  tokenHash String  @unique
+  /// Últimos 4 caracteres del token, sólo para que la pantalla de
+  /// configuración pueda decir "…a9f3" y el operador sepa cuál es cuál.
+  /// No sirve para autenticar.
+  tokenTail String?
+
+  /// Para poder decir "el agente de cocina no responde hace 12 minutos".
+  /// Lo refresca tanto el latido como el pedido de trabajos.
+  lastSeenAt   DateTime?
+  /// Versión del .exe que reportó en el último latido — para saber a
+  /// quién hay que actualizar cuando algo cambie del lado del agente.
+  agentVersion String?
+  /// IP desde la que llamó por última vez (la pública del local). Sirve
+  /// para soporte: "¿estás llamando desde el local o desde tu casa?".
+  lastIp       String?
+
+  /// Revocar en vez de borrar: si se filtró el token se marca acá y el
+  /// agente deja de autenticar, sin perder el rastro de que existió.
+  revokedAt DateTime?
+
+  /// Las impresoras que ESTE agente reportó con POST /print-agent/printers.
+  printers Printer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, revokedAt])
+}
+
+/// Un trabajo = una comanda para UNA impresora. Si una ronda va a dos
+/// impresoras (cocina tiene dos térmicas) se crean dos trabajos.
+///
+/// ── Por qué guardamos el PAYLOAD y no los bytes ya renderizados ──────
+/// `payload` guarda el documento de la comanda ya resuelto (contenido +
+/// textos traducidos), y los bytes ESC/POS se renderizan al momento de
+/// entregarlos al agente. Razones:
+///   1. Reimprimir un ticket de hace un rato toma el renderer ACTUAL, así
+///      que arreglar un bug de corte de línea / code page arregla también
+///      las reimpresiones — no quedan bytes viejos fosilizados en la DB.
+///   2. El mismo payload sirve para dos impresoras de distinto ancho
+///      (48 vs 32 columnas) sin duplicar contenido: el ancho lo pone la
+///      impresora al renderizar.
+///   3. Es auditable: un `SELECT payload` dice qué se mandó a imprimir.
+///      Un bytea con ESC/POS no se lee sin herramientas.
+/// Lo que SÍ queda congelado en el payload es el CONTENIDO (nombres de
+/// platos y notas al momento de enviar a cocina) — eso es un snapshot
+/// deliberado, igual que OrderItem.nameSnapshot: editar el menú después
+/// no debe cambiar lo que la cocina ya vio.
+model PrintJob {
+  id String @id @default(cuid())
+
+  /// Denormalizado desde la impresora. Es la columna sobre la que se
+  /// filtra CADA consulta del agente: un token de un restaurante nunca
+  /// puede ver trabajos de otro, y no queremos que esa garantía dependa
+  /// de acordarse de hacer el join.
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  printerId    String
+  printer      Printer    @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  status PrintJobStatus @default(pending)
+
+  /// Qué clase de documento es: "kitchen_ticket" (la comanda),
+  /// "customer_invoice" (la tirilla del cliente) o "printer_test". Es
+  /// String y no enum justamente para que sumar el siguiente (tirilla de
+  /// cierre de turno) no cueste una migración de enum.
+  kind String @default("kitchen_ticket")
+
+  /// El documento a imprimir, con TODO ya resuelto en su idioma:
+  ///   { v: 1, ticket:  ThermalTicket  } → src/lib/escpos/ticket.ts
+  ///   { v: 1, invoice: ThermalInvoice } → src/lib/escpos/invoice.ts
+  /// Cuál de los dos es se deduce de la forma del sobre, no de `kind`:
+  /// un `kind` nuevo con un documento conocido sigue imprimiéndose.
+  payload Json
+
+  /// Cuántas veces se le ENTREGÓ al agente. Sube en cada entrega, no en
+  /// cada intento de socket del agente (eso el servidor no lo ve). El
+  /// tope (MAX_ATTEMPTS) evita que un ticket que rompe la impresora se
+  /// reintente mil veces.
+  attempts    Int       @default(0)
+  lastError   String?
+  deliveredAt DateTime?
+  printedAt   DateTime?
+  failedAt    DateTime?
+
+  /// No volver a entregarlo antes de esta hora. Lo pone el acuse fallido
+  /// para dar un respiro creciente entre reintentos: sin esto, con la
+  /// impresora desconectada el agente (que consulta cada pocos segundos)
+  /// quemaría los 5 intentos en medio minuto y mataría la comanda antes
+  /// de que a nadie le dé tiempo de volver a enchufarla.
+  /// null = entregable ya.
+  nextAttemptAt DateTime?
+
+  /// De dónde salió, para reimprimir y auditar ("esta mesa jura que
+  /// nunca llegó su comanda"). Se conserva aunque la orden se borre:
+  /// son String sueltos, no FKs, porque el valor de auditoría del job
+  /// sobrevive al borrado de la orden.
+  orderId String?
+  roundId String?
+
+  /// Clave de idempotencia del encolado: `${roundId}:${station}:${sub}`.
+  /// El KDS marca los platos UNO POR UNO, así que la misma ronda dispara
+  /// la transición varias veces; sin esto la cocina recibiría cinco
+  /// copias de la misma comanda. Las REIMPRESIONES manuales van con null
+  /// (en Postgres varios NULL no chocan contra un unique), que es
+  /// justamente lo que se quiere: reimprimir a propósito sí se permite.
+  dedupeKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([printerId, dedupeKey])
+  @@index([restaurantId, status, createdAt])
+  @@index([printerId, status])
+  @@index([restaurantId, roundId])
 }

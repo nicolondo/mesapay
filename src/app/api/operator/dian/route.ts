@@ -3,31 +3,49 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { encryptSecret } from "@/lib/dian/crypto";
-import { dianConfigStatus, resolveEmisor, upsertDianConfig } from "@/lib/dian/config";
+import {
+  dianConfigStatus,
+  emisorView,
+  lastTestSetDocument,
+  resolveEmisor,
+  upsertDianConfig,
+} from "@/lib/dian/config";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["einvoicing"];
 
+/**
+ * El GET no lleva gate de módulo: la misma pantalla sirve la resolución de
+ * numeración, que ahora es su única superficie de carga y que también
+ * necesitan los comercios que sólo imprimen tirilla.
+ * `status.einvoicingEnabled` le dice al cliente qué secciones puede
+ * mostrar. La escritura de credenciales (PATCH) y todo lo que toca la
+ * DIAN sí siguen gateados.
+ */
+const READ_GATE: ModuleSlug[] = [];
+
 /** Estado de la configuración DIAN — SIN secretos (vista para el cliente). */
 async function GETHandler() {
-  const ctx = await getErpContext(GATE);
+  const ctx = await getErpContext(READ_GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   const { emisor, status } = await dianConfigStatus(ctx.restaurantId);
   return NextResponse.json({
     status,
-    emisor: emisor
-      ? {
-          kind: emisor.ref.kind,
-          legalName: emisor.legalName,
-          taxId: emisor.taxId,
-          resolution: emisor.resolution,
-          invoicePrefix: emisor.invoicePrefix,
-        }
-      : null,
+    emisor: emisor ? emisorView(emisor) : null,
+    // Último documento del SET DE PRUEBAS — sólo mientras el comercio
+    // siga en habilitación: ahí sí necesita ver por qué la DIAN rechazó y
+    // que el resultado sobreviva a recargar la página. Ya en producción
+    // ese documento es historia de una corrida vieja y no dice nada del
+    // estado actual: mostrarlo pintaba un panel rojo de "documento
+    // rechazado" debajo de la insignia "Habilitado" y asustaba al dueño.
+    lastDocument:
+      status.einvoicingEnabled && status.environment === "habilitacion"
+        ? await lastTestSetDocument(ctx.restaurantId)
+        : null,
     // Aviso temprano si el server no puede cifrar secretos.
     masterKeyReady: /^[0-9a-fA-F]{64}$/.test(process.env.DIAN_MASTER_KEY ?? ""),
   });

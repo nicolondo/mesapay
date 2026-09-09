@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { canStaffSignIn } from "@/lib/staffLogin";
 import type { Role } from "@prisma/client";
 
 const credentialsSchema = z.object({
@@ -75,8 +76,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!user) return null;
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) return null;
-        // Block login for disabled users (e.g. deactivated comerciales).
-        if (user.disabledAt != null) return null;
+        // Bloquea usuarios desactivados (p.ej. comerciales dados de baja) y
+        // las filas legado con role=customer: `User` es SOLO personal desde
+        // que el comensal se registra por comercio y vive en `Diner`. La
+        // regla está en lib/staffLogin.ts para poder probarla sin NextAuth.
+        if (!canStaffSignIn(user)) return null;
         return {
           id: user.id,
           sessionVersion: user.sessionVersion,

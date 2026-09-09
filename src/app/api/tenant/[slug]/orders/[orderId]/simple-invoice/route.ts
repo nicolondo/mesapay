@@ -22,8 +22,15 @@ const bodySchema = z.object({
  * y/o enviar por correo. La numeración + snapshot viven en el helper
  * `issueSimpleInvoice` (fuente única, compartida con la factura personalizada).
  *
- * No requiere auth — el cliente acaba de pagar y eligió mandarse la factura.
- * La validación de que la orden esté paga (en el helper) es la barrera.
+ * No requiere auth — el cliente está pagando (o acaba de pagar) y eligió
+ * mandarse la factura. La barrera de que la orden esté paga vive en el helper.
+ *
+ * Se puede pedir ANTES de pagar (es lo que hace el checkout). En ese caso no
+ * hay nada que emitir todavía, así que guardamos la intención en
+ * `Order.simpleInvoiceEmail` y respondemos `deferred: true`;
+ * `issueRequestedInvoiceOnPaid` emite y envía cuando el cobro se confirma.
+ * Ojo: sin pago no hay tirilla que imprimir, así que en ese camino el correo
+ * deja de ser opcional — sin él no habría nada que hacer después.
  */
 async function POSTHandler(
   req: Request,
@@ -41,11 +48,9 @@ async function POSTHandler(
   const body = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    return NextResponse.json(
-      { error: "invalid", message: first?.message ?? "Email inválido" },
-      { status: 400 },
-    );
+    // Sin `message`: el texto que ve el comensal lo pone el cliente desde su
+    // catálogo i18n (mandarlo desde acá lo dejaba en español para todos).
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
   const result = await issueSimpleInvoice({
@@ -55,14 +60,20 @@ async function POSTHandler(
   });
   if (!result.ok) {
     if (result.error === "order_not_paid") {
-      return NextResponse.json(
-        {
-          error: "order_not_paid",
-          message:
-            "Solo puedes pedir factura una vez confirmado el pago de la orden.",
-        },
-        { status: 409 },
-      );
+      // Pedida durante el checkout: guardamos a dónde mandarla y salimos.
+      // El `updateMany` va acotado por restaurantId para no escribir sobre la
+      // orden de otro comercio si alguien juega con el slug.
+      if (!parsed.data.email) {
+        return NextResponse.json({ error: "email_required" }, { status: 400 });
+      }
+      const touched = await db.order.updateMany({
+        where: { id: orderId, restaurantId: tenant.id },
+        data: { simpleInvoiceEmail: parsed.data.email },
+      });
+      if (touched.count === 0) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true, deferred: true });
     }
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

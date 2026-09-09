@@ -10,6 +10,7 @@ import {
   MESERO_SHIFT_WITHOUT_LOCAL,
 } from "@/lib/staffPolicies";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { shiftPolicyAllowedWith } from "@/lib/chargeControl";
 
 const putBody = z.object({
   tipPolicy: z.enum(TIP_POLICIES).optional(),
@@ -26,6 +27,9 @@ const putBody = z.object({
   // nombre configurable. compLabel vacío ⇒ null (usa el default de i18n).
   compEnabled: z.boolean().optional(),
   compLabel: z.string().trim().max(40).optional(),
+  // Control de caja: sólo el administrador inicia el cobro. Implica
+  // shiftPolicy = "global" (ver abajo).
+  adminOnlyCharge: z.boolean().optional(),
 });
 
 /**
@@ -70,8 +74,52 @@ async function PUTHandler(req: Request) {
       meseroShiftWithoutLocal: true,
       compEnabled: true,
       compLabel: true,
+      adminOnlyCharge: true,
     },
   });
+
+  // ── Control de caja: coherencia con la política de turnos ──────────────
+  //
+  // "Solo el administrador cobra" implica turno ÚNICO DEL LOCAL: si nadie
+  // más que el dueño toca la plata, un turno por mesero no tiene contra qué
+  // cuadrar (ningún cobro queda atado a un mesero, su arqueo daría siempre
+  // $0). Estado resultante del PUT = lo que mande el cliente, o lo guardado.
+  const nextAdminOnlyCharge =
+    parsed.data.adminOnlyCharge ?? before?.adminOnlyCharge ?? false;
+
+  // Rechazamos la combinación contradictoria en vez de "arreglarla" en
+  // silencio: si el dueño eligió turno por mesero queremos que vea por qué
+  // no se aplicó, no que se le cambie a la espalda.
+  if (
+    parsed.data.shiftPolicy === "by_waiter" &&
+    !shiftPolicyAllowedWith("by_waiter", nextAdminOnlyCharge)
+  ) {
+    return NextResponse.json(
+      { error: "shift_policy_locked_by_admin_charge" },
+      { status: 409 },
+    );
+  }
+
+  // Transición peligrosa: encender el control con turnos de MESERO
+  // abiertos. Cerrarlos a la fuerza descuadraría el arqueo (nadie declaró
+  // el efectivo que tienen en el bolsillo) y dejarlos vivos en modo
+  // "global" los volvería huérfanos: no aparecen en el cierre del local ni
+  // se los puede cerrar desde la PWA, porque la política ya no es
+  // by_waiter. La salida defendible es NO dejar encender hasta que cada
+  // mesero cierre el suyo con su plata en la mano.
+  const turningOn =
+    parsed.data.adminOnlyCharge === true && before?.adminOnlyCharge !== true;
+  if (turningOn) {
+    const openMeseroShifts = await db.shift.count({
+      where: { restaurantId, status: "open", userId: { not: null } },
+    });
+    if (openMeseroShifts > 0) {
+      return NextResponse.json(
+        { error: "open_mesero_shifts", count: openMeseroShifts },
+        { status: 409 },
+      );
+    }
+  }
 
   await db.restaurant.update({
     where: { id: restaurantId },
@@ -79,9 +127,15 @@ async function PUTHandler(req: Request) {
       ...(parsed.data.tipPolicy !== undefined && {
         tipPolicy: parsed.data.tipPolicy,
       }),
-      ...(parsed.data.shiftPolicy !== undefined && {
-        shiftPolicy: parsed.data.shiftPolicy,
-      }),
+      // Con el control de caja activo la política queda clavada en
+      // "global", venga o no shiftPolicy en el body. Así el dato en base
+      // es coherente y ningún lector (cierre, arqueo, PWA del mesero)
+      // tiene que acordarse de resolver la implicación.
+      ...(nextAdminOnlyCharge
+        ? { shiftPolicy: "global" }
+        : parsed.data.shiftPolicy !== undefined && {
+            shiftPolicy: parsed.data.shiftPolicy,
+          }),
       ...(parsed.data.walkoutDangerMinutes !== undefined && {
         walkoutDangerMinutes: parsed.data.walkoutDangerMinutes,
       }),
@@ -96,6 +150,9 @@ async function PUTHandler(req: Request) {
       }),
       ...(parsed.data.compLabel !== undefined && {
         compLabel: parsed.data.compLabel || null,
+      }),
+      ...(parsed.data.adminOnlyCharge !== undefined && {
+        adminOnlyCharge: parsed.data.adminOnlyCharge,
       }),
     },
   });

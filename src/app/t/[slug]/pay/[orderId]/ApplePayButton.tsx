@@ -1,4 +1,5 @@
 "use client";
+import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -46,33 +47,42 @@ export function ApplePayButton({
   onTokenized: (token: string) => void;
 }) {
   const t = useTranslations("wait");
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const canUseApplePay = useApplePaySupport();
+  const [sdkFailed, setSdkFailed] = useState(false);
+  const supported = canUseApplePay && !sdkFailed;
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const kushkiRef = useRef<unknown>(null);
 
-  // Detectar soporte Apple Pay en el browser. Solo Safari en
-  // iOS/macOS expone ApplePaySession; otros browsers el componente
-  // se mantiene oculto.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const win = window as unknown as {
-      ApplePaySession?: { canMakePayments?: () => boolean };
-    };
-    const hasSession = !!win.ApplePaySession;
-    const canMake = hasSession
-      ? !!win.ApplePaySession?.canMakePayments?.()
-      : false;
-    // Log de diagnóstico — visible en DevTools del diner durante
-    // setup. Removible cuando confirmemos que funciona en prod.
-    console.log("[apple-pay] browser check", {
-      hasApplePaySession: hasSession,
-      canMakePayments: canMake,
-      kushkiMode,
-      hasPublicKey: !!publicKey,
-    });
-    setSupported(canMake);
-  }, [kushkiMode, publicKey]);
+  function requestToken() {
+    if (!kushkiRef.current) return;
+    setErr(null);
+    // amount va en pesos enteros (43890), no en centavos. Kushki
+    // arma el ApplePaySession con esto y muestra el total en el
+    // sheet nativo.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (kushkiRef.current as any).requestApplePayToken(
+      {
+        countryCode: currency === "MXN" ? "MX" : "CO",
+        currencyCode: currency,
+        displayName,
+        amount: Math.round(amountCents / 100),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (resp: any) => {
+        if (resp && typeof resp.token === "string" && resp.token.length > 0) {
+          onTokenized(resp.token);
+        } else {
+          console.error("[apple-pay] token error", resp);
+          setErr(resp?.message ?? t("applePayError"));
+        }
+      },
+      () => {
+        // onCancel — el diner cerró el sheet. No hacemos nada.
+      },
+    );
+  }
+
 
   // Cargar el SDK + iniciar el botón cuando el browser sea
   // compatible y tengamos la public key del comercio.
@@ -125,12 +135,12 @@ export function ApplePayButton({
             );
             if (!alive) return;
             setReady(false);
-            setSupported(false);
+            setSdkFailed(true);
           },
         );
       } catch (e) {
         console.error("[apple-pay] sdk load failed", e);
-        if (alive) setSupported(false);
+        if (alive) setSdkFailed(true);
       }
     })();
     return () => {
@@ -138,35 +148,6 @@ export function ApplePayButton({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported, publicKey, kushkiMode]);
-
-  function requestToken() {
-    if (!kushkiRef.current) return;
-    setErr(null);
-    // amount va en pesos enteros (43890), no en centavos. Kushki
-    // arma el ApplePaySession con esto y muestra el total en el
-    // sheet nativo.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (kushkiRef.current as any).requestApplePayToken(
-      {
-        countryCode: currency === "MXN" ? "MX" : "CO",
-        currencyCode: currency,
-        displayName,
-        amount: Math.round(amountCents / 100),
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (resp: any) => {
-        if (resp && typeof resp.token === "string" && resp.token.length > 0) {
-          onTokenized(resp.token);
-        } else {
-          console.error("[apple-pay] token error", resp);
-          setErr(resp?.message ?? t("applePayError"));
-        }
-      },
-      () => {
-        // onCancel — el diner cerró el sheet. No hacemos nada.
-      },
-    );
-  }
 
   // Mientras no sabemos soporte: nada. Si no hay soporte: nada.
   if (supported !== true) return null;
@@ -181,9 +162,9 @@ export function ApplePayButton({
         style={
           {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ["--apple-pay-button-width" as any]: "100%",
-            ["--apple-pay-button-height" as any]: "48px",
-            ["--apple-pay-button-border-radius" as any]: "9999px",
+            "--apple-pay-button-width": "100%",
+            "--apple-pay-button-height": "48px",
+            "--apple-pay-button-border-radius": "9999px",
             display: ready ? "block" : "none",
             opacity: busy ? 0.6 : 1,
             pointerEvents: busy ? "none" : "auto",

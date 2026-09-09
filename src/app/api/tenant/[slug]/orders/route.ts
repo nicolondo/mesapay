@@ -6,13 +6,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getDiner } from "@/lib/dinerSession";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import {
   computeSelectionsPriceDelta,
   normalizeModifiers,
 } from "@/lib/modifiers";
+import {
+  getActiveDiscountPct,
+} from "@/lib/dinerDiscount";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -46,10 +49,17 @@ async function POSTHandler(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const session = await auth();
 
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+
+  // Comensal con sesión EN ESTE COMERCIO. El tenant se resuelve primero a
+  // propósito: la identidad del comensal no existe fuera de un restaurante.
+  // Antes esto era `getViewer()`, que caía al JWT de NextAuth y terminaba
+  // enlazando la cuenta al mesero o al platform_admin que había abierto la
+  // carta con su propia sesión — en producción la mayoría de las órdenes
+  // "con comensal" eran justamente eso.
+  const diner = await getDiner(tenant.id);
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -77,6 +87,12 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
+  // Descuento del comensal identificado. Se resuelve fuera de la
+  // transacción (es una lectura) y se aplica adentro. El descuento cuelga
+  // del comensal, y el comensal de un solo comercio: el pactado en otro
+  // local no llega hasta acá ni por accidente.
+  const dinerDiscountPct = diner ? await getActiveDiscountPct(diner.id) : null;
+
   const result = await db.$transaction(async (tx) => {
     if (parsed.data.orderId) await lockOrder(tx, parsed.data.orderId);
     let order = parsed.data.orderId
@@ -98,11 +114,14 @@ async function POSTHandler(
         data: {
           restaurantId: tenant.id,
           tableId: table.id,
-          customerId: session?.user?.id,
+          dinerId: diner?.id,
           status: "open",
           shortCode: shortCode(),
           servingMode,
           locale: await getLocale(),
+          // Snapshot del porcentaje pactado al abrir la cuenta. El valor en
+          // pesos se calcula abajo, cuando ya se conoce el subtotal.
+          discountPct: dinerDiscountPct,
         },
       });
     }

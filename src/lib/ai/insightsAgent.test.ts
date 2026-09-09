@@ -1,11 +1,13 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolContext } from "./tools/types";
 import { describe, it, expect, vi } from "vitest";
 import { runInsightsAgent } from "./insightsAgent";
 
-function fakeClient(responses: any[]) {
+function fakeClient(responses: unknown[]) {
   let i = 0;
-  return { messages: { create: vi.fn(async () => responses[i++]) } } as any;
+  return { messages: { create: vi.fn(async (_input: Anthropic.Messages.MessageCreateParams) => responses[i++] as Anthropic.Messages.Message) } };
 }
-const ctx = { scope: { kind: "restaurant", restaurantId: "r1" }, timezone: "America/Bogota" } as any;
+const ctx = { scope: { kind: "restaurant", restaurantId: "r1" }, timezone: "America/Bogota" } satisfies ToolContext;
 
 describe("runInsightsAgent", () => {
   it("ejecuta tool y devuelve el texto final", async () => {
@@ -17,7 +19,7 @@ describe("runInsightsAgent", () => {
     ]);
     const exec = vi.fn(async () => ({ dishes: [{ name: "Taco", qty: 9 }] }));
     const out = await runInsightsAgent({
-      client, model: "claude-x", system: "sys", messages: [{ role: "user", content: "top?" }],
+      client: client as unknown as Anthropic, model: "claude-x", system: "sys", messages: [{ role: "user", content: "top?" }],
       ctx, executeTool: exec, maxIterations: 6,
     });
     expect(exec).toHaveBeenCalledWith("top_dishes", expect.any(Object), ctx);
@@ -30,9 +32,9 @@ describe("runInsightsAgent", () => {
     const finalMsg = { stop_reason: "end_turn", content: [{ type: "text", text: "Con lo disponible, tu mejor categoría es Pizzas." }] };
     const client = fakeClient([toolMsg, toolMsg, finalMsg]);
     const out = await runInsightsAgent({
-      client, model: "m", system: "s", messages: [{ role: "user", content: "x" }],
+      client: client as unknown as Anthropic, model: "m", system: "s", messages: [{ role: "user", content: "x" }],
       ctx, executeTool: vi.fn(async () => ({})),
-      tools: [{ name: "top_dishes", description: "d", input_schema: { type: "object" } }] as any,
+      tools: [{ name: "top_dishes", description: "d", input_schema: { type: "object" } }],
       maxIterations: 2,
     });
     // 2 iteraciones de tool + 1 llamada final de cierre

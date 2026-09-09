@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
+import { getDiner } from "@/lib/dinerSession";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { demoPaymentsAllowed } from "@/lib/demoPayments";
 import {
   formatNextOpening,
   pickupStatus,
@@ -100,10 +101,13 @@ export default async function PickupPage({
 
   const menuTags = await getRestaurantMenuTags(tenant.id);
 
-  const session = await auth();
-  const customer = session?.user?.id
-    ? await db.user.findUnique({
-        where: { id: session.user.id },
+  // Prellenado del pedido para llevar con los datos del comensal DE ESTE
+  // comercio. Antes salía del JWT de NextAuth, así que a un mesero con
+  // sesión abierta le prellenaba el pedido con SU nombre.
+  const viewer = await getDiner(tenant.id);
+  const customer = viewer
+    ? await db.diner.findUnique({
+        where: { id: viewer.id },
         select: { name: true, phone: true },
       })
     : null;
@@ -195,6 +199,7 @@ export default async function PickupPage({
           tenant.kushkiOnboardingStatus === "active",
         kushkiPublicKey: tenant.kushkiPublicKey,
         isMockMode: (await getRestaurantKushkiMode(tenant)) === "mock",
+        demoPaymentsEnabled: demoPaymentsAllowed(),
       }}
     />
   );

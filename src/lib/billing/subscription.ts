@@ -200,10 +200,19 @@ export async function applyRecurringCharge(args: {
  */
 export async function markRecurringChargeFailed(
   restaurantId: string,
-): Promise<void> {
-  await db.billingSubscription.update({
-    where: { restaurantId },
-    data: { status: "past_due", failedAttempts: { increment: 1 } },
+  eventKey: string,
+): Promise<boolean> {
+  return db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Restaurant" WHERE id = ${restaurantId} FOR UPDATE`;
+    const claim = await tx.kushkiWebhookEvent.createMany({ data: [{
+      eventId: `subscription:failed:${restaurantId}:${eventKey}`,
+      type: "subscription.charge.failed", restaurantId, payload: {}, processedAt: new Date(),
+    }], skipDuplicates: true });
+    if (!claim.count) return false;
+    await tx.billingSubscription.update({
+      where: { restaurantId }, data: { status: "past_due", failedAttempts: { increment: 1 } },
+    });
+    return true;
   });
 }
 

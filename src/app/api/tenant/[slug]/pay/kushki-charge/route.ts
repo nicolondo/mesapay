@@ -4,6 +4,7 @@ import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/pa
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { welcomeIfFirstTime } from "@/lib/mailer";
@@ -13,6 +14,9 @@ import {
 } from "@/lib/payments";
 import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * Token-based charge through Kushki. Maneja DOS variantes:
@@ -65,6 +69,16 @@ async function POSTHandler(
       { error: "tenant_not_onboarded" },
       { status: 409 },
     );
+  }
+
+  // Control de caja: el mesero tampoco puede cobrar con tarjeta desde su
+  // PWA (PayFlow op=1) cuando el comercio activó "solo el administrador
+  // cobra". El comensal pagando desde su QR llega sin sesión y pasa.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
   }
 
   const body = await req.json().catch(() => null);
@@ -166,10 +180,19 @@ async function POSTHandler(
   if (rawEmail?.includes("@")) await db.order.update({ where: { id: order.id }, data: { customerEmail: rawEmail } });
   const settled = await db.order.findUniqueOrThrow({ where: { id: order.id }, select: { status: true } });
   const result = { fullyPaid: settled.status === "paid" };
-  if (result.fullyPaid && order.customerId) {
-    welcomeIfFirstTime(order.customerId, order.locale).catch((err) =>
+  if (result.fullyPaid && order.dinerId) {
+    welcomeIfFirstTime(order.dinerId, order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
+  }
+
+  // Factura pedida en el checkout → se emite y se envía con el cobro ya
+  // aprobado.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: tenant.id,
+      orderId: order.id,
+    });
   }
 
   return NextResponse.json({

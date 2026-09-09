@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { MunicipioAutocomplete } from "@/components/MunicipioAutocomplete";
 
+// Identidad ya NO edita la resolución de numeración. Vivía acá (texto
+// libre + rango + fecha + prefijo + consecutivo) Y en Facturación DIAN
+// (número + vigencia), y los dos números podían diferir sin que nadie lo
+// viera: un comercio tenía 18764094877213 cargado acá mientras el XML que
+// se le mandaba a la DIAN llevaba 18760000001. Ahora la única superficie
+// es /operator/settings/facturacion-dian.
 type Identidad = {
   // Nombre comercial — display público + sender de los correos
   // ("NOMBRE · MESAPAY <facturas@mesapay.co>"). Distinto de
@@ -13,21 +21,32 @@ type Identidad = {
   taxId: string | null;
   legalAddress: string | null;
   legalCity: string | null;
+  /** Código DANE del municipio (5 dígitos). Solo Colombia. */
+  legalCityCode: string | null;
   legalPhone: string | null;
-  dianResolution: string | null;
-  dianResolutionFrom: number | null;
-  dianResolutionTo: number | null;
-  dianResolutionDate: string | null; // YYYY-MM-DD
-  invoicePrefix: string | null;
-  // Próximo consecutivo a emitir. Default 1; el operador puede
-  // ajustar si ya venía emitiendo en otra plataforma o quiere
-  // arrancar desde dianResolutionFrom.
-  invoiceNextNumber: number;
 };
 
-export function IdentidadClient({ initial }: { initial: Identidad }) {
+export function IdentidadClient({
+  initial,
+  usaDane,
+  cityHint,
+}: {
+  initial: Identidad;
+  /** Colombia (o país sin definir): la ciudad se elige del catálogo DANE. */
+  usaDane: boolean;
+  /**
+   * Municipio que el texto libre viejo sugiere, para comercios que aún
+   * no tienen código. Es una sugerencia a confirmar, no un dato: el
+   * operador la acepta con un click y después guarda.
+   */
+  cityHint: { code: string; label: string } | null;
+}) {
   const t = useTranslations("opIdentity");
   const [v, setV] = useState<Identidad>(initial);
+  // Nombre del municipio elegido en esta sesión, para que el picker no
+  // tenga que volver a pedirle el label al server.
+  const [cityLabel, setCityLabel] = useState<string | null>(null);
+  const [hintDismissed, setHintDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -70,7 +89,16 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
     });
     setBusy(false);
     if (!r.ok) {
-      setMsg({ kind: "error", text: t("saveError") });
+      // El DV del NIT tiene motivo propio: "no se pudo guardar" a secas no
+      // dice qué corregir, y es el error que más se va a ver acá.
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      const key =
+        j.error === "tax_id_dv_required"
+          ? "errTaxIdDvRequired"
+          : j.error === "tax_id_dv_mismatch"
+            ? "errTaxIdDvMismatch"
+            : "saveError";
+      setMsg({ kind: "error", text: t(key) });
       return;
     }
     setMsg({ kind: "ok", text: t("saved") });
@@ -176,15 +204,81 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
             className={inputCls}
           />
         </Field>
-        <Field label={t("fieldCityLabel")}>
-          <input
-            type="text"
-            value={v.legalCity ?? ""}
-            onChange={(e) => set("legalCity", e.target.value || null)}
-            placeholder={t("fieldCityPlaceholder")}
-            className={inputCls}
-          />
-        </Field>
+        {usaDane ? (
+          // Colombia: la ciudad se ELIGE del catálogo DANE porque su
+          // código va en la factura electrónica y la DIAN resuelve con
+          // él el punto de facturación. Escrita a mano no sirve.
+          <Field label={t("fieldCityLabel")} hint={t("fieldCityDaneHint")}>
+            <MunicipioAutocomplete
+              value={
+                v.legalCityCode
+                  ? { code: v.legalCityCode, label: cityLabel }
+                  : null
+              }
+              onChange={(m) => {
+                setCityLabel(m?.label ?? null);
+                setV((prev) => ({
+                  ...prev,
+                  legalCityCode: m?.code ?? null,
+                  // El nombre lo manda el catálogo, no el operador, para
+                  // que nombre y código no se contradigan. El server
+                  // vuelve a derivarlo igual (no confía en el cliente).
+                  legalCity: m?.name ?? prev.legalCity,
+                }));
+                setMsg(null);
+              }}
+              inputClassName={inputCls}
+            />
+            {/* Comercio viejo sin código: mostramos de qué texto venía y
+                qué municipio sospechamos, para que lo confirme él. */}
+            {!v.legalCityCode && initial.legalCity && (
+              <div className="mt-2 rounded-lg border border-op-border bg-op-bg p-2.5">
+                <div className="text-[11px] text-op-muted">
+                  {t("cityMigrationNotice", { city: initial.legalCity })}
+                </div>
+                {cityHint && !hintDismissed && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px]">
+                      {t("citySuggestion", { label: cityHint.label })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCityLabel(cityHint.label);
+                        setV((prev) => ({
+                          ...prev,
+                          legalCityCode: cityHint.code,
+                        }));
+                        setMsg(null);
+                      }}
+                      className="text-[11px] text-terracotta underline"
+                    >
+                      {t("citySuggestionConfirm")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHintDismissed(true)}
+                      className="text-[11px] text-op-muted underline"
+                    >
+                      {t("citySuggestionDismiss")}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </Field>
+        ) : (
+          // Fuera de Colombia no hay DIVIPOLA: texto libre, como siempre.
+          <Field label={t("fieldCityLabel")}>
+            <input
+              type="text"
+              value={v.legalCity ?? ""}
+              onChange={(e) => set("legalCity", e.target.value || null)}
+              placeholder={t("fieldCityPlaceholder")}
+              className={inputCls}
+            />
+          </Field>
+        )}
         <Field label={t("fieldPhoneLabel")}>
           <input
             type="text"
@@ -196,104 +290,20 @@ export function IdentidadClient({ initial }: { initial: Identidad }) {
         </Field>
       </section>
 
-      {/* Resolución DIAN */}
-      <section className="rounded-2xl border border-op-border bg-op-surface p-5 space-y-3">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+      {/* La resolución de numeración se mudó entera a Facturación DIAN.
+          Se deja el puntero para que el operador que venía a buscarla acá
+          sepa a dónde ir. */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
           {t("dianSectionTitle")}
         </div>
-        <p className="text-xs text-op-muted">{t("dianHelp")}</p>
-        <Field label={t("dianResolutionLabel")}>
-          <input
-            type="text"
-            value={v.dianResolution ?? ""}
-            onChange={(e) => set("dianResolution", e.target.value || null)}
-            placeholder={t("dianResolutionPlaceholder")}
-            className={inputCls}
-          />
-        </Field>
-        <Field label={t("dianDateLabel")}>
-          <input
-            type="date"
-            value={v.dianResolutionDate ?? ""}
-            onChange={(e) =>
-              set("dianResolutionDate", e.target.value || null)
-            }
-            className={inputCls}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t("dianFromLabel")}>
-            <input
-              type="number"
-              min={0}
-              value={v.dianResolutionFrom ?? ""}
-              onChange={(e) =>
-                set(
-                  "dianResolutionFrom",
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              placeholder={t("dianFromPlaceholder")}
-              className={inputCls}
-            />
-          </Field>
-          <Field label={t("dianToLabel")}>
-            <input
-              type="number"
-              min={0}
-              value={v.dianResolutionTo ?? ""}
-              onChange={(e) =>
-                set(
-                  "dianResolutionTo",
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              placeholder={t("dianToPlaceholder")}
-              className={inputCls}
-            />
-          </Field>
-        </div>
-        <Field label={t("prefixLabel")} hint={t("prefixHint")}>
-          <input
-            type="text"
-            value={v.invoicePrefix ?? ""}
-            onChange={(e) => set("invoicePrefix", e.target.value || null)}
-            placeholder={t("prefixPlaceholder")}
-            maxLength={10}
-            className={inputCls + " uppercase"}
-          />
-        </Field>
-        <Field
-          label={t("nextNumberLabel")}
-          hint={t("nextNumberHint")}
+        <p className="text-xs text-op-muted mb-3">{t("dianMovedHelp")}</p>
+        <Link
+          href="/operator/settings/facturacion-dian"
+          className="mp-btn mp-btn--sm"
         >
-          <input
-            type="number"
-            min={1}
-            value={v.invoiceNextNumber}
-            onChange={(e) =>
-              set(
-                "invoiceNextNumber",
-                e.target.value ? Math.max(1, Number(e.target.value)) : 1,
-              )
-            }
-            className={inputCls}
-          />
-          {/* Sugerencia: si está en 1 (default) y hay rango DIAN
-              configurado, ofrecer arrancar desde el límite inferior
-              del rango. */}
-          {v.invoiceNextNumber === 1 &&
-            v.dianResolutionFrom != null &&
-            v.dianResolutionFrom > 1 && (
-              <button
-                type="button"
-                onClick={() => set("invoiceNextNumber", v.dianResolutionFrom!)}
-                className="mt-1 text-[10px] text-terracotta underline"
-              >
-                {t("startFrom", { n: v.dianResolutionFrom })}
-              </button>
-            )}
-        </Field>
+          {t("dianMovedLink")}
+        </Link>
       </section>
 
       <div className="flex items-center justify-end gap-3">

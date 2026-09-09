@@ -12,6 +12,8 @@ import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal"
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { env } from "@/lib/env";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * Push a pending datáfono Payment to a Kushki Smart POS terminal.
@@ -65,6 +67,12 @@ async function POSTHandler(
     session.user.restaurantId !== tenant.id
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  // Control de caja: mandar el monto al datáfono ES iniciar el cobro. Con
+  // "solo el administrador cobra" el mesero no puede, aunque tenga el
+  // equipo en la mano. El rol `terminal` (la caja) sigue pudiendo.
+  if (isChargeBlockedForRole(role, tenant.adminOnlyCharge)) {
+    return chargeBlockedResponse();
   }
   // ¿Vamos al datáfono REAL (Cloud Terminal, cloudt) o al mock?
   //  - En sandbox/producción → real.
@@ -162,13 +170,9 @@ async function POSTHandler(
       return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
     }
 
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { providerRef: result.providerRef },
-    });
 
     if (result.status === "approved") {
-      await processKushkiWebhook({
+      const processed = await processKushkiWebhook({
         eventId: `cloudterm:${payment.id}:ok`,
         type: "terminal.approved",
         restaurantId: tenant.id,
@@ -177,6 +181,10 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
+      if (processed.status === "error") {
+        await markPaymentUncertain(payment.id);
+        return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      }
       return NextResponse.json({
         ok: true,
         status: "approved",
@@ -187,7 +195,7 @@ async function POSTHandler(
     if (result.status === "declined") {
       // Rechazo de tarjeta: marcamos el Payment como declined (no cobrado)
       // para que el mesero pueda reintentar / cambiar de método.
-      await processKushkiWebhook({
+      const processed = await processKushkiWebhook({
         eventId: `cloudterm:${payment.id}:no:${Date.now()}`,
         type: "terminal.declined",
         restaurantId: tenant.id,
@@ -196,6 +204,10 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
+      if (processed.status === "error") {
+        await markPaymentUncertain(payment.id);
+        return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      }
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -223,8 +235,8 @@ async function POSTHandler(
       await markPaymentUncertain(payment.id);
       return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
     }
-  await db.payment.update({
-    where: { id: payment.id },
+  await db.payment.updateMany({
+    where: { id: payment.id, status: "pending", providerRef: null },
     data: { providerRef: push.providerRef },
   });
   return NextResponse.json({

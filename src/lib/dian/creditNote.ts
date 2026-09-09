@@ -78,9 +78,18 @@ export function buildDianCreditNoteXml(i: DianCreditNoteInput): BuiltDianInvoice
     const p = kind === "supplier" ? i.supplier : i.customer;
     const tag =
       kind === "supplier" ? "AccountingSupplierParty" : "AccountingCustomerParty";
+    // CAK61 es la misma regla que FAK61 de la factura: con
+    // AdditionalAccountID = "2" hay que informar cac:PartyIdentification, y
+    // va primero dentro de cac:Party (orden del esquema UBL 2.1).
+    const partyIdentification =
+      p.personType === "2"
+        ? `<cac:PartyIdentification>` +
+          `<cbc:ID schemeName="${p.idSchemeName}" schemeAgencyID="195">${esc(p.companyId)}</cbc:ID>` +
+          `</cac:PartyIdentification>`
+        : "";
     return (
       `<cac:${tag}><cbc:AdditionalAccountID>${p.personType}</cbc:AdditionalAccountID>` +
-      `<cac:Party><cac:PartyName><cbc:Name>${esc(p.name)}</cbc:Name></cac:PartyName>` +
+      `<cac:Party>${partyIdentification}<cac:PartyName><cbc:Name>${esc(p.name)}</cbc:Name></cac:PartyName>` +
       `<cac:PartyLegalEntity><cbc:RegistrationName>${esc(p.name)}</cbc:RegistrationName>` +
       `<cbc:CompanyID schemeName="${p.idSchemeName}" schemeAgencyID="195">${esc(p.companyId)}</cbc:CompanyID>` +
       `</cac:PartyLegalEntity></cac:Party></cac:${tag}>`

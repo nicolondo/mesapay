@@ -1,3 +1,4 @@
+import { lockOrder } from "@/lib/orderLock";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
 /**
  * Cambio de estado de una reserva desde el dashboard del operador, y
@@ -189,7 +191,13 @@ async function applyDeposit(
   }
 
   const depositCents = reservation.depositCents;
-  await db.$transaction(async (tx) => {
+  const { fullyPaid } = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Reservation" WHERE id = ${reservation.id} FOR UPDATE`;
+    const currentReservation = await tx.reservation.findUniqueOrThrow({ where: { id: reservation.id } });
+    if (currentReservation.depositStatus !== "paid") throw new Error("operation_conflict");
+    await lockOrder(tx, order.id);
+    const currentOrder = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    if (["paid", "cancelled"].includes(currentOrder.status)) throw new Error("order_closed");
     const pay = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -201,7 +209,7 @@ async function applyDeposit(
         settledAt: new Date(),
       },
     });
-    await recomputeOrderTotalsInTx(tx, order.id);
+    const totals = await recomputeOrderTotalsInTx(tx, order.id);
     await tx.reservation.update({
       where: { id: reservation.id },
       data: {
@@ -210,13 +218,27 @@ async function applyDeposit(
         depositPaymentId: pay.id,
       },
     });
+    return { fullyPaid: totals.fullyPaid };
   });
 
-  publishOrderEvent(restaurantId, { type: "order.updated", orderId: order.id });
+  // Si el abono alcanzó para toda la cuenta, la orden quedó en `paid` y hay
+  // que decirlo con ese evento: Salón, Mesas y la pantalla del comensal
+  // escuchan `order.paid`, no `order.updated`. Este riel avisaba siempre
+  // "actualizada", así que una mesa que cerraba con el depósito seguía
+  // figurando abierta en los tableros. Mismo patrón que settle-cash.
+  publishOrderEvent(restaurantId, {
+    type: fullyPaid ? "order.paid" : "order.updated",
+    orderId: order.id,
+  });
   publishOrderEvent(restaurantId, {
     type: "order.updated",
     orderId: `reservation:${reservation.id}`,
   });
+  // Un abono que alcanza para toda la cuenta la deja en `paid`: es el único
+  // riel donde eso pasa sin pasar por un cobro. Si el comensal había pedido
+  // factura, tiene que salir igual. El helper se auto-verifica (no hace nada
+  // si la orden quedó en `paying`).
+  await issueRequestedInvoiceOnPaid({ tenantId: restaurantId, orderId: order.id });
   return { ok: true };
 }
 

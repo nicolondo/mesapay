@@ -1,3 +1,4 @@
+import { getDiner } from "./dinerSession";
 import { cookies } from "next/headers";
 import { db } from "./db";
 import { staffForRestaurant } from "./staffAccess";
@@ -15,9 +16,10 @@ export async function canAccessTable(restaurantId: string, tableId: string) {
   return (await guestScopes(restaurantId)).some(s => s.tableId === tableId);
 }
 export async function canAccessOrder(restaurantId: string, orderId: string) {
-  const order = await db.order.findFirst({ where: { id: orderId, restaurantId }, select: { tableId: true, orderType: true } });
+  const order = await db.order.findFirst({ where: { id: orderId, restaurantId }, select: { tableId: true, orderType: true, dinerId: true } });
   if (!order) return false;
   if (await staffForRestaurant(restaurantId)) return true;
+  if (order.dinerId && (await getDiner(restaurantId))?.id === order.dinerId) return true;
   const scopes = await guestScopes(restaurantId);
   return scopes.some(s => s.orderId === orderId || order.orderType !== "pickup" && s.tableId === order.tableId);
 }

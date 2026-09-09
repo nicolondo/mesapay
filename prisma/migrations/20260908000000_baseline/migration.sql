@@ -35,6 +35,9 @@ CREATE TYPE "CategoryKind" AS ENUM ('starter', 'main', 'side', 'drink', 'dessert
 CREATE TYPE "PrepStation" AS ENUM ('kitchen', 'bar', 'counter');
 
 -- CreateEnum
+CREATE TYPE "PrinterKind" AS ENUM ('comanda', 'factura');
+
+-- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('open', 'placed', 'in_kitchen', 'ready', 'served', 'paying', 'paid', 'cancelled');
 
 -- CreateEnum
@@ -109,6 +112,9 @@ CREATE TYPE "LedgerAccountType" AS ENUM ('activo', 'pasivo', 'patrimonio', 'ingr
 -- CreateEnum
 CREATE TYPE "LedgerAccountNature" AS ENUM ('debito', 'credito');
 
+-- CreateEnum
+CREATE TYPE "PrintJobStatus" AS ENUM ('pending', 'delivered', 'printed', 'failed');
+
 -- CreateTable
 CREATE TABLE "Restaurant" (
     "id" TEXT NOT NULL,
@@ -166,6 +172,8 @@ CREATE TABLE "Restaurant" (
     "legalAddress" TEXT,
     "legalCity" TEXT,
     "legalPhone" TEXT,
+    "legalCityCode" TEXT,
+    "legalDeptCode" TEXT,
     "address" TEXT,
     "city" TEXT,
     "country" TEXT,
@@ -175,6 +183,9 @@ CREATE TABLE "Restaurant" (
     "dianResolutionFrom" INTEGER,
     "dianResolutionTo" INTEGER,
     "dianResolutionDate" TIMESTAMP(3),
+    "dianResolutionNumber" TEXT,
+    "dianResolutionValidFrom" TIMESTAMP(3),
+    "dianResolutionValidTo" TIMESTAMP(3),
     "invoicePrefix" TEXT,
     "invoiceNextNumber" INTEGER NOT NULL DEFAULT 1,
     "tipPolicy" TEXT NOT NULL DEFAULT 'shared',
@@ -192,6 +203,7 @@ CREATE TABLE "Restaurant" (
     "shiftPolicy" TEXT NOT NULL DEFAULT 'global',
     "businessDayCutoffHour" INTEGER NOT NULL DEFAULT 5,
     "meseroShiftWithoutLocal" TEXT NOT NULL DEFAULT 'block',
+    "adminOnlyCharge" BOOLEAN NOT NULL DEFAULT false,
     "salesRepUserId" TEXT,
     "salesRepCommissionBps" INTEGER,
 
@@ -223,6 +235,9 @@ CREATE TABLE "LegalEntity" (
     "dianResolutionFrom" INTEGER,
     "dianResolutionTo" INTEGER,
     "dianResolutionDate" TIMESTAMP(3),
+    "dianResolutionNumber" TEXT,
+    "dianResolutionValidFrom" TIMESTAMP(3),
+    "dianResolutionValidTo" TIMESTAMP(3),
     "invoicePrefix" TEXT,
     "invoiceNextNumber" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -345,11 +360,9 @@ CREATE TABLE "User" (
     "name" TEXT,
     "phone" TEXT,
     "passwordHash" TEXT NOT NULL,
-    "role" "Role" NOT NULL DEFAULT 'customer',
+    "role" "Role" NOT NULL,
     "restaurantId" TEXT,
     "groupId" TEXT,
-    "marketingOptIn" BOOLEAN NOT NULL DEFAULT false,
-    "welcomedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "assignedTableNumbers" INTEGER[] DEFAULT ARRAY[]::INTEGER[],
     "commissionBps" INTEGER,
@@ -358,6 +371,62 @@ CREATE TABLE "User" (
     "managerId" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Diner" (
+    "id" TEXT NOT NULL,
+    "restaurantId" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "cedula" TEXT,
+    "name" TEXT,
+    "phone" TEXT,
+    "passwordHash" TEXT NOT NULL,
+    "marketingOptIn" BOOLEAN NOT NULL DEFAULT false,
+    "welcomedAt" TIMESTAMP(3),
+    "disabledAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Diner_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DinerSession" (
+    "id" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "dinerId" TEXT NOT NULL,
+    "revokedAt" TIMESTAMP(3),
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastUsedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DinerSession_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DinerDiscount" (
+    "id" TEXT NOT NULL,
+    "dinerId" TEXT NOT NULL,
+    "percent" INTEGER NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DinerDiscount_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DinerMagicLink" (
+    "id" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "dinerId" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DinerMagicLink_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -494,7 +563,7 @@ CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "restaurantId" TEXT NOT NULL,
     "tableId" TEXT NOT NULL,
-    "customerId" TEXT,
+    "dinerId" TEXT,
     "status" "OrderStatus" NOT NULL DEFAULT 'open',
     "shortCode" TEXT NOT NULL,
     "diners" INTEGER NOT NULL DEFAULT 1,
@@ -504,6 +573,8 @@ CREATE TABLE "Order" (
     "tipCents" INTEGER NOT NULL DEFAULT 0,
     "taxCents" INTEGER NOT NULL DEFAULT 0,
     "totalCents" INTEGER NOT NULL DEFAULT 0,
+    "discountPct" INTEGER,
+    "discountCents" INTEGER NOT NULL DEFAULT 0,
     "servingMode" "ServingMode" NOT NULL DEFAULT 'asReady',
     "orderType" "OrderType" NOT NULL DEFAULT 'dineIn',
     "etaMinutes" INTEGER,
@@ -511,6 +582,7 @@ CREATE TABLE "Order" (
     "pickupName" TEXT,
     "pickupPhone" TEXT,
     "customerEmail" TEXT,
+    "simpleInvoiceEmail" TEXT,
     "needsWaiter" BOOLEAN NOT NULL DEFAULT false,
     "waiterCalledAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1562,6 +1634,66 @@ CREATE TABLE "ExpensePayment" (
     CONSTRAINT "ExpensePayment_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Printer" (
+    "id" TEXT NOT NULL,
+    "restaurantId" TEXT NOT NULL,
+    "agentId" TEXT,
+    "localKey" TEXT,
+    "label" TEXT NOT NULL,
+    "host" TEXT NOT NULL,
+    "port" INTEGER NOT NULL DEFAULT 9100,
+    "kind" "PrinterKind" NOT NULL DEFAULT 'comanda',
+    "station" "PrepStation",
+    "barSubStation" TEXT,
+    "paperWidthMm" INTEGER,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Printer_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PrintAgent" (
+    "id" TEXT NOT NULL,
+    "restaurantId" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "tokenTail" TEXT,
+    "lastSeenAt" TIMESTAMP(3),
+    "agentVersion" TEXT,
+    "lastIp" TEXT,
+    "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PrintAgent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PrintJob" (
+    "id" TEXT NOT NULL,
+    "restaurantId" TEXT NOT NULL,
+    "printerId" TEXT NOT NULL,
+    "status" "PrintJobStatus" NOT NULL DEFAULT 'pending',
+    "kind" TEXT NOT NULL DEFAULT 'kitchen_ticket',
+    "payload" JSONB NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "lastError" TEXT,
+    "deliveredAt" TIMESTAMP(3),
+    "printedAt" TIMESTAMP(3),
+    "failedAt" TIMESTAMP(3),
+    "nextAttemptAt" TIMESTAMP(3),
+    "orderId" TEXT,
+    "roundId" TEXT,
+    "dedupeKey" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PrintJob_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Restaurant_slug_key" ON "Restaurant"("slug");
 
@@ -1630,6 +1762,30 @@ CREATE INDEX "User_groupId_idx" ON "User"("groupId");
 
 -- CreateIndex
 CREATE INDEX "User_managerId_idx" ON "User"("managerId");
+
+-- CreateIndex
+CREATE INDEX "Diner_restaurantId_idx" ON "Diner"("restaurantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Diner_restaurantId_email_key" ON "Diner"("restaurantId", "email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Diner_restaurantId_cedula_key" ON "Diner"("restaurantId", "cedula");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DinerSession_tokenHash_key" ON "DinerSession"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "DinerSession_dinerId_idx" ON "DinerSession"("dinerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DinerDiscount_dinerId_key" ON "DinerDiscount"("dinerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DinerMagicLink_tokenHash_key" ON "DinerMagicLink"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "DinerMagicLink_dinerId_idx" ON "DinerMagicLink"("dinerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("tokenHash");
@@ -1702,6 +1858,9 @@ CREATE INDEX "Order_tableId_idx" ON "Order"("tableId");
 
 -- CreateIndex
 CREATE INDEX "Order_restaurantId_needsWaiter_idx" ON "Order"("restaurantId", "needsWaiter");
+
+-- CreateIndex
+CREATE INDEX "Order_dinerId_idx" ON "Order"("dinerId");
 
 -- CreateIndex
 CREATE INDEX "Round_orderId_idx" ON "Round"("orderId");
@@ -2042,6 +2201,36 @@ CREATE INDEX "ExpensePayment_expenseId_idx" ON "ExpensePayment"("expenseId");
 -- CreateIndex
 CREATE INDEX "ExpensePayment_restaurantId_paidAt_idx" ON "ExpensePayment"("restaurantId", "paidAt");
 
+-- CreateIndex
+CREATE INDEX "Printer_restaurantId_active_idx" ON "Printer"("restaurantId", "active");
+
+-- CreateIndex
+CREATE INDEX "Printer_restaurantId_station_active_idx" ON "Printer"("restaurantId", "station", "active");
+
+-- CreateIndex
+CREATE INDEX "Printer_restaurantId_kind_active_idx" ON "Printer"("restaurantId", "kind", "active");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Printer_agentId_localKey_key" ON "Printer"("agentId", "localKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrintAgent_tokenHash_key" ON "PrintAgent"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "PrintAgent_restaurantId_revokedAt_idx" ON "PrintAgent"("restaurantId", "revokedAt");
+
+-- CreateIndex
+CREATE INDEX "PrintJob_restaurantId_status_createdAt_idx" ON "PrintJob"("restaurantId", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PrintJob_printerId_status_idx" ON "PrintJob"("printerId", "status");
+
+-- CreateIndex
+CREATE INDEX "PrintJob_restaurantId_roundId_idx" ON "PrintJob"("restaurantId", "roundId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrintJob_printerId_dedupeKey_key" ON "PrintJob"("printerId", "dedupeKey");
+
 -- AddForeignKey
 ALTER TABLE "Restaurant" ADD CONSTRAINT "Restaurant_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -2080,6 +2269,18 @@ ALTER TABLE "User" ADD CONSTRAINT "User_groupId_fkey" FOREIGN KEY ("groupId") RE
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Diner" ADD CONSTRAINT "Diner_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DinerSession" ADD CONSTRAINT "DinerSession_dinerId_fkey" FOREIGN KEY ("dinerId") REFERENCES "Diner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DinerDiscount" ADD CONSTRAINT "DinerDiscount_dinerId_fkey" FOREIGN KEY ("dinerId") REFERENCES "Diner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DinerMagicLink" ADD CONSTRAINT "DinerMagicLink_dinerId_fkey" FOREIGN KEY ("dinerId") REFERENCES "Diner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2121,7 +2322,7 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_restaurantId_fkey" FOREIGN KEY ("resta
 ALTER TABLE "Order" ADD CONSTRAINT "Order_tableId_fkey" FOREIGN KEY ("tableId") REFERENCES "Table"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_dinerId_fkey" FOREIGN KEY ("dinerId") REFERENCES "Diner"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Round" ADD CONSTRAINT "Round_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2482,4 +2683,19 @@ ALTER TABLE "ExpensePayment" ADD CONSTRAINT "ExpensePayment_expenseId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "ExpensePayment" ADD CONSTRAINT "ExpensePayment_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Printer" ADD CONSTRAINT "Printer_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Printer" ADD CONSTRAINT "Printer_agentId_fkey" FOREIGN KEY ("agentId") REFERENCES "PrintAgent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PrintAgent" ADD CONSTRAINT "PrintAgent_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PrintJob" ADD CONSTRAINT "PrintJob_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PrintJob" ADD CONSTRAINT "PrintJob_printerId_fkey" FOREIGN KEY ("printerId") REFERENCES "Printer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

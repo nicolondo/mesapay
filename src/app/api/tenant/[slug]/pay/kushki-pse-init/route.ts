@@ -12,6 +12,8 @@ import {
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
+import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
  * POST /transfer/v1/init de Kushki (server-side, con private key).
@@ -167,6 +169,15 @@ async function POSTHandler(
     );
   }
 
+  // Control de caja: PSE también es un cobro. Con "solo el administrador
+  // cobra", un mesero no puede iniciarlo desde su PWA.
+  if (tenant.adminOnlyCharge) {
+    const staffSession = await auth();
+    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
+      return chargeBlockedResponse();
+    }
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -233,10 +244,12 @@ async function POSTHandler(
             JSON.stringify(initResp).slice(0, 200),
         );
       }
-      await db.payment.update({
-        where: { id: payment.id },
-        data: { providerRef: typeof initResp.transactionReference === "string" ? initResp.transactionReference : null },
-      });
+      if (typeof initResp.transactionReference === "string") {
+        await db.payment.updateMany({
+          where: { id: payment.id, status: "pending", providerRef: null },
+          data: { providerRef: initResp.transactionReference },
+        });
+      }
       return NextResponse.json({
         paymentId: payment.id,
         redirectUrl,
@@ -283,8 +296,8 @@ async function POSTHandler(
       },
     });
 
-    await db.payment.update({
-      where: { id: payment.id },
+    await db.payment.updateMany({
+      where: { id: payment.id, status: "pending", providerRef: null },
       data: { providerRef: result.providerRef },
     });
 

@@ -14,21 +14,29 @@ import { kitchenBottlenecksTool } from "./tools/kitchenBottlenecks";
 import { cancellationsTool } from "./tools/cancellations";
 import { reservationsInsightsTool } from "./tools/reservationsInsights";
 
+function executable<I>(tool: ToolDef<I>): ToolDef<unknown> {
+  return { ...tool, run: async (input, ctx) => {
+    const parsed = tool.inputSchema.safeParse(input);
+    if (!parsed.success) return { error: "input inválido", issues: parsed.error.issues.slice(0, 3) };
+    return tool.run(parsed.data, ctx);
+  } };
+}
+
 // Lista de tools disponibles. Planes siguientes agregan más acá.
-const TOOLS: ToolDef<any>[] = [
-  topDishesTool,
-  salesOverviewTool,
-  revenueTrendTool,
-  categoryBreakdownTool,
-  trafficByTimeTool,
-  tablesTurnoverTool,
-  paymentMixTool,
-  staffPerformanceTool,
-  staffingEstimateTool,
-  kitchenBottlenecksTool,
-  cancellationsTool,
-  topSearchesTool,
-  reservationsInsightsTool,
+const TOOLS = [
+  executable(topDishesTool),
+  executable(salesOverviewTool),
+  executable(revenueTrendTool),
+  executable(categoryBreakdownTool),
+  executable(trafficByTimeTool),
+  executable(tablesTurnoverTool),
+  executable(paymentMixTool),
+  executable(staffPerformanceTool),
+  executable(staffingEstimateTool),
+  executable(kitchenBottlenecksTool),
+  executable(cancellationsTool),
+  executable(topSearchesTool),
+  executable(reservationsInsightsTool),
 ];
 
 /** Definiciones que ve Claude (name/description/input_schema). */

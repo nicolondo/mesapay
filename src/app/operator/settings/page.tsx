@@ -6,6 +6,7 @@ import { resolveMenuTags } from "@/lib/menuTags";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianConfigStatus } from "@/lib/dian/config";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { AGENT_ONLINE_MS } from "@/lib/print/agentStatus";
 import {
   resolveTipPolicy,
   resolveShiftPolicy,
@@ -33,7 +34,6 @@ export default async function SettingsPage() {
       logoUrl: true,
       legalName: true,
       taxId: true,
-      dianResolution: true,
       reservationsEnabled: true,
       enabledPaymentMethods: true,
       enabledModules: true,
@@ -58,12 +58,15 @@ export default async function SettingsPage() {
     ? await db.supplier.count({ where: { restaurantId } })
     : 0;
 
-  // Facturación electrónica DIAN (ERP Fase B1): gate estricto por módulo
-  // einvoicing — mismo gate que la página y la API /api/operator/dian.
-  const showDian = isModuleEnabled(tenant.enabledModules, "einvoicing");
-  const dianStatus = showDian
-    ? (await dianConfigStatus(restaurantId)).status.status
-    : "pending";
+  // La tarjeta ahora se muestra SIEMPRE porque es el único lugar donde se
+  // carga la resolución de numeración (prefijo y consecutivo del
+  // comprobante impreso, que existe con o sin facturación electrónica).
+  // Con el módulo `einvoicing` apagado la pantalla muestra sólo esa
+  // sección y la tarjeta se titula "Resolución de facturación".
+  const einvoicing = isModuleEnabled(tenant.enabledModules, "einvoicing");
+  const dian = await dianConfigStatus(restaurantId);
+  const dianStatus = dian.status.status;
+  const resolutionReady = dian.status.missingResolution.length === 0;
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -106,6 +109,25 @@ export default async function SettingsPage() {
   ]);
 
   const stationsRouted = t("badgeStationsRouted", { count: stationsCount });
+
+  // Impresoras de red: el badge tiene que gritar cuando el local TIENE
+  // impresoras pero ningún agente responde — ahí las comandas se están
+  // encolando contra un PC apagado y nadie se entera hasta que un cliente
+  // reclama. Sin impresoras registradas la tarjeta sólo dice "Configurar".
+  const printersNow = new Date();
+  const [printerCount, liveAgents] = await Promise.all([
+    db.printer.count({ where: { restaurantId, active: true } }),
+    db.printAgent.count({
+      where: {
+        restaurantId,
+        revokedAt: null,
+        lastSeenAt: {
+          gte: new Date(printersNow.getTime() - AGENT_ONLINE_MS),
+        },
+      },
+    }),
+  ]);
+  const printersOffline = printerCount > 0 && liveAgents === 0;
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -181,27 +203,31 @@ export default async function SettingsPage() {
             }
           />
         )}
-        {showDian && (
-          <SettingCard
-            href="/operator/settings/facturacion-dian"
-            title={tDian("cardTitle")}
-            subtitle={tDian("cardSubtitle")}
-            badge={
-              dianStatus === "enabled"
+        <SettingCard
+          href="/operator/settings/facturacion-dian"
+          title={einvoicing ? tDian("cardTitle") : tDian("cardResolutionTitle")}
+          subtitle={
+            einvoicing ? tDian("cardSubtitle") : tDian("cardResolutionSubtitle")
+          }
+          badge={
+            !einvoicing
+              ? resolutionReady
+                ? tDian("cardBadgeResolutionReady")
+                : tDian("cardBadgeConfigure")
+              : dianStatus === "enabled"
                 ? tDian("cardBadgeEnabled")
                 : dianStatus === "testing"
                   ? tDian("cardBadgeTesting")
                   : tDian("cardBadgeConfigure")
-            }
-            tint={
-              dianStatus === "enabled"
-                ? "bg-ok/15 text-ok"
-                : dianStatus === "testing"
-                  ? "bg-[#C98A2E]/20 text-[#8F6828]"
-                  : "bg-paper text-op-muted"
-            }
-          />
-        )}
+          }
+          tint={
+            (!einvoicing && resolutionReady) || dianStatus === "enabled"
+              ? "bg-ok/15 text-ok"
+              : einvoicing && dianStatus === "testing"
+                ? "bg-[#C98A2E]/20 text-[#8F6828]"
+                : "bg-paper text-op-muted"
+          }
+        />
         <SettingCard
           href="/operator/settings/traducciones"
           title={t("cardTranslationsTitle")}
@@ -275,6 +301,25 @@ export default async function SettingsPage() {
             tenant.hasBar || stationsCount > 0
               ? "bg-ok/15 text-ok"
               : "bg-paper text-op-muted"
+          }
+        />
+        <SettingCard
+          href="/operator/settings/impresoras"
+          title={t("cardPrintersTitle")}
+          subtitle={t("cardPrintersSubtitle")}
+          badge={
+            printerCount === 0
+              ? t("badgePrintersEmpty")
+              : printersOffline
+                ? t("badgePrintersOffline")
+                : t("badgePrintersOk", { count: printerCount })
+          }
+          tint={
+            printerCount === 0
+              ? "bg-paper text-op-muted"
+              : printersOffline
+                ? "bg-danger/10 text-danger"
+                : "bg-ok/15 text-ok"
           }
         />
         <SettingCard

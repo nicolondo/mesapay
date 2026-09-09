@@ -201,7 +201,7 @@ The whole rollback is ~10 seconds and just as zero-downtime as a deploy.
 
 ## How database migrations interact with this
 
-Schema changes apply ONCE during `npx prisma db push` in step 2 of
+Schema changes apply ONCE during `npx prisma migrate deploy` in step 2 of
 `activate.sh` — while the OLD color is still serving. That means the
 OLD color must keep working against the NEW schema for the ~10s
 between push and the swap.
@@ -222,3 +222,17 @@ backfill helper) is already expand-contract compatible.
 - `vps/blue-green/env.green` → `/opt/mesapay/shared/.env.green`
 - `vps/blue-green/nginx-upstream.conf` → `/etc/nginx/mesapay-active.conf`
 - `vps/blue-green/activate.sh` → `/opt/mesapay/scripts/activate.sh`
+
+
+## Adoptar migraciones en una instalación existente
+
+El baseline `20260908000000_baseline` representa el esquema de `d56288f` (Claude, incluida la cola de impresión). No se ejecuta sobre tablas existentes ni se marca como aplicado sin comparar primero el esquema.
+
+1. Crear un backup y comprobar su restauración en una base aislada.
+2. Comparar la base restaurada con ese baseline mediante `prisma migrate diff`; revisar todas las diferencias. Si la instalación está en una revisión anterior, migrar esos cambios de manera explícita y conservar los datos de comensales/órdenes.
+3. **Sólo si coincide**, ejecutar `prisma migrate resolve --applied 20260908000000_baseline` sobre la instalación que se adopta.
+4. Revisar las migraciones siguientes, ensayarlas sobre la copia restaurada y luego ejecutar `prisma migrate deploy` durante el despliegue autorizado.
+
+No se usa `db push --accept-data-loss`. Revertir el color devuelve el código anterior, pero no revierte SQL: las migraciones deben mantener compatibilidad con la versión que sigue sirviendo durante el cambio.
+
+El despliegue se serializa antes de instalar dependencias. Ejecuta pruebas, lint y build antes de cambiar el esquema; readiness comprueba los campos y triggers de pagos/sesiones. El cron `POST /api/cron/stock-consumption`, con `x-cron-secret`, debe estar programado para recuperar trabajo pendiente y señalar pagos sin resultado tras 30 minutos.

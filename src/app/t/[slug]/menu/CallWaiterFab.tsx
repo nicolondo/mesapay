@@ -46,11 +46,11 @@ export function CallWaiterFab({
   // Cuando el server confirma que ya no hay llamada pendiente (el
   // mesero hizo ack), resetear el optimistic flag para volver a
   // permitir nuevos llamados.
-  useEffect(() => {
-    if (!initialCalled && optimisticCalled) {
-      setOptimisticCalled(false);
-    }
-  }, [initialCalled, optimisticCalled]);
+  const [previousCalled, setPreviousCalled] = useState(initialCalled);
+  if (previousCalled !== initialCalled) {
+    setPreviousCalled(initialCalled);
+    setOptimisticCalled(false);
+  }
 
   async function call() {
     if (called || busy) return;

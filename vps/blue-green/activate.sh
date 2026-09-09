@@ -42,6 +42,11 @@ KEEP_RELEASES=5
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 fail() { echo "[$(date +%H:%M:%S)] ERROR: $*" >&2; exit 1; }
 
+# Serialize deployments so concurrent webhooks cannot swap/prune each other's release.
+# The lock is held until this process exits.
+exec 9>"$SHARED_DIR/deploy.lock"
+flock -n 9 || fail "another deployment is in progress"
+
 # ── 1. Build the release ─────────────────────────────────────────────
 if [[ ! -d "$RELEASE_DIR" ]]; then
   fail "release dir missing: $RELEASE_DIR (deploy-from-github.sh should have created it)"
@@ -72,12 +77,8 @@ else
   log "Release $SHA already built — reusing"
 fi
 
-# Serialize deployments so concurrent webhooks cannot swap/prune each other's release.
-# The lock is held until this process exits.
-exec 9>"$SHARED_DIR/deploy.lock"
-flock -n 9 || fail "another deployment is in progress"
 # Existing db-push installations require the documented, verified baseline once.
-# migrate deploy fails closed on drift/failed migrations; never reset or accept data loss.
+# migrate deploy fails closed on failed migrations; never reset or accept data loss.
 log "Applying reviewed, backward-compatible migrations..."
 npx prisma migrate deploy
 

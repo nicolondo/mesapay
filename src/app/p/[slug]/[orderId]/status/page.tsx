@@ -94,8 +94,10 @@ export default async function PickupStatusPage({
         </div>
 
         <div className="mt-8 text-center">
+          {/* La cuenta del comensal es de este comercio: el enlace lleva
+              su slug, no a un "/me" global que ya no existe. */}
           <Link
-            href="/me"
+            href={`/t/${slug}/cuenta`}
             className="font-mono text-[11px] tracking-wider uppercase text-muted hover:text-terracotta"
           >
             {t("viewMyOrders")}

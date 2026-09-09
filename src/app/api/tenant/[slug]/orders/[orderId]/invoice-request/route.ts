@@ -6,10 +6,18 @@ import { publishOrderEvent } from "@/lib/events";
 import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice";
 
 /**
- * Customer-submitted billing info attached to a paid order. We store it
+ * Customer-submitted billing info attached to an order. We store it
  * verbatim; the restaurant emits the actual electronic invoice through
  * their own provider (Siigo, Alegra, The Factory HKA, etc.) and marks
  * the request as generated from /operator/facturas.
+ *
+ * La solicitud se puede registrar ANTES de pagar — es lo que pide el
+ * checkout, donde el comensal todavía tiene el celular en la mano. Lo que
+ * sí depende del pago es la EMISIÓN de la factura imprimible:
+ * `issueSimpleInvoice` sólo emite sobre una orden pagada (devuelve
+ * `order_not_paid` si no lo está) y en ese caso respondemos
+ * `deferred: true` — `issueRequestedInvoiceOnPaid` la emite y la envía
+ * cuando el cobro se confirme.
  *
  * One outstanding request per order — if a diner submits twice (e.g.
  * because they typo'd an address) we overwrite the existing pending row
@@ -41,14 +49,6 @@ export async function POST(
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order || order.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "order_not_found" }, { status: 404 });
-  }
-  // Only let the diner ask for a factura once the order has been paid —
-  // a pending order has no settled bill to invoice yet.
-  if (order.status !== "paid") {
-    return NextResponse.json(
-      { error: "order_not_paid" },
-      { status: 409 },
-    );
   }
 
   const body = await req.json().catch(() => null);
@@ -102,6 +102,12 @@ export async function POST(
   // Además de encolar la solicitud (para la emisión DIAN futura), generamos
   // YA una factura imprimible con los datos del cliente — así el mesero/cliente
   // la imprime en el momento sin esperar a DIAN. Idempotente por orden.
+  //
+  // Si la orden todavía NO está pagada (el comensal pidió la factura durante
+  // el checkout), `issueSimpleInvoice` devuelve `order_not_paid` y no emite
+  // nada: la solicitud ya quedó guardada arriba y la factura sale sola cuando
+  // se confirme el cobro. No duplicamos la condición acá a propósito — el
+  // helper es la única fuente de esa regla.
   const inv = await issueSimpleInvoice({
     tenantId: tenant.id,
     orderId: order.id,
@@ -131,5 +137,8 @@ export async function POST(
     request,
     replaced: !!existing,
     invoiceUrl: inv.ok ? inv.invoiceUrl : null,
+    // El cliente muestra "te la enviamos apenas se confirme el pago" en vez
+    // del botón de imprimir.
+    deferred: !inv.ok && inv.error === "order_not_paid",
   });
 }

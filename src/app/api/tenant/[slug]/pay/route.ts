@@ -14,6 +14,7 @@ import {
   validateNewPaymentAmount,
 } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -256,6 +257,13 @@ export async function POST(
           console.error("[welcomeIfFirstTime]", err),
         );
       }
+      // Factura pedida en el checkout: el mesero cerró el efectivo, se emite.
+      if (result.fullyPaid) {
+        await issueRequestedInvoiceOnPaid({
+          tenantId: tenant.id,
+          orderId: order.id,
+        });
+      }
       return NextResponse.json({
         paymentId: result.payment.id,
         paid: result.fullyPaid,
@@ -369,6 +377,13 @@ export async function POST(
     welcomeIfFirstTime(order.dinerId, order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
+  }
+
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: tenant.id,
+      orderId: order.id,
+    });
   }
 
   return NextResponse.json({

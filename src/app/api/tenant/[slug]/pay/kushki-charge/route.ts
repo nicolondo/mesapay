@@ -16,6 +16,7 @@ import {
 } from "@/lib/payments";
 import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
@@ -317,6 +318,15 @@ export async function POST(
     welcomeIfFirstTime(order.dinerId, order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
+  }
+
+  // Factura pedida en el checkout → se emite y se envía con el cobro ya
+  // aprobado.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: tenant.id,
+      orderId: order.id,
+    });
   }
 
   return NextResponse.json({

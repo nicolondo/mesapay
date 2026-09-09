@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
 /**
  * Cambio de estado de una reserva desde el dashboard del operador, y
@@ -216,5 +217,10 @@ async function applyDeposit(
     type: "order.updated",
     orderId: `reservation:${reservation.id}`,
   });
+  // Un abono que alcanza para toda la cuenta la deja en `paid`: es el único
+  // riel donde eso pasa sin pasar por un cobro. Si el comensal había pedido
+  // factura, tiene que salir igual. El helper se auto-verifica (no hace nada
+  // si la orden quedó en `paying`).
+  await issueRequestedInvoiceOnPaid({ tenantId: restaurantId, orderId: order.id });
   return { ok: true };
 }

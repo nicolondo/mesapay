@@ -1331,6 +1331,17 @@ model Order {
   // efectivo/Apple Pay pueden no traerlo. El último cobro con correo gana.
   customerEmail String?
 
+  /// Correo al que hay que mandar la factura GENÉRICA (tirilla a consumidor
+  /// final) cuando la cuenta quede pagada. Lo deja el comensal en el CHECKOUT,
+  /// antes de pagar; `issueRequestedInvoiceOnPaid` la emite y la envía cuando
+  /// el cobro se confirma (efectivo/datáfono pueden confirmarse minutos
+  /// después). Deliberadamente separado de `customerEmail`: ese es el correo
+  /// del titular de la tarjeta y lo pisa cada cobro — tenerlo lleno NO
+  /// significa que alguien haya pedido factura. Null ⇒ nadie pidió la
+  /// genérica. La factura personalizada usa `InvoiceRequest`, que sí guarda
+  /// nombre/documento/dirección.
+  simpleInvoiceEmail String?
+
   needsWaiter    Boolean   @default(false)
   waiterCalledAt DateTime?
 

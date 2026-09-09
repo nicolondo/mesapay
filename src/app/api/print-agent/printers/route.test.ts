@@ -25,7 +25,8 @@ type Row = {
   label: string;
   host: string;
   port: number;
-  station: string;
+  kind: string;
+  station: string | null;
   barSubStation: string | null;
   paperWidthMm: number | null;
   active: boolean;
@@ -347,6 +348,101 @@ describe("POST /api/print-agent/printers — validaciones antes de escribir", ()
     );
     expect(res.status).toBe(400);
     expect(h.state.printers).toHaveLength(0);
+  });
+});
+
+describe("POST /api/print-agent/printers — qué imprime cada impresora", () => {
+  const facturaPrinter = {
+    localKey: "caja",
+    label: "Caja",
+    host: "192.168.1.60",
+    port: 9100,
+    kind: "factura",
+    paperWidthMm: 80,
+    active: true,
+  };
+
+  it("sin `kind` queda como comanda: el agente que YA está instalado no manda ese campo", async () => {
+    const { res } = await post(TOKEN_A, { printers: [basePrinter] });
+    expect(res.status).toBe(200);
+    expect(h.state.printers[0].kind).toBe("comanda");
+    expect(h.state.printers[0].station).toBe("kitchen");
+  });
+
+  it("registra la impresora de facturas SIN estación", async () => {
+    const { res } = await post(TOKEN_A, { printers: [facturaPrinter] });
+    expect(res.status).toBe(200);
+    expect(h.state.printers[0]).toMatchObject({
+      kind: "factura",
+      station: null,
+      localKey: "caja",
+    });
+  });
+
+  it("rechaza una de comanda SIN estación: no recibiría nunca un trabajo", async () => {
+    const { res, json } = await post(TOKEN_A, {
+      printers: [{ ...basePrinter, station: null }],
+    });
+    expect(res.status).toBe(400);
+    expect(json.error).toBe("invalid_station_for_kind");
+    expect(
+      (json as unknown as { printers: Array<{ problem: string }> }).printers[0]
+        .problem,
+    ).toBe("station_required");
+    expect(h.state.printers).toHaveLength(0);
+  });
+
+  it("rechaza una de factura CON estación: no prepara nada", async () => {
+    const { res, json } = await post(TOKEN_A, {
+      printers: [{ ...facturaPrinter, station: "kitchen" }],
+    });
+    expect(res.status).toBe(400);
+    expect(json.error).toBe("invalid_station_for_kind");
+    expect(
+      (json as unknown as { printers: Array<{ problem: string }> }).printers[0]
+        .problem,
+    ).toBe("station_not_allowed");
+    expect(h.state.printers).toHaveLength(0);
+  });
+
+  it("rechaza un tipo inventado", async () => {
+    const { res, json } = await post(TOKEN_A, {
+      printers: [{ ...basePrinter, kind: "etiquetas" }],
+    });
+    expect(res.status).toBe(400);
+    expect(json.error).toBe("invalid_body");
+    expect(h.state.printers).toHaveLength(0);
+  });
+
+  it("una de factura tampoco puede apuntar a una sub-estación de barra", async () => {
+    const { res, json } = await post(TOKEN_A, {
+      printers: [{ ...facturaPrinter, barSubStation: "cócteles" }],
+    });
+    expect(res.status).toBe(400);
+    expect(json.error).toBe("unknown_bar_sub_station");
+    expect(h.state.printers).toHaveLength(0);
+  });
+
+  it("tres de cocina, una de barra y una de caja conviven en el mismo set", async () => {
+    const { res } = await post(TOKEN_A, {
+      printers: [
+        { ...basePrinter, localKey: "cocina1", host: "192.168.1.51" },
+        { ...basePrinter, localKey: "cocina2", host: "192.168.1.52" },
+        { ...basePrinter, localKey: "cocina3", host: "192.168.1.53" },
+        {
+          ...basePrinter,
+          localKey: "barra",
+          station: "bar",
+          barSubStation: "cócteles",
+          host: "192.168.1.54",
+        },
+        facturaPrinter,
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(h.state.printers).toHaveLength(5);
+    expect(h.state.printers.filter((p) => p.kind === "comanda")).toHaveLength(4);
+    expect(h.state.printers.filter((p) => p.kind === "factura")).toHaveLength(1);
   });
 });
 

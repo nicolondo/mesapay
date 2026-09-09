@@ -852,7 +852,17 @@
     "dianVerifyCta": "Verifique sua fatura na DIAN",
     "dianVerifyLead": "Escaneie o código QR ou valide sua fatura no portal da DIAN.",
     "discountRow": "Desconto",
-    "discountRowPct": "Desconto de {pct}%"
+    "discountRowPct": "Desconto de {pct}%",
+    "paymentTitle": "Forma de pagamento",
+    "methodCash": "Dinheiro",
+    "methodCard": "Cartão",
+    "methodCardTerminal": "Cartão · maquininha",
+    "methodExternalTerminal": "Cartão · maquininha do estabelecimento",
+    "methodPse": "PSE · transferência",
+    "methodWallet": "Carteira digital",
+    "methodNequi": "Nequi",
+    "methodDeposit": "Sinal da reserva",
+    "methodOther": "Outro meio"
   },
   "emailMembership": {
     "subjectT7": "Seu plano MESAPAY vence em {days} dias",
@@ -2759,7 +2769,7 @@
   },
   "opPrinters": {
     "title": "Impressoras de rede",
-    "intro": "Aqui você vê os computadores do local que imprimem e as impressoras que cada um tem conectadas. Dá para testar uma impressora sem estar do lado dela e reimprimir uma comanda que não saiu.",
+    "intro": "Aqui você vê os computadores do local que imprimem e as impressoras que cada um tem conectadas: as que tiram comandas e a que tira o cupom do cliente. Você pode testar uma impressora sem estar ao lado dela e reimprimir algo que não saiu.",
     "noRestaurant": "Não há um restaurante ativo.",
     "restaurantNotFound": "Não encontramos o restaurante.",
     "agentsTitle": "Computadores que imprimem",
@@ -2839,7 +2849,22 @@
     "testTicketItem": "Impressão de teste",
     "testTicketModifier": "Acentos e cedilha: áéíóú çÇ",
     "testTicketNote": "Se esta linha couber inteira, a largura está certa",
-    "testTicketBody": "Este cupom saiu do servidor: a impressora responde e o programa está entregando trabalhos."
+    "testTicketBody": "Este cupom saiu do servidor: a impressora responde e o programa está entregando trabalhos.",
+    "printersGroup_comanda": "Comandas",
+    "printersGroup_factura": "Cupons",
+    "kind_comanda": "Comanda",
+    "kind_factura": "Cupom",
+    "stationNone": "Sem estação",
+    "jobKind_customer_invoice": "Cupom",
+    "testInvoiceNumber": "TESTE",
+    "testInvoiceCode": "TESTE",
+    "testInvoiceTable": "Mesa 7",
+    "testInvoiceItem1": "Bandeja paisa com chicharrón",
+    "testInvoiceItem2": "Pão de queijo com requeijão",
+    "testInvoiceItem3": "Limonada de coco",
+    "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
+    "testInvoiceCustomerAddress": "Calle 12 #4-56",
+    "testInvoiceFooter": "Cupom de teste — sem valor fiscal."
   },
   "cashBox": {
     "title": "Caixa",

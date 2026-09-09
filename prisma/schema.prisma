@@ -1159,6 +1159,19 @@ enum PrepStation {
   counter
 }
 
+// Qué IMPRIME una impresora de red. Una térmica en la parrilla y la de
+// la caja son el mismo aparato pero no el mismo papel: la de cocina saca
+// comandas (qué preparar) y la de caja saca la tirilla del cliente (qué
+// se cobró). Sin esta distinción el ruteo sólo podía separar por estación
+// de preparación, y una factura no es una estación de preparación.
+//
+//   comanda → tickets de cocina/barra. Exige `station`.
+//   factura → tirilla del cliente. NO lleva `station`.
+enum PrinterKind {
+  comanda
+  factura
+}
+
 // A "menu" is a top-level grouping of categories — the diner-facing
 // equivalent of a physical menu book. Most restaurants only need one
 // (the "Carta"), but places with extensive wine lists or separate
@@ -3369,10 +3382,20 @@ model Printer {
   host  String
   port  Int    @default(9100)
 
+  /// Qué imprime: comandas de cocina/barra o la tirilla del cliente.
+  /// Default `comanda` para que las filas que ya existen (todas de
+  /// cocina/barra) sigan significando exactamente lo mismo sin tocarlas.
+  kind PrinterKind @default(comanda)
+
   /// A qué estación sirve. Reusa el mismo enum que Category/OrderItem
   /// para que el ruteo de la comanda sea el snapshot que ya existe en
   /// OrderItem.station — no hay una segunda noción de "estación".
-  station       PrepStation @default(kitchen)
+  ///
+  /// Opcional desde que existe `kind`: una impresora de FACTURA no
+  /// prepara nada, así que no tiene estación. En una de tipo `comanda`
+  /// es obligatoria — sin estación no habría a qué ruta engancharla y
+  /// no recibiría nunca un trabajo. Eso se valida al registrar.
+  station       PrepStation?
   /// Sólo cuando station=bar y el comercio definió Restaurant.barSubStations.
   /// null = impresora "de toda la barra": recibe TODO lo que va al bar,
   /// tenga o no sub-estación. Con valor = sólo recibe esa sub-estación.
@@ -3399,6 +3422,10 @@ model Printer {
   @@unique([agentId, localKey])
   @@index([restaurantId, active])
   @@index([restaurantId, station, active])
+  /// El encolado de la factura busca por acá: "las impresoras de factura
+  /// activas de este comercio". Corre en el momento del cobro, que es el
+  /// peor momento para hacer un scan.
+  @@index([restaurantId, kind, active])
 }
 
 /// El programa que corre como servicio en el PC Windows del local. Un
@@ -3484,14 +3511,17 @@ model PrintJob {
 
   status PrintJobStatus @default(pending)
 
-  /// Qué clase de documento es. Hoy sólo "kitchen_ticket" (la comanda);
-  /// se deja como String y no como enum porque el siguiente en llegar
-  /// (tirilla de cierre, factura, prueba de impresora) no debería
-  /// costar una migración de enum.
+  /// Qué clase de documento es: "kitchen_ticket" (la comanda),
+  /// "customer_invoice" (la tirilla del cliente) o "printer_test". Es
+  /// String y no enum justamente para que sumar el siguiente (tirilla de
+  /// cierre de turno) no cueste una migración de enum.
   kind String @default("kitchen_ticket")
 
-  /// El documento de la comanda: { v: 1, ticket: ThermalTicket }.
-  /// Shape en src/lib/escpos/ticket.ts.
+  /// El documento a imprimir, con TODO ya resuelto en su idioma:
+  ///   { v: 1, ticket:  ThermalTicket  } → src/lib/escpos/ticket.ts
+  ///   { v: 1, invoice: ThermalInvoice } → src/lib/escpos/invoice.ts
+  /// Cuál de los dos es se deduce de la forma del sobre, no de `kind`:
+  /// un `kind` nuevo con un documento conocido sigue imprimiéndose.
   payload Json
 
   /// Cuántas veces se le ENTREGÓ al agente. Sube en cada entrega, no en

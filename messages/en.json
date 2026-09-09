@@ -852,7 +852,17 @@
     "dianVerifyCta": "Verify your invoice with the DIAN",
     "dianVerifyLead": "Scan the QR code or validate your invoice on the DIAN portal.",
     "discountRow": "Discount",
-    "discountRowPct": "{pct}% discount"
+    "discountRowPct": "{pct}% discount",
+    "paymentTitle": "Payment method",
+    "methodCash": "Cash",
+    "methodCard": "Card",
+    "methodCardTerminal": "Card · terminal",
+    "methodExternalTerminal": "Card · merchant terminal",
+    "methodPse": "PSE · bank transfer",
+    "methodWallet": "Digital wallet",
+    "methodNequi": "Nequi",
+    "methodDeposit": "Reservation deposit",
+    "methodOther": "Other method"
   },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
@@ -2759,7 +2769,7 @@
   },
   "opPrinters": {
     "title": "Network printers",
-    "intro": "Here you can see the computers in the venue that print, and the printers each one has connected. You can test a printer without standing next to it, and reprint a ticket that never came out.",
+    "intro": "Here you see the in-store computers that print and the printers each one has connected: the ones that print kitchen tickets and the one that prints the customer's receipt. You can test a printer without standing next to it, and reprint something that never came out.",
     "noRestaurant": "There is no active restaurant.",
     "restaurantNotFound": "We couldn't find the restaurant.",
     "agentsTitle": "Computers that print",
@@ -2839,7 +2849,22 @@
     "testTicketItem": "Test print",
     "testTicketModifier": "Accents and enye: áéíóú ñÑ",
     "testTicketNote": "If this line fits, the paper width is right",
-    "testTicketBody": "This slip came from the server: the printer responds and the program is delivering jobs."
+    "testTicketBody": "This slip came from the server: the printer responds and the program is delivering jobs.",
+    "printersGroup_comanda": "Kitchen tickets",
+    "printersGroup_factura": "Receipts",
+    "kind_comanda": "Kitchen ticket",
+    "kind_factura": "Receipt",
+    "stationNone": "No station",
+    "jobKind_customer_invoice": "Receipt",
+    "testInvoiceNumber": "TEST",
+    "testInvoiceCode": "TEST",
+    "testInvoiceTable": "Table 7",
+    "testInvoiceItem1": "Bandeja paisa with chicharrón",
+    "testInvoiceItem2": "Ñoquis with mushroom sauce",
+    "testInvoiceItem3": "Coconut lemonade",
+    "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
+    "testInvoiceCustomerAddress": "Calle 12 #4-56",
+    "testInvoiceFooter": "Test slip — not a valid invoice."
   },
   "cashBox": {
     "title": "Cash box",

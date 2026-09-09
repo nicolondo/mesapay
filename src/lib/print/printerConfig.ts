@@ -16,12 +16,18 @@
  */
 
 import { z } from "zod";
-import { PrepStation } from "@prisma/client";
+import { PrepStation, PrinterKind } from "@prisma/client";
 
 /** Las estaciones válidas, tomadas del enum de Prisma para que no deriven. */
 export const PREP_STATIONS = Object.values(PrepStation) as [
   PrepStation,
   ...PrepStation[],
+];
+
+/** Qué imprime cada impresora: comanda de cocina o tirilla del cliente. */
+export const PRINTER_KINDS = Object.values(PrinterKind) as [
+  PrinterKind,
+  ...PrinterKind[],
 ];
 
 /**
@@ -86,7 +92,19 @@ export const reportedPrinterSchema = z.object({
   label: z.string().trim().min(1).max(80),
   host: z.string().trim().min(1).max(253).refine(isValidPrinterHost),
   port: z.number().int().min(1).max(65535).default(9100),
-  station: z.enum(PREP_STATIONS),
+  /**
+   * OPCIONAL con default `comanda`, y tiene que seguir siéndolo: el
+   * programa que corre en el local se escribió contra el contrato de
+   * antes y no manda este campo. Un agente viejo, sin actualizar, debe
+   * poder seguir publicando sus impresoras de cocina exactamente igual.
+   */
+  kind: z.enum(PRINTER_KINDS).default("comanda"),
+  /**
+   * Obligatoria en una impresora de comanda (`invalidKindStations` lo
+   * verifica), prohibida en una de factura: una tirilla del cliente no
+   * sale de una estación de preparación.
+   */
+  station: z.enum(PREP_STATIONS).nullish(),
   /**
    * Sólo con `station: "bar"` y sólo si el comercio definió
    * `Restaurant.barSubStations`. Que exista se valida en la ruta (hace
@@ -121,13 +139,56 @@ export function duplicateLocalKeys(printers: { localKey: string }[]): string[] {
 }
 
 /**
+ * Qué está mal en la combinación `kind` + `station` de cada impresora.
+ *
+ * Las dos formas de romperlo dejan una impresora que se ve perfecta en la
+ * pantalla y no imprime NUNCA, que es el peor de los errores posibles:
+ *
+ *  - `comanda` sin estación: el ruteo no la engancha a nada, la cocina se
+ *    queda esperando comandas que nadie encoló.
+ *  - `factura` con estación: sugiere que va a recibir comandas, y no. Y
+ *    una comanda saliendo por la impresora de la caja (o una factura por
+ *    la de la parrilla) es un error que el cliente ve.
+ *
+ * Se devuelve el `localKey` y no un índice porque el instalador está
+ * mirando SU archivo de configuración: ahí las impresoras se llaman
+ * "cocina" y "caja", no "printers[2]".
+ */
+export type KindStationProblem = {
+  localKey: string;
+  kind: PrinterKind;
+  problem: "station_required" | "station_not_allowed";
+};
+
+export function invalidKindStations(
+  printers: Array<Pick<ReportedPrinter, "localKey" | "kind" | "station">>,
+): KindStationProblem[] {
+  const out: KindStationProblem[] = [];
+  for (const p of printers) {
+    const station = p.station ?? null;
+    if (p.kind === "comanda" && station === null) {
+      out.push({ localKey: p.localKey, kind: p.kind, problem: "station_required" });
+    }
+    if (p.kind === "factura" && station !== null) {
+      out.push({
+        localKey: p.localKey,
+        kind: p.kind,
+        problem: "station_not_allowed",
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Sub-estaciones que el body menciona y el comercio no tiene definidas.
  * Una impresora apuntando a una sub-estación inexistente no recibiría
  * NUNCA un trabajo (`printerMatches` no la haría coincidir con nada) y
  * eso desde la web se ve como "la impresora está bien, pero no imprime".
  *
  * `barSubStation` en una impresora que no es de barra también es un
- * error: el ruteo la ignoraría.
+ * error: el ruteo la ignoraría. Eso incluye a las de FACTURA, que no
+ * tienen estación — una tirilla del cliente no sale de la barra.
  */
 export function invalidSubStations(
   printers: Pick<ReportedPrinter, "station" | "barSubStation">[],

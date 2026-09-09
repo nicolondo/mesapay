@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mailer";
 import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
 import { orderTaxTotals } from "@/lib/salesTax";
+import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 
 /** Datos del cliente para una factura personalizada. */
 export type InvoiceCustomer = {
@@ -37,6 +38,10 @@ export function invoiceUrlFor(id: string): string {
  * pagada. Fuente ÚNICA de la numeración + snapshot — la usan la tirilla
  * genérica (consumidor final) y la factura personalizada (con datos del
  * cliente). El envío de correo lo hace el caller (varía por flujo).
+ *
+ * Acá adentro sí se encola la IMPRESIÓN en la impresora de facturas del
+ * local, justamente porque este es el único punto por el que pasan todos
+ * los flujos. Es best-effort: ver `print/invoiceQueue.ts`.
  */
 export async function issueSimpleInvoice(opts: {
   tenantId: string;
@@ -71,12 +76,26 @@ export async function issueSimpleInvoice(opts: {
 
   // Idempotencia — ya emitida antes: devolvemos esa (no re-numeramos).
   if (order.simpleInvoice) {
+    const snapshot = order.simpleInvoice
+      .snapshot as unknown as InvoiceSnapshot;
+    // Se vuelve a intentar el encolado a propósito: si la primera vez la
+    // impresora de la caja no existía todavía (o el encolado falló), esta
+    // llamada la imprime. El `dedupeKey` impide el duplicado en el caso
+    // normal, que es el que importa.
+    await enqueueInvoicePrintSafe({
+      restaurantId: opts.tenantId,
+      orderId: order.id,
+      invoiceId: order.simpleInvoice.id,
+      invoiceNumber: order.simpleInvoice.invoiceNumber,
+      snapshot,
+      locale: order.locale,
+    });
     return {
       ok: true,
       invoiceId: order.simpleInvoice.id,
       invoiceUrl: invoiceUrlFor(order.simpleInvoice.id),
       invoiceNumber: order.simpleInvoice.invoiceNumber,
-      snapshot: order.simpleInvoice.snapshot as unknown as InvoiceSnapshot,
+      snapshot,
       email: order.simpleInvoice.email,
       locale: order.locale,
       alreadyIssued: true,
@@ -167,6 +186,18 @@ export async function issueSimpleInvoice(opts: {
       snapshot: snapshot as unknown as object,
       totalCents: order.totalCents,
     },
+  });
+
+  // La tirilla sale por la impresora de la caja en el mismo momento del
+  // cobro. Se AWAITEA (son dos queries y un insert) pero no puede fallar
+  // hacia afuera: la factura ya está emitida y numerada.
+  await enqueueInvoicePrintSafe({
+    restaurantId: opts.tenantId,
+    orderId: order.id,
+    invoiceId: inv.id,
+    invoiceNumber,
+    snapshot,
+    locale: order.locale,
   });
 
   return {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   duplicateLocalKeys,
+  invalidKindStations,
   invalidSubStations,
   isValidPrinterHost,
   printersReportSchema,
@@ -86,6 +87,37 @@ describe("printersReportSchema", () => {
     expect(
       printersReportSchema.safeParse({
         printers: [{ ...ok, station: "postres" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("sin `kind` el default es comanda — el agente instalado no manda ese campo", () => {
+    const parsed = printersReportSchema.safeParse({ printers: [ok] });
+    expect(parsed.success && parsed.data.printers[0].kind).toBe("comanda");
+  });
+
+  it("acepta kind factura sin estación", () => {
+    const parsed = printersReportSchema.safeParse({
+      printers: [
+        {
+          localKey: "caja",
+          label: "Caja",
+          host: "192.168.1.60",
+          kind: "factura",
+        },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.printers[0].kind).toBe("factura");
+    expect(parsed.success ? parsed.data.printers[0].station : "x").toBe(
+      undefined,
+    );
+  });
+
+  it("rechaza un kind inventado", () => {
+    expect(
+      printersReportSchema.safeParse({
+        printers: [{ ...ok, kind: "etiquetas" }],
       }).success,
     ).toBe(false);
   });
@@ -186,5 +218,52 @@ describe("invalidSubStations", () => {
     expect(
       invalidSubStations([{ station: "bar", barSubStation: null }], []),
     ).toEqual([]);
+  });
+});
+
+describe("invalidKindStations", () => {
+  it("una impresora de comanda con estación está bien", () => {
+    expect(
+      invalidKindStations([
+        { localKey: "cocina", kind: "comanda", station: "kitchen" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("una de factura sin estación está bien", () => {
+    expect(
+      invalidKindStations([
+        { localKey: "caja", kind: "factura", station: null },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("una de comanda SIN estación se rechaza: nunca recibiría un trabajo", () => {
+    expect(
+      invalidKindStations([
+        { localKey: "cocina", kind: "comanda", station: null },
+      ]),
+    ).toEqual([
+      { localKey: "cocina", kind: "comanda", problem: "station_required" },
+    ]);
+  });
+
+  it("una de factura CON estación se rechaza: no prepara nada", () => {
+    expect(
+      invalidKindStations([
+        { localKey: "caja", kind: "factura", station: "counter" },
+      ]),
+    ).toEqual([
+      { localKey: "caja", kind: "factura", problem: "station_not_allowed" },
+    ]);
+  });
+
+  it("señala TODAS las que están mal, no sólo la primera", () => {
+    const bad = invalidKindStations([
+      { localKey: "cocina", kind: "comanda", station: null },
+      { localKey: "barra", kind: "comanda", station: "bar" },
+      { localKey: "caja", kind: "factura", station: "kitchen" },
+    ]);
+    expect(bad.map((b) => b.localKey)).toEqual(["cocina", "caja"]);
   });
 });

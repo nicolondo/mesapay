@@ -10,7 +10,12 @@ import {
   shouldRetryAfterFailure,
   type ClaimableJob,
 } from "./claim";
-import { printerMatches, ticketDedupeKey } from "./routing";
+import {
+  invoiceDedupeKey,
+  isInvoicePrinter,
+  printerMatches,
+  ticketDedupeKey,
+} from "./routing";
 
 const NOW = new Date("2026-09-08T19:00:00.000Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
@@ -159,9 +164,13 @@ describe("normalizeLimit", () => {
 });
 
 describe("ruteo a impresoras", () => {
-  const cocina = { station: "kitchen", barSubStation: null };
-  const barraTodo = { station: "bar", barSubStation: null };
-  const barraCocteles = { station: "bar", barSubStation: "Cocteles" };
+  const cocina = { kind: "comanda", station: "kitchen", barSubStation: null };
+  const barraTodo = { kind: "comanda", station: "bar", barSubStation: null };
+  const barraCocteles = {
+    kind: "comanda",
+    station: "bar",
+    barSubStation: "Cocteles",
+  };
 
   it("cada impresora sólo recibe su estación", () => {
     expect(printerMatches(cocina, "kitchen", null)).toBe(true);
@@ -179,6 +188,49 @@ describe("ruteo a impresoras", () => {
     expect(printerMatches(barraCocteles, "bar", "Cocteles")).toBe(true);
     expect(printerMatches(barraCocteles, "bar", "Cafe")).toBe(false);
     expect(printerMatches(barraCocteles, "bar", null)).toBe(false);
+  });
+});
+
+describe("ruteo por TIPO de impresora", () => {
+  // La de la caja: sin estación, saca la tirilla del cliente.
+  const caja = { kind: "factura", station: null, barSubStation: null };
+  const cocina = { kind: "comanda", station: "kitchen", barSubStation: null };
+
+  it("la impresora de facturas NO recibe comandas", () => {
+    expect(printerMatches(caja, "kitchen", null)).toBe(false);
+    expect(printerMatches(caja, "bar", null)).toBe(false);
+    expect(printerMatches(caja, "bar", "Cocteles")).toBe(false);
+  });
+
+  it("una fila de factura a la que alguien le dejó una estación tampoco", () => {
+    // No debería existir (la validación del registro lo impide), pero si
+    // una fila vieja quedara así, el ruteo no puede mandarle una comanda.
+    expect(
+      printerMatches(
+        { kind: "factura", station: "kitchen", barSubStation: null },
+        "kitchen",
+        null,
+      ),
+    ).toBe(false);
+  });
+
+  it("la de cocina no cuenta como impresora de facturas", () => {
+    expect(isInvoicePrinter(cocina)).toBe(false);
+    expect(isInvoicePrinter(caja)).toBe(true);
+  });
+});
+
+describe("invoiceDedupeKey", () => {
+  it("la misma factura da la misma clave — no se imprime dos veces", () => {
+    expect(invoiceDedupeKey("inv1")).toBe(invoiceDedupeKey("inv1"));
+  });
+
+  it("dos facturas son dos tirillas", () => {
+    expect(invoiceDedupeKey("inv1")).not.toBe(invoiceDedupeKey("inv2"));
+  });
+
+  it("no colisiona con la clave de una comanda", () => {
+    expect(invoiceDedupeKey("r1")).not.toBe(ticketDedupeKey("r1", "kitchen", null));
   });
 });
 

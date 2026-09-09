@@ -188,12 +188,7 @@
     "etaHeadlineMax": "Tu pedido sale en más de {min} min",
     "discountRow": "Descuento",
     "discountRowPct": "Descuento {pct}%",
-    "discountedTotal": "Total con descuento",
-    "requestBill": "Pedir la cuenta",
-    "requestingBill": "Pidiendo…",
-    "billOnWay": "Ya pediste la cuenta",
-    "billOnWayHint": "Vamos en camino con tu cuenta.",
-    "errRequestBill": "No pudimos pedir la cuenta."
+    "discountedTotal": "Total con descuento"
   },
   "pay": {
     "pay": "Pagar",
@@ -5367,7 +5362,10 @@
     "table": "Mesa {number}",
     "charge": "Ir a cobrar",
     "dismiss": "Cerrar",
-    "more": "{count, plural, one {+# mesa más esperando} other {+# mesas más esperando}}"
+    "more": "{count, plural, one {+# mesa más esperando} other {+# mesas más esperando}}",
+    "methodCash": "Va a pagar en efectivo",
+    "methodTerminal": "Va a pagar con datáfono",
+    "methodExternalTerminal": "Va a pagar con datáfono del comercio"
   },
   "chargeLock": {
     "title": "El cobro lo hace el administrador",

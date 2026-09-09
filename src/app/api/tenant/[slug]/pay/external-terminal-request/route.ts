@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
@@ -40,11 +41,14 @@ export async function POST(
 
   // Control de caja: el datáfono propio del comercio también es un cobro
   // que el mesero no puede iniciar cuando la política está activa.
-  if (tenant.adminOnlyCharge) {
-    const staffSession = await auth();
-    if (isChargeBlockedForRole(staffSession?.user?.role, true)) {
-      return chargeBlockedResponse();
-    }
+  //
+  // Una sola lectura de sesión para los tres usos que tiene en esta ruta:
+  // el guard de caja, la atribución del cobro (collectedByUserId) y saber
+  // si quien eligió el método es un comensal.
+  const session = await auth();
+  const role = session?.user?.role;
+  if (tenant.adminOnlyCharge && isChargeBlockedForRole(role, true)) {
+    return chargeBlockedResponse();
   }
 
   const body = await req.json().catch(() => null);
@@ -85,12 +89,9 @@ export async function POST(
 
   // Tracking de quién lo inicia — útil si es un mesero/operator
   // cobrando desde su PWA para reportes de propinas.
-  const session = await auth();
   const collectedByUserId =
     session?.user &&
-    (session.user.role === "mesero" ||
-      session.user.role === "operator" ||
-      session.user.role === "platform_admin")
+    (role === "mesero" || role === "operator" || role === "platform_admin")
       ? session.user.id
       : null;
 
@@ -153,6 +154,17 @@ export async function POST(
       url: "/mesero/salon",
     });
   })().catch((err) => console.error("[push:external_terminal]", err));
+
+  // Con "solo el administrador inicia el cobro", que el comensal elija el
+  // datáfono del comercio ES pedir la cuenta: alguien tiene que ir a la
+  // mesa a pasar la tarjeta. El aviso de pantalla completa del
+  // administrador escucha sólo `order.bill_requested`.
+  await announceBillRequestedOnPay({
+    tenant,
+    order,
+    role,
+    method: "external_terminal",
+  });
 
   return NextResponse.json({
     paymentId: payment.id,

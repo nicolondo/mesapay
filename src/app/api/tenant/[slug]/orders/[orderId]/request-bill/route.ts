@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import {
+  billRequestSourceForRole,
+  publishBillRequested,
+} from "@/lib/billRequest";
 import { db } from "@/lib/db";
-import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
 
 /**
@@ -14,11 +17,13 @@ import { sendPushToMeserosForTable } from "@/lib/push";
  * administrador sin que suene por cualquier cosa. Esta ruta es la señal
  * inequívoca.
  *
- * Dos orígenes, un mismo endpoint:
- *   - COMENSAL (sin sesión), desde /t/[slug]/order/[orderId].
- *   - MESERO/STAFF (con sesión), desde Salón / Mesas: cuando el comercio
- *     activó "solo el administrador cobra", el mesero ya no ve el botón
- *     de cobrar y en su lugar avisa a caja con un tap.
+ * Quién la usa hoy: el MESERO/STAFF (con sesión), desde Salón / Mesas —
+ * cuando el comercio activó "solo el administrador cobra" él ya no ve el
+ * botón de cobrar y en su lugar avisa a caja con un tap. El comensal ya
+ * no tiene un botón aparte: pide la cuenta eligiendo forma de pago en
+ * /t/[slug]/pay/[orderId], que emite el mismo evento (ver
+ * src/lib/billRequest.ts). La ruta sigue aceptando al comensal sin
+ * sesión — pedir la propia cuenta nunca fue un permiso.
  *
  * Efectos:
  *   1. Marca Order.needsWaiter + waiterCalledAt. Reusamos los campos que
@@ -72,33 +77,12 @@ export async function POST(
   // ¿Lo pide el staff o el comensal? Sólo para el copy del aviso — no es
   // un permiso: cualquiera sentado en la mesa puede pedir su cuenta.
   const session = await auth();
-  const role = session?.user?.role;
-  const source =
-    role === "mesero" || role === "operator" || role === "platform_admin"
-      ? ("staff" as const)
-      : ("diner" as const);
+  const source = billRequestSourceForRole(session?.user?.role);
 
-  // needsWaiter idempotente: si la mesa ya tenía una llamada viva no le
-  // pisamos el waiterCalledAt (el reloj de espera del Salón tiene que
-  // seguir corriendo desde el primer pedido, no reiniciarse con cada tap).
-  if (!order.needsWaiter) {
-    await db.order.update({
-      where: { id: order.id },
-      data: { needsWaiter: true, waiterCalledAt: new Date() },
-    });
-  }
-
-  // El evento SÍ se re-emite aunque ya hubiera llamada viva: si el
-  // administrador cerró el aviso y la mesa vuelve a insistir, tiene que
-  // volver a sonar.
-  publishOrderEvent(tenant.id, {
-    type: "order.bill_requested",
-    orderId: order.id,
-    shortCode: order.shortCode,
-    tableNumber: order.table.number,
-    tableLabel: order.table.label,
-    source,
-  });
+  // Marca de "atención pendiente" + evento. Sin `method`: pedir la cuenta
+  // a secas no dice cómo va a pagar la mesa (eso lo aporta la elección de
+  // forma de pago del comensal).
+  await publishBillRequested({ tenantId: tenant.id, order, source });
 
   // Push a los meseros de la mesa. Fire-and-forget: un servicio de push
   // lento no puede demorar la respuesta al comensal.

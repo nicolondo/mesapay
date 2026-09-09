@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import type { BillRequestMethod } from "@/lib/events";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 /**
@@ -40,6 +41,34 @@ export type BillRequest = {
   tableNumber: number;
   tableLabel: string | null;
   source: "diner" | "staff";
+  // Con qué eligió pagar el comensal, cuando lo sabemos. El mesero
+  // pidiendo la cuenta no elige método: ahí es null y el aviso no
+  // muestra ese renglón.
+  method: BillRequestMethod | null;
+};
+
+const KNOWN_METHODS = new Set<BillRequestMethod>([
+  "cash",
+  "kushki_card_terminal",
+  "external_terminal",
+]);
+
+/**
+ * El método llega por SSE y también se relee de sessionStorage, que lo
+ * puede haber escrito una versión anterior del componente: cualquier
+ * cosa que no sea uno de los tres métodos presenciales se degrada a
+ * null (el aviso se muestra igual, sin el renglón del método).
+ */
+function toMethod(raw: unknown): BillRequestMethod | null {
+  return typeof raw === "string" && KNOWN_METHODS.has(raw as BillRequestMethod)
+    ? (raw as BillRequestMethod)
+    : null;
+}
+
+const METHOD_KEYS: Record<BillRequestMethod, string> = {
+  cash: "methodCash",
+  kushki_card_terminal: "methodTerminal",
+  external_terminal: "methodExternalTerminal",
 };
 
 const STORAGE_KEY = "mp_bill_requests";
@@ -67,13 +96,15 @@ function readStored(): BillRequest[] {
     if (!Array.isArray(parsed)) return EMPTY;
     // Validación defensiva: sessionStorage lo puede haber escrito una
     // versión anterior del componente.
-    const clean = parsed.filter(
-      (r): r is BillRequest =>
-        !!r &&
-        typeof r === "object" &&
-        typeof (r as BillRequest).key === "string" &&
-        typeof (r as BillRequest).orderId === "string",
-    );
+    const clean = parsed
+      .filter(
+        (r): r is BillRequest =>
+          !!r &&
+          typeof r === "object" &&
+          typeof (r as BillRequest).key === "string" &&
+          typeof (r as BillRequest).orderId === "string",
+      )
+      .map((r) => ({ ...r, method: toMethod(r.method) }));
     return clean.length > 0 ? clean : EMPTY;
   } catch {
     return EMPTY;
@@ -137,6 +168,7 @@ export function BillRequestAlert({ tenantSlug }: { tenantSlug: string }) {
             tableNumber: Number(data.tableNumber ?? 0),
             tableLabel: data.tableLabel ?? null,
             source: data.source === "staff" ? "staff" : "diner",
+            method: toMethod(data.method),
           });
           try {
             navigator.vibrate?.([200, 90, 200, 90, 200]);
@@ -204,6 +236,14 @@ export function BillRequestAlert({ tenantSlug }: { tenantSlug: string }) {
         <div className="font-display mt-2 text-[clamp(1.5rem,6vw,3rem)] opacity-95">
           {t("headline")}
         </div>
+
+        {/* Cómo va a pagar. Sólo cuando el comensal ya eligió forma de
+            pago — el mesero pidiendo la cuenta no la elige. */}
+        {current.method && (
+          <div className="font-mono text-xs md:text-sm tracking-[0.16em] uppercase mt-3 opacity-90">
+            {t(METHOD_KEYS[current.method])}
+          </div>
+        )}
 
         {current.shortCode && (
           <div className="font-mono text-xs md:text-sm tracking-[0.2em] uppercase mt-4 opacity-80">

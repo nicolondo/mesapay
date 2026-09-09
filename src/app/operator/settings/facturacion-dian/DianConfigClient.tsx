@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate } from "@/lib/format";
+import { fixLatin1Mojibake, parseCertSubject } from "@/lib/dian/certSubject";
 
 // ── Tipos que espeja el contrato de /api/operator/dian ──────────────────
 
@@ -630,7 +631,7 @@ function CertificateSection({
             )}
           </div>
           {status.certSubject && (
-            <div className="text-sm mt-2 break-words">{status.certSubject}</div>
+            <CertificateSubject t={t} subject={status.certSubject} />
           )}
           {status.certNotAfter && (
             <div
@@ -642,6 +643,10 @@ function CertificateSection({
                 date: formatDate(status.certNotAfter, {
                   locale,
                   dateStyle: "medium",
+                  // `formatDate` trae timeStyle: "short" por defecto y la
+                  // hora exacta del vencimiento es ruido ("17/08/2028,
+                  // 4:34 p. m."). Sólo la fecha.
+                  timeStyle: undefined,
                 }),
               })}
             </div>
@@ -710,6 +715,92 @@ function CertificateSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Etiquetas de los campos del DN que sabemos nombrar — por shortName y por
+ * nombre largo, en minúsculas. Lo que no está acá se muestra con la clave
+ * cruda; el valor nunca se esconde.
+ */
+const CERT_FIELD_LABELS: Record<string, string> = {
+  cn: "certFieldCommonName",
+  commonname: "certFieldCommonName",
+  o: "certFieldOrganization",
+  organizationname: "certFieldOrganization",
+  ou: "certFieldOrgUnit",
+  organizationalunitname: "certFieldOrgUnit",
+  l: "certFieldLocality",
+  localityname: "certFieldLocality",
+  st: "certFieldState",
+  stateorprovincename: "certFieldState",
+  c: "certFieldCountry",
+  countryname: "certFieldCountry",
+  serialnumber: "certFieldSerialNumber",
+  streetaddress: "certFieldStreetAddress",
+  givenname: "certFieldGivenName",
+  surname: "certFieldSurname",
+  email: "certFieldEmail",
+  emailaddress: "certFieldEmail",
+};
+
+/**
+ * Datos del certificado, legibles.
+ *
+ * Antes se pintaba el DN crudo tal como lo devuelve node-forge: una línea
+ * de 200 caracteres con "undefined=9019444691" y el apellido del titular
+ * roto. Ahora arriba va lo único que el dueño necesita reconocer (a nombre
+ * de quién está el certificado) y el volcado completo queda a un clic.
+ */
+function CertificateSubject({
+  t,
+  subject,
+}: {
+  t: ReturnType<typeof useTranslations>;
+  subject: string;
+}) {
+  const parsed = parseCertSubject(subject);
+  // Sin CN ni O no hay nada que resumir: mejor el DN entero (reparado)
+  // que una tarjeta vacía.
+  const main = parsed.commonName ?? parsed.organization ?? fixLatin1Mojibake(subject);
+  const place = [parsed.locality, parsed.state, parsed.country]
+    .filter(Boolean)
+    .join(", ");
+  const secondary = [
+    parsed.organization !== parsed.commonName ? parsed.organization : null,
+    place || null,
+    parsed.serialNumber ? t("certSerial", { serial: parsed.serialNumber }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="mt-2">
+      <div className="text-sm font-medium break-words">{main}</div>
+      {secondary && (
+        <div className="text-xs text-op-muted break-words mt-0.5">{secondary}</div>
+      )}
+      {parsed.fields.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[11px] text-op-muted cursor-pointer select-none">
+            {t("certSubjectDetails")}
+          </summary>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            {parsed.fields.map((f, i) => {
+              const labelKey = f.key ? CERT_FIELD_LABELS[f.key.toLowerCase()] : undefined;
+              return (
+                <div key={`${f.key ?? ""}-${i}`}>
+                  <dt className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-0.5">
+                    {labelKey ? t(labelKey) : f.key}
+                  </dt>
+                  <dd className="text-sm break-words">{f.value}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -930,7 +1021,16 @@ function HabilitacionSection({
     return (
       <section className="rounded-2xl border border-op-border bg-op-surface p-5">
         <StepHeader index={3} title={t("habTitle")} t={t} />
-        <p className="text-xs text-op-muted mt-1">{t("habNotReady")}</p>
+        {/*
+          Un comercio ya habilitado cae acá (pasa a Producción y deja de
+          cumplir `ready`), y el copy de "te falta configurar" era falso y
+          alarmante: no le falta nada, ya emite.
+        */}
+        <p className="text-xs text-op-muted mt-1">
+          {status.status === "enabled"
+            ? t("habAlreadyEnabled")
+            : t("habNotReady")}
+        </p>
         {(status.status === "testing" || status.status === "enabled") && (
           <div className="mt-3">
             <StatusBadge status={status.status} t={t} />

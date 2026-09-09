@@ -35,11 +35,16 @@ export async function GET() {
   return NextResponse.json({
     status,
     emisor: emisor ? emisorView(emisor) : null,
-    // Último documento enviado: sin esto la pantalla perdía el resultado
-    // al recargar y el operador nunca veía por qué la DIAN rechazó.
-    lastDocument: status.einvoicingEnabled
-      ? await lastTestSetDocument(ctx.restaurantId)
-      : null,
+    // Último documento del SET DE PRUEBAS — sólo mientras el comercio
+    // siga en habilitación: ahí sí necesita ver por qué la DIAN rechazó y
+    // que el resultado sobreviva a recargar la página. Ya en producción
+    // ese documento es historia de una corrida vieja y no dice nada del
+    // estado actual: mostrarlo pintaba un panel rojo de "documento
+    // rechazado" debajo de la insignia "Habilitado" y asustaba al dueño.
+    lastDocument:
+      status.einvoicingEnabled && status.environment === "habilitacion"
+        ? await lastTestSetDocument(ctx.restaurantId)
+        : null,
     // Aviso temprano si el server no puede cifrar secretos.
     masterKeyReady: /^[0-9a-fA-F]{64}$/.test(process.env.DIAN_MASTER_KEY ?? ""),
   });

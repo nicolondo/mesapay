@@ -2,20 +2,37 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { db } from "@/lib/db";
 import { sftpConfigured, uploadFileToSftp } from "@/lib/sftp";
+import { computeNitDv } from "@/lib/erp/exogena";
 
 export { sftpConfigured };
 
-/** Nombre del comercio → carpeta segura (sin tildes, espacios→-, minúsculas). */
-export function folderNameForRestaurant(name: string | null | undefined): string {
-  const noAccents = (name ?? "")
+export type SftpMerchantIdentity = {
+  legalName: string | null | undefined;
+  taxId: string | null | undefined;
+};
+
+/** Razón social normalizada + NIT sin DV; los espacios del nombre se conservan. */
+export function folderNameForRestaurant(
+  legalName: string | null | undefined,
+  taxId: string | null | undefined,
+): string {
+  const name = (legalName ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  const slug = noAccents
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-  return slug || "sin-nombre";
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\./g, "")
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const match = /^(\d{1,15})(?:-(\d))?$/.exec(
+    (taxId ?? "").replace(/[.\s]/g, ""),
+  );
+  if (!name || !match) throw new Error("sftp_missing_legal_identity");
+  const [, nit, dv] = match;
+  if (dv !== undefined && computeNitDv(nit) !== dv)
+    throw new Error("sftp_invalid_nit_dv");
+  // Keep the complete NIT even when a legal name reaches the filesystem limit.
+  return `${name.slice(0, 200).trim()} - ${nit}`;
 }
 
 /** fileUrl (/uploads/onboarding/xxx) → ruta local en disco. */
@@ -40,7 +57,10 @@ function safeFileName(name: string): string {
  * con el nombre del comercio. Actualiza sftpUploadedAt/sftpError/sftpAttempts.
  * NO lanza — el caller (upload o cron) sigue igual si falla.
  */
-export async function deliverDocumentToSftp(documentId: string): Promise<void> {
+export async function deliverDocumentToSftp(
+  documentId: string,
+  identity?: SftpMerchantIdentity,
+): Promise<void> {
   if (!sftpConfigured()) return;
   const doc = await db.kushkiDocument.findUnique({
     where: { id: documentId },
@@ -50,14 +70,15 @@ export async function deliverDocumentToSftp(documentId: string): Promise<void> {
       fileUrl: true,
       fileName: true,
       sftpUploadedAt: true,
-      restaurant: { select: { name: true } },
+      restaurant: { select: { legalName: true, taxId: true } },
     },
   });
   if (!doc || doc.sftpUploadedAt) return; // ya entregado o inexistente
 
   try {
     const data = await readFile(localPathForUrl(doc.fileUrl));
-    const folder = folderNameForRestaurant(doc.restaurant.name);
+    const legal = identity ?? doc.restaurant;
+    const folder = folderNameForRestaurant(legal.legalName, legal.taxId);
     // Nombre remoto único y reconocible: <tipo>_<sufijo>_<nombre original>.
     const remoteName = `${doc.kind}_${doc.id.slice(-6)}_${safeFileName(doc.fileName)}`;
     await uploadFileToSftp({ folder, fileName: remoteName, data });
@@ -93,6 +114,7 @@ export async function deliverDocumentToSftp(documentId: string): Promise<void> {
  */
 export async function deliverPendingDocsToSftp(
   restaurantId: string,
+  identity?: SftpMerchantIdentity,
 ): Promise<{ configured: boolean; delivered: number; total: number }> {
   const docs = await db.kushkiDocument.findMany({
     where: { restaurantId },
@@ -102,7 +124,7 @@ export async function deliverPendingDocsToSftp(
     return { configured: false, delivered: 0, total: docs.length };
   }
   for (const d of docs) {
-    if (!d.sftpUploadedAt) await deliverDocumentToSftp(d.id);
+    if (!d.sftpUploadedAt) await deliverDocumentToSftp(d.id, identity);
   }
   const after = await db.kushkiDocument.count({
     where: { restaurantId, sftpUploadedAt: { not: null } },
@@ -122,15 +144,17 @@ export async function deliverOnboardingManifest(
   manifest: Record<string, unknown>,
 ): Promise<boolean> {
   if (!sftpConfigured()) return false;
-  const r = await db.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { name: true },
-  });
-  const folder = folderNameForRestaurant(r?.name);
   try {
+    const folder = folderNameForRestaurant(
+      typeof manifest.legalName === "string" ? manifest.legalName : null,
+      typeof manifest.taxId === "string" ? manifest.taxId : null,
+    );
     const data = Buffer.from(JSON.stringify(manifest, null, 2), "utf8");
     await uploadFileToSftp({ folder, fileName: "datos-comercio.json", data });
-    console.log(`[onboarding/sftp] manifest delivered → ${folder}/datos-comercio.json`);
+    console.log(
+      `[onboarding/sftp] manifest delivered → ${folder}/datos-comercio.json`,
+      { restaurantId },
+    );
     return true;
   } catch (err) {
     console.error(

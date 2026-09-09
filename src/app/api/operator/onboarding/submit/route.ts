@@ -127,7 +127,10 @@ async function POSTHandler(req: Request) {
   };
 
   const manifestOk = await deliverOnboardingManifest(restaurantId, manifest);
-  const docsResult = await deliverPendingDocsToSftp(restaurantId);
+  const docsResult = await deliverPendingDocsToSftp(restaurantId, {
+    legalName: manifest.legalName,
+    taxId: manifest.taxId,
+  });
   const status =
     manifestOk &&
     docsResult.configured &&

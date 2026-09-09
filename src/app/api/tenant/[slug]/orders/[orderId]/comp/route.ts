@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -150,6 +151,15 @@ export async function POST(
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: order.id,
   });
+
+  // La cortesía cierra la cuenta en $0: sigue siendo una cuenta pagada y, si
+  // alguien pidió factura, hay que emitirla igual.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: tenant.id,
+      orderId: order.id,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

@@ -181,13 +181,15 @@ export default async function PayDone({
             </div>
           )}
 
-          {/* Invoice CTA — directly under the status card so it's the
-              second thing the diner sees, not buried at the bottom. */}
+          {/* Estado de la factura. La pregunta ya se hizo en el checkout;
+              acá sólo queda el estado, o un acceso discreto por si cambió
+              de opinión. */}
           <div className="mt-6">
             <InvoiceRequestPanel
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              simpleRequestEmail={order.simpleInvoiceEmail}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
             />
@@ -295,15 +297,16 @@ export default async function PayDone({
           </div>
         )}
 
-        {/* Invoice CTA — placed here (right after the diner sees their
-            payment was received) because that's the peak-attention moment.
-            Hidden until fully paid: there's no bill to invoice mid-split. */}
+        {/* Estado de la factura, justo después de "recibimos tu pago".
+            Oculto hasta que la cuenta esté saldada: a mitad de una cuenta
+            compartida no hay nada que facturar todavía. */}
         {fullyPaid && (
           <div className="mt-6">
             <InvoiceRequestPanel
               tenantSlug={slug}
               orderId={order.id}
               existing={invoiceSummary}
+              simpleRequestEmail={order.simpleInvoiceEmail}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
             />

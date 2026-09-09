@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
 /**
  * Shared business logic for processing Kushki webhook events. Used by both
@@ -166,6 +167,15 @@ async function handleApproved(payload: KushkiWebhookPayload): Promise<void> {
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: payment.orderId,
   });
+
+  // Riel asíncrono (datáfono / PSE): el comensal ya cerró el celular, así que
+  // la factura que pidió en el checkout tiene que salir desde acá.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: payment.order.restaurantId,
+      orderId: payment.orderId,
+    });
+  }
 }
 
 async function handleDeclined(payload: KushkiWebhookPayload): Promise<void> {

@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * "Cobro realizado" del MESERO — vive bajo /mesero/ para quedar DENTRO de
- * la PWA (con su bottom nav Salón/Cobros/Mesas). Acá el mesero ofrece la
- * factura DESPUÉS del pago (genérica / personalizada). Antes se rebotaba a
- * /t/[slug]/…/done, que está fuera del scope de la PWA y ocultaba el nav.
+ * la PWA (con su bottom nav Salón/Cobros/Mesas). La factura ahora se pide
+ * durante el cobro, así que acá queda su ESTADO (y una salida discreta si el
+ * cliente cambió de opinión). Antes se rebotaba a /t/[slug]/…/done, que está
+ * fuera del scope de la PWA y ocultaba el nav.
  */
 export default async function MeseroCobradoPage({
   params,
@@ -36,6 +37,8 @@ export default async function MeseroCobradoPage({
       totalCents: true,
       subtotalCents: true,
       discountCents: true,
+      customerEmail: true,
+      simpleInvoiceEmail: true,
       restaurant: { select: { slug: true } },
     },
   });
@@ -95,6 +98,8 @@ export default async function MeseroCobradoPage({
         tenantSlug={order.restaurant.slug}
         orderId={orderId}
         existing={existing}
+        simpleRequestEmail={order.simpleInvoiceEmail}
+        prefillEmail={order.customerEmail}
         operatorMode
       />
     </div>

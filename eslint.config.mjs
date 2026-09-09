@@ -121,6 +121,9 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
   "src/components/CashBox.tsx",
+  // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació
+  // trilingüe cuando se extrajo de done/InvoiceRequestPanel.
+  "src/components/invoice/**/*.{ts,tsx}",
   // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
   "src/components/MunicipioAutocomplete.tsx",
   "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",

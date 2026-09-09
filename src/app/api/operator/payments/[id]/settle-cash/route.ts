@@ -7,6 +7,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
@@ -142,6 +143,15 @@ export async function POST(
     welcomeIfFirstTime(payment.order.dinerId, payment.order.locale).catch((err) =>
       console.error("[welcomeIfFirstTime]", err),
     );
+  }
+
+  // La cuenta quedó cerrada: si el comensal pidió factura en el checkout, se
+  // emite y se envía ahora. Fuera de la transacción y a prueba de fallos.
+  if (result.fullyPaid) {
+    await issueRequestedInvoiceOnPaid({
+      tenantId: payment.order.restaurantId,
+      orderId: payment.orderId,
+    });
   }
 
   return NextResponse.json({

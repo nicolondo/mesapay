@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
+import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
+import type { InvoiceIntent } from "@/components/invoice/types";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
@@ -63,6 +65,8 @@ export function PayClient({
   doneHref = "",
   compEnabled = false,
   compLabel = null,
+  invoiceIntent = null,
+  invoicePrefillEmail = null,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -148,6 +152,11 @@ export function PayClient({
   // comercio lo habilitó. compLabel = nombre configurable (null ⇒ default i18n).
   compEnabled?: boolean;
   compLabel?: string | null;
+  // Factura que el comensal ya pidió en esta cuenta (si pidió). Se muestra
+  // como resumen corto en vez de volver a abrirle el formulario.
+  invoiceIntent?: InvoiceIntent | null;
+  // Correo del último cobro con tarjeta, para prellenar los sheets.
+  invoicePrefillEmail?: string | null;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -927,8 +936,17 @@ export function PayClient({
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
-      {/* La factura NO se pide acá (antes del pago): se ofrece DESPUÉS del
-          cobro exitoso, en la página de "listo" (done), en modo mesero. */}
+      {/* La factura se pide ACÁ, antes de confirmar el pago: es el momento en
+          que el comensal todavía tiene el celular en la mano. Los datos se
+          guardan al instante; la factura se emite cuando el cobro se confirma
+          (puede ser minutos después si paga en efectivo). */}
+      <InvoiceCheckoutCard
+        tenantSlug={tenantSlug}
+        orderId={orderId}
+        initialIntent={invoiceIntent}
+        prefillEmail={invoicePrefillEmail}
+        operatorMode={operatorMode}
+      />
 
       <div className="mt-6 space-y-2">
         {/* Apple Pay requires the diner's own iPhone — the waiter can't

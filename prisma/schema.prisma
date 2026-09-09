@@ -3342,6 +3342,24 @@ model Printer {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  /// Qué agente reporta esta impresora. La IP de la impresora se escribe
+  /// en la config del PROGRAMA, no en la web: quien instala está parado
+  /// frente a la impresora y es el único que puede resolver un cambio de
+  /// IP del router. El agente publica su set con POST /printers y la web
+  /// sólo lo MUESTRA — es diagnóstico y soporte, no un editor.
+  ///
+  /// Nullable porque el modelo admite impresoras sin agente (creadas a
+  /// mano en soporte); el flujo normal siempre trae agentId.
+  agentId String?
+  agent   PrintAgent? @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// El identificador que usa el programa para ESTA impresora en su
+  /// config local ("cocina", "barra1"). Es la llave del upsert: el mismo
+  /// localKey actualiza la fila en vez de crear otra, así que reinstalar
+  /// el agente o cambiarle la IP a la impresora no duplica nada ni
+  /// desprende los PrintJob viejos.
+  localKey String?
+
   /// Rótulo humano — "Cocina caliente", "Barra cócteles". Es lo que ve
   /// el operador en la pantalla de configuración y lo que viaja en el
   /// job para que el agente lo loguee.
@@ -3376,6 +3394,9 @@ model Printer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Un localKey por agente. En Postgres varios NULL no chocan entre sí,
+  /// así que las impresoras sin agente (soporte) siguen siendo posibles.
+  @@unique([agentId, localKey])
   @@index([restaurantId, active])
   @@index([restaurantId, station, active])
 }
@@ -3420,6 +3441,9 @@ model PrintAgent {
   /// Revocar en vez de borrar: si se filtró el token se marca acá y el
   /// agente deja de autenticar, sin perder el rastro de que existió.
   revokedAt DateTime?
+
+  /// Las impresoras que ESTE agente reportó con POST /print-agent/printers.
+  printers Printer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

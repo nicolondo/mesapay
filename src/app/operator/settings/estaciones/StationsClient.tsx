@@ -502,6 +502,19 @@ export function StationsClient({
               ))}
           </div>
         )}
+        {/* La alternativa a dejar una pestaña abierta: impresoras térmicas
+            de red atendidas por un programa que corre en el local. */}
+        <div className="mt-4 pt-4 border-t border-op-border">
+          <Link
+            href="/operator/settings/impresoras"
+            className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-op-border bg-op-bg text-sm hover:bg-paper"
+          >
+            {t("networkPrintersLink")}
+          </Link>
+          <p className="text-xs text-op-muted mt-2">
+            {t("networkPrintersHint")}
+          </p>
+        </div>
       </div>
 
       {/* Smart suggestion */}

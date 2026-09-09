@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { compareBeneficiaryIds } from "@/lib/beneficiaryIdentity";
 import {
   deliverPendingDocsToSftp,
   deliverOnboardingManifest,
@@ -43,7 +44,9 @@ async function POSTHandler(req: Request) {
   const session = await auth();
   if (
     !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
+    (session.user.role !== "operator" &&
+      session.user.role !== "platform_admin" &&
+      session.user.role !== "group_admin")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -80,12 +83,19 @@ async function POSTHandler(req: Request) {
     );
   }
 
-  // Server-side beneficiary check: the document number on the bank account
-  // must match the NIT on the RUT. We compare digits-only so DV, hyphens
-  // and spaces don't trip the check.
-  const rutId = parsed.data.taxId.replace(/\D/g, "");
-  const bankId = parsed.data.bankInfo.holderDocNumber.replace(/\D/g, "");
-  if (rutId && bankId && rutId !== bankId) {
+  const restaurant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { country: true },
+  });
+  if (!restaurant)
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  const { matches, rutId, bankId } = compareBeneficiaryIds({
+    taxId: parsed.data.taxId,
+    holderDocNumber: parsed.data.bankInfo.holderDocNumber,
+    holderDocType: parsed.data.bankInfo.holderDocType,
+    country: restaurant.country ?? "CO",
+  });
+  if (!matches) {
     return NextResponse.json(
       {
         error: "beneficiary_mismatch",
@@ -118,11 +128,17 @@ async function POSTHandler(req: Request) {
 
   const manifestOk = await deliverOnboardingManifest(restaurantId, manifest);
   const docsResult = await deliverPendingDocsToSftp(restaurantId);
+  const status =
+    manifestOk &&
+    docsResult.configured &&
+    docsResult.delivered === docsResult.total
+      ? "in_review"
+      : "submitted";
 
   await db.restaurant.update({
     where: { id: restaurantId },
     data: {
-      kushkiOnboardingStatus: "in_review",
+      kushkiOnboardingStatus: status,
       kushkiSubmittedAt: new Date(),
       bankInfo: parsed.data.bankInfo,
       kushkiOnboardingNotes: docsResult.configured
@@ -141,7 +157,7 @@ async function POSTHandler(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    status: "in_review",
+    status,
     sftp: {
       configured: docsResult.configured,
       docsDelivered: docsResult.delivered,

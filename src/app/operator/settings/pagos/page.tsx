@@ -15,6 +15,7 @@ export default async function KushkiOnboardingPage() {
     select: {
       id: true,
       name: true,
+      country: true,
       slug: true,
       kushkiMerchantId: true,
       kushkiOnboardingStatus: true,
@@ -40,15 +41,21 @@ export default async function KushkiOnboardingPage() {
     <OnboardingClient
       tenant={{
         name: tenant.name,
+        country: tenant.country ?? "CO",
         status: tenant.kushkiOnboardingStatus,
         notes: tenant.kushkiOnboardingNotes,
         merchantId: tenant.kushkiMerchantId,
         submittedAt: tenant.kushkiSubmittedAt?.toISOString() ?? null,
         activatedAt: tenant.kushkiActivatedAt?.toISOString() ?? null,
+        delivery: {
+          total: documents.length,
+          delivered: documents.filter((d) => d.sftpUploadedAt !== null).length,
+          manifestDelivered: /manifiesto ok/.test(
+            tenant.kushkiOnboardingNotes ?? "",
+          ),
+        },
       }}
-      initialBankInfo={
-        tenant.bankInfo as Record<string, unknown> | null
-      }
+      initialBankInfo={tenant.bankInfo as Record<string, unknown> | null}
       initialLegal={{
         legalName: tenant.legalName,
         taxId: tenant.taxId,

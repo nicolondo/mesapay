@@ -2070,7 +2070,7 @@
     "taxIdLabel": "NIT",
     "contactEmailLabel": "Contact email",
     "contactPhoneLabel": "Contact phone",
-    "beneficiaryMatch": "The account holder matches the RUT.",
+    "beneficiaryMatch": "The bank account holder’s document number matches the RUT.",
     "beneficiaryMismatchTitle": "The account holder does not match the RUT",
     "beneficiaryRutLabel": "RUT (NIT/ID):",
     "beneficiaryBankLabel": "Bank account:",
@@ -2104,7 +2104,11 @@
     "errBeneficiaryMismatch": "The account holder ({bankId}) does not match the RUT ({rutId}). Correct the data before submitting.",
     "errSubmitFailedDetail": "The request was rejected: {detail}",
     "errSubmitFailedNoDetail": "The request was rejected: no detail",
-    "errGeneric": "We couldn't submit the request."
+    "errGeneric": "We couldn't submit the request.",
+    "deliveryPendingTitle": "Delivery to Kushki pending",
+    "deliveryPendingBody": "Documents delivered: {delivered} of {total}. Your application is saved, but delivery to Kushki is not complete yet.",
+    "deliveryPendingHelp": "There is a platform connection issue. You do not need to upload the documents again; support needs to complete delivery.",
+    "deliveryLockedNotice": "Application saved. Delivery to Kushki is still pending."
   },
   "opMenus": {
     "noRestaurant": "No restaurant.",

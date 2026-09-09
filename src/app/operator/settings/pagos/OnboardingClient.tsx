@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { compareBeneficiaryIds } from "@/lib/beneficiaryIdentity";
 
 type DocKind =
   | "cedula_rep_legal"
@@ -85,6 +86,8 @@ export function OnboardingClient({
 }: {
   tenant: {
     name: string;
+    country: string;
+    delivery: { total: number; delivered: number; manifestDelivered: boolean };
     status: Status;
     notes: string | null;
     merchantId: string | null;
@@ -130,9 +133,8 @@ export function OnboardingClient({
   // podía enviar la solicitud porque los 4 campos son obligatorios.
   const rutExtracted = useMemo(
     () =>
-      (initialDocuments.find(
-        (d) => d.kind === "rut" && d.extractedFields,
-      )?.extractedFields ?? {}) as Record<string, unknown>,
+      (initialDocuments.find((d) => d.kind === "rut" && d.extractedFields)
+        ?.extractedFields ?? {}) as Record<string, unknown>,
     [initialDocuments],
   );
   const fromRut = (key: string): string => {
@@ -236,8 +238,7 @@ export function OnboardingClient({
           "unknown"
             ? prev.holderDocType
             : (ex.holderDocType as "CC" | "CE" | "NIT" | "PA"),
-        holderDocNumber:
-          (ex.holderDocNumber as string) ?? prev.holderDocNumber,
+        holderDocNumber: (ex.holderDocNumber as string) ?? prev.holderDocNumber,
         source: "ai_extracted",
         aiConfidence: (ex.confidence as number) ?? undefined,
       }));
@@ -326,17 +327,17 @@ export function OnboardingClient({
     (k) => !docs.some((d) => d.kind === k),
   );
 
-  // Beneficiary check: the holder doc on the bank cert MUST match the NIT
-  // on the RUT. Otherwise someone could ship money to an unrelated account.
-  // We only flag a mismatch when both numbers are present — empty fields
-  // mean the operator hasn't filled them yet, which is its own gate.
+  // The same identity comparison runs on the server; names never override IDs.
   const beneficiaryCheck = (() => {
-    const rutId = taxId.replace(/\D/g, "");
-    const bankId = bankInfo.holderDocNumber.replace(/\D/g, "");
-    if (!rutId || !bankId) return { ok: true as const, kind: "pending" as const };
-    if (rutId === bankId) return { ok: true as const, kind: "match" as const };
-    // Fuzzy name match as a secondary signal — names alone aren't enough
-    // to approve, but help explain WHY the mismatch matters in the warning.
+    const { matches, rutId, bankId } = compareBeneficiaryIds({
+      taxId,
+      holderDocNumber: bankInfo.holderDocNumber,
+      holderDocType: bankInfo.holderDocType,
+      country: tenant.country,
+    });
+    if (!taxId.trim() || !bankInfo.holderDocNumber.trim())
+      return { ok: true as const, kind: "pending" as const };
+    if (matches) return { ok: true as const, kind: "match" as const };
     return {
       ok: false as const,
       kind: "mismatch" as const,
@@ -346,6 +347,11 @@ export function OnboardingClient({
       bankName: bankInfo.holderName,
     };
   })();
+
+  const deliveryPending =
+    (tenant.status === "submitted" || tenant.status === "in_review") &&
+    (tenant.delivery.delivered < tenant.delivery.total ||
+      !tenant.delivery.manifestDelivered);
 
   const canSubmit =
     !isLocked &&
@@ -370,23 +376,29 @@ export function OnboardingClient({
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
-      <StatusBanner tenant={tenant} t={t} />
+      <StatusBanner tenant={tenant} t={t} deliveryPending={deliveryPending} />
 
       {/* Step 1: documents ---------------------------------------------- */}
       <Section title={t("step1Title")} subtitle={t("step1Subtitle")}>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {(["cedula_rep_legal", "rut", "camara_comercio", "origen_fondos", "estados_financieros"] as DocKind[]).map(
-            (kind) => (
-              <DocumentTile
-                key={kind}
-                kind={kind}
-                docs={docs.filter((d) => d.kind === kind)}
-                onUpload={(file) => uploadDocument(file, kind)}
-                onDelete={deleteDocument}
-                disabled={isLocked}
-              />
-            ),
-          )}
+          {(
+            [
+              "cedula_rep_legal",
+              "rut",
+              "camara_comercio",
+              "origen_fondos",
+              "estados_financieros",
+            ] as DocKind[]
+          ).map((kind) => (
+            <DocumentTile
+              key={kind}
+              kind={kind}
+              docs={docs.filter((d) => d.kind === kind)}
+              onUpload={(file) => uploadDocument(file, kind)}
+              onDelete={deleteDocument}
+              disabled={isLocked}
+            />
+          ))}
         </ul>
         {rutDoc && ocrRunning && (
           <p className="mt-2 text-xs text-op-muted">{t("readingRut")}</p>
@@ -437,7 +449,11 @@ export function OnboardingClient({
       {/* Step 3: bank form (read-only, filled by AI from the bank cert) */}
       <Section title={t("step3Title")} subtitle={t("step3Subtitle")}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <DisplayField label={t("bankNameLabel")} value={bankInfo.bankName} t={t} />
+          <DisplayField
+            label={t("bankNameLabel")}
+            value={bankInfo.bankName}
+            t={t}
+          />
           <DisplayField
             label={t("accountTypeLabel")}
             value={
@@ -455,7 +471,11 @@ export function OnboardingClient({
             mono
             t={t}
           />
-          <DisplayField label={t("holderNameLabel")} value={bankInfo.holderName} t={t} />
+          <DisplayField
+            label={t("holderNameLabel")}
+            value={bankInfo.holderName}
+            t={t}
+          />
           <DisplayField
             label={t("holderDocTypeLabel")}
             value={bankInfo.holderDocType}
@@ -475,8 +495,16 @@ export function OnboardingClient({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <DisplayField label={t("legalNameLabel")} value={legalName} t={t} />
           <DisplayField label={t("taxIdLabel")} value={taxId} mono t={t} />
-          <DisplayField label={t("contactEmailLabel")} value={contactEmail} t={t} />
-          <DisplayField label={t("contactPhoneLabel")} value={contactPhone} t={t} />
+          <DisplayField
+            label={t("contactEmailLabel")}
+            value={contactEmail}
+            t={t}
+          />
+          <DisplayField
+            label={t("contactPhoneLabel")}
+            value={contactPhone}
+            t={t}
+          />
         </div>
         {/* Re-lectura del RUT: si el OCR falló al subirlo, sin este botón
             había que borrar y volver a subir el archivo para reintentar
@@ -507,7 +535,8 @@ export function OnboardingClient({
             <span className="font-mono">{beneficiaryCheck.rutId}</span>
             {beneficiaryCheck.rutName && (
               <>
-                {" "}— <span>{beneficiaryCheck.rutName}</span>
+                {" "}
+                — <span>{beneficiaryCheck.rutName}</span>
               </>
             )}
           </div>
@@ -516,7 +545,8 @@ export function OnboardingClient({
             <span className="font-mono">{beneficiaryCheck.bankId}</span>
             {beneficiaryCheck.bankName && (
               <>
-                {" "}— <span>{beneficiaryCheck.bankName}</span>
+                {" "}
+                — <span>{beneficiaryCheck.bankName}</span>
               </>
             )}
           </div>
@@ -540,7 +570,9 @@ export function OnboardingClient({
           {busy ? t("submitting") : t("submit")}
         </button>
         {isLocked && (
-          <span className="text-xs text-op-muted">{t("lockedNotice")}</span>
+          <span className="text-xs text-op-muted">
+            {t(deliveryPending ? "deliveryLockedNotice" : "lockedNotice")}
+          </span>
         )}
       </div>
     </div>
@@ -568,13 +600,16 @@ function Section({
 function StatusBanner({
   tenant,
   t,
+  deliveryPending,
 }: {
   tenant: {
     status: Status;
     notes: string | null;
     merchantId: string | null;
+    delivery: { total: number; delivered: number; manifestDelivered: boolean };
   };
   t: Translator;
+  deliveryPending: boolean;
 }) {
   if (tenant.status === "active") {
     return (
@@ -589,8 +624,20 @@ function StatusBanner({
   if (tenant.status === "submitted" || tenant.status === "in_review") {
     return (
       <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#7F5A1F] p-4 mb-6">
-        <div className="font-display text-lg">{t("statusReviewTitle")}</div>
-        <div className="text-sm mt-1">{t("statusReviewBody")}</div>
+        <div className="font-display text-lg">
+          {t(deliveryPending ? "deliveryPendingTitle" : "statusReviewTitle")}
+        </div>
+        <div className="text-sm mt-1">
+          {deliveryPending
+            ? t("deliveryPendingBody", {
+                delivered: tenant.delivery.delivered,
+                total: tenant.delivery.total,
+              })
+            : t("statusReviewBody")}
+          {deliveryPending && (
+            <p className="mt-2">{t("deliveryPendingHelp")}</p>
+          )}
+        </div>
       </div>
     );
   }

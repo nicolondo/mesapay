@@ -65,16 +65,21 @@ async function connectSftp(): Promise<SftpClient> {
     throw new Error("sftp_not_configured");
   }
   const sftp = new SftpClient();
-  await sftp.connect({
-    host,
-    port: env.MESAPAY_SFTP_PORT,
-    username,
-    privateKey,
-    ...(env.MESAPAY_SFTP_PASSPHRASE
-      ? { passphrase: env.MESAPAY_SFTP_PASSPHRASE }
-      : {}),
-    readyTimeout: 20_000,
-  });
+  try {
+    await sftp.connect({
+      host,
+      port: env.MESAPAY_SFTP_PORT,
+      username,
+      privateKey,
+      ...(env.MESAPAY_SFTP_PASSPHRASE
+        ? { passphrase: env.MESAPAY_SFTP_PASSPHRASE }
+        : {}),
+      readyTimeout: 20_000,
+    });
+  } catch (error) {
+    await sftp.end().catch(() => undefined);
+    throw error;
+  }
   return sftp;
 }
 

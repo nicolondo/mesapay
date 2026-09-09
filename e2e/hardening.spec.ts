@@ -497,7 +497,9 @@ test("revoked print devices can be removed while preserving printing history", a
   await page
     .getByRole("button", { name: "Sí, eliminar equipo", exact: true })
     .click();
-  await expect(page.getByRole("alert").filter({ hasText: "No se pudo eliminar" })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "No se pudo eliminar" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Sí, eliminar equipo", exact: true }),
   ).toBeEnabled();
@@ -521,4 +523,84 @@ test("revoked print devices can be removed while preserving printing history", a
       await page.request.delete(`/api/operator/print-agents/${active.id}`)
     ).status(),
   ).toBe(409);
+});
+
+test("onboarding separates a valid NIT DV and reports undelivered documents honestly", async ({
+  page,
+}) => {
+  await db.restaurant.update({
+    where: { id: restaurantId },
+    data: {
+      legalName: "SON Y MELONA S.A.S.",
+      taxId: "901944469-1",
+      kushkiOnboardingStatus: "in_review",
+      kushkiOnboardingNotes: "SFTP: 0/2 docs + manifiesto falló",
+      bankInfo: {
+        bankName: "Banco de prueba",
+        accountType: "ahorros",
+        accountNumber: "123456789",
+        holderName: "SON Y MELONA S.A.S",
+        holderDocType: "NIT",
+        holderDocNumber: "901944469",
+      },
+    },
+  });
+  await db.kushkiDocument.createMany({
+    data: [
+      {
+        restaurantId,
+        kind: "rut",
+        fileName: "test-rut.pdf",
+        fileUrl: "/uploads/onboarding/test-rut.pdf",
+        mimeType: "application/pdf",
+        fileSize: 1,
+      },
+      {
+        restaurantId,
+        kind: "bank_cert",
+        fileName: "test-bank.pdf",
+        fileUrl: "/uploads/onboarding/test-bank.pdf",
+        mimeType: "application/pdf",
+        fileSize: 1,
+      },
+    ],
+  });
+  await page.goto("/signin");
+  await page.getByLabel("Correo", { exact: true }).fill(email);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/signin"));
+  await page.goto("/operator/settings/pagos");
+  await expect(
+    page.getByText(
+      "El documento del titular de la cuenta coincide con el RUT.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText("El titular de la cuenta no coincide con el RUT", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Entrega pendiente a Kushki", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Documentos entregados: 0 de 2/)).toBeVisible();
+  await expectNoOverflow(page);
+  await db.restaurant.update({
+    where: { id: restaurantId },
+    data: { taxId: "901944469-2" },
+  });
+  await page.reload();
+  await expect(
+    page.getByText("El titular de la cuenta no coincide con el RUT", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "El documento del titular de la cuenta coincide con el RUT.",
+      { exact: true },
+    ),
+  ).toHaveCount(0);
 });

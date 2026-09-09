@@ -2070,7 +2070,7 @@
     "taxIdLabel": "NIT",
     "contactEmailLabel": "E-mail de contato",
     "contactPhoneLabel": "Telefone de contato",
-    "beneficiaryMatch": "O titular da conta coincide com o RUT.",
+    "beneficiaryMatch": "O número do documento do titular da conta corresponde ao RUT.",
     "beneficiaryMismatchTitle": "O titular da conta não coincide com o RUT",
     "beneficiaryRutLabel": "RUT (NIT/Cédula):",
     "beneficiaryBankLabel": "Conta bancária:",
@@ -2104,7 +2104,11 @@
     "errBeneficiaryMismatch": "O titular da conta ({bankId}) não coincide com o RUT ({rutId}). Corrija os dados antes de enviar.",
     "errSubmitFailedDetail": "A solicitação foi rejeitada: {detail}",
     "errSubmitFailedNoDetail": "A solicitação foi rejeitada: sem detalhe",
-    "errGeneric": "Não conseguimos enviar a solicitação."
+    "errGeneric": "Não conseguimos enviar a solicitação.",
+    "deliveryPendingTitle": "Envio para a Kushki pendente",
+    "deliveryPendingBody": "Documentos entregues: {delivered} de {total}. A solicitação está salva, mas o envio para a Kushki ainda não foi concluído.",
+    "deliveryPendingHelp": "Há um problema na conexão da plataforma. Não é necessário carregar os documentos novamente; o suporte precisa concluir o envio.",
+    "deliveryLockedNotice": "Solicitação salva. O envio para a Kushki continua pendente."
   },
   "opMenus": {
     "noRestaurant": "Sem restaurante.",

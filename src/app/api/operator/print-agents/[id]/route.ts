@@ -47,7 +47,7 @@ async function PATCHHandler(
   }
 
   const agent = await db.printAgent.findFirst({
-    where: { id, restaurantId },
+    where: { id, restaurantId, deletedAt: null },
     select: { id: true, revokedAt: true },
   });
   if (!agent) {
@@ -90,3 +90,44 @@ async function PATCHHandler(
 }
 
 export const PATCH = secureApi(PATCHHandler);
+
+/** Remove a revoked device from settings while retaining its printing history. */
+async function DELETEHandler(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!guard(session?.user?.role)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  const restaurantId = await getActiveRestaurantId();
+  if (!restaurantId) {
+    return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
+  }
+  const { id } = await params;
+  const agent = await db.printAgent.findFirst({
+    where: { id, restaurantId },
+    select: { revokedAt: true, deletedAt: true },
+  });
+  if (!agent) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!agent.revokedAt) {
+    return NextResponse.json({ error: "agent_not_revoked" }, { status: 409 });
+  }
+  if (agent.deletedAt) return NextResponse.json({ ok: true });
+
+  await db.$transaction(async (tx) => {
+    const result = await tx.printAgent.updateMany({
+      where: { id, restaurantId, revokedAt: { not: null }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    if (result.count) {
+      await tx.printer.updateMany({
+        where: { agentId: id, restaurantId },
+        data: { active: false },
+      });
+    }
+  });
+  return NextResponse.json({ ok: true });
+}
+
+export const DELETE = secureApi(DELETEHandler);

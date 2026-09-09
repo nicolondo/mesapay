@@ -212,7 +212,11 @@ function TokenPanel({
         <code className="flex-1 min-w-0 break-all rounded-lg border border-op-border bg-op-bg px-3 py-2 text-xs font-mono select-all">
           {token}
         </code>
-        <button type="button" onClick={copy} className="mp-btn mp-btn--primary mp-btn--sm">
+        <button
+          type="button"
+          onClick={copy}
+          className="mp-btn mp-btn--primary mp-btn--sm"
+        >
           {copied ? t("tokenCopied") : t("tokenCopy")}
         </button>
       </div>
@@ -302,6 +306,7 @@ function AgentCard({
   const t = useTranslations("opPrinters");
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -323,22 +328,33 @@ function AgentCard({
       ? `${t(stateKey)} ${t(agoKey(live.ago.unit), { n: live.ago.value })}`
       : t("stateNever");
 
-  async function revoke() {
+  async function confirmAction() {
+    if (busy) return;
     setBusy(true);
     setErr(null);
-    const res = await fetch(`/api/operator/print-agents/${agent.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ revoked: true }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setErr(t("revokeFailed"));
-      return;
+    try {
+      const res = await fetch(`/api/operator/print-agents/${agent.id}`, {
+        method: revoked ? "DELETE" : "PATCH",
+        ...(!revoked && {
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ revoked: true }),
+        }),
+      });
+      if (!res.ok) {
+        setErr(t(revoked ? "deleteFailed" : "revokeFailed"));
+        return;
+      }
+      if (revoked) setDeleted(true);
+      setConfirming(false);
+      router.refresh();
+    } catch {
+      setErr(t(revoked ? "deleteFailed" : "revokeFailed"));
+    } finally {
+      setBusy(false);
     }
-    setConfirming(false);
-    router.refresh();
   }
+
+  if (deleted) return null;
 
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-5">
@@ -376,10 +392,14 @@ function AgentCard({
       </div>
 
       {revoked ? (
-        <p className="text-[11px] text-op-muted mt-2">{t("agentRevokedHint")}</p>
+        <p className="text-[11px] text-op-muted mt-2">
+          {t("agentRevokedHint")}
+        </p>
       ) : (
         live.state === "never" && (
-          <p className="text-[11px] text-op-muted mt-2">{t("stateNeverHint")}</p>
+          <p className="text-[11px] text-op-muted mt-2">
+            {t("stateNeverHint")}
+          </p>
         )
       )}
 
@@ -388,7 +408,9 @@ function AgentCard({
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
           {t("printersTitle")}
         </div>
-        <p className="text-[11px] text-op-muted mb-3">{t("printersReadOnly")}</p>
+        <p className="text-[11px] text-op-muted mb-3">
+          {t("printersReadOnly")}
+        </p>
         {agent.printers.length === 0 ? (
           <div className="text-sm text-op-muted">{t("printersEmpty")}</div>
         ) : (
@@ -399,47 +421,53 @@ function AgentCard({
         )}
       </div>
 
-      {!revoked && (
-        <div className="mt-4 pt-4 border-t border-op-border">
-          {confirming ? (
-            <div className="rounded-xl border border-danger/30 bg-danger/5 p-4">
-              <div className="text-sm font-medium text-danger">
-                {t("revokeConfirmTitle", { label: agent.label })}
-              </div>
-              <p className="text-[11px] text-op-muted mt-1 mb-3">
-                {t("revokeConfirmBody")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={revoke}
-                  disabled={busy}
-                  className="mp-btn mp-btn--danger-solid mp-btn--sm"
-                >
-                  {busy ? t("revokeBusy") : t("revokeConfirmBtn")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirming(false)}
-                  disabled={busy}
-                  className="mp-btn mp-btn--secondary mp-btn--sm"
-                >
-                  {t("revokeCancel")}
-                </button>
-              </div>
+      <div className="mt-4 pt-4 border-t border-op-border">
+        {confirming ? (
+          <div className="rounded-xl border border-danger/30 bg-danger/5 p-4">
+            <div className="text-sm font-medium text-danger">
+              {t(revoked ? "deleteConfirmTitle" : "revokeConfirmTitle", {
+                label: agent.label,
+              })}
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="mp-btn mp-btn--danger mp-btn--sm"
-            >
-              {t("revokeBtn")}
-            </button>
-          )}
-          {err && <div className="mt-2 text-xs text-danger">{err}</div>}
-        </div>
-      )}
+            <p className="text-[11px] text-op-muted mt-1 mb-3">
+              {t(revoked ? "deleteConfirmBody" : "revokeConfirmBody")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={confirmAction}
+                disabled={busy}
+                className="mp-btn mp-btn--danger-solid mp-btn--sm"
+              >
+                {busy
+                  ? t(revoked ? "deleteBusy" : "revokeBusy")
+                  : t(revoked ? "deleteConfirmBtn" : "revokeConfirmBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                disabled={busy}
+                className="mp-btn mp-btn--secondary mp-btn--sm"
+              >
+                {t("revokeCancel")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="mp-btn mp-btn--danger mp-btn--sm"
+          >
+            {t(revoked ? "deleteBtn" : "revokeBtn")}
+          </button>
+        )}
+        {err && (
+          <div role="alert" className="mt-2 text-xs text-danger">
+            {err}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -530,10 +558,9 @@ function PrinterRow({
   async function testPrint() {
     setBusy(true);
     setMsg(null);
-    const res = await fetch(
-      `/api/operator/printers/${printer.id}/test-print`,
-      { method: "POST" },
-    );
+    const res = await fetch(`/api/operator/printers/${printer.id}/test-print`, {
+      method: "POST",
+    });
     setBusy(false);
     if (!res.ok) {
       setMsg({ kind: "error", text: t("testFailed") });

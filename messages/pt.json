@@ -2865,7 +2865,13 @@
     "testInvoiceItem3": "Limonada de coco",
     "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
     "testInvoiceCustomerAddress": "Calle 12 #4-56",
-    "testInvoiceFooter": "Cupom de teste — sem valor fiscal."
+    "testInvoiceFooter": "Cupom de teste — sem valor fiscal.",
+    "deleteBtn": "Excluir computador",
+    "deleteConfirmTitle": "Excluir “{label}”?",
+    "deleteConfirmBody": "O computador revogado e suas impressoras deixarão de aparecer nesta lista. O histórico de impressão será preservado. Para usar o computador novamente, será necessário cadastrá-lo de novo.",
+    "deleteConfirmBtn": "Sim, excluir computador",
+    "deleteBusy": "Excluindo…",
+    "deleteFailed": "Não foi possível excluir o computador. Tente novamente."
   },
   "cashBox": {
     "title": "Caixa",

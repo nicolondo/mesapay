@@ -2865,7 +2865,13 @@
     "testInvoiceItem3": "Coconut lemonade",
     "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
     "testInvoiceCustomerAddress": "Calle 12 #4-56",
-    "testInvoiceFooter": "Test slip — not a valid invoice."
+    "testInvoiceFooter": "Test slip — not a valid invoice.",
+    "deleteBtn": "Delete device",
+    "deleteConfirmTitle": "Delete “{label}”?",
+    "deleteConfirmBody": "The revoked device and its printers will disappear from this list. Printing history will be preserved. To use the device again, you will need to register it again.",
+    "deleteConfirmBtn": "Yes, delete device",
+    "deleteBusy": "Deleting…",
+    "deleteFailed": "Could not delete the device. Please try again."
   },
   "cashBox": {
     "title": "Cash box",

@@ -2865,7 +2865,13 @@
     "testInvoiceItem3": "Limonada de coco",
     "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
     "testInvoiceCustomerAddress": "Calle 12 #4-56",
-    "testInvoiceFooter": "Tirilla de prueba — sin valor fiscal."
+    "testInvoiceFooter": "Tirilla de prueba — sin valor fiscal.",
+    "deleteBtn": "Eliminar equipo",
+    "deleteConfirmTitle": "¿Eliminar «{label}»?",
+    "deleteConfirmBody": "El equipo revocado y sus impresoras dejarán de aparecer en esta lista. El historial de impresión se conservará. Para volver a usar el equipo tendrás que registrarlo de nuevo.",
+    "deleteConfirmBtn": "Sí, eliminar equipo",
+    "deleteBusy": "Eliminando…",
+    "deleteFailed": "No se pudo eliminar el equipo. Inténtalo de nuevo."
   },
   "cashBox": {
     "title": "Caja",

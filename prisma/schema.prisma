@@ -3506,6 +3506,9 @@ model PrintAgent {
   /// agente deja de autenticar, sin perder el rastro de que existió.
   revokedAt DateTime?
 
+  /// Se oculta de configuración sin borrar impresoras ni su historial.
+  deletedAt DateTime?
+
   /// Las impresoras que ESTE agente reportó con POST /print-agent/printers.
   printers Printer[]
 

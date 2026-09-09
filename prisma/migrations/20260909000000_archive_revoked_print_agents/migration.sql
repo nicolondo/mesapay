@@ -1,0 +1,1 @@
+ALTER TABLE "PrintAgent" ADD COLUMN "deletedAt" TIMESTAMP(3);

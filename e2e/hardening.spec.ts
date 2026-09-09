@@ -435,3 +435,90 @@ test("sign-in keeps password visibility accessible and recovers after a connecti
   ).toBeEnabled();
   await expectNoOverflow(page);
 });
+
+test("revoked print devices can be removed while preserving printing history", async ({
+  page,
+}) => {
+  const agent = await db.printAgent.create({
+    data: {
+      restaurantId,
+      label: "PC retirado",
+      tokenHash: randomUUID(),
+      revokedAt: new Date(),
+    },
+  });
+  const active = await db.printAgent.create({
+    data: { restaurantId, label: "PC activo", tokenHash: randomUUID() },
+  });
+  const printer = await db.printer.create({
+    data: {
+      restaurantId,
+      agentId: agent.id,
+      label: "Cocina histórica",
+      host: "127.0.0.1",
+      port: 9100,
+      station: "kitchen",
+      active: false,
+    },
+  });
+  const job = await db.printJob.create({
+    data: {
+      restaurantId,
+      printerId: printer.id,
+      payload: { test: true },
+      status: "printed",
+    },
+  });
+  await page.goto("/signin");
+  await page.getByLabel("Correo", { exact: true }).fill(email);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/signin"));
+  await page.goto("/operator/settings/impresoras");
+  await expect(
+    page.getByRole("button", { name: "Eliminar equipo", exact: true }),
+  ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Eliminar equipo", exact: true })
+    .click();
+  await expect(
+    page.getByText("¿Eliminar «PC retirado»?", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  expect(
+    (await db.printAgent.findUniqueOrThrow({ where: { id: agent.id } }))
+      .deletedAt,
+  ).toBeNull();
+  await page
+    .getByRole("button", { name: "Eliminar equipo", exact: true })
+    .click();
+  const endpoint = `/api/operator/print-agents/${agent.id}`;
+  await page.route(`**${endpoint}`, (route) => route.abort());
+  await page
+    .getByRole("button", { name: "Sí, eliminar equipo", exact: true })
+    .click();
+  await expect(page.getByRole("alert").filter({ hasText: "No se pudo eliminar" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sí, eliminar equipo", exact: true }),
+  ).toBeEnabled();
+  await page.unroute(`**${endpoint}`);
+  await page
+    .getByRole("button", { name: "Sí, eliminar equipo", exact: true })
+    .click();
+  await expect(page.getByText("PC retirado", { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText("PC retirado", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("PC activo", { exact: true })).toBeVisible();
+  expect(
+    (await db.printAgent.findUniqueOrThrow({ where: { id: agent.id } }))
+      .deletedAt,
+  ).not.toBeNull();
+  expect(await db.printJob.count({ where: { id: job.id } })).toBe(1);
+  expect(await db.printer.count({ where: { id: printer.id } })).toBe(1);
+  expect((await page.request.delete(endpoint)).status()).toBe(200);
+  expect(
+    (
+      await page.request.delete(`/api/operator/print-agents/${active.id}`)
+    ).status(),
+  ).toBe(409);
+});

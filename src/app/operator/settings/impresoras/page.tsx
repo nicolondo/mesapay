@@ -43,7 +43,7 @@ export default async function PrintersSettingsPage() {
       select: { printPaperWidthMm: true },
     }),
     db.printAgent.findMany({
-      where: { restaurantId },
+      where: { restaurantId, deletedAt: null },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,

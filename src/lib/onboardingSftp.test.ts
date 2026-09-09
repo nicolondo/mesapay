@@ -15,6 +15,7 @@ vi.mock("@/lib/sftp", () => ({
 vi.mock("fs/promises", () => ({ readFile: m.read }));
 import {
   folderNameForRestaurant,
+  fileNameForSftpDocument,
   deliverDocumentToSftp,
   deliverOnboardingManifest,
 } from "./onboardingSftp";
@@ -29,6 +30,7 @@ beforeEach(() => {
     kind: "rut",
     fileUrl: "/uploads/onboarding/test.pdf",
     fileName: "rut.pdf",
+    mimeType: "application/pdf",
     sftpUploadedAt: null,
     restaurant: { legalName: "SON Y MELONA S.A.S.", taxId: "901944469-1" },
   });
@@ -80,6 +82,7 @@ describe("SFTP merchant folder names", () => {
       kind: "rut",
       fileUrl: "/uploads/onboarding/test.pdf",
       fileName: "rut.pdf",
+      mimeType: "application/pdf",
       sftpUploadedAt: null,
       restaurant: { legalName: null, taxId: null },
     });
@@ -97,6 +100,7 @@ describe("SFTP merchant folder names", () => {
       kind: "rut",
       fileUrl: "/uploads/onboarding/test.pdf",
       fileName: "rut.pdf",
+      mimeType: "application/pdf",
       sftpUploadedAt: null,
       restaurant: { legalName: null, taxId: null },
     });
@@ -110,5 +114,74 @@ describe("SFTP merchant folder names", () => {
         },
       }),
     );
+  });
+});
+
+describe("SFTP readable document names", () => {
+  it.each([
+    ["rut", "RUT"],
+    ["bank_cert", "Certificacion bancaria"],
+    ["camara_comercio", "Camara de comercio"],
+    ["cedula_rep_legal", "Cedula del representante legal"],
+    ["origen_fondos", "Certificacion de origen de fondos"],
+    ["estados_financieros", "Estados financieros"],
+    ["estatutos", "Estatutos de la sociedad"],
+    ["other", "Documento adicional"],
+  ] as const)("labels %s in Spanish", (kind, label) => {
+    expect(
+      fileNameForSftpDocument({
+        id: "doc-123456",
+        kind,
+        mimeType: "application/pdf",
+      }),
+    ).toBe(`${label} - doc-123456.pdf`);
+  });
+  it.each([
+    ["image/jpeg", "jpg"],
+    ["image/jpg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+  ])("preserves file format %s", (mimeType, extension) => {
+    expect(
+      fileNameForSftpDocument({ id: "doc-123456", kind: "rut", mimeType }),
+    ).toBe(`RUT - doc-123456.${extension}`);
+  });
+  it("does not overwrite documents sharing a short ID suffix", () => {
+    const name = (id: string) =>
+      fileNameForSftpDocument({ id, kind: "rut", mimeType: "application/pdf" });
+    expect(name("first-123456")).not.toBe(name("second-123456"));
+    expect(name("first-123456")).toBe(name("first-123456"));
+  });
+  it("rejects unsafe identities and unsupported formats", () => {
+    expect(() =>
+      fileNameForSftpDocument({
+        id: "../bad",
+        kind: "rut",
+        mimeType: "application/pdf",
+      }),
+    ).toThrow();
+    expect(() =>
+      fileNameForSftpDocument({
+        id: "doc",
+        kind: "rut",
+        mimeType: "text/html",
+      }),
+    ).toThrow();
+  });
+  it("uploads with the readable name and retains the delivery marker", async () => {
+    await deliverDocumentToSftp("doc-123456");
+    expect(m.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ fileName: "RUT - doc-123456.pdf" }),
+    );
+    expect(m.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sftpUploadedAt: expect.any(Date) }),
+      }),
+    );
+  });
+  it("does not resend previously delivered documents on a retry", async () => {
+    m.find.mockResolvedValue({ sftpUploadedAt: new Date() });
+    await deliverDocumentToSftp("doc-123456");
+    expect(m.upload).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import { db } from "@/lib/db";
 import { sftpConfigured, uploadFileToSftp } from "@/lib/sftp";
 import { computeNitDv } from "@/lib/erp/exogena";
+import type { KushkiDocumentKind } from "@prisma/client";
 
 export { sftpConfigured };
 
@@ -43,13 +44,37 @@ function localPathForUrl(fileUrl: string): string {
   return path.join(base, rel);
 }
 
-function safeFileName(name: string): string {
-  const clean = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .slice(0, 120);
-  return clean || "documento";
+// Nombres del intercambio con Kushki, independientes del idioma de la interfaz.
+const DOCUMENT_LABELS: Record<KushkiDocumentKind, string> = {
+  rut: "RUT",
+  cedula_rep_legal: "Cedula del representante legal",
+  camara_comercio: "Camara de comercio",
+  bank_cert: "Certificacion bancaria",
+  origen_fondos: "Certificacion de origen de fondos",
+  estados_financieros: "Estados financieros",
+  estatutos: "Estatutos de la sociedad",
+  other: "Documento adicional",
+};
+const DOCUMENT_EXTENSIONS: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+/** Tipo legible + ID completo: estable al reintentar, distinto para cada carga. */
+export function fileNameForSftpDocument(doc: {
+  id: string;
+  kind: KushkiDocumentKind;
+  mimeType: string;
+}): string {
+  const label = DOCUMENT_LABELS[doc.kind];
+  const extension = DOCUMENT_EXTENSIONS[doc.mimeType];
+  if (!label || !extension || !/^[a-zA-Z0-9_-]{1,80}$/.test(doc.id)) {
+    throw new Error("sftp_invalid_document_identity");
+  }
+  return `${label} - ${doc.id}.${extension}`;
 }
 
 /**
@@ -68,7 +93,7 @@ export async function deliverDocumentToSftp(
       id: true,
       kind: true,
       fileUrl: true,
-      fileName: true,
+      mimeType: true,
       sftpUploadedAt: true,
       restaurant: { select: { legalName: true, taxId: true } },
     },
@@ -79,8 +104,7 @@ export async function deliverDocumentToSftp(
     const data = await readFile(localPathForUrl(doc.fileUrl));
     const legal = identity ?? doc.restaurant;
     const folder = folderNameForRestaurant(legal.legalName, legal.taxId);
-    // Nombre remoto único y reconocible: <tipo>_<sufijo>_<nombre original>.
-    const remoteName = `${doc.kind}_${doc.id.slice(-6)}_${safeFileName(doc.fileName)}`;
+    const remoteName = fileNameForSftpDocument(doc);
     await uploadFileToSftp({ folder, fileName: remoteName, data });
     await db.kushkiDocument.update({
       where: { id: doc.id },

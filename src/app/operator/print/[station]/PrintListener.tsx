@@ -360,16 +360,21 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
   @page { size: ${width}mm auto; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  /* Tamaños pensados para leer de lejos, con las manos ocupadas y bajo
+     la luz de una cocina — no para ahorrar papel. Antes el cuerpo era de
+     12px y los modificadores de 11px, y eran ilegibles a un brazo de
+     distancia. El nombre del plato es lo más grande después del destino
+     porque es lo único que el cocinero necesita ver de un vistazo. */
   body {
     width: ${width}mm;
     font-family: 'Menlo', 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1.25;
+    font-size: 15px;
+    line-height: 1.3;
     color: #000;
     padding: 4mm 3mm;
   }
   .station {
-    font-size: 18px;
+    font-size: 23px;
     font-weight: 700;
     text-align: center;
     border-bottom: 1px dashed #000;
@@ -378,14 +383,14 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
     letter-spacing: 0.04em;
   }
   .dest {
-    font-size: 22px;
+    font-size: 30px;
     font-weight: 700;
     text-align: center;
     margin-bottom: 4px;
   }
   .meta {
     text-align: center;
-    font-size: 10px;
+    font-size: 13px;
     margin-bottom: 6px;
   }
   hr {
@@ -394,34 +399,34 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
     margin: 4px 0;
   }
   .item {
-    margin: 3px 0;
+    margin: 5px 0;
   }
   .qty {
     font-weight: 700;
   }
   .name {
-    font-size: 14px;
+    font-size: 20px;
     font-weight: 700;
   }
   .modifiers, .notes {
-    font-size: 11px;
-    margin-left: 6mm;
+    font-size: 15px;
+    margin-left: 5mm;
   }
   .guest {
-    font-size: 10px;
-    margin-left: 6mm;
+    font-size: 14px;
+    margin-left: 5mm;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
   .ordernotes {
     margin-top: 6px;
     font-style: italic;
-    font-size: 11px;
+    font-size: 15px;
   }
   .foot {
     margin-top: 8px;
     text-align: center;
-    font-size: 9px;
+    font-size: 11px;
     color: #444;
   }
 </style></head>

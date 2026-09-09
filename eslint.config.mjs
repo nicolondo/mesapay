@@ -62,6 +62,8 @@ const MIGRATED = [
   "src/app/operator/facturas/**/*.{ts,tsx}",
   "src/app/operator/wallet/**/*.{ts,tsx}",
   "src/app/operator/print/\\[station\\]/**/*.{ts,tsx}",
+  // Configuración → Impresoras de red. Nació trilingüe, queda blindada.
+  "src/app/operator/settings/impresoras/**/*.{ts,tsx}",
   "src/app/operator/kitchen/page.tsx",
   "src/app/operator/kitchen/KitchenBoard.tsx",
   "src/app/operator/bar/page.tsx",

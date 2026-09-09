@@ -6,6 +6,7 @@ import { resolveMenuTags } from "@/lib/menuTags";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianConfigStatus } from "@/lib/dian/config";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { AGENT_ONLINE_MS } from "@/lib/print/agentStatus";
 import {
   resolveTipPolicy,
   resolveShiftPolicy,
@@ -108,6 +109,25 @@ export default async function SettingsPage() {
   ]);
 
   const stationsRouted = t("badgeStationsRouted", { count: stationsCount });
+
+  // Impresoras de red: el badge tiene que gritar cuando el local TIENE
+  // impresoras pero ningún agente responde — ahí las comandas se están
+  // encolando contra un PC apagado y nadie se entera hasta que un cliente
+  // reclama. Sin impresoras registradas la tarjeta sólo dice "Configurar".
+  const printersNow = new Date();
+  const [printerCount, liveAgents] = await Promise.all([
+    db.printer.count({ where: { restaurantId, active: true } }),
+    db.printAgent.count({
+      where: {
+        restaurantId,
+        revokedAt: null,
+        lastSeenAt: {
+          gte: new Date(printersNow.getTime() - AGENT_ONLINE_MS),
+        },
+      },
+    }),
+  ]);
+  const printersOffline = printerCount > 0 && liveAgents === 0;
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -281,6 +301,25 @@ export default async function SettingsPage() {
             tenant.hasBar || stationsCount > 0
               ? "bg-ok/15 text-ok"
               : "bg-paper text-op-muted"
+          }
+        />
+        <SettingCard
+          href="/operator/settings/impresoras"
+          title={t("cardPrintersTitle")}
+          subtitle={t("cardPrintersSubtitle")}
+          badge={
+            printerCount === 0
+              ? t("badgePrintersEmpty")
+              : printersOffline
+                ? t("badgePrintersOffline")
+                : t("badgePrintersOk", { count: printerCount })
+          }
+          tint={
+            printerCount === 0
+              ? "bg-paper text-op-muted"
+              : printersOffline
+                ? "bg-danger/10 text-danger"
+                : "bg-ok/15 text-ok"
           }
         />
         <SettingCard

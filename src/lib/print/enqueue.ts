@@ -111,9 +111,17 @@ export async function enqueueRoundTicket(args: {
 }): Promise<number> {
   const { restaurantId, orderId, roundId, station, barSubStation } = args;
 
+  // `kind: comanda` en el where Y en `printerMatches`: la impresora de la
+  // caja no recibe comandas ni por accidente.
   const printers = await db.printer.findMany({
-    where: { restaurantId, station, active: true },
-    select: { id: true, station: true, barSubStation: true, paperWidthMm: true },
+    where: { restaurantId, kind: "comanda", station, active: true },
+    select: {
+      id: true,
+      kind: true,
+      station: true,
+      barSubStation: true,
+      paperWidthMm: true,
+    },
   });
   const targets = printers.filter((p) =>
     printerMatches(p, station, barSubStation),

@@ -7,6 +7,7 @@ import {
 } from "@/lib/print/agentAuth";
 import {
   duplicateLocalKeys,
+  invalidKindStations,
   invalidSubStations,
   printersReportSchema,
 } from "@/lib/print/printerConfig";
@@ -16,8 +17,13 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/print-agent/printers
  * Authorization: Bearer mpa_…
- * body: { printers: [ { localKey, label, host, port, station,
+ * body: { printers: [ { localKey, label, host, port, kind, station,
  *                       barSubStation, paperWidthMm, active } ] }
+ *
+ * `kind` ("comanda" | "factura") es OPCIONAL y por default "comanda": el
+ * programa que corre hoy en los locales no lo manda, y tiene que poder
+ * seguir publicando sus impresoras de cocina sin actualizarse. Una
+ * impresora de factura declara `kind: "factura"` y NO manda `station`.
  *
  * El agente PUBLICA las impresoras que tiene configuradas. La IP se
  * escribe en el programa, no en la web: quien instala está parado frente
@@ -67,6 +73,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // Una de comanda SIN estación no recibiría nunca un trabajo; una de
+  // factura CON estación miente sobre lo que va a imprimir. Las dos se
+  // ven bien en la pantalla y no imprimen: mejor rechazar el set entero
+  // ahora, con el instalador todavía parado frente a la impresora.
+  const badKinds = invalidKindStations(incoming);
+  if (badKinds.length > 0) {
+    return NextResponse.json(
+      { error: "invalid_station_for_kind", printers: badKinds },
+      { status: 400 },
+    );
+  }
+
   const restaurant = await db.restaurant.findUnique({
     where: { id: agent.restaurantId },
     select: { barSubStations: true },
@@ -100,7 +118,8 @@ export async function POST(req: Request) {
         label: p.label,
         host: p.host,
         port: p.port,
-        station: p.station,
+        kind: p.kind,
+        station: p.station ?? null,
         barSubStation: p.barSubStation ?? null,
         paperWidthMm: p.paperWidthMm ?? null,
         active: p.active,
@@ -118,6 +137,7 @@ export async function POST(req: Request) {
             label: true,
             host: true,
             port: true,
+            kind: true,
             station: true,
             barSubStation: true,
             paperWidthMm: true,

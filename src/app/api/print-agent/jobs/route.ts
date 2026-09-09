@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { parseTicketPayload, renderTicket } from "@/lib/escpos";
+import { renderPrintJobPayload } from "@/lib/escpos";
 import {
   authenticatePrintAgent,
   clientIp,
@@ -94,8 +94,9 @@ export async function GET(req: Request) {
 
   for (const job of claimable) {
     const row = rows.find((r) => r.id === job.id)!;
-    const ticket = parseTicketPayload(row.payload);
-    if (!ticket) {
+    // Comanda o factura: lo decide la forma del payload, no `kind`.
+    const bytes = renderPrintJobPayload(row.payload);
+    if (!bytes) {
       // Payload corrupto o de una versión que este servidor ya no sabe
       // renderizar: se cierra en fallido en vez de trabar la cola.
       await db.printJob.updateMany({
@@ -126,7 +127,6 @@ export async function GET(req: Request) {
     });
     if (claimed.count !== 1) continue;
 
-    const bytes = renderTicket(ticket);
     jobs.push({
       id: job.id,
       kind: row.kind,

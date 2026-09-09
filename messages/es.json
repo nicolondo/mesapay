@@ -852,7 +852,17 @@
     "dianVerifyCta": "Verifica tu factura en la DIAN",
     "dianVerifyLead": "Escanea el código QR o valida tu factura en el portal de la DIAN.",
     "discountRow": "Descuento",
-    "discountRowPct": "Descuento {pct}%"
+    "discountRowPct": "Descuento {pct}%",
+    "paymentTitle": "Forma de pago",
+    "methodCash": "Efectivo",
+    "methodCard": "Tarjeta",
+    "methodCardTerminal": "Tarjeta · datáfono",
+    "methodExternalTerminal": "Tarjeta · datáfono del comercio",
+    "methodPse": "PSE · transferencia",
+    "methodWallet": "Billetera digital",
+    "methodNequi": "Nequi",
+    "methodDeposit": "Abono de reserva",
+    "methodOther": "Otro medio"
   },
   "emailMembership": {
     "subjectT7": "Tu plan MESAPAY vence en {days} días",
@@ -2759,7 +2769,7 @@
   },
   "opPrinters": {
     "title": "Impresoras de red",
-    "intro": "Acá ves los computadores del local que imprimen y las impresoras que cada uno tiene conectadas. Podés probar una impresora sin estar parado al lado, y reimprimir una comanda que no salió.",
+    "intro": "Acá ves los computadores del local que imprimen y las impresoras que cada uno tiene conectadas: las que sacan comandas y la que saca la factura del cliente. Podés probar una impresora sin estar parado al lado, y reimprimir algo que no salió.",
     "noRestaurant": "No hay un restaurante activo.",
     "restaurantNotFound": "No encontramos el restaurante.",
     "agentsTitle": "Computadores que imprimen",
@@ -2839,7 +2849,22 @@
     "testTicketItem": "Impresión de prueba",
     "testTicketModifier": "Acentos y eñe: áéíóú ñÑ",
     "testTicketNote": "Si esta línea entra completa, el ancho está bien",
-    "testTicketBody": "Esta tirilla salió del servidor: la impresora responde y el programa está entregando trabajos."
+    "testTicketBody": "Esta tirilla salió del servidor: la impresora responde y el programa está entregando trabajos.",
+    "printersGroup_comanda": "Comandas",
+    "printersGroup_factura": "Facturas",
+    "kind_comanda": "Comanda",
+    "kind_factura": "Factura",
+    "stationNone": "Sin estación",
+    "jobKind_customer_invoice": "Factura",
+    "testInvoiceNumber": "PRUEBA",
+    "testInvoiceCode": "PRUEBA",
+    "testInvoiceTable": "Mesa 7",
+    "testInvoiceItem1": "Bandeja paisa con chicharrón",
+    "testInvoiceItem2": "Ñoquis con champiñón",
+    "testInvoiceItem3": "Limonada de coco",
+    "testInvoiceCustomer": "Inversiones Ñandú S.A.S.",
+    "testInvoiceCustomerAddress": "Calle 12 #4-56",
+    "testInvoiceFooter": "Tirilla de prueba — sin valor fiscal."
   },
   "cashBox": {
     "title": "Caja",

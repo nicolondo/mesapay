@@ -30,6 +30,7 @@ export default async function PrintersSettingsPage() {
     label: true,
     host: true,
     port: true,
+    kind: true,
     station: true,
     barSubStation: true,
     paperWidthMm: true,

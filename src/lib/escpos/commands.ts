@@ -150,3 +150,40 @@ export function wrap(
 export function separator(columns: number): Buffer {
   return line("-".repeat(Math.max(1, columns)));
 }
+
+/**
+ * Renglón de dos columnas: texto a la izquierda, valor PEGADO al borde
+ * derecho, relleno de espacios en el medio ("Subtotal ....... $ 43.890").
+ *
+ * No se usa tabulación ni justificación de la impresora: la térmica es de
+ * ancho fijo, así que la única forma de que los montos queden en columna
+ * es contar caracteres acá. Por eso también es esta función y no el
+ * renderer quien decide dónde parte el texto largo — si el nombre del
+ * plato no entra, se cuelga en renglones y el monto queda en el ÚLTIMO,
+ * que es donde el ojo lo busca.
+ *
+ * Un valor tan largo que no deja lugar al texto (un total absurdo en una
+ * de 58mm) se baja a su propio renglón alineado a la derecha en vez de
+ * desbordar: la térmica no hace wrap, TRUNCA, y perder el total impreso
+ * es peor que gastar un renglón.
+ */
+export function padRow(
+  left: string,
+  right: string,
+  width: number,
+  opts: { first?: string; cont?: string } = {},
+): string[] {
+  const w = Math.max(1, width);
+  const value = right.length > w ? right.slice(0, w) : right;
+  if (value.length + 2 > w) {
+    const out = wrap(left, w, opts);
+    out.push(" ".repeat(Math.max(0, w - value.length)) + value);
+    return out;
+  }
+  const out = wrap(left, w - value.length - 1, opts);
+  if (out.length === 0) out.push("");
+  const last = out[out.length - 1];
+  out[out.length - 1] =
+    last + " ".repeat(Math.max(1, w - last.length - value.length)) + value;
+  return out;
+}

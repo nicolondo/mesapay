@@ -52,6 +52,10 @@ export async function POST(req: Request) {
         label: true,
         host: true,
         port: true,
+        // `kind` va en el eco para que el instalador pueda verificar
+        // contra el servidor que la de la caja quedó como de FACTURA sin
+        // tener que abrir la web.
+        kind: true,
         station: true,
         barSubStation: true,
       },

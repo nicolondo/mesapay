@@ -15,11 +15,41 @@ type PrinterView = {
   label: string;
   host: string;
   port: number;
-  station: string;
+  /** "comanda" | "factura" — qué imprime. */
+  kind: string;
+  /** null en una impresora de factura: no sirve a ninguna estación. */
+  station: string | null;
   barSubStation: string | null;
   paperWidthMm: number | null;
   active: boolean;
 };
+
+/**
+ * Orden de los grupos en la pantalla: primero las de comanda (son las
+ * que hay en todos los locales), después la de facturas. Un local sin
+ * impresora de facturas no ve un grupo vacío.
+ */
+const KIND_ORDER = ["comanda", "factura"] as const;
+
+function groupByKind(printers: PrinterView[]): Array<{
+  kind: string;
+  printers: PrinterView[];
+}> {
+  const groups = KIND_ORDER.map((kind) => ({
+    kind: kind as string,
+    printers: printers.filter((p) => p.kind === kind),
+  }));
+  // Un `kind` que este build no conoce igual tiene que verse: una
+  // impresora invisible que recibe trabajos es peor que una de más.
+  const known = new Set<string>(KIND_ORDER);
+  const rest = printers.filter((p) => !known.has(p.kind));
+  for (const p of rest) {
+    const g = groups.find((x) => x.kind === p.kind);
+    if (g) g.printers.push(p);
+    else groups.push({ kind: p.kind, printers: [p] });
+  }
+  return groups.filter((g) => g.printers.length > 0);
+}
 
 type AgentView = {
   id: string;
@@ -130,15 +160,10 @@ export function PrintersClient({
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
             {t("printersTitle")}
           </div>
-          <ul className="space-y-2">
-            {orphanPrinters.map((p) => (
-              <PrinterRow
-                key={p.id}
-                printer={p}
-                defaultPaperWidthMm={defaultPaperWidthMm}
-              />
-            ))}
-          </ul>
+          <PrinterGroups
+            printers={orphanPrinters}
+            defaultPaperWidthMm={defaultPaperWidthMm}
+          />
         </div>
       )}
 
@@ -367,15 +392,10 @@ function AgentCard({
         {agent.printers.length === 0 ? (
           <div className="text-sm text-op-muted">{t("printersEmpty")}</div>
         ) : (
-          <ul className="space-y-2">
-            {agent.printers.map((p) => (
-              <PrinterRow
-                key={p.id}
-                printer={p}
-                defaultPaperWidthMm={defaultPaperWidthMm}
-              />
-            ))}
-          </ul>
+          <PrinterGroups
+            printers={agent.printers}
+            defaultPaperWidthMm={defaultPaperWidthMm}
+          />
         )}
       </div>
 
@@ -424,6 +444,47 @@ function AgentCard({
   );
 }
 
+/**
+ * Las impresoras agrupadas por lo que IMPRIMEN. Tres en la cocina y una
+ * en la caja mezcladas en una lista plana obligan a leer letra por letra
+ * cuál es cuál; la pregunta que se hace quien mira esta pantalla es "¿la
+ * de facturas está viva?", y así se contesta de un vistazo.
+ */
+function PrinterGroups({
+  printers,
+  defaultPaperWidthMm,
+}: {
+  printers: PrinterView[];
+  defaultPaperWidthMm: number;
+}) {
+  const t = useTranslations("opPrinters");
+  const groups = groupByKind(printers);
+
+  return (
+    <div className="space-y-4">
+      {groups.map((group) => {
+        const key = `printersGroup_${group.kind}`;
+        return (
+          <div key={group.kind}>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1.5">
+              {t.has(key) ? t(key) : group.kind}
+            </div>
+            <ul className="space-y-2">
+              {group.printers.map((p) => (
+                <PrinterRow
+                  key={p.id}
+                  printer={p}
+                  defaultPaperWidthMm={defaultPaperWidthMm}
+                />
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PrinterRow({
   printer,
   defaultPaperWidthMm,
@@ -439,9 +500,16 @@ function PrinterRow({
     null,
   );
 
+  // Una impresora de factura no tiene estación: en su lugar se rotula qué
+  // imprime, que es lo único que la distingue de las de cocina.
+  const kindKey = `kind_${printer.kind}`;
   const stationLabel = printer.barSubStation
     ? t("stationBarSub", { sub: printer.barSubStation })
-    : t(`station_${printer.station}`);
+    : printer.station
+      ? t(`station_${printer.station}`)
+      : t.has(kindKey)
+        ? t(kindKey)
+        : printer.kind;
 
   async function toggle() {
     setBusy(true);

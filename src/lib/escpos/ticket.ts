@@ -158,16 +158,25 @@ export function renderTicket(ticket: ThermalTicket): Buffer {
     // colgadas, sin él la comanda es un bloque de texto y el cocinero se
     // salta líneas. No va antes del primero para no desperdiciar papel.
     if (index > 0) chunks.push(LF);
-    // Doble ALTO y no doble ancho: el cocinero lee el plato de lejos
-    // pero siguen entrando 48/32 columnas, que es lo que evita que
-    // "Hamburguesa doble con tocineta" se parta en cuatro renglones.
-    chunks.push(bold(true), textSize(1, 2));
-    for (const l of wrap(`${item.qty}x ${item.name}`, cols, { cont: INDENT })) {
+    // El plato es lo único que el cocinero tiene que leer de un vistazo,
+    // así que va al mismo tamaño que el encabezado: doble alto Y doble
+    // ancho. Cuesta que un nombre largo ocupe dos renglones (a 24/16
+    // columnas), y está bien pagado — antes iba a doble alto solo y a un
+    // brazo de distancia no se distinguía de los modificadores.
+    chunks.push(bold(true), textSize(2, 2));
+    for (const l of wrap(`${item.qty}x ${item.name}`, bigCols, {
+      cont: INDENT,
+    })) {
       chunks.push(line(l));
     }
     chunks.push(NORMAL_SIZE, bold(false));
 
+    // Los colgados van a doble ALTO: entran las 48/32 columnas completas
+    // pero se leen desde el otro lado de la cocina. Antes iban a tamaño
+    // normal y era lo primero que nadie alcanzaba a leer — un "Sin:
+    // cebolla" ilegible es un plato devuelto.
     const hung = { first: INDENT, cont: INDENT + "  " };
+    chunks.push(textSize(1, 2));
     for (const mod of item.modifiers) {
       for (const l of wrap(`- ${mod}`, cols, hung)) chunks.push(line(l));
     }
@@ -183,13 +192,14 @@ export function renderTicket(ticket: ThermalTicket): Buffer {
         chunks.push(line(l));
       }
     }
+    chunks.push(NORMAL_SIZE);
   });
 
   // ── Nota de la mesa + pie ───────────────────────────────────────────
   if (ticket.orderNote) {
-    chunks.push(separator(cols), bold(true));
+    chunks.push(separator(cols), bold(true), textSize(1, 2));
     for (const l of wrap(ticket.orderNote, cols)) chunks.push(line(l));
-    chunks.push(bold(false));
+    chunks.push(NORMAL_SIZE, bold(false));
   }
   chunks.push(separator(cols));
   chunks.push(align("center"));

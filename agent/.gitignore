@@ -1,0 +1,7 @@
+# Binarios compilados — se generan con `go build`, nunca se versionan.
+# Las rutas van ancladas con "/" a propósito: sin la barra, el patrón
+# «mesapay-print-agent» también se comería el DIRECTORIO de fuentes
+# cmd/mesapay-print-agent/ y el .exe se publicaría sin su main.go.
+/dist/
+/mesapay-print-agent
+/mesapay-print-agent.exe

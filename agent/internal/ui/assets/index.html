@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de impresión MESAPAY</title>
+<style>
+  :root {
+    --bg: #f5f5f4; --card: #ffffff; --ink: #1c1917; --muted: #78716c;
+    --line: #e7e5e4; --brand: #0f766e; --ok: #15803d; --warn: #b45309;
+    --err: #b91c1c; --okbg: #f0fdf4; --errbg: #fef2f2; --warnbg: #fffbeb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    background: var(--ink); color: #fff; padding: 14px 20px;
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header .v { color: #a8a29e; font-size: 13px; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px; margin-bottom: 18px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 4px; text-transform: uppercase;
+             letter-spacing: .06em; color: var(--muted); }
+  .card p.hint { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  input, select {
+    width: 100%; padding: 8px 10px; border: 1px solid #d6d3d1; border-radius: 6px;
+    font: inherit; background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .row > div { flex: 1 1 160px; min-width: 0; }
+  button {
+    font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 6px;
+    border: 1px solid transparent; cursor: pointer; background: var(--brand); color: #fff;
+  }
+  button.ghost { background: #fff; border-color: #d6d3d1; color: var(--ink); }
+  button.danger { background: #fff; border-color: #fca5a5; color: var(--err); }
+  button:disabled { opacity: .5; cursor: default; }
+  .printer {
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px;
+    margin-bottom: 12px; background: #fafaf9;
+  }
+  .printer.off { opacity: .55; }
+  .printer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fafaf9; }
+  .stat .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat .v { font-size: 15px; font-weight: 600; margin-top: 2px; word-break: break-word; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12.5px; font-weight: 700; }
+  .pill.ok { background: var(--okbg); color: var(--ok); }
+  .pill.err { background: var(--errbg); color: var(--err); }
+  .pill.warn { background: var(--warnbg); color: var(--warn); }
+  .msg { padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 14px; white-space: pre-wrap; }
+  .msg.ok { background: var(--okbg); color: var(--ok); border: 1px solid #bbf7d0; }
+  .msg.err { background: var(--errbg); color: var(--err); border: 1px solid #fecaca; }
+  .log { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fafaf9; }
+  .log div { padding: 5px 10px; border-bottom: 1px solid var(--line); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .log div:last-child { border-bottom: 0; }
+  .log .error { color: var(--err); }
+  .log .warn { color: var(--warn); }
+  .log time { color: var(--muted); margin-right: 8px; }
+  code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .foot { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .checkline { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+  .checkline input { width: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agente de impresión MESAPAY</h1>
+  <span class="v" id="version"></span>
+  <span id="conn"></span>
+</header>
+
+<main>
+  <!-- ESTADO: primero, porque quien abre esta página casi siempre viene
+       de "no está imprimiendo" y necesita el diagnóstico, no el formulario -->
+  <section class="card">
+    <h2>Estado</h2>
+    <p class="hint">Si algo no imprime, empezá por acá.</p>
+    <div class="status-grid" id="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>Conexión con MESAPAY</h2>
+    <p class="hint">
+      El token se genera en MESAPAY, en Configuración → Impresión. Se muestra
+      una sola vez: copialo completo y pegalo acá.
+    </p>
+    <div class="row">
+      <div style="flex: 1 1 240px">
+        <label for="serverUrl">Dirección del servidor</label>
+        <input id="serverUrl" placeholder="https://mesapay.co">
+      </div>
+      <div style="flex: 2 1 320px">
+        <label for="token">Token de vinculación</label>
+        <input id="token" placeholder="mpa_…" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="printer-actions">
+      <button type="button" id="btnCheck" class="ghost">Probar la conexión</button>
+      <span class="foot" id="tokenState"></span>
+    </div>
+    <div id="checkMsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Impresoras</h2>
+    <p class="hint">
+      Una por cada equipo físico: cocina, barra, caja. La IP se ve imprimiendo
+      la página de configuración desde la propia impresora (suele ser mantener
+      apretado FEED al encenderla). Puerto 9100 salvo que la impresora diga otro.
+    </p>
+    <div id="printers"></div>
+    <button type="button" id="btnAdd" class="ghost">+ Agregar impresora</button>
+  </section>
+
+  <section class="card">
+    <div class="printer-actions">
+      <button type="button" id="btnSave">Guardar configuración</button>
+      <span class="foot">Se aplica al instante. No hace falta reiniciar el servicio ni el PC.</span>
+    </div>
+    <div id="saveMsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Últimos eventos</h2>
+    <p class="hint">El archivo completo está en <code id="logPath"></code></p>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+// Estado local de la página. `printers` es la lista editable; el resto
+// viene del agente en cada refresco.
+let printers = [];
+let tokenSet = false;
+
+const $ = (id) => document.getElementById(id);
+
+async function api(path, body) {
+  const opts = body === undefined
+    ? { headers: { "Accept": "application/json" } }
+    // Content-Type JSON no es decorativo: el agente rechaza cualquier
+    // POST que no lo traiga, y eso es lo que impide que una página
+    // cualquiera abierta en este PC le cambie la configuración.
+    : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+  if (!res.ok && !data.error) data.error = "Error " + res.status;
+  return data;
+}
+
+function ago(iso) {
+  if (!iso) return "nunca";
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return "hace " + secs + " s";
+  if (secs < 3600) return "hace " + Math.round(secs / 60) + " min";
+  if (secs < 86400) return "hace " + Math.round(secs / 3600) + " h";
+  return new Date(iso).toLocaleString("es-CO");
+}
+
+function stat(k, v, cls) {
+  const c = cls ? ' class="pill ' + cls + '"' : "";
+  return '<div class="stat"><div class="k">' + k + '</div><div class="v"><span' + c + '>' + v + "</span></div></div>";
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderStatus(s, state) {
+  $("version").textContent = "v" + (s.version || "?");
+  $("conn").innerHTML = s.connected
+    ? '<span class="pill ok">Conectado</span>'
+    : '<span class="pill err">Sin conexión con MESAPAY</span>';
+
+  const parts = [];
+  parts.push(stat("Servidor", s.connected ? "Conectado" : "Sin conexión",
+                  s.connected ? "ok" : "err"));
+  parts.push(stat("Último contacto", ago(s.lastContactAt)));
+  parts.push(stat("Comercio", esc(s.agentLabel || "—")));
+  parts.push(stat("Última comanda impresa",
+    s.lastPrintedAt ? esc(s.lastPrintedLabel || "") + " · " + ago(s.lastPrintedAt) : "ninguna todavía"));
+  parts.push(stat("Impresas / fallidas",
+    s.printedSinceStart + " / " + s.failedSinceStart,
+    s.failedSinceStart > 0 ? "warn" : "ok"));
+  parts.push(stat("En cola en el servidor", s.pendingJobsServer ?? 0));
+  if (s.duplicatesSkipped > 0) {
+    parts.push(stat("Repeticiones evitadas", s.duplicatesSkipped, "warn"));
+  }
+  if (!s.printersSynced && s.printersSyncNote) {
+    parts.push(stat("Sincronización de impresoras", esc(s.printersSyncNote), "warn"));
+  }
+  $("status").innerHTML = parts.join("");
+
+  if (s.lastError) {
+    $("status").insertAdjacentHTML("beforeend",
+      '<div class="stat" style="grid-column:1/-1"><div class="k">Último error (' +
+      ago(s.lastErrorAt) + ')</div><div class="v" style="color:var(--err);font-weight:500">' +
+      esc(s.lastError) + "</div></div>");
+  }
+
+  $("tokenState").textContent = state.tokenSet
+    ? "Hay un token guardado (…" + state.tokenTail + "). Dejá el campo vacío para no cambiarlo."
+    : "Todavía no hay token: el agente no puede recibir comandas.";
+}
+
+function renderPrinters() {
+  if (printers.length === 0) {
+    $("printers").innerHTML =
+      '<p class="hint">No hay ninguna impresora configurada todavía.</p>';
+    return;
+  }
+  $("printers").innerHTML = printers.map((p, i) => `
+    <div class="printer ${p.active ? "" : "off"}">
+      <div class="row">
+        <div><label>Nombre</label>
+          <input data-i="${i}" data-f="label" value="${esc(p.label)}" placeholder="Cocina"></div>
+        <div><label>IP o nombre en la red</label>
+          <input data-i="${i}" data-f="host" value="${esc(p.host)}" placeholder="192.168.1.50"></div>
+        <div style="flex:0 1 110px"><label>Puerto</label>
+          <input data-i="${i}" data-f="port" type="number" value="${p.port}"></div>
+      </div>
+      <div class="row">
+        <div><label>Estación</label>
+          <select data-i="${i}" data-f="station">
+            <option value="kitchen" ${p.station === "kitchen" ? "selected" : ""}>Cocina</option>
+            <option value="bar" ${p.station === "bar" ? "selected" : ""}>Barra</option>
+            <option value="counter" ${p.station === "counter" ? "selected" : ""}>Mostrador / caja</option>
+          </select></div>
+        <div><label>Sub-estación de barra (opcional)</label>
+          <input data-i="${i}" data-f="barSubStation" value="${esc(p.barSubStation || "")}"
+                 placeholder="vacío = toda la barra" ${p.station === "bar" ? "" : "disabled"}></div>
+        <div style="flex:0 1 140px"><label>Ancho del papel</label>
+          <select data-i="${i}" data-f="paperWidthMm">
+            <option value="80" ${p.paperWidthMm !== 58 ? "selected" : ""}>80 mm</option>
+            <option value="58" ${p.paperWidthMm === 58 ? "selected" : ""}>58 mm</option>
+          </select></div>
+      </div>
+      <div class="printer-actions">
+        <label class="checkline"><input type="checkbox" data-i="${i}" data-f="active"
+          ${p.active ? "checked" : ""}> Activa</label>
+        <button type="button" class="ghost" data-test="${i}">Imprimir prueba</button>
+        <button type="button" class="danger" data-del="${i}">Quitar</button>
+        <span class="foot" data-msg="${i}"></span>
+      </div>
+    </div>`).join("");
+}
+
+// Delegación de eventos: la lista se vuelve a dibujar entera cada vez,
+// así que enganchar listeners en cada input se perdería en el siguiente
+// redibujo.
+$("printers").addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.i === undefined) return;
+  const p = printers[Number(t.dataset.i)];
+  const f = t.dataset.f;
+  if (f === "port" || f === "paperWidthMm") p[f] = Number(t.value) || 0;
+  else if (f === "active") p[f] = t.checked;
+  else p[f] = t.value;
+  if (f === "station") renderPrinters();
+});
+$("printers").addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.dataset.i === undefined || t.dataset.f !== "active") return;
+  printers[Number(t.dataset.i)].active = t.checked;
+  renderPrinters();
+});
+
+$("printers").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+
+  if (btn.dataset.del !== undefined) {
+    printers.splice(Number(btn.dataset.del), 1);
+    renderPrinters();
+    return;
+  }
+  if (btn.dataset.test !== undefined) {
+    const i = Number(btn.dataset.test);
+    const p = printers[i];
+    const msg = document.querySelector('[data-msg="' + i + '"]');
+    btn.disabled = true;
+    msg.textContent = "Enviando…";
+    const r = await api("/api/test-print", {
+      host: p.host, port: Number(p.port) || 9100,
+      label: p.label, paperWidthMm: Number(p.paperWidthMm) || 80,
+    });
+    btn.disabled = false;
+    if (r.ok) {
+      msg.textContent = "✓ Enviado. Revisá la impresora.";
+      msg.style.color = "var(--ok)";
+    } else {
+      msg.textContent = "✗ " + (r.error || "falló") + (r.hint ? " — " + r.hint : "");
+      msg.style.color = "var(--err)";
+    }
+  }
+});
+
+$("btnAdd").addEventListener("click", () => {
+  printers.push({
+    localKey: "", label: "", host: "", port: 9100,
+    station: "kitchen", barSubStation: "", paperWidthMm: 80, active: true,
+  });
+  renderPrinters();
+});
+
+$("btnSave").addEventListener("click", async () => {
+  $("btnSave").disabled = true;
+  const r = await api("/api/config", {
+    serverUrl: $("serverUrl").value,
+    token: $("token").value,
+    printers: printers.map((p) => ({
+      localKey: p.localKey || "", label: p.label, host: p.host,
+      port: Number(p.port) || 9100, station: p.station,
+      barSubStation: p.station === "bar" ? (p.barSubStation || "") : "",
+      paperWidthMm: Number(p.paperWidthMm) || 80, active: !!p.active,
+    })),
+  });
+  $("btnSave").disabled = false;
+  $("saveMsg").innerHTML = r.ok
+    ? '<div class="msg ok">Configuración guardada.</div>'
+    : '<div class="msg err">' + esc(r.error || "no se pudo guardar") + "</div>";
+  if (r.ok) $("token").value = "";
+  refresh();
+});
+
+$("btnCheck").addEventListener("click", async () => {
+  $("btnCheck").disabled = true;
+  $("checkMsg").innerHTML = '<div class="msg">Probando…</div>';
+  const r = await api("/api/check-link", {
+    serverUrl: $("serverUrl").value,
+    token: $("token").value,
+  });
+  $("btnCheck").disabled = false;
+  $("checkMsg").innerHTML = r.ok
+    ? '<div class="msg ok">Conectado a «' + esc(r.agentLabel) + "». El servidor tiene " +
+      (r.printers ? r.printers.length : 0) + " impresora(s) registrada(s) y " +
+      (r.pendingJobs || 0) + " comanda(s) en cola.</div>"
+    : '<div class="msg err">' + esc(r.error) + "</div>";
+});
+
+function renderLog(events) {
+  $("log").innerHTML = (events || []).map((e) =>
+    '<div class="' + e.level + '"><time>' +
+    new Date(e.time).toLocaleTimeString("es-CO") + "</time>" + esc(e.message) + "</div>"
+  ).join("") || '<div>Sin eventos todavía.</div>';
+}
+
+// `editing` evita el efecto más molesto posible: que el refresco cada 4
+// segundos te borre lo que estás escribiendo. El estado y el log se
+// refrescan siempre; el formulario, sólo cuando nadie lo está tocando.
+function editing() {
+  const el = document.activeElement;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "SELECT");
+}
+
+async function refresh(force) {
+  const s = await api("/api/state");
+  if (s.error) return;
+  renderStatus(s.status || {}, s);
+  renderLog(s.events);
+  $("logPath").textContent = s.logPath || "";
+  tokenSet = s.tokenSet;
+  if (force || !editing()) {
+    $("serverUrl").value = s.serverUrl || "";
+    printers = (s.printers || []).map((p) => ({ ...p }));
+    renderPrinters();
+  }
+}
+
+refresh(true);
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>

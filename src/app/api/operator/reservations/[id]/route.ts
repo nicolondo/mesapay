@@ -189,7 +189,7 @@ async function applyDeposit(
   }
 
   const depositCents = reservation.depositCents;
-  await db.$transaction(async (tx) => {
+  const { fullyPaid } = await db.$transaction(async (tx) => {
     const pay = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -201,7 +201,7 @@ async function applyDeposit(
         settledAt: new Date(),
       },
     });
-    await recomputeOrderTotalsInTx(tx, order.id);
+    const totals = await recomputeOrderTotalsInTx(tx, order.id);
     await tx.reservation.update({
       where: { id: reservation.id },
       data: {
@@ -210,9 +210,18 @@ async function applyDeposit(
         depositPaymentId: pay.id,
       },
     });
+    return { fullyPaid: totals.fullyPaid };
   });
 
-  publishOrderEvent(restaurantId, { type: "order.updated", orderId: order.id });
+  // Si el abono alcanzó para toda la cuenta, la orden quedó en `paid` y hay
+  // que decirlo con ese evento: Salón, Mesas y la pantalla del comensal
+  // escuchan `order.paid`, no `order.updated`. Este riel avisaba siempre
+  // "actualizada", así que una mesa que cerraba con el depósito seguía
+  // figurando abierta en los tableros. Mismo patrón que settle-cash.
+  publishOrderEvent(restaurantId, {
+    type: fullyPaid ? "order.paid" : "order.updated",
+    orderId: order.id,
+  });
   publishOrderEvent(restaurantId, {
     type: "order.updated",
     orderId: `reservation:${reservation.id}`,

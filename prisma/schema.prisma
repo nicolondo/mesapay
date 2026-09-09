@@ -364,6 +364,9 @@ model Restaurant {
   costCenters            CostCenter[]
   budgets                Budget[]
   terminalDevices        TerminalDevice[]
+  printers               Printer[]
+  printAgents            PrintAgent[]
+  printJobs              PrintJob[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
   simpleInvoices         SimpleInvoice[]
@@ -3284,4 +3287,227 @@ model ExpensePayment {
 
   @@index([expenseId])
   @@index([restaurantId, paidAt])
+}
+
+// ===========================================================================
+// COLA DE IMPRESIÓN — comandas a impresoras térmicas de red (ESC/POS 9100)
+// ===========================================================================
+//
+// El problema que resuelve: hoy la comanda se imprime desde una pestaña de
+// Chrome abierta en un PC de la cocina (/operator/print/[station]). Esa
+// pestaña escucha el bus SSE y, si se oculta (pantalla bloqueada, Chrome
+// minimizado, cambio de pestaña), el EventSource se cierra y los eventos
+// `ticket.printable` de ese rato se PIERDEN — la comanda no se imprime
+// nunca y nadie se entera. Tampoco hay reimpresión, ni acuse, ni registro.
+//
+// El reemplazo: un programa que corre como servicio en un PC Windows del
+// local (el "agente") le pide trabajos a MESAPAY por HTTP, abre un socket
+// TCP a la IP de la impresora térmica y le escribe los bytes. Nada se
+// pierde porque la cola vive en la DB: si el PC estuvo apagado, al volver
+// pide y recibe lo pendiente.
+//
+// El agente es un PUENTE TONTO a propósito: MESAPAY renderiza los bytes
+// ESC/POS completos (src/lib/escpos) y el agente sólo los escribe al
+// socket. Así cambiar el diseño de la comanda NO obliga a actualizar el
+// .exe instalado en cada cocina.
+//
+// Los dos caminos CONVIVEN: el evento SSE se sigue emitiendo igual, y un
+// restaurante sin impresoras registradas se comporta exactamente como
+// antes de esta feature.
+
+/// Estado de un trabajo de impresión. El ciclo feliz es
+/// pending → delivered → printed. `delivered` es "el agente ya se lo
+/// llevó pero todavía no confirmó que salió por la impresora": es el
+/// estado donde vive la incertidumbre (el PC se pudo apagar entre que
+/// recibió los bytes y que la impresora los escupió), y por eso un
+/// trabajo `delivered` vuelve a entregarse pasado un rato — ver
+/// CLAIM_RETRY_MS en src/lib/print/claim.ts.
+enum PrintJobStatus {
+  pending
+  delivered
+  printed
+  failed
+}
+
+/// Una impresora térmica de red del local. Ethernet/WiFi, hablando
+/// ESC/POS crudo por TCP al puerto 9100 (RAW / JetDirect), que es lo
+/// que traen absolutamente todas las térmicas del mercado.
+///
+/// Por qué host+puerto y no "la impresora predeterminada del sistema":
+/// con la pestaña de Chrome la impresora la elegía el sistema operativo,
+/// así que un restaurante con cocina + barra necesitaba DOS PCs. Acá un
+/// solo agente le habla a N impresoras por IP.
+model Printer {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  /// Rótulo humano — "Cocina caliente", "Barra cócteles". Es lo que ve
+  /// el operador en la pantalla de configuración y lo que viaja en el
+  /// job para que el agente lo loguee.
+  label String
+  /// IP o hostname en la red del local. No se valida como IP a
+  /// propósito: hay locales que le ponen nombre DNS a la impresora.
+  host  String
+  port  Int    @default(9100)
+
+  /// A qué estación sirve. Reusa el mismo enum que Category/OrderItem
+  /// para que el ruteo de la comanda sea el snapshot que ya existe en
+  /// OrderItem.station — no hay una segunda noción de "estación".
+  station       PrepStation @default(kitchen)
+  /// Sólo cuando station=bar y el comercio definió Restaurant.barSubStations.
+  /// null = impresora "de toda la barra": recibe TODO lo que va al bar,
+  /// tenga o no sub-estación. Con valor = sólo recibe esa sub-estación.
+  /// Es la misma semántica que ya usa /operator/print/bar?sub=…
+  barSubStation String?
+
+  /// Ancho del papel de ESTA impresora. null = hereda
+  /// Restaurant.printPaperWidthMm. Existe porque un local puede tener la
+  /// de cocina en 80mm y una de 58mm en la barra, y el ancho decide
+  /// cuántas columnas entran (48 vs 32) — o sea, el corte de línea.
+  paperWidthMm Int?
+
+  /// Apagar una impresora sin borrarla (se dañó, se la llevaron a
+  /// reparar) sin perder el historial de sus trabajos.
+  active Boolean @default(true)
+
+  jobs PrintJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, active])
+  @@index([restaurantId, station, active])
+}
+
+/// El programa que corre como servicio en el PC Windows del local. Un
+/// local normalmente tiene UNO (le habla a todas sus impresoras por IP),
+/// pero se admiten varios: dos sedes en la misma DB, o un PC de respaldo.
+///
+/// Ojo con "varios agentes del mismo restaurante": los trabajos se
+/// entregan por restaurante, no por agente, así que dos agentes vivos
+/// del mismo local se REPARTEN los trabajos (el primero que pide se lo
+/// lleva). Eso es lo deseable — no queremos imprimir dos veces — pero
+/// significa que un agente de respaldo debe estar apagado, no en
+/// paralelo.
+model PrintAgent {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  label String
+
+  /// SHA-256 hex del token, NUNCA el token en claro — mismo criterio que
+  /// DinerSession.tokenHash / PasswordResetToken: un leak de la tabla no
+  /// puede dar acceso. El token se muestra UNA vez al generarlo y se
+  /// pega en el instalador del agente.
+  tokenHash String  @unique
+  /// Últimos 4 caracteres del token, sólo para que la pantalla de
+  /// configuración pueda decir "…a9f3" y el operador sepa cuál es cuál.
+  /// No sirve para autenticar.
+  tokenTail String?
+
+  /// Para poder decir "el agente de cocina no responde hace 12 minutos".
+  /// Lo refresca tanto el latido como el pedido de trabajos.
+  lastSeenAt   DateTime?
+  /// Versión del .exe que reportó en el último latido — para saber a
+  /// quién hay que actualizar cuando algo cambie del lado del agente.
+  agentVersion String?
+  /// IP desde la que llamó por última vez (la pública del local). Sirve
+  /// para soporte: "¿estás llamando desde el local o desde tu casa?".
+  lastIp       String?
+
+  /// Revocar en vez de borrar: si se filtró el token se marca acá y el
+  /// agente deja de autenticar, sin perder el rastro de que existió.
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, revokedAt])
+}
+
+/// Un trabajo = una comanda para UNA impresora. Si una ronda va a dos
+/// impresoras (cocina tiene dos térmicas) se crean dos trabajos.
+///
+/// ── Por qué guardamos el PAYLOAD y no los bytes ya renderizados ──────
+/// `payload` guarda el documento de la comanda ya resuelto (contenido +
+/// textos traducidos), y los bytes ESC/POS se renderizan al momento de
+/// entregarlos al agente. Razones:
+///   1. Reimprimir un ticket de hace un rato toma el renderer ACTUAL, así
+///      que arreglar un bug de corte de línea / code page arregla también
+///      las reimpresiones — no quedan bytes viejos fosilizados en la DB.
+///   2. El mismo payload sirve para dos impresoras de distinto ancho
+///      (48 vs 32 columnas) sin duplicar contenido: el ancho lo pone la
+///      impresora al renderizar.
+///   3. Es auditable: un `SELECT payload` dice qué se mandó a imprimir.
+///      Un bytea con ESC/POS no se lee sin herramientas.
+/// Lo que SÍ queda congelado en el payload es el CONTENIDO (nombres de
+/// platos y notas al momento de enviar a cocina) — eso es un snapshot
+/// deliberado, igual que OrderItem.nameSnapshot: editar el menú después
+/// no debe cambiar lo que la cocina ya vio.
+model PrintJob {
+  id String @id @default(cuid())
+
+  /// Denormalizado desde la impresora. Es la columna sobre la que se
+  /// filtra CADA consulta del agente: un token de un restaurante nunca
+  /// puede ver trabajos de otro, y no queremos que esa garantía dependa
+  /// de acordarse de hacer el join.
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  printerId    String
+  printer      Printer    @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  status PrintJobStatus @default(pending)
+
+  /// Qué clase de documento es. Hoy sólo "kitchen_ticket" (la comanda);
+  /// se deja como String y no como enum porque el siguiente en llegar
+  /// (tirilla de cierre, factura, prueba de impresora) no debería
+  /// costar una migración de enum.
+  kind String @default("kitchen_ticket")
+
+  /// El documento de la comanda: { v: 1, ticket: ThermalTicket }.
+  /// Shape en src/lib/escpos/ticket.ts.
+  payload Json
+
+  /// Cuántas veces se le ENTREGÓ al agente. Sube en cada entrega, no en
+  /// cada intento de socket del agente (eso el servidor no lo ve). El
+  /// tope (MAX_ATTEMPTS) evita que un ticket que rompe la impresora se
+  /// reintente mil veces.
+  attempts    Int       @default(0)
+  lastError   String?
+  deliveredAt DateTime?
+  printedAt   DateTime?
+  failedAt    DateTime?
+
+  /// No volver a entregarlo antes de esta hora. Lo pone el acuse fallido
+  /// para dar un respiro creciente entre reintentos: sin esto, con la
+  /// impresora desconectada el agente (que consulta cada pocos segundos)
+  /// quemaría los 5 intentos en medio minuto y mataría la comanda antes
+  /// de que a nadie le dé tiempo de volver a enchufarla.
+  /// null = entregable ya.
+  nextAttemptAt DateTime?
+
+  /// De dónde salió, para reimprimir y auditar ("esta mesa jura que
+  /// nunca llegó su comanda"). Se conserva aunque la orden se borre:
+  /// son String sueltos, no FKs, porque el valor de auditoría del job
+  /// sobrevive al borrado de la orden.
+  orderId String?
+  roundId String?
+
+  /// Clave de idempotencia del encolado: `${roundId}:${station}:${sub}`.
+  /// El KDS marca los platos UNO POR UNO, así que la misma ronda dispara
+  /// la transición varias veces; sin esto la cocina recibiría cinco
+  /// copias de la misma comanda. Las REIMPRESIONES manuales van con null
+  /// (en Postgres varios NULL no chocan contra un unique), que es
+  /// justamente lo que se quiere: reimprimir a propósito sí se permite.
+  dedupeKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([printerId, dedupeKey])
+  @@index([restaurantId, status, createdAt])
+  @@index([printerId, status])
+  @@index([restaurantId, roundId])
 }

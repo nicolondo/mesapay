@@ -6,6 +6,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { enqueueRoundTicketSafe } from "@/lib/print/enqueue";
 
 const schema = z
   .object({
@@ -386,6 +387,18 @@ export async function PATCH(
         type: "ticket.printable",
         roundId: item.roundId,
         orderId: item.orderId,
+        station: item.station,
+        barSubStation: item.barSubStation ?? null,
+      });
+      // Además del evento SSE: encolar la comanda para las impresoras de
+      // red del local (agente ESC/POS). Los dos caminos CONVIVEN durante
+      // la transición — un restaurante sin impresoras registradas se
+      // comporta exactamente como antes. Nunca lanza: si la cola falla,
+      // el ítem igual quedó en in_kitchen y la pestaña sigue de respaldo.
+      await enqueueRoundTicketSafe({
+        restaurantId: item.order.restaurantId,
+        orderId: item.orderId,
+        roundId: item.roundId,
         station: item.station,
         barSubStation: item.barSubStation ?? null,
       });

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { formatItemSelections } from "@/lib/modifiers";
+import { loadRoundTicket } from "@/lib/print/ticketData";
 
 /**
  * Return the data needed to print a single ticket. The print listener
@@ -46,50 +45,21 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid_params" }, { status: 400 });
   }
 
-  const round = await db.round.findUnique({
-    where: { id: roundId },
-    include: {
-      order: { include: { table: true, restaurant: true } },
-      items: {
-        where: {
-          station,
-          ...(station === "bar" && sub ? { barSubStation: sub } : {}),
-        },
-        include: { menuItem: { select: { modifiers: true } } },
-      },
-    },
+  // La lectura de la ronda vive en @/lib/print/ticketData porque la
+  // comparte con el encolado ESC/POS: mientras la pestaña y las
+  // impresoras de red convivan, tienen que imprimir exactamente lo mismo.
+  const loaded = await loadRoundTicket({
+    restaurantId,
+    roundId,
+    station,
+    barSubStation: sub,
   });
-  if (!round || round.order.restaurantId !== restaurantId) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-  if (round.items.length === 0) {
-    return NextResponse.json({ error: "no_items_for_station" }, { status: 404 });
+  if (!loaded.ok) {
+    return NextResponse.json({ error: loaded.reason }, { status: 404 });
   }
 
   return NextResponse.json({
-    restaurantName: round.order.restaurant.name,
-    paperWidthMm: round.order.restaurant.printPaperWidthMm,
-    station,
-    barSubStation: sub,
-    roundSeq: round.seq,
-    placedAt: round.placedAt.toISOString(),
-    order: {
-      shortCode: round.order.shortCode,
-      orderType: round.order.orderType as "dineIn" | "pickup",
-      tableNumber: round.order.table.number,
-      pickupName: round.order.pickupName,
-      notes: round.order.notes,
-      servingMode: round.order.servingMode as "asReady" | "together",
-    },
-    items: round.items.map((i) => ({
-      qty: i.qty,
-      name: i.nameSnapshot,
-      modifiers: formatItemSelections(
-        i.modifierSelections,
-        i.menuItem?.modifiers,
-      ),
-      notes: i.notes,
-      guestName: i.guestName,
-    })),
+    ...loaded.ticket,
+    placedAt: loaded.ticket.placedAt.toISOString(),
   });
 }

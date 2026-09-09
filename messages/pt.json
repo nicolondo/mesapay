@@ -1362,6 +1362,7 @@
     "freeLineSubmitBusy": "Adicionando…",
     "freeLineTaxSummary": "{kind} {pct}% · {amount}",
     "freeLineNoTax": "Sem imposto",
+    "unitEach": "{amount} cada",
     "taxKindNone": "Nenhum",
     "taxKindInc": "Imposto ao consumo",
     "taxKindIva": "IVA",

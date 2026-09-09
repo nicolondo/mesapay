@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { Icon } from "@/components/ui/Icon";
+import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function OperatorHome() {
   const tr = await getTranslations("opDashboard");
+  const ux = await getTranslations("workspaceUi");
+  const locale = await getLocale();
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return (
@@ -25,6 +28,7 @@ export default async function OperatorHome() {
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: {
+      name: true,
       slug: true,
       serviceMode: true,
       shiftPolicy: true,
@@ -81,6 +85,8 @@ export default async function OperatorHome() {
       by: ["nameSnapshot"],
       where: {
         order: { restaurantId, status: "paid", paidAt: { gte: today } },
+        cancelledAt: null,
+        OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
       },
       _sum: { qty: true },
       orderBy: { _sum: { qty: "desc" } },
@@ -93,7 +99,18 @@ export default async function OperatorHome() {
       },
       orderBy: { createdAt: "asc" },
       take: 10,
-      include: { table: true, items: true },
+      include: {
+        table: true,
+        items: {
+          where: {
+            cancelledAt: null,
+            OR: [
+              { roundId: null },
+              { round: { status: { not: "cancelled" } } },
+            ],
+          },
+        },
+      },
     }),
   ]);
 
@@ -115,10 +132,45 @@ export default async function OperatorHome() {
   const maxDay = Math.max(1, ...weekDays.map((d) => d.cents));
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full">
+    <div className="mp-page">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
-
-      <div className="mb-4">
+      <header className="mp-page-header">
+        <div>
+          <p className="mp-eyebrow">{tenant?.name}</p>
+          <h1 className="mp-page-title">{ux("overviewTitle")}</h1>
+          <p className="mp-page-description">{ux("overviewDescription")}</p>
+        </div>
+        <Link href="/operator/tables" className="mp-btn mp-btn--primary">
+          <Icon name="tables" />
+          {ux("viewService")}
+          <Icon name="arrow" width="16" />
+        </Link>
+      </header>
+      <div className="mp-kpis">
+        <Kpi
+          label={tr("kpiSalesToday")}
+          value={fmtCOP(salesTodayCents)}
+          href="/operator/payments"
+          primary
+        />
+        <Kpi
+          label={tr("kpiPaidOrders")}
+          value={String(todayPaidCount)}
+          href="/operator/orders?status=paid"
+        />
+        <Kpi
+          label={tr("kpiAvgTicket")}
+          value={todayPaidCount === 0 ? tr("dash") : fmtCOP(avgTicketCents)}
+          href="/operator/reports"
+        />
+        <Kpi
+          label={tr("kpiOpenNow")}
+          value={String(openOrdersCount)}
+          href="/operator/tables"
+          accent={openOrdersCount > 0}
+        />
+      </div>
+      <div className="mt-5">
         <CashBox
           initial={cashSnap}
           snapshotUrl="/api/operator/cash/snapshot"
@@ -127,131 +179,147 @@ export default async function OperatorHome() {
           tenantSlug={tenant?.slug ?? ""}
         />
       </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi label={tr("kpiSalesToday")} value={fmtCOP(salesTodayCents)} />
-        <Kpi label={tr("kpiPaidOrders")} value={String(todayPaidCount)} />
-        <Kpi
-          label={tr("kpiAvgTicket")}
-          value={todayPaidCount === 0 ? tr("dash") : fmtCOP(avgTicketCents)}
-        />
-        <Kpi
-          label={tr("kpiOpenNow")}
-          value={String(openOrdersCount)}
-          accent={openOrdersCount > 0}
-        />
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-op-surface border border-op-border rounded-2xl p-5">
-          <div className="flex items-baseline justify-between">
-            <div className="font-display text-xl">{tr("last7Days")}</div>
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
-              {fmtCOP(weekDays.reduce((s, d) => s + d.cents, 0))}
-            </div>
+      <div className="mp-dashboard-columns">
+        <section className="mp-panel" aria-labelledby="sales-title">
+          <div className="mp-panel-heading">
+            <h2 id="sales-title">{tr("last7Days")}</h2>
+            <span className="text-sm font-medium tabular">
+              {fmtCOP(weekDays.reduce((sum, d) => sum + d.cents, 0))}
+            </span>
           </div>
-          <div className="mt-5 flex items-end gap-2 h-32">
-            {weekDays.map((d, i) => {
-              const h = Math.max(3, Math.round((d.cents / maxDay) * 100));
-              const isToday = i === weekDays.length - 1;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+          <div className="mp-sales-chart" aria-hidden="true">
+            {weekDays.map((d, i) => (
+              <div key={i} className="mp-sales-column">
+                <span className="mp-sales-value">{fmtCOP(d.cents)}</span>
+                <div className="mp-sales-track">
                   <div
-                    className={
-                      "w-full rounded-t " +
-                      (isToday ? "bg-terracotta" : "bg-ink/70")
-                    }
-                    style={{ height: `${h}%` }}
-                    title={fmtCOP(d.cents)}
+                    className={"mp-sales-bar" + (i === 6 ? " is-today" : "")}
+                    style={{
+                      height: `${d.cents === 0 ? 0 : Math.max(3, Math.round((d.cents / maxDay) * 100))}%`,
+                    }}
                   />
-                  <div className="font-mono text-[9px] text-op-muted">
-                    {dayLabel(d.date, tr)}
-                  </div>
                 </div>
-              );
-            })}
+                <span className="mp-sales-day">{dayLabel(d.date, tr)}</span>
+              </div>
+            ))}
           </div>
-        </div>
-
-        <div className="bg-op-surface border border-op-border rounded-2xl p-5">
-          <div className="flex items-baseline justify-between">
-            <div className="font-display text-xl">{tr("topDishesToday")}</div>
-            <Link href="/operator/menu" className="text-xs text-terracotta">
+          <details className="mp-chart-details">
+            <summary>{ux("dailyBreakdown")}</summary>
+            <table className="w-full text-sm">
+              <caption className="sr-only">{tr("last7Days")}</caption>
+              <tbody>
+                {weekDays.map((d, i) => (
+                  <tr key={i}>
+                    <th scope="row" className="text-left font-normal py-2">
+                      {d.date.toLocaleDateString(locale, {
+                        timeZone: "America/Bogota",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </th>
+                    <td className="text-right tabular">{fmtCOP(d.cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </section>
+        <section className="mp-panel" aria-labelledby="top-dishes-title">
+          <div className="mp-panel-heading">
+            <h2 id="top-dishes-title">{tr("topDishesToday")}</h2>
+            <Link href="/operator/menu" className="mp-text-link">
               {tr("viewMenu")}
             </Link>
           </div>
-          <ul className="mt-3 divide-y divide-op-border">
-            {topItemsRaw.length === 0 && (
-              <li className="py-4 text-sm text-op-muted">
-                {tr("noPaidYet")}
-              </li>
-            )}
-            {topItemsRaw.map((t, i) => (
-              <li
-                key={t.nameSnapshot}
-                className="py-2.5 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs text-op-muted w-4">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm">{t.nameSnapshot}</span>
-                </div>
-                <span className="font-mono text-sm tabular">
-                  {t._sum.qty ?? 0}
+          <ol className="mp-ranking">
+            {topItemsRaw.map((item, i) => (
+              <li key={item.nameSnapshot}>
+                <span className="mp-rank-number">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="flex-1 min-w-0 text-sm font-medium">
+                  {item.nameSnapshot}
+                </span>
+                <span className="text-sm tabular text-op-muted">
+                  {tr("itemCount", { count: item._sum.qty ?? 0 })}
                 </span>
               </li>
             ))}
-          </ul>
-        </div>
+          </ol>
+          {topItemsRaw.length === 0 && (
+            <div className="mp-empty-state">
+              <Icon name="menu" />
+              <p>{tr("noPaidYet")}</p>
+              <Link href="/operator/menu" className="mp-text-link">
+                {tr("viewMenu")}
+              </Link>
+            </div>
+          )}
+        </section>
       </div>
-
-      <div className="mt-8 bg-op-surface border border-op-border rounded-2xl">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-op-border">
-          <div className="font-display text-xl">
+      <section
+        className="mp-panel mp-active-orders"
+        aria-labelledby="active-orders-title"
+      >
+        <div className="mp-panel-heading">
+          <h2 id="active-orders-title">
             {counterMode ? tr("activeOrders") : tr("activeTables")}
-          </div>
-          <Link href="/operator/kitchen" className="text-sm text-terracotta">
+            <span className="mp-count">{openOrdersCount}</span>
+          </h2>
+          <Link href="/operator/kitchen" className="mp-text-link">
             {tr("goToKitchen")}
           </Link>
         </div>
-        <ul className="divide-y divide-op-border">
-          {openOrders.map((o) => {
-            const itemCount = o.items.reduce((s, i) => s + i.qty, 0);
-            return (
-              <li
-                key={o.id}
-                className="flex items-center justify-between px-5 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="font-display text-lg w-24">
+        <ul>
+          {openOrders.map((o) => (
+            <li key={o.id}>
+              <Link href={`/operator/orders/${o.id}`} className="mp-order-row">
+                <span className="mp-table-number">
+                  {counterMode ? <Icon name="orders" /> : o.table.number}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold">
                     {counterMode
                       ? o.shortCode
                       : tr("tableLabel", { number: o.table.number })}
-                  </div>
-                  <div>
-                    <div className="font-mono text-sm">
-                      {counterMode ? tr("counter") : o.shortCode}
-                    </div>
-                    <div className="text-xs text-op-muted">
-                      {tr("itemCount", { count: itemCount })} ·{" "}
-                      {statusLabel(o.status, tr)} · {ageLabel(o.createdAt, tr)}
-                    </div>
-                  </div>
-                </div>
-                <div className="font-mono tabular text-sm">
-                  {fmtCOP(o.subtotalCents)}
-                </div>
-              </li>
-            );
-          })}
-          {openOrders.length === 0 && (
-            <li className="px-5 py-6 text-sm text-op-muted">
-              {counterMode ? tr("noActiveOrders") : tr("noActiveTables")}
+                  </span>
+                  <span className="block text-xs text-op-muted mt-1">
+                    {o.shortCode} ·{" "}
+                    {tr("itemCount", {
+                      count: o.items.reduce((sum, item) => sum + item.qty, 0),
+                    })}{" "}
+                    · {ageLabel(o.createdAt, tr)}
+                  </span>
+                </span>
+                <span className={`mp-order-status status-${o.status}`}>
+                  {statusLabel(o.status, tr)}
+                </span>
+                <span className="mp-order-amount">{fmtCOP(o.totalCents)}</span>
+                <Icon
+                  name="arrow"
+                  className="hidden sm:block text-op-muted"
+                  width="16"
+                />
+              </Link>
             </li>
-          )}
+          ))}
         </ul>
-      </div>
+        {openOrders.length === 0 && (
+          <div className="mp-empty-state">
+            <Icon name="tables" />
+            <p>{counterMode ? tr("noActiveOrders") : tr("noActiveTables")}</p>
+            <Link href="/operator/tables" className="mp-btn mp-btn--secondary">
+              {ux("viewService")}
+            </Link>
+          </div>
+        )}
+        {openOrdersCount > openOrders.length && (
+          <Link href="/operator/tables" className="mp-panel-footer">
+            {ux("viewAllActive", { count: openOrdersCount })}
+            <Icon name="arrow" width="16" />
+          </Link>
+        )}
+      </section>
     </div>
   );
 }
@@ -259,41 +327,43 @@ export default async function OperatorHome() {
 function Kpi({
   label,
   value,
+  href,
   accent,
+  primary,
 }: {
   label: string;
   value: string;
+  href: string;
   accent?: boolean;
+  primary?: boolean;
 }) {
   return (
-    <div
-      className={
-        "rounded-2xl p-4 border " +
-        (accent
-          ? "bg-terracotta/10 border-terracotta/30"
-          : "bg-op-surface border-op-border")
-      }
+    <Link
+      href={href}
+      className={`mp-kpi${primary ? " mp-kpi--primary" : ""}${accent ? " mp-kpi--accent" : ""}`}
     >
-      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+      <span className="mp-kpi-label">
         {label}
-      </div>
-      <div
-        className={
-          "font-display text-3xl mt-1 tracking-[-0.015em] " +
-          (accent ? "text-terracotta" : "")
-        }
-      >
-        {value}
-      </div>
-    </div>
+        <Icon name="arrow" width="16" />
+      </span>
+      <span className="mp-kpi-value">{value}</span>
+    </Link>
   );
 }
 
 type Tr = (key: string, values?: Record<string, string | number>) => string;
 
-const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
+const DAY_KEYS = [
+  "daySun",
+  "dayMon",
+  "dayTue",
+  "dayWed",
+  "dayThu",
+  "dayFri",
+  "daySat",
+];
 function dayLabel(d: Date, tr: Tr) {
-  return tr(DAY_KEYS[d.getDay()]);
+  return tr(DAY_KEYS[d.getUTCDay()]);
 }
 
 function statusLabel(s: string, tr: Tr) {

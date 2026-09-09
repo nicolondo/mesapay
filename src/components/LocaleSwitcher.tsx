@@ -26,7 +26,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
     <label
       aria-label="Idioma / Language"
       className={
-        "relative inline-flex items-center gap-1.5 h-9 rounded-full border border-ink/40 bg-ink/[0.045] px-3 shadow-sm cursor-pointer select-none hover:bg-ink/[0.08] transition-colors " +
+        "mp-locale-switcher relative inline-flex items-center gap-1.5 h-9 rounded-full border border-ink/40 bg-ink/[0.045] px-3 shadow-sm cursor-pointer select-none hover:bg-ink/[0.08] transition-colors " +
         (pending ? "opacity-60 " : "") +
         (className ?? "")
       }

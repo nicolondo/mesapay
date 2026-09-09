@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { AppDialog } from "@/components/ui/AppDialog";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import {
@@ -500,10 +501,8 @@ export function MenuClient({
       // contaminar futuras sesiones del mismo dispositivo si lo
       // usara un comensal.
       setGuestName("Mesero");
-    } else if (!isPickup) {
-      // Cliente sin nombre guardado → pedirle que se identifique.
-      setShowNameSheet(true);
     }
+    // A visitor can browse first; submission still requests a guest name.
     try {
       const raw = localStorage.getItem(cartKey);
       if (raw) {
@@ -1048,7 +1047,7 @@ export function MenuClient({
   return (
     <div
       className={
-        "flex flex-1 flex-col " +
+        "mp-menu flex flex-1 flex-col " +
         // pb-36 reserva espacio para el dock fijo (carrito / orden activa) y
         // que el último plato no quede tapado. Sin dock ese padding es puro
         // vacío al final de la carta — en móvil se sentía como "sigue bajando
@@ -1166,7 +1165,8 @@ export function MenuClient({
             {hydrated && !isPickup && (
               <button
                 onClick={() => setShowNameSheet(true)}
-                className="shrink-0 inline-flex items-center gap-2 h-10 pl-1 pr-3 rounded-full border border-hairline bg-paper text-[12px]"
+                aria-label={guestName ? `${tMenu("iAm")} ${guestName}` : tMenu("tellUsName")}
+                className="mp-guest-name shrink-0 inline-flex items-center gap-2 h-10 pl-1 pr-3 rounded-full border border-hairline bg-paper text-[12px]"
               >
                 <span className="w-8 h-8 rounded-full bg-terracotta text-paper font-display text-[13px] inline-flex items-center justify-center">
                   {guestName ? guestName.charAt(0).toUpperCase() : "?"}
@@ -1189,6 +1189,7 @@ export function MenuClient({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={tMenu("searchPlaceholder")}
+                aria-label={tMenu("searchPlaceholder")}
                 className="w-full h-10 pl-9 pr-9 rounded-full border border-hairline bg-paper text-sm focus:outline-none focus:border-terracotta"
               />
               <svg
@@ -1399,7 +1400,7 @@ export function MenuClient({
       {/* Menu by category */}
       <div className="max-w-2xl w-full mx-auto px-5 mt-4">
         {searching && visibleCount === 0 && (
-          <div className="py-16 text-center text-muted text-sm">
+          <div className="py-16 text-center text-muted text-sm" role="status">
             {tMenu.rich("noResults", {
               query,
               q: (chunks) => (
@@ -1574,14 +1575,14 @@ export function MenuClient({
       {showNameSheet && !isPickup && (
         <GuestNameSheet
           initial={guestName}
-          canCancel={!!guestName}
+          canCancel={true}
           loginHref={`/t/${tenant.slug}/cuenta/entrar`}
           diner={diner}
           identified={identifiedName}
           onIdentify={identifyDiner}
           onSave={saveGuestName}
           onClose={() => {
-            if (guestName) setShowNameSheet(false);
+            setShowNameSheet(false);
           }}
         />
       )}
@@ -2078,7 +2079,7 @@ function QuickAddButton({
   size?: "sm" | "md";
 }) {
   const t = useTranslations("menu");
-  const dim = size === "sm" ? "w-8 h-8" : "w-10 h-10";
+  const dim = size === "sm" ? "w-11 h-11" : "w-12 h-12";
   return (
     <button
       onClick={(e) => {
@@ -2132,7 +2133,7 @@ function ItemRowList({
   return (
     <li
       id={`menu-item-${item.id}`}
-      className="py-4 scroll-mt-28"
+      className="mp-menu-row py-4 scroll-mt-28"
     >
       <div className="flex gap-4 items-center">
         <button
@@ -2148,8 +2149,8 @@ function ItemRowList({
           {!item.photoUrl && <PhotoFallback name={item.name} sizeClass="text-3xl" />}
         </button>
         <button onClick={onOpen} className="flex-1 min-w-0 text-left self-start">
-          <div className="font-display text-lg leading-tight">{item.name}</div>
-          <div className="font-mono text-sm tabular text-muted mt-0.5">
+          <div className="mp-menu-item-name font-display text-lg leading-tight">{item.name}</div>
+          <div className="mp-menu-price font-mono text-sm tabular text-muted mt-0.5">
             {fmtCOP(item.priceCents)}
           </div>
           {item.ratingCount > 0 && (
@@ -2205,10 +2206,10 @@ function ItemCardGrid({
       </button>
       <div className="mt-2 flex items-start gap-2">
         <button onClick={onOpen} className="text-left flex-1 min-w-0">
-          <div className="font-display text-base leading-tight truncate">
+          <div className="mp-menu-item-name font-display text-base leading-tight line-clamp-2">
             {item.name}
           </div>
-          <div className="font-mono text-xs text-muted tabular mt-0.5">
+          <div className="mp-menu-price font-mono text-xs text-muted tabular mt-0.5">
             {fmtCOP(item.priceCents)}
           </div>
           {item.ratingCount > 0 && (
@@ -2847,10 +2848,7 @@ function GuestNameSheet({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center" style={{ paddingBottom: "var(--menu-modal-bottom-reserve, 0px)" }}
-      onClick={canCancel ? onClose : undefined}
-    >
+    <AppDialog label={t("whatToCallYou")} onClose={onClose} className="mp-guest-dialog">
       <div
         className="bg-paper text-ink w-full max-w-md rounded-t-3xl md:rounded-3xl slide-up"
         onClick={(e) => e.stopPropagation()}
@@ -2878,6 +2876,7 @@ function GuestNameSheet({
             onChange={(e) => setValue(e.target.value)}
             maxLength={40}
             placeholder={t("namePlaceholder")}
+            aria-label={t("namePlaceholder")}
             className="mt-5 w-full h-12 px-4 rounded-xl border border-hairline bg-ivory text-base focus:outline-none focus:border-terracotta"
           />
           <div className="mt-5 flex gap-3">
@@ -2932,7 +2931,7 @@ function GuestNameSheet({
           )}
         </div>
       </div>
-    </div>
+    </AppDialog>
   );
 }
 

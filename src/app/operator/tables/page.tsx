@@ -29,6 +29,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function TablesPage() {
   const tr = await getTranslations("opTables");
+  const ux = await getTranslations("workspaceUi");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId)
     return <div className="p-6">{tr("noRestaurant")}</div>;
@@ -315,12 +316,10 @@ export default async function TablesPage() {
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto w-full">
+    <div className="mp-page">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
-      <div className="flex items-center justify-between mb-3">
-        <div className="font-display text-3xl">
-          {counterMode ? tr("headerCounter") : tr("headerTables")}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div><p className="mp-eyebrow">{tenant?.name}</p><h1 className="mp-page-title">{counterMode ? tr("headerCounter") : tr("headerTables")}</h1><p className="mp-page-description">{ux("tablesDescription")}</p></div>
         {!isMeseroView && (
           <a
             href="/operator/tables/print"

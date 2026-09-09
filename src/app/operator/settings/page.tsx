@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SettingsDirectory, type SettingsItem } from "./SettingsDirectory";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -7,10 +7,7 @@ import { isModuleEnabled } from "@/lib/modules";
 import { dianConfigStatus } from "@/lib/dian/config";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AGENT_ONLINE_MS } from "@/lib/print/agentStatus";
-import {
-  resolveTipPolicy,
-  resolveShiftPolicy,
-} from "@/lib/staffPolicies";
+import { resolveTipPolicy, resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -129,282 +126,205 @@ export default async function SettingsPage() {
   ]);
   const printersOffline = printerCount > 0 && liveAgents === 0;
 
+  const settings: (SettingsItem | false)[] = [
+    {
+      href: "/operator/settings/identidad",
+      title: t("cardIdentityTitle"),
+      subtitle: t("cardIdentitySubtitle"),
+      badge:
+        tenant.logoUrl && tenant.legalName && tenant.taxId
+          ? t("badgeComplete")
+          : tenant.logoUrl || tenant.legalName
+            ? t("badgePartial")
+            : t("badgeUnconfigured"),
+      tint:
+        tenant.logoUrl && tenant.legalName && tenant.taxId
+          ? "bg-ok/15 text-ok"
+          : tenant.logoUrl || tenant.legalName
+            ? "bg-[#C98A2E]/20 text-[#8F6828]"
+            : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/usuarios",
+      title: t("cardUsersTitle"),
+      subtitle: t("cardUsersSubtitle"),
+      badge: t("badgeUsers", { count: staffCount }),
+      tint: staffCount > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/pagos",
+      title: t("cardPaymentsTitle"),
+      subtitle: t("cardPaymentsSubtitle"),
+      badge: t(status.statusKey),
+      tint: status.tint,
+    },
+    showWallet && {
+      href: "/operator/wallet",
+      title: t("cardWalletTitle"),
+      subtitle: t("cardWalletSubtitle"),
+      badge: t("badgeWalletAvailable"),
+      tint: "bg-ok/15 text-ok",
+    },
+    {
+      href: "/operator/settings/etiquetas",
+      title: t("cardTagsTitle"),
+      subtitle: t("cardTagsSubtitle"),
+      badge: t("badgeTags", { count: tagCount }),
+      tint: "bg-paper text-op-muted",
+    },
+    showProveedores && {
+      href: "/operator/settings/proveedores",
+      title: tErp("cardProveedoresTitle"),
+      subtitle: tErp("cardProveedoresSubtitle"),
+      badge: tErp("badgeProveedores", { count: supplierCount }),
+      tint: supplierCount > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/facturacion-dian",
+      title: einvoicing ? tDian("cardTitle") : tDian("cardResolutionTitle"),
+      subtitle: einvoicing
+        ? tDian("cardSubtitle")
+        : tDian("cardResolutionSubtitle"),
+      badge: !einvoicing
+        ? resolutionReady
+          ? tDian("cardBadgeResolutionReady")
+          : tDian("cardBadgeConfigure")
+        : dianStatus === "enabled"
+          ? tDian("cardBadgeEnabled")
+          : dianStatus === "testing"
+            ? tDian("cardBadgeTesting")
+            : tDian("cardBadgeConfigure"),
+      tint:
+        (!einvoicing && resolutionReady) || dianStatus === "enabled"
+          ? "bg-ok/15 text-ok"
+          : einvoicing && dianStatus === "testing"
+            ? "bg-[#C98A2E]/20 text-[#8F6828]"
+            : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/traducciones",
+      title: t("cardTranslationsTitle"),
+      subtitle: t("cardTranslationsSubtitle"),
+      badge: t("badgeTranslate"),
+      tint: "bg-paper text-op-muted",
+    },
+    showDatafonos && {
+      href: "/operator/settings/datafonos",
+      title: t("cardDevicesTitle"),
+      subtitle: t("cardDevicesSubtitle"),
+      badge:
+        deviceCount === 0
+          ? t("badgeDevicesEmpty")
+          : deviceAssigned === 0
+            ? t("badgeDevicesUnassigned", { count: deviceCount })
+            : t("badgeDevicesAssigned", {
+                assigned: deviceAssigned,
+                total: deviceCount,
+              }),
+      tint: deviceAssigned > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/staff-policies",
+      title: t("cardPoliciesTitle"),
+      subtitle: t("cardPoliciesSubtitle"),
+      badge: `${t("tip_" + tipPol)} · ${t("shift_" + shiftPol)}`,
+      tint: "bg-paper text-op-muted",
+    },
+    meseroCount > 0 && {
+      href: "/operator/settings/meseros",
+      title: t("cardMeserosTitle"),
+      subtitle: t("cardMeserosSubtitle"),
+      badge:
+        meserosWithRange === 0
+          ? t("badgeMeserosSeeAll", { count: meseroCount })
+          : t("badgeMeserosAssigned", {
+              assigned: meserosWithRange,
+              total: meseroCount,
+            }),
+      tint:
+        meserosWithRange > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/estaciones",
+      title: t("cardStationsTitle"),
+      subtitle: t("cardStationsSubtitle"),
+      badge: tenant.hasBar
+        ? t("badgeBarActive", { routed: stationsRouted })
+        : stationsCount > 0
+          ? stationsRouted
+          : t("badgeAllToKitchen"),
+      tint:
+        tenant.hasBar || stationsCount > 0
+          ? "bg-ok/15 text-ok"
+          : "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/impresoras",
+      title: t("cardPrintersTitle"),
+      subtitle: t("cardPrintersSubtitle"),
+      badge:
+        printerCount === 0
+          ? t("badgePrintersEmpty")
+          : printersOffline
+            ? t("badgePrintersOffline")
+            : t("badgePrintersOk", { count: printerCount }),
+      tint:
+        printerCount === 0
+          ? "bg-paper text-op-muted"
+          : printersOffline
+            ? "bg-danger/10 text-danger"
+            : "bg-ok/15 text-ok",
+    },
+    {
+      href: "/operator/settings/reservas",
+      title: t("cardReservasTitle"),
+      subtitle: t("cardReservasSubtitle"),
+      badge: tenant.reservationsEnabled
+        ? upcomingReservations > 0
+          ? t("badgeReservasActiveUpcoming", {
+              count: upcomingReservations,
+            })
+          : t("badgeReservasActive")
+        : t("badgeReservasDisabled"),
+      tint: tenant.reservationsEnabled
+        ? "bg-ok/15 text-ok"
+        : "bg-paper text-op-muted",
+    },
+    tenant.reservationsEnabled && {
+      href: "/operator/settings/mesas",
+      title: t("cardMesasTitle"),
+      subtitle: t("cardMesasSubtitle"),
+      badge: t("badgeConfigure"),
+      tint: "bg-paper text-op-muted",
+    },
+    tenant.reservationsEnabled && {
+      href: "/operator/settings/salon",
+      title: t("cardSalonTitle"),
+      subtitle: t("cardSalonSubtitle"),
+      badge: t("badgeDesign"),
+      tint: "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/suscripcion",
+      title: t("subscriptionCardTitle"),
+      subtitle: t("subscriptionCardDesc"),
+      badge: t("badgeConfigure"),
+      tint: "bg-paper text-op-muted",
+    },
+  ];
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">{t("landingTitle")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("landingSubtitle")}</p>
-
-      <div className="space-y-3">
-        <SettingCard
-          href="/operator/settings/identidad"
-          title={t("cardIdentityTitle")}
-          subtitle={t("cardIdentitySubtitle")}
-          badge={
-            tenant.logoUrl && tenant.legalName && tenant.taxId
-              ? t("badgeComplete")
-              : tenant.logoUrl || tenant.legalName
-                ? t("badgePartial")
-                : t("badgeUnconfigured")
-          }
-          tint={
-            tenant.logoUrl && tenant.legalName && tenant.taxId
-              ? "bg-ok/15 text-ok"
-              : tenant.logoUrl || tenant.legalName
-                ? "bg-[#C98A2E]/20 text-[#8F6828]"
-                : "bg-paper text-op-muted"
-          }
-        />
-        <SettingCard
-          href="/operator/settings/usuarios"
-          title={t("cardUsersTitle")}
-          subtitle={t("cardUsersSubtitle")}
-          badge={t("badgeUsers", { count: staffCount })}
-          tint={
-            staffCount > 0
-              ? "bg-ok/15 text-ok"
-              : "bg-paper text-op-muted"
-          }
-        />
-        <SettingCard
-          href="/operator/settings/pagos"
-          title={t("cardPaymentsTitle")}
-          subtitle={t("cardPaymentsSubtitle")}
-          badge={t(status.statusKey)}
-          tint={status.tint}
-        />
-        {showWallet && (
-          <SettingCard
-            href="/operator/wallet"
-            title={t("cardWalletTitle")}
-            subtitle={t("cardWalletSubtitle")}
-            badge={t("badgeWalletAvailable")}
-            tint="bg-ok/15 text-ok"
-          />
-        )}
-        <SettingCard
-          href="/operator/settings/etiquetas"
-          title={t("cardTagsTitle")}
-          subtitle={t("cardTagsSubtitle")}
-          badge={t("badgeTags", { count: tagCount })}
-          tint="bg-paper text-op-muted"
-        />
-        {/* Insumos se movió de Configuración al dropdown de Administración
-            (nav) — ya no se ofrece como card acá. */}
-        {showProveedores && (
-          <SettingCard
-            href="/operator/settings/proveedores"
-            title={tErp("cardProveedoresTitle")}
-            subtitle={tErp("cardProveedoresSubtitle")}
-            badge={tErp("badgeProveedores", { count: supplierCount })}
-            tint={
-              supplierCount > 0
-                ? "bg-ok/15 text-ok"
-                : "bg-paper text-op-muted"
-            }
-          />
-        )}
-        <SettingCard
-          href="/operator/settings/facturacion-dian"
-          title={einvoicing ? tDian("cardTitle") : tDian("cardResolutionTitle")}
-          subtitle={
-            einvoicing ? tDian("cardSubtitle") : tDian("cardResolutionSubtitle")
-          }
-          badge={
-            !einvoicing
-              ? resolutionReady
-                ? tDian("cardBadgeResolutionReady")
-                : tDian("cardBadgeConfigure")
-              : dianStatus === "enabled"
-                ? tDian("cardBadgeEnabled")
-                : dianStatus === "testing"
-                  ? tDian("cardBadgeTesting")
-                  : tDian("cardBadgeConfigure")
-          }
-          tint={
-            (!einvoicing && resolutionReady) || dianStatus === "enabled"
-              ? "bg-ok/15 text-ok"
-              : einvoicing && dianStatus === "testing"
-                ? "bg-[#C98A2E]/20 text-[#8F6828]"
-                : "bg-paper text-op-muted"
-          }
-        />
-        <SettingCard
-          href="/operator/settings/traducciones"
-          title={t("cardTranslationsTitle")}
-          subtitle={t("cardTranslationsSubtitle")}
-          badge={t("badgeTranslate")}
-          tint="bg-paper text-op-muted"
-        />
-        {/* Solo cuando el comercio cobra por datáfono Kushki: ahí entra a
-            dar de alta su datáfono y cargar el serial (Cloud Terminal API). */}
-        {showDatafonos && (
-          <SettingCard
-            href="/operator/settings/datafonos"
-            title={t("cardDevicesTitle")}
-            subtitle={t("cardDevicesSubtitle")}
-            badge={
-              deviceCount === 0
-                ? t("badgeDevicesEmpty")
-                : deviceAssigned === 0
-                  ? t("badgeDevicesUnassigned", { count: deviceCount })
-                  : t("badgeDevicesAssigned", {
-                      assigned: deviceAssigned,
-                      total: deviceCount,
-                    })
-            }
-            tint={
-              deviceAssigned > 0
-                ? "bg-ok/15 text-ok"
-                : "bg-paper text-op-muted"
-            }
-          />
-        )}
-        <SettingCard
-          href="/operator/settings/staff-policies"
-          title={t("cardPoliciesTitle")}
-          subtitle={t("cardPoliciesSubtitle")}
-          badge={`${t("tip_" + tipPol)} · ${t("shift_" + shiftPol)}`}
-          tint="bg-paper text-op-muted"
-        />
-        {meseroCount > 0 && (
-          <SettingCard
-            href="/operator/settings/meseros"
-            title={t("cardMeserosTitle")}
-            subtitle={t("cardMeserosSubtitle")}
-            badge={
-              meserosWithRange === 0
-                ? t("badgeMeserosSeeAll", { count: meseroCount })
-                : t("badgeMeserosAssigned", {
-                    assigned: meserosWithRange,
-                    total: meseroCount,
-                  })
-            }
-            tint={
-              meserosWithRange > 0
-                ? "bg-ok/15 text-ok"
-                : "bg-paper text-op-muted"
-            }
-          />
-        )}
-        <SettingCard
-          href="/operator/settings/estaciones"
-          title={t("cardStationsTitle")}
-          subtitle={t("cardStationsSubtitle")}
-          badge={
-            tenant.hasBar
-              ? t("badgeBarActive", { routed: stationsRouted })
-              : stationsCount > 0
-                ? stationsRouted
-                : t("badgeAllToKitchen")
-          }
-          tint={
-            tenant.hasBar || stationsCount > 0
-              ? "bg-ok/15 text-ok"
-              : "bg-paper text-op-muted"
-          }
-        />
-        <SettingCard
-          href="/operator/settings/impresoras"
-          title={t("cardPrintersTitle")}
-          subtitle={t("cardPrintersSubtitle")}
-          badge={
-            printerCount === 0
-              ? t("badgePrintersEmpty")
-              : printersOffline
-                ? t("badgePrintersOffline")
-                : t("badgePrintersOk", { count: printerCount })
-          }
-          tint={
-            printerCount === 0
-              ? "bg-paper text-op-muted"
-              : printersOffline
-                ? "bg-danger/10 text-danger"
-                : "bg-ok/15 text-ok"
-          }
-        />
-        <SettingCard
-          href="/operator/settings/reservas"
-          title={t("cardReservasTitle")}
-          subtitle={t("cardReservasSubtitle")}
-          badge={
-            tenant.reservationsEnabled
-              ? upcomingReservations > 0
-                ? t("badgeReservasActiveUpcoming", {
-                    count: upcomingReservations,
-                  })
-                : t("badgeReservasActive")
-              : t("badgeReservasDisabled")
-          }
-          tint={
-            tenant.reservationsEnabled
-              ? "bg-ok/15 text-ok"
-              : "bg-paper text-op-muted"
-          }
-        />
-        {tenant.reservationsEnabled && (
-          <SettingCard
-            href="/operator/settings/mesas"
-            title={t("cardMesasTitle")}
-            subtitle={t("cardMesasSubtitle")}
-            badge={t("badgeConfigure")}
-            tint="bg-paper text-op-muted"
-          />
-        )}
-        {tenant.reservationsEnabled && (
-          <SettingCard
-            href="/operator/settings/salon"
-            title={t("cardSalonTitle")}
-            subtitle={t("cardSalonSubtitle")}
-            badge={t("badgeDesign")}
-            tint="bg-paper text-op-muted"
-          />
-        )}
-        <SettingCard
-          href="/operator/settings/suscripcion"
-          title={t("subscriptionCardTitle")}
-          subtitle={t("subscriptionCardDesc")}
-          badge={t("badgeConfigure")}
-          tint="bg-paper text-op-muted"
-        />
-      </div>
+    <div className="mp-page">
+      <header className="mp-page-header">
+        <div>
+          <p className="mp-eyebrow">{tenant.name}</p>
+          <h1 className="mp-page-title">{t("landingTitle")}</h1>
+          <p className="mp-page-description">{t("landingSubtitle")}</p>
+        </div>
+      </header>
+      <SettingsDirectory
+        items={settings.filter((item): item is SettingsItem => item !== false)}
+      />
     </div>
-  );
-}
-
-function SettingCard({
-  href,
-  title,
-  subtitle,
-  badge,
-  tint,
-}: {
-  href: string;
-  title: string;
-  subtitle: string;
-  badge: string;
-  tint: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-4 bg-op-surface border border-op-border rounded-2xl p-5 hover:bg-op-bg transition-colors"
-    >
-      <div className="flex-1">
-        <div className="font-display text-lg">{title}</div>
-        <div className="text-sm text-op-muted mt-0.5">{subtitle}</div>
-      </div>
-      <span
-        className={
-          "px-3 h-6 inline-flex items-center rounded-full text-[11px] font-medium " +
-          tint
-        }
-      >
-        {badge}
-      </span>
-      <span className="text-op-muted" aria-hidden="true">
-        {"→"}
-      </span>
-    </Link>
   );
 }
 

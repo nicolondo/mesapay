@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
+import { AppDialog } from "@/components/ui/AppDialog";
+import { Icon, routeIcon } from "@/components/ui/Icon";
+import { NavigationSearch } from "./NavigationSearch";
 import type { NavEntry } from "./OperatorMobileMenu";
 
 /**
@@ -54,6 +57,7 @@ export function OperatorCockpit({
   children: React.ReactNode;
 }) {
   const t = useTranslations("operator");
+  const ux = useTranslations("workspaceUi");
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const anyAlert = useAnyBoardAlert(boardActivity, pathname);
@@ -64,14 +68,6 @@ export function OperatorCockpit({
     setLastPath(pathname);
     setDrawerOpen(false);
   }
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [drawerOpen]);
 
   const rail = (
     <Rail
@@ -90,7 +86,10 @@ export function OperatorCockpit({
   );
 
   return (
-    <div className="op-app-shell md:grid md:grid-cols-[264px_1fr] bg-op-bg text-op-text overflow-hidden">
+    <div className="op-app-shell md:grid md:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[264px_minmax(0,1fr)] bg-op-bg text-op-text overflow-hidden">
+      <a href="#operator-content" className="mp-skip-link">
+        {ux("skipContent")}
+      </a>
       {/* Riel desktop. print:hidden — el chrome del panel no va al papel
           (páginas como los QRs de mesa se imprimen desde acá). */}
       <aside
@@ -108,15 +107,28 @@ export function OperatorCockpit({
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label={t("openMenu")}
+            aria-expanded={drawerOpen}
+            aria-haspopup="dialog"
             className="relative inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border text-op-text active:scale-95 transition-transform"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            >
               <line x1="3" y1="6" x2="17" y2="6" />
               <line x1="3" y1="10" x2="17" y2="10" />
               <line x1="3" y1="14" x2="17" y2="14" />
             </svg>
             {anyAlert && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-danger ring-2 ring-op-surface" aria-hidden />
+              <span
+                className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-danger ring-2 ring-op-surface"
+                aria-hidden
+              />
             )}
           </button>
           <span className="font-display text-xl tracking-[-0.015em]">
@@ -132,28 +144,38 @@ export function OperatorCockpit({
 
         {/* Barra de acciones: buscar orden + accesos rápidos. Persistente
             arriba del contenido en todas las pantallas del operador. */}
-        <CockpitTopbar />
+        <CockpitTopbar navItems={navItems} />
 
         {/* Único scroller del contenido */}
-        <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>
+        <main
+          id="operator-content"
+          tabIndex={-1}
+          className="mp-workspace-main flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+          {children}
+        </main>
       </div>
 
       {/* Drawer móvil */}
       {drawerOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-50 bg-black/45"
-          onClick={() => setDrawerOpen(false)}
-          role="dialog"
-          aria-modal="true"
+        <AppDialog
+          label={t("openMenu")}
+          onClose={() => setDrawerOpen(false)}
+          mobileOnly
+          className="mp-navigation-drawer"
+          style={RAIL_VARS}
         >
-          <div
-            className="absolute top-0 left-0 bottom-0 w-[min(19rem,86vw)] flex"
-            style={RAIL_VARS}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            autoFocus
+            className="mp-drawer-close"
+            onClick={() => setDrawerOpen(false)}
+            aria-label={t("closeMenu")}
           >
-            {rail}
-          </div>
-        </div>
+            <Icon name="close" />
+          </button>
+          {rail}
+        </AppDialog>
       )}
     </div>
   );
@@ -201,15 +223,18 @@ function Rail({
 
   return (
     <div
-      className="flex w-full flex-col"
+      className="mp-rail flex w-full min-h-0 flex-col"
       style={{
-        background: "linear-gradient(180deg,var(--rail-2),var(--rail))",
+        background: "var(--rail)",
         borderRight: "1px solid var(--rail-line)",
         color: "var(--rail-text)",
       }}
     >
       {/* Marca */}
-      <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid var(--rail-line)" }}>
+      <div
+        className="px-5 pt-6 pb-5"
+        style={{ borderBottom: "1px solid var(--rail-line)" }}
+      >
         <div
           className="font-mono text-[10px] tracking-[0.16em] uppercase truncate"
           style={{ color: "var(--rail-muted)" }}
@@ -223,7 +248,7 @@ function Rail({
       </div>
 
       {/* Scroll de nav */}
-      <div className="flex-1 overflow-y-auto scroll-hide px-3 pt-3.5 pb-2">
+      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-3">
         {/* Pulso: tableros en vivo */}
         <div
           className="rounded-[14px] p-1.5 mb-1.5"
@@ -284,27 +309,24 @@ function Rail({
       {/* Pie: usuario + idioma + salir. El selector de idioma vivía en su
           propia fila y dejaba una franja vacía del ancho del cajón para una
           pastilla de dos palabras; va en la misma fila del usuario. */}
-      <div className="p-3" style={{ borderTop: "1px solid var(--rail-line)" }}>
-        <div className="flex items-center gap-2.5 px-1 py-1.5">
-          <div
-            className="w-8 h-8 rounded-[9px] font-display text-[17px] flex items-center justify-center shrink-0"
-            style={{ background: "var(--rail-accent)", color: "#231205" }}
-          >
+      <div className="mp-rail-footer">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="mp-user-avatar">
             {(userEmail[0] || "?").toUpperCase()}
           </div>
           <div className="min-w-0">
-            <div className="text-[12.5px] font-medium truncate">{tenantName}</div>
+            <div className="text-sm font-medium truncate">{tenantName}</div>
             <div
-              className="text-[11px] truncate"
+              className="text-xs truncate"
               style={{ color: "var(--rail-muted)" }}
             >
               {userEmail}
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            {localeSwitcher}
-            {signOut}
-          </div>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          {localeSwitcher}
+          {signOut}
         </div>
       </div>
     </div>
@@ -339,13 +361,15 @@ function RailLink({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] text-[13.5px] font-medium transition-colors relative"
+      aria-current={active ? "page" : undefined}
+      className="mp-rail-link flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-sm font-medium transition-colors relative"
       style={{
         color: active ? "#231205" : "var(--rail-text)",
         background: active ? "var(--rail-accent)" : "transparent",
       }}
       data-rail-link={board ? "board" : "nav"}
     >
+      <Icon name={routeIcon(href)} className="shrink-0 opacity-80" />
       <span className="relative inline-flex items-center">
         {label}
         {boardKey && boardActivity && (
@@ -371,14 +395,26 @@ function RailGroup({
 }) {
   const containsActive = items.some((i) => isActive(pathname, i.href));
   const [open, setOpen] = useState(containsActive);
+  const id = useId();
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
+    if (containsActive) setOpen(true);
+  }
   return (
     <div>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-[10px] text-[13.5px] font-medium text-left"
+        aria-expanded={open}
+        aria-controls={id}
+        className="mp-rail-link flex items-center gap-3 w-full px-3 py-2.5 rounded-[10px] text-sm font-medium text-left"
         style={{ color: "var(--rail-text)" }}
       >
+        <Icon
+          name={routeIcon(items[0]?.href ?? "")}
+          className="shrink-0 opacity-80"
+        />
         {label}
         <svg
           className="ml-auto transition-transform"
@@ -398,7 +434,8 @@ function RailGroup({
       </button>
       {open && (
         <div
-          className="ml-[26px] pl-2.5 my-0.5 flex flex-col gap-px"
+          id={id}
+          className="ml-5 pl-2 my-1 flex flex-col gap-1"
           style={{ borderLeft: "1px solid var(--rail-line-2)" }}
         >
           {items.map((i) => {
@@ -407,8 +444,12 @@ function RailGroup({
               <Link
                 key={i.href}
                 href={i.href}
-                className="px-2.5 py-1.5 rounded-[8px] text-[12.5px] transition-colors"
-                style={{ color: on ? "var(--rail-text)" : "var(--rail-muted)" }}
+                aria-current={on ? "page" : undefined}
+                className="mp-rail-link px-3 py-2.5 rounded-[8px] text-[13px] transition-colors"
+                style={{
+                  color: on ? "var(--rail-accent)" : "var(--rail-muted)",
+                  background: on ? "rgba(232,121,79,.1)" : undefined,
+                }}
               >
                 {i.label}
               </Link>
@@ -430,7 +471,7 @@ function isActive(pathname: string | null, href: string): boolean {
 /* ───────────────────── Barra de acciones superior ─────────────────────
    Buscar orden + accesos rápidos (cierre de turno · nueva orden). En móvil
    los botones muestran solo el ícono; el label aparece desde `sm`. */
-function CockpitTopbar() {
+function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
   const t = useTranslations("operator");
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -446,8 +487,13 @@ function CockpitTopbar() {
   };
 
   return (
-    <div className="shrink-0 print:hidden flex h-14 items-center gap-2 border-b border-op-border bg-op-surface px-3 md:px-5">
-      <form onSubmit={submit} className="relative min-w-0 max-w-md flex-1">
+    <div className="shrink-0 print:hidden flex min-h-16 items-center gap-2 lg:gap-3 border-b border-op-border bg-op-surface px-3 md:px-5">
+      <NavigationSearch items={navItems} />
+      <form
+        role="search"
+        onSubmit={submit}
+        className="relative min-w-0 max-w-sm flex-1"
+      >
         <svg
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-op-muted"
           width="16"
@@ -468,13 +514,20 @@ function CockpitTopbar() {
           onChange={(e) => setQ(e.target.value)}
           placeholder={t("searchOrders")}
           aria-label={t("searchOrders")}
-          className="h-10 w-full rounded-full border border-op-border bg-op-bg pl-9 pr-3 text-sm text-op-text placeholder:text-op-muted focus:border-op-text/30 focus:outline-none"
+          className="h-10 w-full rounded-xl border border-op-border bg-op-bg pl-9 pr-10 text-sm text-op-text placeholder:text-op-muted focus:border-op-text/30 focus:outline-none"
         />
+        <button
+          type="submit"
+          aria-label={t("searchOrders")}
+          className="absolute right-1 top-1/2 -translate-y-1/2 mp-icon-button"
+        >
+          <Icon name="arrow" width="16" height="16" />
+        </button>
       </form>
       <Link
         href="/operator/reports"
         aria-label={t("shiftClose")}
-        className="mp-btn mp-btn--secondary mp-btn--sm shrink-0"
+        className="mp-shift-close mp-btn mp-btn--secondary mp-btn--sm ml-auto shrink-0"
       >
         <svg
           width="16"

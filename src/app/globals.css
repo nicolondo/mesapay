@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./workspace.css";
 
 :root {
   --bone: #F5F1EA;
@@ -27,10 +28,10 @@
   --warn: #C98A2E;
   --danger: #B23A2E;
 
-  --op-bg: #FAFAF8;
+  --op-bg: #f6f5f1;
   --op-surface: #FFFFFF;
-  --op-border: #EAE6DE;
-  --op-border-2: #DED9CE;
+  --op-border: #e4e2da;
+  --op-border-2: #ceccc2;
   --op-text: #1A1613;
   --op-muted: #6B6259;
   --op-accent: #C9532E;

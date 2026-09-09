@@ -178,7 +178,7 @@ export function MesasGrid({
       {/* Filter chips — sticky abajo del header de la página.
           Los counts ayudan a ver "tengo 3 cuentas pendientes" sin
           tener que contar. */}
-      <div className="flex gap-1.5 flex-wrap mb-3">
+      <div className="mp-table-filters">
         <Chip
           active={filter === "all"}
           onClick={() => setFilter("all")}
@@ -225,7 +225,7 @@ export function MesasGrid({
       </div>
 
       {/* Grid de tiles compactos */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+      <div className="mp-table-grid">
         {filtered.length === 0 && (
           <div className="col-span-full text-center text-sm text-op-muted py-8">
             {tr("emptyFilter")}
@@ -508,6 +508,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={
         "h-8 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium border transition-colors " +
         (active

@@ -2025,6 +2025,7 @@
     "dianMovedLink": "Ir a Facturación DIAN"
   },
   "daneCity": {
+    "loadError": "No pudimos cargar las ciudades. Volvé a escribir para reintentar.",
     "placeholder": "Buscá el municipio (ej. Envigado)",
     "typeMore": "Escribí al menos 2 letras",
     "searching": "Buscando…",

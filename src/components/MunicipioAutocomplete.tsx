@@ -39,6 +39,10 @@ export function MunicipioAutocomplete({
   disabled = false,
   placeholder,
   inputClassName,
+  endpoint = "/api/operator/dane/municipios",
+  id,
+  required = false,
+  showCode = true,
 }: {
   /**
    * Valor actual. `label` es opcional: si viene solo el código (lo
@@ -51,6 +55,10 @@ export function MunicipioAutocomplete({
   placeholder?: string;
   /** Para que cada pantalla use sus propias clases de input. */
   inputClassName?: string;
+  endpoint?: string;
+  id?: string;
+  required?: boolean;
+  showCode?: boolean;
 }) {
   const t = useTranslations("daneCity");
   const listId = useId();
@@ -58,6 +66,7 @@ export function MunicipioAutocomplete({
   const [options, setOptions] = useState<MunicipioOption[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [highlight, setHighlight] = useState(0);
   // Cache código → nombre, para poder mostrar "Envigado, Antioquia"
   // cuando el padre solo tiene guardado "05266". Es cache y no estado
@@ -71,17 +80,14 @@ export function MunicipioAutocomplete({
   const reqIdRef = useRef(0);
 
   const selectedCode = value?.code ?? null;
-  const selectedLabel = selectedCode
-    ? (value?.label ?? labelByCode[selectedCode] ?? null)
-    : null;
+  const selectedLabel =
+    value?.label ?? (selectedCode ? (labelByCode[selectedCode] ?? null) : null);
 
   // Hidratar el nombre cuando solo tenemos el código guardado en DB.
   useEffect(() => {
     if (!selectedCode || value?.label || labelByCode[selectedCode]) return;
     let cancelled = false;
-    fetch(
-      `/api/operator/dane/municipios?code=${encodeURIComponent(selectedCode)}`,
-    )
+    fetch(`${endpoint}?code=${encodeURIComponent(selectedCode)}`)
       .then((r) => (r.ok ? r.json() : { results: [] }))
       .then((j: { results: MunicipioOption[] }) => {
         if (cancelled) return;
@@ -100,7 +106,7 @@ export function MunicipioAutocomplete({
     return () => {
       cancelled = true;
     };
-  }, [selectedCode, value?.label, labelByCode]);
+  }, [selectedCode, value?.label, labelByCode, endpoint]);
 
   // Al desmontar, cancelamos lo que quede en vuelo.
   useEffect(() => {
@@ -119,6 +125,8 @@ export function MunicipioAutocomplete({
     abortRef.current?.abort();
     const q = raw.trim();
     const id = ++reqIdRef.current;
+    setFailed(false);
+    setOptions([]);
     if (q.length < 2) {
       setOptions([]);
       setLoading(false);
@@ -128,10 +136,13 @@ export function MunicipioAutocomplete({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     timerRef.current = setTimeout(() => {
-      fetch(`/api/operator/dane/municipios?q=${encodeURIComponent(q)}`, {
+      fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
         signal: ctrl.signal,
       })
-        .then((r) => (r.ok ? r.json() : { results: [] }))
+        .then((r) => {
+          if (!r.ok) throw new Error("municipios_unavailable");
+          return r.json();
+        })
         .then((j: { results: MunicipioOption[] }) => {
           if (id !== reqIdRef.current) return;
           setOptions(j.results);
@@ -139,8 +150,10 @@ export function MunicipioAutocomplete({
           setLoading(false);
         })
         .catch(() => {
-          // AbortError incluido: si abortamos es porque ya hay otra
-          // búsqueda en curso, no hay nada que reportar.
+          if (id !== reqIdRef.current || ctrl.signal.aborted) return;
+          setOptions([]);
+          setLoading(false);
+          setFailed(true);
         });
     }, 200);
   }
@@ -178,9 +191,9 @@ export function MunicipioAutocomplete({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && open) {
+      e.preventDefault();
       if (options[highlight]) {
-        e.preventDefault();
         pick(options[highlight]);
       }
     } else if (e.key === "Escape") {
@@ -197,13 +210,26 @@ export function MunicipioAutocomplete({
   const inputValue = open ? query : (selectedLabel ?? "");
 
   return (
-    <div ref={boxRef} className="relative">
+    <div
+      ref={boxRef}
+      className="relative"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) close();
+      }}
+    >
       <input
+        id={id}
         type="text"
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
+        aria-activedescendant={
+          open && options[highlight]
+            ? `${listId}-${options[highlight].code}`
+            : undefined
+        }
+        required={required}
         autoComplete="off"
         disabled={disabled}
         value={inputValue}
@@ -220,9 +246,11 @@ export function MunicipioAutocomplete({
 
       {selectedCode && !open && (
         <div className="mt-1 flex items-center gap-2">
-          <span className="font-mono text-[10px] text-op-muted">
-            {t("daneCode", { code: selectedCode })}
-          </span>
+          {showCode && (
+            <span className="font-mono text-[10px] text-op-muted">
+              {t("daneCode", { code: selectedCode })}
+            </span>
+          )}
           {!disabled && (
             <button
               type="button"
@@ -247,6 +275,10 @@ export function MunicipioAutocomplete({
             <li className="px-3 py-2 text-xs text-op-muted">
               {t("searching")}
             </li>
+          ) : failed ? (
+            <li className="px-3 py-2 text-xs text-danger" role="alert">
+              {t("loadError")}
+            </li>
           ) : options.length === 0 ? (
             <li className="px-3 py-2 text-xs text-op-muted">
               {t("noResults")}
@@ -257,6 +289,7 @@ export function MunicipioAutocomplete({
                 <button
                   type="button"
                   role="option"
+                  id={`${listId}-${m.code}`}
                   aria-selected={i === highlight}
                   onMouseEnter={() => setHighlight(i)}
                   onClick={() => pick(m)}

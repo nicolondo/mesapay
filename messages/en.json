@@ -2025,6 +2025,7 @@
     "dianMovedLink": "Go to DIAN invoicing"
   },
   "daneCity": {
+    "loadError": "We could not load the cities. Type again to retry.",
     "placeholder": "Search the municipality (e.g. Envigado)",
     "typeMore": "Type at least 2 letters",
     "searching": "Searching…",

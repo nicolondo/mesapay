@@ -130,6 +130,7 @@ const MIGRATED = [
   "src/components/invoice/**/*.{ts,tsx}",
   // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
   "src/components/MunicipioAutocomplete.tsx",
+  "src/components/AddressAutocomplete.tsx",
   "src/app/admin/restaurants/\\[id\\]/pagos/**/*.{ts,tsx}",
   "src/app/admin/plans/**/*.{ts,tsx}",
   "src/app/admin/groups/**/*.{ts,tsx}",

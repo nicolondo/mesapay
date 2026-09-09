@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale } from "next-intl";
+import {
+  MunicipioAutocomplete,
+  type MunicipioOption,
+} from "@/components/MunicipioAutocomplete";
 
 /**
  * Campo de dirección con autocompletado de Google Places + ciudad + país.
@@ -23,8 +27,23 @@ import { useLocale } from "next-intl";
 // (LATAM + US + ES). Las pantallas de alta de restaurante pasan la lista
 // de países HABILITADOS en config, así el <select> solo ofrece esos.
 const DEFAULT_COUNTRY_CODES = [
-  "CO", "MX", "BR", "US", "AR", "CL", "PE", "EC",
-  "CR", "PA", "UY", "BO", "PY", "VE", "GT", "DO", "ES",
+  "CO",
+  "MX",
+  "BR",
+  "US",
+  "AR",
+  "CL",
+  "PE",
+  "EC",
+  "CR",
+  "PA",
+  "UY",
+  "BO",
+  "PY",
+  "VE",
+  "GT",
+  "DO",
+  "ES",
 ];
 
 export type AddressValue = {
@@ -85,6 +104,9 @@ export function AddressAutocomplete({
   const [city, setCity] = useState(defaultCity);
   const [country, setCountry] = useState(defaultCountry);
   const [placeId, setPlaceId] = useState("");
+  const [municipio, setMunicipio] = useState<MunicipioOption | null>(null);
+  const cityId = useId();
+  const useDane = country === "CO" || (!country && options.includes("CO"));
   const addressRef = useRef<HTMLInputElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const acRef = useRef<any>(null);
@@ -103,7 +125,9 @@ export function AddressAutocomplete({
 
   // Emitimos cambios al padre sin bucles: onChange en ref.
   const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
   useEffect(() => {
     onChangeRef.current?.({ address, city, country, countryName, placeId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,7 +169,8 @@ export function AddressAutocomplete({
           place.formatted_address ??
           [route, streetNumber].filter(Boolean).join(" ");
         if (composed) setAddress(composed);
-        if (cityVal) setCity(cityVal);
+        setCity(cityVal);
+        setMunicipio(null);
         if (countryIso) setCountry(countryIso);
         if (place.place_id) setPlaceId(place.place_id);
       });
@@ -207,24 +232,52 @@ export function AddressAutocomplete({
           className={fieldCls}
         />
       </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className={labelCls}>{labelCity}</span>
-          <input
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder={cityPlaceholder}
-            required={required}
-            {...(nameCity ? { name: nameCity } : {})}
-            className={fieldCls}
-          />
-        </label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <label htmlFor={cityId} className={labelCls}>
+            {labelCity}
+          </label>
+          {useDane ? (
+            <>
+              <MunicipioAutocomplete
+                id={cityId}
+                endpoint="/api/dane/municipios"
+                value={municipio ?? (city ? { code: "", label: city } : null)}
+                onChange={(m) => {
+                  setMunicipio(m);
+                  setCity(m?.name ?? "");
+                  setPlaceId("");
+                  if (m) setCountry("CO");
+                }}
+                inputClassName={fieldCls}
+                required={required}
+                showCode={false}
+              />
+              {nameCity && <input type="hidden" name={nameCity} value={city} />}
+            </>
+          ) : (
+            <input
+              id={cityId}
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder={cityPlaceholder}
+              required={required}
+              {...(nameCity ? { name: nameCity } : {})}
+              className={fieldCls}
+            />
+          )}
+        </div>
         <label className="block">
           <span className={labelCls}>{labelCountry}</span>
           <select
             value={country}
-            onChange={(e) => setCountry(e.target.value)}
+            onChange={(e) => {
+              setCountry(e.target.value);
+              setCity("");
+              setMunicipio(null);
+              setPlaceId("");
+            }}
             required={required || requiredCountry}
             {...(nameCountry ? { name: nameCountry } : {})}
             className={fieldCls}

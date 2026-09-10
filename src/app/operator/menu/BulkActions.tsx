@@ -41,6 +41,7 @@ export function BulkActionBar({
   onDeleted: (deletedIds: string[], archivedIds: string[]) => void;
 }) {
   const tr = useTranslations("opMenuEditor");
+  const ai = useTranslations("menuAi");
   const [sheet, setSheet] = useState<Sheet>(null);
   const count = selectedItems.length;
   const ids = selectedItems.map((i) => i.id);
@@ -65,7 +66,7 @@ export function BulkActionBar({
             {tr("bulkClear")}
           </button>
           <div className="flex-1 min-w-[8px]" />
-          <button onClick={() => setSheet("describe")} className={btn}>
+          <button onClick={() => setSheet("describe")} disabled={count > 25} className={btn}>
             <span aria-hidden>🧠</span> {tr("bulkDescribe")}
           </button>
           <button onClick={() => setSheet("category")} className={btn}>
@@ -83,6 +84,7 @@ export function BulkActionBar({
           >
             {tr("bulkDelete")}
           </button>
+          {count > 25 && <p role="status" className="w-full text-xs text-op-muted">{ai("batchLimit")}</p>}
         </div>
       </div>
 
@@ -186,6 +188,7 @@ function DescribeSheet({
   onApplied: (updates: { id: string; description: string }[]) => void;
 }) {
   const tr = useTranslations("opMenuEditor");
+  const ai = useTranslations("menuAi");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -206,7 +209,8 @@ function DescribeSheet({
         }),
       });
       if (!res.ok) {
-        setError(tr("describeError"));
+        const data = await res.json().catch(() => ({}));
+        setError(ai(["ai_not_configured", "ai_disabled", "rate_limited"].includes(data.error) ? data.error : "ai_failed"));
         setLoading(false);
         return;
       }

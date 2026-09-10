@@ -1,5 +1,7 @@
 "use client";
 
+import { DescriptionAi } from "./DescriptionAi";
+
 import { useEffect, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
@@ -1812,6 +1814,14 @@ function NewItemForm({
           className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
         />
       </label>
+      <DescriptionAi
+        key={JSON.stringify([name, categoryId, description])}
+        name={name}
+        categoryId={categoryId}
+        description={description}
+        disabled={busy}
+        onApply={setDescription}
+      />
       {err && <div className="text-danger text-xs">{err}</div>}
       <div className="flex justify-end gap-2">
         <button
@@ -2158,6 +2168,15 @@ function ItemSheet({
               className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
             />
           </label>
+
+          <DescriptionAi
+            key={JSON.stringify([name, categoryId, description])}
+            name={name}
+            categoryId={categoryId}
+            description={description}
+            disabled={busy}
+            onApply={setDescription}
+          />
 
           <div className="flex flex-col">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">

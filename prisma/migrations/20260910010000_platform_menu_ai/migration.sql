@@ -1,0 +1,1 @@
+ALTER TABLE "PlatformConfig" ADD COLUMN "menuAiKeyEnc" TEXT, ADD COLUMN "menuAiEnabled" BOOLEAN NOT NULL DEFAULT true;

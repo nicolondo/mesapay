@@ -6,6 +6,8 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { generateMenuDescriptions } from "@/lib/menuDescribe";
+import { MenuAiError } from "@/lib/menuAiConfig";
+import { allowMenuAi } from "@/lib/menuAiLimit";
 import {
   dedupeModifierIds,
   normalizeModifiers,
@@ -31,7 +33,7 @@ function normLabel(s: string): string {
 const schema = z.discriminatedUnion("action", [
   // Genera descripciones con IA pero NO las guarda: el operador las revisa y
   // confirma en el cliente (camino "previsualizar y confirmar").
-  z.object({ action: z.literal("generate-descriptions"), itemIds: idsSchema }),
+  z.object({ action: z.literal("generate-descriptions"), itemIds: z.array(z.string().min(1)).min(1).max(25) }),
   // Guarda las descripciones (ya editadas/aprobadas por el operador).
   z.object({
     action: z.literal("set-descriptions"),
@@ -97,6 +99,7 @@ async function POSTHandler(req: Request) {
       select: {
         id: true,
         name: true,
+        description: true,
         // Categoría (hoja) + su padre (grupo/color) para darle a la IA el
         // contexto de subcategoría además de la categoría.
         category: {
@@ -104,11 +107,13 @@ async function POSTHandler(req: Request) {
         },
       },
     });
+    if (!await allowMenuAi(restaurantId)) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     try {
       const map = await generateMenuDescriptions(
         items.map((it) => ({
           id: it.id,
           name: it.name,
+          description: it.description,
           categoryLabel: it.category?.label ?? "",
           parentCategoryLabel: it.category?.parent?.label ?? null,
         })),
@@ -121,8 +126,8 @@ async function POSTHandler(req: Request) {
       }));
       return NextResponse.json({ ok: true, results });
     } catch (err) {
-      console.error("[bulk describe] generación falló", err);
-      return NextResponse.json({ error: "ai_failed" }, { status: 502 });
+      const code = err instanceof MenuAiError ? err.code : "ai_failed";
+      return NextResponse.json({ error: code }, { status: code === "ai_failed" ? 502 : 503 });
     }
   }
 

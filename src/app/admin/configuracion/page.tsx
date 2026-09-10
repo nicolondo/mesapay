@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { KushkiModeSwitcher } from "../KushkiModeSwitcher";
 import { KushkiBillingKeysCard } from "../KushkiBillingKeysCard";
 import { CrmCountriesCard } from "../CrmCountriesCard";
+import { MenuAiCard } from "./MenuAiCard";
+import { getMenuAiStatus } from "@/lib/menuAiConfig";
 import coData from "@/data/cities/co.json";
 import mxData from "@/data/cities/mx.json";
 
@@ -23,6 +25,7 @@ const DATASETS: Record<string, { name: string; datasetSize: number }> = {
  */
 export default async function AdminConfiguracionPage() {
   const t = await getTranslations("opAdmin");
+  const menuAi = await getMenuAiStatus();
   const [kushkiMode, billing, webhookSecret] = await Promise.all([
     getKushkiMode(),
     getBillingCredentials(),
@@ -63,6 +66,8 @@ export default async function AdminConfiguracionPage() {
           initialHasWebhookSecret={webhookSecret !== null}
         />
       </section>
+
+      <section className="mb-6"><MenuAiCard initial={menuAi} /></section>
 
       <section className="mb-6">
         <CrmCountriesCard initialCountries={initialCountries} />

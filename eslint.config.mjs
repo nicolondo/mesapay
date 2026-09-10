@@ -18,6 +18,8 @@ import i18next from "eslint-plugin-i18next";
  * MIGRATED cubra `src/**` entero.
  */
 const MIGRATED = [
+  "src/app/admin/configuracion/MenuAiCard.tsx",
+  "src/app/operator/menu/DescriptionAi.tsx",
   "src/i18n/**/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pending/*.{ts,tsx}",
   "src/app/operator/orders/\\[id\\]/RefundButton.tsx",

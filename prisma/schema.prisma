@@ -531,6 +531,9 @@ model PlatformConfig {
   // Default global de mensajes/día del asistente Pulso (override por comercio
   // en Restaurant.aiDailyMessageLimit).
   aiDailyMessageLimit           Int      @default(50)
+  // Shared menu description credentials, encrypted and platform-admin only.
+  menuAiKeyEnc                 String?
+  menuAiEnabled                Boolean  @default(true)
   // Default global de comisión en basis points; override por comercial y por comercio.
   salesCommissionBps            Int      @default(1000)
   // Credenciales Kushki de plataforma para cobro de suscripciones a restaurantes.

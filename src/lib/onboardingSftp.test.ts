@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   find: vi.fn(),
+  siblings: vi.fn(),
   update: vi.fn(),
   upload: vi.fn(),
   read: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
-  db: { kushkiDocument: { findUnique: m.find, update: m.update } },
+  db: { kushkiDocument: { findUnique: m.find, findMany: m.siblings, update: m.update } },
 }));
 vi.mock("@/lib/sftp", () => ({
   sftpConfigured: () => true,
@@ -22,11 +23,13 @@ import {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  m.siblings.mockResolvedValue([]);
   m.read.mockResolvedValue(Buffer.from("test document"));
   m.update.mockResolvedValue({});
   m.upload.mockResolvedValue(undefined);
   m.find.mockResolvedValue({
     id: "doc-123456",
+    restaurantId: "merchant",
     kind: "rut",
     fileUrl: "/uploads/onboarding/test.pdf",
     fileName: "rut.pdf",
@@ -134,7 +137,7 @@ describe("SFTP readable document names", () => {
         kind,
         mimeType: "application/pdf",
       }),
-    ).toBe(`${label} - doc-123456.pdf`);
+    ).toBe(`${label}.pdf`);
   });
   it.each([
     ["image/jpeg", "jpg"],
@@ -144,12 +147,13 @@ describe("SFTP readable document names", () => {
   ])("preserves file format %s", (mimeType, extension) => {
     expect(
       fileNameForSftpDocument({ id: "doc-123456", kind: "rut", mimeType }),
-    ).toBe(`RUT - doc-123456.${extension}`);
+    ).toBe(`RUT.${extension}`);
   });
-  it("does not overwrite documents sharing a short ID suffix", () => {
+  it("excludes all document identifiers from the generated name", () => {
     const name = (id: string) =>
       fileNameForSftpDocument({ id, kind: "rut", mimeType: "application/pdf" });
-    expect(name("first-123456")).not.toBe(name("second-123456"));
+    expect(name("first-123456")).toBe("RUT.pdf");
+    expect(name("second-123456")).toBe("RUT.pdf");
     expect(name("first-123456")).toBe(name("first-123456"));
   });
   it("rejects unsafe identities and unsupported formats", () => {
@@ -171,7 +175,7 @@ describe("SFTP readable document names", () => {
   it("uploads with the readable name and retains the delivery marker", async () => {
     await deliverDocumentToSftp("doc-123456");
     expect(m.upload).toHaveBeenCalledWith(
-      expect.objectContaining({ fileName: "RUT - doc-123456.pdf" }),
+      expect.objectContaining({ fileName: "RUT.pdf" }),
     );
     expect(m.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -184,4 +188,25 @@ describe("SFTP readable document names", () => {
     await deliverDocumentToSftp("doc-123456");
     expect(m.upload).not.toHaveBeenCalled();
   });
+});
+
+// Multiple uploads are retained locally; a plain filename must never silently
+// collapse two distinct documents during retries or a bulk onboarding submit.
+it("keeps conflicting documents pending without overwriting either", async () => {
+  m.siblings.mockResolvedValue([
+    { id: "doc-123456", kind: "rut", mimeType: "application/pdf" },
+    { id: "another-doc", kind: "rut", mimeType: "application/pdf" },
+  ]);
+  await deliverDocumentToSftp("doc-123456");
+  expect(m.upload).not.toHaveBeenCalled();
+  expect(m.update).toHaveBeenCalledWith(expect.objectContaining({
+    data: { sftpError: "sftp_document_name_conflict", sftpAttempts: { increment: 1 } },
+  }));
+});
+it("does not upload a manifest that assigns two documents to the same name", async () => {
+  expect(await deliverOnboardingManifest("merchant", {
+    legalName: "SON Y MELONA S.A.S.", taxId: "901944469-1",
+    documents: [{ fileName: "RUT.pdf" }, { fileName: "RUT.pdf" }],
+  })).toBe(false);
+  expect(m.upload).not.toHaveBeenCalled();
 });

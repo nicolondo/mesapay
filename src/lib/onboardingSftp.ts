@@ -63,7 +63,7 @@ const DOCUMENT_EXTENSIONS: Record<string, string> = {
   "image/webp": "webp",
 };
 
-/** Tipo legible + ID completo: estable al reintentar, distinto para cada carga. */
+/** Nombre del tipo y extensión real, sin identificadores ni nombre original. */
 export function fileNameForSftpDocument(doc: {
   id: string;
   kind: KushkiDocumentKind;
@@ -74,7 +74,7 @@ export function fileNameForSftpDocument(doc: {
   if (!label || !extension || !/^[a-zA-Z0-9_-]{1,80}$/.test(doc.id)) {
     throw new Error("sftp_invalid_document_identity");
   }
-  return `${label} - ${doc.id}.${extension}`;
+  return `${label}.${extension}`;
 }
 
 /**
@@ -92,6 +92,7 @@ export async function deliverDocumentToSftp(
     select: {
       id: true,
       kind: true,
+      restaurantId: true,
       fileUrl: true,
       mimeType: true,
       sftpUploadedAt: true,
@@ -101,10 +102,24 @@ export async function deliverDocumentToSftp(
   if (!doc || doc.sftpUploadedAt) return; // ya entregado o inexistente
 
   try {
+    // A type-only name is ambiguous when several active uploads would target
+    // the same remote file. Keep delivery pending instead of losing a document.
+    const siblings = await db.kushkiDocument.findMany({
+      where: { restaurantId: doc.restaurantId, kind: doc.kind },
+      select: { id: true, kind: true, mimeType: true },
+    });
+    const remoteName = fileNameForSftpDocument(doc);
+    if (
+      siblings.some(
+        (other) =>
+          other.id !== doc.id && fileNameForSftpDocument(other) === remoteName,
+      )
+    ) {
+      throw new Error("sftp_document_name_conflict");
+    }
     const data = await readFile(localPathForUrl(doc.fileUrl));
     const legal = identity ?? doc.restaurant;
     const folder = folderNameForRestaurant(legal.legalName, legal.taxId);
-    const remoteName = fileNameForSftpDocument(doc);
     await uploadFileToSftp({ folder, fileName: remoteName, data });
     await db.kushkiDocument.update({
       where: { id: doc.id },
@@ -169,6 +184,11 @@ export async function deliverOnboardingManifest(
 ): Promise<boolean> {
   if (!sftpConfigured()) return false;
   try {
+    if (Array.isArray(manifest.documents)) {
+      const names = manifest.documents.map((d: { fileName?: string }) => d.fileName);
+      if (new Set(names).size !== names.length)
+        throw new Error("sftp_document_name_conflict");
+    }
     const folder = folderNameForRestaurant(
       typeof manifest.legalName === "string" ? manifest.legalName : null,
       typeof manifest.taxId === "string" ? manifest.taxId : null,

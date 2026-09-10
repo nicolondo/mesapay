@@ -92,6 +92,12 @@ it("sends the same generated names as the SFTP files and never the original uplo
       mimeType: "image/jpeg",
     },
   ]);
+  expect(manifest.documents.map((d: { fileName: string }) => d.fileName)).toEqual([
+    "Certificacion bancaria.pdf",
+    "Cedula del representante legal.jpg",
+  ]);
+  expect(JSON.stringify(manifest)).not.toContain("document-bank");
+  expect(JSON.stringify(manifest)).not.toContain("document-id");
   expect(JSON.stringify(manifest)).not.toContain("ORIGINAL");
   expect(JSON.stringify(manifest)).not.toContain("WhatsApp");
 });

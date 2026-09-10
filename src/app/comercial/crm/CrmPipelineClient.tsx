@@ -1,4 +1,6 @@
 "use client";
+
+import { MoneyInput } from "@/components/MoneyInput";
 import { startTransition } from "react";
 
 import Link from "next/link";
@@ -348,9 +350,9 @@ function DndConvertSheet({
             </div>
             <div>
               <FieldLabel>{t("convertFieldMonthly")}</FieldLabel>
-              <input
-                type="number" min="0" value={monthlyPrice}
-                onChange={(e) => setMonthlyPrice(e.target.value)}
+              <MoneyInput
+                value={monthlyPrice}
+                onChange={(raw) => setMonthlyPrice(raw)}
                 className="w-full px-3 py-2.5 rounded-xl border border-op-border bg-op-bg text-sm focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
               />
             </div>

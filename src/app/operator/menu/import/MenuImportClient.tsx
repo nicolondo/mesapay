@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -1073,13 +1075,11 @@ function ReviewCard({
               <span className="text-op-muted text-sm" aria-hidden>
                 {"$"}
               </span>
-              <input
-                type="number"
-                inputMode="numeric"
+              <MoneyInput
                 value={priceCop}
-                onChange={(e) =>
+                onChange={(raw) =>
                   onPatch({
-                    priceCents: Math.max(0, parseInt(e.target.value, 10) || 0) * 100,
+                    priceCents: Math.max(0, parseInt(raw, 10) || 0) * 100,
                   })
                 }
                 className="w-28 h-9 px-2 rounded-md font-mono tabular text-right bg-op-bg border border-op-border focus:outline-none focus:border-terracotta"

@@ -1,10 +1,12 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP, groupThousands } from "@/lib/format";
+import { fmtCOP } from "@/lib/format";
 
 type Movement = {
   id: string;
@@ -755,18 +757,15 @@ function MoneyField({
 }) {
   const cap = maxCents ?? Number.MAX_SAFE_INTEGER;
   const pesos = Math.floor(valueCents / 100);
-  const display = pesos > 0 ? groupThousands(String(pesos)) : "";
   return (
     <label className="block">
       <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
         {label}
       </span>
-      <input
-        type="text"
-        inputMode="numeric"
-        value={display}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
+      <MoneyInput
+        value={pesos > 0 ? String(pesos) : ""}
+        onChange={(raw) => {
+          const digits = raw.replace(/\D/g, "").slice(0, 12);
           const p = digits === "" ? 0 : Number(digits);
           onChangeCents(Math.min(cap, p * 100));
         }}

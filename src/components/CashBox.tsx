@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
@@ -343,12 +345,10 @@ function BaseEditButton({
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-op-border bg-op-bg px-3 h-11">
             <span className="text-op-muted">$</span>
-            <input
+            <MoneyInput
               autoFocus
-              type="text"
-              inputMode="numeric"
-              value={pesos ? Number(pesos).toLocaleString("es-CO") : ""}
-              onChange={(e) => setPesos(e.target.value.replace(/\D/g, ""))}
+              value={pesos}
+              onChange={(raw) => setPesos(raw.replace(/\D/g, ""))}
               placeholder="0"
               className="flex-1 bg-transparent outline-none font-display text-xl tabular min-w-0"
             />
@@ -477,12 +477,10 @@ function EgresoButton({
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-op-border bg-op-bg px-3 h-11">
             <span className="text-op-muted">$</span>
-            <input
+            <MoneyInput
               autoFocus
-              type="text"
-              inputMode="numeric"
-              value={pesos ? Number(pesos).toLocaleString("es-CO") : ""}
-              onChange={(e) => setPesos(e.target.value.replace(/\D/g, ""))}
+              value={pesos}
+              onChange={(raw) => setPesos(raw.replace(/\D/g, ""))}
               placeholder="0"
               className="flex-1 bg-transparent outline-none font-display text-xl tabular min-w-0"
             />

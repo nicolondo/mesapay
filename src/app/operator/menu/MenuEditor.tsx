@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { DescriptionAi } from "./DescriptionAi";
 
 import { useEffect, useRef, useState } from "react";
@@ -1610,11 +1612,11 @@ function ConvertCategorySheet({
                   />
                   <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
                     <span aria-hidden>{"+"}</span>
-                    <input
-                      type="number"
+                    <MoneyInput
+                      allowNegative
+                      fractionDigits={2}
                       value={o.priceCop}
-                      onChange={(e) => updateOpt(o.id, { priceCop: e.target.value })}
-                      step={100}
+                      onChange={(raw) => updateOpt(o.id, { priceCop: raw })}
                       className="w-20 h-8 px-2 rounded border border-op-border bg-op-surface text-right tabular text-xs"
                     />
                   </div>
@@ -1777,12 +1779,10 @@ function NewItemForm({
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {tr("fieldPrice")}
           </span>
-          <input
-            type="number"
+          <MoneyInput
+            fractionDigits={2}
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            min={0}
-            step={100}
+            onChange={(raw) => setPrice(raw)}
             placeholder="25000"
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
@@ -2130,12 +2130,10 @@ function ItemSheet({
                 <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
                   {tr("fieldPrice")}
                 </span>
-                <input
-                  type="number"
+                <MoneyInput
+                  fractionDigits={2}
                   value={priceCents}
-                  onChange={(e) => setPriceCents(e.target.value)}
-                  min={0}
-                  step={100}
+                  onChange={(raw) => setPriceCents(raw)}
                   className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
                 />
               </label>
@@ -2763,12 +2761,12 @@ function OptionsEditor({
                 </button>
                 <div className="flex items-center gap-1 text-xs text-op-muted shrink-0">
                   <span aria-hidden>{"+"}</span>
-                  <input
-                    type="number"
+                  <MoneyInput
+                    allowNegative
+                    fractionDigits={2}
                     value={deltaPesos}
-                    onChange={(e) => setOptPrice(i, e.target.value)}
+                    onChange={(raw) => setOptPrice(i, raw)}
                     placeholder="0"
-                    step={100}
                     className="w-20 h-7 px-2 rounded border border-op-border bg-op-bg text-right tabular text-xs"
                     title={tr("optionPriceTitle")}
                   />

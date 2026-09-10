@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -1093,13 +1095,9 @@ function CashSettleModal({
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
               {tr("cashReceivedLabel")}
             </span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <MoneyInput
               value={receivedCop}
-              onChange={(e) => setReceivedSmart(e.target.value)}
-              min={0}
-              step={1000}
+              onChange={(raw) => setReceivedSmart(raw)}
               className="h-12 px-3 rounded-xl border border-op-border bg-op-bg font-mono text-xl tabular"
             />
           </label>
@@ -1107,13 +1105,9 @@ function CashSettleModal({
             <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
               {tr("cashChangeLabel")}
             </span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <MoneyInput
               value={changeCop}
-              onChange={(e) => setChangeCop(e.target.value)}
-              min={0}
-              step={1000}
+              onChange={(raw) => setChangeCop(raw)}
               className="h-12 px-3 rounded-xl border border-op-border bg-op-bg font-mono text-xl tabular"
             />
           </label>
@@ -1177,14 +1171,10 @@ function CashSettleModal({
               </span>
               <div className="flex items-center gap-2 rounded-lg border border-op-border bg-op-surface px-3 h-11 mt-1">
                 <span className="text-op-muted">$</span>
-                <input
+                <MoneyInput
                   autoFocus
-                  type="text"
-                  inputMode="numeric"
-                  value={baseCop ? Number(baseCop).toLocaleString("es-CO") : ""}
-                  onChange={(e) =>
-                    setBaseCop(e.target.value.replace(/\D/g, ""))
-                  }
+                  value={baseCop}
+                  onChange={(raw) => setBaseCop(raw.replace(/\D/g, ""))}
                   placeholder="0"
                   className="flex-1 bg-transparent outline-none font-display text-lg tabular min-w-0"
                 />

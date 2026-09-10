@@ -532,10 +532,9 @@ function RetencionesConfigCard({ currency }: { currency: string }) {
                         : "…",
                   })}
                 </span>
-                <input
-                  inputMode="numeric"
+                <MoneyInput
                   value={uvtRaw}
-                  onChange={(e) => setUvtRaw(e.target.value)}
+                  onChange={(raw) => setUvtRaw(raw)}
                   placeholder={t("retUvtPlaceholder")}
                   className="mt-1 w-full min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm tabular"
                 />

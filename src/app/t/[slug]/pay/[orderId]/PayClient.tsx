@@ -1,4 +1,6 @@
 "use client";
+
+import { MoneyInput } from "@/components/MoneyInput";
 import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 
@@ -1379,14 +1381,10 @@ function CashTenderSheet({
             </div>
             <div className="flex items-stretch gap-2">
               <span className="self-center text-muted">$</span>
-              <input
-                type="number"
-                inputMode="numeric"
+              <MoneyInput
                 value={customCop}
-                onChange={(e) => setCustomCop(e.target.value)}
+                onChange={(raw) => setCustomCop(raw)}
                 placeholder="80000"
-                min={Math.ceil(amountCents / 100)}
-                step={1000}
                 className="flex-1 h-11 px-3 rounded-lg border border-hairline bg-ivory font-mono tabular text-base focus:outline-none focus:border-terracotta"
               />
               <button
@@ -1991,12 +1989,10 @@ function OperatorCashSheet({
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
               {t("receivedFromClient")}
             </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formatMiles(tenderCop)}
-              onChange={(e) => {
-                const clean = e.target.value.replace(/[^0-9]/g, "");
+            <MoneyInput
+              value={tenderCop}
+              onChange={(raw) => {
+                const clean = raw.replace(/[^0-9]/g, "");
                 setTenderCop(clean);
               }}
               className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-xl font-display tabular"
@@ -2006,12 +2002,10 @@ function OperatorCashSheet({
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
               {t("changeGivenLabel")}
             </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formatMiles(changeCop)}
-              onChange={(e) => {
-                const clean = e.target.value.replace(/[^0-9]/g, "");
+            <MoneyInput
+              value={changeCop}
+              onChange={(raw) => {
+                const clean = raw.replace(/[^0-9]/g, "");
                 setChangeCop(clean);
               }}
               className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-paper text-xl font-display tabular"
@@ -2137,13 +2131,6 @@ function OperatorCashSheet({
       </div>
     </div>
   );
-}
-
-// Tiny helper for the inputs above — renders an integer-peso string
-// with es-CO thousand dots while keeping the underlying digits clean.
-function formatMiles(digits: string): string {
-  if (!digits) return "";
-  return Number(digits).toLocaleString("es-CO");
 }
 
 function PresetBill({

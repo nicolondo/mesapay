@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useEffect, useState } from "react";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useLocale, useTranslations } from "next-intl";
@@ -353,6 +355,15 @@ function ParamsSheet({
             <label key={c.key} className="flex items-center gap-3">
               <span className="min-w-0 flex-1 truncate text-sm">{c.label}</span>
               <span className="relative shrink-0">
+                {c.kind === "valor" ? (
+                  <MoneyInput
+                    fractionDigits={2}
+                    value={values[c.key] ?? ""}
+                    onChange={(raw) => setValues((v) => ({ ...v, [c.key]: raw }))}
+                    ariaLabel={c.label}
+                    className="h-10 w-32 rounded-lg border border-op-border bg-op-bg px-3 pr-7 text-right text-sm tabular focus:outline-none focus:border-op-text/40"
+                  />
+                ) : (
                 <input
                   inputMode="decimal"
                   value={values[c.key] ?? ""}
@@ -365,6 +376,7 @@ function ParamsSheet({
                   aria-label={c.label}
                   className="h-10 w-32 rounded-lg border border-op-border bg-op-bg px-3 pr-7 text-right text-sm tabular focus:outline-none focus:border-op-text/40"
                 />
+                )}
                 <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-op-muted">
                   {c.kind === "porcentaje" ? "%" : "$"}
                 </span>

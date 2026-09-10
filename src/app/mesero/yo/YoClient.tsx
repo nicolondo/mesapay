@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useEffect, useState, type ReactNode } from "react";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -377,13 +379,11 @@ function CashInput({
   return (
     <div className="flex items-center gap-2 rounded-xl border border-hairline bg-ivory px-3 h-12">
       <span className="text-muted font-display text-lg">$</span>
-      <input
-        type="text"
-        inputMode="numeric"
+      <MoneyInput
         autoFocus={autoFocus}
-        value={pesos ? pesos.toLocaleString("es-CO") : ""}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, "");
+        value={pesos ? String(pesos) : ""}
+        onChange={(raw) => {
+          const digits = raw.replace(/\D/g, "");
           const n = digits ? parseInt(digits, 10) : 0;
           onChange(n * 100);
         }}

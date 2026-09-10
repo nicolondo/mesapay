@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
 import { useRouter } from "next/navigation";
@@ -85,10 +87,9 @@ export function RefundButton({
               </div>
               <div className="flex h-11 items-center gap-2 rounded-full border border-op-border bg-op-bg px-3">
                 <span className="text-op-muted">{"$"}</span>
-                <input
-                  inputMode="numeric"
+                <MoneyInput
                   value={pesos}
-                  onChange={(e) => setPesos(e.target.value.replace(/[^\d]/g, ""))}
+                  onChange={(raw) => setPesos(raw.replace(/[^\d]/g, ""))}
                   aria-label={t("refundAmount")}
                   className="tabular min-w-0 flex-1 bg-transparent text-sm focus:outline-none"
                 />

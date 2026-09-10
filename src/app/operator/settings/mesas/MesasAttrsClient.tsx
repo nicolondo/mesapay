@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -144,21 +146,17 @@ export function MesasAttrsClient({
               </span>
               <div className="flex items-center gap-1">
                 <span className="text-op-muted text-sm">$</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
+                <MoneyInput
                   placeholder="—"
                   value={
                     r.minConsumptionCents != null
                       ? Math.round(r.minConsumptionCents / 100)
                       : ""
                   }
-                  onChange={(e) => {
-                    const pesos = e.target.value.trim();
+                  onChange={(raw) => {
+                    const pesos = raw.trim();
                     setLocal(r.id, {
-                      minConsumptionCents:
-                        pesos === "" ? null : Number(pesos) * 100,
+                      minConsumptionCents: pesos === "" ? null : Number(pesos) * 100,
                     });
                   }}
                   onBlur={() =>
@@ -178,21 +176,17 @@ export function MesasAttrsClient({
               </span>
               <div className="flex items-center gap-1">
                 <span className="text-op-muted text-sm">$</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
+                <MoneyInput
                   placeholder="—"
                   value={
                     r.reservationDepositCents != null
                       ? Math.round(r.reservationDepositCents / 100)
                       : ""
                   }
-                  onChange={(e) => {
-                    const pesos = e.target.value.trim();
+                  onChange={(raw) => {
+                    const pesos = raw.trim();
                     setLocal(r.id, {
-                      reservationDepositCents:
-                        pesos === "" ? null : Number(pesos) * 100,
+                      reservationDepositCents: pesos === "" ? null : Number(pesos) * 100,
                     });
                   }}
                   onBlur={() =>

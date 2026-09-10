@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -534,17 +536,14 @@ function CashInput({
   const [digits, setDigits] = useState(
     value > 0 ? String(Math.round(value / 100)) : "",
   );
-  const display = digits ? Number(digits).toLocaleString("es-CO") : "";
   return (
-    <input
-      type="text"
-      inputMode="numeric"
+    <MoneyInput
       autoFocus={autoFocus}
-      value={display}
-      onChange={(e) => {
+      value={digits}
+      onChange={(raw) => {
         // Strip the formatting (dots, commas, spaces) before
         // remembering the raw value.
-        const clean = e.target.value.replace(/[^0-9]/g, "");
+        const clean = raw.replace(/[^0-9]/g, "");
         setDigits(clean);
         onChange(clean ? Number(clean) * 100 : 0);
       }}

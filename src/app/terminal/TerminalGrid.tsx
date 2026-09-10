@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyInput } from "@/components/MoneyInput";
+
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -712,11 +714,9 @@ function CashConfirmForm({
           <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
             {tr("cashReceivedLabel")}
           </span>
-          <input
-            type="number"
-            inputMode="numeric"
+          <MoneyInput
             value={received}
-            onChange={(e) => setReceived(parseInt(e.target.value, 10) || 0)}
+            onChange={(raw) => setReceived(parseInt(raw, 10) || 0)}
             className="mt-1 w-full h-10 px-2 rounded-lg border border-hairline bg-paper text-sm font-mono tabular focus:outline-none focus:border-[#2E6B4C]"
           />
         </label>
@@ -724,12 +724,10 @@ function CashConfirmForm({
           <span className="font-mono text-[9px] tracking-wider uppercase text-muted">
             {tr("cashChangeLabel")}
           </span>
-          <input
-            type="number"
-            inputMode="numeric"
+          <MoneyInput
             value={change}
             placeholder={String(suggestedChange)}
-            onChange={(e) => setChange(parseInt(e.target.value, 10) || 0)}
+            onChange={(raw) => setChange(parseInt(raw, 10) || 0)}
             className="mt-1 w-full h-10 px-2 rounded-lg border border-hairline bg-paper text-sm font-mono tabular focus:outline-none focus:border-[#2E6B4C]"
           />
         </label>

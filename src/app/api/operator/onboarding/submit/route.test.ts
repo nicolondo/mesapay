@@ -18,7 +18,8 @@ vi.mock("@/lib/db", () => ({
     restaurant: { findUnique: m.restaurant, update: m.update },
   },
 }));
-vi.mock("@/lib/onboardingSftp", () => ({
+vi.mock("@/lib/onboardingSftp", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/onboardingSftp")>(),
   deliverOnboardingManifest: m.manifest,
   deliverPendingDocsToSftp: m.deliver,
 }));
@@ -50,11 +51,12 @@ beforeEach(() => {
   m.auth.mockResolvedValue({ user: { role: "operator" } });
   m.docs.mockResolvedValue([
     {
+      id: "document-id",
       kind: "cedula_rep_legal",
       fileName: "id.pdf",
       mimeType: "application/pdf",
     },
-    { kind: "bank_cert", fileName: "bank.pdf", mimeType: "application/pdf" },
+    { id: "document-bank", kind: "bank_cert", fileName: "bank.pdf", mimeType: "application/pdf" },
   ]);
   m.restaurant.mockResolvedValue({ country: "CO" });
   m.update.mockResolvedValue({});

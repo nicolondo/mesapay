@@ -29,6 +29,7 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${key}`,
@@ -134,15 +135,16 @@ export async function renderPasswordResetEmail(
   name: string | null,
   resetUrl: string,
   locale?: string | null,
+  restaurantName?: string,
 ): Promise<{ html: string; text: string; subject: string }> {
-  const { t, locale: lang } = await getEmailTranslator(locale, "emailReset");
+  const { t, locale: lang } = await getEmailTranslator(locale, restaurantName ? "emailRestaurantWelcome" : "emailReset");
   const greeting = name ? t("greetingNamed", { name }) : t("greeting");
   const subject = t("subject");
 
   const text = [
     greeting,
     "",
-    t("intro"),
+    t("intro", { restaurant: restaurantName ?? "" }),
     "",
     t("ctaText", { url: resetUrl }),
     "",
@@ -159,7 +161,7 @@ export async function renderPasswordResetEmail(
           <div style="font-family:Geist,Monaco,monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#8B7B65;">MESAPAY</div>
           <h1 style="font-family:'Instrument Serif',Georgia,serif;font-size:30px;line-height:1.1;margin:8px 0 16px 0;color:#1A1613;">${escapeHtml(t("title"))}</h1>
           <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(greeting)}</p>
-          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(t("intro"))}</p>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px 0;">${escapeHtml(t("intro", { restaurant: restaurantName ?? "" }))}</p>
           <p style="margin:24px 0;">
             <a href="${resetUrl}" style="display:inline-block;background:#1A1613;color:#FAF7F2;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:500;font-size:14px;">${escapeHtml(t("cta"))}</a>
           </p>
@@ -181,6 +183,22 @@ export async function sendPasswordResetEmail(
 ): Promise<boolean> {
   const { html, text, subject } = await renderPasswordResetEmail(user.name, resetUrl, locale);
   return sendEmail({ to: user.email, subject, html, text });
+}
+
+export async function sendRestaurantWelcomeEmail(
+  user: { email: string; name: string | null },
+  restaurantName: string,
+  token: string,
+  locale?: string | null,
+): Promise<boolean> {
+  try {
+    const url = new URL(`/restablecer/${token}`, process.env.APP_PUBLIC_BASE_URL ?? BASE_URL).toString();
+    const content = await renderPasswordResetEmail(user.name, url, locale, restaurantName);
+    return await sendEmail({ to: user.email, ...content });
+  } catch {
+    console.error("[mailer] restaurant welcome failed");
+    return false;
+  }
 }
 
 /**

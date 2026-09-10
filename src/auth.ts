@@ -73,7 +73,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             sessionVersion: true,
           },
         });
-        if (!user) return null;
+        if (!user || user.passwordHash.startsWith("!pending-")) return null;
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) return null;
         // Bloquea usuarios desactivados (p.ej. comerciales dados de baja) y

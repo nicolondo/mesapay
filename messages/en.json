@@ -1,4 +1,38 @@
 {
+  "restaurantWelcome": {
+    "createdTitle": "Your restaurant has been created",
+    "emailSent": "We sent a welcome email to {email}. Open the link to create your password and get started. Please also check your spam folder.",
+    "emailPending": "Your restaurant was created, but we could not send the email to {email}. You can retry without registering the restaurant again.",
+    "passwordHint": "We will send a welcome email so the owner can create their password. The link will be valid for 24 hours.",
+    "emailLabel": "Owner email",
+    "resend": "Resend welcome email",
+    "resending": "Requesting…",
+    "resendNotice": "If that account is still awaiting activation, check its welcome email. If it does not arrive, contact the administrator.",
+    "resendFailed": "We could not process the request. Wait a few minutes and try again.",
+    "goLogin": "Go to sign in",
+    "registrationFailed": "We could not complete registration. Check the details and try again.",
+    "errors": {
+      "invalid": "Check the form details.",
+      "invalid_email": "Check the owner email address.",
+      "slug_invalid": "That identifier is not valid. Choose another one.",
+      "email_exists": "An account with that email already exists.",
+      "slug_exists": "That restaurant identifier is already in use.",
+      "country_required": "Choose the restaurant country.",
+      "country_disabled": "That country is not yet enabled for restaurant registration."
+    }
+  },
+  "emailRestaurantWelcome": {
+    "subject": "Welcome to MESAPAY: create your password",
+    "title": "Your restaurant is now on MESAPAY",
+    "greeting": "Hello,",
+    "greetingNamed": "Hello {name},",
+    "intro": "We created your account to manage {restaurant}. To get started, choose your password using the link below.",
+    "cta": "Create my password",
+    "ctaText": "Create your password here: {url}",
+    "fallback": "If the button does not work, copy this link into your browser:",
+    "expires": "This link expires in 24 hours and can only be used once.",
+    "ignore": "If you were not expecting this invitation, you can ignore this email."
+  },
   "common": {
     "language": "Language"
   },
@@ -661,6 +695,8 @@
     "ignore": "If you didn't request this, you can ignore this email."
   },
   "resetPwd": {
+    "setupTitle": "Create your password",
+    "setupSuccessTitle": "Your account is ready!",
     "title": "Reset password",
     "fieldNew": "New password",
     "fieldConfirm": "Confirm password",
@@ -2915,6 +2951,9 @@
     "editBaseBelowMesero": "The venue's float can't be less than {name}'s ({amount}). Lower their float first."
   },
   "opAdmin": {
+    "welcomePasswordHint": "The owner will receive a welcome email with a link to create their password. The link expires in 24 hours.",
+    "welcomeEmailSent": "The welcome email was sent so the owner can create their password.",
+    "welcomeEmailPending": "The restaurant was created, but the email is pending. Open the restaurant and use the email action under Users to retry.",
     "ms_trial": "Trial",
     "ms_al_dia": "Up to date",
     "ms_por_vencer": "Due soon",

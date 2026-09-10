@@ -1,4 +1,38 @@
 {
+  "restaurantWelcome": {
+    "createdTitle": "Seu restaurante foi criado",
+    "emailSent": "Enviamos um e-mail de boas-vindas para {email}. Abra o link para criar sua senha e começar. Confira também a pasta de spam.",
+    "emailPending": "Seu restaurante foi criado, mas não conseguimos enviar o e-mail para {email}. Você pode tentar novamente sem cadastrar o restaurante outra vez.",
+    "passwordHint": "Enviaremos um e-mail de boas-vindas para que o proprietário crie sua senha. O link será válido por 24 horas.",
+    "emailLabel": "E-mail do proprietário",
+    "resend": "Reenviar boas-vindas",
+    "resending": "Solicitando…",
+    "resendNotice": "Se essa conta ainda aguarda ativação, confira o e-mail de boas-vindas. Se não chegar, entre em contato com o administrador.",
+    "resendFailed": "Não foi possível processar o reenvio. Aguarde alguns minutos e tente novamente.",
+    "goLogin": "Ir para entrar",
+    "registrationFailed": "Não foi possível concluir o cadastro. Confira os dados e tente novamente.",
+    "errors": {
+      "invalid": "Confira os dados do formulário.",
+      "invalid_email": "Confira o e-mail do proprietário.",
+      "slug_invalid": "Esse identificador não é válido. Escolha outro.",
+      "email_exists": "Já existe uma conta com esse e-mail.",
+      "slug_exists": "Esse identificador de restaurante já está em uso.",
+      "country_required": "Escolha o país do restaurante.",
+      "country_disabled": "Esse país ainda não está habilitado para cadastrar restaurantes."
+    }
+  },
+  "emailRestaurantWelcome": {
+    "subject": "Bem-vindo ao MESAPAY: crie sua senha",
+    "title": "Seu restaurante já está no MESAPAY",
+    "greeting": "Olá,",
+    "greetingNamed": "Olá {name},",
+    "intro": "Criamos sua conta para administrar {restaurant}. Para começar, escolha sua senha usando o link abaixo.",
+    "cta": "Criar minha senha",
+    "ctaText": "Crie sua senha aqui: {url}",
+    "fallback": "Se o botão não funcionar, copie este link no navegador:",
+    "expires": "Este link expira em 24 horas e só pode ser usado uma vez.",
+    "ignore": "Se você não esperava este convite, pode ignorar este e-mail."
+  },
   "common": {
     "language": "Idioma"
   },
@@ -661,6 +695,8 @@
     "ignore": "Se você não solicitou, ignore este e-mail."
   },
   "resetPwd": {
+    "setupTitle": "Crie sua senha",
+    "setupSuccessTitle": "Sua conta está pronta!",
     "title": "Redefinir senha",
     "fieldNew": "Nova senha",
     "fieldConfirm": "Confirmar senha",
@@ -2915,6 +2951,9 @@
     "editBaseBelowMesero": "O fundo do estabelecimento não pode ser menor que o de {name} ({amount}). Baixe primeiro o fundo dele."
   },
   "opAdmin": {
+    "welcomePasswordHint": "O proprietário receberá um e-mail de boas-vindas com um link para criar sua senha. O link expira em 24 horas.",
+    "welcomeEmailSent": "O e-mail de boas-vindas foi enviado para que o proprietário crie sua senha.",
+    "welcomeEmailPending": "O restaurante foi criado, mas o e-mail está pendente. Abra o restaurante e use o envio por e-mail em Usuários para tentar novamente.",
     "ms_trial": "Teste",
     "ms_al_dia": "Em dia",
     "ms_por_vencer": "A vencer",

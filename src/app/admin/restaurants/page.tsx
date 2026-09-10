@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function RestaurantsAdmin({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; country?: string; city?: string }>;
+  searchParams: Promise<{ ok?: string; country?: string; city?: string; welcome?: string }>;
 }) {
   const sp = await searchParams;
   const now = await requestTime();
@@ -136,6 +136,7 @@ export default async function RestaurantsAdmin({
             slug: sp.ok,
             code: (chunks) => <span className="font-mono">{chunks}</span>,
           })}
+          {sp.welcome && <p className="mt-2">{t(sp.welcome === "sent" ? "welcomeEmailSent" : "welcomeEmailPending")}</p>}
         </div>
       )}
 

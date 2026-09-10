@@ -17,7 +17,7 @@ for (const width of [390, 1440]) {
     await page.getByPlaceholder("La Cocina de Mamá").fill("Fixture city");
     await page.locator('form > input[type="text"]').last().fill("Fixture Owner");
     await page.locator('input[type="email"]').fill("city@example.test");
-    await page.locator('input[type="password"]').fill("FixturePassword123");
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
     let submitted: Record<string, unknown> | undefined;
     await page.route("**/api/auth/register-restaurant", (r) => {
       submitted = r.request().postDataJSON();

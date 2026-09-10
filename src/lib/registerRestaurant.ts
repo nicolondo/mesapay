@@ -1,8 +1,15 @@
 import { randomBytes } from "crypto";
-import bcrypt from "bcryptjs";
+import { z } from "zod";
 import { type ServiceMode } from "@prisma/client";
 import { db } from "./db";
 import { isCountryEnabled } from "./billing/countries";
+import {
+  generateResetToken,
+  hashResetToken,
+  PENDING_PASSWORD_HASH,
+  WELCOME_TOKEN_TTL_MS,
+} from "./passwordReset";
+import { sendRestaurantWelcomeEmail } from "./mailer";
 
 // Restaurants register empty by design — the operator imports their
 // real menu (Shopify / Justo / PDF / URL) or builds it from scratch
@@ -39,7 +46,7 @@ export type RegisterRestaurantInput = {
   restaurantSlug: string;
   ownerName: string;
   ownerEmail: string;
-  ownerPassword: string;
+  locale?: string;
   serviceMode?: ServiceMode;
   address?: string;
   city?: string;
@@ -54,6 +61,7 @@ export type RegisterRestaurantResult =
       restaurantId: string;
       restaurantSlug: string;
       userId: string;
+      emailSent: boolean;
     }
   | {
       ok: false;
@@ -66,10 +74,13 @@ export async function registerRestaurant(
 ): Promise<RegisterRestaurantResult> {
   const email = input.ownerEmail.trim().toLowerCase();
   const slug = normalizeSlug(input.restaurantSlug);
+  if (!z.string().email().safeParse(email).success) {
+    return { ok: false, error: "invalid_email", status: 400 };
+  }
   if (slug.length < 2 || RESERVED.has(slug)) {
     return {
       ok: false,
-      error: "Ese identificador no es válido. Intenta con otro.",
+      error: "slug_invalid",
       status: 400,
     };
   }
@@ -81,19 +92,19 @@ export async function registerRestaurant(
   if (existingUser) {
     return {
       ok: false,
-      error: "Ya existe una cuenta con ese correo",
+      error: "email_exists",
       status: 409,
     };
   }
   if (existingRestaurant) {
     return {
       ok: false,
-      error: "Ese identificador de restaurante ya está en uso",
+      error: "slug_exists",
       status: 409,
     };
   }
 
-  const passwordHash = await bcrypt.hash(input.ownerPassword, 10);
+  const token = generateResetToken();
 
   const serviceMode: ServiceMode = input.serviceMode ?? "table";
 
@@ -108,12 +119,12 @@ export async function registerRestaurant(
   // País obligatorio: define la moneda de cobro (suscripción + pagos).
   // Debe ser uno de los países habilitados en la config de plataforma.
   if (!country) {
-    return { ok: false, error: "Elegí el país del restaurante.", status: 400 };
+    return { ok: false, error: "country_required", status: 400 };
   }
   if (!(await isCountryEnabled(country))) {
     return {
       ok: false,
-      error: "Ese país no está habilitado. Pedile al administrador que lo active en Configuración.",
+      error: "country_disabled",
       status: 400,
     };
   }
@@ -136,9 +147,17 @@ export async function registerRestaurant(
       data: {
         email,
         name: input.ownerName.trim(),
-        passwordHash,
+        passwordHash: PENDING_PASSWORD_HASH,
         role: "operator",
         restaurantId: restaurant.id,
+      },
+    });
+
+    await tx.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashResetToken(token),
+        expiresAt: new Date(Date.now() + WELCOME_TOKEN_TTL_MS),
       },
     });
 
@@ -157,10 +176,17 @@ export async function registerRestaurant(
     return { restaurant, user };
   });
 
+  const emailSent = await sendRestaurantWelcomeEmail(
+    result.user,
+    result.restaurant.name,
+    token,
+    input.locale,
+  );
   return {
     ok: true,
     restaurantId: result.restaurant.id,
     restaurantSlug: result.restaurant.slug,
     userId: result.user.id,
+    emailSent,
   };
 }

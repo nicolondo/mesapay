@@ -4,7 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-export function ResetPasswordClient({ token }: { token: string }) {
+export function ResetPasswordClient({
+  token,
+  initialSetup = false,
+}: {
+  token: string;
+  initialSetup?: boolean;
+}) {
   const t = useTranslations("resetPwd");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -42,7 +48,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
     return (
       <div className="space-y-4">
         <h1 className="font-display text-2xl tracking-[-0.015em]">
-          {t("successTitle")}
+          {t(initialSetup ? "setupSuccessTitle" : "successTitle")}
         </h1>
         <p className="text-sm text-op-muted">{t("successBody")}</p>
         <Link
@@ -58,13 +64,14 @@ export function ResetPasswordClient({ token }: { token: string }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h1 className="font-display text-2xl tracking-[-0.015em]">
-        {t("title")}
+        {t(initialSetup ? "setupTitle" : "title")}
       </h1>
       <div>
         <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
           {t("fieldNew")}
         </label>
         <input
+          aria-label={t("fieldNew")}
           type="password"
           required
           minLength={8}
@@ -80,6 +87,7 @@ export function ResetPasswordClient({ token }: { token: string }) {
           {t("fieldConfirm")}
         </label>
         <input
+          aria-label={t("fieldConfirm")}
           type="password"
           required
           minLength={8}

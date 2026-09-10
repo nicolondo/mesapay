@@ -9,6 +9,7 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 async function submit(formData: FormData) {
   "use server";
   const t = await getTranslations("opAdmin");
+  const tw = await getTranslations("restaurantWelcome");
   const session = await auth();
   if (session?.user?.role !== "platform_admin") {
     redirect(
@@ -20,7 +21,6 @@ async function submit(formData: FormData) {
   const restaurantSlug = String(formData.get("restaurantSlug") ?? "").trim();
   const ownerName = String(formData.get("ownerName") ?? "").trim();
   const ownerEmail = String(formData.get("ownerEmail") ?? "").trim();
-  const ownerPassword = String(formData.get("ownerPassword") ?? "");
 
   // Ubicación opcional — no bloquea la creación si viene vacía.
   const address = String(formData.get("address") ?? "").trim();
@@ -29,23 +29,17 @@ async function submit(formData: FormData) {
   const countryName = String(formData.get("countryName") ?? "").trim();
   const placeId = String(formData.get("placeId") ?? "").trim();
 
-  if (
-    !restaurantName ||
-    !restaurantSlug ||
-    !ownerName ||
-    !ownerEmail ||
-    ownerPassword.length < 6
-  ) {
+  if (!restaurantName || !restaurantSlug || !ownerName || !ownerEmail) {
     redirect(
-      "/admin/restaurants/new?err=" +
-        encodeURIComponent(t("errFillAllFields")),
+      "/admin/restaurants/new?err=" + encodeURIComponent(t("errFillAllFields")),
     );
   }
 
   // País obligatorio: define la moneda de cobro del comercio.
   if (!country) {
     redirect(
-      "/admin/restaurants/new?err=" + encodeURIComponent(t("errCountryRequired")),
+      "/admin/restaurants/new?err=" +
+        encodeURIComponent(t("errCountryRequired")),
     );
   }
 
@@ -54,7 +48,6 @@ async function submit(formData: FormData) {
     restaurantSlug,
     ownerName,
     ownerEmail,
-    ownerPassword,
     address,
     city,
     country,
@@ -62,10 +55,20 @@ async function submit(formData: FormData) {
     placeId,
   });
   if (!res.ok) {
-    redirect("/admin/restaurants/new?err=" + encodeURIComponent(res.error));
+    redirect(
+      "/admin/restaurants/new?err=" +
+        encodeURIComponent(
+          tw.has(`errors.${res.error}`)
+            ? tw(`errors.${res.error}`)
+            : tw("registrationFailed"),
+        ),
+    );
   }
   redirect(
-    "/admin/restaurants?ok=" + encodeURIComponent(res.restaurantSlug),
+    "/admin/restaurants?ok=" +
+      encodeURIComponent(res.restaurantSlug) +
+      "&welcome=" +
+      (res.emailSent ? "sent" : "pending"),
   );
 }
 
@@ -90,9 +93,7 @@ export default async function NewRestaurantPage({
         {t("detailBack")}
       </Link>
       <div className="font-display text-3xl mt-2 mb-1">{t("newTitle")}</div>
-      <div className="text-sm text-op-muted mb-6">
-        {t("newIntro")}
-      </div>
+      <div className="text-sm text-op-muted mb-6">{t("newIntro")}</div>
 
       {sp.err && (
         <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 text-danger px-3 py-2 text-sm">
@@ -104,7 +105,11 @@ export default async function NewRestaurantPage({
         action={submit}
         className="bg-op-surface border border-op-border rounded-2xl p-6 space-y-4"
       >
-        <Field label={t("fieldRestaurantName")} name="restaurantName" required />
+        <Field
+          label={t("fieldRestaurantName")}
+          name="restaurantName"
+          required
+        />
         <div>
           <Field
             label={t("fieldSlug")}
@@ -141,14 +146,13 @@ export default async function NewRestaurantPage({
           {t("ownerSection")}
         </div>
         <Field label={t("fieldFullName")} name="ownerName" required />
-        <Field label={t("fieldEmail")} name="ownerEmail" type="email" required />
         <Field
-          label={t("fieldInitialPassword")}
-          name="ownerPassword"
-          type="text"
+          label={t("fieldEmail")}
+          name="ownerEmail"
+          type="email"
           required
-          hint={t("fieldInitialPasswordHint")}
         />
+        <p className="text-sm text-op-muted">{t("welcomePasswordHint")}</p>
 
         <div className="pt-2 flex gap-2">
           <button
@@ -193,10 +197,7 @@ function Field({
         required={required}
         className="mt-1 w-full h-11 px-3 rounded-lg border border-op-border bg-op-bg focus:outline-none focus:border-terracotta"
       />
-      {hint && (
-        <span className="block mt-1 text-xs text-op-muted">{hint}</span>
-      )}
+      {hint && <span className="block mt-1 text-xs text-op-muted">{hint}</span>}
     </label>
   );
 }
-

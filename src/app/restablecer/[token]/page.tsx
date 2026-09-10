@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
-import { hashResetToken } from "@/lib/passwordReset";
+import { hashResetToken, PENDING_PASSWORD_HASH } from "@/lib/passwordReset";
+import { WelcomeResend } from "@/components/WelcomeResend";
 import { ResetPasswordClient } from "./ResetPasswordClient";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  referrer: "no-referrer",
+  robots: { index: false, follow: false },
+} as const;
 
 export default async function RestablecerPage({
   params,
@@ -16,7 +21,11 @@ export default async function RestablecerPage({
 
   const record = await db.passwordResetToken.findUnique({
     where: { tokenHash: hashResetToken(token) },
-    select: { usedAt: true, expiresAt: true },
+    select: {
+      usedAt: true,
+      expiresAt: true,
+      user: { select: { passwordHash: true } },
+    },
   });
 
   const valid = !!record && !record.usedAt && record.expiresAt > new Date();
@@ -28,13 +37,20 @@ export default async function RestablecerPage({
           MESAPAY
         </div>
         {valid ? (
-          <ResetPasswordClient token={token} />
+          <ResetPasswordClient
+            token={token}
+            initialSetup={record?.user.passwordHash === PENDING_PASSWORD_HASH}
+          />
         ) : (
           <div className="space-y-4">
             <h1 className="font-display text-2xl tracking-[-0.015em]">
               {t("invalidTitle")}
             </h1>
             <p className="text-sm text-op-muted">{t("invalidBody")}</p>
+            {(!record ||
+              record.user.passwordHash === PENDING_PASSWORD_HASH) && (
+              <WelcomeResend />
+            )}
             <Link
               href="/signin"
               className="inline-flex items-center justify-center w-full py-3.5 rounded-xl bg-ink text-bone text-sm font-medium min-h-[44px]"

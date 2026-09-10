@@ -1,4 +1,38 @@
 {
+  "restaurantWelcome": {
+    "createdTitle": "Tu restaurante está creado",
+    "emailSent": "Enviamos un correo de bienvenida a {email}. Abre el enlace para crear tu contraseña y comenzar. Revisa también la carpeta de correo no deseado.",
+    "emailPending": "Tu restaurante se creó, pero no pudimos enviar el correo a {email}. Puedes reintentar el envío sin volver a registrar el restaurante.",
+    "passwordHint": "Enviaremos un correo de bienvenida para que el propietario cree su contraseña. El enlace tendrá una vigencia de 24 horas.",
+    "emailLabel": "Correo del propietario",
+    "resend": "Reenviar bienvenida",
+    "resending": "Solicitando…",
+    "resendNotice": "Si esa cuenta todavía está pendiente de activación, revisa su correo de bienvenida. Si no llega, contacta al administrador.",
+    "resendFailed": "No pudimos procesar el reenvío. Espera unos minutos y vuelve a intentarlo.",
+    "goLogin": "Ir a iniciar sesión",
+    "registrationFailed": "No pudimos completar el registro. Revisa los datos e inténtalo de nuevo.",
+    "errors": {
+      "invalid": "Revisa los datos del formulario.",
+      "invalid_email": "Revisa el correo del propietario.",
+      "slug_invalid": "Ese identificador no es válido. Elige otro.",
+      "email_exists": "Ya existe una cuenta con ese correo.",
+      "slug_exists": "Ese identificador de restaurante ya está en uso.",
+      "country_required": "Elige el país del restaurante.",
+      "country_disabled": "Ese país aún no está habilitado para registrar restaurantes."
+    }
+  },
+  "emailRestaurantWelcome": {
+    "subject": "Bienvenido a MESAPAY: crea tu contraseña",
+    "title": "Tu restaurante ya está en MESAPAY",
+    "greeting": "Hola,",
+    "greetingNamed": "Hola {name},",
+    "intro": "Creamos tu cuenta para administrar {restaurant}. Para comenzar, elige tu contraseña con el siguiente enlace.",
+    "cta": "Crear mi contraseña",
+    "ctaText": "Crea tu contraseña aquí: {url}",
+    "fallback": "Si el botón no funciona, copia este enlace en tu navegador:",
+    "expires": "El enlace vence en 24 horas y solo se puede usar una vez.",
+    "ignore": "Si no esperabas esta invitación, puedes ignorar este correo."
+  },
   "common": {
     "language": "Idioma"
   },
@@ -661,6 +695,8 @@
     "ignore": "Si no solicitaste el cambio, puedes ignorar este correo."
   },
   "resetPwd": {
+    "setupTitle": "Crea tu contraseña",
+    "setupSuccessTitle": "¡Tu cuenta está lista!",
     "title": "Restablecer contraseña",
     "fieldNew": "Nueva contraseña",
     "fieldConfirm": "Confirmar contraseña",
@@ -2915,6 +2951,9 @@
     "editBaseBelowMesero": "La base del local no puede ser menor que la de {name} ({amount}). Bajá primero su base."
   },
   "opAdmin": {
+    "welcomePasswordHint": "El propietario recibirá un correo de bienvenida con un enlace para crear su contraseña. El enlace vence en 24 horas.",
+    "welcomeEmailSent": "Se envió el correo de bienvenida para que el propietario cree su contraseña.",
+    "welcomeEmailPending": "El restaurante está creado, pero el correo quedó pendiente. Abre el restaurante y usa el envío por correo en Usuarios para reintentarlo.",
     "ms_trial": "Prueba",
     "ms_al_dia": "Al día",
     "ms_por_vencer": "Por vencer",

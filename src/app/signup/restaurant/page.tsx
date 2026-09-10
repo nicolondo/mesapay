@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { useTranslations } from "next-intl";
+import { WelcomeResend } from "@/components/WelcomeResend";
 import {
   AddressAutocomplete,
   type AddressValue,
@@ -21,7 +20,8 @@ function slugifyClient(s: string) {
 }
 
 export default function RestaurantSignUp() {
-  const router = useRouter();
+  const tw = useTranslations("restaurantWelcome");
+  const [created, setCreated] = useState<boolean | null>(null);
   const tl = useTranslations("location");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantSlug, setRestaurantSlug] = useState("");
@@ -29,7 +29,6 @@ export default function RestaurantSignUp() {
   const [serviceMode, setServiceMode] = useState<"table" | "counter">("table");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [location, setLocation] = useState<AddressValue>({
     address: "",
     city: "",
@@ -61,33 +60,60 @@ export default function RestaurantSignUp() {
     setBusy(true);
     setErr(null);
     const slug = slugifyClient(restaurantSlug);
-    const res = await fetch("/api/auth/register-restaurant", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        restaurantName,
-        restaurantSlug: slug,
-        serviceMode,
-        name,
-        email,
-        password,
-        address: location.address,
-        city: location.city,
-        country: location.country,
-        countryName: location.countryName,
-        placeId: location.placeId,
-      }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? "No pudimos crear tu restaurante.");
+    try {
+      const res = await fetch("/api/auth/register-restaurant", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          restaurantName,
+          restaurantSlug: slug,
+          serviceMode,
+          name,
+          email,
+          address: location.address,
+          city: location.city,
+          country: location.country,
+          countryName: location.countryName,
+          placeId: location.placeId,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setErr(
+          tw.has(`errors.${j.error}`)
+            ? tw(`errors.${j.error}`)
+            : tw("registrationFailed"),
+        );
+        setBusy(false);
+        return;
+      }
+      const data = await res.json();
+      setCreated(data.emailSent === true);
+    } catch {
+      setErr(tw("registrationFailed"));
+    } finally {
       setBusy(false);
-      return;
     }
-    await signIn("credentials", { email, password, redirect: false });
-    router.push("/operator");
-    router.refresh();
   }
+
+  if (created !== null)
+    return (
+      <main className="min-h-dvh flex items-center justify-center p-6 bg-bone">
+        <div className="w-full max-w-md rounded-2xl border border-hairline p-6 space-y-4">
+          <h1 className="font-display text-3xl">{tw("createdTitle")}</h1>
+          <p className="text-sm text-muted">
+            {tw(created ? "emailSent" : "emailPending", { email })}
+          </p>
+          <WelcomeResend defaultEmail={email} />
+          <Link
+            href="/signin"
+            className="block text-sm text-terracotta underline"
+          >
+            {tw("goLogin")}
+          </Link>
+        </div>
+      </main>
+    );
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16 bg-bone">
@@ -226,18 +252,7 @@ export default function RestaurantSignUp() {
           className="w-full h-11 px-3 rounded-lg border border-hairline bg-ivory mb-4 focus:outline-none focus:border-terracotta"
         />
 
-        <label className="block font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-          Contraseña
-        </label>
-        <input
-          type="password"
-          required
-          minLength={6}
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full h-11 px-3 rounded-lg border border-hairline bg-ivory mb-5 focus:outline-none focus:border-terracotta"
-        />
+        <p className="text-sm text-muted mb-5">{tw("passwordHint")}</p>
 
         {err && <div className="text-danger text-sm mb-4">{err}</div>}
 

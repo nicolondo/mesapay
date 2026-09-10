@@ -8,6 +8,7 @@ import { compareBeneficiaryIds } from "@/lib/beneficiaryIdentity";
 import {
   deliverPendingDocsToSftp,
   deliverOnboardingManifest,
+  fileNameForSftpDocument,
 } from "@/lib/onboardingSftp";
 
 const bankInfoSchema = z.object({
@@ -121,7 +122,7 @@ async function POSTHandler(req: Request) {
     bankInfo: parsed.data.bankInfo,
     documents: docs.map((d) => ({
       kind: d.kind,
-      fileName: d.fileName,
+      fileName: fileNameForSftpDocument(d),
       mimeType: d.mimeType,
     })),
   };

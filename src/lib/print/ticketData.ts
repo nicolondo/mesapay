@@ -43,7 +43,7 @@ export type RoundTicket = {
 
 export type LoadRoundTicketResult =
   | { ok: true; ticket: RoundTicket }
-  | { ok: false; reason: "not_found" | "no_items_for_station" };
+  | { ok: false; reason: "not_found" | "no_items_for_station" | "awaiting_acceptance" };
 
 /**
  * Carga la comanda de una ronda para una estación. `restaurantId` no es
@@ -63,6 +63,7 @@ export async function loadRoundTicket(args: {
       items: {
         where: {
           station,
+          cancelledAt: null,
           ...(station === "bar" && barSubStation
             ? { barSubStation }
             : {}),
@@ -74,8 +75,17 @@ export async function loadRoundTicket(args: {
   if (!round || round.order.restaurantId !== restaurantId) {
     return { ok: false, reason: "not_found" };
   }
-  if (round.items.length === 0) {
+  if (
+    round.status === "cancelled" ||
+    round.order.status === "cancelled" ||
+    round.items.length === 0
+  ) {
     return { ok: false, reason: "no_items_for_station" };
+  }
+  // One ticket per station/round: don't freeze the complete order when only
+  // its first dish has been accepted. A later rejection must settle first.
+  if (round.items.some((item) => item.kitchenStatus === "placed")) {
+    return { ok: false, reason: "awaiting_acceptance" };
   }
 
   return {

@@ -9,7 +9,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { recordAuditEvent } from "@/lib/auditLog";
-import { enqueueRoundTicketSafe } from "@/lib/print/enqueue";
+import { notifyAcceptedRoundTicketSafe } from "@/lib/print/enqueue";
 
 const schema = z
   .object({
@@ -371,13 +371,12 @@ async function PATCHHandler(
     })().catch((err) => console.error("[push:item_ready]", err));
   }
 
-  // Auto-print on placed → in_kitchen, for whichever station the item
-  // belongs to. We fire one event per (round, station, sub) so the
-  // matching listener prints — the page itself dedupes by roundId so
-  // five items in the same round only generate one physical ticket.
+  // Accepting or rejecting the last pending dish can settle this station.
+  // Both print paths wait for that decision and exclude rejected dishes.
   if (
-    parsed.data.kitchenStatus === "in_kitchen" &&
     item.kitchenStatus === "placed" &&
+    !item.cancelledAt &&
+    (parsed.data.kitchenStatus === "in_kitchen" || parsed.data.cancel) &&
     item.roundId &&
     (item.station === "kitchen" || item.station === "bar")
   ) {
@@ -390,19 +389,7 @@ async function PATCHHandler(
         ? tenant?.kitchenPrintEnabled
         : tenant?.barPrintEnabled;
     if (printEnabled) {
-      publishOrderEvent(item.order.restaurantId, {
-        type: "ticket.printable",
-        roundId: item.roundId,
-        orderId: item.orderId,
-        station: item.station,
-        barSubStation: item.barSubStation ?? null,
-      });
-      // Además del evento SSE: encolar la comanda para las impresoras de
-      // red del local (agente ESC/POS). Los dos caminos CONVIVEN durante
-      // la transición — un restaurante sin impresoras registradas se
-      // comporta exactamente como antes. Nunca lanza: si la cola falla,
-      // el ítem igual quedó en in_kitchen y la pestaña sigue de respaldo.
-      await enqueueRoundTicketSafe({
+      await notifyAcceptedRoundTicketSafe({
         restaurantId: item.order.restaurantId,
         orderId: item.orderId,
         roundId: item.roundId,

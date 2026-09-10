@@ -2,8 +2,8 @@
  * ENCOLADO de comandas para las impresoras de red del local.
  *
  * Corre en el mismo punto donde hoy se emite el evento SSE
- * `ticket.printable` (transición placed → in_kitchen en
- * /api/operator/order-items/[id]). Los dos caminos CONVIVEN: el evento
+ * `ticket.printable` (último plato aceptado o rechazado de la estación
+ * en /api/operator/order-items/[id]). Los dos caminos CONVIVEN: el evento
  * se sigue emitiendo igual, así que la pestaña de Chrome sigue
  * funcionando, y un restaurante sin impresoras registradas se comporta
  * exactamente como antes — este módulo no hace nada y devuelve 0.
@@ -16,6 +16,7 @@
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
+import { publishOrderEvent } from "@/lib/events";
 import { formatDate } from "@/lib/format";
 import { isLocale, type Locale } from "@/i18n/config";
 import {
@@ -195,5 +196,28 @@ export async function enqueueRoundTicketSafe(
     }
   } catch (err) {
     console.error("[print-queue] falló el encolado", err);
+  }
+}
+
+/** Notify both print paths only once every dish at this station is resolved.
+ * Called after accepting OR rejecting a dish, since either can settle the
+ * final pending decision. Printing errors must not undo a kitchen action.
+ */
+export async function notifyAcceptedRoundTicketSafe(
+  args: Parameters<typeof enqueueRoundTicket>[0],
+): Promise<void> {
+  try {
+    const loaded = await loadRoundTicket(args);
+    if (!loaded.ok) return;
+    publishOrderEvent(args.restaurantId, {
+      type: "ticket.printable",
+      roundId: args.roundId,
+      orderId: args.orderId,
+      station: args.station,
+      barSubStation: args.barSubStation,
+    });
+    await enqueueRoundTicketSafe(args);
+  } catch (error) {
+    console.error("[print-queue] failed to resolve accepted ticket", error);
   }
 }

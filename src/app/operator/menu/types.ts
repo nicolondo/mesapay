@@ -52,6 +52,7 @@ export type Item = {
   description: string;
   priceCents: number;
   available: boolean;
+  trackInventory: boolean;
   photoUrl: string | null;
   tags: string[];
   modifiers: ModifierDef[];

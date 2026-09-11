@@ -98,6 +98,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   invalid: "productionErrQtyInvalid",
   qty_invalid: "productionErrQtyInvalid",
   no_subrecipe: "productionErrNoSubRecipe",
+  ingredient_not_tracked: "errIngredientNotTracked",
   ingredient_not_found: "errIngredientNotFound",
 };
 
@@ -138,7 +139,7 @@ export function ProduccionClient({ currency }: { currency: string }) {
         if (cancelled) return;
         setBatches((jb.batches ?? []) as BatchDto[]);
         setNextCursor(jb.nextCursor ?? null);
-        setSubs((jr.subRecipes ?? []) as SubRecipeDto[]);
+        setSubs(((jr.subRecipes ?? []) as (SubRecipeDto & { trackInventory?: boolean })[]).filter((r) => r.trackInventory !== false));
         setStock((js.stock ?? []) as StockRowDto[]);
       } catch {
         if (!cancelled) setLoadErr(true);

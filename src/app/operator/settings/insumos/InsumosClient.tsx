@@ -1,5 +1,6 @@
 "use client";
 
+import { InventoryTrackingField } from "@/components/InventoryTrackingField";
 import { useMemo, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
@@ -25,6 +26,7 @@ type Ingredient = {
   barcode: string | null;
   notes: string | null;
   active: boolean;
+  trackInventory: boolean;
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
   // aviso / pedir hasta cubrir el punto).
   reorderPointBase: number | null;
@@ -583,6 +585,7 @@ export function InsumosClient({
                   {[
                     i.category ?? t("noCategory"),
                     dimLabel(t, i.measureKind),
+                    ...(i.trackInventory === false ? [t("nonInventoriable")] : []),
                     t("supplierCount", { count: i._count.supplierItems }),
                   ].join(" · ")}
                 </div>
@@ -671,6 +674,7 @@ function IngredientSheet({
   // POST no acepta los campos de reorden: al crear se hace POST + PATCH.
   // Si el PATCH falla, `created` deja el sheet en modo edición para que el
   // reintento no choque con name_taken.
+  const [trackInventory, setTrackInventory] = useState(editing?.trackInventory ?? true);
   const [created, setCreated] = useState<Ingredient | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -693,8 +697,8 @@ function IngredientSheet({
     e.preventDefault();
     setErr(null);
 
-    const reorderPointBase = parseOptionalQty(point, measureKind);
-    const reorderQtyBase = parseOptionalQty(orderQty, measureKind);
+    const reorderPointBase = trackInventory ? parseOptionalQty(point, measureKind) : null;
+    const reorderQtyBase = trackInventory ? parseOptionalQty(orderQty, measureKind) : null;
     if (reorderPointBase === "invalid" || reorderQtyBase === "invalid") {
       setErr(t("reorderErrInvalid"));
       return;
@@ -703,6 +707,7 @@ function IngredientSheet({
     setBusy(true);
     const payload: Record<string, unknown> = {
       name: name.trim(),
+      trackInventory,
       category: category.trim() || null,
       sku: sku.trim() || null,
       // Se manda crudo: la API es la que normaliza (un solo punto de
@@ -732,7 +737,9 @@ function IngredientSheet({
       setBusy(false);
       const j = await r.json().catch(() => ({}));
       setErr(
-        j.error === "name_taken"
+        j.error === "inventory_balance_remaining"
+          ? t("errInventoryBalance")
+          : j.error === "name_taken"
           ? t("errNameTaken")
           : j.error === "barcode_taken"
             ? t("errBarcodeTaken")
@@ -868,6 +875,9 @@ function IngredientSheet({
             )}
           </Field>
 
+          <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="ingredient" disabled={busy} />
+
+          {trackInventory && <>
           <Field label={t("reorderPointLabel")} hint={t("reorderPointHint")}>
             <QtyUnitInput
               kind={measureKind}
@@ -883,6 +893,8 @@ function IngredientSheet({
               onChange={setOrderQty}
             />
           </Field>
+
+          </>}
 
           <Field label={t("fieldSku")}>
             <input

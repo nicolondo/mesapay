@@ -37,6 +37,7 @@ async function GETHandler() {
     where: {
       restaurantId: ctx.restaurantId,
       active: true,
+      trackInventory: true,
       reorderPointBase: { not: null },
       // Categorías sin inventario no entran al reorden (null-category sí).
       ...(excluded.length > 0

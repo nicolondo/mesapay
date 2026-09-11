@@ -2345,7 +2345,8 @@
     "categoryDishCount": "{count, plural, one {# plato} other {# platos}}",
     "searchPlaceholder": "Buscar plato…",
     "clearSearch": "Borrar búsqueda",
-    "searchNoResults": "Sin resultados para “{query}”."
+    "searchNoResults": "Sin resultados para “{query}”.",
+    "nonInventoriable": "No inventariable"
   },
   "opMenuImport": {
     "noRestaurant": "Sin restaurante.",
@@ -5395,7 +5396,12 @@
     "impInvIssueName": "Falta el nombre.",
     "impInvIssuesChip": "{count, plural, one {# con problema} other {# con problema}}",
     "impInvExcludeIssues": "Desmarcar las que tienen problema",
-    "impInvRowsIncluded": "{count, plural, one {# fila incluida} other {# filas incluidas}}"
+    "impInvRowsIncluded": "{count, plural, one {# fila incluida} other {# filas incluidas}}",
+    "nonInventoriable": "No inventariable",
+    "errInventoryBalance": "Este insumo todavía tiene existencias o valor en inventario. Revisa y ajusta su saldo a cero en Inventario antes de desactivar el control. El historial se conservará.",
+    "nonInventoryPurchases": "Compras de insumos no inventariables",
+    "errIngredientNotTracked": "Este insumo no lleva inventario. Activa «Llevar inventario» en su configuración si necesitas registrar existencias.",
+    "nonInventoryPurchasesTiming": "Estas compras se reconocen en los reportes al completar la recepción de la orden de compra."
   },
   "opDian": {
     "title": "Facturación electrónica DIAN",
@@ -5705,5 +5711,11 @@
       "PA": "Pasaporte"
     },
     "limitHint": "Se muestran hasta 50 clientes. Usa la búsqueda para encontrar otro."
+  },
+  "inventoryTracking": {
+    "label": "Llevar inventario",
+    "ingredientHint": "Desmarca esta opción para insumos que no necesitan control de existencias. Podrás seguir usándolos en compras y recetas, sin entradas, salidas, conteos ni avisos de reposición.",
+    "productHint": "Desmarca esta opción para vender este producto sin descontar los insumos de su receta ni de sus modificadores. La receta se conserva para consultar costos.",
+    "untracked": "No inventariable"
   }
 }

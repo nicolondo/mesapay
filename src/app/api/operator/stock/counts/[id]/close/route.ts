@@ -71,7 +71,7 @@ async function POSTHandler(
         if (diff === 0) continue;
         // allowInactive: el insumo pudo desactivarse con la sesión abierta;
         // su saldo igual debe cuadrarse.
-        await applyStockMovement(
+        const result = await applyStockMovement(
           tx,
           {
             restaurantId: ctx.restaurantId,
@@ -82,9 +82,9 @@ async function POSTHandler(
             stockCountId: id,
             createdById,
           },
-          { allowInactive: true },
+          { allowInactive: true, skipUntracked: true },
         );
-        n++;
+        if (result) n++;
       }
       return n;
     },

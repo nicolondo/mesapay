@@ -102,7 +102,7 @@ export async function runProduction(
   let costCents = 0;
   let partialCost = false;
   for (const line of lines) {
-    const { movement } = await applyStockMovement(
+    const result = await applyStockMovement(
       tx,
       {
         restaurantId: args.restaurantId,
@@ -114,9 +114,13 @@ export async function runProduction(
       },
       // Un insumo descatalogado en una receta viva sigue consumiendo —
       // mismo criterio que conteos y consumo por venta.
-      { allowInactive: true },
+      { allowInactive: true, skipUntracked: true },
     );
-    const value = Math.abs(movement.valueCents);
+    if (!result) {
+      partialCost = true;
+      continue;
+    }
+    const value = Math.abs(result.movement.valueCents);
     costCents += value;
     if (value === 0) partialCost = true;
   }
@@ -137,7 +141,7 @@ export async function runProduction(
 
   const sealed = await tx.productionBatch.update({
     where: { id: batch.id },
-    data: { costCents },
+    data: { costCents, partialCost },
     include: {
       outputIngredient: { select: { id: true, name: true, measureKind: true } },
       createdBy: { select: { id: true, name: true } },

@@ -1,5 +1,6 @@
 "use client";
 
+import { InventoryTrackingField } from "@/components/InventoryTrackingField";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { DescriptionAi } from "./DescriptionAi";
@@ -695,6 +696,7 @@ export function MenuEditor({
                           {fmtCOP(it.priceCents)}
                         </div>
                       </div>
+                      {it.trackInventory === false && <div className="text-xs text-op-muted mt-0.5">{tr("nonInventoriable")}</div>}
                       {it.description && (
                         <div className="text-xs text-op-muted line-clamp-1 mt-0.5">
                           {it.description}
@@ -1701,6 +1703,7 @@ function NewItemForm({
   onClose: () => void;
 }) {
   const tr = useTranslations("opMenuEditor");
+  const [trackInventory, setTrackInventory] = useState(true);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
@@ -1733,6 +1736,7 @@ function NewItemForm({
         priceCents: cents,
         description: description.trim() || undefined,
         prepMinutes: mins,
+        trackInventory,
       }),
     });
     setBusy(false);
@@ -1749,6 +1753,7 @@ function NewItemForm({
       description: description.trim(),
       priceCents: cents,
       available: true,
+      trackInventory,
       photoUrl: null,
       tags: [],
       modifiers: [],
@@ -1762,8 +1767,8 @@ function NewItemForm({
       onSubmit={submit}
       className="bg-op-surface border border-op-border rounded-xl p-4 space-y-3"
     >
-      <div className="flex gap-3">
-        <label className="flex flex-col flex-1">
+      <div className="grid grid-cols-2 sm:grid-cols-[1fr_8rem_6rem] gap-3">
+        <label className="flex flex-col min-w-0 col-span-2 sm:col-span-1">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {tr("fieldName")}
           </span>
@@ -1775,7 +1780,7 @@ function NewItemForm({
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
-        <label className="flex flex-col w-32">
+        <label className="flex flex-col min-w-0">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {tr("fieldPrice")}
           </span>
@@ -1787,7 +1792,7 @@ function NewItemForm({
             className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
-        <label className="flex flex-col w-24">
+        <label className="flex flex-col min-w-0">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {tr("fieldPrep")}
           </span>
@@ -1814,6 +1819,7 @@ function NewItemForm({
           className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
         />
       </label>
+      <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="product" disabled={busy} />
       <DescriptionAi
         key={JSON.stringify([name, categoryId, description])}
         name={name}
@@ -1875,6 +1881,7 @@ function ItemSheet({
   useEffect(() => {
     cardRef.current?.focus({ preventScroll: true });
   }, []);
+  const [trackInventory, setTrackInventory] = useState(item.trackInventory ?? true);
   const [name, setName] = useState(item.name);
   const [priceCents, setPriceCents] = useState(String(item.priceCents / 100));
   const [description, setDescription] = useState(item.description);
@@ -1988,6 +1995,7 @@ function ItemSheet({
         description: description.trim() || null,
         categoryId,
         available,
+        trackInventory,
         photoUrl: photoUrl.trim() || null,
         tags,
         modifiers: modifiers.length > 0 ? modifiers : null,
@@ -2021,6 +2029,7 @@ function ItemSheet({
       description: description.trim(),
       categoryId,
       available,
+      trackInventory,
       photoUrl: photoUrl.trim() || null,
       tags,
       modifiers,
@@ -2166,6 +2175,8 @@ function ItemSheet({
               className="px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm"
             />
           </label>
+
+          <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="product" disabled={busy} />
 
           <DescriptionAi
             key={JSON.stringify([name, categoryId, description])}

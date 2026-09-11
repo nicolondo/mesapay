@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const createSchema = z.object({
+  trackInventory: z.boolean().default(true),
   categoryId: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   priceCents: z.number().int().min(0).max(MAX_MENU_PRICE_CENTS),
@@ -54,6 +55,7 @@ async function POSTHandler(req: Request) {
       description: parsed.data.description || null,
       tags: [],
       available: true,
+      trackInventory: parsed.data.trackInventory,
       sortOrder: (last?.sortOrder ?? 0) + 10,
       prepMinutes: parsed.data.prepMinutes ?? 10,
     },

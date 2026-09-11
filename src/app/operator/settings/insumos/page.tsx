@@ -53,6 +53,7 @@ export default async function InsumosSettingsPage() {
       barcode: true,
       notes: true,
       active: true,
+      trackInventory: true,
       // A4 — punto de reorden editable en el sheet.
       reorderPointBase: true,
       reorderQtyBase: true,

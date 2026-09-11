@@ -87,6 +87,7 @@ async function POSTHandler(req: Request) {
       where: {
         restaurantId: ctx.restaurantId,
         active: true,
+        trackInventory: true,
         ...(b.category ? { category: b.category } : {}),
       },
       select: { id: true, stockLevel: { select: { qtyBase: true } } },

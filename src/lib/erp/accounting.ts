@@ -73,7 +73,7 @@ export type PnlInputs = {
   /** Σ |valueCents| de waste del mes. */
   wasteCents: number;
   /** Gastos del mes por categoría. */
-  expensesByCategory: Array<{ category: string; amountCents: number }>;
+  expensesByCategory: Array<{ category: string; amountCents: number; source?: "non_inventory_purchases" }>;
   /** Σ recibido de OCs del mes (informativo — el costo entra vía CMV). */
   purchasesReceivedCents: number;
   /**
@@ -256,4 +256,25 @@ export function materializeRecurring(
       (t) => t.recurringDay === day && !copiesThisMonthByTemplateId.has(t.id),
     )
     .map((t) => t.id);
+}
+
+/** Split received purchases using the classification frozen at each reception.
+ * INC follows the same net-cost proportion; the remainder stays in inventory
+ * so integer rounding never changes the total supplier obligation.
+ */
+export function splitPurchaseInventoryCost(args: {
+  receivedCents: number;
+  nonInventoryReceivedCents: number;
+  incCents: number;
+}) {
+  const nonInventoryIncCents = args.receivedCents > 0
+    ? Number((BigInt(args.incCents) * BigInt(args.nonInventoryReceivedCents)
+        + BigInt(args.receivedCents) / BigInt(2)) / BigInt(args.receivedCents))
+    : 0;
+  const expenseCents = args.nonInventoryReceivedCents + nonInventoryIncCents;
+  return {
+    nonInventoryIncCents,
+    expenseCents,
+    inventoryCents: args.receivedCents + args.incCents - expenseCents,
+  };
 }

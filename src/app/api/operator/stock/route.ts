@@ -20,7 +20,7 @@ async function GETHandler() {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   const ingredients = await db.ingredient.findMany({
-    where: { restaurantId: ctx.restaurantId },
+    where: { restaurantId: ctx.restaurantId, trackInventory: true },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
       id: true,

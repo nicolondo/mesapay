@@ -152,14 +152,19 @@ async function buildMonthEntries(
   // 2) COMPRAS — D inventario + IVA descontable · C proveedores − retenciones.
   {
     const t = purchasesBook.totals;
-    const invDebit = t.receivedCents + t.incCents; // INC como parte del costo
-    if (invDebit > 0 || t.ivaCents > 0) {
+    const purchaseCost = t.receivedCents + t.incCents;
+    const nonInventoryNetCost = t.nonInventoryReceivedCents + t.nonInventoryIncCents;
+    const expenseDebit = nonInventoryNetCost + t.nonInventoryNonDeductibleTaxCents;
+    const invDebit = purchaseCost - nonInventoryNetCost;
+    const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents;
+    if (purchaseCost > 0 || t.ivaCents > 0) {
       const lines: Line[] = [];
       if (invDebit > 0) lines.push({ code: "143505", debit: invDebit });
+      if (expenseDebit > 0) lines.push({ code: "519505", debit: expenseDebit });
       // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
       // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
-      if (t.ivaCents > 0)
-        lines.push({ code: IVA_DESCONTABLE_CODE, debit: t.ivaCents });
+      if (deductibleVat > 0)
+        lines.push({ code: IVA_DESCONTABLE_CODE, debit: deductibleVat });
       if (t.retefuenteCents > 0)
         lines.push({ code: "236505", credit: t.retefuenteCents });
       if (t.reteIvaCents > 0)
@@ -167,7 +172,7 @@ async function buildMonthEntries(
       if (t.reteIcaCents > 0)
         lines.push({ code: "236805", credit: t.reteIcaCents });
       const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
-      const proveedores = invDebit + t.ivaCents - ret;
+      const proveedores = purchaseCost + t.ivaCents - ret;
       if (proveedores >= 0) {
         lines.push({ code: "220505", credit: proveedores });
         entries.push({ source: "purchase", memo: "Compras del mes", lines });

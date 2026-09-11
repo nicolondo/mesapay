@@ -2345,7 +2345,8 @@
     "categoryDishCount": "{count, plural, one {# dish} other {# dishes}}",
     "searchPlaceholder": "Search dish…",
     "clearSearch": "Clear search",
-    "searchNoResults": "No results for “{query}”."
+    "searchNoResults": "No results for “{query}”.",
+    "nonInventoriable": "Non-inventory item"
   },
   "opMenuImport": {
     "noRestaurant": "No restaurant.",
@@ -5395,7 +5396,12 @@
     "impInvIssueName": "Name is missing.",
     "impInvIssuesChip": "{count, plural, one {# with a problem} other {# with a problem}}",
     "impInvExcludeIssues": "Uncheck the ones with a problem",
-    "impInvRowsIncluded": "{count, plural, one {# row included} other {# rows included}}"
+    "impInvRowsIncluded": "{count, plural, one {# row included} other {# rows included}}",
+    "nonInventoriable": "Non-inventory item",
+    "errInventoryBalance": "This supply still has stock or inventory value. Review and adjust its balance to zero in Inventory before disabling tracking. Its history will be preserved.",
+    "nonInventoryPurchases": "Non-inventory supply purchases",
+    "errIngredientNotTracked": "This supply does not track inventory. Enable “Track inventory” in its settings to record stock.",
+    "nonInventoryPurchasesTiming": "These purchases are recognized in reports when the purchase order is fully received."
   },
   "opDian": {
     "title": "DIAN electronic invoicing",
@@ -5705,5 +5711,11 @@
       "PA": "Passport"
     },
     "limitHint": "Showing up to 50 customers. Use search to find another customer."
+  },
+  "inventoryTracking": {
+    "label": "Track inventory",
+    "ingredientHint": "Uncheck for supplies that do not need stock tracking. You can still use them in purchases and recipes, without stock movements, counts or reorder alerts.",
+    "productHint": "Uncheck to sell this product without consuming ingredients from its recipe or modifiers. The recipe remains available for costing.",
+    "untracked": "Non-inventory item"
   }
 }

@@ -65,7 +65,7 @@ type PnlDto = {
   consumptionCents: number;
   wasteCents: number;
   /** Orden desc por monto (lo garantiza el server). */
-  expensesByCategory: Array<{ category: string; amountCents: number }>;
+  expensesByCategory: Array<{ category: string; amountCents: number; source?: "non_inventory_purchases" }>;
   purchasesReceivedCents: number;
   expensesCents: number;
   grossProfitCents: number;
@@ -1089,10 +1089,15 @@ function PnlExpenses({ pnl, currency }: { pnl: PnlDto; currency: string }) {
         <div className="px-4 pb-2.5 space-y-1">
           {pnl.expensesByCategory.map((e) => (
             <div
-              key={e.category}
+              key={e.source ?? e.category}
               className="flex items-center justify-between gap-3 text-[11px] text-op-muted"
             >
-              <span className="truncate pl-3">{e.category}</span>
+              <span className="min-w-0 pl-3">
+                {e.source === "non_inventory_purchases" ? t("nonInventoryPurchases") : e.category}
+                {e.source === "non_inventory_purchases" && (
+                  <span className="block mt-1 text-[10px]">{t("nonInventoryPurchasesTiming")}</span>
+                )}
+              </span>
               <span className="tabular-nums shrink-0">
                 {formatMoney(e.amountCents, { currency, locale })}
               </span>

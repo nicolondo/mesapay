@@ -2345,7 +2345,8 @@
     "categoryDishCount": "{count, plural, one {# prato} other {# pratos}}",
     "searchPlaceholder": "Buscar prato…",
     "clearSearch": "Limpar busca",
-    "searchNoResults": "Sem resultados para “{query}”."
+    "searchNoResults": "Sem resultados para “{query}”.",
+    "nonInventoriable": "Sem controle de estoque"
   },
   "opMenuImport": {
     "noRestaurant": "Sem restaurante.",
@@ -5395,7 +5396,12 @@
     "impInvIssueName": "Falta o nome.",
     "impInvIssuesChip": "{count, plural, one {# com problema} other {# com problema}}",
     "impInvExcludeIssues": "Desmarcar as que têm problema",
-    "impInvRowsIncluded": "{count, plural, one {# linha incluída} other {# linhas incluídas}}"
+    "impInvRowsIncluded": "{count, plural, one {# linha incluída} other {# linhas incluídas}}",
+    "nonInventoriable": "Sem controle de estoque",
+    "errInventoryBalance": "Este insumo ainda tem saldo ou valor em estoque. Revise e ajuste o saldo para zero em Estoque antes de desativar o controle. O histórico será preservado.",
+    "nonInventoryPurchases": "Compras de insumos sem controle de estoque",
+    "errIngredientNotTracked": "Este insumo não controla estoque. Ative “Controlar estoque” nas configurações para registrar saldos.",
+    "nonInventoryPurchasesTiming": "Estas compras são reconhecidas nos relatórios quando a ordem de compra é recebida por completo."
   },
   "opDian": {
     "title": "Faturação eletrónica DIAN",
@@ -5705,5 +5711,11 @@
       "PA": "Passaporte"
     },
     "limitHint": "Exibindo até 50 clientes. Use a busca para encontrar outro."
+  },
+  "inventoryTracking": {
+    "label": "Controlar estoque",
+    "ingredientHint": "Desmarque para insumos que não precisam de controle de estoque. Você ainda poderá usá-los em compras e receitas, sem movimentações, contagens ou alertas de reposição.",
+    "productHint": "Desmarque para vender este produto sem descontar os insumos da receita nem dos modificadores. A receita permanece disponível para consultar custos.",
+    "untracked": "Sem controle de estoque"
   }
 }

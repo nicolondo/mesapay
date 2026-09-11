@@ -152,6 +152,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   qty_invalid: "errContentInvalid",
   cost_invalid: "errCostInvalid",
   ingredient_inactive: "errIngredientInactive",
+  ingredient_not_tracked: "errIngredientNotTracked",
   ingredient_not_found: "errIngredientNotFound",
 };
 

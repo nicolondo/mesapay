@@ -1,5 +1,5 @@
 import { lockStock } from "@/lib/orderLock";
-import type { Prisma, StockMovementKind, WasteReason } from "@prisma/client";
+import type { Prisma, StockLevel, StockMovement, StockMovementKind, WasteReason } from "@prisma/client";
 
 // Lógica central de inventario (ERP Fase A1).
 //
@@ -110,6 +110,7 @@ export class StockError extends Error {
     public code:
       | "ingredient_not_found"
       | "ingredient_inactive"
+      | "ingredient_not_tracked"
       | "qty_invalid"
       | "cost_invalid",
   ) {
@@ -127,10 +128,23 @@ export class StockError extends Error {
  * `allowInactive`: los cierres de conteo pueden ajustar insumos que se
  * desactivaron mientras la sesión estaba abierta.
  */
+type StockMovementResult = { movement: StockMovement; level: StockLevel };
+type StockMovementOptions = { allowInactive?: boolean; skipUntracked?: boolean };
+
+export function applyStockMovement(
+  tx: Prisma.TransactionClient,
+  args: ApplyStockMovementArgs,
+  opts: StockMovementOptions & { skipUntracked: true },
+): Promise<StockMovementResult | null>;
+export function applyStockMovement(
+  tx: Prisma.TransactionClient,
+  args: ApplyStockMovementArgs,
+  opts?: StockMovementOptions & { skipUntracked?: false },
+): Promise<StockMovementResult>;
 export async function applyStockMovement(
   tx: Prisma.TransactionClient,
   args: ApplyStockMovementArgs,
-  opts: { allowInactive?: boolean } = {},
+  opts: StockMovementOptions = {},
 ) {
   const {
     restaurantId,
@@ -167,13 +181,20 @@ export async function applyStockMovement(
   await lockStock(tx, restaurantId);
   const ingredient = await tx.ingredient.findUnique({
     where: { id: ingredientId },
-    select: { restaurantId: true, active: true },
+    select: { restaurantId: true, active: true, trackInventory: true },
   });
   if (!ingredient || ingredient.restaurantId !== restaurantId) {
     throw new StockError("ingredient_not_found");
   }
   if (!ingredient.active && !opts.allowInactive) {
     throw new StockError("ingredient_inactive");
+  }
+
+  // Purchases and recipes may retain non-stock catalog items. Automatic
+  // callers skip them; direct stock operations must report the mismatch.
+  if (ingredient.trackInventory === false) {
+    if (opts.skipUntracked) return null;
+    throw new StockError("ingredient_not_tracked");
   }
 
   const level =

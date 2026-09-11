@@ -56,6 +56,7 @@ export default async function MenuAdminPage() {
         description: i.description ?? "",
         priceCents: i.priceCents,
         available: i.available,
+        trackInventory: i.trackInventory,
         photoUrl: i.photoUrl ?? null,
         tags: i.tags,
         // Normalise legacy `opts: string[]` to the new object form so

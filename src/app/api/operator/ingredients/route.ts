@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
 
 const createSchema = z.object({
+  trackInventory: z.boolean().default(true),
   name: z.string().trim().min(1).max(120),
   category: z.string().trim().max(60).nullable().optional(),
   measureKind: z.enum(["mass", "volume", "count"]),
@@ -77,6 +78,7 @@ async function POSTHandler(req: Request) {
     data: {
       restaurantId: ctx.restaurantId,
       name: b.name,
+      trackInventory: b.trackInventory,
       category: b.category || null,
       measureKind: b.measureKind,
       sku: b.sku || null,

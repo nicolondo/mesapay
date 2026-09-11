@@ -95,7 +95,7 @@ async function POSTHandler(req: Request) {
 
           // Sembrar existencia inicial valorada (adjust_in con costo).
           if (r.qtyBase > 0 && (isNew || updateExisting)) {
-            await applyStockMovement(
+            const result = await applyStockMovement(
               tx,
               {
                 restaurantId: ctx.restaurantId,
@@ -106,9 +106,9 @@ async function POSTHandler(req: Request) {
                 note: "Importación inicial",
                 createdById,
               },
-              { allowInactive: true },
+              { allowInactive: true, skipUntracked: true },
             );
-            seeded++;
+            if (result) seeded++;
           }
         }
         return { created, seeded };

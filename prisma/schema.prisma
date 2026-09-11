@@ -1254,6 +1254,7 @@ model MenuItem {
   photoUrl    String?
   modifiers   Json?
   recipe      Recipe? // ERP A3 — receta del plato (costeo + consumo A4)
+  trackInventory Boolean   @default(true)
   available   Boolean      @default(true)
   sortOrder   Int          @default(0)
   // Float: permite tiempos con decimales (ej. 1.5 min para bebidas).
@@ -1763,6 +1764,7 @@ model Ingredient {
   barcode          String?
   notes            String?
   active           Boolean     @default(true)
+  trackInventory   Boolean     @default(true)
   // A4 — punto de reorden en unidad base (null = sin aviso) y cantidad
   // sugerida de compra (null = pedir hasta cubrir el punto).
   reorderPointBase Int?
@@ -2062,6 +2064,8 @@ model PurchaseOrderItem {
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
   receivedQtyBase   Int @default(0)
   // NETO acumulado recibido (sin IVA). El bruto de la CxP se deriva con taxPct.
+  nonInventoryReceivedCostCents Int @default(0)
+  nonInventoryReceivedNonDeductibleTaxCents Int @default(0)
   receivedCostCents Int @default(0)
 
   @@index([purchaseOrderId])
@@ -2195,6 +2199,7 @@ model ProductionBatch {
   // Cantidad producida, en unidad base del elaborado.
   outputQtyBase      Int
   // Σ consumos — lo que entró el production_in.
+  partialCost Boolean @default(false)
   costCents          Int
   note               String?
 

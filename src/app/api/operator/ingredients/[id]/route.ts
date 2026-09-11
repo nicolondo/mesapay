@@ -1,3 +1,4 @@
+import { lockStock } from "@/lib/orderLock";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,6 +22,7 @@ const patchSchema = z.object({
   barcode: z.string().max(BARCODE_MAX_LENGTH).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   active: z.boolean().optional(),
+  trackInventory: z.boolean().optional(),
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
   // aviso / pedir hasta cubrir el punto).
   reorderPointBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
@@ -91,24 +93,41 @@ async function PATCHHandler(
     }
   }
 
-  const updated = await db.ingredient.update({
-    where: { id },
-    data: {
-      ...(b.name !== undefined ? { name: b.name } : {}),
-      ...(b.category !== undefined ? { category: b.category || null } : {}),
-      ...(b.measureKind !== undefined ? { measureKind: b.measureKind } : {}),
-      ...(b.sku !== undefined ? { sku: b.sku || null } : {}),
-      ...(barcode !== undefined ? { barcode } : {}),
-      ...(b.notes !== undefined ? { notes: b.notes || null } : {}),
-      ...(b.active !== undefined ? { active: b.active } : {}),
-      ...(b.reorderPointBase !== undefined
-        ? { reorderPointBase: b.reorderPointBase }
-        : {}),
-      ...(b.reorderQtyBase !== undefined
-        ? { reorderQtyBase: b.reorderQtyBase }
-        : {}),
-    },
+  const updated = await db.$transaction(async (tx) => {
+    await lockStock(tx, ctx.restaurantId);
+    const latest = await tx.ingredient.findUnique({ where: { id } });
+    if (!latest || latest.restaurantId !== ctx.restaurantId) return "not_found" as const;
+    const tracked = b.trackInventory ?? latest.trackInventory;
+    if (!tracked) {
+      const level = await tx.stockLevel.findUnique({ where: { ingredientId: id } });
+      if (level && (level.qtyBase !== 0 || level.totalValueCents !== 0)) {
+        return "inventory_balance_remaining" as const;
+      }
+    }
+    return tx.ingredient.update({
+      where: { id, restaurantId: ctx.restaurantId },
+      data: {
+        ...(b.name !== undefined ? { name: b.name } : {}),
+        ...(b.category !== undefined ? { category: b.category || null } : {}),
+        ...(b.measureKind !== undefined ? { measureKind: b.measureKind } : {}),
+        ...(b.sku !== undefined ? { sku: b.sku || null } : {}),
+        ...(barcode !== undefined ? { barcode } : {}),
+        ...(b.notes !== undefined ? { notes: b.notes || null } : {}),
+        ...(b.active !== undefined ? { active: b.active } : {}),
+        ...(b.trackInventory !== undefined ? { trackInventory: b.trackInventory } : {}),
+        ...(b.reorderPointBase !== undefined
+          ? { reorderPointBase: b.reorderPointBase }
+          : {}),
+        ...(b.reorderQtyBase !== undefined
+          ? { reorderQtyBase: b.reorderQtyBase }
+          : {}),
+        ...(!tracked ? { reorderPointBase: null, reorderQtyBase: null } : {}),
+      },
+    });
   });
+  if (typeof updated === "string") {
+    return NextResponse.json({ error: updated }, { status: updated === "not_found" ? 404 : 409 });
+  }
   return NextResponse.json({ ingredient: updated });
 }
 

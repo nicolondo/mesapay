@@ -120,6 +120,7 @@ async function GETHandler(req: Request) {
       orderBy: { date: "asc" },
       include: { supplier: { select: { name: true } } },
     });
+    const purchases = await loadPurchasesBook(ctx.restaurantId, range);
     csv = toCsv(
       [
         t("csvDate"),
@@ -128,13 +129,17 @@ async function GETHandler(req: Request) {
         t("csvSupplier"),
         t("csvAmount"),
       ],
-      expenses.map((e) => [
+      [...expenses.map((e) => [
         isoDate(e.date),
         e.category,
         e.description ?? "",
         e.supplier?.name ?? "",
         centsToCsvAmount(e.amountCents),
-      ]),
+      ]), ...purchases.rows
+        .filter((p) => p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents > 0)
+        .map((p) => [isoDate(p.receivedAt), t("nonInventoryPurchases"),
+          `${p.supplierInvoiceNumber ?? p.number} · ${t("nonInventoryPurchasesTiming")}`, p.supplierName,
+          centsToCsvAmount(p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents)])],
     );
   }
 

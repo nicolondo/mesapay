@@ -43,6 +43,7 @@ export default async function InventarioPage() {
   const ingredients = await db.ingredient.findMany({
     where: {
       restaurantId,
+      trackInventory: true,
       ...(excluded.length > 0
         ? { OR: [{ category: null }, { category: { notIn: excluded } }] }
         : {}),

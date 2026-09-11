@@ -7,6 +7,7 @@
 // /api/cron/stock-consumption. Idempotente: Order.stockConsumedAt se
 // reclama en la MISMA transacción que escribe los movimientos.
 import { db } from "@/lib/db";
+import { lockStock } from "@/lib/orderLock";
 import { isModuleEnabled } from "@/lib/modules";
 import { applyStockMovement } from "@/lib/erp/stock";
 import { grossQty } from "@/lib/erp/recipes";
@@ -152,83 +153,87 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
     isModuleEnabled(order.restaurant.enabledModules, "inventory") &&
     isModuleEnabled(order.restaurant.enabledModules, "recipes");
 
-  let totals = new Map<string, number>();
-  if (modulesOn) {
-    const items = await db.orderItem.findMany({
-      where: { orderId },
-      select: {
-        menuItemId: true,
-        qty: true,
-        cancelledAt: true,
-        cancellationKind: true,
-        modifierSelections: true,
-        round: { select: { status: true } },
-      },
-    });
-    // Las líneas libres (servicios, bonos) no salen de la carta y no tienen
-    // receta: no descuentan inventario. Se excluyen antes de explotar el
-    // consumo para no buscarles una receta que no existe.
-    const menuLines = items.filter(
-      (i): i is typeof i & { menuItemId: string } => i.menuItemId !== null,
-    );
-    const menuItemIds = [...new Set(menuLines.map((i) => i.menuItemId))];
-    const recipes = await db.recipe.findMany({
-      where: {
-        restaurantId: order.restaurantId,
-        menuItemId: { in: menuItemIds },
-      },
-      select: {
-        menuItemId: true,
-        items: {
-          select: { ingredientId: true, qtyBase: true, wastePct: true },
+  return db.$transaction(async (tx) => {
+    // The same lock protects ingredient and dish tracking configuration.
+    // Reading recipes under it prevents a payment consuming a dish just disabled.
+    await lockStock(tx, order.restaurantId);
+    let totals = new Map<string, number>();
+    if (modulesOn) {
+      const items = await tx.orderItem.findMany({
+        where: { orderId },
+        select: {
+          menuItemId: true,
+          qty: true,
+          cancelledAt: true,
+          cancellationKind: true,
+          modifierSelections: true,
+          round: { select: { status: true } },
         },
-        modifierItems: {
-          select: {
-            modifierId: true,
-            optLabel: true,
-            ingredientId: true,
-            qtyBase: true,
-            wastePct: true,
+      });
+      // Las líneas libres (servicios, bonos) no salen de la carta y no tienen
+      // receta: no descuentan inventario. Se excluyen antes de explotar el
+      // consumo para no buscarles una receta que no existe.
+      const menuLines = items.filter(
+        (i): i is typeof i & { menuItemId: string } => i.menuItemId !== null,
+      );
+      const menuItemIds = [...new Set(menuLines.map((i) => i.menuItemId))];
+      const recipes = await tx.recipe.findMany({
+        where: {
+          restaurantId: order.restaurantId,
+          menuItemId: { in: menuItemIds },
+          menuItem: { trackInventory: true },
+        },
+        select: {
+          menuItemId: true,
+          items: {
+            select: { ingredientId: true, qtyBase: true, wastePct: true },
+          },
+          modifierItems: {
+            select: {
+              modifierId: true,
+              optLabel: true,
+              ingredientId: true,
+              qtyBase: true,
+              wastePct: true,
+            },
           },
         },
-      },
-    });
-    const recipeMap = new Map<string, ConsumptionRecipe>(
-      recipes
-        .filter((r) => r.menuItemId)
-        .map((r) => [
-          r.menuItemId!,
-          { items: r.items, modifierItems: r.modifierItems },
-        ]),
-    );
-    totals = explodeOrderConsumption(
-      menuLines.map((i) => ({
-        menuItemId: i.menuItemId,
-        qty: i.qty,
-        cancelledAt: i.cancelledAt,
-        cancellationKind: i.cancellationKind,
-        roundCancelled: i.round?.status === "cancelled",
-        modifierSelections: i.modifierSelections,
-      })),
-      recipeMap,
-    );
-
-    // Categorías sin inventario: sus insumos no consumen stock aunque la
-    // receta los use (agua de la llave, servicios, etc.).
-    const excluded = order.restaurant.inventoryExcludedCategories;
-    if (excluded.length > 0 && totals.size > 0) {
-      const ings = await db.ingredient.findMany({
-        where: { id: { in: [...totals.keys()] } },
-        select: { id: true, category: true },
       });
-      const skip = new Set(excluded);
-      for (const ing of ings) {
-        if (ing.category && skip.has(ing.category)) totals.delete(ing.id);
+      const recipeMap = new Map<string, ConsumptionRecipe>(
+        recipes
+          .filter((r) => r.menuItemId)
+          .map((r) => [
+            r.menuItemId!,
+            { items: r.items, modifierItems: r.modifierItems },
+          ]),
+      );
+      totals = explodeOrderConsumption(
+        menuLines.map((i) => ({
+          menuItemId: i.menuItemId,
+          qty: i.qty,
+          cancelledAt: i.cancelledAt,
+          cancellationKind: i.cancellationKind,
+          roundCancelled: i.round?.status === "cancelled",
+          modifierSelections: i.modifierSelections,
+        })),
+        recipeMap,
+      );
+
+      // Categorías sin inventario: sus insumos no consumen stock aunque la
+      // receta los use (agua de la llave, servicios, etc.).
+      const excluded = order.restaurant.inventoryExcludedCategories;
+      if (excluded.length > 0 && totals.size > 0) {
+        const ings = await tx.ingredient.findMany({
+          where: { id: { in: [...totals.keys()] } },
+          select: { id: true, category: true },
+        });
+        const skip = new Set(excluded);
+        for (const ing of ings) {
+          if (ing.category && skip.has(ing.category)) totals.delete(ing.id);
+        }
       }
     }
-  }
 
-  return db.$transaction(async (tx) => {
     // Claim idempotente: si otro worker ya marcó, no tocamos nada.
     const claim = await tx.order.updateMany({
       where: { id: orderId, stockConsumedAt: null },
@@ -238,7 +243,7 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
 
     let movements = 0;
     for (const [ingredientId, qtyBase] of totals) {
-      await applyStockMovement(
+      const result = await applyStockMovement(
         tx,
         {
           restaurantId: order.restaurantId,
@@ -249,14 +254,14 @@ export async function consumeOrderStock(orderId: string): Promise<ConsumeResult>
         },
         // Un insumo descatalogado con receta viva sigue consumiendo —
         // mismo criterio que los cierres de conteo.
-        { allowInactive: true },
+        { allowInactive: true, skipUntracked: true },
       );
-      movements++;
+      if (result) movements++;
     }
     return modulesOn
       ? { status: "consumed" as const, movements }
       : { status: "modules_off" as const };
-  });
+  }, { timeout: 30_000 });
 }
 
 /**

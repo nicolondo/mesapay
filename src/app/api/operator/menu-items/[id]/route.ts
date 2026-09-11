@@ -1,3 +1,4 @@
+import { lockStock } from "@/lib/orderLock";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
@@ -49,6 +50,7 @@ const patchSchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   categoryId: z.string().min(1).optional(),
   available: z.boolean().optional(),
+  trackInventory: z.boolean().optional(),
   // Foto: el host se valida ABAJO, y solo si la foto cambió respecto a la ya
   // guardada. Re-validar una URL ya almacenada al editar otro campo (p.ej.
   // descripción o modificadores) la rechazaba sin motivo. Acá solo un tope de
@@ -156,7 +158,11 @@ async function PATCHHandler(
   if (parsed.data.prepMinutes !== undefined) data.prepMinutes = parsed.data.prepMinutes;
   if (parsed.data.prepStation !== undefined) data.prepStation = parsed.data.prepStation;
 
-  await db.menuItem.update({ where: { id }, data });
+  if (parsed.data.trackInventory !== undefined) data.trackInventory = parsed.data.trackInventory;
+  await db.$transaction(async (tx) => {
+    await lockStock(tx, g.item.restaurantId);
+    await tx.menuItem.update({ where: { id, restaurantId: g.item.restaurantId }, data });
+  });
   return NextResponse.json({ ok: true });
 }
 

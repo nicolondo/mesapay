@@ -10,6 +10,7 @@ export type IngredientMeta = {
   name: string;
   measureKind: MeasureKind;
   active: boolean;
+  trackInventory: boolean;
 };
 
 /**
@@ -28,6 +29,7 @@ export async function loadCostContext(restaurantId: string): Promise<{
       name: true,
       measureKind: true,
       active: true,
+      trackInventory: true,
       stockLevel: { select: { qtyBase: true, totalValueCents: true } },
       supplierItems: {
         where: { preferred: true },
@@ -58,6 +60,7 @@ export async function loadCostContext(restaurantId: string): Promise<{
       name: ing.name,
       measureKind: ing.measureKind,
       active: ing.active,
+      trackInventory: ing.trackInventory,
     });
   }
   return { ctx, meta };

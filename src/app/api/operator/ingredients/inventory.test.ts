@@ -1,0 +1,18 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+const m = vi.hoisted(() => ({ context: vi.fn(), find: vi.fn(), create: vi.fn(), update: vi.fn(), level: vi.fn(), lock: vi.fn() }));
+vi.mock('@/lib/secureApi', () => ({ secureApi: (handler: unknown) => handler }));
+vi.mock('@/lib/erp/access', () => ({ getErpContext: m.context, isDenied: (ctx: {error?: string}) => !!ctx.error }));
+vi.mock('@/lib/orderLock', () => ({ lockStock: m.lock }));
+vi.mock('@/lib/db', () => { const tx = { ingredient: { findUnique: m.find, create: m.create, update: m.update }, stockLevel: { findUnique: m.level } }; return { db: { ...tx, $transaction: (fn: (db: unknown) => unknown) => fn(tx) } }; });
+import { POST } from './route';
+import { PATCH } from './[id]/route';
+const req = (body: unknown) => new Request('http://localhost/api/operator/ingredients', { method: 'POST', body: JSON.stringify(body) });
+const params = { params: Promise.resolve({ id: 'ing' }) };
+beforeEach(() => { vi.resetAllMocks(); m.context.mockResolvedValue({ restaurantId: 'r' }); m.find.mockResolvedValue({ id: 'ing', restaurantId: 'r', trackInventory: true, _count: { supplierItems: 0 } }); m.create.mockResolvedValue({ id: 'new' }); m.update.mockResolvedValue({ id: 'ing' }); m.level.mockResolvedValue(null); });
+it('creates an explicitly untracked ingredient', async () => { m.find.mockResolvedValue(null); expect((await POST(req({ name:'Agua',measureKind:'volume',trackInventory:false }))).status).toBe(201); expect(m.create).toHaveBeenCalledWith({data: expect.objectContaining({trackInventory:false,restaurantId:'r'})}); });
+it('defaults new ingredients to tracked', async () => { m.find.mockResolvedValue(null); await POST(req({name:'Arroz',measureKind:'mass'})); expect(m.create).toHaveBeenCalledWith({data:expect.objectContaining({trackInventory:true})}); });
+it.each([{qtyBase:1,totalValueCents:0},{qtyBase:-1,totalValueCents:0},{qtyBase:0,totalValueCents:20}])('preserves balances when disabling %j', async (level) => { m.level.mockResolvedValue(level); const r=await PATCH(req({trackInventory:false}),params); expect(r.status).toBe(409); expect(await r.json()).toEqual({error:'inventory_balance_remaining'}); expect(m.update).not.toHaveBeenCalled(); expect(m.lock).toHaveBeenCalled(); });
+it('disables zero balance and clears reorder settings',async()=>{ m.level.mockResolvedValue({qtyBase:0,totalValueCents:0}); expect((await PATCH(req({trackInventory:false,reorderPointBase:10}),params)).status).toBe(200); expect(m.update).toHaveBeenCalledWith(expect.objectContaining({where:{id:'ing',restaurantId:'r'},data:expect.objectContaining({trackInventory:false,reorderPointBase:null,reorderQtyBase:null})})); });
+it('allows enabling inventory',async()=>{expect((await PATCH(req({trackInventory:true}),params)).status).toBe(200);expect(m.update).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({trackInventory:true})}));});
+it('rejects foreign ingredients without mutation',async()=>{m.find.mockResolvedValue({restaurantId:'other'});expect((await PATCH(req({trackInventory:false}),params)).status).toBe(404);expect(m.update).not.toHaveBeenCalled();});
+it('requires a boolean',async()=>{expect((await PATCH(req({trackInventory:'false'}),params)).status).toBe(400);expect(m.update).not.toHaveBeenCalled();});

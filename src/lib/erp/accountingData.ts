@@ -5,6 +5,7 @@
 import { db } from "@/lib/db";
 import {
   buildPnl,
+  splitPurchaseInventoryCost,
   type CategoryLine,
   embeddedTaxCents,
   type LaborSummary,
@@ -146,7 +147,7 @@ export async function computeMonthPnl(
   restaurantId: string,
   range: MonthRange,
 ): Promise<Pnl> {
-  const [tenant, sales, movements, expenses] = await Promise.all([
+  const [tenant, sales, movements, expenses, purchases] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -185,6 +186,7 @@ export async function computeMonthPnl(
       },
       _sum: { amountCents: true },
     }),
+    loadPurchasesBook(restaurantId, range),
   ]);
 
   const byKind = new Map(
@@ -283,11 +285,15 @@ export async function computeMonthPnl(
       taxesCents: sales._sum.taxCents ?? 0,
       consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
       wasteCents: Math.abs(byKind.get("waste") ?? 0),
-      expensesByCategory: expenses.map((e) => ({
-        category: e.category,
-        amountCents: e._sum.amountCents ?? 0,
-      })),
-      purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0),
+      expensesByCategory: [
+        ...expenses.map((e) => ({ category: e.category, amountCents: e._sum.amountCents ?? 0 })),
+        ...(purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents > 0
+          ? [{ category: "", source: "non_inventory_purchases" as const,
+              amountCents: purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents }]
+          : []),
+      ],
+      purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0)
+        + purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents,
       labor,
     }),
     categoryBreakdown,
@@ -425,7 +431,7 @@ export async function loadPurchasesBook(
       reteIvaCents: true,
       reteIcaCents: true,
       supplier: { select: { name: true } },
-      items: { select: { receivedCostCents: true, taxPct: true } },
+      items: { select: { receivedCostCents: true, nonInventoryReceivedCostCents: true, nonInventoryReceivedNonDeductibleTaxCents: true, taxPct: true } },
     },
   });
   const rows = orders.map((o) => ({
@@ -437,6 +443,13 @@ export async function loadPurchasesBook(
     invoiceDueAt: o.invoiceDueAt,
     paidAt: o.paidAt,
     receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
+    nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
+    nonInventoryNonDeductibleTaxCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedNonDeductibleTaxCents, 0),
+    nonInventoryIncCents: splitPurchaseInventoryCost({
+      receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
+      nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
+      incCents: o.incCents,
+    }).nonInventoryIncCents,
     // Impuestos de la factura (ERP A3): IVA desde las líneas + INC/retenciones.
     ivaCents: o.items.reduce(
       (s, i) => s + lineTaxCents(i.receivedCostCents, i.taxPct),
@@ -450,6 +463,9 @@ export async function loadPurchasesBook(
   const totals = {
     count: rows.length,
     receivedCents: rows.reduce((s, r) => s + r.receivedCents, 0),
+    nonInventoryReceivedCents: rows.reduce((s, r) => s + r.nonInventoryReceivedCents, 0),
+    nonInventoryNonDeductibleTaxCents: rows.reduce((s, r) => s + r.nonInventoryNonDeductibleTaxCents, 0),
+    nonInventoryIncCents: rows.reduce((s, r) => s + r.nonInventoryIncCents, 0),
     unpaidCents: rows
       .filter((r) => !r.paidAt)
       .reduce((s, r) => s + r.receivedCents, 0),
@@ -504,7 +520,7 @@ export async function loadCogsBook(restaurantId: string, range: MonthRange) {
  */
 export async function loadInventoryBook(restaurantId: string) {
   const levels = await db.stockLevel.findMany({
-    where: { restaurantId, ingredient: { active: true } },
+    where: { restaurantId, ingredient: { active: true, trackInventory: true } },
     select: {
       qtyBase: true,
       totalValueCents: true,

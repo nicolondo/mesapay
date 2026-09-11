@@ -1,6 +1,6 @@
 import type { Prisma, PurchaseOrderStatus } from "@prisma/client";
 import { applyStockMovement } from "@/lib/erp/stock";
-import { inventoryCostCents, normalizeTaxPct } from "@/lib/erp/purchaseTax";
+import { inventoryCostCents, lineTaxCents, normalizeTaxPct } from "@/lib/erp/purchaseTax";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 
 // Lógica central de compras (ERP Fase A2).
@@ -250,6 +250,9 @@ export async function receivePurchaseOrder(
   const { restaurantId, purchaseOrderId, lines } = args;
   const ivaDeductible = args.ivaDeductible ?? false;
   if (!lines.length) throw new PurchasingError("nothing_to_receive");
+  if (new Set(lines.map((line) => line.itemId)).size !== lines.length) {
+    throw new PurchasingError("line_invalid");
+  }
   for (const l of lines) {
     if (
       !Number.isInteger(l.qtyBase) ||
@@ -295,7 +298,7 @@ export async function receivePurchaseOrder(
     const item = itemById.get(line.itemId);
     if (!item) throw new PurchasingError("line_invalid");
 
-    await applyStockMovement(
+    const movement = await applyStockMovement(
       tx,
       {
         restaurantId,
@@ -315,7 +318,7 @@ export async function receivePurchaseOrder(
       },
       // La OC pudo armarse antes de que el insumo se desactivara; la
       // mercancía llega igual y hay que registrarla.
-      { allowInactive: true },
+      { allowInactive: true, skipUntracked: true },
     );
 
     await tx.purchaseOrderItem.update({
@@ -323,6 +326,19 @@ export async function receivePurchaseOrder(
       data: {
         receivedQtyBase: item.receivedQtyBase + line.qtyBase,
         receivedCostCents: item.receivedCostCents + line.costCents,
+        // Freeze treatment at reception, so future tracking toggles do not
+        // rewrite a supplier invoice's historical accounting classification.
+        nonInventoryReceivedCostCents: {
+          increment: movement === null ? line.costCents : 0,
+        },
+        nonInventoryReceivedNonDeductibleTaxCents: {
+          // Match the supplier invoice's cumulative line rounding. Summing
+          // rounded per-reception taxes can otherwise exceed invoice VAT.
+          increment: movement === null && !ivaDeductible
+            ? lineTaxCents(item.receivedCostCents + line.costCents, item.taxPct)
+              - lineTaxCents(item.receivedCostCents, item.taxPct)
+            : 0,
+        },
       },
     });
 

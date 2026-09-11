@@ -127,6 +127,7 @@ async function GETHandler() {
       ingredientName: outMeta?.name ?? "",
       measureKind: outMeta?.measureKind ?? "count",
       active: outMeta?.active ?? false,
+      trackInventory: outMeta?.trackInventory ?? true,
       outputQtyBase: r.outputQtyBase,
       notes: r.notes,
       items: r.items.map((it) => ({

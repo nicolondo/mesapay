@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { StockError } from "@/lib/erp/stock";
 import { ProductionError, runProduction } from "@/lib/erp/production";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -43,7 +44,7 @@ async function GETHandler(req: Request) {
   });
   const rows = batches.map((b) => ({
     ...b,
-    partialCost: b.movements.some((m) => m.valueCents === 0),
+    partialCost: b.partialCost || b.movements.some((m) => m.valueCents === 0),
   }));
   const nextCursor = batches.length === 20 ? batches[batches.length - 1].id : undefined;
   return NextResponse.json({ batches: rows, nextCursor });
@@ -88,7 +89,7 @@ async function POSTHandler(req: Request) {
     );
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
-    if (err instanceof ProductionError) {
+    if (err instanceof ProductionError || err instanceof StockError) {
       return NextResponse.json({ error: err.code }, { status: 400 });
     }
     throw err;

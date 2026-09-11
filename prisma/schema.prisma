@@ -1927,9 +1927,9 @@ enum StockCountStatus {
 }
 
 /// Sesión de conteo físico. El teórico (expectedQty) se CONGELA al crear la
-/// sesión; el cierre genera count_adjust por cada diferencia y deja el
-/// reporte de desviación permanente. Máx. 1 sesión draft por comercio
-/// (lo aplica la API).
+/// sesión para el preliminar. El reconteo captura un nuevo saldo y exige
+/// que no haya movimientos hasta confirmar; solo el cierre genera ajustes.
+/// Máx. 1 sesión draft por comercio (lock transaccional en la API).
 model StockCount {
   id           String           @id @default(cuid())
   restaurantId String
@@ -1940,6 +1940,11 @@ model StockCount {
   createdBy    User?            @relation("StockCountCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt    DateTime         @default(now())
   closedAt     DateTime?
+  revision     Int              @default(0)
+  preliminaryAt DateTime?
+  recountStartedAt DateTime?
+  recountSnapshot Json?
+  finalReview Json?
 
   items     StockCountItem[]
   movements StockMovement[]
@@ -1955,6 +1960,8 @@ model StockCountItem {
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
   expectedQty  Int // snapshot del teórico al crear la sesión
   countedQty   Int? // null = todavía sin contar
+  preliminaryQty Int? // primer conteo inmutable, sin ajustes
+  finalExpectedQty Int? // saldo al iniciar el conteo definitivo
 
   @@unique([countId, ingredientId])
 }

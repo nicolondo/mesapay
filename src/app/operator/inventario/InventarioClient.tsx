@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
+import { countEntryFromBase, parseCountEntry as parseCounted, formatCountQty } from "@/lib/erp/stockCountInput";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   DEFAULT_INPUT_UNIT,
@@ -65,6 +66,10 @@ type MovementRow = {
 type CountSummary = {
   id: string;
   status: "draft" | "closed";
+  revision: number;
+  preliminaryAt: string | null;
+  recountStartedAt: string | null;
+  finalReview: { token: string; revision: number } | null;
   notes: string | null;
   createdAt: string;
   closedAt: string | null;
@@ -76,12 +81,15 @@ type CountItemRow = {
   id: string;
   expectedQty: number;
   countedQty: number | null;
+  preliminaryQty: number | null;
+  finalExpectedQty: number | null;
   ingredient: {
     id: string;
     name: string;
     measureKind: MeasureKind;
     category: string | null;
     active: boolean;
+    trackInventory: boolean;
     // Código de barras del empaque — lo usa el escaneo del conteo.
     barcode: string | null;
   };
@@ -855,7 +863,7 @@ export function InventarioClient({
                           }
                         >
                           {c.status === "draft"
-                            ? t("countStatusDraft")
+                            ? t(c.recountStartedAt ? "countStageDefinitive" : c.preliminaryAt ? "countStagePreliminary" : "countStageInitial")
                             : t("countStatusClosed")}
                         </span>
                       </div>
@@ -1406,19 +1414,6 @@ function MovementSheet({
  * vacío ("sin contar" → null); toBaseQty rechaza 0, así que el cero se
  * maneja explícito antes de convertir.
  */
-function parseCounted(
-  raw: string,
-  kind: MeasureKind,
-  unitSymbol: string,
-): number | null | "invalid" {
-  const s = raw.trim();
-  if (s === "") return null;
-  const n = Number(s.replace(",", "."));
-  if (!isFinite(n) || n < 0) return "invalid";
-  if (n === 0) return 0;
-  return toBaseQty(n, kind, unitSymbol) ?? "invalid";
-}
-
 function NewCountSheet({
   ingredients,
   onClose,
@@ -1541,7 +1536,7 @@ function NewCountSheet({
 }
 
 function CountSheet({
-  count,
+  count: initialCount,
   onClose,
   onClosed,
   onDeleted,
@@ -1552,24 +1547,24 @@ function CountSheet({
   onDeleted: () => void;
 }) {
   const t = useTranslations("opErp");
+  const [count, setCount] = useState(initialCount);
   const locale = useLocale() as Locale;
 
   // Borrador digitado: raw por item ("" = sin contar) + unidad de display.
-  // Al reanudar, lo ya guardado se muestra en unidad base (sin ambigüedad).
+  // Al reanudar, convertir desde la base a la unidad visible sin perder precisión.
   const [entries, setEntries] = useState<
     Record<string, { raw: string; unit: string }>
   >(() => {
     const init: Record<string, { raw: string; unit: string }> = {};
     for (const it of count.items) {
-      init[it.id] = {
-        raw: it.countedQty == null ? "" : String(it.countedQty),
-        unit: DEFAULT_INPUT_UNIT[it.ingredient.measureKind],
-      };
+      init[it.id] = countEntryFromBase(it.countedQty, it.ingredient.measureKind);
     }
     return init;
   });
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState<"stock" | "count" | null>(null);
+  const [differenceFilter, setDifferenceFilter] = useState<"all" | "shortage" | "surplus" | "pending">("all");
   const [err, setErr] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [closedResult, setClosedResult] = useState<number | null>(null);
@@ -1590,16 +1585,65 @@ function CountSheet({
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const readOnly = count.status === "closed" || closedResult !== null;
+  const phase = readOnly ? "closed" : count.finalReview ? "review" : count.recountStartedAt ? "recount" : count.preliminaryAt ? "preliminary" : "initial";
+  const canEdit = phase === "initial" || phase === "recount";
+  const finalStage = !!count.recountStartedAt;
+  const baseline = (item: CountItemRow) => finalStage ? (item.finalExpectedQty ?? item.expectedQty) : item.expectedQty;
+  const quantity = (item: CountItemRow) => canEdit ? parseCounted(entries[item.id]?.raw ?? "", item.ingredient.measureKind, entries[item.id]?.unit ?? DEFAULT_INPUT_UNIT[item.ingredient.measureKind]) : item.countedQty;
 
-  const visibleItems = useMemo(() => {
+  function acceptCount(next: CountDetail) {
+    setCount(next);
+    setEntries(Object.fromEntries(next.items.map((item) => [item.id, countEntryFromBase(item.countedQty, item.ingredient.measureKind)])));
+    setConflict(null);
+    setDifferenceFilter("all");
+  }
+
+  function showError(code?: string) {
+    const keys: Record<string, string> = {
+      count_changed: "countErrChanged", stock_changed: "countErrStockChanged",
+      incomplete_count: "countErrIncomplete", empty_count: "countErrEmpty",
+      preliminary_required: "countErrPreliminary", recount_required: "countErrRecount",
+      review_required: "countErrReview", already_closed: "errAlreadyClosed", qty_invalid: "errQtyInvalid",
+    };
+    setErr(t(keys[code ?? ""] ?? "errSaveFailed"));
+    if (code === "stock_changed") setConflict("stock");
+    if (code === "count_changed" || code === "already_closed") setConflict("count");
+  }
+
+  async function requestCount(action: string, body?: unknown): Promise<CountDetail | null> {
+    try {
+      const response = await fetch(`/api/operator/stock/counts/${count.id}${action ? `/${action}` : ""}`, {
+        method: action ? "POST" : "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { showError(result.error); return null; }
+      acceptCount(result.count as CountDetail);
+      return result.count as CountDetail;
+    } catch { setErr(t("errSaveFailed")); return null; }
+  }
+
+  async function reloadCount() {
+    setBusy(true); setErr(null);
+    try {
+      const response = await fetch(`/api/operator/stock/counts/${count.id}`);
+      if (!response.ok) throw new Error("load_failed");
+      acceptCount((await response.json()).count as CountDetail);
+    } catch { setErr(t("errSaveFailed")); }
+    finally { setBusy(false); }
+  }
+
+  const visibleItems = count.items.filter((item) => {
     const needle = fold(q.trim());
-    if (!needle) return count.items;
-    return count.items.filter((it) =>
-      fold(`${it.ingredient.name} ${it.ingredient.category ?? ""}`).includes(
-        needle,
-      ),
-    );
-  }, [count.items, q]);
+    if (needle && !fold(`${item.ingredient.name} ${item.ingredient.category ?? ""}`).includes(needle)) return false;
+    if (differenceFilter === "all") return true;
+    if (!item.ingredient.trackInventory) return false;
+    // Keep editable rows stable until save, so typing the first digit never
+    // removes a pending row or steals focus as its difference changes.
+    const value = canEdit ? item.countedQty : quantity(item);
+    if (differenceFilter === "pending") return value == null;
+    if (value == null || value === "invalid") return false;
+    return differenceFilter === "shortage" ? value < baseline(item) : value > baseline(item);
+  });
 
   // Código de barras → item del conteo. El índice único
   // (restaurantId, barcode) garantiza que no haya dos insumos con el mismo
@@ -1630,6 +1674,7 @@ function CountSheet({
     setScanErr(null);
     // El buscador puede estar escondiendo justo la fila escaneada.
     setQ("");
+    setDifferenceFilter("all");
     setHit({ itemId, seq: ++seqRef.current });
   }
 
@@ -1647,23 +1692,18 @@ function CountSheet({
 
   // Desviación en vivo: contados y con diferencia (borrador usa lo
   // digitado; cerrado usa lo persistido).
-  const stats = useMemo(() => {
-    let counted = 0;
-    let diffs = 0;
-    for (const it of count.items) {
-      const v = readOnly
-        ? it.countedQty
-        : parseCounted(
-            entries[it.id]?.raw ?? "",
-            it.ingredient.measureKind,
-            entries[it.id]?.unit ?? DEFAULT_INPUT_UNIT[it.ingredient.measureKind],
-          );
-      if (v == null || v === "invalid") continue;
-      counted++;
-      if (v !== it.expectedQty) diffs++;
-    }
-    return { counted, diffs };
-  }, [count.items, entries, readOnly]);
+  const stats = count.items.reduce((sum, item) => {
+    if (!item.ingredient.trackInventory) return sum;
+    const value = quantity(item);
+    if (value == null || value === "invalid") { sum.pending++; return sum; }
+    sum.counted++;
+    const diff = value - baseline(item);
+    if (diff < 0) sum.shortages++;
+    if (diff > 0) sum.surpluses++;
+    if (diff !== 0) sum.diffs++;
+    else sum.equal++;
+    return sum;
+  }, { counted: 0, diffs: 0, shortages: 0, surpluses: 0, equal: 0, pending: 0 });
 
   /** Payload PATCH completo, o null si hay alguna cantidad inválida. */
   function buildPayload(): { itemId: string; countedQty: number | null }[] | null {
@@ -1677,38 +1717,25 @@ function CountSheet({
     return out;
   }
 
-  async function patchDraft(): Promise<boolean> {
+  async function patchDraft(): Promise<CountDetail | null> {
     const items = buildPayload();
-    if (!items) {
-      setErr(t("errQtyInvalid"));
-      return false;
-    }
-    const r = await fetch(`/api/operator/stock/counts/${count.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ items }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        j.error === "already_closed"
-          ? t("errAlreadyClosed")
-          : j.error === "qty_invalid"
-            ? t("errQtyInvalid")
-            : t("errSaveFailed"),
-      );
-      return false;
-    }
-    return true;
+    if (!items) { setErr(t("errQtyInvalid")); return null; }
+    return requestCount("", { revision: count.revision, items });
   }
 
   async function save() {
-    setErr(null);
-    setSavedFlash(false);
-    setBusy(true);
-    const ok = await patchDraft();
+    setErr(null); setSavedFlash(false); setBusy(true);
+    const saved = await patchDraft();
     setBusy(false);
-    if (ok) setSavedFlash(true);
+    if (saved) setSavedFlash(true);
+  }
+
+  async function advance(action: "preliminary" | "recount" | "review") {
+    setErr(null); setSavedFlash(false); setBusy(true);
+    try {
+      const saved = action === "recount" ? count : await patchDraft();
+      if (saved) await requestCount(action, { revision: saved.revision });
+    } finally { setBusy(false); }
   }
 
   /**
@@ -1718,61 +1745,47 @@ function CountSheet({
    * incluye) y, si igual llegara la respuesta, se muestra el 409 traducido.
    */
   async function deleteSession() {
-    setErr(null);
-    setSavedFlash(false);
+    setErr(null); setSavedFlash(false);
     if (!window.confirm(t("deleteCountConfirm"))) return;
     setBusy(true);
-    const r = await fetch(`/api/operator/stock/counts/${count.id}`, {
-      method: "DELETE",
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        j.error === "not_draft" ? t("errCountNotDraft") : t("errSaveFailed"),
-      );
-      return;
-    }
-    onDeleted();
+    try {
+      const response = await fetch(`/api/operator/stock/counts/${count.id}`, {
+        method: "DELETE", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: count.revision }),
+      });
+      if (!response.ok) { showError((await response.json().catch(() => ({}))).error); return; }
+      onDeleted();
+    } catch { setErr(t("errSaveFailed")); }
+    finally { setBusy(false); }
   }
 
   async function closeSession() {
-    setErr(null);
-    setSavedFlash(false);
-    if (buildPayload() === null) {
-      setErr(t("errQtyInvalid"));
-      return;
-    }
-    if (!window.confirm(t("closeCountConfirm"))) return;
-    setBusy(true);
-    // Guardar primero: el cierre genera ajustes contra lo persistido.
-    if (!(await patchDraft())) {
-      setBusy(false);
-      return;
-    }
-    const r = await fetch(`/api/operator/stock/counts/${count.id}/close`, {
-      method: "POST",
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        j.error === "already_closed" ? t("errAlreadyClosed") : t("errSaveFailed"),
-      );
-      return;
-    }
-    const j = await r.json();
-    setClosedResult((j.adjustments as number) ?? 0);
-    onClosed();
+    if (!count.finalReview) return;
+    setErr(null); setBusy(true);
+    try {
+      const response = await fetch(`/api/operator/stock/counts/${count.id}/close`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ revision: count.revision, reviewToken: count.finalReview.token }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { showError(result.error); return; }
+      acceptCount(result.count as CountDetail);
+      setClosedResult(result.adjustments ?? 0);
+      onClosed();
+    } catch { setErr(t("errSaveFailed")); }
+    finally { setBusy(false); }
   }
 
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
+      onClick={() => { if (!busy) onClose(); }}
     >
       <div
-        className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("countTitle")}
+        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -1784,12 +1797,13 @@ function CountSheet({
                 (readOnly ? "bg-paper text-op-muted" : "bg-ink text-bone")
               }
             >
-              {readOnly ? t("countStatusClosed") : t("countStatusDraft")}
+              {t(readOnly ? "countStatusClosed" : phase === "initial" ? "countStageInitial" : phase === "preliminary" ? "countStagePreliminary" : phase === "review" ? "countStageReview" : "countStageDefinitive")}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
+            disabled={busy}
             className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
             aria-label={t("cancel")}
           >
@@ -1814,13 +1828,38 @@ function CountSheet({
           )}`}
         </div>
 
+        {!readOnly && <div className="rounded-xl bg-op-bg border border-op-border p-3 mb-4 text-sm leading-relaxed">
+          <p className="font-medium">{t(phase === "initial" ? "countInitialHint" : phase === "preliminary" ? "countPreliminaryHint" : phase === "review" ? "countReviewHint" : "countRecountHint")}</p>
+          {(phase === "preliminary" || phase === "recount") && <p className="text-xs text-op-muted mt-2">{t("countRecountSafety")}</p>}
+        </div>}
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          {([
+            ["countShortages", stats.shortages, "text-danger"],
+            ["countSurpluses", stats.surpluses, "text-ok"],
+            ["countEqual", stats.equal, "text-op-text"],
+            ["countPending", stats.pending, "text-op-muted"],
+          ] as const).map(([label, value, color]) => (
+            <div key={label} className="rounded-xl border border-op-border px-3 py-2">
+              <div className={"text-lg font-medium tabular-nums " + color}>{value}</div>
+              <div className="text-xs text-op-muted">{t(label)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 flex-wrap mb-3" aria-label={t("countFilterLabel")}>
+          {([ ["all", "filterAll"], ["shortage", "countShortages"], ["surplus", "countSurpluses"], ["pending", "countPending"] ] as const).map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={differenceFilter === value} onClick={() => setDifferenceFilter(value)} className={"min-h-[40px] rounded-full px-3 text-xs border " + (differenceFilter === value ? "bg-ink text-bone border-ink" : "border-op-border")}>{t(label)}</button>
+          ))}
+        </div>
+
         {closedResult !== null && (
           <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 text-sm text-ok mb-3">
             {t("closeCountResult", { count: closedResult })}
           </div>
         )}
 
-        {!readOnly && (
+        {canEdit && (
           <form onSubmit={handleScan} className="mb-3">
             <Field label={t("scanBarcodeLabel")} hint={t("scanHint")}>
               <input
@@ -1865,12 +1904,12 @@ function CountSheet({
               const kind = it.ingredient.measureKind;
               const unitOptions = DISPLAY_UNITS[kind];
               const entry = entries[it.id];
-              const parsed = readOnly
+              const parsed = !canEdit
                 ? it.countedQty
                 : parseCounted(entry.raw, kind, entry.unit);
               const diff =
                 parsed != null && parsed !== "invalid"
-                  ? parsed - it.expectedQty
+                  ? parsed - baseline(it)
                   : null;
               const diffCls =
                 diff == null || diff === 0
@@ -1882,7 +1921,7 @@ function CountSheet({
                 diff == null
                   ? "—"
                   : (diff > 0 ? "+" : diff < 0 ? "−" : "") +
-                    formatBaseQty(Math.abs(diff), kind, locale);
+                    formatCountQty(Math.abs(diff), kind, locale);
               return (
                 <div
                   key={it.id}
@@ -1906,19 +1945,19 @@ function CountSheet({
                         )}
                       </div>
                       <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {`${t("expectedLabel")}: ${formatBaseQty(
-                          it.expectedQty,
+                        {`${t(finalStage ? "countFinalExpectedLabel" : "countInitialExpectedLabel")}: ${formatCountQty(
+                          baseline(it),
                           kind,
                           locale,
                         )}`}
                       </div>
                     </div>
-                    {readOnly && (
+                    {!canEdit && (
                       <div className="text-right shrink-0">
                         <div className="text-sm tabular-nums">
                           {parsed == null
                             ? t("notCounted")
-                            : formatBaseQty(parsed as number, kind, locale)}
+                            : formatCountQty(parsed as number, kind, locale)}
                         </div>
                         {parsed != null && (
                           <div
@@ -1932,7 +1971,14 @@ function CountSheet({
                       </div>
                     )}
                   </div>
-                  {!readOnly && (
+                  {count.preliminaryAt && (
+                    <div className="text-xs text-op-muted mt-2">
+                      {t("countInitialLabel")}: {it.preliminaryQty == null ? t("notCounted") : formatCountQty(it.preliminaryQty, kind, locale)}
+                      {it.preliminaryQty != null && <span> · {t("countInitialDifference")}: {formatCountQty(it.preliminaryQty - it.expectedQty, kind, locale)}</span>}
+                    </div>
+                  )}
+                  {!it.ingredient.trackInventory && <p className="text-xs text-op-muted mt-1">{t("nonInventoriable")}</p>}
+                  {canEdit && (
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         ref={(el) => {
@@ -1940,6 +1986,8 @@ function CountSheet({
                         }}
                         type="text"
                         inputMode="decimal"
+                        aria-label={t("countQuantityLabel", { name: it.ingredient.name })}
+                        disabled={busy || !it.ingredient.trackInventory}
                         value={entry.raw}
                         placeholder={t("notCounted")}
                         // Ciclo del conteo con lector: escanear → digitar la
@@ -1957,10 +2005,11 @@ function CountSheet({
                             [it.id]: { ...prev[it.id], raw: sanitizeDecimalInput(e.target.value) },
                           }));
                         }}
-                        className={inputCls + " flex-1"}
+                        className={inputCls + " flex-1 min-w-0"}
                       />
                       <select
                         value={entry.unit}
+                        aria-label={t("countUnitLabel", { name: it.ingredient.name })}
                         onChange={(e) => {
                           setSavedFlash(false);
                           setEntries((prev) => ({
@@ -1968,7 +2017,7 @@ function CountSheet({
                             [it.id]: { ...prev[it.id], unit: e.target.value },
                           }));
                         }}
-                        disabled={unitOptions.length < 2}
+                        disabled={busy || !it.ingredient.trackInventory || unitOptions.length < 2}
                         className="min-h-[44px] w-20 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
                       >
                         {unitOptions.map((u) => (
@@ -1979,11 +2028,12 @@ function CountSheet({
                       </select>
                       <div
                         className={
-                          "w-24 text-right text-xs font-medium tabular-nums shrink-0 " +
+                          "w-20 text-right text-xs font-medium tabular-nums shrink-0 " +
                           (parsed === "invalid" ? "text-danger" : diffCls)
                         }
                       >
                         {parsed === "invalid" ? "✕" : diffText}
+                        {diff != null && diff !== 0 && <div className="text-[10px]">{t(diff < 0 ? "countShortage" : "countSurplus")}</div>}
                       </div>
                     </div>
                   )}
@@ -1993,47 +2043,29 @@ function CountSheet({
           </div>
         )}
 
-        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {err && <div role="alert" className="rounded-xl border border-danger/30 p-3 text-sm text-danger mt-3">
+          {err}
+          {conflict === "count" && <button type="button" disabled={busy} onClick={reloadCount} className="block mt-2 underline min-h-[44px]">{t("countReload")}</button>}
+          {conflict === "stock" && <button type="button" disabled={busy} onClick={() => advance("recount")} className="block mt-2 underline min-h-[44px]">{t("countRestartRecount")}</button>}
+        </div>}
         {savedFlash && !err && (
           <div className="text-xs text-ok mt-3">{t("draftSaved")}</div>
         )}
 
-        <div className="sticky bottom-0 -mx-5 px-5 mt-4 pt-3 pb-1 bg-op-surface border-t border-op-border flex items-center justify-end gap-3">
+        <div className="sticky bottom-0 -mx-5 px-5 mt-4 pt-3 pb-1 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
           {readOnly ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface"
-            >
-              {t("cancel")}
-            </button>
+            <button type="button" onClick={onClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
           ) : (
             <>
-              {/* Solo en borrador: un conteo cerrado ya movió saldos. */}
-              <button
-                type="button"
-                onClick={deleteSession}
-                disabled={busy}
-                className="mr-auto min-h-[44px] px-4 rounded-full border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-40"
-              >
-                {t("deleteCount")}
-              </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={busy}
-                className="min-h-[44px] px-4 rounded-full bg-op-bg border border-op-border text-sm font-medium hover:bg-op-surface disabled:opacity-40"
-              >
-                {busy ? t("saving") : t("saveDraft")}
-              </button>
-              <button
-                type="button"
-                onClick={closeSession}
-                disabled={busy}
-                className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-40"
-              >
-                {busy ? t("closing") : t("closeCount")}
-              </button>
+              <button type="button" onClick={deleteSession} disabled={busy} className="mr-auto min-h-[44px] px-3 text-danger text-sm disabled:opacity-40">{t("deleteCount")}</button>
+              {canEdit && <button type="button" onClick={save} disabled={busy || !!conflict} className="mp-btn mp-btn--secondary">{busy ? t("saving") : t("saveDraft")}</button>}
+              {phase === "initial" && <button type="button" onClick={() => advance("preliminary")} disabled={busy || !!conflict || stats.counted === 0} className="mp-btn mp-btn--primary">{t("countViewPreliminary")}</button>}
+              {phase === "preliminary" && <button type="button" onClick={() => advance("recount")} disabled={busy || !!conflict} className="mp-btn mp-btn--primary">{t("countStartRecount")}</button>}
+              {phase === "recount" && <button type="button" onClick={() => advance("review")} disabled={busy || !!conflict || stats.pending > 0 || stats.counted === 0} className="mp-btn mp-btn--primary">{t("countReviewFinal")}</button>}
+              {phase === "review" && <>
+                <button type="button" onClick={save} disabled={busy || !!conflict} className="mp-btn mp-btn--secondary">{t("countEditFinal")}</button>
+                <button type="button" onClick={closeSession} disabled={busy || !!conflict} className="mp-btn mp-btn--primary">{busy ? t("closing") : t("countConfirmFinal")}</button>
+              </>}
             </>
           )}
         </div>

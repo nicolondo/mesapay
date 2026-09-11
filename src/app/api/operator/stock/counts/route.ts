@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import type { ModuleSlug } from "@/lib/modules";
+import { lockStock } from "@/lib/orderLock";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ const ITEM_INCLUDE = {
       measureKind: true,
       category: true,
       active: true,
+      trackInventory: true,
       // El conteo salta al insumo escaneando su código (lector HID).
       barcode: true,
     },
@@ -42,6 +44,9 @@ async function GETHandler() {
       notes: true,
       createdAt: true,
       closedAt: true,
+      revision: true,
+      preliminaryAt: true,
+      recountStartedAt: true,
       createdBy: { select: { name: true } },
       _count: { select: { items: true } },
     },
@@ -73,10 +78,10 @@ async function POSTHandler(req: Request) {
   }
   const b = parsed.data;
 
-  // Chequeo de draft abierto + snapshot del teórico + creación en la MISMA
-  // transacción: minimiza la carrera de dos POST simultáneos y garantiza
-  // que expectedQty sea consistente con el instante de creación.
+  // El mismo lock que usan los movimientos serializa la creación del
+  // borrador y su snapshot, incluyendo dos creaciones simultáneas.
   const result = await db.$transaction(async (tx) => {
+    await lockStock(tx, ctx.restaurantId);
     const open = await tx.stockCount.findFirst({
       where: { restaurantId: ctx.restaurantId, status: "draft" },
       select: { id: true },

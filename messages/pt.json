@@ -854,6 +854,8 @@
     "madeIn": "Feito na Colômbia"
   },
   "emailInvoice": {
+    "tipNoticeTitle": "AVISO SOBRE GORJETA",
+    "tipNoticeBody": "POR DETERMINAÇÃO DA SUPERINTENDÊNCIA DE INDÚSTRIA E COMÉRCIO, INFORMAMOS QUE A GORJETA É SUGERIDA AO CONSUMIDOR E PODE SER ACEITA, RECUSADA OU MODIFICADA POR VOCÊ, DE ACORDO COM SUA AVALIAÇÃO DO SERVIÇO PRESTADO.",
     "subject": "Seu comprovante de {brand} — {number}",
     "docTitle": "Comprovante {number} — {brand}",
     "emailIntro": "Recebemos seu pagamento — aqui está o comprovante. Se precisar imprimi-lo em formato de cupom, abra o botão no fim do e-mail.",

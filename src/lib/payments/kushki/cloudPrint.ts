@@ -1,4 +1,9 @@
 import { randomUUID } from "crypto";
+import { createTranslator } from "next-intl";
+import esMessages from "../../../../messages/es.json";
+import { wrap } from "@/lib/escpos/commands";
+
+const defaultInvoiceTranslator = createTranslator({ locale: "es", messages: esMessages, namespace: "emailInvoice" });
 import type { KushkiMode } from "../../platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
 import { formatInvoiceNumber } from "@/lib/invoice";
@@ -47,6 +52,7 @@ export function buildInvoiceCommands(
   snapshot: InvoiceSnapshot,
   invoiceNumber: number,
   invoiceUrl: string,
+  t: (key: "tipNoticeTitle" | "tipNoticeBody") => string = defaultInvoiceTranslator,
 ): PrintCommand[] {
   const c: PrintCommand[] = [];
   const center = (
@@ -135,6 +141,10 @@ export function buildInvoiceCommands(
       { text: money(snapshot.totalCents), weight: 1, align: "RIGHT" },
     ],
   });
+
+  c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
+  c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 20, true));
+  c.push({ type: "text", text: wrap(t("tipNoticeBody"), 32).join("\n") + "\n", align: "LEFT", size: 20 });
 
   if (snapshot.dianResolution) {
     c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });

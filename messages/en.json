@@ -854,6 +854,8 @@
     "madeIn": "Made in Colombia"
   },
   "emailInvoice": {
+    "tipNoticeTitle": "TIPPING NOTICE",
+    "tipNoticeBody": "AS REQUIRED BY THE SUPERINTENDENCY OF INDUSTRY AND COMMERCE, PLEASE BE ADVISED THAT THE TIP IS SUGGESTED TO THE CONSUMER. YOU MAY ACCEPT, DECLINE OR MODIFY IT ACCORDING TO YOUR ASSESSMENT OF THE SERVICE PROVIDED.",
     "subject": "Your receipt from {brand} — {number}",
     "docTitle": "Receipt {number} — {brand}",
     "emailIntro": "We got your payment — here’s your receipt. If you need to print it in receipt format, open the button at the end of the email.",

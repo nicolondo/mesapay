@@ -220,6 +220,8 @@ export async function renderInvoiceEmail(args: {
     t("printText"),
     invoiceUrl,
     "",
+    t("tipNoticeTitle"),
+    t("tipNoticeBody"),
     t("thanks"),
   ]
     .filter((l) => l !== "")
@@ -473,6 +475,11 @@ function renderHtml(args: {
                   ${dianFiscalBlock}
 
                   ${dashed}
+
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#000;line-height:1.5;text-align:left;margin-bottom:12px;">
+                    <strong style="display:block;text-align:center;margin-bottom:6px;">${escapeHtml(t("tipNoticeTitle"))}</strong>
+                    ${escapeHtml(t("tipNoticeBody"))}
+                  </div>
 
                   <!-- Footer DIAN -->
                   <div style="text-align:center;font-family:'SF Mono','Menlo',monospace;font-size:10px;color:#000;line-height:1.5;">

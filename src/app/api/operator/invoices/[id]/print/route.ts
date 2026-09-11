@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
+import { getEmailTranslator } from "@/lib/emailIntl";
 import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import {
   buildInvoiceCommands,
@@ -45,7 +46,7 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const invoice = await db.simpleInvoice.findUnique({ where: { id } });
+  const invoice = await db.simpleInvoice.findUnique({ where: { id }, include: { order: { select: { locale: true } } } });
   if (!invoice || invoice.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "invoice_not_found" }, { status: 404 });
   }
@@ -78,10 +79,12 @@ async function POSTHandler(
     select: { cloudTerminalBusinessCode: true, kushkiMode: true },
   });
   const snapshot = invoice.snapshot as unknown as InvoiceSnapshot;
+  const { t } = await getEmailTranslator(invoice.order.locale, "emailInvoice");
   const commands = buildInvoiceCommands(
     snapshot,
     invoice.invoiceNumber,
     invoiceUrlFor(invoice.id),
+    t,
   );
 
   const result = await printOnCloudTerminal({

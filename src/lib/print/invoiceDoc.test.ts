@@ -165,11 +165,13 @@ describe("buildThermalInvoice — pie legal", () => {
       "dianResolution(18764012345678)",
       "dianNumbering(1|5000)",
       "dianDate(15/01/26)",
+      "tipNoticeTitle",
+      "tipNoticeBody",
       "thanks",
     ]);
   });
 
-  it("un comercio sin resolución DIAN sólo agradece", () => {
+  it("un comercio sin resolución DIAN conserva el aviso de propina", () => {
     const doc = buildThermalInvoice({
       snapshot: {
         ...snapshot,
@@ -185,7 +187,7 @@ describe("buildThermalInvoice — pie legal", () => {
       money,
       t,
     });
-    expect(doc.footerLines).toEqual(["thanks"]);
+    expect(doc.footerLines).toEqual(["tipNoticeTitle", "tipNoticeBody", "thanks"]);
   });
 });
 

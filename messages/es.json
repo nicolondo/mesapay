@@ -854,6 +854,8 @@
     "madeIn": "Hecho en Colombia"
   },
   "emailInvoice": {
+    "tipNoticeTitle": "ADVERTENCIA DE PROPINA",
+    "tipNoticeBody": "POR DISPOSICION DE LA SUPERINTENDENCIA DE INDUSTRIA Y COMERCIO SE INFORMA QUE LA PROPINA ES SUGUERIDA AL CONSUMIDOR LA CUAL PODRA SER ACEPTADA, RECHAZADA O MODIFICADO POR USTED, DE ACUERDO CON SU VALORACION DEL SERVICIO PRESTADO.",
     "subject": "Tu comprobante de {brand} — {number}",
     "docTitle": "Comprobante {number} — {brand}",
     "emailIntro": "Recibimos tu pago — acá está el comprobante. Si necesitas imprimirlo con formato de tirilla, abre el botón al final del correo.",

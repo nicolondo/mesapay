@@ -282,6 +282,11 @@ export default async function FacturaPage({
 
           <hr className="dashed" />
 
+          <section className="tip-notice" aria-label={t("tipNoticeTitle")}>
+            <strong>{t("tipNoticeTitle")}</strong>
+            <p>{t("tipNoticeBody")}</p>
+          </section>
+
           <div className="footer">
             {snap.dianResolution && (
               <>
@@ -405,6 +410,16 @@ const POS_STYLES = `
     margin-top: 6px;
     border-top: 1px solid #000;
   }
+  .receipt .tip-notice {
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: left;
+    margin: 12px 0;
+    break-inside: avoid;
+    overflow-wrap: break-word;
+  }
+  .receipt .tip-notice strong { display: block; text-align: center; }
+  .receipt .tip-notice p { margin: 6px 0 0; }
   .receipt .footer {
     text-align: center;
     font-size: 10px;

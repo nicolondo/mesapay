@@ -163,6 +163,8 @@ export function buildThermalInvoice(args: {
     args.dianResolutionDateLabel
       ? t("dianDate", { date: args.dianResolutionDateLabel })
       : null,
+    t("tipNoticeTitle"),
+    t("tipNoticeBody"),
     t("thanks"),
   ].filter((l): l is string => !!l);
 

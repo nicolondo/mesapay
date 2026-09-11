@@ -369,6 +369,7 @@ model Restaurant {
   printJobs              PrintJob[]
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
+  billingCustomers       BillingCustomer[]
   simpleInvoices         SimpleInvoice[]
   shifts                 Shift[]
   cashMovements          CashMovement[]
@@ -2756,6 +2757,29 @@ model SimpleInvoice {
   createdAt DateTime @default(now())
 
   @@index([restaurantId, createdAt])
+}
+
+/// Restaurant-owned billing contacts. Editing one never changes invoice snapshots.
+model BillingCustomer {
+  id                String         @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customerName      String
+  docType           InvoiceDocType
+  docNumber         String
+  verificationDigit String?
+  email             String
+  phone             String?
+  address           String
+  municipalityCode  String
+  city              String
+  department        String
+  country           String         @default("CO")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([restaurantId, docType, docNumber])
+  @@index([restaurantId, customerName])
 }
 
 model InvoiceRequest {

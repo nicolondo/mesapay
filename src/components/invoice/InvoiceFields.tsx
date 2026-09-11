@@ -31,6 +31,7 @@ export function Field({
         {label}
       </span>
       <input
+        aria-label={label}
         type={type ?? "text"}
         inputMode={inputMode}
         value={value}
@@ -62,6 +63,7 @@ export function Select({
         {label}
       </span>
       <select
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm focus:outline-none focus:border-terracotta"

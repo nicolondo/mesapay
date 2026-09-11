@@ -9,6 +9,8 @@ import {
   type InvoiceProfile,
 } from "@/lib/invoiceProfiles";
 import { Field, Select } from "./InvoiceFields";
+import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
+import { billingDocument } from "@/components/billingCustomers/types";
 import type { DocType, InvoiceRequestSummary } from "./types";
 
 /**
@@ -79,10 +81,10 @@ export function InvoiceFormSheet({
   // (la regla apunta a cascadas de render, no a este caso).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const ps = loadProfiles();
+    const ps = operatorMode ? [] : loadProfiles();
     setProfiles(ps);
     if (ps.length > 0 && !initial) setShowSaved(true);
-  }, [initial]);
+  }, [initial, operatorMode]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   function applyProfile(p: InvoiceProfile) {
@@ -244,7 +246,7 @@ export function InvoiceFormSheet({
     // Wrapped in try so a storage failure (private mode, full quota) doesn't
     // hide the success state from the user.
     try {
-      saveProfile({ ...payload, placeId, rawComponents });
+      if (!operatorMode) saveProfile({ ...payload, placeId, rawComponents });
     } catch {
       /* ignore */
     }
@@ -352,6 +354,17 @@ export function InvoiceFormSheet({
           </button>
         </div>
         <div className="p-5 space-y-4">
+          {operatorMode && <CustomerPicker onSelect={customer => {
+            setCustomerName(customer.customerName);
+            setDocType(customer.docType);
+            setDocNumber(billingDocument(customer));
+            setEmail(customer.email);
+            setAddress(customer.address);
+            setCity(customer.city);
+            setDepartment(customer.department);
+            setPlaceId(null);
+            setRawComponents(null);
+          }} />}
           {showSaved && profiles.length > 0 && (
             <div className="rounded-xl border border-hairline bg-ivory p-3">
               <div className="flex items-center justify-between mb-2">

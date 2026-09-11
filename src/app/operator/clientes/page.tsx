@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { auth } from "@/auth";
+import { BillingCustomers } from "@/components/billingCustomers/BillingCustomers";
 import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -33,6 +35,8 @@ export default async function ClientesPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
+  const session = await auth();
+  const canManageCustomers = ["operator", "platform_admin", "group_admin"].includes(session?.user?.role ?? "");
   const locale = (await getLocale()) as Locale;
   const restaurant = await db.restaurant.findUnique({
     where: { id: restaurantId },
@@ -95,6 +99,8 @@ export default async function ClientesPage() {
         {t("title")}
       </h1>
       <p className="text-sm text-muted mb-6">{t("subtitle")}</p>
+
+      {canManageCustomers && <BillingCustomers />}
 
       <DinerLookup />
 

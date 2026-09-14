@@ -903,6 +903,24 @@
     "methodDeposit": "Abono de reserva",
     "methodOther": "Otro medio"
   },
+  "emailDianInvoice": {
+    "subject": "Tu factura electrónica de {brand} — {number}",
+    "title": "Factura electrónica",
+    "greeting": "Hola,",
+    "intro": "{brand} emitió tu factura electrónica de venta y la DIAN ya la aceptó. Acá tienes los datos y el archivo oficial.",
+    "labelNumber": "Factura",
+    "labelDate": "Fecha",
+    "labelTotal": "Total",
+    "labelCufe": "CUFE",
+    "cufeLead": "El CUFE es el código único que identifica tu factura ante la DIAN.",
+    "attachmentTitle": "Archivo adjunto",
+    "attachmentLead": "Adjuntamos el XML oficial de tu factura ({file}) con el acuse de aceptación de la DIAN. Guárdalo: es el documento que vale para tu contabilidad.",
+    "cta": "Ver la factura",
+    "ctaText": "Ver la factura: {url}",
+    "verifyCta": "Verifica tu factura en la DIAN",
+    "footerHelp": "Si tienes dudas con tu cuenta, escríbele directamente a {brand}.",
+    "sentBy": "Enviado por MESAPAY · Hecho en Colombia"
+  },
   "emailMembership": {
     "subjectT7": "Tu plan MESAPAY vence en {days} días",
     "headlineT7": "Tu plan vence en {days} días",

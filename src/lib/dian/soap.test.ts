@@ -5,7 +5,12 @@
 // consultar—, el rechazo por reglas tiene que ser rejected, y sólo una
 // respuesta que de verdad no se entiende puede ser error.
 import { describe, expect, it } from "vitest";
-import { parseDianResponse } from "./soap";
+import {
+  extractApplicationResponse,
+  parseDianResponse,
+  unzipFirstXml,
+  zipInvoice,
+} from "./soap";
 import { transitionAfterPoll, transitionAfterSend } from "./documentState";
 
 /**
@@ -96,5 +101,66 @@ describe("parseDianResponse — envío asíncrono aceptado", () => {
     expect(transitionAfterSend(r, "cufe-1").trackId).toBe(
       "79351fbb-b8cd-4504-bf19-09a7f6f2d3d7",
     );
+  });
+});
+
+// ── Recuperar los insumos del AttachedDocument ──────────────────────────────
+// El sobre que se le manda al adquiriente envuelve el XML firmado (que
+// quedó comprimido en `xmlZip`) y el acuse de la DIAN (que viaja adentro de
+// la respuesta cruda). Ninguno de los dos se puede reconstruir: el CUFE y
+// la firma dependen del instante de emisión. Si esto se rompe, el correo
+// sale sin adjunto y nadie se entera.
+
+const AR_XML =
+  `<?xml version="1.0" encoding="UTF-8"?><ApplicationResponse xmlns="urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2"><ID>ffff</ID></ApplicationResponse>`;
+
+/** Respuesta con el acuse en XmlBase64Bytes, que es como llega de verdad. */
+function respuestaCon(b64: string): string {
+  return (
+    `<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"><s:Body>` +
+    `<GetStatusZipResponse xmlns="http://wcf.dian.colombia"><GetStatusZipResult xmlns:b="http://schemas.datacontract.org/2004/07/DianResponse">` +
+    `<b:DianResponse><b:IsValid>true</b:IsValid><b:XmlBase64Bytes>${b64}</b:XmlBase64Bytes></b:DianResponse>` +
+    `</GetStatusZipResult></GetStatusZipResponse></s:Body></s:Envelope>`
+  );
+}
+
+describe("unzipFirstXml — la vuelta de zipInvoice", () => {
+  it("devuelve el MISMO XML que se comprimió", async () => {
+    const xml = `<Invoice><cbc:ID>FE1</cbc:ID></Invoice>`;
+    const zip = await zipInvoice("FE1.xml", xml);
+    expect(await unzipFirstXml(zip)).toBe(xml);
+  });
+
+  it("un zip ilegible no lanza, devuelve null", async () => {
+    expect(await unzipFirstXml(Buffer.from("no soy un zip"))).toBeNull();
+  });
+});
+
+describe("extractApplicationResponse", () => {
+  it("SendBillSync/GetStatus: el acuse viene pelado en base64", async () => {
+    const res = respuestaCon(Buffer.from(AR_XML, "utf8").toString("base64"));
+    expect(await extractApplicationResponse(res)).toBe(AR_XML);
+  });
+
+  it("GetStatusZip: el acuse viene ZIPEADO, y también se recupera", async () => {
+    // Este es el caso que distingue los dos rieles: la aceptación diferida
+    // devuelve un zip, no el XML. Se detecta por la firma "PK" de los bytes
+    // y no por el nombre del servicio.
+    const zip = await zipInvoice("ar.xml", AR_XML);
+    const res = respuestaCon(zip.toString("base64"));
+    expect(await extractApplicationResponse(res)).toBe(AR_XML);
+  });
+
+  it("sin acuse (rechazo, fault, documento viejo) devuelve null", async () => {
+    expect(await extractApplicationResponse(null)).toBeNull();
+    expect(await extractApplicationResponse(RECHAZADO)).toBeNull();
+  });
+
+  it("si lo que sale no es un ApplicationResponse, no se adjunta", async () => {
+    // Mejor mandar el correo sin sobre que con basura adentro.
+    const res = respuestaCon(
+      Buffer.from("<Cualquiera/>", "utf8").toString("base64"),
+    );
+    expect(await extractApplicationResponse(res)).toBeNull();
   });
 });

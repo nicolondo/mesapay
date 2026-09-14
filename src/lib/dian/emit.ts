@@ -7,8 +7,30 @@
 // el documento queda con estado y errores legibles, con botón reintentar
 // desde la UI (B1.6b).
 import { db } from "@/lib/db";
-import { splitTaxIncludedCents, type DianLine } from "@/lib/dian/ubl";
+import { splitTaxIncludedCents, type DianLine, type DianParty } from "@/lib/dian/ubl";
 import { isOwnTaxLine, type RestaurantTax, type SalesTaxKind } from "@/lib/salesTax";
+
+/**
+ * Adquiriente por defecto — "Consumidor final", NIT 222222222222 (anexo
+ * 6.2.1: documento tipo "13", persona natural).
+ *
+ * OJO: hoy TODA factura sale con este adquiriente, incluso cuando el
+ * comensal cargó sus datos en `InvoiceRequest`. Es un bug conocido y se
+ * arregla en su propio PR porque cambiar el adquiriente cambia el CUFE.
+ * Está acá, como constante, para que ese PR tenga UN solo lugar que tocar:
+ * el emit lo usa para la factura y el AttachedDocument para el
+ * `cac:ReceiverParty`, y los dos tienen que decir exactamente lo mismo —
+ * un sobre que nombre a alguien distinto del que figura en la factura que
+ * lleva adentro no se sostiene.
+ */
+export const CONSUMIDOR_FINAL: DianParty = {
+  name: "Consumidor final",
+  companyId: "222222222222",
+  idSchemeName: "13",
+  taxLevelCode: "R-99-PN",
+  taxRegimeCode: "49",
+  personType: "2",
+};
 
 /** Misma regla que salesTax.isOwnTaxLine, sobre el item de la orden. */
 function ownTaxItem(it: OrderItemForInvoice): boolean {

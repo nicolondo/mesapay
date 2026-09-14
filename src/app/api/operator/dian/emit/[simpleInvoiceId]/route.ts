@@ -19,8 +19,10 @@ import { transitionAfterSend } from "@/lib/dian/documentState";
 import {
   bogotaIssueTime,
   claimDianDocument,
+  CONSUMIDOR_FINAL,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
+import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -168,14 +170,7 @@ async function POSTHandler(
     issueDate,
     issueTime: bogotaIssueTime(now),
     supplier: emisorToSupplierParty(emisor),
-    customer: {
-      name: "Consumidor final",
-      companyId: "222222222222",
-      idSchemeName: "13",
-      taxLevelCode: "R-99-PN",
-      taxRegimeCode: "49",
-      personType: "2",
-    },
+    customer: CONSUMIDOR_FINAL,
     lines,
     paymentMeansCode: "10",
   };
@@ -211,6 +206,19 @@ async function POSTHandler(
       attempts: { increment: 1 },
     },
   });
+
+  // Aceptada ⇒ al adquiriente le tiene que llegar su factura electrónica
+  // (el AttachedDocument). Se AWAITEA en vez de dispararlo al aire porque
+  // un fire-and-forget en un route handler se muere cuando la respuesta
+  // sale; `sendDianInvoiceEmail` no lanza y es idempotente, así que no
+  // puede tumbar la emisión ni duplicar el correo si además lo manda el
+  // riel de la consulta diferida.
+  if (t.state === "accepted") {
+    await sendDianInvoiceEmail({
+      documentId: claim.id,
+      environment: config.environment,
+    });
+  }
 
   return NextResponse.json({
     document: {

@@ -217,8 +217,12 @@ export async function issueSimpleInvoice(opts: {
  * + el address del MAIL_FROM global. null (caller cae al default) si el env no
  * tiene una address parseable o si el nombre queda vacío al sanitizar.
  * RFC 5322 prohíbe `<`, `>`, `"`, `,` en el display name — los stripeamos.
+ *
+ * Exportada porque el correo de la FACTURA ELECTRÓNICA (`dian/invoiceEmail`)
+ * tiene que salir con el mismo remitente que la tirilla: para el comensal
+ * los dos correos vienen del mismo restaurante.
  */
-function buildBrandedFrom(restaurantName: string): string | null {
+export function brandedInvoiceFrom(restaurantName: string): string | null {
   const raw = restaurantName.trim();
   if (!raw) return null;
   const safeName = raw.replace(/[<>"\\,]/g, "").trim().slice(0, 100);
@@ -249,7 +253,7 @@ export async function sendSimpleInvoiceEmail(opts: {
       invoiceUrl: opts.invoiceUrl,
       locale: opts.locale ?? undefined,
     });
-    const from = buildBrandedFrom(opts.snapshot.restaurantName);
+    const from = brandedInvoiceFrom(opts.snapshot.restaurantName);
     const ok = await sendEmail({
       to: opts.email,
       subject,

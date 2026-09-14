@@ -9,6 +9,7 @@ import {
 } from "@/lib/dian/config";
 import { getStatusZip } from "@/lib/dian/soap";
 import { transitionAfterPoll } from "@/lib/dian/documentState";
+import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +96,14 @@ async function POSTHandler(
     await db.dianConfig.update({
       where: { id: config.configId },
       data: { status: "enabled" },
+    });
+    // La DIAN valida asíncrono: para un documento que quedó `pending` la
+    // aceptación se entera ACÁ, no en el emit. Es el otro riel del envío
+    // automático de la factura al adquiriente — `sendDianInvoiceEmail` es
+    // idempotente (`emailedAt`), así que cubrir los dos no duplica nada.
+    await sendDianInvoiceEmail({
+      documentId: doc.id,
+      environment: config.environment,
     });
   }
 

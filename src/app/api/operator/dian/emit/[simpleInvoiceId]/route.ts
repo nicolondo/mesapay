@@ -7,6 +7,7 @@ import {
   emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingContactFields,
   missingLocationFields,
   missingResolutionFields,
   resolveEmisor,
@@ -120,6 +121,20 @@ async function POSTHandler(
     });
     return NextResponse.json(
       { error: "location_incomplete", missingLocation },
+      { status: 400 },
+    );
+  }
+  // Correo de recepción de documentos electrónicos: mismo criterio.
+  // Sin él el emisor viaja sin cac:Contact y la DIAN rechaza con FAJ71
+  // — con el consecutivo ya quemado.
+  const missingContact = missingContactFields(emisor);
+  if (missingContact.length > 0) {
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: { state: "error", errors: ["contact_email_incomplete"] },
+    });
+    return NextResponse.json(
+      { error: "contact_email_incomplete", missingContact },
       { status: 400 },
     );
   }

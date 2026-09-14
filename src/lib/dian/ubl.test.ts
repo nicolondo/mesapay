@@ -27,6 +27,7 @@ const supplier: DianParty = {
     deptName: "Antioquia",
     line: "Cra 6 24A Sur 285",
   },
+  email: "facturacion@sonymelona.com",
 };
 
 const consumidorFinal: DianParty = {
@@ -49,7 +50,11 @@ const line = (over: Partial<DianLine> = {}): DianLine => ({
   ...over,
 });
 
-function build(lines: DianLine[], customer: DianParty = consumidorFinal) {
+function build(
+  lines: DianLine[],
+  customer: DianParty = consumidorFinal,
+  supplierOver: DianParty = supplier,
+) {
   const input: DianInvoiceInput = {
     environment: "2",
     softwareId: "soft-1",
@@ -66,12 +71,19 @@ function build(lines: DianLine[], customer: DianParty = consumidorFinal) {
     invoiceNumber: "FE1",
     issueDate: "2026-09-08",
     issueTime: "15:04:05-05:00",
-    supplier,
+    supplier: supplierOver,
     customer,
     lines,
     paymentMeansCode: "10",
   };
   return buildDianInvoiceXml(input);
+}
+
+/** Bloque XML del emisor, sin el resto del documento. */
+function supplierBlock(xml: string): string {
+  return xml
+    .split("<cac:AccountingSupplierParty>")[1]
+    .split("</cac:AccountingSupplierParty>")[0];
 }
 
 /** Suma de los TaxableAmount que aparecen dentro de las InvoiceLine. */
@@ -134,6 +146,33 @@ describe("FAU04 — base imponible del documento vs. suma de las líneas", () =>
     expect(t.taxableBaseCents).toBe(100_000);
     expect(t.taxIncCents).toBe(8_000);
     expect(t.payableCents).toBe(158_000);
+  });
+});
+
+// FAJ71 (rechazo): «No corresponde al correo electrónico para la recepción
+// de documentos e instrumentos electrónicos». El emisor viajaba SIN
+// cac:Contact — el campo no existía en el schema — así que la DIAN no
+// tenía contra qué validar y rechazaba siempre.
+describe("FAJ71 — correo de recepción de documentos del emisor", () => {
+  it("el emisor informa su correo en cac:Contact/cbc:ElectronicMail", () => {
+    const block = supplierBlock(build([line()]).xml);
+    expect(block).toContain(
+      "<cac:Contact><cbc:ElectronicMail>facturacion@sonymelona.com</cbc:ElectronicMail></cac:Contact>",
+    );
+  });
+
+  it("el cac:Contact va después de PartyLegalEntity (orden del esquema UBL)", () => {
+    const party = supplierBlock(build([line()]).xml).split("<cac:Party>")[1];
+    expect(party.indexOf("<cac:Contact>")).toBeGreaterThan(
+      party.indexOf("</cac:PartyLegalEntity>"),
+    );
+  });
+
+  it("sin correo el bloque no se inventa — los callers bloquean antes", () => {
+    const block = supplierBlock(
+      build([line()], consumidorFinal, { ...supplier, email: null }).xml,
+    );
+    expect(block).not.toContain("<cac:Contact>");
   });
 });
 

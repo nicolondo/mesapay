@@ -5573,7 +5573,12 @@
     "legacyUse": "Use {legacy} as the resolution number",
     "legacyDiscard": "Discard the old value",
     "habBlockedByLocation": "Pick the business municipality under Identity before running the test set: DIAN would resolve the wrong invoicing point.",
-    "errLocationIncomplete": "The business municipality is missing. It is set under business Identity."
+    "errLocationIncomplete": "The business municipality is missing. It is set under business Identity.",
+    "contactEmailLabel": "Email for receiving electronic documents",
+    "contactEmailHint": "The same one registered in your RUT and in the DIAN portal to receive electronic documents and instruments. If it does not match, DIAN rejects the invoice.",
+    "contactMissing": "A required issuer field is missing: {fields}. Without it DIAN rejects every document (rule FAJ71).",
+    "habBlockedByContact": "Add the email for receiving electronic documents before running the test set: DIAN would reject the document.",
+    "errContactIncomplete": "The issuer's email for receiving electronic documents is missing. You set it on this same screen."
   },
   "billAlert": {
     "kickerDiner": "Bill requested",

@@ -30,6 +30,15 @@ const patchSchema = z.object({
   // Número pelado del acto administrativo ("18760000001"), sin texto.
   resolutionNumber: z.string().trim().max(40).nullable().optional(),
   invoicePrefix: z.string().trim().toUpperCase().max(10).nullable().optional(),
+  // Correo de RECEPCIÓN de documentos e instrumentos electrónicos — el
+  // que el contribuyente tiene en el RUT. Va al cac:Contact del emisor y
+  // sin él la DIAN rechaza con FAJ71. Se valida la forma acá porque un
+  // texto que no es un correo llega a la DIAN como rechazo mucho más
+  // tarde y con el consecutivo ya gastado. Cadena vacía = borrarlo.
+  contactEmail: z
+    .union([z.literal(""), z.string().trim().email().max(200)])
+    .nullable()
+    .optional(),
   resolutionFrom: z.number().int().nonnegative().max(999_999_999).nullable().optional(),
   resolutionTo: z.number().int().nonnegative().max(999_999_999).nullable().optional(),
   resolutionValidFrom: day,
@@ -92,6 +101,9 @@ async function PATCHHandler(req: Request) {
     data.dianResolutionNumber = b.resolutionNumber || null;
   }
   if (b.invoicePrefix !== undefined) data.invoicePrefix = b.invoicePrefix || null;
+  if (b.contactEmail !== undefined) {
+    data.dianContactEmail = b.contactEmail?.trim() || null;
+  }
   if (b.resolutionFrom !== undefined) data.dianResolutionFrom = b.resolutionFrom;
   if (b.resolutionTo !== undefined) data.dianResolutionTo = b.resolutionTo;
   if (b.resolutionValidFrom !== undefined) {

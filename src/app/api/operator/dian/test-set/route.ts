@@ -7,6 +7,7 @@ import {
   emisorResolution,
   emisorToSupplierParty,
   loadDianConfig,
+  missingContactFields,
   missingLocationFields,
   missingResolutionFields,
   resolveEmisor,
@@ -73,6 +74,16 @@ async function POSTHandler() {
   if (missingLocation.length > 0) {
     return NextResponse.json(
       { error: "location_incomplete", missingLocation },
+      { status: 400 },
+    );
+  }
+  // Y el correo de recepción de documentos electrónicos: sin él el
+  // emisor va sin cac:Contact y la DIAN rechaza con FAJ71. El set de
+  // pruebas también gasta un número del rango autorizado.
+  const missingContact = missingContactFields(emisor);
+  if (missingContact.length > 0) {
+    return NextResponse.json(
+      { error: "contact_email_incomplete", missingContact },
       { status: 400 },
     );
   }

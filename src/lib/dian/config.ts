@@ -49,6 +49,13 @@ export type EmisorData = {
   resolutionDate: string | null;
   invoicePrefix: string | null;
   /**
+   * Correo registrado ante la DIAN para la RECEPCIÓN de documentos e
+   * instrumentos electrónicos. Sale del emisor (LegalEntity del grupo o
+   * el propio Restaurant), igual que la razón social, el NIT y el
+   * prefijo: es un dato del CONTRIBUYENTE, el que figura en su RUT.
+   */
+  contactEmail: string | null;
+  /**
    * Próximo consecutivo a emitir. OJO: sale SIEMPRE del Restaurant, aun
    * cuando el emisor es un LegalEntity, porque el que lo incrementa
    * atómicamente al emitir es `simpleInvoice.ts` sobre el Restaurant.
@@ -81,6 +88,7 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
       dianResolutionValidTo: true,
       dianResolutionDate: true,
       invoicePrefix: true,
+      dianContactEmail: true,
       invoiceNextNumber: true,
       legalEntity: {
         select: {
@@ -97,6 +105,7 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
           dianResolutionValidTo: true,
           dianResolutionDate: true,
           invoicePrefix: true,
+          dianContactEmail: true,
         },
       },
     },
@@ -120,6 +129,7 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
       resolutionValidTo: isoDay(le.dianResolutionValidTo),
       resolutionDate: isoDay(le.dianResolutionDate),
       invoicePrefix: le.invoicePrefix,
+      contactEmail: le.dianContactEmail,
       // Ídem: el contador que se incrementa al emitir es el del Restaurant.
       invoiceNextNumber: r.invoiceNextNumber,
     };
@@ -139,6 +149,7 @@ export async function resolveEmisor(restaurantId: string): Promise<EmisorData | 
     resolutionValidTo: isoDay(r.dianResolutionValidTo),
     resolutionDate: isoDay(r.dianResolutionDate),
     invoicePrefix: r.invoicePrefix,
+    contactEmail: r.dianContactEmail,
     invoiceNextNumber: r.invoiceNextNumber,
   };
 }
@@ -164,6 +175,7 @@ export type EmisorView = {
   resolutionValidTo: string | null;
   resolutionDate: string | null;
   invoicePrefix: string | null;
+  contactEmail: string | null;
   invoiceNextNumber: number;
   /**
    * El texto legacy dice un número DISTINTO al que se manda a la DIAN.
@@ -206,6 +218,7 @@ export function emisorView(emisor: EmisorData): EmisorView {
     resolutionValidTo: emisor.resolutionValidTo,
     resolutionDate: emisor.resolutionDate,
     invoicePrefix: emisor.invoicePrefix,
+    contactEmail: emisor.contactEmail,
     invoiceNextNumber: emisor.invoiceNextNumber,
     legacyResolutionConflict: legacyResolutionConflict(emisor),
   };
@@ -279,6 +292,40 @@ export function missingLocationFields(emisor: EmisorData): LocationField[] {
   return findMunicipioByCode(emisor.legalCityCode) ? [] : ["legalCityCode"];
 }
 
+/**
+ * Correo de RECEPCIÓN de documentos e instrumentos electrónicos que falta
+ * para poder enviar. Mismo criterio que la resolución y la ubicación:
+ * bloquear antes es mejor que quemar un consecutivo en un rechazo seguro.
+ *
+ * Es el correo que el contribuyente tiene registrado en el RUT. La DIAN lo
+ * espera en el cac:Contact del AccountingSupplierParty y, si no llega,
+ * rechaza con FAJ71 ("No corresponde al correo electrónico para la
+ * recepción de documentos e instrumentos electrónicos") — que es
+ * exactamente lo que le pasó a Son & Melona: el emisor viajaba sin
+ * cac:Contact porque el campo no existía en el schema.
+ *
+ * No hay default posible: no se puede derivar del correo de contacto del
+ * comercio ni del de la sesión del operador. Si no coincide con el del
+ * RUT, la DIAN rechaza igual.
+ */
+export const CONTACT_FIELDS = ["contactEmail"] as const;
+
+export type ContactField = (typeof CONTACT_FIELDS)[number];
+
+/**
+ * Forma mínima de correo. No valida que EXISTA (eso sólo lo sabe la
+ * DIAN contra el RUT), pero un texto que ni siquiera parece un correo es
+ * un FAJ71 garantizado y no vale la pena gastarle un consecutivo.
+ */
+export function looksLikeEmail(value: string | null | undefined): boolean {
+  const v = (value ?? "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+export function missingContactFields(emisor: EmisorData): ContactField[] {
+  return looksLikeEmail(emisor.contactEmail) ? [] : ["contactEmail"];
+}
+
 async function findConfig(ref: EmisorRef) {
   return db.dianConfig.findUnique({
     where:
@@ -308,6 +355,8 @@ export type DianConfigStatus = {
   missingResolution: ResolutionField[];
   /** Ubicación DANE del establecimiento que falta (bloquea el envío). */
   missingLocation: LocationField[];
+  /** Correo de recepción de documentos electrónicos que falta (bloquea). */
+  missingContact: ContactField[];
   /** ¿El módulo de facturación electrónica está activo para el comercio? */
   einvoicingEnabled: boolean;
 };
@@ -417,6 +466,7 @@ export async function dianConfigStatus(
     missingEmisor,
     missingResolution: emisor ? missingResolutionFields(emisor) : [],
     missingLocation: emisor ? missingLocationFields(emisor) : [],
+    missingContact: emisor ? missingContactFields(emisor) : [],
     einvoicingEnabled: isModuleEnabled(tenant?.enabledModules, "einvoicing"),
   };
   return { emisor, status };
@@ -506,6 +556,10 @@ export async function loadDianConfig(
  *
  * Sin código cargado se devuelve `address: null`; los callers ya
  * bloquean antes con `missingLocationFields`.
+ *
+ * El `email` es el de recepción de documentos electrónicos y sale al
+ * cac:Contact/cbc:ElectronicMail del emisor (FAJ71). Se manda normalizado
+ * (trim) o null; los callers bloquean antes con `missingContactFields`.
  */
 export function emisorToSupplierParty(emisor: EmisorData): DianParty {
   const raw = (emisor.taxId ?? "").trim();
@@ -513,6 +567,7 @@ export function emisorToSupplierParty(emisor: EmisorData): DianParty {
   // ignora y se recalcula, que es lo que la DIAN valida.
   const nit = (raw.includes("-") ? raw.split("-")[0] : raw).replace(/\D/g, "");
   const municipio = findMunicipioByCode(emisor.legalCityCode);
+  const contactEmail = emisor.contactEmail?.trim();
   return {
     name: emisor.legalName ?? "",
     companyId: nit,
@@ -530,6 +585,7 @@ export function emisorToSupplierParty(emisor: EmisorData): DianParty {
           line: emisor.addressLine ?? "",
         }
       : null,
+    email: contactEmail || null,
   };
 }
 

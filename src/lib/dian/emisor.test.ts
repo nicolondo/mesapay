@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => ({ db: {} }));
 import {
   emisorToSupplierParty,
   legacyResolutionConflict,
+  missingContactFields,
   missingLocationFields,
   type EmisorData,
 } from "./config";
@@ -31,6 +32,7 @@ function emisor(over: Partial<EmisorData> = {}): EmisorData {
     resolutionValidTo: "2030-01-19",
     resolutionDate: "2025-06-26",
     invoicePrefix: "SETP",
+    contactEmail: "facturacion@sonymelona.com",
     invoiceNextNumber: 990000000,
     ...over,
   };
@@ -92,7 +94,47 @@ describe("missingLocationFields", () => {
   });
 });
 
+describe("missingContactFields", () => {
+  it("no falta nada con el correo cargado", () => {
+    expect(missingContactFields(emisor())).toEqual([]);
+  });
+
+  it("bloquea sin correo — el emisor viajaba sin cac:Contact (FAJ71)", () => {
+    expect(missingContactFields(emisor({ contactEmail: null }))).toEqual([
+      "contactEmail",
+    ]);
+    expect(missingContactFields(emisor({ contactEmail: "   " }))).toEqual([
+      "contactEmail",
+    ]);
+  });
+
+  it("bloquea con un texto que ni siquiera parece un correo", () => {
+    // Un rechazo FAJ71 garantizado no vale un consecutivo.
+    for (const bad of ["sin-arroba", "a@b", "dos @ cosas@x.com", "@x.com"]) {
+      expect(missingContactFields(emisor({ contactEmail: bad }))).toEqual([
+        "contactEmail",
+      ]);
+    }
+  });
+});
+
 describe("emisorToSupplierParty", () => {
+  it("manda el correo de recepción de documentos electrónicos (FAJ71)", () => {
+    expect(emisorToSupplierParty(emisor()).email).toBe(
+      "facturacion@sonymelona.com",
+    );
+  });
+
+  it("normaliza el correo y no manda cadena vacía", () => {
+    expect(
+      emisorToSupplierParty(emisor({ contactEmail: "  fe@x.com  " })).email,
+    ).toBe("fe@x.com");
+    expect(emisorToSupplierParty(emisor({ contactEmail: "" })).email).toBeNull();
+    expect(
+      emisorToSupplierParty(emisor({ contactEmail: null })).email,
+    ).toBeNull();
+  });
+
   it("manda el municipio REAL del comercio, no Bogotá", () => {
     const party = emisorToSupplierParty(emisor());
     expect(party.address).toEqual({

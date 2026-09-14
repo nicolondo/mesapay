@@ -7,6 +7,19 @@ import { getEmailTranslator } from "./emailIntl";
 /** Base de las URLs que van en los correos. Mismo criterio que magic-link. */
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://mesapay.co";
 
+/**
+ * Adjunto de un correo. Resend los recibe en el mismo JSON del mensaje,
+ * con el contenido en BASE64 (`content`) — no acepta binario crudo ni
+ * multipart. `contentType` es opcional: si no va, Resend lo deduce de la
+ * extensión del `filename`.
+ */
+export type EmailAttachment = {
+  filename: string;
+  /** Contenido del archivo en base64. */
+  content: string;
+  contentType?: string;
+};
+
 type SendArgs = {
   to: string;
   subject: string;
@@ -17,6 +30,12 @@ type SendArgs = {
   // MAIL_FROM global del env. El email-address tiene que ser de un
   // dominio verificado en Resend; el display name es libre.
   from?: string;
+  /**
+   * Adjuntos (opcional). Aditivo a propósito: los llamadores que ya
+   * existen no pasan nada y el body sale EXACTAMENTE igual que antes —
+   * la clave `attachments` ni siquiera se serializa.
+   */
+  attachments?: EmailAttachment[];
 };
 
 export async function sendEmail(args: SendArgs): Promise<boolean> {
@@ -40,6 +59,7 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
         subject: args.subject,
         html: args.html,
         text: args.text,
+        ...(args.attachments?.length ? { attachments: args.attachments } : {}),
       }),
     });
     if (!res.ok) {

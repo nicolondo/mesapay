@@ -2456,6 +2456,16 @@ model DianDocument {
   errors      Json?
   attempts    Int     @default(0)
 
+  /// Envío automático del AttachedDocument al adquiriente. Se marca al
+  /// reclamar el envío (updateMany con emailedAt: null), así los DOS rieles
+  /// que pueden ver la aceptación —la respuesta síncrona del emit y la
+  /// consulta diferida del status— no mandan el correo dos veces. Si el
+  /// envío falla se devuelve a null para poder reintentar.
+  emailedAt  DateTime?
+  /// Por qué NO salió el correo: "no_recipient" (nadie pidió factura en esa
+  /// cuenta — no es un error), "send_failed", etc. Diagnóstico nada más.
+  emailError String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

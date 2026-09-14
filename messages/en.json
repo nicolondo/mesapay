@@ -903,6 +903,24 @@
     "methodDeposit": "Reservation deposit",
     "methodOther": "Other method"
   },
+  "emailDianInvoice": {
+    "subject": "Your electronic invoice from {brand} — {number}",
+    "title": "Electronic invoice",
+    "greeting": "Hi,",
+    "intro": "{brand} issued your electronic sales invoice and Colombia's DIAN has already accepted it. Here are the details and the official file.",
+    "labelNumber": "Invoice",
+    "labelDate": "Date",
+    "labelTotal": "Total",
+    "labelCufe": "CUFE",
+    "cufeLead": "The CUFE is the unique code that identifies your invoice before the DIAN.",
+    "attachmentTitle": "Attached file",
+    "attachmentLead": "We've attached the official XML of your invoice ({file}) together with the DIAN's acceptance receipt. Keep it: that's the document that counts for your accounting.",
+    "cta": "View the invoice",
+    "ctaText": "View the invoice: {url}",
+    "verifyCta": "Verify your invoice with the DIAN",
+    "footerHelp": "If you have questions about your bill, write directly to {brand}.",
+    "sentBy": "Sent by MESAPAY · Made in Colombia"
+  },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
     "headlineT7": "Your plan expires in {days} days",

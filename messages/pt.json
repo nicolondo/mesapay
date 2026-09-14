@@ -903,6 +903,24 @@
     "methodDeposit": "Sinal da reserva",
     "methodOther": "Outro meio"
   },
+  "emailDianInvoice": {
+    "subject": "Sua nota fiscal eletrônica de {brand} — {number}",
+    "title": "Nota fiscal eletrônica",
+    "greeting": "Olá,",
+    "intro": "{brand} emitiu sua nota fiscal eletrônica de venda e a DIAN da Colômbia já a aceitou. Aqui estão os dados e o arquivo oficial.",
+    "labelNumber": "Nota fiscal",
+    "labelDate": "Data",
+    "labelTotal": "Total",
+    "labelCufe": "CUFE",
+    "cufeLead": "O CUFE é o código único que identifica sua nota fiscal perante a DIAN.",
+    "attachmentTitle": "Arquivo anexo",
+    "attachmentLead": "Anexamos o XML oficial da sua nota fiscal ({file}) junto com o comprovante de aceitação da DIAN. Guarde-o: é o documento que vale para a sua contabilidade.",
+    "cta": "Ver a nota fiscal",
+    "ctaText": "Ver a nota fiscal: {url}",
+    "verifyCta": "Verifique sua nota fiscal na DIAN",
+    "footerHelp": "Se tiver dúvidas com a sua conta, escreva diretamente para {brand}.",
+    "sentBy": "Enviado por MESAPAY · Feito na Colômbia"
+  },
   "emailMembership": {
     "subjectT7": "Seu plano MESAPAY vence em {days} dias",
     "headlineT7": "Seu plano vence em {days} dias",

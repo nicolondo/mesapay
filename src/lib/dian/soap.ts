@@ -34,6 +34,71 @@ export async function zipInvoice(fileName: string, xml: string): Promise<Buffer>
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
+/**
+ * Saca el primer .xml de un zip. Es la vuelta de `zipInvoice`: lo que se
+ * envió a la DIAN queda guardado comprimido en `DianDocument.xmlZip`, y
+ * para armar el AttachedDocument hay que recuperar ese MISMO XML firmado
+ * (no se puede reconstruir: el CUFE y la firma dependen del instante de
+ * emisión). null si el zip está vacío o ilegible.
+ */
+export async function unzipFirstXml(zip: Buffer | Uint8Array): Promise<string | null> {
+  try {
+    const loaded = await JSZip.loadAsync(zip);
+    const entry = Object.values(loaded.files).find(
+      (f) => !f.dir && /\.xml$/i.test(f.name),
+    );
+    if (!entry) return null;
+    return await entry.async("string");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extrae el ApplicationResponse (el acuse de aceptación) de la respuesta
+ * CRUDA de la DIAN que quedó en `DianDocument.responseXml`.
+ *
+ * El acuse no viaja como XML dentro del SOAP: viaja en `XmlBase64Bytes`, y
+ * QUÉ hay adentro depende de la operación — SendBillSync y GetStatus
+ * devuelven el ApplicationResponse pelado, GetStatusZip devuelve un ZIP que
+ * lo contiene. Por eso se mira la firma "PK" de los bytes decodificados en
+ * vez de confiar en el nombre del servicio: los dos rieles de aceptación
+ * (envío síncrono y consulta diferida) pasan por acá.
+ *
+ * null si la respuesta no trae acuse (rechazo, fault, o un documento viejo
+ * emitido antes de que se guardara la respuesta cruda).
+ */
+export async function extractApplicationResponse(
+  responseXml: string | null | undefined,
+): Promise<string | null> {
+  if (!responseXml) return null;
+  let root: XmlNode;
+  try {
+    root = new DOMParser().parseFromString(responseXml, "text/xml")
+      .documentElement as unknown as XmlNode;
+  } catch {
+    return null;
+  }
+  const b64 = text1(root, "XmlBase64Bytes")?.trim();
+  if (!b64) return null;
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(b64, "base64");
+  } catch {
+    return null;
+  }
+  if (bytes.length === 0) return null;
+  // "PK" (0x50 0x4b) = zip. GetStatusZip devuelve el acuse comprimido.
+  const xml =
+    bytes[0] === 0x50 && bytes[1] === 0x4b
+      ? await unzipFirstXml(bytes)
+      : bytes.toString("utf8");
+  if (!xml) return null;
+  // Guardarraíl barato: si lo que salió no es un acuse, mejor mandar el
+  // correo sin adjunto que adjuntar un sobre con basura adentro.
+  return xml.includes("ApplicationResponse") ? xml : null;
+}
+
 // ── Firma WS-Security del envelope ──────────────────────────────────────────
 
 type XmlNode = NonNullable<ReturnType<DOMParser["parseFromString"]>["documentElement"]>;

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { matchesQuery, searchTokens } from "@/lib/menuSearch";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { MenuTag } from "@/lib/menuTags";
 import { BulkActionBar } from "./BulkActions";
@@ -33,18 +34,6 @@ import type {
 // Tags are now configured per restaurant in /operator/settings/etiquetas
 // and arrive via the `menuTags` prop. The hardcoded list that used to
 // live here is gone — we render whatever the operator picked.
-
-// Normalización para la búsqueda del editor: minúsculas + sin acentos +
-// espacios colapsados. Misma transformación sobre query y texto, así "cafe"
-// matchea "Café". (Equivalente al fuzzyNormalize del menú del comensal.)
-function searchNormalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export function MenuEditor({
   menus,
@@ -230,12 +219,18 @@ export function MenuEditor({
   const visibleItemIds = visibleItems.map((i) => i.id);
   const selectedItems = items.filter((i) => selectedIds.has(i.id));
 
-  // Búsqueda: filtra por nombre + descripción (sin acentos). Cuando hay query,
-  // las categorías sin coincidencias no se muestran (ver el map de abajo).
+  // Búsqueda: filtra por nombre + descripción. Cuando hay query, las
+  // categorías sin coincidencias no se muestran (ver el map de abajo).
+  //
+  // Usa la MISMA búsqueda que ve el comensal (src/lib/menuSearch.ts):
+  // tienen que estar todas las palabras, en cualquier orden y sin ser
+  // contiguas, así "solomito res" encuentra "Solomito de res". Antes el
+  // editor tenía su propia normalización, más pobre, con un comentario
+  // que la declaraba equivalente a la del comensal — no lo era.
   const searching = query.trim().length > 0;
-  const nq = searchNormalize(query);
+  const tokens = searchTokens(query);
   const matchesItem = (it: Item) =>
-    searchNormalize(`${it.name} ${it.description ?? ""}`).includes(nq);
+    matchesQuery(`${it.name} ${it.description ?? ""}`, tokens);
   const searchHasResults = searching && visibleItems.some(matchesItem);
   const allVisibleSelected =
     visibleItemIds.length > 0 &&

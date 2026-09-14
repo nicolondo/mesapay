@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
+import { matchesQuery, searchTokens } from "@/lib/menuSearch";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
@@ -149,49 +150,6 @@ function formatLineSelections(
     if (cleaned.length === 0) continue;
     out.push(`${m.label}: ${cleaned.join(", ")}`);
   }
-  return out;
-}
-
-/**
- * Normalize a string for forgiving menu search. Goals:
- *  - Accents and ñ shouldn't matter: "café" finds "Cafe", "piña" finds "pina".
- *  - Punctuation shouldn't matter: "Sangría, espumosa" matches "sangria espumosa".
- *  - Common Spanish letter swaps shouldn't matter:
- *      pescado ↔ pezcado    (soft c / z → s)
- *      cafe    ↔ kafe       (hard c / qu → k)
- *      vaso    ↔ baso       (b / v → b)
- *      ola     ↔ hola       (silent h dropped)
- *      yegua   ↔ llegua     (ll / y → i)
- *  - Whitespace collapses to single spaces.
- *
- * The transformation runs on both the query and the haystack, so any
- * collision is symmetric — typing "vaka" finds "vaca" because both
- * normalize to "baka". For a Colombian carta the false-positive rate
- * is small enough that we'd rather over-match than reject a typo.
- */
-function fuzzyNormalize(s: string): string {
-  let out = s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, ""); // strip combining accents
-  out = out
-    .replace(/ñ/g, "n")
-    .replace(/[^a-z0-9 ]+/g, " "); // punctuation → space
-  // Order matters here. Digraphs first so we don't shred them.
-  out = out
-    .replace(/qu/g, "k") // qu always sounds like k: quilo → kilo
-    .replace(/ll/g, "i") // ll sounds like i/y: llave → iave
-    // Soft c (before e/i/y) sounds like s; hard c (everywhere else)
-    // sounds like k. Splitting the rule keeps "cafe" → "kafe" and
-    // "cesta" → "sesta" both correct.
-    .replace(/c(?=[eiy])/g, "s")
-    .replace(/c/g, "k")
-    .replace(/z/g, "s")
-    .replace(/[bv]/g, "b")
-    .replace(/h/g, "") // silent h: huevo → uevo, hola → ola
-    .replace(/y/g, "i")
-    .replace(/\s+/g, " ")
-    .trim();
   return out;
 }
 
@@ -684,20 +642,19 @@ export function MenuClient({
   }, [scopedCategories]);
 
   const itemsByCat = useMemo(() => {
-    const q = fuzzyNormalize(query);
+    const tokens = searchTokens(query);
     const map = new Map<string, MenuItem[]>();
     // Only the categories of the currently-active menu — items whose
     // category lives in a different menu just don't get a bucket and
     // are filtered out implicitly below.
     for (const c of scopedCategories) map.set(c.id, []);
     for (const it of items) {
-      if (q) {
-        // Match against name + description with the same fuzzy
-        // normalization applied — strips accents/punctuation and
-        // collapses common Spanish letter swaps so "pezcado" still
-        // finds "Pescado al ajillo", "limon" finds "Limón", etc.
-        const hay = fuzzyNormalize(`${it.name} ${it.description ?? ""}`);
-        if (!hay.includes(q)) continue;
+      // Se buscan el nombre Y la descripción, y tienen que estar TODAS
+      // las palabras de la consulta — no la frase entera y contigua. Así
+      // "solomito res" encuentra "Solomito de res"; antes el "de" del
+      // medio rompía la coincidencia. Ver src/lib/menuSearch.ts.
+      if (!matchesQuery(`${it.name} ${it.description ?? ""}`, tokens)) {
+        continue;
       }
       map.get(it.categoryId)?.push(it);
     }

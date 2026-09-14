@@ -257,6 +257,21 @@ model Restaurant {
   // atómicamente cuando se emite una factura simple.
   invoiceNextNumber       Int       @default(1)
 
+  // Correo registrado ante la DIAN para la RECEPCIÓN de documentos e
+  // instrumentos electrónicos. Viaja en el cac:Contact/cbc:ElectronicMail
+  // del AccountingSupplierParty y la DIAN lo contrasta contra el que el
+  // contribuyente tiene en el RUT: si no va, o no coincide, rechaza con
+  // FAJ71 ("No corresponde al correo electrónico para la recepción de
+  // documentos e instrumentos electrónicos") y el consecutivo queda
+  // quemado.
+  //
+  // NO es el correo de contacto comercial ni el del onboarding: es el que
+  // figura en el RUT / en el portal DIAN, y el operador lo copia a mano
+  // (no se deriva de ningún otro campo — adivinarlo es exactamente el
+  // rechazo que estamos evitando). Nulable: los comercios que ya existen
+  // arrancan sin él y la emisión queda bloqueada hasta que lo carguen.
+  dianContactEmail        String?
+
   // === Políticas del staff ================================================
   //
   // Configurables por el comercio desde /operator/settings/staff-policies.
@@ -456,6 +471,11 @@ model LegalEntity {
   dianResolutionValidTo   DateTime?
   invoicePrefix           String?
   invoiceNextNumber       Int       @default(1)
+
+  // Correo de recepción de documentos electrónicos — mismo campo que en
+  // Restaurant (FAJ71). Cuando el emisor es este LegalEntity, es el suyo
+  // el que viaja al XML.
+  dianContactEmail        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

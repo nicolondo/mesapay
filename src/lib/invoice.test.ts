@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("./payments/kushki/cloudTerminal", () => ({}));
-import { renderInvoiceEmail, taxRows, type InvoiceSnapshot } from "./invoice";
+import {
+  formatInvoiceNumber,
+  renderInvoiceEmail,
+  taxRows,
+  type InvoiceSnapshot,
+} from "./invoice";
 import { getEmailTranslator } from "./emailIntl";
 import { buildThermalInvoice } from "./print/invoiceDoc";
 import { renderInvoice } from "./escpos/invoice";
@@ -33,6 +38,58 @@ function snap(tax: Partial<InvoiceSnapshot>): InvoiceSnapshot {
     ...tax,
   };
 }
+
+// Datos reales de Son & Melona: prefijo FESM, rango 1..10000, consecutivo
+// 6482. El número se armaba como "FESM-06482" y la DIAN devolvía DOS
+// rechazos por el mismo bug — FAD05a (guión) y FAD05b (le quita el
+// prefijo declarado y "-06482" no le cabe en 1..10000).
+describe("formatInvoiceNumber", () => {
+  const sonYMelona = {
+    invoicePrefix: "FESM",
+    dianResolutionFrom: 1,
+    dianResolutionTo: 10000,
+  } as const;
+
+  it("el caso real: prefijo y consecutivo pegados, sin guión ni relleno", () => {
+    expect(formatInvoiceNumber(snap(sonYMelona), 6482)).toBe("FESM6482");
+  });
+
+  it("FAD05a: ningún guión, espacio ni caracter de más", () => {
+    const n = formatInvoiceNumber(snap(sonYMelona), 6482);
+    expect(n).toMatch(/^[A-Z0-9]+$/);
+    expect(n).not.toContain("-");
+  });
+
+  it("FAD05b: quitando el prefijo queda un consecutivo dentro del rango", () => {
+    const n = formatInvoiceNumber(snap(sonYMelona), 6482);
+    const consecutivo = Number(n.slice("FESM".length));
+    expect(consecutivo).toBe(6482);
+    expect(consecutivo).toBeGreaterThanOrEqual(1);
+    expect(consecutivo).toBeLessThanOrEqual(10000);
+  });
+
+  it("sin prefijo es el consecutivo pelado", () => {
+    expect(
+      formatInvoiceNumber(snap({ dianResolutionTo: 10000 }), 6482),
+    ).toBe("6482");
+  });
+
+  it("sin resolución cargada tampoco se rellena", () => {
+    // Antes el ancho salía de dianResolutionTo; ya no se usa para nada.
+    expect(formatInvoiceNumber(snap({ invoicePrefix: "FESM" }), 42)).toBe(
+      "FESM42",
+    );
+    expect(formatInvoiceNumber(snap({}), 42)).toBe("42");
+  });
+
+  it("el rango no cambia el ancho del número", () => {
+    for (const to of [null, 5000, 10000, 999_999_999]) {
+      expect(
+        formatInvoiceNumber(snap({ invoicePrefix: "FE", dianResolutionTo: to }), 42),
+      ).toBe("FE42");
+    }
+  });
+});
 
 describe("taxRows", () => {
   it("una cuenta sólo de menú no muestra ninguna fila", () => {

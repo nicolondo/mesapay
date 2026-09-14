@@ -104,17 +104,34 @@ function taxLabelsFrom(t: Translator) {
   return { inc: t("taxInc"), iva: t("taxIva"), other: t("tax") };
 }
 
+/**
+ * Número legal del documento: PREFIJO + CONSECUTIVO pegados, sin
+ * separador y sin relleno — "FESM6482".
+ *
+ * Es el único formato que la DIAN acepta en `cbc:ID`. Antes se armaba
+ * como `${prefijo}-${consecutivo padeado al ancho del rango}`
+ * ("FESM-06482") y eso provocaba DOS rechazos a la vez, con el
+ * consecutivo ya quemado:
+ *
+ *   · FAD05a — "Número de factura contiene caracteres adicionales como
+ *     espacios o guiones": el guión, literal.
+ *   · FAD05b — "Número de factura es inferior al número inicial del
+ *     rango autorizado": la DIAN le quita el prefijo declarado (FESM) y
+ *     lo que queda ("-06482") no lo puede leer como un consecutivo
+ *     dentro de 1..10000.
+ *
+ * El zero-pad era cosmético (convención de tirillas POS) y no tenía
+ * ningún consumidor que dependiera del ancho. Se va: el número que sale
+ * impreso en la tirilla, el que imprime el datáfono y el que viaja al
+ * XML son EL MISMO — un cliente con una tirilla que dice FESM-06482 y un
+ * portal de la DIAN que dice FESM6482 es un problema de soporte.
+ *
+ * Mismo formato que ya usaba el set de pruebas de habilitación
+ * (`dian/test-set/route.ts`: `${resolution.prefix}${num}`).
+ */
 export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): string {
-  // Zero-pad según los dígitos del límite superior de la resolución
-  // DIAN. Si la resolución va de 1 a 5000, el ancho es 4 → "0050"
-  // en vez de "50". Convención común para tirillas POS en Colombia.
-  // Si no hay dianResolutionTo, no padeamos (back-compat con
-  // facturas viejas que se emitieron sin resolución configurada).
-  const width = snapshot.dianResolutionTo
-    ? String(snapshot.dianResolutionTo).length
-    : 0;
-  const numStr = width > 0 ? String(n).padStart(width, "0") : String(n);
-  if (snapshot.invoicePrefix) return `${snapshot.invoicePrefix}-${numStr}`;
+  const numStr = String(n);
+  if (snapshot.invoicePrefix) return `${snapshot.invoicePrefix}${numStr}`;
   return numStr;
 }
 

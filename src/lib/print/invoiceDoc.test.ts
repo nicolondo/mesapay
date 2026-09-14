@@ -72,8 +72,10 @@ describe("buildThermalInvoice — identidad del comercio", () => {
     expect(doc.businessLines).toEqual(["Calle 12 #4-56"]);
   });
 
-  it("el número lleva prefijo y el padding de la resolución DIAN", () => {
-    expect(build().documentNumber).toBe("FE-0042");
+  it("el número impreso es el MISMO que va a la DIAN: prefijo pegado, sin relleno", () => {
+    // Con guión y padding la DIAN rechazaba (FAD05a/FAD05b), y el cliente
+    // quedaba con una tirilla que no coincidía con el portal.
+    expect(build().documentNumber).toBe("FE42");
   });
 });
 

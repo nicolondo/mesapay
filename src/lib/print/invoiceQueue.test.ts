@@ -244,7 +244,7 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     const doc = parseInvoicePayload(h.state.created[0].payload)!;
     expect(doc).not.toBeNull();
     expect(doc.businessName).toBe("Inversiones Chucho S.A.S.");
-    expect(doc.documentNumber).toBe("FE-0042");
+    expect(doc.documentNumber).toBe("FE42");
     expect(doc.items[0].name).toBe("Ñoquis con champiñón");
     // Las claves del catálogo existen: si faltaran, next-intl devolvería
     // "emailInvoice.total" en vez del texto.

@@ -5573,7 +5573,12 @@
     "legacyUse": "Usar {legacy} como número de resolución",
     "legacyDiscard": "Descartar el dato viejo",
     "habBlockedByLocation": "Elegí el municipio del establecimiento en Identidad antes de correr el set de pruebas: la DIAN resolvería mal el punto de facturación.",
-    "errLocationIncomplete": "Falta el municipio del establecimiento. Se elige en Identidad del comercio."
+    "errLocationIncomplete": "Falta el municipio del establecimiento. Se elige en Identidad del comercio.",
+    "contactEmailLabel": "Correo para recepción de documentos electrónicos",
+    "contactEmailHint": "El mismo que tenés registrado en el RUT y en el portal de la DIAN para recibir documentos e instrumentos electrónicos. Si no coincide, la DIAN rechaza la factura.",
+    "contactMissing": "Falta un dato obligatorio del emisor: {fields}. Sin él la DIAN rechaza todos los documentos (regla FAJ71).",
+    "habBlockedByContact": "Cargá el correo para recepción de documentos electrónicos antes de correr el set de pruebas: la DIAN rechazaría el documento.",
+    "errContactIncomplete": "Falta el correo del emisor para recepción de documentos electrónicos. Se carga en esta misma pantalla."
   },
   "billAlert": {
     "kickerDiner": "Pidieron la cuenta",

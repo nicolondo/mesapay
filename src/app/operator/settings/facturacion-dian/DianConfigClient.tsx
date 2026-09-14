@@ -24,6 +24,7 @@ type DianStatus = {
   missingEmisor: string[];
   missingResolution: string[];
   missingLocation: string[];
+  missingContact: string[];
   einvoicingEnabled: boolean;
 };
 
@@ -43,6 +44,8 @@ type Emisor = {
   resolutionValidTo: string | null;
   resolutionDate: string | null;
   invoicePrefix: string | null;
+  /** Correo de recepción de documentos electrónicos (FAJ71). */
+  contactEmail: string | null;
   invoiceNextNumber: number;
   legacyResolutionConflict: string | null;
 } | null;
@@ -148,6 +151,7 @@ export function DianConfigClient() {
         emisor={emisor}
         missing={status.missingResolution}
         missingLocation={status.missingLocation}
+        missingContact={status.missingContact}
         onSaved={load}
       />
 
@@ -287,6 +291,14 @@ const LOCATION_LABEL_KEY: Record<string, string> = {
   legalCityCode: "emisorCity",
 };
 
+// El correo de recepción de documentos electrónicos SÍ se edita acá: es
+// un dato de la resolución/emisión, no de la identidad comercial, y hasta
+// ahora no existía en ningún lado — el emisor viajaba sin cac:Contact y
+// la DIAN rechazaba con FAJ71.
+const CONTACT_LABEL_KEY: Record<string, string> = {
+  contactEmail: "contactEmailLabel",
+};
+
 type ResolutionDraft = {
   resolutionNumber: string;
   invoicePrefix: string;
@@ -296,6 +308,7 @@ type ResolutionDraft = {
   resolutionValidTo: string;
   resolutionDate: string;
   invoiceNextNumber: string;
+  contactEmail: string;
 };
 
 function ResolutionSection({
@@ -303,12 +316,14 @@ function ResolutionSection({
   emisor,
   missing,
   missingLocation,
+  missingContact,
   onSaved,
 }: {
   t: ReturnType<typeof useTranslations>;
   emisor: Emisor;
   missing: string[];
   missingLocation: string[];
+  missingContact: string[];
   onSaved: () => Promise<void>;
 }) {
   // Si el número todavía no está pero el texto legacy de la tirilla ya es
@@ -327,6 +342,7 @@ function ResolutionSection({
     resolutionValidTo: emisor?.resolutionValidTo ?? "",
     resolutionDate: emisor?.resolutionDate ?? "",
     invoiceNextNumber: (emisor?.invoiceNextNumber ?? 1).toString(),
+    contactEmail: emisor?.contactEmail ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -366,6 +382,7 @@ function ResolutionSection({
       resolutionValidTo: draft.resolutionValidTo || null,
       resolutionDate: draft.resolutionDate || null,
       invoiceNextNumber: Math.max(1, Number(draft.invoiceNextNumber) || 1),
+      contactEmail: draft.contactEmail.trim() || null,
     });
   }
 
@@ -400,6 +417,20 @@ function ResolutionSection({
             {t("locationMissing", {
               fields: missingLocation
                 .map((m) => (LOCATION_LABEL_KEY[m] ? t(LOCATION_LABEL_KEY[m]) : m))
+                .join(", "),
+            })}
+          </Banner>
+        </div>
+      )}
+
+      {/* El correo de recepción bloquea el envío igual que la resolución,
+          y se carga acá mismo (campo de abajo). */}
+      {missingContact.length > 0 && (
+        <div className="mb-3">
+          <Banner tone="warning">
+            {t("contactMissing", {
+              fields: missingContact
+                .map((m) => (CONTACT_LABEL_KEY[m] ? t(CONTACT_LABEL_KEY[m]) : m))
                 .join(", "),
             })}
           </Banner>
@@ -459,6 +490,23 @@ function ResolutionSection({
             onChange={(e) => set("invoicePrefix", e.target.value.toUpperCase())}
             maxLength={10}
             className={inputCls + " uppercase"}
+          />
+        </FieldLabel>
+        {/* FAJ71: la DIAN espera acá el correo que el contribuyente tiene
+            registrado para RECIBIR documentos e instrumentos electrónicos.
+            No es el correo comercial del comercio ni el del operador. */}
+        <FieldLabel
+          label={t("contactEmailLabel")}
+          hint={t("contactEmailHint")}
+        >
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            value={draft.contactEmail}
+            onChange={(e) => set("contactEmail", e.target.value)}
+            maxLength={200}
+            className={inputCls}
           />
         </FieldLabel>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1012,10 +1060,13 @@ function HabilitacionSection({
     await onDone();
   }
 
-  // La ubicación DANE bloquea igual que la resolución: sin ella el XML
-  // declararía un establecimiento que no es (FAB10a / FAJ50).
+  // La ubicación DANE y el correo de recepción bloquean igual que la
+  // resolución: sin la primera el XML declara un establecimiento que no es
+  // (FAB10a / FAJ50) y sin el segundo el emisor va sin cac:Contact (FAJ71).
   const resolutionIncomplete =
-    status.missingResolution.length > 0 || status.missingLocation.length > 0;
+    status.missingResolution.length > 0 ||
+    status.missingLocation.length > 0 ||
+    status.missingContact.length > 0;
 
   if (!ready) {
     return (
@@ -1067,7 +1118,9 @@ function HabilitacionSection({
           <Banner tone="warning">
             {status.missingResolution.length > 0
               ? t("habBlockedByResolution")
-              : t("habBlockedByLocation")}
+              : status.missingLocation.length > 0
+                ? t("habBlockedByLocation")
+                : t("habBlockedByContact")}
           </Banner>
         </div>
       )}
@@ -1331,6 +1384,8 @@ function mapError(t: ReturnType<typeof useTranslations>, code?: string): string 
       return t("errResolutionIncomplete");
     case "location_incomplete":
       return t("errLocationIncomplete");
+    case "contact_email_incomplete":
+      return t("errContactIncomplete");
     case "range_inverted":
       return t("errRangeInverted");
     case "dates_inverted":

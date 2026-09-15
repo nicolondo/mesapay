@@ -1845,7 +1845,8 @@
     "cardPrintersSubtitle": "The program that prints in the venue, its printers, and test prints.",
     "badgePrintersEmpty": "Set up",
     "badgePrintersOffline": "Not responding",
-    "badgePrintersOk": "{count, plural, one {# printer} other {# printers}}"
+    "badgePrintersOk": "{count, plural, one {# printer} other {# printers}}",
+    "badgePrintersMissing": "Printing on, no printer"
   },
   "opTranslations": {
     "noRestaurant": "No restaurant.",
@@ -1981,7 +1982,14 @@
     "bulkCartaNoChange": "That menu is already all on that station.",
     "bulkCartaError": "Couldn’t update. Try again.",
     "networkPrintersLink": "🖨️ Network printers",
-    "networkPrintersHint": "Got thermal printers on the network? With the printing program tickets come out on their own, with no tab left open."
+    "networkPrintersHint": "Got thermal printers on the network? With the printing program tickets come out on their own, with no tab left open.",
+    "printersCount": "{count, plural, =0 {No active network printers} one {# active network printer} other {# active network printers}}",
+    "noPrinterWarnKitchen": "Kitchen printing is on, but there is no active kitchen printer under Network printers. Tickets are still fired, and they will not print until you register or turn one on.",
+    "noPrinterWarnBar": "Bar printing is on, but there is no active bar printer under Network printers. Tickets are still fired, and they will not print until you register or turn one on.",
+    "noPrinterWarnLink": "Go to Network printers",
+    "subUncoveredWarn": "Sub-stations without a printer: {subs}. Their tickets are fired and will not print. Register a printer for each one, or one for the whole bar.",
+    "autoFireNoPrintKitchen": "Auto-fire is on while kitchen printing is off: orders move to “Preparing” on their own, but no ticket comes out.",
+    "autoFireNoPrintBar": "Auto-fire is on while bar printing is off: orders move to “Preparing” on their own, but no ticket comes out."
   },
   "opReservasCfg": {
     "noRestaurant": "No restaurant.",
@@ -2997,7 +3005,10 @@
     "deleteConfirmBody": "The revoked device and its printers will disappear from this list. Printing history will be preserved. To use the device again, you will need to register it again.",
     "deleteConfirmBtn": "Yes, delete device",
     "deleteBusy": "Deleting…",
-    "deleteFailed": "Could not delete the device. Please try again."
+    "deleteFailed": "Could not delete the device. Please try again.",
+    "stationPrintOffKitchen": "Kitchen printing is off under Stations: this printer will not receive any tickets.",
+    "stationPrintOffBar": "Bar printing is off under Stations: this printer will not receive any tickets.",
+    "stationPrintOffLink": "Go to Stations"
   },
   "cashBox": {
     "title": "Cash box",

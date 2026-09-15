@@ -127,7 +127,22 @@ export async function enqueueRoundTicket(args: {
   const targets = printers.filter((p) =>
     printerMatches(p, station, barSubStation),
   );
-  if (targets.length === 0) return 0;
+  if (targets.length === 0) {
+    // Antes esto devolvía 0 en silencio y el dueño no tenía cómo saber por
+    // qué la comanda se marchó y no salió nada (Son y Melona, #440). El
+    // `reason` separa "no hay ninguna impresora activa de la estación" de
+    // "hay, pero ninguna sirve a esta sub-estación del bar".
+    console.warn("[print-queue] sin impresoras activas para la estación", {
+      restaurantId,
+      roundId,
+      station,
+      barSubStation,
+      registered: printers.length,
+      reason:
+        printers.length === 0 ? "none_registered" : "no_sub_station_match",
+    });
+    return 0;
+  }
 
   const loaded = await loadRoundTicket({
     restaurantId,

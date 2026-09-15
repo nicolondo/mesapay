@@ -428,11 +428,20 @@ test("sign-in keeps password visibility accessible and recovers after a connecti
   await page.route("**/api/auth/callback/credentials", (route) =>
     route.abort("failed"),
   );
+  const form = page.locator("form[aria-busy]");
   await page.getByRole("button", { name: "Ingresar", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
+  // La recuperación es asíncrona: signIn() falla, el `finally` baja `busy`
+  // y el botón vuelve de "Ingresando…" a "Ingresar". En un runner cargado
+  // eso tardaba más de los 5 s por defecto, y con `exact: true` el botón
+  // en estado de carga ni siquiera coincide ("element(s) not found"): CI
+  // caía sin que nada estuviera roto. Se espera primero a que el
+  // formulario deje de estar ocupado —que es el estado real que importa—
+  // y recién ahí se afirma el botón, con margen para el runner.
+  await expect(form).toHaveAttribute("aria-busy", "false", { timeout: 20_000 });
   await expect(
     page.getByRole("button", { name: "Ingresar", exact: true }),
-  ).toBeEnabled();
+  ).toBeEnabled({ timeout: 20_000 });
   await expectNoOverflow(page);
 });
 

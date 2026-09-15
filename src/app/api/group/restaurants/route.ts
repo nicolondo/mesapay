@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
+import { defaultSalesTaxForCountry } from "@/lib/salesTax";
 import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { recordAuditEvent } from "@/lib/auditLog";
 
@@ -102,6 +103,10 @@ async function POSTHandler(req: Request) {
   const groupId = ctx.groupId;
 
   const result = await db.$transaction(async (tx) => {
+    // Mismo criterio que el registro público: el impuesto de ventas sale
+    // del país (Colombia ⇒ impoconsumo 8%) en vez de nacer en "none" y
+    // quedar olvidado. Ver defaultSalesTaxForCountry.
+    const salesTax = defaultSalesTaxForCountry(country);
     const restaurant = await tx.restaurant.create({
       data: {
         slug,
@@ -113,6 +118,8 @@ async function POSTHandler(req: Request) {
         country,
         countryName,
         placeId,
+        salesTaxKind: salesTax.kind,
+        salesTaxPct: salesTax.pct,
       },
     });
     await tx.table.create({

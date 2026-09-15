@@ -155,3 +155,39 @@ export function isValidSalesTaxRate(
   if (kind === "none") return pct === 0;
   return salesTaxRates(kind, country).includes(pct);
 }
+
+// ── Impuesto de ventas por defecto al crear un comercio ───────────────────
+//
+// Antes todo comercio nacía con `salesTaxKind: "none"` (el default del
+// schema) y había que acordarse de configurarlo. Nadie se acordaba: Son y
+// Melona facturó a la DIAN con impuesto CERO hasta que el dueño lo notó
+// mirando una factura emitida.
+//
+// El default es POR PAÍS y no global a propósito: el impoconsumo es
+// colombiano. Ponerle 8% a un restaurante en México o Brasil sería
+// inventarle un impuesto que no existe.
+//
+// Es un DEFAULT, no una regla: se cambia desde Contabilidad. Hay casos
+// colombianos legítimos que no son INC 8% — un restaurante en franquicia
+// paga IVA, y un no responsable no cobra nada.
+
+export type SalesTaxDefault = { kind: SalesTaxKind; pct: number };
+
+const SALES_TAX_BY_COUNTRY: Record<string, SalesTaxDefault> = {
+  // Impuesto al consumo, 8% — la tarifa estándar de restaurantes en
+  // Colombia. Va EMBEBIDO en el precio de la carta (ver arriba).
+  CO: { kind: "inc", pct: 8 },
+};
+
+/**
+ * Con qué impuesto de ventas nace un comercio nuevo de ese país.
+ * País desconocido o sin regla ⇒ sin impuesto, que es lo que había antes
+ * y obliga a configurarlo a mano en vez de inventar una tarifa.
+ */
+export function defaultSalesTaxForCountry(
+  country: string | null | undefined,
+): SalesTaxDefault {
+  const code = country?.trim().toUpperCase();
+  if (!code) return { kind: "none", pct: 0 };
+  return SALES_TAX_BY_COUNTRY[code] ?? { kind: "none", pct: 0 };
+}

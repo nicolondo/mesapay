@@ -1823,7 +1823,8 @@
     "cardPrintersSubtitle": "O programa que imprime no local, suas impressoras e os testes de impressão.",
     "badgePrintersEmpty": "Configurar",
     "badgePrintersOffline": "Sem responder",
-    "badgePrintersOk": "{count, plural, one {# impressora} other {# impressoras}}"
+    "badgePrintersOk": "{count, plural, one {# impressora} other {# impressoras}}",
+    "badgePrintersMissing": "Impressão ativa sem impressora"
   },
   "opTranslations": {
     "noRestaurant": "Sem restaurante.",
@@ -1959,7 +1960,14 @@
     "bulkCartaNoChange": "Esse cardápio já está todo nessa estação.",
     "bulkCartaError": "Não foi possível atualizar. Tente de novo.",
     "networkPrintersLink": "🖨️ Impressoras de rede",
-    "networkPrintersHint": "Tem impressoras térmicas na rede? Com o programa de impressão as comandas saem sozinhas, sem deixar uma aba aberta."
+    "networkPrintersHint": "Tem impressoras térmicas na rede? Com o programa de impressão as comandas saem sozinhas, sem deixar uma aba aberta.",
+    "printersCount": "{count, plural, =0 {Sem impressoras de rede ativas} one {# impressora de rede ativa} other {# impressoras de rede ativas}}",
+    "noPrinterWarnKitchen": "A impressão da cozinha está ligada, mas não há nenhuma impressora de cozinha ativa em Impressoras de rede. As comandas são marchadas mesmo assim e não vão ser impressas até você cadastrar ou ligar uma.",
+    "noPrinterWarnBar": "A impressão do bar está ligada, mas não há nenhuma impressora do bar ativa em Impressoras de rede. As comandas são marchadas mesmo assim e não vão ser impressas até você cadastrar ou ligar uma.",
+    "noPrinterWarnLink": "Ir para Impressoras de rede",
+    "subUncoveredWarn": "Subestações sem impressora: {subs}. As comandas delas são marchadas e não vão ser impressas. Cadastre uma impressora para cada uma, ou uma para o bar inteiro.",
+    "autoFireNoPrintKitchen": "“Marchar automaticamente” está ligado com a impressão da cozinha desligada: os pedidos passam para “Preparando” sozinhos, mas nenhuma comanda sai.",
+    "autoFireNoPrintBar": "“Marchar automaticamente” está ligado com a impressão do bar desligada: os pedidos passam para “Preparando” sozinhos, mas nenhuma comanda sai."
   },
   "opReservasCfg": {
     "noRestaurant": "Sem restaurante.",
@@ -2975,7 +2983,10 @@
     "deleteConfirmBody": "O computador revogado e suas impressoras deixarão de aparecer nesta lista. O histórico de impressão será preservado. Para usar o computador novamente, será necessário cadastrá-lo de novo.",
     "deleteConfirmBtn": "Sim, excluir computador",
     "deleteBusy": "Excluindo…",
-    "deleteFailed": "Não foi possível excluir o computador. Tente novamente."
+    "deleteFailed": "Não foi possível excluir o computador. Tente novamente.",
+    "stationPrintOffKitchen": "A impressão da cozinha está desligada em Estações: esta impressora não vai receber comandas.",
+    "stationPrintOffBar": "A impressão do bar está desligada em Estações: esta impressora não vai receber comandas.",
+    "stationPrintOffLink": "Ir para Estações"
   },
   "cashBox": {
     "title": "Caixa",

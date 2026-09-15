@@ -347,6 +347,39 @@ describe("notifyAutoFiredTickets", () => {
     });
   });
 
+  it("con la impresión de la estación apagada deja rastro en el log y no imprime", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      h.tx.restaurant.findUnique.mockResolvedValueOnce({
+        kitchenPrintEnabled: true,
+        barPrintEnabled: false,
+        country: "CO",
+      });
+      await notifyAutoFiredTickets({
+        restaurantId: "merchant",
+        orderId: "order",
+        rounds: [
+          {
+            roundId: "A",
+            groups: [
+              { station: "bar", barSubStation: null },
+              { station: "kitchen", barSubStation: null },
+            ],
+          },
+        ],
+      });
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info).toHaveBeenCalledWith(
+        "[kds:auto-fire] impresión de bar apagada; comanda marchada sin imprimir",
+        { restaurantId: "merchant", roundId: "A", station: "bar" },
+      );
+      expect(h.notify).toHaveBeenCalledTimes(1);
+      expect(h.notify.mock.calls[0][0].station).toBe("kitchen");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
   it("una impresora caída no rompe el pedido", async () => {
     h.notify.mockRejectedValueOnce(new Error("printer down"));
     await expect(

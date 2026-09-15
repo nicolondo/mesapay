@@ -1823,7 +1823,8 @@
     "cardPrintersSubtitle": "El programa que imprime en el local, sus impresoras y las pruebas de impresión.",
     "badgePrintersEmpty": "Configurar",
     "badgePrintersOffline": "Sin responder",
-    "badgePrintersOk": "{count, plural, one {# impresora} other {# impresoras}}"
+    "badgePrintersOk": "{count, plural, one {# impresora} other {# impresoras}}",
+    "badgePrintersMissing": "Impresión activa sin impresora"
   },
   "opTranslations": {
     "noRestaurant": "Sin restaurante.",
@@ -1959,7 +1960,14 @@
     "bulkCartaNoChange": "Esa carta ya está toda en esa estación.",
     "bulkCartaError": "No se pudo actualizar. Intenta de nuevo.",
     "networkPrintersLink": "🖨️ Impresoras de red",
-    "networkPrintersHint": "¿Tenés impresoras térmicas conectadas a la red? Con el programa de impresión salen solas, sin dejar una pestaña abierta."
+    "networkPrintersHint": "¿Tenés impresoras térmicas conectadas a la red? Con el programa de impresión salen solas, sin dejar una pestaña abierta.",
+    "printersCount": "{count, plural, =0 {Sin impresoras de red activas} one {# impresora de red activa} other {# impresoras de red activas}}",
+    "noPrinterWarnKitchen": "La impresión de cocina está encendida, pero no hay ninguna impresora de cocina activa en Impresoras de red. Las comandas se marchan igual y no se van a imprimir hasta que registres o enciendas una.",
+    "noPrinterWarnBar": "La impresión del bar está encendida, pero no hay ninguna impresora del bar activa en Impresoras de red. Las comandas se marchan igual y no se van a imprimir hasta que registres o enciendas una.",
+    "noPrinterWarnLink": "Ir a Impresoras de red",
+    "subUncoveredWarn": "Sub-estaciones sin impresora: {subs}. Sus comandas se marchan y no se van a imprimir. Registrá una impresora para cada una, o una de toda la barra.",
+    "autoFireNoPrintKitchen": "El marchado automático está encendido con la impresión de cocina apagada: los pedidos pasan a “Preparando” solos, pero no sale ninguna comanda.",
+    "autoFireNoPrintBar": "El marchado automático está encendido con la impresión del bar apagada: los pedidos pasan a “Preparando” solos, pero no sale ninguna comanda."
   },
   "opReservasCfg": {
     "noRestaurant": "Sin restaurante.",
@@ -2975,7 +2983,10 @@
     "deleteConfirmBody": "El equipo revocado y sus impresoras dejarán de aparecer en esta lista. El historial de impresión se conservará. Para volver a usar el equipo tendrás que registrarlo de nuevo.",
     "deleteConfirmBtn": "Sí, eliminar equipo",
     "deleteBusy": "Eliminando…",
-    "deleteFailed": "No se pudo eliminar el equipo. Inténtalo de nuevo."
+    "deleteFailed": "No se pudo eliminar el equipo. Inténtalo de nuevo.",
+    "stationPrintOffKitchen": "La impresión de cocina está apagada en Estaciones: esta impresora no va a recibir comandas.",
+    "stationPrintOffBar": "La impresión del bar está apagada en Estaciones: esta impresora no va a recibir comandas.",
+    "stationPrintOffLink": "Ir a Estaciones"
   },
   "cashBox": {
     "title": "Caja",

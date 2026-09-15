@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import {
+  stationPrintHealth,
+  type HealthPrinter,
+  type StationPrintHealth,
+} from "@/lib/print/stationPrintHealth";
 
 type Station = "kitchen" | "bar" | "counter";
 type CategoryKind =
@@ -38,6 +43,7 @@ export function StationsClient({
   printPaperWidthMm: initialPaperWidth,
   kitchenAutoFire: initialKitchenAutoFire,
   barAutoFire: initialBarAutoFire,
+  printers,
   categories: initialCategories,
   menus,
 }: {
@@ -48,6 +54,8 @@ export function StationsClient({
   printPaperWidthMm: 58 | 80;
   kitchenAutoFire: boolean;
   barAutoFire: boolean;
+  /** Impresoras de red registradas (todas: es la lista que mira el encolado). */
+  printers: HealthPrinter[];
   categories: Category[];
   menus: MenuRef[];
 }) {
@@ -306,6 +314,18 @@ export function StationsClient({
     (c) => c.kind === "drink" && c.prepStation === "kitchen",
   );
 
+  // Qué le va a pasar a la comanda con los toggles como están AHORA (el
+  // estado local, no el del servidor): el aviso aparece o se va al tocar,
+  // sin esperar el refresh.
+  const health = stationPrintHealth({
+    kitchenPrintEnabled: kitchenPrint,
+    barPrintEnabled: barPrint,
+    kitchenAutoFire,
+    barAutoFire,
+    barSubStations,
+    printers,
+  });
+
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="flex items-center gap-3 text-sm text-op-muted mb-2">
@@ -435,6 +455,7 @@ export function StationsClient({
               disabled={savingId === "__print__"}
             />
           </label>
+          <StationPrintNotes health={health.kitchen} />
           {/* Marchado automático: cuelga de cada estación. Los ítems pasan
               a "Preparando" solos al llegar la ronda y, con la impresión de
               arriba activa, la comanda sale en ese instante. */}
@@ -452,6 +473,7 @@ export function StationsClient({
               disabled={savingId === "__print__"}
             />
           </label>
+          <AutoFireNote health={health.kitchen} />
           <label className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-medium">{t("printBarLabel")}</div>
@@ -468,6 +490,7 @@ export function StationsClient({
               disabled={savingId === "__print__"}
             />
           </label>
+          <StationPrintNotes health={health.bar} />
           <label className="flex items-center justify-between gap-4 ml-3 pl-3 border-l-2 border-op-border">
             <div>
               <div className="text-sm font-medium">{t("autoFireLabel")}</div>
@@ -482,6 +505,7 @@ export function StationsClient({
               disabled={savingId === "__print__"}
             />
           </label>
+          <AutoFireNote health={health.bar} />
           {(kitchenPrint || barPrint) && (
             <label className="flex items-center justify-between gap-4 pt-2 border-t border-op-border">
               <div>
@@ -740,6 +764,88 @@ function stationLabel(s: Station, t: (key: string) => string): string {
     default:
       return t("stationCounterLabel");
   }
+}
+
+/**
+ * Debajo del toggle "imprimir" de una estación: cuántas impresoras de red
+ * activas la sirven, y el aviso ámbar cuando la impresión está encendida y
+ * ninguna la va a recibir (la comanda se marcha y no sale nada). Lo decide
+ * `stationPrintHealth`, el mismo criterio que Impresoras de red y el hub.
+ */
+function StationPrintNotes({ health }: { health: StationPrintHealth }) {
+  const t = useTranslations("opStations");
+  const kitchen = health.station === "kitchen";
+  return (
+    <div className="space-y-2">
+      <Link
+        href="/operator/settings/impresoras"
+        className="inline-block text-xs text-op-muted underline hover:text-ink"
+      >
+        {t("printersCount", { count: health.activePrinters })}
+      </Link>
+      {health.issues.includes("print_on_no_printer") && (
+        <Note tone="warning">
+          {t(kitchen ? "noPrinterWarnKitchen" : "noPrinterWarnBar")}{" "}
+          <Link
+            href="/operator/settings/impresoras"
+            className="underline font-medium"
+          >
+            {t("noPrinterWarnLink")}
+          </Link>
+        </Note>
+      )}
+      {health.issues.includes("print_on_sub_uncovered") && (
+        <Note tone="warning">
+          {t("subUncoveredWarn", {
+            subs: health.uncoveredBarSubStations.join(", "),
+          })}
+        </Note>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Debajo del toggle "marchar automáticamente": si está encendido con la
+ * impresión de la estación apagada, el pedido pasa a "Preparando" solo y
+ * no sale papel. No es un error, pero es exactamente lo que un dueño
+ * reporta como "se marchó solo y no imprimió".
+ */
+function AutoFireNote({ health }: { health: StationPrintHealth }) {
+  const t = useTranslations("opStations");
+  if (!health.issues.includes("auto_fire_print_off")) return null;
+  return (
+    <div className="ml-3 pl-3 border-l-2 border-op-border">
+      <Note tone="info">
+        {t(
+          health.station === "kitchen"
+            ? "autoFireNoPrintKitchen"
+            : "autoFireNoPrintBar",
+        )}
+      </Note>
+    </div>
+  );
+}
+
+function Note({
+  tone,
+  children,
+}: {
+  tone: "warning" | "info";
+  children: ReactNode;
+}) {
+  const cls =
+    tone === "warning"
+      ? "border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#8F6828]"
+      : "border-op-border bg-op-bg text-op-muted";
+  return (
+    <div
+      className={"rounded-xl border p-3 text-sm " + cls}
+      role={tone === "warning" ? "alert" : undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 function Toggle({

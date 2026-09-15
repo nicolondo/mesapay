@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -8,6 +9,10 @@ import {
   humanizeAgo,
   type AgentState,
 } from "@/lib/print/agentStatus";
+import {
+  printerBlockedByStation,
+  type StationPrintHealthByStation,
+} from "@/lib/print/stationPrintHealth";
 
 type PrinterView = {
   id: string;
@@ -99,12 +104,15 @@ export function PrintersClient({
   jobs,
   defaultPaperWidthMm,
   serverNow,
+  health,
 }: {
   agents: AgentView[];
   orphanPrinters: PrinterView[];
   jobs: JobView[];
   defaultPaperWidthMm: number;
   serverNow: string;
+  /** Qué estaciones tienen la impresión apagada en Estaciones (con todo lo demás). */
+  health: StationPrintHealthByStation;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -152,6 +160,7 @@ export function PrintersClient({
           agent={agent}
           now={now}
           defaultPaperWidthMm={defaultPaperWidthMm}
+          health={health}
         />
       ))}
 
@@ -163,6 +172,7 @@ export function PrintersClient({
           <PrinterGroups
             printers={orphanPrinters}
             defaultPaperWidthMm={defaultPaperWidthMm}
+            health={health}
           />
         </div>
       )}
@@ -298,10 +308,12 @@ function AgentCard({
   agent,
   now,
   defaultPaperWidthMm,
+  health,
 }: {
   agent: AgentView;
   now: number;
   defaultPaperWidthMm: number;
+  health: StationPrintHealthByStation;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -417,6 +429,7 @@ function AgentCard({
           <PrinterGroups
             printers={agent.printers}
             defaultPaperWidthMm={defaultPaperWidthMm}
+            health={health}
           />
         )}
       </div>
@@ -481,9 +494,11 @@ function AgentCard({
 function PrinterGroups({
   printers,
   defaultPaperWidthMm,
+  health,
 }: {
   printers: PrinterView[];
   defaultPaperWidthMm: number;
+  health: StationPrintHealthByStation;
 }) {
   const t = useTranslations("opPrinters");
   const groups = groupByKind(printers);
@@ -503,6 +518,7 @@ function PrinterGroups({
                   key={p.id}
                   printer={p}
                   defaultPaperWidthMm={defaultPaperWidthMm}
+                  blockedStation={printerBlockedByStation(p, health)}
                 />
               ))}
             </ul>
@@ -516,9 +532,15 @@ function PrinterGroups({
 function PrinterRow({
   printer,
   defaultPaperWidthMm,
+  blockedStation,
 }: {
   printer: PrinterView;
   defaultPaperWidthMm: number;
+  /**
+   * La estación de esta impresora tiene la impresión apagada en
+   * Estaciones: está activa y nunca va a recibir una comanda.
+   */
+  blockedStation: "kitchen" | "bar" | null;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -600,6 +622,25 @@ function PrinterRow({
           {printer.active ? t("printerActive") : t("printerInactive")}
         </span>
       </div>
+
+      {blockedStation && (
+        <div
+          role="alert"
+          className="mt-2 rounded-lg border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-2.5 text-xs text-[#8F6828]"
+        >
+          {t(
+            blockedStation === "kitchen"
+              ? "stationPrintOffKitchen"
+              : "stationPrintOffBar",
+          )}{" "}
+          <Link
+            href="/operator/settings/estaciones"
+            className="underline font-medium"
+          >
+            {t("stationPrintOffLink")}
+          </Link>
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button

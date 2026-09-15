@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { stationPrintHealth } from "@/lib/print/stationPrintHealth";
 import { PrintersClient } from "./PrintersClient";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,17 @@ export default async function PrintersSettingsPage() {
   const [restaurant, agents, orphanPrinters, jobs] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { printPaperWidthMm: true },
+      select: {
+        printPaperWidthMm: true,
+        // Los toggles de Estaciones: una impresora activa de una estación
+        // con la impresión apagada nunca recibe una comanda, y esta
+        // pantalla tiene que decirlo en su fila.
+        kitchenPrintEnabled: true,
+        barPrintEnabled: true,
+        kitchenAutoFire: true,
+        barAutoFire: true,
+        barSubStations: true,
+      },
     }),
     db.printAgent.findMany({
       where: { restaurantId, deletedAt: null },
@@ -86,6 +97,18 @@ export default async function PrintersSettingsPage() {
   ]);
   if (!restaurant) return <div className="p-6">{t("restaurantNotFound")}</div>;
 
+  // Las de los agentes revocados/eliminados ya quedaron `active: false`
+  // (lo hacen esas rutas), así que esta unión es lo mismo que ve el
+  // encolado cuando filtra por activas.
+  const health = stationPrintHealth({
+    kitchenPrintEnabled: restaurant.kitchenPrintEnabled,
+    barPrintEnabled: restaurant.barPrintEnabled,
+    kitchenAutoFire: restaurant.kitchenAutoFire,
+    barAutoFire: restaurant.barAutoFire,
+    barSubStations: restaurant.barSubStations,
+    printers: [...agents.flatMap((a) => a.printers), ...orphanPrinters],
+  });
+
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <Link
@@ -108,6 +131,7 @@ export default async function PrintersSettingsPage() {
       <PrintersClient
         serverNow={new Date().toISOString()}
         defaultPaperWidthMm={restaurant.printPaperWidthMm}
+        health={health}
         agents={agents.map((a) => ({
           id: a.id,
           label: a.label,

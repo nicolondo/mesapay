@@ -20,7 +20,12 @@
  * queda mal parado frente al cliente es el comercio.
  */
 
-import { formatInvoiceNumber, taxRows, type InvoiceSnapshot } from "@/lib/invoice";
+import {
+  formatInvoiceNumber,
+  taxLabelsFrom,
+  taxRows,
+  type InvoiceSnapshot,
+} from "@/lib/invoice";
 import type {
   ThermalInvoice,
   ThermalInvoiceRow,
@@ -125,14 +130,11 @@ export function buildThermalInvoice(args: {
   const totals: ThermalInvoiceRow[] = [
     { label: t("subtotal"), amount: money(s.subtotalCents) },
   ];
-  // Impuesto que suman ENCIMA las líneas libres. En una cuenta de puro
-  // menú no hay filas: ahí va embebido en el precio y ya está contado en
-  // el subtotal, así que una fila aparte parecería un cobro doble.
-  for (const row of taxRows(s, {
-    inc: t("taxInc"),
-    iva: t("taxIva"),
-    other: t("tax"),
-  })) {
+  // Primero el impuesto EMBEBIDO en los platos (base gravable + "Incl.
+  // impoconsumo 8%": informativo, ya está dentro del subtotal) tal como
+  // quedó congelado en la factura, y después el que suman ENCIMA las
+  // líneas libres. Sin impuesto embebido ni líneas libres no hay filas.
+  for (const row of taxRows(s, taxLabelsFrom(t))) {
     totals.push({ label: row.label, amount: money(row.cents) });
   }
   const discountCents = s.discountCents ?? 0;

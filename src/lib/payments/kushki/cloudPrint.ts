@@ -3,10 +3,17 @@ import { createTranslator } from "next-intl";
 import esMessages from "../../../../messages/es.json";
 import { wrap } from "@/lib/escpos/commands";
 
-const defaultInvoiceTranslator = createTranslator({ locale: "es", messages: esMessages, namespace: "emailInvoice" });
+const esInvoiceTranslator = createTranslator({ locale: "es", messages: esMessages, namespace: "emailInvoice" });
+// El catálogo importado estáticamente tipa las claves; el traductor que
+// llega por parámetro (`getEmailTranslator`) no. Se expone con clave
+// `string` para que los dos encajen en la misma firma.
+const defaultInvoiceTranslator = (
+  key: string,
+  values?: Record<string, string | number>,
+): string => esInvoiceTranslator(key as Parameters<typeof esInvoiceTranslator>[0], values);
 import type { KushkiMode } from "../../platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
-import { formatInvoiceNumber } from "@/lib/invoice";
+import { formatInvoiceNumber, taxLabelsFrom, taxRows } from "@/lib/invoice";
 import {
   buildAuthHash,
   decryptData,
@@ -52,7 +59,10 @@ export function buildInvoiceCommands(
   snapshot: InvoiceSnapshot,
   invoiceNumber: number,
   invoiceUrl: string,
-  t: (key: "tipNoticeTitle" | "tipNoticeBody") => string = defaultInvoiceTranslator,
+  // Traductor del namespace `emailInvoice` (el mismo del correo y de la
+  // térmica): las filas de impuesto y los totales salen de ahí para que
+  // el datáfono diga lo mismo que el papel de la caja.
+  t: (key: string, values?: Record<string, string | number>) => string = defaultInvoiceTranslator,
 ): PrintCommand[] {
   const c: PrintCommand[] = [];
   const center = (
@@ -107,40 +117,36 @@ export function buildInvoiceCommands(
   }
   c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
 
-  c.push({
+  const totalRow = (label: string, amount: string): PrintCommand => ({
     type: "columns",
     columns: [
-      { text: "Subtotal", weight: 2, align: "LEFT" },
-      { text: money(snapshot.subtotalCents), weight: 1, align: "RIGHT" },
+      { text: label, weight: 2, align: "LEFT" },
+      { text: amount, weight: 1, align: "RIGHT" },
     ],
   });
+  c.push(totalRow(t("subtotal"), money(snapshot.subtotalCents)));
+  // Impuesto embebido congelado en la factura (base + "Incl. impoconsumo
+  // 8%") y el que suman encima las líneas libres — las mismas filas, en el
+  // mismo orden, que la térmica y el correo. Sin impuesto no hay filas.
+  for (const row of taxRows(snapshot, taxLabelsFrom(t))) {
+    c.push(totalRow(row.label, money(row.cents)));
+  }
   // Descuento del comensal identificado. Las facturas viejas no traen el
   // campo (opcional en el snapshot) y la tirilla sale igual que antes.
   if ((snapshot.discountCents ?? 0) > 0) {
-    c.push({
-      type: "columns",
-      columns: [
-        { text: "Descuento", weight: 2, align: "LEFT" },
-        { text: "-" + money(snapshot.discountCents ?? 0), weight: 1, align: "RIGHT" },
-      ],
-    });
+    c.push(
+      totalRow(
+        snapshot.discountPct
+          ? t("discountRowPct", { pct: snapshot.discountPct })
+          : t("discountRow"),
+        "-" + money(snapshot.discountCents ?? 0),
+      ),
+    );
   }
   if (snapshot.tipCents > 0) {
-    c.push({
-      type: "columns",
-      columns: [
-        { text: "Propina", weight: 2, align: "LEFT" },
-        { text: money(snapshot.tipCents), weight: 1, align: "RIGHT" },
-      ],
-    });
+    c.push(totalRow(t("tip"), money(snapshot.tipCents)));
   }
-  c.push({
-    type: "columns",
-    columns: [
-      { text: "TOTAL", weight: 2, align: "LEFT" },
-      { text: money(snapshot.totalCents), weight: 1, align: "RIGHT" },
-    ],
-  });
+  c.push(totalRow(t("total"), money(snapshot.totalCents)));
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
   c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 20, true));

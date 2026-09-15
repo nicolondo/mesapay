@@ -207,36 +207,56 @@ export function orderToInvoiceLines(
 ): DianLine[] {
   const lines: DianLine[] = [];
   for (const it of items) {
-    if (it.cancelledAt || it.qty <= 0) continue;
-    const grossLine = it.priceCentsSnapshot * it.qty;
-    const own = ownTaxItem(it);
-    const kind = (own ? it.taxKind : restaurantTax.kind) as SalesTaxKind;
-    const pct = own ? (it.taxPct ?? 0) : restaurantTax.pct;
-    const effectivePct = kind === "none" ? 0 : pct;
+    const r = invoiceLineFor(it, restaurantTax);
+    if (r) lines.push(r.line);
+  }
+  return lines;
+}
 
-    let lineTotalCents: number;
-    let unitPriceCents: number;
-    let taxCents: number;
-    if (own) {
-      // Impuesto encima: la base es el precio de la línea.
-      lineTotalCents = grossLine;
-      unitPriceCents = it.priceCentsSnapshot;
-      taxCents =
-        effectivePct > 0 && grossLine > 0
-          ? Math.round((grossLine * effectivePct) / 100)
-          : 0;
-    } else {
-      // Impuesto embebido: base = bruto − impuesto (suman exacto).
-      const split = splitTaxIncludedCents(grossLine, effectivePct * 100);
-      lineTotalCents = split.baseCents;
-      taxCents = split.taxCents;
-      unitPriceCents = splitTaxIncludedCents(
-        it.priceCentsSnapshot,
-        effectivePct * 100,
-      ).baseCents;
-    }
+/**
+ * Una línea UBL a partir de un item (null si está cancelado o sin
+ * cantidad). Es el ÚNICO lugar donde se reparte base + impuesto de un
+ * plato: lo usa el XML (`orderToInvoiceLines`) y también la tirilla
+ * (`embeddedMenuTax`, que congela el impuesto en el snapshot). Si el
+ * reparto viviera en dos funciones, un redondeo distinto bastaría para
+ * que el papel y el XML dijeran centavos diferentes.
+ */
+function invoiceLineFor(
+  it: OrderItemForInvoice,
+  restaurantTax: RestaurantTax,
+): { line: DianLine; own: boolean } | null {
+  if (it.cancelledAt || it.qty <= 0) return null;
+  const grossLine = it.priceCentsSnapshot * it.qty;
+  const own = ownTaxItem(it);
+  const kind = (own ? it.taxKind : restaurantTax.kind) as SalesTaxKind;
+  const pct = own ? (it.taxPct ?? 0) : restaurantTax.pct;
+  const effectivePct = kind === "none" ? 0 : pct;
 
-    lines.push({
+  let lineTotalCents: number;
+  let unitPriceCents: number;
+  let taxCents: number;
+  if (own) {
+    // Impuesto encima: la base es el precio de la línea.
+    lineTotalCents = grossLine;
+    unitPriceCents = it.priceCentsSnapshot;
+    taxCents =
+      effectivePct > 0 && grossLine > 0
+        ? Math.round((grossLine * effectivePct) / 100)
+        : 0;
+  } else {
+    // Impuesto embebido: base = bruto − impuesto (suman exacto).
+    const split = splitTaxIncludedCents(grossLine, effectivePct * 100);
+    lineTotalCents = split.baseCents;
+    taxCents = split.taxCents;
+    unitPriceCents = splitTaxIncludedCents(
+      it.priceCentsSnapshot,
+      effectivePct * 100,
+    ).baseCents;
+  }
+
+  return {
+    own,
+    line: {
       description: it.nameSnapshot,
       quantity: it.qty,
       unitPriceCents,
@@ -244,9 +264,48 @@ export function orderToInvoiceLines(
       taxCents,
       taxPct: effectivePct.toFixed(2),
       taxSchemeId: schemeOf(kind),
-    });
+    },
+  };
+}
+
+export type EmbeddedMenuTax = {
+  /** Σ del impuesto embebido de los platos del menú (0 si el comercio está en "none"). */
+  taxCents: number;
+  /** Σ de las bases (bruto − impuesto) de esos mismos platos. */
+  baseCents: number;
+  /** Σ del bruto de los platos del menú: base + impuesto. */
+  grossCents: number;
+};
+
+/**
+ * Impuesto EMBEBIDO de los platos del menú de una orden, con la tarifa
+ * recibida — lo que la tirilla congela en el snapshot al emitirse.
+ *
+ * Es la suma, línea por línea, de los MISMOS `taxCents`/`lineTotalCents`
+ * que `orderToInvoiceLines` pone en el XML (mismo `invoiceLineFor`, mismo
+ * `splitTaxIncludedCents`), no una fórmula sobre el subtotal: partir el
+ * subtotal entero redondea distinto que partir cada línea y el papel
+ * quedaría a un centavo del XML. Las líneas libres no entran: su impuesto
+ * va ENCIMA y ya viaja en `taxCents`/`taxByKind` del snapshot.
+ *
+ * Se calcula sobre el BRUTO de cada plato, sin descontar el descuento del
+ * comensal, porque así lo hace el XML (`DianInvoiceInput` no lleva
+ * descuento: cada línea va con su precio de carta). Cambiar el criterio
+ * acá sin cambiarlo en el XML rompería la coincidencia al centavo.
+ */
+export function embeddedMenuTax(
+  items: OrderItemForInvoice[],
+  restaurantTax: RestaurantTax,
+): EmbeddedMenuTax {
+  let taxCents = 0;
+  let baseCents = 0;
+  for (const it of items) {
+    const r = invoiceLineFor(it, restaurantTax);
+    if (!r || r.own) continue;
+    taxCents += r.line.taxCents;
+    baseCents += r.line.lineTotalCents;
   }
-  return lines;
+  return { taxCents, baseCents, grossCents: baseCents + taxCents };
 }
 
 /** Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. */

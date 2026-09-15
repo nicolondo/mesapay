@@ -7,7 +7,7 @@ vi.mock("@/lib/db", () => ({ db: {
 } }));
 vi.mock("./accountingData", () => ({
   loadSalesBook: async () => ({ totals: { tipCents: 0 } }), loadPurchasesBook: mocks.purchases,
-  computeTaxSummary: async () => ({ sales: { kind: "none", taxCents: 0 } }),
+  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
   computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
 }));
 vi.mock("./ledger", () => ({ ensureChartOfAccounts: vi.fn(), loadAccountMap: async () => new Map(["143505", "519505", "24081001", "220505", "236505", "236705", "236805"].map((code) => [code, code])) }));

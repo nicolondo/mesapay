@@ -28,8 +28,13 @@ export async function loadTaxDeclaration(
 ): Promise<TaxDeclaration> {
   const tax = await computeTaxSummary(restaurantId, range);
   const kind = tax.sales.kind;
-  const ivaGenerado = kind === "iva" ? tax.sales.taxCents : 0;
-  const incGenerado = kind === "inc" ? tax.sales.taxCents : 0;
+  // Por tramo (lo que cada factura congeló): un mes que mezcló tarifas
+  // suma su IVA y su INC por separado en vez de mandar todo al régimen
+  // con el que quedó etiquetado.
+  const sumKind = (k: "iva" | "inc") =>
+    tax.sales.byRate.filter((s) => s.kind === k).reduce((a, s) => a + s.taxCents, 0);
+  const ivaGenerado = sumKind("iva");
+  const incGenerado = sumKind("inc");
   const ivaDescontable = tax.purchases.ivaCents;
   return {
     salesKind: kind,

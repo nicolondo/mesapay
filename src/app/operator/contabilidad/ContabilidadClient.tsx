@@ -106,13 +106,17 @@ type PnlDto = {
 
 // Espejo de TaxSummary de /api/operator/accounting/pnl (ERP A3).
 type SalesTaxKind = "none" | "inc" | "iva";
+type SalesTaxSliceDto = {
+  kind: SalesTaxKind;
+  pct: number;
+  grossCents: number;
+  taxCents: number;
+  baseCents: number;
+};
 type TaxSummaryDto = {
-  sales: {
-    kind: SalesTaxKind;
-    pct: number;
-    grossCents: number;
-    taxCents: number;
-    baseCents: number;
+  sales: SalesTaxSliceDto & {
+    /** Tramos por tarifa: lo que cada factura congeló. Vacío = sin impuesto causado. */
+    byRate: SalesTaxSliceDto[];
   };
   purchases: {
     ivaCents: number;
@@ -806,10 +810,18 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
               <span>{t("taxSalesBase")}</span>
               <span className="tabular-nums">{money(tax.sales.baseCents)}</span>
             </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span>{`${kindLabel(tax.sales.kind)} ${tax.sales.pct}%`}</span>
-              <span className="tabular-nums">{money(tax.sales.taxCents)}</span>
-            </div>
+            {/* Una fila por tarifa: lo que cada factura congeló al emitirse.
+                Un mes en el que se cambió la tarifa muestra las dos; sin
+                impuesto causado, la tarifa configurada en $0. */}
+            {(tax.sales.byRate?.length ? tax.sales.byRate : [tax.sales]).map((r) => (
+              <div
+                key={`${r.kind}-${r.pct}`}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span>{`${kindLabel(r.kind)} ${r.pct}%`}</span>
+                <span className="tabular-nums">{money(r.taxCents)}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>

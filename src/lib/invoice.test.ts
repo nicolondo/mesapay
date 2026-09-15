@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("./payments/kushki/cloudTerminal", () => ({}));
 import {
+  embeddedTaxOf,
   formatInvoiceNumber,
+  frozenSalesTax,
   renderInvoiceEmail,
   taxRows,
   type InvoiceSnapshot,
+  type TaxRowLabels,
 } from "./invoice";
 import { getEmailTranslator } from "./emailIntl";
 import { buildThermalInvoice } from "./print/invoiceDoc";
@@ -12,7 +15,25 @@ import { renderInvoice } from "./escpos/invoice";
 import { columnsForWidth } from "./escpos/commands";
 import { buildInvoiceCommands } from "./payments/kushki/cloudPrint";
 
-const LABELS = { inc: "Impoconsumo", iva: "IVA", other: "Impuestos" };
+const LABELS: TaxRowLabels = {
+  inc: "Impoconsumo",
+  iva: "IVA",
+  other: "Impuestos",
+  base: "Base gravable",
+  incIncluded: (pct) => `Incl. impoconsumo ${pct}%`,
+  ivaIncluded: (pct) => `Incl. IVA ${pct}%`,
+};
+
+// Bandeja de $30.000 con INC 8% embebido, repartida como el XML:
+// base 27.777,78 + impuesto 2.222,22.
+const INC_8 = {
+  salesTaxKind: "inc" as const,
+  salesTaxPct: 8,
+  embeddedTaxCents: 222_222,
+  embeddedBaseCents: 2_777_778,
+  subtotalCents: 3_000_000,
+  totalCents: 3_000_000,
+};
 
 /** Snapshot mínimo: `taxRows` sólo mira los campos de impuesto. */
 function snap(tax: Partial<InvoiceSnapshot>): InvoiceSnapshot {
@@ -203,5 +224,111 @@ describe("advertencia de propina — documento completo", () => {
     expect(text.replace(/\s+/g, " ")).toContain(tipNoticeTitle + " " + tipNoticeBody);
     expect(text.split(tipNoticeTitle)).toHaveLength(2);
     expect(commands.at(-1)?.type).toBe("cut");
+  });
+});
+
+describe("taxRows — impuesto EMBEBIDO congelado en la factura", () => {
+  it("una cuenta de menú con impoconsumo muestra la base y el impuesto incluido", () => {
+    // Lo que el dueño reclamó: el XML aceptado dice "INC 8%: $2.222" y el
+    // papel no decía nada. Ahora el papel lo discrimina, informativo (ya
+    // está dentro del subtotal, no se suma al total).
+    expect(taxRows(snap(INC_8), LABELS)).toEqual([
+      { label: "Base gravable", cents: 2_777_778 },
+      { label: "Incl. impoconsumo 8%", cents: 222_222 },
+    ]);
+  });
+
+  it("primero el embebido y después el que suman encima las líneas libres", () => {
+    const rows = taxRows(
+      snap({ ...INC_8, taxCents: 190_000, taxByKind: { inc: 0, iva: 190_000 } }),
+      LABELS,
+    );
+    expect(rows).toEqual([
+      { label: "Base gravable", cents: 2_777_778 },
+      { label: "Incl. impoconsumo 8%", cents: 222_222 },
+      { label: "IVA", cents: 190_000 },
+    ]);
+  });
+
+  it("un comercio con IVA embebido lo nombra con su tarifa", () => {
+    const rows = taxRows(
+      snap({
+        salesTaxKind: "iva",
+        salesTaxPct: 19,
+        embeddedTaxCents: 159_664,
+        embeddedBaseCents: 840_336,
+      }),
+      LABELS,
+    );
+    expect(rows).toEqual([
+      { label: "Base gravable", cents: 840_336 },
+      { label: "Incl. IVA 19%", cents: 159_664 },
+    ]);
+  });
+
+  it("emitida con el comercio en 'none' ⇒ ninguna fila, aunque los campos existan", () => {
+    expect(
+      taxRows(
+        snap({ salesTaxKind: "none", salesTaxPct: 0, embeddedTaxCents: 0, embeddedBaseCents: 3_000_000 }),
+        LABELS,
+      ),
+    ).toEqual([]);
+  });
+
+  it("un snapshot anterior al congelado no muestra nada: byte a byte como antes", () => {
+    expect(taxRows(snap({ subtotalCents: 3_000_000 }), LABELS)).toEqual([]);
+    expect(embeddedTaxOf(snap({ subtotalCents: 3_000_000 }))).toBeNull();
+  });
+});
+
+describe("frozenSalesTax — la tarifa que viaja a la DIAN sale del snapshot", () => {
+  it("snapshot sin tarifa ⇒ none, NUNCA la tarifa actual del comercio", () => {
+    expect(frozenSalesTax({})).toEqual({ kind: "none", pct: 0 });
+  });
+
+  it("snapshot con tarifa ⇒ esa tarifa, aunque el comercio la haya cambiado", () => {
+    expect(frozenSalesTax({ salesTaxKind: "inc", salesTaxPct: 8 })).toEqual({ kind: "inc", pct: 8 });
+    expect(frozenSalesTax({ salesTaxKind: "iva", salesTaxPct: 19 })).toEqual({ kind: "iva", pct: 19 });
+  });
+
+  it("'none' con un porcentaje suelto sigue siendo none/0", () => {
+    expect(frozenSalesTax({ salesTaxKind: "none", salesTaxPct: 8 })).toEqual({ kind: "none", pct: 0 });
+  });
+});
+
+describe("el impuesto embebido sale en TODAS las superficies del snapshot", () => {
+  it("correo: HTML y texto plano discriminan el impoconsumo", async () => {
+    const email = await renderInvoiceEmail({
+      snapshot: snap(INC_8), invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    for (const output of [email.html, email.text]) {
+      expect(output).toContain("Base gravable");
+      expect(output).toContain("Incl. impoconsumo 8%");
+    }
+    const plain = await renderInvoiceEmail({
+      snapshot: snap({ subtotalCents: 3_000_000 }), invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    expect(plain.html).not.toContain("Base gravable");
+    expect(plain.text).not.toContain("impoconsumo");
+  });
+
+  it("datáfono: las filas van entre el subtotal y el total, en el idioma del comensal", async () => {
+    const { t } = await getEmailTranslator("es", "emailInvoice");
+    const labels = (s: InvoiceSnapshot) =>
+      buildInvoiceCommands(s, 1, invoiceUrl, t)
+        .flatMap((c) => (c.type === "columns" ? [c.columns[0].text] : []));
+    expect(labels(snap(INC_8))).toEqual([
+      "Subtotal",
+      "Base gravable",
+      "Incl. impoconsumo 8%",
+      "TOTAL",
+    ]);
+    expect(labels(snap({ subtotalCents: 3_000_000 }))).toEqual(["Subtotal", "TOTAL"]);
+  });
+
+  it("datáfono sin traductor cae al catálogo en español, como siempre", () => {
+    const labels = buildInvoiceCommands(snap({ ...INC_8, tipCents: 10_000 }), 1, invoiceUrl)
+      .flatMap((c) => (c.type === "columns" ? [c.columns[0].text] : []));
+    expect(labels).toEqual(["Subtotal", "Base gravable", "Incl. impoconsumo 8%", "Propina", "TOTAL"]);
   });
 });

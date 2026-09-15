@@ -87,7 +87,14 @@ const ANA = {
 };
 
 function invoice(
-  over: { invoiceRequests?: unknown[]; restaurantId?: string; invoiceNumber?: number } = {},
+  over: {
+    invoiceRequests?: unknown[];
+    restaurantId?: string;
+    invoiceNumber?: number;
+    /** Campos extra del snapshot (p. ej. la tarifa congelada). */
+    snapshot?: Record<string, unknown>;
+    restaurant?: { salesTaxKind: string; salesTaxPct: number };
+  } = {},
 ) {
   return {
     id: "inv-1",
@@ -98,8 +105,11 @@ function invoice(
       invoicePrefix: "FESM",
       dianResolutionFrom: 1,
       dianResolutionTo: 10000,
+      ...over.snapshot,
     },
-    restaurant: { salesTaxKind: "inc", salesTaxPct: 8 },
+    // La query ya no lo pide; el mock lo devuelve igual para probar que la
+    // emisión NO lo mira (ver "impuesto congelado").
+    restaurant: over.restaurant ?? { salesTaxKind: "inc", salesTaxPct: 8 },
     order: {
       id: "order-1",
       items: [
@@ -466,6 +476,79 @@ describe("markDocumentBlocked (barrido)", () => {
         lastError: "contact_email_incomplete",
         nextAttemptAt: new Date(NOW.getTime() + BLOCKED_RETRY_MS),
       },
+    });
+  });
+});
+
+describe("impuesto congelado — el XML lee la tarifa del snapshot, no del comercio", () => {
+  /** Totales del documento y el impoconsumo (scheme 04) declarado. */
+  function fiscal(xml: string) {
+    const totals = xml
+      .split("<cac:LegalMonetaryTotal>")[1]
+      .split("</cac:LegalMonetaryTotal>")[0];
+    const docBlock = xml.split("<cac:PaymentMeans>")[1].split("<cac:LegalMonetaryTotal>")[0];
+    const inc = docBlock
+      .split("<cac:TaxTotal>")
+      .slice(1)
+      .map((g) => "<cac:TaxTotal>" + g)
+      .find((g) => g.includes("<cbc:ID>04</cbc:ID>"));
+    return {
+      lineExtension: tag(totals, "cbc:LineExtensionAmount"),
+      payable: tag(totals, "cbc:PayableAmount"),
+      incAmount: inc ? tag(inc, "cbc:TaxAmount") : null,
+    };
+  }
+
+  it("comercio en INC 8% pero factura congelada en 'none' ⇒ el XML sale sin impuesto", async () => {
+    // Prender el impuesto hoy no puede cambiar lo que declara una tirilla
+    // emitida (o reintentada) sin él: el papel dice cero y el XML también.
+    m.invoiceFindUnique.mockResolvedValue(
+      invoice({
+        snapshot: { salesTaxKind: "none", salesTaxPct: 0, embeddedTaxCents: 0, embeddedBaseCents: 30_000_00 },
+        restaurant: { salesTaxKind: "inc", salesTaxPct: 8 },
+      }),
+    );
+    expect((await emit()).outcome).toBe("accepted");
+    const f = fiscal(sentXml());
+    expect(f.lineExtension).toBe("30000.00");
+    expect(f.payable).toBe("30000.00");
+    expect(f.incAmount).toBeNull();
+  });
+
+  it("comercio en 'none' pero factura congelada en INC 8% ⇒ el XML declara el impoconsumo", async () => {
+    // Al revés: la tarifa del comercio se apagó después, pero esta factura
+    // se emitió con 8% y el papel dice "Incl. impoconsumo 8%: $2.222".
+    m.invoiceFindUnique.mockResolvedValue(
+      invoice({
+        snapshot: { salesTaxKind: "inc", salesTaxPct: 8, embeddedTaxCents: 222_222, embeddedBaseCents: 2_777_778 },
+        restaurant: { salesTaxKind: "none", salesTaxPct: 0 },
+      }),
+    );
+    expect((await emit()).outcome).toBe("accepted");
+    const f = fiscal(sentXml());
+    // Misma cifra que el snapshot, centavo a centavo.
+    expect(f.lineExtension).toBe("27777.78");
+    expect(f.incAmount).toBe("2222.22");
+    expect(f.payable).toBe("30000.00");
+  });
+
+  it("snapshot anterior al congelado (sin tarifa) ⇒ sin impuesto, aunque el comercio esté en INC", async () => {
+    m.invoiceFindUnique.mockResolvedValue(invoice({ restaurant: { salesTaxKind: "inc", salesTaxPct: 8 } }));
+    await emit();
+    const f = fiscal(sentXml());
+    expect(f.lineExtension).toBe("30000.00");
+    expect(f.incAmount).toBeNull();
+  });
+
+  it("la query no pide la tarifa del comercio y toma sólo los ítems vivos (sin ronda cancelada)", async () => {
+    await emit();
+    const args = m.invoiceFindUnique.mock.calls[0][0] as {
+      select: { restaurant?: unknown; order: { select: { items: { where: unknown } } } };
+    };
+    expect(args.select.restaurant).toBeUndefined();
+    expect(args.select.order.select.items.where).toEqual({
+      cancelledAt: null,
+      OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
     });
   });
 });

@@ -102,14 +102,13 @@ async function buildMonthEntries(
     ]);
 
   // IVA por TARIFA y dirección (árbol 2408 abierto en auxiliares): el IVA
-  // generado va al auxiliar de la tarifa del comercio — habilita armar el
-  // formulario 300 directo del libro. INC (restaurantes) va a 241205.
-  const salesTaxCode =
-    tax.sales.kind === "iva"
-      ? ivaGeneradoCodeForPct(tax.sales.pct)
-      : tax.sales.kind === "inc"
-        ? "241205"
-        : null;
+  // generado va al auxiliar de la tarifa — habilita armar el formulario
+  // 300 directo del libro. INC (restaurantes) va a 241205.
+  const salesTaxCodeFor = (kind: string, pct: number): string | null =>
+    kind === "iva" ? ivaGeneradoCodeForPct(pct) : kind === "inc" ? "241205" : null;
+  // Para las devoluciones (que no tienen factura que las congele) se usa el
+  // régimen con el que quedó etiquetado el mes.
+  const salesTaxCode = salesTaxCodeFor(tax.sales.kind, tax.sales.pct);
 
   const entries: DraftEntry[] = [];
 
@@ -127,13 +126,22 @@ async function buildMonthEntries(
       totalCash += amt;
     }
     for (const [code, amt] of byAccount) lines.push({ code, debit: amt });
-    const salesTax = tax.sales.taxCents;
+    // El impuesto va por TRAMO: lo que cada factura congeló, agrupado por
+    // tarifa (`computeTaxSummary`). Un mes en el que el comercio cambió de
+    // tarifa lleva un crédito por código (241205 + el auxiliar de IVA);
+    // un mes normal, uno solo. Nunca "tarifa de hoy × ventas del mes".
+    const taxByCode = new Map<string, number>();
+    for (const slice of tax.sales.byRate) {
+      const code = salesTaxCodeFor(slice.kind, slice.pct);
+      if (!code || slice.taxCents <= 0) continue;
+      taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
+    }
+    const salesTax = [...taxByCode.values()].reduce((s, v) => s + v, 0);
     const tips = salesBook.totals.tipCents;
     const income = totalCash - salesTax - tips;
     if (totalCash > 0 && income >= 0) {
       if (income > 0) lines.push({ code: "413505", credit: income });
-      if (salesTax > 0 && salesTaxCode)
-        lines.push({ code: salesTaxCode, credit: salesTax });
+      for (const [code, credit] of taxByCode) lines.push({ code, credit });
       if (tips > 0) lines.push({ code: "238030", credit: tips });
       entries.push({ source: "sale", memo: "Ventas del mes", lines });
     } else if (totalCash > 0) {

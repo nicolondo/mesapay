@@ -6,11 +6,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildDianInvoiceXml,
   computeDianTotals,
+  splitTaxIncludedCents,
   type DianInvoiceInput,
   type DianLine,
   type DianParty,
 } from "./ubl";
-import { orderToInvoiceLines } from "./emit";
+import { embeddedMenuTax, orderToInvoiceLines } from "./emit";
 
 const supplier: DianParty = {
   name: "SON Y MELONA S.A.S.",
@@ -334,5 +335,75 @@ describe("orderToInvoiceLines — impuesto por línea", () => {
       { kind: "none", pct: 0 },
     );
     expect(lines).toHaveLength(1);
+  });
+});
+
+describe("embeddedMenuTax — lo que la tirilla congela es lo que el XML declara", () => {
+  const item = (over: Partial<Parameters<typeof embeddedMenuTax>[0][number]> = {}) => ({
+    nameSnapshot: "Bandeja",
+    qty: 1,
+    priceCentsSnapshot: 30_000_00,
+    cancelledAt: null as Date | null,
+    taxKind: null as string | null,
+    taxPct: null as number | null,
+    ...over,
+  });
+  const INC8 = { kind: "inc" as const, pct: 8 };
+
+  it("plato de carta con INC 8%: base + impuesto suman el bruto", () => {
+    expect(embeddedMenuTax([item()], INC8)).toEqual({
+      taxCents: 222_222,
+      baseCents: 2_777_778,
+      grossCents: 30_000_00,
+    });
+  });
+
+  it("es exactamente la suma de las líneas de menú del XML, centavo a centavo", () => {
+    const items = [
+      item(),
+      item({ priceCentsSnapshot: 1_005, qty: 3 }),
+      item({ priceCentsSnapshot: 100_000_00, taxKind: "iva", taxPct: 19 }),
+    ];
+    const menuLines = orderToInvoiceLines(items, INC8).filter((l) => l.taxSchemeId === "04");
+    const e = embeddedMenuTax(items, INC8);
+    expect(e.taxCents).toBe(menuLines.reduce((s, l) => s + l.taxCents, 0));
+    expect(e.baseCents).toBe(menuLines.reduce((s, l) => s + l.lineTotalCents, 0));
+  });
+
+  it("se reparte por LÍNEA, no sobre el subtotal entero: el redondeo difiere", () => {
+    // Tres platos de $10,05 (1.005 centavos): línea a línea el impuesto es
+    // 74 (base 931) y la suma da 222; partiendo el subtotal de 3.015 de un
+    // solo golpe daría 223. El XML va línea a línea, así que el snapshot
+    // también — si no, el papel quedaría a un centavo del XML.
+    const e = embeddedMenuTax(
+      [item({ priceCentsSnapshot: 1_005 }), item({ priceCentsSnapshot: 1_005 }), item({ priceCentsSnapshot: 1_005 })],
+      INC8,
+    );
+    expect(e).toEqual({ taxCents: 222, baseCents: 2_793, grossCents: 3_015 });
+    expect(splitTaxIncludedCents(3_015, 800).taxCents).toBe(223);
+  });
+
+  it("las líneas libres no entran: su impuesto va encima, no adentro", () => {
+    const e = embeddedMenuTax(
+      [item(), item({ priceCentsSnapshot: 100_000_00, taxKind: "iva", taxPct: 19 })],
+      INC8,
+    );
+    expect(e).toEqual({ taxCents: 222_222, baseCents: 2_777_778, grossCents: 30_000_00 });
+  });
+
+  it("comercio sin impuesto: cero impuesto y la base es el bruto", () => {
+    expect(embeddedMenuTax([item()], { kind: "none", pct: 0 })).toEqual({
+      taxCents: 0,
+      baseCents: 30_000_00,
+      grossCents: 30_000_00,
+    });
+  });
+
+  it("ignora los items cancelados, igual que el XML", () => {
+    expect(embeddedMenuTax([item({ cancelledAt: new Date() })], INC8)).toEqual({
+      taxCents: 0,
+      baseCents: 0,
+      grossCents: 0,
+    });
   });
 });

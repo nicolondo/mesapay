@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mailer";
 import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
-import { orderTaxTotals } from "@/lib/salesTax";
+import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
+import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 
 /** Datos del cliente para una factura personalizada. */
@@ -122,6 +123,8 @@ export async function issueSimpleInvoice(opts: {
       dianResolutionTo: true,
       dianResolutionDate: true,
       invoicePrefix: true,
+      salesTaxKind: true,
+      salesTaxPct: true,
     },
   });
   const invoiceNumber = r.invoiceNextNumber - 1;
@@ -138,6 +141,19 @@ export async function issueSimpleInvoice(opts: {
     })),
     { kind: "none", pct: 0 },
   );
+
+  // Tarifa del comercio EN ESTE INSTANTE, congelada en la factura. De acá
+  // leen después la emisión a la DIAN (no de `Restaurant`) y la
+  // contabilidad: prender o cambiar el impuesto mañana no toca lo emitido
+  // hoy. El reparto base/impuesto es el MISMO por línea que hace el XML
+  // (`embeddedMenuTax` ⇒ `invoiceLineFor`), sobre el bruto de cada plato y
+  // sin descontar el descuento del comensal, para coincidir al centavo.
+  const salesTaxKind = r.salesTaxKind as SalesTaxKind;
+  const salesTaxPct = salesTaxKind === "none" ? 0 : r.salesTaxPct;
+  const embedded = embeddedMenuTax(order.items, {
+    kind: salesTaxKind,
+    pct: salesTaxPct,
+  });
 
   const snapshot: InvoiceSnapshot = {
     restaurantName: r.name,
@@ -170,6 +186,10 @@ export async function issueSimpleInvoice(opts: {
     subtotalCents: order.subtotalCents,
     taxCents: order.taxCents,
     taxByKind: taxed.byKind,
+    salesTaxKind,
+    salesTaxPct,
+    embeddedTaxCents: embedded.taxCents,
+    embeddedBaseCents: embedded.baseCents,
     discountCents: order.discountCents,
     discountPct: order.discountPct,
     tipCents: order.tipCents,

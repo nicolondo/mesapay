@@ -265,3 +265,52 @@ describe("paymentRowsFor", () => {
     expect(doc.paymentRows).toHaveLength(1);
   });
 });
+
+describe("buildThermalInvoice — impuesto embebido congelado en la factura", () => {
+  // Bandeja + limonada = $61.000 con INC 8% embebido, repartido como el XML.
+  const frozenInc = {
+    salesTaxKind: "inc" as const,
+    salesTaxPct: 8,
+    embeddedTaxCents: 451_852,
+    embeddedBaseCents: 5_648_148,
+  };
+
+  it("discrimina la base y el impoconsumo incluido debajo del subtotal", () => {
+    // Lo que el dueño reclamó: el XML aceptado decía "INC 8%" y el papel
+    // no. La fila es informativa (ya está dentro del subtotal): el TOTAL
+    // sigue siendo el mismo.
+    const doc = build(frozenInc);
+    expect(doc.totals.map((r) => r.label)).toEqual([
+      "subtotal",
+      "taxBase",
+      "taxIncIncluded(8)",
+      "total",
+    ]);
+    expect(doc.totals.find((r) => r.label === "taxBase")?.amount).toBe("$56481");
+    expect(doc.totals.find((r) => r.label === "taxIncIncluded(8)")?.amount).toBe("$4519");
+    expect(doc.totals.at(-1)?.amount).toBe("$61000");
+  });
+
+  it("el embebido va antes que el impuesto sumado encima por las líneas libres", () => {
+    const doc = build({
+      ...frozenInc,
+      taxCents: 252_000,
+      taxByKind: { inc: 0, iva: 252_000 },
+    });
+    expect(doc.totals.map((r) => r.label)).toEqual([
+      "subtotal",
+      "taxBase",
+      "taxIncIncluded(8)",
+      "taxIva",
+      "total",
+    ]);
+  });
+
+  it("emitida con el comercio sin impuesto, o antes del congelado, no cambia nada", () => {
+    expect(
+      build({ salesTaxKind: "none", salesTaxPct: 0, embeddedTaxCents: 0, embeddedBaseCents: 6_100_000 })
+        .totals.map((r) => r.label),
+    ).toEqual(["subtotal", "total"]);
+    expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
+  });
+});

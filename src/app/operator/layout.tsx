@@ -211,6 +211,11 @@ export default async function OperatorLayout({
     { href: "/operator/reports", label: t("navClose") },
     { href: "/operator/wallet", label: t("navWallet") },
     { href: "/operator/insights", label: t("navInsights") },
+    // Bonos empresariales: sólo con el módulo `vouchers` activo (la página
+    // también devuelve 404 sin él).
+    ...(isModuleEnabled(tenant?.enabledModules, "vouchers")
+      ? [{ href: "/operator/bonos", label: t("navVouchers") }]
+      : []),
   ];
   const navItems: NavEntry[] = [
     { href: "/operator", label: t("navSummary") },

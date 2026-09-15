@@ -7,6 +7,7 @@ import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import type { AutoFiredRound } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
+import { settlePaymentLinkInTx } from "@/lib/paymentLinks";
 
 export type KushkiWebhookKind =
   | "charge.approved"
@@ -72,7 +73,21 @@ export async function settleKushkiEventInTx(tx: Prisma.TransactionClient, payloa
     return null;
   }
   if (payload.type.startsWith("dispersion.")) return null;
-  if (!payload.paymentId) throw new Error("missing_payment");
+  if (!payload.paymentId) {
+    // Sin Payment de orden: puede ser un LINK DE PAGO (bonos) cuyo aviso
+    // llega por la misma URL. Se casa por la referencia del proveedor;
+    // si no hay link, es el mismo error de siempre.
+    if (!payload.providerRef) throw new Error("missing_payment");
+    const link = await tx.paymentLink.findFirst({
+      where: { providerRef: payload.providerRef },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, restaurantId: true },
+    });
+    if (!link) throw new Error("missing_payment");
+    if (payload.restaurantId && payload.restaurantId !== link.restaurantId) throw new Error("wrong_restaurant");
+    await settlePaymentLinkInTx(tx, { id: link.id }, { approved: payload.type.endsWith(".approved"), providerRef: payload.providerRef });
+    return null;
+  }
   const hint = await tx.payment.findUniqueOrThrow({ where: { id: payload.paymentId }, select: { orderId: true } });
   await lockOrder(tx, hint.orderId);
   const payment = await tx.payment.findUniqueOrThrow({ where: { id: payload.paymentId }, include: { order: true } });

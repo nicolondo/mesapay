@@ -89,6 +89,8 @@ export type ChargeRequest = {
     paymentId?: string;
     tableId?: string;
     reservationId?: string;
+    /** Link de pago (bonos, cortes): tampoco hay Order. */
+    paymentLinkId?: string;
     kind?: string;
   };
   // Datos de contacto del titular. Kushki los pide en la solicitud de cobro

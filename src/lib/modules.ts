@@ -19,7 +19,8 @@ export type ModuleSlug =
   | "einvoicing" // B1 — facturación electrónica (DIAN / CFDI)
   | "accounting" // B2 — gastos, libros operativos, P&L, export contable
   | "production" // A5 — batches de sub-recetas (traslados descartados)
-  | "staff"; // C1 — horarios, asistencia, costo laboral
+  | "staff" // C1 — horarios, asistencia, costo laboral
+  | "vouchers"; // Bonos empresariales: emisión, link de pago, redención, corte
 
 export type ModuleConfig = {
   slug: ModuleSlug;
@@ -61,6 +62,12 @@ export const MODULE_CATALOG: ModuleConfig[] = [
   // prime cost en el P&L (PRs #248-#251). C2 agrega kiosko facial,
   // plantillas y festivos.
   { slug: "staff", shipped: true },
+  // Bonos empresariales: el comercio emite N bonos de un valor fijo a una
+  // empresa (BillingCustomer), prepagados (link de pago tarjeta/PSE) o a
+  // crédito (se cobran por corte). Apagado = ni pantallas ni códigos
+  // aceptados. La parte fiscal (factura al emitir vs. anticipo) queda
+  // pendiente del contador: VoucherBatch.fiscalTreatment = pending.
+  { slug: "vouchers", shipped: true },
 ];
 
 export const MODULE_SLUGS = MODULE_CATALOG.map((m) => m.slug);

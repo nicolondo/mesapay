@@ -16,7 +16,12 @@ import { resolveEnabledModules, type ModuleSlug } from "@/lib/modules";
  * la resolución de numeración, que manda el consecutivo del comprobante
  * impreso.
  */
-export type ErpContext = { restaurantId: string; country: string | null };
+export type ErpContext = {
+  restaurantId: string;
+  country: string | null;
+  /** Quién opera (para auditoría: p. ej. quién emitió un lote de bonos). */
+  userId: string | null;
+};
 export type ErpDenied = { error: string; status: number };
 
 export async function getErpContext(
@@ -40,7 +45,7 @@ export async function getErpContext(
   if (anyOf.length > 0 && !anyOf.some((m) => enabled.includes(m))) {
     return { error: "module_disabled", status: 403 };
   }
-  return { restaurantId, country: r.country };
+  return { restaurantId, country: r.country, userId: session?.user?.id ?? null };
 }
 
 export function isDenied(ctx: ErpContext | ErpDenied): ctx is ErpDenied {

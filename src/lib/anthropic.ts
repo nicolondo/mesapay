@@ -324,6 +324,11 @@ const RutSchema = z.object({
   // Datos secundarios que aparecen en el RUT y queremos pre-llenar.
   contactEmail: z.string().email().nullable(),
   contactPhone: z.string().min(6).nullable(),
+  // Representante legal (hoja de representación del RUT). Sólo prefill del
+  // formulario de alta de Kushki: si el modelo no lo ve, el operador lo
+  // escribe. Optional para no romper los fallbacks que devuelven null.
+  legalRepName: z.string().min(1).nullable().optional(),
+  legalRepDocNumber: z.string().min(1).nullable().optional(),
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -478,6 +483,8 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
   "taxIdDV": string | null,             // dígito de verificación (1 dígito) si aparece, si no null
   "contactEmail": string | null,        // si aparece un correo, si no null
   "contactPhone": string | null,        // si aparece teléfono, dígitos + + opcional al inicio
+  "legalRepName": string | null,        // nombre completo del representante legal si aparece en la hoja de representación del RUT, si no null
+  "legalRepDocNumber": string | null,   // documento del representante legal, SOLO dígitos, si no null
   "confidence": number,                 // 0..1 — qué tan seguro estás
   "notes": string                       // opcional, máx 1 frase
 }
@@ -486,6 +493,7 @@ Reglas:
 - Si un campo no se ve claramente, ponlo en null y baja la confianza.
 - taxId: solo dígitos, sin DV. Si en el documento aparece "900123456-7", taxId="900123456" y taxIdDV="7".
 - legalName: si es persona jurídica, la razón social; si es natural, el nombre completo del contribuyente.
+- legalRepName / legalRepDocNumber: sólo si el RUT trae la hoja de representación (representante legal principal); si no aparece, null.
 - Si el documento no parece un RUT, devuelve todos los campos en null con confidence 0.`;
 
 // Default model for the Pulso insights assistant. Override with the

@@ -100,6 +100,8 @@ export function OnboardingClient({
     legalName: string | null;
     taxId: string | null;
     legalPhone: string | null;
+    legalRepName: string | null;
+    legalRepDocNumber: string | null;
   } | null;
   initialDocuments: UploadedDoc[];
 }) {
@@ -152,6 +154,15 @@ export function OnboardingClient({
   );
   const [contactPhone, setContactPhone] = useState(
     () => initialLegal?.legalPhone ?? fromRut("contactPhone"),
+  );
+  // Representante legal: lo exige el formulario de alta de Kushki y no sale
+  // de ningún documento con certeza. El OCR del RUT lo sugiere si el RUT trae
+  // la hoja de representación; si no, el operador lo escribe.
+  const [legalRepName, setLegalRepName] = useState(
+    () => initialLegal?.legalRepName ?? fromRut("legalRepName"),
+  );
+  const [legalRepDocNumber, setLegalRepDocNumber] = useState(
+    () => initialLegal?.legalRepDocNumber ?? fromRut("legalRepDocNumber"),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -287,6 +298,18 @@ export function OnboardingClient({
       ) {
         setContactPhone(ex.contactPhone);
       }
+      if (
+        typeof ex.legalRepName === "string" &&
+        (force || !legalRepName.trim())
+      ) {
+        setLegalRepName(ex.legalRepName);
+      }
+      if (
+        typeof ex.legalRepDocNumber === "string" &&
+        (force || !legalRepDocNumber.trim())
+      ) {
+        setLegalRepDocNumber(ex.legalRepDocNumber);
+      }
       setDocs((prev) =>
         prev.map((d) => (d.id === docId ? { ...d, extractedFields: ex } : d)),
       );
@@ -307,6 +330,8 @@ export function OnboardingClient({
           taxId,
           contactEmail,
           contactPhone,
+          legalRepName,
+          legalRepDocNumber,
           bankInfo,
         }),
       });
@@ -361,6 +386,8 @@ export function OnboardingClient({
     taxId.trim() &&
     contactEmail.trim() &&
     contactPhone.trim() &&
+    legalRepName.trim() &&
+    legalRepDocNumber.trim() &&
     bankInfo.bankName.trim() &&
     bankInfo.accountType &&
     bankInfo.accountNumber.trim() &&
@@ -505,7 +532,38 @@ export function OnboardingClient({
             value={contactPhone}
             t={t}
           />
+          {/* Editables, a diferencia del resto: el representante legal no
+              sale de ningún documento con certeza (el OCR del RUT sólo lo
+              sugiere) y Kushki lo exige en el formulario de alta. */}
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              {t("legalRepNameLabel")}
+            </div>
+            <input
+              type="text"
+              value={legalRepName}
+              onChange={(e) => setLegalRepName(e.target.value)}
+              disabled={isLocked}
+              autoComplete="off"
+              className={inputCls}
+            />
+          </label>
+          <label className="block">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              {t("legalRepDocNumberLabel")}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={legalRepDocNumber}
+              onChange={(e) => setLegalRepDocNumber(e.target.value)}
+              disabled={isLocked}
+              autoComplete="off"
+              className={inputCls + " font-mono tabular"}
+            />
+          </label>
         </div>
+        <p className="mt-2 text-xs text-op-muted">{t("legalRepHint")}</p>
         {/* Re-lectura del RUT: si el OCR falló al subirlo, sin este botón
             había que borrar y volver a subir el archivo para reintentar
             (la certificación bancaria sí lo tenía). */}
@@ -578,6 +636,10 @@ export function OnboardingClient({
     </div>
   );
 }
+
+// Mismo chrome que DisplayField (y que los inputs de settings/identidad).
+const inputCls =
+  "mt-1 w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40 disabled:opacity-60";
 
 function Section({
   title,

@@ -28,6 +28,8 @@ export default async function KushkiOnboardingPage() {
       legalName: true,
       taxId: true,
       legalPhone: true,
+      legalRepName: true,
+      legalRepDocNumber: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -60,6 +62,8 @@ export default async function KushkiOnboardingPage() {
         legalName: tenant.legalName,
         taxId: tenant.taxId,
         legalPhone: tenant.legalPhone,
+        legalRepName: tenant.legalRepName,
+        legalRepDocNumber: tenant.legalRepDocNumber,
       }}
       initialDocuments={documents.map((d) => ({
         id: d.id,

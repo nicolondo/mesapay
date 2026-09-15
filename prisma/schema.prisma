@@ -418,6 +418,11 @@ model Restaurant {
   dianDocuments          DianDocument[]
   purchaseInvoiceUploads PurchaseInvoiceUpload[]
   purchasePayments       PurchasePayment[]
+  voucherSettings        VoucherSettings?
+  voucherBatches         VoucherBatch[]
+  vouchers               Voucher[]
+  voucherRedemptions     VoucherRedemption[]
+  paymentLinks           PaymentLink[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -829,6 +834,8 @@ model User {
   crmEmailTemplates    CrmEmailTemplate[]
   crmWhatsappTemplates CrmWhatsappTemplate[]
   passwordResetTokens  PasswordResetToken[]
+  voucherBatchesIssued VoucherBatch[]       @relation("VoucherBatchIssuer")
+  voucherRedemptions   VoucherRedemption[]  @relation("VoucherRedeemer")
 
   @@index([restaurantId])
   @@index([groupId])
@@ -1447,6 +1454,7 @@ model Order {
   simpleInvoice   SimpleInvoice?
   stockMovements  StockMovement[]
   dianDocuments   DianDocument[]
+  voucherRedemptions VoucherRedemption[]
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -1681,6 +1689,7 @@ model Payment {
   collectedBy       User?   @relation("PaymentsCollected", fields: [collectedByUserId], references: [id])
 
   kushkiTransactions KushkiTransaction[]
+  voucherRedemption  VoucherRedemption?
 
   @@index([orderId])
   @@index([shiftId])
@@ -2881,6 +2890,8 @@ model BillingCustomer {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  voucherBatches VoucherBatch[]
+
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])
 }
@@ -3734,4 +3745,200 @@ model PrintJob {
   @@index([restaurantId, status, createdAt])
   @@index([printerId, status])
   @@index([restaurantId, roundId])
+}
+
+// === Bonos empresariales ==================================================
+//
+// El comercio le emite a una EMPRESA (BillingCustomer) un lote de N bonos
+// de un valor fijo cada uno. La empresa los reparte; quien llega al
+// restaurante da el código (al mesero o en el portal del comensal) y se
+// descuenta de la cuenta: si la cuenta es mayor paga la diferencia, si es
+// menor el saldo queda para la próxima vez.
+//
+// Modo (copiado de VoucherSettings al emitir — no cambia después):
+//   prepaid → la empresa paga por adelantado con un link de pago
+//             (tarjeta / PSE) que va en el correo de emisión; los bonos
+//             NO se pueden redimir hasta que el lote esté `paid`.
+//   credit  → se emiten sin cobro; al cerrar un corte de bonos usados se
+//             le manda a la empresa el resumen con un link de pago.
+//
+// Parte fiscal PENDIENTE (respuesta del contador): qué factura DIAN sale
+// al emitir y cómo se factura la venta al redimir. Por eso ningún modelo
+// de acá toca DianDocument ni asientos: `fiscalTreatment` queda `pending`
+// hasta que se decida (invoiced_on_issue | advance).
+
+enum VoucherMode {
+  prepaid
+  credit
+}
+
+enum VoucherFiscalTreatment {
+  pending
+  invoiced_on_issue
+  advance
+}
+
+/// Estado del lote. `paid` sólo aplica a prepago (crédito va de issued a
+/// cancelled, y su cobro es por corte).
+enum VoucherBatchStatus {
+  issued
+  paid
+  cancelled
+}
+
+enum VoucherStatus {
+  active
+  exhausted
+  cancelled
+  expired
+}
+
+/// Quién redimió: el comensal desde su portal o el staff (mesero/caja).
+enum VoucherRedemptionChannel {
+  diner
+  staff
+}
+
+/// Configuración de bonos del comercio (1:1). El módulo `vouchers` es el
+/// interruptor; esto son los defaults que precargan el formulario de
+/// emisión y el modo de cobro.
+model VoucherSettings {
+  id           String      @id @default(cuid())
+  restaurantId String      @unique
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  mode         VoucherMode @default(prepaid)
+  /// Valor por defecto de cada bono (centavos). 0 = sin default.
+  defaultValueCents Int    @default(0)
+  /// Vigencia por defecto en días desde la emisión. null = sin vencimiento.
+  defaultExpiryDays Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model VoucherBatch {
+  id                String                 @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  billingCustomerId String
+  billingCustomer   BillingCustomer        @relation(fields: [billingCustomerId], references: [id], onDelete: Restrict)
+  mode              VoucherMode
+  fiscalTreatment   VoucherFiscalTreatment @default(pending)
+  unitValueCents    Int
+  quantity          Int
+  expiresAt         DateTime?
+  note              String?
+  status            VoucherBatchStatus     @default(issued)
+  issuedAt          DateTime               @default(now())
+  issuedByUserId    String?
+  issuedBy          User?                  @relation("VoucherBatchIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  /// Prepago: cuándo se pagó el link (el lote pasa a `paid`).
+  paidAt            DateTime?
+  cancelledAt       DateTime?
+  /// Último envío del correo de emisión (null = nunca salió).
+  emailSentAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  vouchers    Voucher[]
+  /// Prepago: el link de pago del lote (kind = voucher_batch).
+  paymentLink PaymentLink?
+
+  @@index([restaurantId, issuedAt])
+  @@index([restaurantId, billingCustomerId])
+}
+
+model Voucher {
+  id           String        @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  batchId      String
+  batch        VoucherBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  /// Código corto legible, único por comercio (ver src/lib/vouchers/code.ts).
+  code         String
+  valueCents   Int
+  balanceCents Int
+  status       VoucherStatus @default(active)
+  expiresAt    DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  redemptions VoucherRedemption[]
+
+  @@unique([restaurantId, code])
+  @@index([batchId])
+  @@index([restaurantId, status])
+}
+
+/// Un uso del bono sobre una cuenta. Idempotente por (bono, orden): la
+/// misma orden no puede aplicar el mismo bono dos veces.
+model VoucherRedemption {
+  id               String                   @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant               @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  voucherId        String
+  voucher          Voucher                  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  orderId          String
+  order            Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// El Payment (method = voucher) que representa el bono en la cuenta.
+  paymentId        String?                  @unique
+  payment          Payment?                 @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  amountCents      Int
+  channel          VoucherRedemptionChannel
+  redeemedByUserId String?
+  redeemedBy       User?                    @relation("VoucherRedeemer", fields: [redeemedByUserId], references: [id], onDelete: SetNull)
+  redeemedAt       DateTime                 @default(now())
+
+  @@unique([voucherId, orderId])
+  @@index([restaurantId, redeemedAt])
+  @@index([orderId])
+}
+
+// === Links de pago ========================================================
+//
+// Cobro online de un monto fijo por URL pública (/r/[slug]/pago/[token]),
+// con tarjeta / Apple Pay (token Kushki, sincrónico) o PSE (redirect al
+// banco + página de retorno que reconcilia). Generaliza el cobro del
+// depósito de reserva, que sigue con su propio camino (Reservation.deposit*)
+// sin cambios. Lo que el link cobra lo dice `kind`; al pagarse se aplica
+// el efecto sobre su destino (lote de bonos → paid).
+
+enum PaymentLinkKind {
+  voucher_batch
+  voucher_statement
+}
+
+enum PaymentLinkStatus {
+  pending
+  paid
+  cancelled
+}
+
+model PaymentLink {
+  id           String            @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// Token público de la URL. Random, no enumerable.
+  token        String            @unique
+  kind         PaymentLinkKind
+  amountCents  Int
+  currency     String            @default("COP")
+  status       PaymentLinkStatus @default(pending)
+  /// Con qué se pagó (kushki_card / kushki_apple_pay / kushki_pse).
+  method       PaymentMethod?
+  /// Referencia del proveedor: el token PSE mientras está pendiente (para
+  /// reconciliar en la página de retorno / webhook) y la transacción
+  /// aprobada al pagarse.
+  providerRef  String?
+  payerEmail   String?
+  paidAt       DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  voucherBatchId String?       @unique
+  voucherBatch   VoucherBatch? @relation(fields: [voucherBatchId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([providerRef])
 }

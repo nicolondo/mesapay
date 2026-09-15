@@ -10,6 +10,7 @@ import {
   verifyKushkiWebhookFlexible,
 } from "@/lib/payments/kushki/webhooks";
 import { getRestaurantWebhookSecret } from "@/lib/payments";
+import { findPendingPaymentLinkByProviderRef } from "@/lib/paymentLinks";
 
 /**
  * Kushki webhook receiver — ÚNICO endpoint para todos los estados de
@@ -282,7 +283,19 @@ async function handleRealKushki(
   }
   // An order can contain multiple simultaneous payments. Never guess the latest one.
 
-  if (!paymentId) {
+  // Sin Payment: ¿es un LINK DE PAGO (bonos prepagados / corte a crédito)
+  // pendiente con esa referencia? Se liquida por el mismo camino
+  // idempotente (KushkiWebhookEvent), sin paymentId.
+  let paymentLinkMatched = false;
+  if (!paymentId && txRef) {
+    const link = await findPendingPaymentLinkByProviderRef(txRef);
+    if (link) {
+      paymentLinkMatched = true;
+      restaurantId = link.restaurantId;
+    }
+  }
+
+  if (!paymentId && !paymentLinkMatched) {
     console.warn("[kushki/webhook] no pude casar el pago", {
       paymentIdHint,
       orderIdHint,
@@ -314,7 +327,7 @@ async function handleRealKushki(
     // eventId estable para la idempotencia (KushkiWebhookEvent).
     eventId: `kushki:${txRef || paymentId}:${approved ? "ok" : "no"}`,
     type: kind,
-    paymentId,
+    paymentId: paymentId ?? undefined,
     restaurantId: restaurantId ?? undefined,
     providerRef: txRef || undefined,
     amountCents,

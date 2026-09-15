@@ -24,6 +24,7 @@ export default async function SettingsPage() {
   const tErp = await getTranslations("opErp");
   const tDian = await getTranslations("opDian");
   const tSalesTax = await getTranslations("opSalesTax");
+  const tVouchers = await getTranslations("opVouchers");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -50,9 +51,13 @@ export default async function SettingsPage() {
       kitchenAutoFire: true,
       barAutoFire: true,
       barSubStations: true,
+      voucherSettings: { select: { mode: true, defaultValueCents: true } },
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
+
+  // Bonos empresariales: tarjeta sólo con el módulo `vouchers` activo.
+  const showVouchers = isModuleEnabled(tenant.enabledModules, "vouchers");
 
   // La tarjeta de datáfonos solo aplica si el comercio tiene activado el
   // cobro por datáfono Kushki (kushki_card_terminal).
@@ -271,6 +276,17 @@ export default async function SettingsPage() {
         tenant.salesTaxKind === "none"
           ? "bg-[#C98A2E]/20 text-[#8F6828]"
           : "bg-ok/15 text-ok",
+    },
+    showVouchers && {
+      href: "/operator/settings/bonos",
+      title: tVouchers("cardTitle"),
+      subtitle: tVouchers("cardSubtitle"),
+      badge: !tenant.voucherSettings
+        ? tVouchers("cardBadgeUnconfigured")
+        : tenant.voucherSettings.mode === "prepaid"
+          ? tVouchers("modePrepaid")
+          : tVouchers("modeCredit"),
+      tint: tenant.voucherSettings ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
     },
     {
       href: "/operator/settings/traducciones",

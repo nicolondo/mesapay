@@ -105,6 +105,11 @@ const MIGRATED = [
   "src/app/operator/settings/pagos/**/*.{ts,tsx}",
   "src/app/operator/settings/facturacion-dian/**/*.{ts,tsx}",
   "src/app/operator/settings/impuestos/**/*.{ts,tsx}",
+  // Bonos empresariales (módulo `vouchers`) + link de pago público.
+  // Nacieron trilingües, quedan blindados de una.
+  "src/app/operator/settings/bonos/**/*.{ts,tsx}",
+  "src/app/operator/bonos/**/*.{ts,tsx}",
+  "src/app/r/\\[slug\\]/pago/**/*.{ts,tsx}",
   "src/app/operator/menu/page.tsx",
   "src/app/operator/menu/MenuEditor.tsx",
   "src/app/operator/menu/import/**/*.{ts,tsx}",

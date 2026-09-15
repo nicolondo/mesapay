@@ -77,6 +77,7 @@ export function PayClient({
   invoiceIntent = null,
   invoicePrefillEmail = null,
   salesTax = null,
+  vouchersEnabled = false,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -171,6 +172,9 @@ export function PayClient({
   // precio, así que sólo alimenta el renglón informativo "Incluye
   // impoconsumo 8%" — no toca ningún monto a cobrar. null/none ⇒ nada.
   salesTax?: CheckoutTax | null;
+  // Módulo `vouchers` activo: se ofrece aplicar un bono empresarial a la
+  // cuenta antes de elegir cómo pagar el resto.
+  vouchersEnabled?: boolean;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -957,6 +961,30 @@ export function PayClient({
       </div>
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
+
+      {/* Bono empresarial: se aplica ANTES de elegir el medio para el resto.
+          El bono paga comida (nunca propina): cubre lo pendiente hasta su
+          saldo; lo que falte se paga con cualquier otro medio y el saldo
+          que sobre queda para otra visita. */}
+      {vouchersEnabled && !alreadyPaid && outstandingSubtotalCents > 0 && (
+        <VoucherCard
+          tenantSlug={tenantSlug}
+          orderId={orderId}
+          operatorMode={operatorMode}
+          disabled={busy !== null}
+          onApplied={(fullyPaid) => {
+            if (fullyPaid) {
+              router.push(
+                operatorMode
+                  ? doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`
+                  : `/t/${tenantSlug}/pay/${orderId}/done`,
+              );
+            } else {
+              router.refresh();
+            }
+          }}
+        />
+      )}
 
       {/* La factura se pide ACÁ, antes de confirmar el pago: es el momento en
           que el comensal todavía tiene el celular en la mano. Los datos se
@@ -2703,6 +2731,181 @@ function Row({
     >
       <span className="text-sm">{label}</span>
       <span className="font-mono tabular">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * "¿Tenés un bono?" — verifica el código contra la cuenta (saldo y cuánto
+ * se aplicaría) y, al confirmar, lo aplica. Mismo campo para el comensal
+ * y para el staff (mesero / caja): el server decide el canal por la
+ * sesión. Los errores llegan como CÓDIGOS y se traducen acá.
+ */
+function VoucherCard({
+  tenantSlug,
+  orderId,
+  operatorMode,
+  disabled,
+  onApplied,
+}: {
+  tenantSlug: string;
+  orderId: string;
+  operatorMode: boolean;
+  disabled: boolean;
+  onApplied: (fullyPaid: boolean) => void;
+}) {
+  const t = useTranslations("pay");
+  const apiError = useApiError();
+  const [code, setCode] = useState("");
+  const [preview, setPreview] = useState<{
+    code: string;
+    balanceCents: number;
+    applicableCents: number;
+    outstandingCents: number;
+  } | null>(null);
+  const [busy, setBusy] = useState<"check" | "apply" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [applied, setApplied] = useState<string | null>(null);
+
+  const errorText = (j: { error?: unknown }) => {
+    const key = typeof j.error === "string" ? `voucherErr_${j.error}` : "";
+    return key && t.has(key) ? t(key) : apiError(j, t("voucherErr_generic"));
+  };
+
+  async function check() {
+    if (code.trim().length < 4) return;
+    setBusy("check");
+    setErr(null);
+    setPreview(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/vouchers/lookup`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId, code: code.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(errorText(j));
+        return;
+      }
+      setPreview(j);
+    } catch {
+      setErr(t("voucherErr_generic"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function apply() {
+    if (!preview) return;
+    setBusy("apply");
+    setErr(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/vouchers/redeem`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId, code: code.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(errorText(j));
+        setPreview(null);
+        return;
+      }
+      setApplied(
+        j.fullyPaid
+          ? t("voucherAppliedFull", { amount: fmtCOP(j.amountCents) })
+          : t("voucherAppliedPartial", {
+              amount: fmtCOP(j.amountCents),
+              remaining: fmtCOP(j.outstandingAfterCents),
+            }),
+      );
+      setPreview(null);
+      setCode("");
+      onApplied(!!j.fullyPaid);
+    } catch {
+      setErr(t("voucherErr_generic"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+        {operatorMode ? t("voucherTitleOp") : t("voucherTitle")}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value.toUpperCase());
+            setPreview(null);
+            setErr(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void check();
+            }
+          }}
+          placeholder={t("voucherPlaceholder")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          className="flex-1 h-11 rounded-xl border border-hairline bg-bone px-3 text-sm font-mono tracking-[0.08em] focus:outline-none focus:border-ink"
+        />
+        <button
+          type="button"
+          onClick={check}
+          disabled={disabled || busy !== null || code.trim().length < 4}
+          className="h-11 px-4 rounded-xl border border-ink text-sm font-medium disabled:opacity-40"
+        >
+          {busy === "check" ? t("voucherChecking") : t("voucherCheck")}
+        </button>
+      </div>
+      {preview && (
+        <div className="mt-3 rounded-xl border border-hairline bg-ivory p-3">
+          <div className="text-sm">
+            {t("voucherFound", {
+              code: preview.code,
+              balance: fmtCOP(preview.balanceCents),
+              amount: fmtCOP(preview.applicableCents),
+            })}
+          </div>
+          {preview.applicableCents < preview.balanceCents && (
+            <div className="text-xs text-muted mt-1">
+              {t("voucherLeftover", {
+                left: fmtCOP(preview.balanceCents - preview.applicableCents),
+              })}
+            </div>
+          )}
+          {preview.applicableCents < preview.outstandingCents && (
+            <div className="text-xs text-muted mt-1">
+              {t("voucherRemainder", {
+                remaining: fmtCOP(preview.outstandingCents - preview.applicableCents),
+              })}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={apply}
+            disabled={disabled || busy !== null}
+            className="mt-3 w-full h-11 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-60"
+          >
+            {busy === "apply"
+              ? t("voucherApplying")
+              : t("voucherApply", { amount: fmtCOP(preview.applicableCents) })}
+          </button>
+          <p className="text-[11px] text-muted-2 text-center mt-2">{t("voucherNoTip")}</p>
+        </div>
+      )}
+      {applied && (
+        <div role="status" className="mt-3 text-sm text-success">
+          {applied}
+        </div>
+      )}
+      {err && <div className="mt-3 text-sm text-danger">{err}</div>}
     </div>
   );
 }

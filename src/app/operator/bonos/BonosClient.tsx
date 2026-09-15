@@ -240,7 +240,12 @@ export function BonosClient({
       </section>
 
       <section>
-        <h2 className="font-display text-xl mb-3">{t("batchesTitle")}</h2>
+        <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-display text-xl">{t("batchesTitle")}</h2>
+          <Link href="/operator/bonos/reporte" className="mp-btn mp-btn--secondary mp-btn--sm">
+            {t("navReport")}
+          </Link>
+        </div>
         {batches.length === 0 ? (
           <div className="mp-empty-state">
             <h2>{t("empty")}</h2>

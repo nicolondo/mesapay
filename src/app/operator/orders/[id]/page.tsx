@@ -482,6 +482,10 @@ function methodLabel(m: string, t: (key: string) => string) {
       return t("mExternalTerminal");
     case "kushki_pse":
       return t("mKushkiPse");
+    case "reservation_deposit":
+      return t("mReservationDeposit");
+    case "voucher":
+      return t("mVoucher");
     default:
       return m;
   }

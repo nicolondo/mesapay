@@ -155,6 +155,11 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("28", "Otros pasivos", "pasivo", "credito"),
   P("2805", "Anticipos y avances recibidos", "pasivo", "credito"),
   P("280505", "Depósitos / abonos de reserva", "pasivo", "credito"),
+  // Bonos empresariales redimidos en cuentas (Payment.method = voucher). Hoy
+  // sólo recibe el DÉBITO del asiento de ventas (para que el bono no se
+  // clasifique como caja); el crédito al emitir/cobrar el lote queda para
+  // la fase fiscal (anticipo vs. factura al emitir), con el contador.
+  P("280510", "Bonos por redimir", "pasivo", "credito"),
 
   // ─────────────────────── CLASE 3 · PATRIMONIO ───────────────────────
   P("3", "Patrimonio", "patrimonio", "credito"),

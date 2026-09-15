@@ -25,6 +25,8 @@ const METHOD_LABEL: Record<string, string> = {
   kushki_card_terminal: "methodCardTerminal",
   external_terminal: "methodCardTerminal",
   kushki_pse: "methodPse",
+  reservation_deposit: "methodDeposit",
+  voucher: "methodVoucher",
 };
 
 function methodLabel(m: string, t: DoneT) {

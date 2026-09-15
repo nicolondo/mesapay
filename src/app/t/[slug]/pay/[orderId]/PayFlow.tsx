@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { isModuleEnabled } from "@/lib/modules";
 import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
@@ -175,6 +176,9 @@ export async function PayFlow({
       currency={await getCurrencyForCountry(tenant.country)}
       card3ds={tenant.kushkiCard3ds}
       enabledMethods={enabledMethods}
+      // Bonos empresariales: el campo "¿Tenés un bono?" sólo existe con el
+      // módulo activo (el server además responde module_disabled sin él).
+      vouchersEnabled={isModuleEnabled(tenant.enabledModules, "vouchers")}
       pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}

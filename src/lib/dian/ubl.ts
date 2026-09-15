@@ -24,10 +24,11 @@ export type DianParty = {
   /** Dígito de verificación (solo NIT). */
   dv?: string | null;
   /**
-   * Tipo de documento (anexo 6.2.1): "31" NIT, "13" cédula.
+   * Tipo de documento (anexo 6.2.1): "31" NIT, "13" cédula de ciudadanía,
+   * "22" cédula de extranjería, "41" pasaporte.
    * Consumidor final: companyId 222222222222, scheme "13".
    */
-  idSchemeName: "31" | "13";
+  idSchemeName: "13" | "22" | "31" | "41";
   /** Responsabilidades fiscales (anexo 6.2.4): "O-13", "O-15", "R-99-PN"… */
   taxLevelCode: string;
   /** Régimen: "48" responsable de IVA, "49" no responsable. */

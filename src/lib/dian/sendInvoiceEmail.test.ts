@@ -46,7 +46,7 @@ vi.mock("@/lib/dian/attachedDocument", () => ({
 }));
 vi.mock("@/lib/dian/emit", () => ({
   bogotaIssueTime: () => "10:00:00-05:00",
-  CONSUMIDOR_FINAL: {},
+  customerPartyFor: () => ({}),
 }));
 vi.mock("@/lib/dian/config", () => ({
   resolveEmisor: async () => ({ legalName: "SON Y MELONA S.A.S." }),

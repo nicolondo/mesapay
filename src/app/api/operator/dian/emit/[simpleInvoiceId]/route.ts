@@ -2,28 +2,7 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import {
-  DianConfigError,
-  emisorResolution,
-  emisorToSupplierParty,
-  loadDianConfig,
-  missingContactFields,
-  missingLocationFields,
-  missingResolutionFields,
-  resolveEmisor,
-} from "@/lib/dian/config";
-import { buildDianInvoiceXml, type DianInvoiceInput } from "@/lib/dian/ubl";
-import { signXmlDian } from "@/lib/dian/xades";
-import { sendBillSync, sendTestSetAsync, zipInvoice } from "@/lib/dian/soap";
-import { transitionAfterSend } from "@/lib/dian/documentState";
-import {
-  bogotaIssueTime,
-  claimDianDocument,
-  CONSUMIDOR_FINAL,
-  orderToInvoiceLines,
-} from "@/lib/dian/emit";
-import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
-import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { emitDianInvoice, type EmitDianInvoiceResult } from "@/lib/dian/emitInvoice";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +10,31 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["einvoicing"];
 
 /**
+ * Detalle que acompaña a un bloqueo: qué campos faltan, con la clave que
+ * cada pantalla ya sabe leer (`missingResolution`, `missingLocation`,
+ * `missingContact`). Los demás motivos van sólo con `error`.
+ */
+function blockedDetails(
+  r: Extract<EmitDianInvoiceResult, { outcome: "blocked" }>,
+): Record<string, string[]> {
+  switch (r.reason) {
+    case "resolution_incomplete":
+      return { missingResolution: r.missing };
+    case "location_incomplete":
+      return { missingLocation: r.missing };
+    case "contact_email_incomplete":
+      return { missingContact: r.missing };
+    default:
+      return {};
+  }
+}
+
+/**
  * Emite a la DIAN la factura electrónica de una factura simple ya
- * generada. Idempotente (claimDianDocument): sólo (re)envía lo
- * reintentable. La venta NUNCA se bloquea — un rechazo/caída deja el
- * documento con estado y errores para reintentar.
+ * generada. La emisión entera vive en `emitDianInvoice` (idempotente,
+ * con los guards que evitan quemar consecutivos); acá sólo se traduce
+ * su resultado a HTTP. La venta NUNCA se bloquea — un rechazo/caída deja
+ * el documento con estado y errores para reintentar.
  */
 async function POSTHandler(
   _req: Request,
@@ -46,189 +46,31 @@ async function POSTHandler(
   }
   const { simpleInvoiceId } = await params;
 
-  const inv = await db.simpleInvoice.findUnique({
-    where: { id: simpleInvoiceId },
-    select: {
-      id: true,
-      restaurantId: true,
-      invoiceNumber: true,
-      snapshot: true,
-      restaurant: { select: { salesTaxKind: true, salesTaxPct: true } },
-      order: {
-        select: {
-          items: {
-            select: {
-              nameSnapshot: true,
-              qty: true,
-              priceCentsSnapshot: true,
-              cancelledAt: true,
-              taxKind: true,
-              taxPct: true,
-            },
-          },
+  const result = await emitDianInvoice({
+    simpleInvoiceId,
+    restaurantId: ctx.restaurantId,
+  });
+  switch (result.outcome) {
+    case "not_found":
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    case "already_emitted":
+      return NextResponse.json({ error: "already_emitted" }, { status: 409 });
+    case "blocked":
+      return NextResponse.json(
+        { error: result.reason, ...blockedDetails(result) },
+        { status: 400 },
+      );
+    default:
+      return NextResponse.json({
+        document: {
+          state: result.outcome,
+          cufe: result.cufe,
+          qrUrl: result.qrUrl,
+          errors: result.errors,
+          statusMessage: result.statusMessage,
         },
-      },
-    },
-  });
-  if (!inv || inv.restaurantId !== ctx.restaurantId) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-
-  const claim = await claimDianDocument(simpleInvoiceId, ctx.restaurantId);
-  if (!claim) {
-    return NextResponse.json({ error: "already_emitted" }, { status: 409 });
-  }
-
-  const emisor = await resolveEmisor(ctx.restaurantId);
-  let config;
-  try {
-    config = await loadDianConfig(ctx.restaurantId);
-  } catch (err) {
-    if (err instanceof DianConfigError) {
-      await db.dianDocument.update({
-        where: { id: claim.id },
-        data: { state: "error", errors: [err.code] },
       });
-      return NextResponse.json({ error: err.code }, { status: 400 });
-    }
-    throw err;
   }
-  if (!emisor) {
-    return NextResponse.json({ error: "no_emisor" }, { status: 400 });
-  }
-  // Sin la resolución completa NO se envía: la DIAN rechazaría el
-  // documento y el consecutivo quedaría quemado (FAB05b…FAD05c).
-  const resolution = emisorResolution(emisor);
-  if (!resolution) {
-    await db.dianDocument.update({
-      where: { id: claim.id },
-      data: { state: "error", errors: ["resolution_incomplete"] },
-    });
-    return NextResponse.json(
-      {
-        error: "resolution_incomplete",
-        missingResolution: missingResolutionFields(emisor),
-      },
-      { status: 400 },
-    );
-  }
-  // Ubicación DANE del establecimiento: mismo criterio que la resolución.
-  // Mandar Bogotá fija hacía que la DIAN resolviera mal el punto de
-  // facturación (FAB10a / FAJ50) y quemaba el consecutivo en el rechazo.
-  const missingLocation = missingLocationFields(emisor);
-  if (missingLocation.length > 0) {
-    await db.dianDocument.update({
-      where: { id: claim.id },
-      data: { state: "error", errors: ["location_incomplete"] },
-    });
-    return NextResponse.json(
-      { error: "location_incomplete", missingLocation },
-      { status: 400 },
-    );
-  }
-  // Correo de recepción de documentos electrónicos: mismo criterio.
-  // Sin él el emisor viaja sin cac:Contact y la DIAN rechaza con FAJ71
-  // — con el consecutivo ya quemado.
-  const missingContact = missingContactFields(emisor);
-  if (missingContact.length > 0) {
-    await db.dianDocument.update({
-      where: { id: claim.id },
-      data: { state: "error", errors: ["contact_email_incomplete"] },
-    });
-    return NextResponse.json(
-      { error: "contact_email_incomplete", missingContact },
-      { status: 400 },
-    );
-  }
-  const snap = inv.snapshot as unknown as InvoiceSnapshot;
-  const invoiceNumber = formatInvoiceNumber(snap, inv.invoiceNumber);
-  const now = new Date();
-  const issueDate = now.toISOString().slice(0, 10);
-  const env: "1" | "2" = config.environment === "produccion" ? "1" : "2";
-
-  // Impuesto real: el del comercio para los platos (embebido) y el
-  // propio de cada línea libre (sumado encima) — ver salesTax.ts.
-  const lines = orderToInvoiceLines(inv.order.items, {
-    kind: inv.restaurant.salesTaxKind as "none" | "inc" | "iva",
-    pct: inv.restaurant.salesTaxPct,
-  });
-  if (lines.length === 0) {
-    await db.dianDocument.update({
-      where: { id: claim.id },
-      data: { state: "error", errors: ["no_lines"] },
-    });
-    return NextResponse.json({ error: "no_lines" }, { status: 400 });
-  }
-
-  const input: DianInvoiceInput = {
-    environment: env,
-    softwareId: config.softwareId,
-    softwarePin: config.softwarePin,
-    technicalKey: config.technicalKey,
-    resolution,
-    invoiceNumber,
-    issueDate,
-    issueTime: bogotaIssueTime(now),
-    supplier: emisorToSupplierParty(emisor),
-    customer: CONSUMIDOR_FINAL,
-    lines,
-    paymentMeansCode: "10",
-  };
-
-  const built = buildDianInvoiceXml(input);
-  const signed = signXmlDian(built.xml, config.cert);
-  const zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
-
-  // Habilitación usa test set; producción usa SendBillSync síncrono.
-  const result =
-    env === "2" && config.testSetId
-      ? await sendTestSetAsync(zip, config.testSetId, {
-          environment: "habilitacion",
-          cert: config.cert,
-        })
-      : await sendBillSync(zip, {
-          environment: config.environment,
-          cert: config.cert,
-        });
-  const t = transitionAfterSend(result, built.cufe);
-
-  await db.dianDocument.update({
-    where: { id: claim.id },
-    data: {
-      state: t.state,
-      cufe: t.cufe ?? built.cufe,
-      trackId: t.trackId ?? null,
-      errors: t.errors.length ? t.errors : undefined,
-      // La respuesta cruda se guarda siempre: sin ella no hay forma de
-      // saber por qué la DIAN rechazó (ver InvalidSecurity de 2026-09).
-      responseXml: result.raw ?? null,
-      xmlZip: new Uint8Array(zip),
-      attempts: { increment: 1 },
-    },
-  });
-
-  // Aceptada ⇒ al adquiriente le tiene que llegar su factura electrónica
-  // (el AttachedDocument). Se AWAITEA en vez de dispararlo al aire porque
-  // un fire-and-forget en un route handler se muere cuando la respuesta
-  // sale; `sendDianInvoiceEmail` no lanza y es idempotente, así que no
-  // puede tumbar la emisión ni duplicar el correo si además lo manda el
-  // riel de la consulta diferida.
-  if (t.state === "accepted") {
-    await sendDianInvoiceEmail({
-      documentId: claim.id,
-      environment: config.environment,
-    });
-  }
-
-  return NextResponse.json({
-    document: {
-      state: t.state,
-      cufe: t.cufe,
-      qrUrl: t.fiscal ? built.qrUrl : null,
-      errors: t.errors,
-      statusMessage: result.statusMessage ?? null,
-    },
-  });
 }
 
 /** Estado del documento DIAN de una factura simple (para la UI). */

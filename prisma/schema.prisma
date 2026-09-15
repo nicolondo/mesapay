@@ -209,6 +209,10 @@ model Restaurant {
   legalAddress String?
   legalCity    String?
   legalPhone   String?
+  // Representante legal: lo piden Kushki (formulario de alta) y no salía de
+  // ningún documento; el operador lo escribe en el onboarding de pagos.
+  legalRepName      String?
+  legalRepDocNumber String?
 
   // Ciudad de los datos legales como CÓDIGO DANE (DIVIPOLA), no como
   // texto. La factura electrónica declara la ubicación del

@@ -8,6 +8,7 @@ import { compareBeneficiaryIds } from "@/lib/beneficiaryIdentity";
 import {
   deliverPendingDocsToSftp,
   deliverOnboardingManifest,
+  deliverOnboardingWorkbook,
   fileNameForSftpDocument,
 } from "@/lib/onboardingSftp";
 
@@ -27,6 +28,10 @@ const submitSchema = z.object({
   taxId: z.string().min(4).max(40),
   contactEmail: z.string().email(),
   contactPhone: z.string().min(6).max(32),
+  // Representante legal: obligatorio porque el formulario de alta de Kushki
+  // (hoja "Datos de Negocio") lo exige y no sale de ningún documento.
+  legalRepName: z.string().min(2).max(160),
+  legalRepDocNumber: z.string().min(4).max(40),
   bankInfo: bankInfoSchema,
 });
 
@@ -40,6 +45,9 @@ const submitSchema = z.object({
  *
  * Requerimos al menos un bank_cert y un cedula_rep_legal; el resto se puede
  * agregar luego desde la página de pagos.
+ *
+ * Junto al manifiesto va el formulario de alta de Salesforce/Kushki en Excel
+ * (misma data, en el formato que ellos cargan) — ver onboardingWorkbook.ts.
  */
 async function POSTHandler(req: Request) {
   const session = await auth();
@@ -86,7 +94,15 @@ async function POSTHandler(req: Request) {
 
   const restaurant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { country: true },
+    select: {
+      country: true,
+      // Ciudad y dirección para el formulario de alta: primero la legal (la
+      // del RUT), si no la operativa.
+      legalAddress: true,
+      legalCity: true,
+      address: true,
+      city: true,
+    },
   });
   if (!restaurant)
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -119,6 +135,8 @@ async function POSTHandler(req: Request) {
     taxId: parsed.data.taxId,
     contactEmail: parsed.data.contactEmail,
     contactPhone: parsed.data.contactPhone,
+    legalRepName: parsed.data.legalRepName,
+    legalRepDocNumber: parsed.data.legalRepDocNumber,
     bankInfo: parsed.data.bankInfo,
     documents: docs.map((d) => ({
       kind: d.kind,
@@ -128,12 +146,23 @@ async function POSTHandler(req: Request) {
   };
 
   const manifestOk = await deliverOnboardingManifest(restaurantId, manifest);
+  const workbookOk = await deliverOnboardingWorkbook(restaurantId, {
+    legalName: manifest.legalName,
+    taxId: manifest.taxId,
+    city: restaurant.legalCity ?? restaurant.city ?? null,
+    address: restaurant.legalAddress ?? restaurant.address ?? null,
+    legalRepName: manifest.legalRepName,
+    legalRepDocNumber: manifest.legalRepDocNumber,
+    contactEmail: manifest.contactEmail,
+    contactPhone: manifest.contactPhone,
+  });
   const docsResult = await deliverPendingDocsToSftp(restaurantId, {
     legalName: manifest.legalName,
     taxId: manifest.taxId,
   });
   const status =
     manifestOk &&
+    workbookOk &&
     docsResult.configured &&
     docsResult.delivered === docsResult.total
       ? "in_review"
@@ -145,8 +174,11 @@ async function POSTHandler(req: Request) {
       kushkiOnboardingStatus: status,
       kushkiSubmittedAt: new Date(),
       bankInfo: parsed.data.bankInfo,
+      legalRepName: parsed.data.legalRepName,
+      legalRepDocNumber: parsed.data.legalRepDocNumber,
+      // La página lee "manifiesto ok" de acá con una regex: no cambiar el literal.
       kushkiOnboardingNotes: docsResult.configured
-        ? `SFTP: ${docsResult.delivered}/${docsResult.total} docs + manifiesto ${manifestOk ? "ok" : "falló"}`
+        ? `SFTP: ${docsResult.delivered}/${docsResult.total} docs + manifiesto ${manifestOk ? "ok" : "falló"} + excel ${workbookOk ? "ok" : "falló"}`
         : "SFTP no configurado en el server — entrega pendiente",
     },
   });
@@ -157,6 +189,7 @@ async function POSTHandler(req: Request) {
     docsDelivered: docsResult.delivered,
     docsTotal: docsResult.total,
     manifest: manifestOk,
+    workbook: workbookOk,
   });
 
   return NextResponse.json({
@@ -167,6 +200,7 @@ async function POSTHandler(req: Request) {
       docsDelivered: docsResult.delivered,
       docsTotal: docsResult.total,
       manifest: manifestOk,
+      workbook: workbookOk,
     },
   });
 }

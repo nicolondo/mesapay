@@ -120,6 +120,7 @@
       apretado FEED al encenderla). Puerto 9100 salvo que la impresora diga otro.
     </p>
     <div id="printers"></div>
+    <div id="unsaved" class="msg" hidden>Tenés cambios sin guardar. El refresco automático está en pausa hasta que toques <b>Guardar configuración</b>.</div>
     <button type="button" id="btnAdd" class="ghost">+ Agregar impresora</button>
   </section>
 
@@ -145,6 +146,24 @@
 // viene del agente en cada refresco.
 let printers = [];
 let tokenSet = false;
+// `dirty` = hay cambios en el formulario que todavía no se guardaron.
+// Mientras esté en true el refresco periódico NO toca el formulario.
+// Antes se miraba sólo el foco (document.activeElement): al apretar
+// "Agregar impresora" la fila nueva aparecía sin ningún campo enfocado,
+// y el siguiente refresco (≤4 s) pisaba la lista con la guardada y la
+// fila desaparecía sola. Lo mismo al tocar "Probar" a mitad de la edición.
+let dirty = false;
+function markDirty() {
+  if (dirty) return;
+  dirty = true;
+  const el = document.getElementById("unsaved");
+  if (el) el.hidden = false;
+}
+function markClean() {
+  dirty = false;
+  const el = document.getElementById("unsaved");
+  if (el) el.hidden = true;
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -265,6 +284,7 @@ function renderPrinters() {
 // así que enganchar listeners en cada input se perdería en el siguiente
 // redibujo.
 $("printers").addEventListener("input", (e) => {
+  markDirty();
   const t = e.target;
   if (t.dataset.i === undefined) return;
   const p = printers[Number(t.dataset.i)];
@@ -275,6 +295,7 @@ $("printers").addEventListener("input", (e) => {
   if (f === "station") renderPrinters();
 });
 $("printers").addEventListener("change", (e) => {
+  markDirty();
   const t = e.target;
   if (t.dataset.i === undefined || t.dataset.f !== "active") return;
   printers[Number(t.dataset.i)].active = t.checked;
@@ -287,6 +308,7 @@ $("printers").addEventListener("click", async (e) => {
 
   if (btn.dataset.del !== undefined) {
     printers.splice(Number(btn.dataset.del), 1);
+    markDirty();
     renderPrinters();
     return;
   }
@@ -316,7 +338,17 @@ $("btnAdd").addEventListener("click", () => {
     localKey: "", label: "", host: "", port: 9100,
     station: "kitchen", barSubStation: "", paperWidthMm: 80, active: true,
   });
+  markDirty();
   renderPrinters();
+  // Foco al primer campo de la fila nueva: además de ser lo que uno
+  // espera, deja claro que la fila es editable.
+  const last = $("printers").querySelector('[data-i="' + (printers.length - 1) + '"]');
+  if (last) last.focus();
+});
+
+["serverUrl", "token"].forEach((id) => {
+  const el = $(id);
+  if (el) el.addEventListener("input", markDirty);
 });
 
 $("btnSave").addEventListener("click", async () => {
@@ -335,8 +367,11 @@ $("btnSave").addEventListener("click", async () => {
   $("saveMsg").innerHTML = r.ok
     ? '<div class="msg ok">Configuración guardada.</div>'
     : '<div class="msg err">' + esc(r.error || "no se pudo guardar") + "</div>";
-  if (r.ok) $("token").value = "";
-  refresh();
+  if (r.ok) {
+    $("token").value = "";
+    markClean();
+    refresh(true);
+  }
 });
 
 $("btnCheck").addEventListener("click", async () => {
@@ -376,7 +411,7 @@ async function refresh(force) {
   renderLog(s.events);
   $("logPath").textContent = s.logPath || "";
   tokenSet = s.tokenSet;
-  if (force || !editing()) {
+  if (force || (!dirty && !editing())) {
     $("serverUrl").value = s.serverUrl || "";
     printers = (s.printers || []).map((p) => ({ ...p }));
     renderPrinters();

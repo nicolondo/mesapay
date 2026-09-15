@@ -41,6 +41,7 @@ export type AuditKind =
   | "user.delete"
   // Orden + items (cancel / comp / walkout)
   | "order.cancel"
+  | "order.manual_invoice.open"
   | "order_item.cancel"
   | "order_item.comp"
   | "order_item.move"
@@ -91,6 +92,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "user.update": "Editó usuario",
   "user.delete": "Borró usuario",
   "order.cancel": "Canceló orden",
+  "order.manual_invoice.open": "Abrió factura manual",
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",
   "order_item.move": "Movió plato de mesa",

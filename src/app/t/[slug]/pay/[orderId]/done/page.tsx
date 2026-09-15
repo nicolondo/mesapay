@@ -266,11 +266,13 @@ export default async function PayDone({
         {operatorBanner}
 
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-          {t("headerTable", {
-            number: order.table.number,
-            name: tenant.name,
-            code: order.shortCode,
-          })}
+          {order.table.kind === "manual"
+            ? t("headerManual", { name: tenant.name, code: order.shortCode })
+            : t("headerTable", {
+                number: order.table.number,
+                name: tenant.name,
+                code: order.shortCode,
+              })}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
           {fullyPaid ? t("billPaid") : t("paymentReceived")}

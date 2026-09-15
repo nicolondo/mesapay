@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { normalizeModifiers } from "@/lib/modifiers";
@@ -41,6 +42,10 @@ export default async function MeseroPedirPage({
   });
   if (!table) return notFound();
   const tenant = table.restaurant;
+  // Las facturas manuales son de caja: el mesero no las ve en Mesas y
+  // tampoco puede cargarles platos por acá.
+  if (role === "mesero" && table.kind === "manual") return notFound();
+  const tMenu = await getTranslations("menu");
 
   // Tenant scope check — un mesero de otro restaurante no debe ver
   // estas mesas. Para operator/admin con impersonación, la sesión
@@ -134,11 +139,13 @@ export default async function MeseroPedirPage({
       }}
       tableId={table.id}
       locationLabel={
-        tenant.serviceMode === "counter"
-          ? "Mostrador"
-          : table.label
-            ? `Mesa ${table.number} · ${table.label}`
-            : `Mesa ${table.number}`
+        table.kind === "manual"
+          ? tMenu("manualInvoice")
+          : tenant.serviceMode === "counter"
+            ? "Mostrador"
+            : table.label
+              ? `Mesa ${table.number} · ${table.label}`
+              : `Mesa ${table.number}`
       }
       menus={menus}
       menuTags={menuTags}

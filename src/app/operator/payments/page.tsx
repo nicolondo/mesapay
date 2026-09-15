@@ -5,7 +5,7 @@ import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { getMeseroScope } from "@/lib/meseroScope";
+import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { PaymentDetailSheet, type PaymentDetail } from "./PaymentDetailSheet";
 
 export const dynamic = "force-dynamic";
@@ -31,9 +31,9 @@ export default async function PaymentsPage({
   // Mesero-scoped users only see payments for orders on their tables.
   // Other roles see everything.
   const scope = await getMeseroScope();
-  const tableFilter = scope.scoped
-    ? { table: { number: { in: scope.tableNumbers ?? [] } } }
-    : {};
+  // Sus mesas y, con o sin sección, nunca una factura manual.
+  const tableWhere = meseroTableWhere(scope);
+  const tableFilter = tableWhere ? { table: tableWhere } : {};
 
   const where: Prisma.PaymentWhereInput = {
     order: {

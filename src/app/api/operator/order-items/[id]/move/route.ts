@@ -76,7 +76,7 @@ async function POSTHandler(
           status: true,
           locale: true,
           servingMode: true,
-          table: { select: { number: true } },
+          table: { select: { number: true, kind: true } },
         },
       },
     },
@@ -87,10 +87,16 @@ async function POSTHandler(
 
   const target = await db.table.findUnique({
     where: { id: parsed.data.targetTableId },
-    select: { id: true, number: true, restaurantId: true },
+    select: { id: true, number: true, restaurantId: true, kind: true },
   });
   if (!target || target.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  // Una FACTURA MANUAL no intercambia platos con el salón: los suyos
+  // nunca pasaron por cocina y los de una mesa sí. La UI no ofrece esos
+  // destinos — esto es la defensa de fondo.
+  if (item.order.table.kind === "manual" || target.kind === "manual") {
+    return NextResponse.json({ error: "manual_invoice" }, { status: 409 });
   }
   // Scope de mesa para meseros con asignación (empty = todas).
   if (role === "mesero") {

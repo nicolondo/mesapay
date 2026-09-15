@@ -73,6 +73,11 @@ async function POSTHandler(
   if (!table || table.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "invalid table" }, { status: 400 });
   }
+  // FACTURA MANUAL: la cuenta vive en una mesa oculta `kind = manual` (ver
+  // src/lib/manualInvoice.ts). Es un documento, no un pedido a preparar:
+  // sus platos nacen servidos, como una línea libre, y nunca llegan al
+  // tablero de cocina ni a las impresoras.
+  const isManual = table.kind === "manual";
 
   // Resolve menu items + prices (snapshot at order time)
   const menuIds = Array.from(new Set(parsed.data.items.map((i) => i.menuItemId)));
@@ -134,22 +139,30 @@ async function POSTHandler(
     // placed/in_kitchen/ready) doesn't pick it up until the payment approval
     // path flips it to "placed".
     const isCounter = tenant.serviceMode === "counter";
+    const now = new Date();
+    // Una ronda de factura manual nace ya entregada: ninguna estación la
+    // toca y el Salón (que busca "listo sin entregar") no la ve.
     const round = await tx.round.create({
       data: {
         orderId: order.id,
         seq: (existingRounds._max.seq ?? 0) + 1,
-        status: isCounter ? "open" : "placed",
+        status: isManual ? "served" : isCounter ? "open" : "placed",
+        readyAt: isManual ? now : undefined,
       },
     });
 
     for (const it of parsed.data.items) {
       const mi = menuById.get(it.menuItemId)!;
-      const station = resolveStation(mi.prepStation, mi.category.prepStation);
+      // En una factura manual nadie prepara nada: estación "counter", el
+      // mismo sello técnico que una línea libre (order-items/route.ts).
+      const station = isManual
+        ? "counter"
+        : resolveStation(mi.prepStation, mi.category.prepStation);
       // Counter items (and bar items when the restaurant has no dedicated
       // bartender) skip the prep stage entirely — they're already ready
       // the moment the round is sent. The waiter sees them in their serve
       // list with the appropriate "Refri / Bar" pill.
-      const autoReady = isAutoReadyStation(station, tenant.hasBar);
+      const autoReady = isManual || isAutoReadyStation(station, tenant.hasBar);
       // Snapshot the bar sub-station (e.g. "Cocteles") so the bar board
       // can filter tabs without re-resolving. Only meaningful for bar
       // items in a restaurant that defined sub-stations.
@@ -175,6 +188,10 @@ async function POSTHandler(
           barSubStation,
           prepMinutesSnapshot: mi.prepMinutes,
           kitchenStatus: autoReady ? "ready" : "placed",
+          // Servido de nacimiento: así no queda pendiente en ninguna cola
+          // del personal. Es un sello técnico, no comida entregada — el
+          // gate de "ya servido" al cancelar lo sabe (order-items/[id]).
+          servedAt: isManual ? now : undefined,
           modifierSelections: it.selections ?? undefined,
           notes: it.notes,
           guestName: parsed.data.guestName,
@@ -193,6 +210,7 @@ async function POSTHandler(
     const roundItems = items.filter((i) => i.roundId === round.id);
     if (
       !isCounter &&
+      !isManual &&
       roundItems.length > 0 &&
       roundItems.every((i) => i.kitchenStatus === "ready")
     ) {
@@ -207,25 +225,35 @@ async function POSTHandler(
     // recálculo de la ronda). La comanda se imprime DESPUÉS del commit
     // (abajo). Una ronda prepaga (counter) nace "open" y se marcha recién
     // al activarse con el pago — ver activateOpenRounds. Sin auto-fire en
-    // ninguna estación no lee ni escribe nada.
-    const fired = isCounter
-      ? []
-      : await autoFireRoundInTx(tx, {
-          roundId: round.id,
-          flags: tenant,
-          now: new Date(),
-        });
+    // ninguna estación no lee ni escribe nada. Una factura manual tampoco
+    // marcha: no hay nada que preparar ni comanda que imprimir.
+    const fired =
+      isCounter || isManual
+        ? []
+        : await autoFireRoundInTx(tx, {
+            roundId: round.id,
+            flags: tenant,
+            now,
+          });
+    // Una factura manual queda "served" (todo entregado de nacimiento);
+    // si ya estaba en cobro o cerrada no se toca.
+    const manualServed =
+      isManual && ["open", "placed", "in_kitchen", "ready"].includes(order.status);
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {
         // Counter-mode orders stay "open" until the payment path marks them
         // paid — they must not reach the kitchen before cash hits the till.
-        status: isCounter
-          ? order.status
-          : order.status === "open"
-            ? "placed"
-            : order.status,
-        placedAt: isCounter ? order.placedAt : (order.placedAt ?? new Date()),
+        status: manualServed
+          ? "served"
+          : isCounter
+            ? order.status
+            : order.status === "open"
+              ? "placed"
+              : order.status,
+        placedAt:
+          isCounter && !isManual ? order.placedAt : (order.placedAt ?? now),
+        servedAt: manualServed ? (order.servedAt ?? now) : undefined,
       },
     });
     const recalculated = await recomputeOrderLinesInTx(tx, updated.id);

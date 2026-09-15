@@ -103,6 +103,7 @@ export function TableDetailSheet({
   isMeseroView,
   country,
   chargeLocked,
+  manual = false,
 }: {
   orderId: string;
   shortCode: string;
@@ -165,6 +166,12 @@ export function TableDetailSheet({
   // Cambiamos "Cobrar la cuenta" por "Pedir la cuenta": el mesero avisa
   // a caja en vez de chocar contra un 403 del servidor.
   chargeLocked?: boolean;
+  // FACTURA MANUAL: la cuenta vive en una mesa oculta (`kind = manual`) y
+  // nada pasa por cocina — los platos nacen servidos como sello técnico.
+  // La ficha entonces no ofrece mover (ni la cuenta ni un plato), trata
+  // "quitar un plato" como cancelación (no como cortesía) y deja
+  // descartar la factura entera aunque los ítems figuren "ready".
+  manual?: boolean;
 }) {
   const tr = useTranslations("opTables");
   const [internalOpen, setInternalOpen] = useState(false);
@@ -272,7 +279,11 @@ export function TableDetailSheet({
   }
 
   async function cancelOrder() {
-    if (!window.confirm(tr("confirmCancelOrder"))) {
+    if (
+      !window.confirm(
+        manual ? tr("confirmCancelManualInvoice") : tr("confirmCancelOrder"),
+      )
+    ) {
       return;
     }
     setCancelOrderBusy(true);
@@ -729,14 +740,20 @@ export function TableDetailSheet({
               const hasAnyLiveItem = rounds
                 .filter((r) => r.status !== "cancelled")
                 .some((r) => r.items.length > 0);
-              const canCancelOrder =
-                hasAnyLiveItem &&
-                allItemsStillPlaced &&
-                orderStatus !== "paid" &&
-                orderStatus !== "cancelled";
+              // Una factura manual se descarta entera mientras siga
+              // abierta, tenga o no ítems: nada pasó por cocina (el
+              // backend también lo sabe).
+              const canCancelOrder = manual
+                ? orderStatus !== "paid" &&
+                  orderStatus !== "cancelled" &&
+                  orderStatus !== "paying"
+                : hasAnyLiveItem &&
+                  allItemsStillPlaced &&
+                  orderStatus !== "paid" &&
+                  orderStatus !== "cancelled";
               const canAdd =
                 isMeseroView || (tenantSlug && qrToken);
-              const canMove = freeTables.length > 0;
+              const canMove = !manual && freeTables.length > 0;
               // Línea libre: mientras la cuenta siga abierta. En cobro no —
               // el comensal ya está viendo un total que dejaría de ser cierto
               // (el backend también lo rechaza).
@@ -843,8 +860,12 @@ export function TableDetailSheet({
                       className="mp-btn mp-btn--danger mp-btn--block"
                     >
                       {cancelOrderBusy
-                        ? tr("cancelBillBusy")
-                        : tr("cancelBill")}
+                        ? manual
+                          ? tr("cancelManualInvoiceBusy")
+                          : tr("cancelBillBusy")
+                        : manual
+                          ? tr("cancelManualInvoice")
+                          : tr("cancelBill")}
                     </button>
                   )}
                 </div>
@@ -853,7 +874,7 @@ export function TableDetailSheet({
 
             {visibleRounds.length === 0 && freeLines.length === 0 && (
               <div className="text-sm text-op-muted">
-                {tr("noActiveDishes")}
+                {manual ? tr("manualNoItems") : tr("noActiveDishes")}
               </div>
             )}
 
@@ -899,16 +920,20 @@ export function TableDetailSheet({
                           <span className="font-mono tabular text-sm shrink-0">
                             {fmtCOP(it.priceCents * it.qty)}
                           </span>
-                          <StatusPill
-                            status={
-                              it.servedAt
-                                ? "served"
-                                : (it.kitchenStatus as
-                                    | "placed"
-                                    | "in_kitchen"
-                                    | "ready")
-                            }
-                          />
+                          {/* En una factura manual el "servido" es un
+                              sello técnico — mostrarlo confundiría. */}
+                          {!manual && (
+                            <StatusPill
+                              status={
+                                it.servedAt
+                                  ? "served"
+                                  : (it.kitchenStatus as
+                                      | "placed"
+                                      | "in_kitchen"
+                                      | "ready")
+                              }
+                            />
+                          )}
                         </div>
                         {/* El unitario sólo cuando difiere del total de la
                             línea: con qty 1 el número de arriba YA es el
@@ -967,7 +992,7 @@ export function TableDetailSheet({
                                 el plato conserva su estado y no vuelve
                                 a entrar a cocina. El plato puede
                                 unirse a una mesa ocupada. */}
-                            {allTables.length > 0 && (
+                            {!manual && allTables.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -999,8 +1024,13 @@ export function TableDetailSheet({
                                     cortesía, walkout).
                                 Ambos sacan del subtotal pero el reporte
                                 admin filtra por kind para distinguir
-                                desperdicio vs queja. */}
-                            {!it.servedAt ? (
+                                desperdicio vs queja.
+                                En una factura manual el plato nunca se
+                                entregó (nació "servido" para no pasar por
+                                cocina): quitarlo es cancelarlo, no una
+                                cortesía. El servidor aplica el mismo
+                                criterio. */}
+                            {manual || !it.servedAt ? (
                               <button
                                 type="button"
                                 onClick={() =>

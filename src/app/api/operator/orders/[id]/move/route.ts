@@ -56,7 +56,13 @@ async function POSTHandler(
 
   const order = await db.order.findUnique({
     where: { id },
-    select: { id: true, restaurantId: true, tableId: true, status: true },
+    select: {
+      id: true,
+      restaurantId: true,
+      tableId: true,
+      status: true,
+      table: { select: { kind: true } },
+    },
   });
   if (!order || order.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -79,10 +85,16 @@ async function POSTHandler(
 
   const target = await db.table.findUnique({
     where: { id: parsed.data.targetTableId },
-    select: { id: true, number: true, restaurantId: true },
+    select: { id: true, number: true, restaurantId: true, kind: true },
   });
   if (!target || target.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  // Una FACTURA MANUAL no es un lugar: ni se muda a una mesa ni una mesa
+  // se muda a ella (sus platos no pasaron por cocina; los de una mesa
+  // sí). La UI ya no ofrece esos destinos — esto es la defensa de fondo.
+  if (order.table.kind === "manual" || target.kind === "manual") {
+    return NextResponse.json({ error: "manual_invoice" }, { status: 409 });
   }
 
   // Scope mesa por número para meseros con asignación. Empty array

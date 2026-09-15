@@ -126,7 +126,7 @@ export async function buildShiftReport(
         select: {
           id: true,
           shortCode: true,
-          table: { select: { number: true, label: true } },
+          table: { select: { number: true, label: true, kind: true } },
         },
       },
       collectedBy: { select: { id: true, name: true, email: true } },
@@ -260,7 +260,9 @@ export async function buildShiftReport(
       orderId: p.orderId,
       orderShortCode: p.order.shortCode,
       tableLabel: p.order.table
-        ? `Mesa ${p.order.table.number}${p.order.table.label ? ` · ${p.order.table.label}` : ""}`
+        ? p.order.table.kind === "manual"
+          ? p.order.table.label
+          : `Mesa ${p.order.table.number}${p.order.table.label ? ` · ${p.order.table.label}` : ""}`
         : null,
       method: p.method,
       amountCents: p.amountCents,

@@ -168,6 +168,7 @@ async function POSTHandler(
             data: {
               restaurantId: id,
               number: PICKUP_TABLE_NUMBER,
+              kind: "pickup",
               label: "Pickup",
               qrToken: crypto.randomUUID(),
             },

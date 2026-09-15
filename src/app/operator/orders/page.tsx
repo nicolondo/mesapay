@@ -113,9 +113,12 @@ export default async function OrdersPage({
     // Neto del descuento del comensal identificado: es lo que se cobra.
     subtotalCents: Math.max(0, o.subtotalCents - o.discountCents),
     paid: o.payments.reduce((s, p) => s + p.amountCents - p.refundedCents, 0),
-    place: counterMode
-      ? t("channelCounter")
-      : t("tableNumber", { number: o.table.number }),
+    place:
+      o.table.kind === "manual"
+        ? t("manualInvoice")
+        : counterMode
+          ? t("channelCounter")
+          : t("tableNumber", { number: o.table.number }),
   }));
 
   return (

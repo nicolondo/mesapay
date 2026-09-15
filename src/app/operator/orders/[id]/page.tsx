@@ -102,9 +102,12 @@ export default async function OperatorOrderDetail({
         <div>
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-op-muted">
             {t("datetime", {
-              channel: counterMode
-                ? t("channelCounter")
-                : t("tableNumber", { number: order.table.number }),
+              channel:
+                order.table.kind === "manual"
+                  ? t("manualInvoice")
+                  : counterMode
+                    ? t("channelCounter")
+                    : t("tableNumber", { number: order.table.number }),
               datetime: fmtDateTime(order.createdAt),
             })}
           </div>

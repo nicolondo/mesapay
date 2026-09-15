@@ -2733,7 +2733,19 @@
     "dianCopyCufe": "Copy CUFE",
     "dianCufeCopied": "CUFE copied",
     "dianErrorsTitle": "View rejection details",
-    "dianErrorGeneric": "The invoice could not be submitted. Please try again."
+    "dianErrorGeneric": "The invoice could not be submitted. Please try again.",
+    "dianSendEmail": "Send by email",
+    "dianResendEmail": "Resend by email",
+    "dianEmailSending": "Sending…",
+    "dianEmailedAt": "Sent to the customer on {date}.",
+    "dianEmailNeverSent": "Not sent to the customer yet. It would go to {email}.",
+    "dianEmailSent": "Sent to {email} ✓",
+    "dianEmailSentNoAttachment": "Sent to {email}, but without the XML attachment.",
+    "dianEmailNoRecipient": "No one requested an invoice on this bill: there is no email to send it to.",
+    "dianEmailNotAccepted": "DIAN has not accepted this invoice yet.",
+    "dianEmailIncomplete": "This invoice is missing data needed to send it.",
+    "dianEmailNoConfig": "The business has not set up electronic invoicing.",
+    "dianEmailError": "The email could not be sent. Please try again."
   },
   "opWallet": {
     "noRestaurant": "No restaurant.",

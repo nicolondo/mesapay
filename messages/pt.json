@@ -34,7 +34,9 @@
     "ignore": "Se você não esperava este convite, pode ignorar este e-mail."
   },
   "common": {
-    "language": "Idioma"
+    "language": "Idioma",
+    "taxIncludedInc": "Inclui {pct}% de imposto ao consumo",
+    "taxIncludedIva": "Inclui {pct}% de IVA"
   },
   "menu": {
     "title": "Cardápio",

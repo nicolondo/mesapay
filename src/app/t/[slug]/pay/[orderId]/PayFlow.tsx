@@ -8,6 +8,7 @@ import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
 
 /**
  * Núcleo del flujo de cobro, compartido por dos puntos de entrada:
@@ -181,6 +182,13 @@ export async function PayFlow({
       // tarjeta para no volver a pedírselo.
       invoiceIntent={invoiceIntent}
       invoicePrefillEmail={order.customerEmail}
+      // Impuesto de ventas del comercio, sólo para el renglón informativo
+      // "Incluye impoconsumo 8%": los platos ya lo traen dentro del precio,
+      // así que no toca ningún monto a cobrar.
+      salesTax={{
+        kind: asSalesTaxKind(tenant.salesTaxKind),
+        pct: tenant.salesTaxPct,
+      }}
     />
   );
 }

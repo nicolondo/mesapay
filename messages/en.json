@@ -34,7 +34,9 @@
     "ignore": "If you were not expecting this invitation, you can ignore this email."
   },
   "common": {
-    "language": "Language"
+    "language": "Language",
+    "taxIncludedInc": "Includes {pct}% consumption tax",
+    "taxIncludedIva": "Includes {pct}% VAT"
   },
   "menu": {
     "title": "Menu",

@@ -13,13 +13,17 @@ import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import {
+  checkoutTaxLine,
+  payModeSubtotalCents,
+  type CheckoutTax,
+  type PayMode,
+} from "@/lib/checkoutTax";
 
 // Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
 // implicit social default in Colombia ("propina del 10"); 15% / 20%
 // cubren the "el servicio fue muy bueno" case.
 const TIP_OPTIONS = [0, 5, 10, 15, 20] as const;
-
-type PayMode = "full" | "equal" | "mine";
 
 type PayItem = {
   id: string;
@@ -72,6 +76,7 @@ export function PayClient({
   compLabel = null,
   invoiceIntent = null,
   invoicePrefillEmail = null,
+  salesTax = null,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -162,6 +167,10 @@ export function PayClient({
   invoiceIntent?: InvoiceIntent | null;
   // Correo del último cobro con tarjeta, para prellenar los sheets.
   invoicePrefillEmail?: string | null;
+  // Impuesto de ventas del comercio. Los platos ya lo traen DENTRO del
+  // precio, así que sólo alimenta el renglón informativo "Incluye
+  // impoconsumo 8%" — no toca ningún monto a cobrar. null/none ⇒ nada.
+  salesTax?: CheckoutTax | null;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -174,6 +183,7 @@ export function PayClient({
   const isMockMode = kushkiMode === "mock";
   const router = useRouter();
   const t = useTranslations("pay");
+  const tCommon = useTranslations("common");
   const apiError = useApiError();
   const [tipPct, setTipPct] = useState<number>(10);
   const [busy, setBusy] = useState<MethodKind | null>(null);
@@ -243,32 +253,18 @@ export function PayClient({
   const paidFoodCents = Math.max(0, paidCents - paidTipCents);
   const outstandingSubtotalCents = Math.max(0, subtotalCents - paidFoodCents);
 
-  let amountSubtotal = 0;
-  if (mode === "full") {
-    amountSubtotal = outstandingSubtotalCents;
-  } else if (mode === "equal") {
-    // Split the OUTSTANDING amount across N people, not the original
-    // subtotal. Critical: if someone already paid via Apple Pay /
-    // efectivo / datáfono / "lo mío" / etc., the rest of the table
-    // should split what's LEFT, not the full bill. Using subtotalCents
-    // here used to overcharge by the amount already collected (one of
-    // the most painful bugs operators reported — Mesa 1 owed $71k,
-    // partes iguales × 2 quería cobrar $214k).
-    const n = Math.max(2, splitCount);
-    amountSubtotal = Math.round(outstandingSubtotalCents / n);
-  } else {
-    const mine = guestTotals.find((g) => g.name === myGuest);
-    // Cap "por persona" by the remaining balance too — if the diner
-    // already paid their portion (e.g. via Apple Pay in a previous
-    // round) and the system kept their guest assignment, we don't
-    // want to charge them again.
-    amountSubtotal = Math.min(mine?.cents ?? 0, outstandingSubtotalCents);
-  }
-  // Final safety net: never let amountSubtotal exceed what's still owed.
-  // Belt + suspenders against any mode-specific math going sideways.
-  amountSubtotal = Math.min(amountSubtotal, outstandingSubtotalCents);
+  // Lo que se paga de comida en cada modo (Todo / Partes iguales / Lo mío)
+  // vive en checkoutTax.ts: siempre sobre lo PENDIENTE, nunca más que eso.
+  // Acá sólo se le pasa lo que falta y lo de la persona elegida en "Lo mío".
+  const amountSubtotal = payModeSubtotalCents(mode, outstandingSubtotalCents, {
+    splitCount,
+    mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
+  });
   const amountTip = Math.round((amountSubtotal * tipPct) / 100);
   const amountCents = amountSubtotal + amountTip;
+  // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
+  // pagando de comida en este modo. La propina no lleva impuesto.
+  const taxLine = checkoutTaxLine(amountSubtotal, salesTax);
 
   /**
    * Apple Pay — el token real viene del SDK de Kushki vía
@@ -904,6 +900,20 @@ export function PayClient({
             value={fmtCOP(amountSubtotal)}
             accent
           />
+        )}
+        {/* Impuesto que ya viene DENTRO de lo que se está pagando. Es
+            informativo: el precio de la carta lo incluye y el total no
+            cambia — por eso va en chico y apagado, no como fila de la
+            cuenta. Con el comercio sin impuesto no se pinta nada. */}
+        {taxLine && (
+          <div className="mt-1 flex items-center justify-between text-xs text-muted-2">
+            <span>
+              {taxLine.kind === "inc"
+                ? tCommon("taxIncludedInc", { pct: taxLine.pct })
+                : tCommon("taxIncludedIva", { pct: taxLine.pct })}
+            </span>
+            <span className="font-mono tabular">{fmtCOP(taxLine.taxCents)}</span>
+          </div>
         )}
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">

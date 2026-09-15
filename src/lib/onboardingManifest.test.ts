@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   manifest: vi.fn(),
+  workbook: vi.fn(),
   pending: vi.fn(),
   update: vi.fn(),
   docs: [
@@ -39,6 +40,7 @@ vi.mock("@/lib/onboardingSftp", async (importOriginal) => {
   return {
     ...original,
     deliverOnboardingManifest: m.manifest,
+    deliverOnboardingWorkbook: m.workbook,
     deliverPendingDocsToSftp: m.pending,
   };
 });
@@ -47,6 +49,7 @@ import { fileNameForSftpDocument } from "./onboardingSftp";
 beforeEach(() => {
   vi.clearAllMocks();
   m.manifest.mockResolvedValue(true);
+  m.workbook.mockResolvedValue(true);
   m.pending.mockResolvedValue({ configured: true, delivered: 2, total: 2 });
 });
 it("sends the same generated names as the SFTP files and never the original upload names", async () => {
@@ -59,6 +62,9 @@ it("sends the same generated names as the SFTP files and never the original uplo
         taxId: "901944469-1",
         contactEmail: "fixture@example.test",
         contactPhone: "3001234567",
+        // Obligatorios desde el formulario de alta de Kushki (Excel).
+        legalRepName: "Maria Fernanda Lopez Gomez",
+        legalRepDocNumber: "1020304050",
         bankInfo: {
           bankName: "Fixture",
           accountType: "ahorros",
@@ -100,4 +106,14 @@ it("sends the same generated names as the SFTP files and never the original uplo
   expect(JSON.stringify(manifest)).not.toContain("document-id");
   expect(JSON.stringify(manifest)).not.toContain("ORIGINAL");
   expect(JSON.stringify(manifest)).not.toContain("WhatsApp");
+  // El Excel de alta recibe la misma identidad que el manifiesto.
+  expect(m.workbook).toHaveBeenCalledWith(
+    "merchant",
+    expect.objectContaining({
+      legalName: "Fixture SAS",
+      taxId: "901944469-1",
+      legalRepName: "Maria Fernanda Lopez Gomez",
+      legalRepDocNumber: "1020304050",
+    }),
+  );
 });

@@ -7,7 +7,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   // ssh2/ssh2-sftp-client usan bindings nativos + requires dinámicos que el
   // bundler no puede empaquetar. Se dejan como require() de Node en el server.
-  serverExternalPackages: ["ssh2", "ssh2-sftp-client", "sharp"],
+  // exceljs: librería grande con requires dinámicos; se deja como require de Node en el server.
+  serverExternalPackages: ["ssh2", "ssh2-sftp-client", "sharp", "exceljs"],
 };
 
 export default withNextIntl(nextConfig);

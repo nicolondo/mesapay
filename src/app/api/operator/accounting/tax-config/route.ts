@@ -1,60 +1,20 @@
-import { secureApi } from "@/lib/secureApi";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { db } from "@/lib/db";
-import { getErpContext, isDenied } from "@/lib/erp/access";
-import type { ModuleSlug } from "@/lib/modules";
+/**
+ * Ruta VIEJA del impuesto de ventas. El editor se mudó a Configuración →
+ * Impuestos y el endpoint con él (/api/operator/settings/impuestos): el
+ * impuesto es un dato fiscal del comercio, no una función del módulo de
+ * contabilidad, y acá vivía detrás de ese módulo.
+ *
+ * Se deja respondiendo EXACTAMENTE igual que la ruta nueva (mismos
+ * handlers) para no romper a nadie a mitad de un deploy azul/verde. No le
+ * agregues lógica propia: todo va en la ruta nueva.
+ */
+import {
+  GET as impuestosGET,
+  PATCH as impuestosPATCH,
+} from "@/app/api/operator/settings/impuestos/route";
 
 export const dynamic = "force-dynamic";
 
-const GATE: ModuleSlug[] = ["accounting"];
+export const GET = impuestosGET;
 
-const SELECT = { salesTaxKind: true, salesTaxPct: true } as const;
-
-/**
- * Config del impuesto de ventas (ERP A3): tipo (none/inc/iva) + tarifa. El
- * impuesto se calcula EMBEBIDO en el precio del menú (no se suma encima) y
- * solo alimenta la contabilidad/reportes.
- */
-async function GETHandler() {
-  const ctx = await getErpContext(GATE);
-  if (isDenied(ctx)) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-  }
-  const settings = await db.restaurant.findUnique({
-    where: { id: ctx.restaurantId },
-    select: SELECT,
-  });
-  return NextResponse.json({ settings, country: ctx.country });
-}
-
-const patchSchema = z.object({
-  salesTaxKind: z.enum(["none", "inc", "iva"]).optional(),
-  salesTaxPct: z.number().int().min(0).max(100).optional(),
-});
-
-async function PATCHHandler(req: Request) {
-  const ctx = await getErpContext(GATE);
-  if (isDenied(ctx)) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-  }
-  const parsed = patchSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
-  }
-  // "none" ⇒ sin impuesto discriminado: la tarifa queda en 0 por coherencia.
-  const data =
-    parsed.data.salesTaxKind === "none"
-      ? { ...parsed.data, salesTaxPct: 0 }
-      : parsed.data;
-  const settings = await db.restaurant.update({
-    where: { id: ctx.restaurantId },
-    data,
-    select: SELECT,
-  });
-  return NextResponse.json({ settings });
-}
-
-export const GET = secureApi(GETHandler);
-
-export const PATCH = secureApi(PATCHHandler);
+export const PATCH = impuestosPATCH;

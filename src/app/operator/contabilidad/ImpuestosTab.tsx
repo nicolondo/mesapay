@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
@@ -40,6 +41,7 @@ export function ImpuestosTab({
   currency: string;
 }) {
   const t = useTranslations("opErp");
+  const tTax = useTranslations("opSalesTax");
   const locale = useLocale() as Locale;
   const [data, setData] = useState<{
     tax: Tax;
@@ -91,6 +93,41 @@ export function ImpuestosTab({
 
   return (
     <div className="space-y-4">
+      {/* De dónde sale el impuesto de ventas de todo lo de abajo. El dueño
+          vino ACÁ a buscar dónde se configura, así que acá está el camino:
+          el editor vive en Configuración → Impuestos, y sólo ahí. */}
+      <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("taxConfigKind")}
+          </div>
+          <div
+            className={
+              "text-sm " + (tax.salesKind === "none" ? "text-danger" : "")
+            }
+          >
+            {tax.salesKind === "none"
+              ? t("taxSalesNone")
+              : tTax("value", {
+                  kind:
+                    tax.salesKind === "inc"
+                      ? t("taxKindInc")
+                      : t("taxKindIva"),
+                  pct: tax.salesPct,
+                })}
+          </div>
+        </div>
+        <Link
+          href="/operator/settings/impuestos"
+          className={
+            "mp-btn mp-btn--sm shrink-0 " +
+            (tax.salesKind === "none" ? "mp-btn--primary" : "mp-btn--secondary")
+          }
+        >
+          {t("taxConfigButton")}
+        </Link>
+      </div>
+
       <Section title={t("fiscalTaxTitle")}>
         {tax.salesKind === "iva" ? (
           <>

@@ -15,6 +15,7 @@ export default async function SettingsPage() {
   const t = await getTranslations("opSettings");
   const tErp = await getTranslations("opErp");
   const tDian = await getTranslations("opDian");
+  const tSalesTax = await getTranslations("opSalesTax");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -34,6 +35,8 @@ export default async function SettingsPage() {
       reservationsEnabled: true,
       enabledPaymentMethods: true,
       enabledModules: true,
+      salesTaxKind: true,
+      salesTaxPct: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -200,6 +203,29 @@ export default async function SettingsPage() {
           : einvoicing && dianStatus === "testing"
             ? "bg-[#C98A2E]/20 text-[#8F6828]"
             : "bg-paper text-op-muted",
+    },
+    // Al lado de Facturación DIAN a propósito: es el dato que esa pantalla
+    // consume en cada factura. Sin impuesto se ve como PENDIENTE (mismo
+    // tinte que Identidad cuando falta algo), no como "sin configurar" en
+    // gris: un comercio facturó a la DIAN en cero sin que nadie lo notara.
+    {
+      href: "/operator/settings/impuestos",
+      title: tSalesTax("cardTitle"),
+      subtitle: tSalesTax("cardSubtitle"),
+      badge:
+        tenant.salesTaxKind === "none"
+          ? tSalesTax("cardBadgeNone")
+          : tSalesTax("value", {
+              kind:
+                tenant.salesTaxKind === "inc"
+                  ? tSalesTax("kindShortInc")
+                  : tSalesTax("kindShortIva"),
+              pct: tenant.salesTaxPct,
+            }),
+      tint:
+        tenant.salesTaxKind === "none"
+          ? "bg-[#C98A2E]/20 text-[#8F6828]"
+          : "bg-ok/15 text-ok",
     },
     {
       href: "/operator/settings/traducciones",

@@ -26,12 +26,10 @@ type DianStatus = {
   missingResolution: string[];
   missingLocation: string[];
   missingContact: string[];
-  /** Impuesto de ventas del comercio — se edita en Contabilidad, no acá. */
+  /** Impuesto de ventas del comercio — se edita en Configuración → Impuestos, no acá. */
   salesTaxKind: "none" | "inc" | "iva";
   salesTaxPct: number;
   einvoicingEnabled: boolean;
-  /** Sin el módulo, /operator/contabilidad no existe: no hay a dónde enlazar. */
-  accountingEnabled: boolean;
 };
 
 type Emisor = {
@@ -266,11 +264,7 @@ function EmisorSection({
       )}
       {warnNoSalesTax && (
         <div className="mt-4">
-          <Banner tone="warning">
-            {status.accountingEnabled
-              ? t("salesTaxNoneWarning")
-              : t("salesTaxNoneWarningNoModule")}
-          </Banner>
+          <Banner tone="warning">{t("salesTaxNoneWarning")}</Banner>
         </div>
       )}
     </section>
@@ -280,14 +274,11 @@ function EmisorSection({
 /**
  * Impuesto de ventas del comercio, SÓLO LECTURA.
  *
- * El editor vive únicamente en Contabilidad. Duplicarlo acá repetiría el
- * error de la resolución de numeración, que estuvo editable en dos
- * pantallas y dejó a este mismo comercio con un número en una y otro
- * distinto en el XML. Acá va el valor y el camino a donde se edita.
- *
- * Sin el módulo de contabilidad esa pantalla hace notFound(), así que el
- * enlace se omite: un enlace muerto es peor que no tenerlo (el aviso de
- * arriba explica que hay que pedir que se lo activen).
+ * El editor vive únicamente en Configuración → Impuestos, que no depende
+ * de ningún módulo. Duplicarlo acá repetiría el error de la resolución de
+ * numeración, que estuvo editable en dos pantallas y dejó a este mismo
+ * comercio con un número en una y otro distinto en el XML. Acá va el
+ * valor y el camino a donde se edita.
  */
 function SalesTaxField({
   t,
@@ -321,14 +312,12 @@ function SalesTaxField({
       >
         {value}
       </dd>
-      {status.accountingEnabled && (
-        <Link
-          href="/operator/contabilidad"
-          className="inline-block mt-0.5 text-[11px] text-terracotta underline"
-        >
-          {t("salesTaxEdit")}
-        </Link>
-      )}
+      <Link
+        href="/operator/settings/impuestos"
+        className="inline-block mt-0.5 text-[11px] text-terracotta underline"
+      >
+        {t("salesTaxEdit")}
+      </Link>
     </div>
   );
 }

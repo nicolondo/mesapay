@@ -21,6 +21,7 @@ const groups: { key: string; icon: IconName; paths: string[] }[] = [
       "pagos",
       "wallet",
       "facturacion-dian",
+      "impuestos",
       "suscripcion",
       "proveedores",
     ],

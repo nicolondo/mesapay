@@ -360,21 +360,16 @@ export type DianConfigStatus = {
   missingContact: ContactField[];
   /**
    * Impuesto de ventas del comercio (Restaurant.salesTaxKind/salesTaxPct).
-   * NO se edita acá — el editor vive sólo en Contabilidad — pero viaja en
-   * CADA factura: con "none" todo se emite con impuesto en cero. Son &
-   * Melona facturó así todo su arranque sin que nadie lo notara, porque el
-   * dato sólo era visible detrás del módulo de contabilidad.
+   * NO se edita acá — el editor vive sólo en Configuración → Impuestos —
+   * pero viaja en CADA factura: con "none" todo se emite con impuesto en
+   * cero. Son & Melona facturó así todo su arranque sin que nadie lo
+   * notara, porque el dato sólo era visible detrás del módulo de
+   * contabilidad.
    */
   salesTaxKind: SalesTaxKind;
   salesTaxPct: number;
   /** ¿El módulo de facturación electrónica está activo para el comercio? */
   einvoicingEnabled: boolean;
-  /**
-   * ¿El módulo de contabilidad está activo? Sin él /operator/contabilidad
-   * hace notFound(), así que el aviso del impuesto no puede mandar al
-   * operador para allá: le toca pedir que se lo activen.
-   */
-  accountingEnabled: boolean;
 };
 
 /** Último documento enviado a la DIAN — para mostrar el resultado real. */
@@ -486,7 +481,6 @@ export async function dianConfigStatus(
     salesTaxKind: (tenant?.salesTaxKind ?? "none") as SalesTaxKind,
     salesTaxPct: tenant?.salesTaxPct ?? 0,
     einvoicingEnabled: isModuleEnabled(tenant?.enabledModules, "einvoicing"),
-    accountingEnabled: isModuleEnabled(tenant?.enabledModules, "accounting"),
   };
   return { emisor, status };
 }

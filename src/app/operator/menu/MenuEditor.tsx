@@ -1956,6 +1956,46 @@ function ItemSheet({
     if (file) onPhotoPick(file);
   }
 
+  // Pegar una imagen del portapapeles (Ctrl+V / Cmd+V) con el sheet abierto
+  // y SIN ningún campo enfocado la pone como foto del producto. Pedido del
+  // dueño: la captura ya está en el portapapeles y no quiere tener que
+  // guardarla a un archivo para arrastrarla. Si el foco está en un input,
+  // textarea, select o contenteditable, el pegado es del campo y no se toca.
+  // Se escucha en `document` porque el sheet no tiene foco propio; la
+  // referencia a `onPhotoPick` se lee a través de un ref para no re-registrar
+  // el oyente en cada render.
+  const onPhotoPickRef = useRef(onPhotoPick);
+  useEffect(() => {
+    onPhotoPickRef.current = onPhotoPick;
+  });
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        active?.isContentEditable
+      ) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (!file) continue;
+          e.preventDefault();
+          void onPhotoPickRef.current(file);
+          return;
+        }
+      }
+    }
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
+
   async function save() {
     const cents = Math.round(Number(priceCents) * 100);
     // Acepta coma o punto y redondea a décimas de minuto (6 s). null si está

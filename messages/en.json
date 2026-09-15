@@ -2289,7 +2289,7 @@
     "changePhoto": "Change photo",
     "uploadPhoto": "Upload photo",
     "removePhoto": "Remove photo",
-    "photoHint": "Drag an image or upload it · JPG, PNG or WebP · max 5MB",
+    "photoHint": "Drag an image, upload it or paste it with Ctrl+V / Cmd+V · JPG, PNG or WebP · max 5MB",
     "dropPhotoHere": "Drop the photo here",
     "errPhotoType": "Invalid format. Use JPG, PNG or WebP.",
     "stationKitchen": "Kitchen",

@@ -2289,7 +2289,7 @@
     "changePhoto": "Cambiar foto",
     "uploadPhoto": "Subir foto",
     "removePhoto": "Quitar foto",
-    "photoHint": "Arrastrá una imagen o subila · JPG, PNG o WebP · máx 5MB",
+    "photoHint": "Arrastrá una imagen, subila o pegala con Ctrl+V / Cmd+V · JPG, PNG o WebP · máx 5MB",
     "dropPhotoHere": "Soltá la foto aquí",
     "errPhotoType": "Formato no válido. Usá JPG, PNG o WebP.",
     "stationKitchen": "Cocina",

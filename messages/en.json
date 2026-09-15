@@ -5609,7 +5609,12 @@
     "contactEmailHint": "The same one registered in your RUT and in the DIAN portal to receive electronic documents and instruments. If it does not match, DIAN rejects the invoice.",
     "contactMissing": "A required issuer field is missing: {fields}. Without it DIAN rejects every document (rule FAJ71).",
     "habBlockedByContact": "Add the email for receiving electronic documents before running the test set: DIAN would reject the document.",
-    "errContactIncomplete": "The issuer's email for receiving electronic documents is missing. You set it on this same screen."
+    "errContactIncomplete": "The issuer's email for receiving electronic documents is missing. You set it on this same screen.",
+    "emisorSalesTax": "Sales tax",
+    "salesTaxValue": "{kind} {pct}%",
+    "salesTaxEdit": "Set it up in Accounting",
+    "salesTaxNoneWarning": "This business is issuing invoices WITH NO sales tax: every one goes out with zero tax. If it is liable for consumption tax, set it up in Accounting before invoicing again. If it is not liable, this is fine.",
+    "salesTaxNoneWarningNoModule": "This business is issuing invoices WITH NO sales tax: every one goes out with zero tax. If it is liable for consumption tax, ask for the accounting module to be enabled so you can set it up. If it is not liable, this is fine."
   },
   "billAlert": {
     "kickerDiner": "Bill requested",

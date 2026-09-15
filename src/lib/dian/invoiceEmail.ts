@@ -16,6 +16,39 @@ import type { Locale } from "@/i18n/config";
 
 // ── Render ──────────────────────────────────────────────────────────────────
 
+type IssuerArgs = Pick<
+  DianInvoiceEmailArgs,
+  "issuerAddress" | "issuerCity" | "issuerPhone"
+>;
+type T = (key: string, values?: Record<string, string>) => string;
+
+/**
+ * Renglones del emisor (dirección, ciudad, teléfono), sólo los que existen.
+ * Antes el correo identificaba al emisor únicamente por su nombre
+ * comercial: el comensal recibía un documento fiscal sin saber a qué
+ * dirección ni a qué teléfono corresponde.
+ */
+function issuerLines(args: IssuerArgs, t: T): string[] {
+  const lines: string[] = [];
+  const address = args.issuerAddress?.trim();
+  const city = args.issuerCity?.trim();
+  const phone = args.issuerPhone?.trim();
+  if (address) lines.push(address);
+  if (city) lines.push(city);
+  if (phone) lines.push(t("phone", { phone }));
+  return lines;
+}
+
+function issuerBlockHtml(args: IssuerArgs, t: T): string {
+  const lines = issuerLines(args, t);
+  if (lines.length === 0) return "";
+  return (
+    `<div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;line-height:1.6;color:#8B7B65;margin:6px 0 0 0;">` +
+    lines.map(escapeHtml).join("<br/>") +
+    `</div>`
+  );
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -42,6 +75,16 @@ export type DianInvoiceEmailArgs = {
   attachmentName: string | null;
   /** Idioma del COMENSAL (Order.locale). null ⇒ default (es). */
   locale?: string | null;
+  /**
+   * Datos del EMISOR tal como quedaron en el snapshot de la factura — los
+   * mismos que carga el comercio en Identidad (dirección, ciudad, teléfono)
+   * y los mismos que ya lleva la representación gráfica. Van congelados a
+   * propósito: un correo que muestre la dirección de HOY para una factura
+   * emitida ayer contradiría el XML que la DIAN aceptó.
+   */
+  issuerAddress?: string | null;
+  issuerCity?: string | null;
+  issuerPhone?: string | null;
 };
 
 /**
@@ -74,6 +117,7 @@ export async function renderDianInvoiceEmail(
     t("greeting"),
     "",
     intro,
+    ...issuerLines(args, t),
     "",
     `${t("labelNumber")}: ${args.invoiceNumber}`,
     `${t("labelDate")}: ${dateStr}`,
@@ -121,6 +165,7 @@ export async function renderDianInvoiceEmail(
             <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#B8A98D;">MESAPAY</td>
           </tr>
         </table>
+        ${issuerBlockHtml(args, t)}
         <h1 style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:32px;line-height:1.1;margin:14px 0 10px 0;color:#1A1613;font-weight:400;letter-spacing:-0.015em;">${escapeHtml(t("title"))}</h1>
         <p style="font-size:15px;line-height:1.55;margin:0 0 4px 0;">${escapeHtml(t("greeting"))}</p>
         <p style="font-size:14px;line-height:1.55;color:#3A332B;margin:6px 0 0 0;">${escapeHtml(intro)}</p>

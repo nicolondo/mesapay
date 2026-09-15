@@ -913,6 +913,7 @@
     "labelDate": "Date",
     "labelTotal": "Total",
     "labelCufe": "CUFE",
+    "phone": "Tel: {phone}",
     "cufeLead": "The CUFE is the unique code that identifies your invoice before the DIAN.",
     "attachmentTitle": "Attached file",
     "attachmentLead": "We've attached the official XML of your invoice ({file}) together with the DIAN's acceptance receipt. Keep it: that's the document that counts for your accounting.",

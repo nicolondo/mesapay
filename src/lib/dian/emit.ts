@@ -7,21 +7,22 @@
 // el documento queda con estado y errores legibles, con botón reintentar
 // desde la UI (B1.6b).
 import { db } from "@/lib/db";
+import { suggestMunicipioFromText, type DaneMunicipio } from "@/lib/dane/municipios";
 import { splitTaxIncludedCents, type DianLine, type DianParty } from "@/lib/dian/ubl";
+import { computeNitDv } from "@/lib/erp/exogena";
 import { isOwnTaxLine, type RestaurantTax, type SalesTaxKind } from "@/lib/salesTax";
 
 /**
  * Adquiriente por defecto — "Consumidor final", NIT 222222222222 (anexo
- * 6.2.1: documento tipo "13", persona natural).
+ * 6.2.1: documento tipo "13", persona natural). Es el adquiriente de toda
+ * factura GENÉRICA: la cuenta donde nadie cargó sus datos.
  *
- * OJO: hoy TODA factura sale con este adquiriente, incluso cuando el
- * comensal cargó sus datos en `InvoiceRequest`. Es un bug conocido y se
- * arregla en su propio PR porque cambiar el adquiriente cambia el CUFE.
- * Está acá, como constante, para que ese PR tenga UN solo lugar que tocar:
- * el emit lo usa para la factura y el AttachedDocument para el
- * `cac:ReceiverParty`, y los dos tienen que decir exactamente lo mismo —
- * un sobre que nombre a alguien distinto del que figura en la factura que
- * lleva adentro no se sostiene.
+ * Cuando el comensal SÍ pidió factura a su nombre (`InvoiceRequest`), el
+ * adquiriente sale de `customerPartyFor`. Los dos lugares que nombran al
+ * adquiriente —la factura (emit) y el `cac:ReceiverParty` del
+ * AttachedDocument— tienen que pasar por la misma función: un sobre que
+ * nombre a alguien distinto del que figura en la factura que lleva adentro
+ * no se sostiene.
  */
 export const CONSUMIDOR_FINAL: DianParty = {
   name: "Consumidor final",
@@ -31,6 +32,140 @@ export const CONSUMIDOR_FINAL: DianParty = {
   taxRegimeCode: "49",
   personType: "2",
 };
+
+/**
+ * Lo que la solicitud de factura (`InvoiceRequest`) sabe del adquiriente.
+ * Es un subconjunto de la fila para que la función sea pura y se pueda
+ * llamar con lo que ya trae cualquier query.
+ */
+export type InvoiceRequestParty = {
+  customerName: string;
+  /** CC | CE | NIT | PA — el enum `InvoiceDocType` del schema. */
+  docType: string;
+  docNumber: string;
+  address: string;
+  city: string;
+  department: string;
+  email?: string | null;
+};
+
+/**
+ * Tipo de documento del formulario → código del Anexo Técnico 1.9 (6.2.1).
+ * "13" cédula de ciudadanía · "22" cédula de extranjería · "31" NIT ·
+ * "41" pasaporte.
+ */
+const DOC_TYPE_SCHEME: Record<string, DianParty["idSchemeName"]> = {
+  CC: "13",
+  CE: "22",
+  NIT: "31",
+  PA: "41",
+};
+
+/**
+ * Municipio DANE del adquiriente a partir del texto libre que dejó el
+ * comensal (Google Places: ciudad + departamento).
+ *
+ * Se resuelve con el MISMO criterio conservador que la sugerencia del
+ * emisor (`suggestMunicipioFromText`): sólo coincidencia exacta y única.
+ * Primero "ciudad, departamento" —que desambigua los repetidos (hay
+ * cinco "San Juan")— y después la ciudad sola, que es lo que rescata
+ * "Bogotá" cuando el departamento vino como "Bogotá D.C.". Si no resuelve
+ * se devuelve null y la factura sale SIN dirección del adquiriente en vez
+ * de inventar un código: la dirección del adquiriente es opcional en el
+ * anexo (el consumidor final nunca la lleva) y un código DANE equivocado
+ * es un dato falso en un documento fiscal.
+ */
+export function resolveCustomerMunicipio(
+  city: string | null | undefined,
+  department: string | null | undefined,
+): DaneMunicipio | null {
+  const c = (city ?? "").trim();
+  const d = (department ?? "").trim();
+  if (!c) return null;
+  return (
+    (d ? suggestMunicipioFromText(`${c}, ${d}`) : null) ??
+    suggestMunicipioFromText(c)
+  );
+}
+
+/**
+ * Identificación del adquiriente tal como va al XML (y al CUFE: es el
+ * `NumAdq`). NIT: sólo los dígitos, sin el DV (que se recalcula aparte,
+ * como en el emisor). Cédulas: sólo dígitos — el comensal las escribe con
+ * puntos. Pasaporte: alfanumérico, sin espacios ni separadores.
+ */
+function customerCompanyId(docNumber: string, scheme: DianParty["idSchemeName"]): string {
+  const raw = docNumber.trim();
+  if (scheme === "31") {
+    // Con guión, lo de la derecha es el DV escrito por el comensal; se
+    // ignora y se recalcula, que es lo que la DIAN valida.
+    return (raw.includes("-") ? raw.split("-")[0] : raw).replace(/\D/g, "");
+  }
+  if (scheme === "41") return raw.replace(/[^A-Za-z0-9]/g, "");
+  return raw.replace(/\D/g, "");
+}
+
+/**
+ * Adquiriente (DianParty) de una factura. Sin solicitud ⇒ consumidor
+ * final, como siempre. Con solicitud ⇒ el cliente, con el mapeo del Anexo
+ * Técnico 1.9:
+ *
+ *   · docType CC→"13", CE→"22", NIT→"31" (con DV calculado), PA→"41".
+ *   · Persona natural (todo lo que no es NIT) ⇒ AdditionalAccountID "2" y
+ *     responsabilidad "R-99-PN" (no responsable — 6.2.7). NIT ⇒ "1". La
+ *     solicitud no sabe las responsabilidades fiscales de una empresa, así
+ *     que también va "R-99-PN" ("No aplica – Otros"), que es lo que
+ *     acepta la DIAN para un adquiriente del que no se declara nada más.
+ *   · Régimen "49" (no responsable de IVA): la solicitud no trae el dato y
+ *     declarar "48" sin saberlo sería afirmar algo del cliente.
+ *   · Dirección: el municipio DANE resuelto del texto libre (ver
+ *     `resolveCustomerMunicipio`) + la línea que escribió el comensal.
+ *   · Correo en cac:Contact — es a donde le llega el AttachedDocument.
+ *
+ * OJO: cambiar el adquiriente cambia el CUFE (`NumAdq` es este
+ * `companyId`). `buildDianInvoiceXml` toma los dos —el que va al XML y el
+ * del CUFE— de este mismo objeto, así que no pueden divergir.
+ *
+ * Si la identificación queda vacía después de normalizar (el comensal
+ * escribió letras donde iba una cédula) se cae al consumidor final: una
+ * cédula vacía es un rechazo seguro y cada rechazo quema un consecutivo.
+ */
+export function customerPartyFor(
+  request: InvoiceRequestParty | null | undefined,
+): DianParty {
+  if (!request) return CONSUMIDOR_FINAL;
+  const scheme = DOC_TYPE_SCHEME[request.docType] ?? "13";
+  const companyId = customerCompanyId(request.docNumber, scheme);
+  const name = request.customerName.trim();
+  if (!companyId || !name) {
+    console.warn("[dian] solicitud de factura sin identificación usable; sale a consumidor final", {
+      docType: request.docType,
+    });
+    return CONSUMIDOR_FINAL;
+  }
+  const isNit = scheme === "31";
+  const municipio = resolveCustomerMunicipio(request.city, request.department);
+  const email = request.email?.trim();
+  return {
+    name,
+    companyId,
+    dv: isNit ? computeNitDv(companyId) : null,
+    idSchemeName: scheme,
+    taxLevelCode: "R-99-PN",
+    taxRegimeCode: "49",
+    personType: isNit ? "1" : "2",
+    address: municipio
+      ? {
+          cityCode: municipio.code,
+          cityName: municipio.name,
+          deptCode: municipio.deptCode,
+          deptName: municipio.deptName,
+          line: request.address.trim(),
+        }
+      : null,
+    email: email || null,
+  };
+}
 
 /** Misma regla que salesTax.isOwnTaxLine, sobre el item de la orden. */
 function ownTaxItem(it: OrderItemForInvoice): boolean {

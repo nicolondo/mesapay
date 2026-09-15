@@ -123,6 +123,8 @@ beforeEach(() => {
           taxPct: null,
         },
       ],
+      // Sin solicitud de factura ⇒ consumidor final (el caso de estos tests).
+      invoiceRequests: [],
     },
   });
   m.docFindUnique.mockResolvedValue(null);

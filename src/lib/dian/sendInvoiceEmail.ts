@@ -25,7 +25,11 @@ import {
   invoiceIssueInstant,
 } from "@/lib/dian/attachedDocument";
 import { renderDianInvoiceEmail, resolveDianRecipient } from "@/lib/dian/invoiceEmail";
-import { bogotaIssueTime, CONSUMIDOR_FINAL } from "@/lib/dian/emit";
+import {
+  bogotaIssueTime,
+  customerPartyFor,
+  type InvoiceRequestParty,
+} from "@/lib/dian/emit";
 import { emisorToSupplierParty, resolveEmisor } from "@/lib/dian/config";
 import {
   extractApplicationResponse,
@@ -133,11 +137,21 @@ export async function sendDianInvoiceEmail(opts: {
 
     // La personalizada manda sobre la genérica (mismo criterio que
     // `invoiceOnPaid.ts`). No se filtra por `status`: cuando esto corre la
-    // solicitud ya pasó a `generated`.
+    // solicitud ya pasó a `generated`. Es la MISMA solicitud (la más
+    // reciente de la orden) con la que el emit decidió el adquiriente de
+    // la factura, y por eso también nombra al receptor del sobre.
     const request = await db.invoiceRequest.findFirst({
       where: { orderId: inv.order.id },
       orderBy: { createdAt: "desc" },
-      select: { email: true },
+      select: {
+        customerName: true,
+        docType: true,
+        docNumber: true,
+        address: true,
+        city: true,
+        department: true,
+        email: true,
+      },
     });
     const to = resolveDianRecipient({
       invoiceRequestEmail: request?.email,
@@ -187,6 +201,7 @@ export async function sendDianInvoiceEmail(opts: {
       cufe: doc.cufe,
       invoiceXml,
       responseXml: doc.responseXml,
+      request,
     });
 
     const { subject, html, text } = await renderDianInvoiceEmail({
@@ -273,6 +288,8 @@ async function buildAttachment(args: {
   cufe: string;
   invoiceXml: string | null;
   responseXml: string | null;
+  /** Solicitud de factura de la orden (la más reciente) o null. */
+  request: InvoiceRequestParty | null;
 }): Promise<EmailAttachment | null> {
   const { invoiceXml } = args;
   const applicationResponseXml = await extractApplicationResponse(
@@ -297,8 +314,9 @@ async function buildAttachment(args: {
     cufe: args.cufe,
     sender: emisorToSupplierParty(emisor),
     // El sobre tiene que nombrar al MISMO adquiriente que la factura que
-    // lleva adentro — de ahí la constante compartida con el emit.
-    receiver: CONSUMIDOR_FINAL,
+    // lleva adentro — de ahí la función compartida con el emit, alimentada
+    // con la misma solicitud.
+    receiver: customerPartyFor(args.request),
     invoiceXml,
     applicationResponseXml,
   });

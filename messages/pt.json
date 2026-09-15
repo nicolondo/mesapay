@@ -5159,7 +5159,7 @@
     "taxSectionTitle": "Impostos",
     "taxConfigButton": "Configurar",
     "taxSalesTitle": "Imposto sobre vendas",
-    "taxSalesNone": "Sem imposto de vendas configurado. Toque em “Configurar”.",
+    "taxSalesNone": "Este comércio está faturando SEM imposto sobre vendas.",
     "taxSalesBase": "Base tributável",
     "taxKindInc": "Imposto sobre consumo (INC)",
     "taxKindIva": "IVA",

@@ -5159,7 +5159,7 @@
     "taxSectionTitle": "Taxes",
     "taxConfigButton": "Configure",
     "taxSalesTitle": "Sales tax",
-    "taxSalesNone": "No sales tax configured. Tap “Configure”.",
+    "taxSalesNone": "This business is invoicing WITHOUT sales tax.",
     "taxSalesBase": "Taxable base",
     "taxKindInc": "Consumption tax (INC)",
     "taxKindIva": "VAT",

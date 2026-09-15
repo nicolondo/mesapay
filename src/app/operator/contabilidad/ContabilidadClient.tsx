@@ -784,10 +784,20 @@ function PnlTaxes({
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {t("taxSectionTitle")}
         </span>
+        {/* Botón de verdad, no un subrayado gris de 11px. Este control
+            decide si las facturas del comercio llevan impuesto, y estaba
+            tan escondido que un comercio facturó a la DIAN en CERO sin que
+            nadie lo notara. Cuando no hay impuesto configurado grita más,
+            porque ahí es cuando hay que tocarlo. */}
         <button
           type="button"
           onClick={() => setEditing((e) => !e)}
-          className="text-[11px] text-op-muted hover:text-ink underline min-h-[44px]"
+          className={
+            "mp-btn mp-btn--sm " +
+            (tax.sales.kind === "none" && !editing
+              ? "mp-btn--primary"
+              : "mp-btn--secondary")
+          }
         >
           {t("taxConfigButton")}
         </button>
@@ -810,7 +820,7 @@ function PnlTaxes({
           {t("taxSalesTitle")}
         </div>
         {tax.sales.kind === "none" ? (
-          <div className="text-[11px] text-op-muted">{t("taxSalesNone")}</div>
+          <div className="text-sm text-danger">{t("taxSalesNone")}</div>
         ) : (
           <div className="space-y-0.5">
             <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">

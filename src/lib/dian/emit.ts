@@ -8,6 +8,7 @@
 // desde la UI (B1.6b).
 import { db } from "@/lib/db";
 import { suggestMunicipioFromText, type DaneMunicipio } from "@/lib/dane/municipios";
+import { BLOCKED_RETRY_MS, claimWhere } from "@/lib/dian/retry";
 import { splitTaxIncludedCents, type DianLine, type DianParty } from "@/lib/dian/ubl";
 import { computeNitDv } from "@/lib/erp/exogena";
 import { isOwnTaxLine, type RestaurantTax, type SalesTaxKind } from "@/lib/salesTax";
@@ -256,35 +257,140 @@ export function bogotaIssueTime(now: Date): string {
   );
 }
 
+export type DianDocumentRef = {
+  id: string;
+  state: string;
+  attempts: number;
+  /** true si esta llamada lo creó (o adoptó un placeholder). */
+  created: boolean;
+};
+
+const DOC_SELECT = { id: true, state: true, attempts: true } as const;
+
 /**
- * Marca de idempotencia: reclama la emisión de un SimpleInvoice creando
- * su DianDocument sólo si no existe (o si el anterior quedó reintentable).
- * Devuelve el documento a (re)enviar o null si ya está aceptado/en curso.
+ * Garantiza que la factura simple tenga su DianDocument (en `to_send` si
+ * es nuevo). Idempotente y a prueba de carreras: `simpleInvoiceId` es
+ * único, así que si dos rieles crean a la vez el perdedor cae al P2002 y
+ * relee. Si la orden dejó un placeholder de `numbering_exhausted` (sin
+ * tirilla, porque no había número), se ADOPTA en vez de crear otro: es el
+ * mismo documento, que ahora sí tiene con qué salir.
+ */
+export async function ensureDianDocument(args: {
+  simpleInvoiceId: string;
+  restaurantId: string;
+  orderId: string | null;
+}): Promise<DianDocumentRef> {
+  const existing = await db.dianDocument.findUnique({
+    where: { simpleInvoiceId: args.simpleInvoiceId },
+    select: DOC_SELECT,
+  });
+  if (existing) return { ...existing, created: false };
+
+  if (args.orderId) {
+    const adopted = await db.dianDocument.updateMany({
+      where: { orderId: args.orderId, simpleInvoiceId: null, kind: "invoice" },
+      data: {
+        simpleInvoiceId: args.simpleInvoiceId,
+        state: "to_send",
+        lastError: null,
+        nextAttemptAt: null,
+        errors: [],
+      },
+    });
+    if (adopted.count > 0) {
+      const doc = await db.dianDocument.findUnique({
+        where: { simpleInvoiceId: args.simpleInvoiceId },
+        select: DOC_SELECT,
+      });
+      if (doc) return { ...doc, created: true };
+    }
+  }
+
+  try {
+    const created = await db.dianDocument.create({
+      data: {
+        restaurantId: args.restaurantId,
+        simpleInvoiceId: args.simpleInvoiceId,
+        orderId: args.orderId,
+        kind: "invoice",
+        state: "to_send",
+      },
+      select: DOC_SELECT,
+    });
+    return { ...created, created: true };
+  } catch (err) {
+    // Otro riel lo creó entre el findUnique y el create: es el suyo.
+    if ((err as { code?: string })?.code === "P2002") {
+      const doc = await db.dianDocument.findUnique({
+        where: { simpleInvoiceId: args.simpleInvoiceId },
+        select: DOC_SELECT,
+      });
+      if (doc) return { ...doc, created: false };
+    }
+    throw err;
+  }
+}
+
+/**
+ * RECLAMA la emisión: pasa el documento a `sent` con un updateMany
+ * condicionado por estado (ver `claimWhere`). Es el cerrojo: si el
+ * barrido y el intento inmediato del cobro llegan a la vez, sólo uno
+ * actualiza una fila y sólo ese firma y envía. Devuelve el documento a
+ * (re)enviar o null si ya está aceptado, pendiente en la DIAN o en vuelo.
+ *
+ * Crea el documento si no existe (ver `ensureDianDocument`).
  */
 export async function claimDianDocument(
   simpleInvoiceId: string,
   restaurantId: string,
-): Promise<{ id: string } | null> {
-  const existing = await db.dianDocument.findUnique({
-    where: { simpleInvoiceId },
-    select: { id: true, state: true },
+  opts: { orderId?: string | null; now?: Date } = {},
+): Promise<{ id: string; attempts: number } | null> {
+  const doc = await ensureDianDocument({
+    simpleInvoiceId,
+    restaurantId,
+    orderId: opts.orderId ?? null,
   });
-  if (existing) {
-    // Sólo se reintenta lo reintentable (error/rejected); aceptado o en
-    // vuelo no se re-emite.
-    if (existing.state === "error" || existing.state === "rejected") {
-      return { id: existing.id };
-    }
-    return null;
-  }
-  const created = await db.dianDocument.create({
+  const claimed = await db.dianDocument.updateMany({
+    where: claimWhere(doc.id, opts.now ?? new Date()),
+    data: { state: "sent" },
+  });
+  if (claimed.count === 0) return null;
+  return { id: doc.id, attempts: doc.attempts };
+}
+
+/**
+ * Deja constancia de una orden pagada que NO se pudo facturar porque el
+ * rango de la resolución se agotó (`invoiceNextNumber > resolutionTo`): sin
+ * número válido no hay tirilla ni SimpleInvoice, así que el registro
+ * cuelga de la orden. Es un DianDocument en `to_send` con
+ * `simpleInvoiceId` null; el barrido lo ve, vuelve a llamar a
+ * `issueInvoiceOnPaid` y, cuando haya resolución nueva, la tirilla lo
+ * adopta (ver `ensureDianDocument`). Uno por orden.
+ */
+export async function recordNumberingExhausted(args: {
+  restaurantId: string;
+  orderId: string;
+  now?: Date;
+}): Promise<void> {
+  const now = args.now ?? new Date();
+  const data = {
+    state: "to_send",
+    lastError: "numbering_exhausted",
+    errors: ["numbering_exhausted"],
+    nextAttemptAt: new Date(now.getTime() + BLOCKED_RETRY_MS),
+  };
+  const touched = await db.dianDocument.updateMany({
+    where: { orderId: args.orderId, simpleInvoiceId: null, kind: "invoice" },
+    data,
+  });
+  if (touched.count > 0) return;
+  await db.dianDocument.create({
     data: {
-      restaurantId,
-      simpleInvoiceId,
+      restaurantId: args.restaurantId,
+      orderId: args.orderId,
       kind: "invoice",
-      state: "to_send",
+      ...data,
     },
     select: { id: true },
   });
-  return { id: created.id };
 }

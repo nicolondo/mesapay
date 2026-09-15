@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { fmtCOP, formatDate } from "@/lib/format";
@@ -20,7 +21,49 @@ type DianInfo = {
   emailedAt: string | null;
   /** A qué correo saldría (misma precedencia que el envío). null ⇒ nadie. */
   emailTo: string | null;
+  /**
+   * Por qué no salió la última vez (guard de configuración, rango, regla
+   * de la DIAN o error de canal). null ⇒ nunca falló.
+   */
+  lastError: string | null;
 };
+
+/**
+ * Resumen de la emisión automática del comercio (ver
+ * `lib/dian/pendingEmission.ts`). null ⇒ módulo apagado.
+ */
+type EmissionInfo = {
+  waiting: number;
+  blockedBy: string | null;
+  blockedCount: number;
+  numbersLeft: number | null;
+};
+
+/** Desde cuántos números restantes se avisa (= NUMBERS_LEFT_WARNING). */
+const NUMBERS_LEFT_WARNING = 500;
+
+/** Motivos de bloqueo con texto propio; cualquier otro se muestra crudo. */
+const BLOCK_REASONS = new Set([
+  "no_config",
+  "no_certificate",
+  "missing_credentials",
+  "master_key_missing",
+  "decrypt_failed",
+  "no_emisor",
+  "resolution_incomplete",
+  "location_incomplete",
+  "contact_email_incomplete",
+  "numbering_exhausted",
+  "number_out_of_range",
+  "no_lines",
+]);
+
+function blockReasonText(
+  code: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  return BLOCK_REASONS.has(code) ? t(`blockReason_${code}`) : code;
+}
 
 type Req = {
   id: string;
@@ -53,11 +96,13 @@ type Tab = "pending" | "generated";
 export function FacturasClient({
   tab,
   einvoicingOn,
+  emission,
   pending,
   generated,
 }: {
   tab: Tab;
   einvoicingOn: boolean;
+  emission: EmissionInfo | null;
   pending: Req[];
   generated: GeneratedReq[];
 }) {
@@ -88,6 +133,8 @@ export function FacturasClient({
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
+
+      {einvoicingOn && emission && <EmissionBanner emission={emission} />}
 
       <div className="flex gap-2 border-b border-op-border mb-4">
         <TabButton
@@ -134,6 +181,62 @@ export function FacturasClient({
             />
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Aviso de la emisión automática. Rojo cuando algo del COMERCIO frena las
+ * facturas (configuración incompleta, rango agotado): con emisión
+ * automática eso deja TODA la facturación parada sin que nadie apriete
+ * nada. Amarillo cuando la resolución se está quedando sin números.
+ */
+function EmissionBanner({ emission }: { emission: EmissionInfo }) {
+  const t = useTranslations("opFacturas");
+  const exhausted = emission.numbersLeft === 0;
+  const lowNumbers =
+    emission.numbersLeft != null && emission.numbersLeft < NUMBERS_LEFT_WARNING;
+  const blocked = emission.blockedCount > 0 && emission.blockedBy;
+  const queued = emission.waiting - emission.blockedCount;
+  if (!blocked && !lowNumbers && queued <= 0) return null;
+  return (
+    <div className="space-y-2 mb-6">
+      {blocked && (
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+          <div className="font-medium">
+            {t("emissionBlocked", {
+              count: emission.blockedCount,
+              reason: blockReasonText(emission.blockedBy!, t),
+            })}
+          </div>
+          <p className="mt-1 text-[12px] opacity-90">{t("emissionBlockedHint")}</p>
+          <Link
+            href="/operator/settings/facturacion-dian"
+            className="inline-block mt-2 text-[12px] font-medium underline"
+          >
+            {t("emissionBlockedCta")}
+          </Link>
+        </div>
+      )}
+      {lowNumbers && (
+        <div
+          className={
+            "rounded-2xl border p-4 text-sm " +
+            (exhausted
+              ? "border-danger/30 bg-danger/10 text-danger"
+              : "border-[#C98A2E]/40 bg-[#C98A2E]/15 text-[#7F5A1F]")
+          }
+        >
+          {exhausted
+            ? t("numbersExhausted")
+            : t("numbersLeftWarning", { count: emission.numbersLeft! })}
+        </div>
+      )}
+      {queued > 0 && (
+        <p className="text-[12px] text-op-muted px-1">
+          {t("emissionWaiting", { count: queued })}
+        </p>
       )}
     </div>
   );
@@ -355,8 +458,11 @@ function DianBlock({ dian }: { dian: DianInfo }) {
     text: string;
   } | null>(null);
 
-  const inFlight =
-    state === "to_send" || state === "sent" || state === "pending";
+  // `to_send` es la cola de la emisión automática (el barrido la retoma
+  // solo); `sent`/`pending` es un envío en curso o en manos de la DIAN.
+  // La cola se puede empujar a mano con "Reintentar"; lo en vuelo no.
+  const waiting = state === "to_send";
+  const inFlight = state === "sent" || state === "pending";
   const accepted = state === "accepted";
   const failed = state === "error" || state === "rejected";
   const canEmit = !accepted && !inFlight && !emitting;
@@ -481,7 +587,7 @@ function DianBlock({ dian }: { dian: DianInfo }) {
           >
             {emitting || inFlight
               ? t("dianEmitting")
-              : failed
+              : failed || (waiting && dian.lastError)
                 ? t("dianRetry")
                 : t("dianEmit")}
           </button>
@@ -531,6 +637,12 @@ function DianBlock({ dian }: { dian: DianInfo }) {
 
       {!dian.simpleInvoiceId && (
         <p className="mt-2 text-[11px] text-op-muted">{t("dianNoInvoiceYet")}</p>
+      )}
+
+      {waiting && dian.lastError && (
+        <p className="mt-2 text-[11px] text-[#7F5A1F]">
+          {t("dianWaitingReason", { reason: blockReasonText(dian.lastError, t) })}
+        </p>
       )}
 
       {accepted && cufe && (
@@ -589,6 +701,9 @@ function DianBadge({ state }: { state: string | null }) {
       cls = "bg-danger/15 text-danger";
       break;
     case "to_send":
+      label = t("dianStatusWaiting");
+      cls = "bg-[#C98A2E]/20 text-[#7F5A1F]";
+      break;
     case "sent":
     case "pending":
       label = t("dianStatusInProcess");

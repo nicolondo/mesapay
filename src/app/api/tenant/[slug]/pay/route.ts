@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { DEMO_PAYMENTS_DISABLED, shouldBlockDemoPayment } from "@/lib/demoPayments";
 import { sendPushToMeserosForTable } from "@/lib/push";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { NextResponse } from "next/server";
@@ -84,7 +84,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
   await notifyAutoFiredTickets({ restaurantId: tenant.id, orderId: order.id, rounds: result.fired });
   if (!approved) publishOrderEvent(tenant.id, { type: "order.cash_requested", orderId: order.id, paymentId: result.payment.id });
   if (result.paid && order.dinerId) void welcomeIfFirstTime(order.dinerId, order.locale).catch(err => console.error("welcome_failed", err));
-  if (result.paid) await issueRequestedInvoiceOnPaid({ tenantId: tenant.id, orderId: order.id });
+  if (result.paid) await issueInvoiceOnPaid({ tenantId: tenant.id, orderId: order.id });
   if (!approved) {
     void (async () => {
       const table = order.tableId ? await db.table.findUnique({ where: { id: order.tableId }, select: { number: true, label: true } }) : null;

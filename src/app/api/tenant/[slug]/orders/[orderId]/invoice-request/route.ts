@@ -17,7 +17,7 @@ import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice"
  * sí depende del pago es la EMISIÓN de la factura imprimible:
  * `issueSimpleInvoice` sólo emite sobre una orden pagada (devuelve
  * `order_not_paid` si no lo está) y en ese caso respondemos
- * `deferred: true` — `issueRequestedInvoiceOnPaid` la emite y la envía
+ * `deferred: true` — `issueInvoiceOnPaid` la emite y la envía
  * cuando el cobro se confirme.
  *
  * One outstanding request per order — if a diner submits twice (e.g.

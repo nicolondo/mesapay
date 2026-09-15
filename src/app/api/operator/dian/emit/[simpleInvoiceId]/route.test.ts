@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   docFindUnique: vi.fn(),
   docCreate: vi.fn(),
   docUpdate: vi.fn(),
+  docUpdateMany: vi.fn(),
   signXmlDian: vi.fn(),
   zipInvoice: vi.fn(),
   sendBillSync: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: m.docFindUnique,
       create: m.docCreate,
       update: m.docUpdate,
+      updateMany: m.docUpdateMany,
     },
   },
 }));
@@ -128,7 +130,9 @@ beforeEach(() => {
     },
   });
   m.docFindUnique.mockResolvedValue(null);
-  m.docCreate.mockResolvedValue({ id: "doc-1" });
+  m.docCreate.mockResolvedValue({ id: "doc-1", state: "to_send", attempts: 0 });
+  // El reclamo (updateMany → sent) lo gana esta emisión.
+  m.docUpdateMany.mockResolvedValue({ count: 1 });
   m.docUpdate.mockResolvedValue({ id: "doc-1" });
   m.signXmlDian.mockImplementation((xml: string) => xml);
   m.zipInvoice.mockResolvedValue(Buffer.from("zip"));
@@ -146,12 +150,18 @@ describe("FAJ71 — no se emite sin el correo de recepción de documentos", () =
         error: "contact_email_incomplete",
         missingContact: ["contactEmail"],
       });
-      // Lo importante: el consecutivo no se quema en un rechazo seguro.
+      // Lo importante: el consecutivo no se quema en un rechazo seguro. El
+      // documento vuelve a la cola (to_send) con el motivo visible: el
+      // barrido lo retoma cuando el operador cargue el correo.
       expect(m.sendBillSync).not.toHaveBeenCalled();
       expect(m.signXmlDian).not.toHaveBeenCalled();
       expect(m.docUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { state: "error", errors: ["contact_email_incomplete"] },
+          data: expect.objectContaining({
+            state: "to_send",
+            errors: ["contact_email_incomplete"],
+            lastError: "contact_email_incomplete",
+          }),
         }),
       );
     },

@@ -28,7 +28,7 @@ const bodySchema = z.object({
  * Se puede pedir ANTES de pagar (es lo que hace el checkout). En ese caso no
  * hay nada que emitir todavía, así que guardamos la intención en
  * `Order.simpleInvoiceEmail` y respondemos `deferred: true`;
- * `issueRequestedInvoiceOnPaid` emite y envía cuando el cobro se confirma.
+ * `issueInvoiceOnPaid` emite y envía cuando el cobro se confirma.
  * Ojo: sin pago no hay tirilla que imprimir, así que en ese camino el correo
  * deja de ser opcional — sin él no habría nada que hacer después.
  */

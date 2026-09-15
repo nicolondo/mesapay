@@ -8,7 +8,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -171,9 +171,10 @@ async function POSTHandler(
   });
 
   // La cortesía cierra la cuenta en $0: sigue siendo una cuenta pagada y, si
-  // alguien pidió factura, hay que emitirla igual.
+  // alguien pidió comprobante, hay que emitirlo igual. NO es una venta: el
+  // helper no la factura sola ni la manda a la DIAN (ver isBillableOrder).
   if (result.fullyPaid) {
-    await issueRequestedInvoiceOnPaid({
+    await issueInvoiceOnPaid({
       tenantId: tenant.id,
       orderId: order.id,
     });

@@ -2751,7 +2751,27 @@
     "dianEmailNotAccepted": "La DIAN todavía no ha aceptado esta factura.",
     "dianEmailIncomplete": "A esta factura le faltan datos para poder enviarla.",
     "dianEmailNoConfig": "El comercio no tiene configurada la facturación electrónica.",
-    "dianEmailError": "No se pudo enviar el correo. Inténtalo de nuevo."
+    "dianEmailError": "No se pudo enviar el correo. Inténtalo de nuevo.",
+    "emissionBlocked": "{count, plural, one {# factura esperando emisión} other {# facturas esperando emisión}}: {reason}.",
+    "emissionBlockedHint": "Con facturación electrónica automática, una configuración incompleta frena TODAS las facturas del comercio sin que nadie apriete nada. Completala en Facturación DIAN y salen solas en unos minutos.",
+    "emissionBlockedCta": "Ir a Facturación DIAN",
+    "emissionWaiting": "{count, plural, one {# factura en cola de emisión} other {# facturas en cola de emisión}}; se reintentan solas.",
+    "numbersLeftWarning": "Quedan {count, plural, one {# número} other {# números}} en la resolución de facturación. Pedí la resolución nueva antes de que se agote: sin números válidos no se puede facturar.",
+    "numbersExhausted": "Se agotó el rango de la resolución de facturación: las ventas nuevas quedan sin facturar hasta que cargues la resolución nueva.",
+    "dianStatusWaiting": "Esperando emisión",
+    "dianWaitingReason": "No sale todavía: {reason}.",
+    "blockReason_no_config": "falta la configuración DIAN",
+    "blockReason_no_certificate": "falta el certificado digital",
+    "blockReason_missing_credentials": "faltan las credenciales de la DIAN",
+    "blockReason_master_key_missing": "el servidor no tiene la clave maestra para descifrar credenciales",
+    "blockReason_decrypt_failed": "no se pudieron descifrar las credenciales guardadas",
+    "blockReason_no_emisor": "no se pudo resolver el emisor del comercio",
+    "blockReason_resolution_incomplete": "falta la resolución de numeración",
+    "blockReason_location_incomplete": "falta el municipio del establecimiento (Identidad del comercio)",
+    "blockReason_contact_email_incomplete": "falta el correo para recepción de documentos electrónicos",
+    "blockReason_numbering_exhausted": "se agotó el rango de la resolución de numeración",
+    "blockReason_number_out_of_range": "el número de la factura está fuera del rango de la resolución",
+    "blockReason_no_lines": "la cuenta no tiene líneas facturables"
   },
   "opWallet": {
     "noRestaurant": "Sin restaurante.",
@@ -5659,7 +5679,9 @@
     "emisorSalesTax": "Impuesto de ventas",
     "salesTaxValue": "{kind} {pct}%",
     "salesTaxEdit": "Cambiar en Configuración → Impuestos",
-    "salesTaxNoneWarning": "Este comercio está emitiendo facturas SIN impuesto de ventas: todas salen con impuesto en cero. Si es responsable de impoconsumo, configuralo en Configuración → Impuestos antes de seguir facturando. Si no es responsable, así está bien."
+    "salesTaxNoneWarning": "Este comercio está emitiendo facturas SIN impuesto de ventas: todas salen con impuesto en cero. Si es responsable de impoconsumo, configuralo en Configuración → Impuestos antes de seguir facturando. Si no es responsable, así está bien.",
+    "cardBadgeBlocked": "{count, plural, one {# factura sin emitir} other {# facturas sin emitir}}",
+    "cardBadgeNumbersLeft": "Quedan {count} números"
   },
   "opSalesTax": {
     "cardTitle": "Impuestos",

@@ -232,5 +232,5 @@ vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: async () => {
   const session = await h.auth();
   return session ? { restaurantId: "rest-1", session } : null;
 } }));
-vi.mock("@/lib/invoiceOnPaid", () => ({ issueRequestedInvoiceOnPaid: vi.fn(async () => {}) }));
+vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: vi.fn(async () => {}) }));
 vi.mock("@/lib/billRequest", () => ({ announceBillRequestedOnPay: vi.fn(async () => {}) }));

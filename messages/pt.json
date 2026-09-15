@@ -2751,7 +2751,27 @@
     "dianEmailNotAccepted": "A DIAN ainda não aceitou esta fatura.",
     "dianEmailIncomplete": "Faltam dados nesta fatura para poder enviá-la.",
     "dianEmailNoConfig": "O comércio não tem a faturação eletrônica configurada.",
-    "dianEmailError": "Não foi possível enviar o e-mail. Tente novamente."
+    "dianEmailError": "Não foi possível enviar o e-mail. Tente novamente.",
+    "emissionBlocked": "{count, plural, one {# fatura aguardando emissão} other {# faturas aguardando emissão}}: {reason}.",
+    "emissionBlockedHint": "Com faturamento eletrônico automático, uma configuração incompleta trava TODAS as faturas do estabelecimento sem que ninguém aperte nada. Complete em Faturamento DIAN e elas saem sozinhas em alguns minutos.",
+    "emissionBlockedCta": "Ir para Faturamento DIAN",
+    "emissionWaiting": "{count, plural, one {# fatura na fila de emissão} other {# faturas na fila de emissão}}; são retentadas automaticamente.",
+    "numbersLeftWarning": "{count, plural, one {Resta # número} other {Restam # números}} na resolução de faturamento. Peça a nova resolução antes que acabe: sem números válidos não é possível faturar.",
+    "numbersExhausted": "A faixa da resolução de faturamento acabou: as vendas novas ficam sem fatura até você carregar a nova resolução.",
+    "dianStatusWaiting": "Aguardando emissão",
+    "dianWaitingReason": "Ainda não sai: {reason}.",
+    "blockReason_no_config": "falta a configuração DIAN",
+    "blockReason_no_certificate": "falta o certificado digital",
+    "blockReason_missing_credentials": "faltam as credenciais da DIAN",
+    "blockReason_master_key_missing": "o servidor não tem a chave mestra para descriptografar credenciais",
+    "blockReason_decrypt_failed": "não foi possível descriptografar as credenciais salvas",
+    "blockReason_no_emisor": "não foi possível resolver o emissor do estabelecimento",
+    "blockReason_resolution_incomplete": "falta a resolução de numeração",
+    "blockReason_location_incomplete": "falta o município do estabelecimento (Identidade do estabelecimento)",
+    "blockReason_contact_email_incomplete": "falta o e-mail para recepção de documentos eletrônicos",
+    "blockReason_numbering_exhausted": "a faixa da resolução de numeração acabou",
+    "blockReason_number_out_of_range": "o número da fatura está fora da faixa da resolução",
+    "blockReason_no_lines": "a conta não tem linhas faturáveis"
   },
   "opWallet": {
     "noRestaurant": "Sem restaurante.",
@@ -5659,7 +5679,9 @@
     "emisorSalesTax": "Imposto sobre vendas",
     "salesTaxValue": "{kind} {pct}%",
     "salesTaxEdit": "Alterar em Configurações → Impostos",
-    "salesTaxNoneWarning": "Este estabelecimento está emitindo faturas SEM imposto sobre vendas: todas saem com imposto zero. Se for responsável pelo imposto sobre consumo, configure-o em Configurações → Impostos antes de continuar faturando. Se não for responsável, está tudo certo assim."
+    "salesTaxNoneWarning": "Este estabelecimento está emitindo faturas SEM imposto sobre vendas: todas saem com imposto zero. Se for responsável pelo imposto sobre consumo, configure-o em Configurações → Impostos antes de continuar faturando. Se não for responsável, está tudo certo assim.",
+    "cardBadgeBlocked": "{count, plural, one {# fatura sem emitir} other {# faturas sem emitir}}",
+    "cardBadgeNumbersLeft": "Restam {count} números"
   },
   "opSalesTax": {
     "cardTitle": "Impostos",

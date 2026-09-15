@@ -10,7 +10,7 @@ import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
 /**
  * Si todavía estamos en pending y tenemos un token en la URL (lo
@@ -96,7 +96,7 @@ async function reconcileViaStatusApi(args: {
     // el que cerró la cuenta fue este reconcile, la factura pedida en el
     // checkout sale desde acá. Idempotente con el riel del webhook.
     if (isApproved && result.fullyPaid) {
-      await issueRequestedInvoiceOnPaid({
+      await issueInvoiceOnPaid({
         tenantId: args.restaurantId,
         orderId: args.orderId,
       });

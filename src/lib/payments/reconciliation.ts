@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { lockOrder } from "@/lib/orderLock";
 import { settleKushkiEventInTx } from "./webhookHandler";
 import { publishOrderEvent } from "@/lib/events";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import type { AutoFiredRound } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 
@@ -56,6 +56,6 @@ export async function reconcilePayment(args: {
   });
   publishOrderEvent(args.restaurantId, { type: "order.updated", orderId: result.orderId });
   await notifyAutoFiredTickets({ restaurantId: args.restaurantId, orderId: result.orderId, rounds: result.fired });
-  await issueRequestedInvoiceOnPaid({ tenantId: args.restaurantId, orderId: result.orderId });
+  await issueInvoiceOnPaid({ tenantId: args.restaurantId, orderId: result.orderId });
   return result;
 }

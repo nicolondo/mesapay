@@ -403,7 +403,9 @@ export async function lastTestSetDocument(
   restaurantId: string,
 ): Promise<DianLastDocument | null> {
   const doc = await db.dianDocument.findFirst({
-    where: { restaurantId, simpleInvoiceId: null },
+    // Sin tirilla NI orden: el placeholder de `numbering_exhausted` tampoco
+    // tiene tirilla, pero cuelga de una orden y no es del set de pruebas.
+    where: { restaurantId, simpleInvoiceId: null, orderId: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

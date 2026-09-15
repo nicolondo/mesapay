@@ -422,6 +422,7 @@ model Restaurant {
   voucherBatches         VoucherBatch[]
   vouchers               Voucher[]
   voucherRedemptions     VoucherRedemption[]
+  voucherStatements      VoucherStatement[]
   paymentLinks           PaymentLink[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
@@ -836,6 +837,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   voucherBatchesIssued VoucherBatch[]       @relation("VoucherBatchIssuer")
   voucherRedemptions   VoucherRedemption[]  @relation("VoucherRedeemer")
+  voucherStatements    VoucherStatement[]   @relation("VoucherStatementCreator")
 
   @@index([restaurantId])
   @@index([groupId])
@@ -1619,6 +1621,10 @@ enum PaymentMethod {
   // Kushki) y al sentarse se acredita a la cuenta como un pago ya
   // recibido. No es un cobro nuevo en la mesa — es plata que ya entró.
   reservation_deposit
+  // Bono empresarial redimido en la cuenta (módulo `vouchers`). Tampoco
+  // es plata que entra en la mesa: la empresa lo pagó por adelantado (link
+  // de pago) o lo paga por corte. Nunca cuenta como caja.
+  voucher
 }
 
 /**
@@ -2890,7 +2896,8 @@ model BillingCustomer {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  voucherBatches VoucherBatch[]
+  voucherBatches    VoucherBatch[]
+  voucherStatements VoucherStatement[]
 
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])
@@ -3888,10 +3895,55 @@ model VoucherRedemption {
   redeemedByUserId String?
   redeemedBy       User?                    @relation("VoucherRedeemer", fields: [redeemedByUserId], references: [id], onDelete: SetNull)
   redeemedAt       DateTime                 @default(now())
+  /// Corte que la incluyó (null = todavía no se cerró). Un uso entra en
+  /// UN solo corte.
+  statementId      String?
+  statement        VoucherStatement?        @relation(fields: [statementId], references: [id], onDelete: SetNull)
 
   @@unique([voucherId, orderId])
   @@index([restaurantId, redeemedAt])
   @@index([orderId])
+  @@index([statementId])
+}
+
+/// Corte de bonos usados: agrupa las redenciones de una empresa en un
+/// período (sólo las que no entraron en un corte anterior). Se le manda
+/// a la empresa el resumen; lo redimido de lotes a CRÉDITO se cobra con
+/// un link de pago, lo de lotes prepagados ya estaba pagado.
+enum VoucherStatementStatus {
+  open
+  paid
+}
+
+model VoucherStatement {
+  id                String                 @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  billingCustomerId String
+  billingCustomer   BillingCustomer        @relation(fields: [billingCustomerId], references: [id], onDelete: Restrict)
+  periodFrom        DateTime
+  periodTo          DateTime
+  /// Todo lo redimido en el corte.
+  totalCents        Int
+  /// Lo redimido de lotes a crédito: es lo que cobra el link.
+  creditCents       Int
+  /// Lo redimido de lotes prepagados (ya pagado al emitir).
+  prepaidCents      Int
+  redemptionCount   Int
+  status            VoucherStatementStatus @default(open)
+  paidAt            DateTime?
+  emailSentAt       DateTime?
+  createdByUserId   String?
+  createdBy         User?                  @relation("VoucherStatementCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  redemptions VoucherRedemption[]
+  /// Crédito: el link de pago del corte (kind = voucher_statement).
+  paymentLink PaymentLink?
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, billingCustomerId])
 }
 
 // === Links de pago ========================================================
@@ -3938,6 +3990,8 @@ model PaymentLink {
 
   voucherBatchId String?       @unique
   voucherBatch   VoucherBatch? @relation(fields: [voucherBatchId], references: [id], onDelete: Cascade)
+  voucherStatementId String?           @unique
+  voucherStatement   VoucherStatement? @relation(fields: [voucherStatementId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, status])
   @@index([providerRef])

@@ -26,6 +26,7 @@ const METHOD_KEY: Record<string, string> = {
   external_terminal: "methodExternalTerminal",
   kushki_pse: "methodKushkiPse",
   reservation_deposit: "methodReservationDeposit",
+  voucher: "methodVoucher",
 };
 
 /**

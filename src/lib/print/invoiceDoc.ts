@@ -58,6 +58,7 @@ const PAYMENT_METHOD_KEY: Record<string, string> = {
   kushki_pse: "methodPse",
   wompi_nequi: "methodNequi",
   reservation_deposit: "methodDeposit",
+  voucher: "methodVoucher",
 };
 
 /** Traductor mínimo — `createTranslator` de next-intl encaja tal cual. */

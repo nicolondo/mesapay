@@ -398,4 +398,5 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   external_terminal: "Datáfono propio",
   kushki_pse: "PSE",
   reservation_deposit: "Abono de reserva",
+  voucher: "Bono empresarial",
 };

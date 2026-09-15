@@ -57,6 +57,7 @@ export type CreatePaymentLinkInput = {
   amountCents: number;
   currency: string;
   voucherBatchId?: string;
+  voucherStatementId?: string;
   expiresAt?: Date | null;
 };
 
@@ -72,6 +73,7 @@ export async function createPaymentLinkInTx(
       amountCents: input.amountCents,
       currency: input.currency,
       voucherBatchId: input.voucherBatchId,
+      voucherStatementId: input.voucherStatementId,
       expiresAt: input.expiresAt ?? null,
     },
   });
@@ -85,6 +87,7 @@ export type SettlePaymentLinkResult =
         restaurantId: string;
         kind: PaymentLinkKind;
         voucherBatchId: string | null;
+        voucherStatementId: string | null;
       };
     }
   | { status: "already_paid" | "declined" | "not_found" | "not_pending" };
@@ -140,13 +143,14 @@ export async function settlePaymentLinkInTx(
       restaurantId: link.restaurantId,
       kind: link.kind,
       voucherBatchId: link.voucherBatchId,
+      voucherStatementId: link.voucherStatementId,
     },
   };
 }
 
 async function applyPaidEffect(
   tx: Prisma.TransactionClient,
-  link: { kind: PaymentLinkKind; voucherBatchId: string | null },
+  link: { kind: PaymentLinkKind; voucherBatchId: string | null; voucherStatementId: string | null },
 ): Promise<void> {
   if (link.kind === "voucher_batch" && link.voucherBatchId) {
     await tx.voucherBatch.updateMany({
@@ -154,7 +158,12 @@ async function applyPaidEffect(
       data: { status: "paid", paidAt: new Date() },
     });
   }
-  // voucher_statement: se cierra en el PR de redención/corte.
+  if (link.kind === "voucher_statement" && link.voucherStatementId) {
+    await tx.voucherStatement.updateMany({
+      where: { id: link.voucherStatementId, status: "open" },
+      data: { status: "paid", paidAt: new Date() },
+    });
+  }
 }
 
 /**

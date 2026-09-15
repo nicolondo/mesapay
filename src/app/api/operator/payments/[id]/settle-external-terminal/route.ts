@@ -8,6 +8,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -124,15 +125,22 @@ async function POSTHandler(
       },
     });
     const totals = await recomputeOrderTotalsInTx(tx, payment.orderId);
-    if (totals.fullyPaid) {
-      await activateOpenRounds(tx, payment.orderId);
-    }
-    return { payment: updated, fullyPaid: totals.fullyPaid };
+    // Rondas prepagas activadas por este cobro; si la estación marcha
+    // sola, `fired` trae qué imprimir después de la tx.
+    const fired = totals.fullyPaid
+      ? await activateOpenRounds(tx, payment.orderId)
+      : [];
+    return { payment: updated, fullyPaid: totals.fullyPaid, fired };
   });
 
   publishOrderEvent(payment.order.restaurantId, {
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: payment.orderId,
+  });
+  await notifyAutoFiredTickets({
+    restaurantId: payment.order.restaurantId,
+    orderId: payment.orderId,
+    rounds: result.fired,
   });
 
   if (result.fullyPaid && payment.order.dinerId) {

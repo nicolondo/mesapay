@@ -3,6 +3,8 @@ import { lockOrder } from "@/lib/orderLock";
 import { settleKushkiEventInTx } from "./webhookHandler";
 import { publishOrderEvent } from "@/lib/events";
 import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import type { AutoFiredRound } from "@/lib/kds/autoFire";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 
 export type ReconciliationOutcome = "approved" | "declined" | "refunded" | "not_refunded" | "reviewed";
 /** Record an operator's verified provider result; never sends a charge or refund. */
@@ -17,7 +19,9 @@ export async function reconcilePayment(args: {
     await lockOrder(tx, hint.orderId);
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: args.paymentId }, include: { order: true } });
     if (payment.order.restaurantId !== args.restaurantId) throw new Error("operation_conflict");
-    if (!payment.reconciliationRequired) return { orderId: payment.orderId, alreadyResolved: true };
+    if (!payment.reconciliationRequired) return { orderId: payment.orderId, alreadyResolved: true, fired: [] as AutoFiredRound[] };
+    // Un cobro aprobado a mano puede activar rondas prepagas que marchan solas; la comanda sale después de la tx.
+    let fired: AutoFiredRound[] = [];
     const refund = await tx.financialOperation.findFirst({ where: { paymentId: payment.id, kind: "refund", status: "uncertain" } });
     if (refund) {
       if (!["refunded", "not_refunded"].includes(args.outcome) || refund.amountCents !== payment.refundReservedCents) throw new Error("operation_conflict");
@@ -37,7 +41,8 @@ export async function reconcilePayment(args: {
       if (payment.refundReservedCents) throw new Error("operation_conflict");
       if (payment.status === "pending") {
         if (args.outcome !== "approved" && args.outcome !== "declined") throw new Error("operation_conflict");
-        await settleKushkiEventInTx(tx, { eventId: `reconcile:${payment.id}`, type: args.outcome === "approved" ? "charge.approved" : "charge.declined", paymentId: payment.id, restaurantId: args.restaurantId, providerRef: args.providerRef, amountCents: payment.amountCents });
+        const settled = await settleKushkiEventInTx(tx, { eventId: `reconcile:${payment.id}`, type: args.outcome === "approved" ? "charge.approved" : "charge.declined", paymentId: payment.id, restaurantId: args.restaurantId, providerRef: args.providerRef, amountCents: payment.amountCents });
+        fired = settled?.fired ?? [];
       } else if (args.outcome !== "reviewed") throw new Error("operation_conflict");
       await tx.payment.update({ where: { id: payment.id }, data: { reconciliationRequired: false } });
     }
@@ -47,9 +52,10 @@ export async function reconcilePayment(args: {
       summary: args.evidence,
       diff: { before: { status: payment.status, refundedCents: payment.refundedCents }, outcome: args.outcome, providerRef: args.providerRef },
     } });
-    return { orderId: payment.orderId, alreadyResolved: false };
+    return { orderId: payment.orderId, alreadyResolved: false, fired };
   });
   publishOrderEvent(args.restaurantId, { type: "order.updated", orderId: result.orderId });
+  await notifyAutoFiredTickets({ restaurantId: args.restaurantId, orderId: result.orderId, rounds: result.fired });
   await issueRequestedInvoiceOnPaid({ tenantId: args.restaurantId, orderId: result.orderId });
   return result;
 }

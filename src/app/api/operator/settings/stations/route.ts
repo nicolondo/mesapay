@@ -8,8 +8,10 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 /**
  * Patch shapes (discriminated by which key is present):
  *  - { hasBar }                                  → restaurant-level toggle
- *  - { kitchenPrintEnabled / barPrintEnabled / printPaperWidthMm }
- *                                                → printing config
+ *  - { kitchenPrintEnabled / barPrintEnabled / printPaperWidthMm /
+ *      kitchenAutoFire / barAutoFire }           → printing config +
+ *                                                  marchado automático por
+ *                                                  estación
  *  - { barSubStations }                          → list of bar sub-station
  *                                                  labels for the whole
  *                                                  restaurant
@@ -27,6 +29,10 @@ const schema = z.discriminatedUnion("kind", [
     kitchenPrintEnabled: z.boolean().optional(),
     barPrintEnabled: z.boolean().optional(),
     printPaperWidthMm: z.union([z.literal(58), z.literal(80)]).optional(),
+    // Marchar solo al llegar el pedido (in_kitchen + comanda si la
+    // impresión de esa estación está activa). Ver src/lib/kds/autoFire.ts.
+    kitchenAutoFire: z.boolean().optional(),
+    barAutoFire: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("subStations"),
@@ -82,6 +88,8 @@ async function PATCHHandler(req: Request) {
       kitchenPrintEnabled?: boolean;
       barPrintEnabled?: boolean;
       printPaperWidthMm?: number;
+      kitchenAutoFire?: boolean;
+      barAutoFire?: boolean;
     } = {};
     if (data.kitchenPrintEnabled !== undefined)
       update.kitchenPrintEnabled = data.kitchenPrintEnabled;
@@ -89,6 +97,10 @@ async function PATCHHandler(req: Request) {
       update.barPrintEnabled = data.barPrintEnabled;
     if (data.printPaperWidthMm !== undefined)
       update.printPaperWidthMm = data.printPaperWidthMm;
+    if (data.kitchenAutoFire !== undefined)
+      update.kitchenAutoFire = data.kitchenAutoFire;
+    if (data.barAutoFire !== undefined)
+      update.barAutoFire = data.barAutoFire;
     await db.restaurant.update({ where: { id: restaurantId }, data: update });
     return NextResponse.json({ ok: true });
   }

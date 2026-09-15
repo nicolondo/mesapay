@@ -66,7 +66,8 @@ vi.mock("@/lib/orderTotals", () => ({
 }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/mailer", () => ({ welcomeIfFirstTime: vi.fn(async () => {}) }));
-vi.mock("@/lib/prepaidRounds", () => ({ activateOpenRounds: vi.fn(async () => {}) }));
+vi.mock("@/lib/prepaidRounds", () => ({ activateOpenRounds: vi.fn(async () => []) }));
+vi.mock("@/lib/kds/autoFireTickets", () => ({ notifyAutoFiredTickets: vi.fn(async () => {}) }));
 vi.mock("@/lib/push", () => ({ sendPushToMeserosForTable: vi.fn(async () => {}) }));
 vi.mock("@/lib/meseroShift", () => ({
   meseroNeedsShiftToCharge: vi.fn(async () => false),

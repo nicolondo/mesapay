@@ -15,6 +15,7 @@ import { amountCentsSchema, tipCentsSchema, validPaymentAmounts } from "@/lib/pa
 import { lockOrder } from "@/lib/orderLock";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { welcomeIfFirstTime } from "@/lib/mailer";
@@ -62,7 +63,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
       const existing = await tx.payment.findUnique({ where: { requestKey } });
       if (existing) {
         if (existing.amountCents !== amountCents || existing.tipCents !== tipCents) throw new Error("operation_conflict");
-        return { payment: existing, paid: current.status === "paid" };
+        return { payment: existing, paid: current.status === "paid", fired: [] };
       }
     }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
@@ -75,10 +76,12 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
       collectedByUserId: staff?.user.id,
     } });
     const totals = await recomputeOrderTotalsInTx(tx, order.id);
-    if (totals.fullyPaid) await activateOpenRounds(tx, order.id);
-    return { payment, paid: totals.fullyPaid };
+    const fired = totals.fullyPaid ? await activateOpenRounds(tx, order.id) : [];
+    return { payment, paid: totals.fullyPaid, fired };
   });
   publishOrderEvent(tenant.id, { type: result.paid ? "order.paid" : "order.updated", orderId: order.id });
+  // Rondas prepagas recién activadas y marchadas solas: la comanda sale ahora, fuera de la tx.
+  await notifyAutoFiredTickets({ restaurantId: tenant.id, orderId: order.id, rounds: result.fired });
   if (!approved) publishOrderEvent(tenant.id, { type: "order.cash_requested", orderId: order.id, paymentId: result.payment.id });
   if (result.paid && order.dinerId) void welcomeIfFirstTime(order.dinerId, order.locale).catch(err => console.error("welcome_failed", err));
   if (result.paid) await issueRequestedInvoiceOnPaid({ tenantId: tenant.id, orderId: order.id });

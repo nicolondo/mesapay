@@ -8,6 +8,7 @@ import { getRestaurantPrivateKey } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
 import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 
@@ -73,16 +74,23 @@ async function reconcileViaStatusApi(args: {
           settledAt: isApproved ? new Date() : undefined,
         },
       });
-      if (!isApproved) return { payment: updated, fullyPaid: false };
+      if (!isApproved) return { payment: updated, fullyPaid: false, fired: [] };
       const totals = await recomputeOrderTotalsInTx(tx, args.orderId);
-      if (totals.fullyPaid) {
-        await activateOpenRounds(tx, args.orderId);
-      }
-      return { payment: updated, fullyPaid: totals.fullyPaid };
+      // Rondas prepagas activadas por este cobro; si la estación marcha
+      // sola, `fired` trae qué imprimir después de la tx.
+      const fired = totals.fullyPaid
+        ? await activateOpenRounds(tx, args.orderId)
+        : [];
+      return { payment: updated, fullyPaid: totals.fullyPaid, fired };
     });
     publishOrderEvent(args.restaurantId, {
       type: isApproved && result.fullyPaid ? "order.paid" : "order.updated",
       orderId: args.orderId,
+    });
+    await notifyAutoFiredTickets({
+      restaurantId: args.restaurantId,
+      orderId: args.orderId,
+      rounds: result.fired,
     });
     // El webhook de Kushki puede no llegar nunca (sandbox) o llegar tarde: si
     // el que cerró la cuenta fue este reconcile, la factura pedida en el

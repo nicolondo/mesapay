@@ -10,6 +10,8 @@ import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { notifyAcceptedRoundTicketSafe } from "@/lib/print/enqueue";
+import { itemKitchenStatusData } from "@/lib/kds/roundStatus";
+import { recomputeRoundStatusInTx } from "@/lib/kds/transition";
 
 const schema = z
   .object({
@@ -184,25 +186,17 @@ async function PATCHHandler(
     }
 
     if (parsed.data.kitchenStatus !== undefined) {
-      const updates: {
-        kitchenStatus: typeof parsed.data.kitchenStatus;
-        preparationStartedAt?: Date | null;
-      } = { kitchenStatus: parsed.data.kitchenStatus };
-      // First time entering "in_kitchen" → start the prep timer. Going
-      // back to placed wipes the timer; subsequent "in_kitchen" hits
-      // restart it. This is what feeds the bar countdown.
-      if (
-        parsed.data.kitchenStatus === "in_kitchen" &&
-        currentItem.preparationStartedAt == null
-      ) {
-        updates.preparationStartedAt = now;
-      }
-      if (parsed.data.kitchenStatus === "placed") {
-        updates.preparationStartedAt = null;
-      }
+      // Misma transición que el marchado automático (src/lib/kds): la
+      // primera entrada a "in_kitchen" arranca el cronómetro del plato,
+      // volver a "placed" lo borra. Es lo que alimenta la cuenta
+      // regresiva del bar.
       await tx.orderItem.update({
         where: { id: currentItem.id },
-        data: updates,
+        data: itemKitchenStatusData(
+          currentItem,
+          parsed.data.kitchenStatus,
+          now,
+        ),
       });
     }
 
@@ -218,44 +212,17 @@ async function PATCHHandler(
     }
 
     if (currentItem.roundId) {
-      // Derive round.status from the weakest link of its items:
-      //  - any placed → placed
-      //  - any in_kitchen (none placed) → in_kitchen
-      //  - all ready → ready
-      // Excluimos cancelled — un item cancelado no debe pegar la
-      // ronda en "placed" cuando los demás ya están en cocina.
-      const siblings = await tx.orderItem.findMany({
-        where: { roundId: currentItem.roundId, cancelledAt: null },
-        select: { id: true, kitchenStatus: true, servedAt: true },
-      });
-      const effective = siblings.map((s) => {
-        if (s.id !== currentItem.id) return s.kitchenStatus;
-        if (parsed.data.kitchenStatus !== undefined) return parsed.data.kitchenStatus;
-        if (parsed.data.served === true) return "ready" as const;
-        return s.kitchenStatus;
-      });
-      let roundStatus: "placed" | "in_kitchen" | "ready" = "ready";
-      if (effective.some((s) => s === "placed")) roundStatus = "placed";
-      else if (effective.some((s) => s === "in_kitchen")) roundStatus = "in_kitchen";
-
-      const round = await tx.round.findUnique({ where: { id: currentItem.roundId } });
-      const roundData: {
-        status: typeof roundStatus;
-        kitchenStartedAt?: Date;
-        readyAt?: Date | null;
-      } = { status: roundStatus };
-      if (roundStatus === "in_kitchen" && round && !round.kitchenStartedAt) {
-        roundData.kitchenStartedAt = now;
-      }
-      if (roundStatus === "ready" && round && !round.readyAt) {
-        roundData.readyAt = now;
-        becameRoundReady = true;
-      }
-      if (roundStatus !== "ready" && round?.readyAt) {
-        // Someone pulled an item back from ready — round is no longer done.
-        roundData.readyAt = null;
-      }
-      await tx.round.update({ where: { id: currentItem.roundId }, data: roundData });
+      // Re-derivar Round.status desde sus ítems vivos (el eslabón más
+      // débil: placed > in_kitchen > ready, cancelados excluidos) y sellar
+      // kitchenStartedAt / readyAt. La regla vive en src/lib/kds y es la
+      // MISMA que usa el marchado automático. Se lee DESPUÉS de escribir
+      // el ítem: dentro de la tx la lectura ya ve el estado nuevo.
+      const recomputed = await recomputeRoundStatusInTx(
+        tx,
+        currentItem.roundId,
+        now,
+      );
+      if (recomputed?.becameReady) becameRoundReady = true;
     }
 
     // Roll-up de round/order.status se mueve AFUERA del tx (abajo).

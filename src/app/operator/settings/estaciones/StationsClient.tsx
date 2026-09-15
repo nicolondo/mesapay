@@ -36,6 +36,8 @@ export function StationsClient({
   kitchenPrintEnabled: initialKitchenPrint,
   barPrintEnabled: initialBarPrint,
   printPaperWidthMm: initialPaperWidth,
+  kitchenAutoFire: initialKitchenAutoFire,
+  barAutoFire: initialBarAutoFire,
   categories: initialCategories,
   menus,
 }: {
@@ -44,6 +46,8 @@ export function StationsClient({
   kitchenPrintEnabled: boolean;
   barPrintEnabled: boolean;
   printPaperWidthMm: 58 | 80;
+  kitchenAutoFire: boolean;
+  barAutoFire: boolean;
   categories: Category[];
   menus: MenuRef[];
 }) {
@@ -58,6 +62,10 @@ export function StationsClient({
   const [kitchenPrint, setKitchenPrint] = useState(initialKitchenPrint);
   const [barPrint, setBarPrint] = useState(initialBarPrint);
   const [paperWidth, setPaperWidth] = useState<58 | 80>(initialPaperWidth);
+  const [kitchenAutoFire, setKitchenAutoFire] = useState(
+    initialKitchenAutoFire,
+  );
+  const [barAutoFire, setBarAutoFire] = useState(initialBarAutoFire);
   const [categories, setCategories] = useState(initialCategories);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savingBar, setSavingBar] = useState(false);
@@ -181,6 +189,8 @@ export function StationsClient({
       kitchenPrintEnabled: boolean;
       barPrintEnabled: boolean;
       printPaperWidthMm: 58 | 80;
+      kitchenAutoFire: boolean;
+      barAutoFire: boolean;
     }>,
   ) {
     setSavingId("__print__");
@@ -425,6 +435,23 @@ export function StationsClient({
               disabled={savingId === "__print__"}
             />
           </label>
+          {/* Marchado automático: cuelga de cada estación. Los ítems pasan
+              a "Preparando" solos al llegar la ronda y, con la impresión de
+              arriba activa, la comanda sale en ese instante. */}
+          <label className="flex items-center justify-between gap-4 ml-3 pl-3 border-l-2 border-op-border">
+            <div>
+              <div className="text-sm font-medium">{t("autoFireLabel")}</div>
+              <div className="text-xs text-op-muted">{t("autoFireHelp")}</div>
+            </div>
+            <Toggle
+              checked={kitchenAutoFire}
+              onChange={(v) => {
+                setKitchenAutoFire(v);
+                savePrintConfig({ kitchenAutoFire: v });
+              }}
+              disabled={savingId === "__print__"}
+            />
+          </label>
           <label className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-medium">{t("printBarLabel")}</div>
@@ -437,6 +464,20 @@ export function StationsClient({
               onChange={(v) => {
                 setBarPrint(v);
                 savePrintConfig({ barPrintEnabled: v });
+              }}
+              disabled={savingId === "__print__"}
+            />
+          </label>
+          <label className="flex items-center justify-between gap-4 ml-3 pl-3 border-l-2 border-op-border">
+            <div>
+              <div className="text-sm font-medium">{t("autoFireLabel")}</div>
+              <div className="text-xs text-op-muted">{t("autoFireHelp")}</div>
+            </div>
+            <Toggle
+              checked={barAutoFire}
+              onChange={(v) => {
+                setBarAutoFire(v);
+                savePrintConfig({ barAutoFire: v });
               }}
               disabled={savingId === "__print__"}
             />

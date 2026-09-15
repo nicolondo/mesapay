@@ -1918,6 +1918,8 @@
     "printKitchenHelp": "Imprime al pasar de “Por preparar” a “En cocina”.",
     "printBarLabel": "Bar",
     "printBarHelp": "Imprime al pasar de “Por preparar” a “En preparación”. La cuenta regresiva del plato arranca al mismo tiempo.",
+    "autoFireLabel": "Marchar automáticamente al llegar el pedido",
+    "autoFireHelp": "Los pedidos pasan a “Preparando” solos, sin tocar el tablero. Si la impresión está activa, la comanda sale en ese instante.",
     "paperWidthLabel": "Ancho del papel",
     "paperWidthHelp": "Lo más común en Colombia: 80mm.",
     "paperWidth80": "80 mm",

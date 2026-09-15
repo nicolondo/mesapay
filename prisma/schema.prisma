@@ -182,6 +182,17 @@ model Restaurant {
   barPrintEnabled     Boolean @default(false)
   printPaperWidthMm   Int     @default(80)
 
+  // Marchado automático por estación. Un ítem que nace "placed" en una
+  // estación con esto activo pasa solo a "in_kitchen" al llegar la ronda
+  // (con su cronómetro corriendo desde ese instante), sin que nadie toque
+  // el tablero; y si la impresión de esa estación está activa, la comanda
+  // sale en el acto. Pensado para el bar: el bartender no mira un tablero,
+  // quiere el papel cuando llega el pedido. No toca a los ítems que ya
+  // nacen "ready" (refri, bar sin bartender) ni a las rondas que esperan
+  // pago (prepago): esas se marchan recién al activarse.
+  kitchenAutoFire Boolean @default(false)
+  barAutoFire     Boolean @default(false)
+
   // === Identidad legal + branding del comercio ============================
   //
   // Datos que aparecen en facturas, tirillas y al ser un comercio

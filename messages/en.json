@@ -1918,6 +1918,8 @@
     "printKitchenHelp": "Prints when moving from “To prepare” to “In kitchen”.",
     "printBarLabel": "Bar",
     "printBarHelp": "Prints when moving from “To prepare” to “In preparation”. The dish countdown starts at the same time.",
+    "autoFireLabel": "Fire automatically when the order arrives",
+    "autoFireHelp": "Orders move to “Preparing” on their own, without touching the board. If printing is on, the ticket prints that instant.",
     "paperWidthLabel": "Paper width",
     "paperWidthHelp": "Most common in Colombia: 80mm.",
     "paperWidth80": "80 mm",

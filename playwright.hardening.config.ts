@@ -5,7 +5,7 @@ if (!["127.0.0.1", "localhost"].includes(database.hostname) || !/^\/mesapay_.*(?
 }
 export default defineConfig({
   testDir: "./e2e", testMatch: "hardening.spec.ts", fullyParallel: false, workers: 1,
-  reporter: "list", use: { baseURL: "http://localhost:3390", locale: "es-CO", screenshot: "only-on-failure" },
+  reporter: "list", use: { baseURL: "http://localhost:3390", locale: "es-CO", screenshot: "only-on-failure", trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },

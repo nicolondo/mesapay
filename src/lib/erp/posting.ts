@@ -28,6 +28,10 @@ export type GenResult = { source: string; totalCents: number };
 function cashAccountForMethod(method: string): string {
   if (method === "cash" || method === "demo_cash") return "110505"; // Caja
   if (method === "external_terminal") return "111005"; // Banco (datáfono propio)
+  // Bono empresarial: no entra plata en la mesa — baja el pasivo "bonos por
+  // redimir". El lado del pasivo (emisión/cobro del lote) lo define la fase
+  // fiscal; acá sólo se evita clasificarlo como caja o pasarela.
+  if (method === "voucher") return "280510";
   return "112005"; // kushki_* → saldo en pasarela
 }
 

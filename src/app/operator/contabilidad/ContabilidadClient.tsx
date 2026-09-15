@@ -247,6 +247,7 @@ const PAY_METHOD_KEYS: Record<string, string> = {
   kushki_pse: "mKushkiPse",
   external_terminal: "mExternalTerminal",
   reservation_deposit: "mReservationDeposit",
+  voucher: "mVoucher",
 };
 
 /** % (ya en escala 0-100, 1 decimal) → "66,5 %" localizado; null → "—". */

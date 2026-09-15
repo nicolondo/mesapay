@@ -34,7 +34,9 @@
     "ignore": "Si no esperabas esta invitación, puedes ignorar este correo."
   },
   "common": {
-    "language": "Idioma"
+    "language": "Idioma",
+    "taxIncludedInc": "Incluye impoconsumo {pct}%",
+    "taxIncludedIva": "Incluye IVA {pct}%"
   },
   "menu": {
     "title": "La carta",

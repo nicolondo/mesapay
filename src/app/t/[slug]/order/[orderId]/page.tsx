@@ -12,6 +12,7 @@ import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
 import { CallWaiterButton } from "./CallWaiterButton";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
+import { asSalesTaxKind, checkoutTaxLine } from "@/lib/checkoutTax";
 
 export default async function OrderView({
   params,
@@ -87,6 +88,17 @@ export default async function OrderView({
   }));
   const etas = computeRoundEtas(etaInputs);
   const t = await getTranslations("order");
+  const tCommon = await getTranslations("common");
+
+  // Lo que el comensal va a pagar de comida (neto del descuento) y el
+  // impuesto que YA viene dentro de ese número: los platos de la carta lo
+  // traen embebido, así que el renglón es informativo y no cambia el total.
+  // null cuando el comercio no tiene impuesto configurado.
+  const netSubtotalCents = Math.max(0, order.subtotalCents - order.discountCents);
+  const taxLine = checkoutTaxLine(netSubtotalCents, {
+    kind: asSalesTaxKind(tenant.salesTaxKind),
+    pct: tenant.salesTaxPct,
+  });
 
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
@@ -365,15 +377,22 @@ export default async function OrderView({
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
             {order.discountCents > 0 ? t("discountedTotal") : t("subtotal")}
           </div>
-          <div className="font-display text-3xl">
-            {fmtCOP(Math.max(0, order.subtotalCents - order.discountCents))}
-          </div>
+          <div className="font-display text-3xl">{fmtCOP(netSubtotalCents)}</div>
           {order.discountCents > 0 && (
             <div className="font-mono text-[10px] text-terracotta mt-1">
               {order.discountPct
                 ? t("discountRowPct", { pct: order.discountPct })
                 : t("discountRow")}{" "}
               {"− " + fmtCOP(order.discountCents)}
+            </div>
+          )}
+          {taxLine && (
+            <div className="font-mono text-[10px] text-muted mt-1">
+              {taxLine.kind === "inc"
+                ? tCommon("taxIncludedInc", { pct: taxLine.pct })
+                : tCommon("taxIncludedIva", { pct: taxLine.pct })}
+              {" · "}
+              {fmtCOP(taxLine.taxCents)}
             </div>
           )}
         </div>

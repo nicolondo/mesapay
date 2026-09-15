@@ -19,6 +19,7 @@ import {
   fileNameForSftpDocument,
   deliverDocumentToSftp,
   deliverOnboardingManifest,
+  deliverOnboardingWorkbook,
 } from "./onboardingSftp";
 
 beforeEach(() => {
@@ -209,4 +210,37 @@ it("does not upload a manifest that assigns two documents to the same name", asy
     documents: [{ fileName: "RUT.pdf" }, { fileName: "RUT.pdf" }],
   })).toBe(false);
   expect(m.upload).not.toHaveBeenCalled();
+});
+
+describe("deliverOnboardingWorkbook", () => {
+  // Datos ficticios: ninguna persona real.
+  const input = {
+    legalName: "SON Y MELONA S.A.S.",
+    taxId: "901944469-1",
+    city: "Envigado",
+    address: "CR 6 24 A SUR 285 LC 104",
+    legalRepName: "MARIA FERNANDA LOPEZ GOMEZ",
+    legalRepDocNumber: "1020304050",
+    contactEmail: "test@example.test",
+    contactPhone: "3001234567",
+  };
+  it("sube el .xlsx con nombre fijo a la carpeta del comercio", async () => {
+    expect(await deliverOnboardingWorkbook("merchant", input)).toBe(true);
+    expect(m.upload).toHaveBeenCalledTimes(1);
+    const call = m.upload.mock.calls[0][0];
+    expect(call.folder).toBe("SON Y MELONA SAS - 901944469");
+    expect(call.fileName).toBe("Salesforce - SON Y MELONA SAS - 901944469.xlsx");
+    expect(Buffer.isBuffer(call.data)).toBe(true);
+    expect(call.data.subarray(0, 2).toString("latin1")).toBe("PK");
+  });
+  it("devuelve false sin lanzar cuando el SFTP rechaza", async () => {
+    m.upload.mockRejectedValue(new Error("sftp down"));
+    expect(await deliverOnboardingWorkbook("merchant", input)).toBe(false);
+  });
+  it("devuelve false sin subir nada si la identidad es inválida", async () => {
+    expect(
+      await deliverOnboardingWorkbook("merchant", { ...input, taxId: "901944469-2" }),
+    ).toBe(false);
+    expect(m.upload).not.toHaveBeenCalled();
+  });
 });

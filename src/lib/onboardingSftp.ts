@@ -3,6 +3,10 @@ import { readFile } from "fs/promises";
 import { db } from "@/lib/db";
 import { sftpConfigured, uploadFileToSftp } from "@/lib/sftp";
 import { computeNitDv } from "@/lib/erp/exogena";
+import {
+  buildOnboardingWorkbook,
+  type OnboardingWorkbookInput,
+} from "@/lib/onboardingWorkbook";
 import type { KushkiDocumentKind } from "@prisma/client";
 
 export { sftpConfigured };
@@ -203,6 +207,36 @@ export async function deliverOnboardingManifest(
   } catch (err) {
     console.error(
       "[onboarding/sftp] manifest failed",
+      err instanceof Error ? err.message.slice(0, 200) : err,
+    );
+    return false;
+  }
+}
+
+/**
+ * Entrega el formulario de alta de Salesforce/Kushki (.xlsx) en la carpeta
+ * del comercio, junto al manifiesto y los documentos. Es la misma data del
+ * manifiesto en el formato que Kushki carga en Salesforce, para que no
+ * tengan que transcribirla. Nombre fijo por comercio: un re-envío
+ * sobrescribe. Best-effort: no lanza.
+ */
+export async function deliverOnboardingWorkbook(
+  restaurantId: string,
+  input: OnboardingWorkbookInput,
+): Promise<boolean> {
+  if (!sftpConfigured()) return false;
+  try {
+    const folder = folderNameForRestaurant(input.legalName, input.taxId);
+    const fileName = `Salesforce - ${folder}.xlsx`;
+    const data = await buildOnboardingWorkbook(input);
+    await uploadFileToSftp({ folder, fileName, data });
+    console.log(`[onboarding/sftp] workbook delivered → ${folder}/${fileName}`, {
+      restaurantId,
+    });
+    return true;
+  } catch (err) {
+    console.error(
+      "[onboarding/sftp] workbook failed",
       err instanceof Error ? err.message.slice(0, 200) : err,
     );
     return false;

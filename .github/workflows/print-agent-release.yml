@@ -1,0 +1,45 @@
+name: Print agent release
+# Compila el agente de impresión para Windows y lo publica como adjunto del
+# GitHub Release del tag. El .exe NO se versiona en el repo ni se compila en
+# el deploy (el servidor no tiene Go): la única forma de sacar una versión
+# nueva es pushear un tag `print-agent-vX.Y.Z`. La página de Ayuda del
+# operador apunta a `releases/latest/download/…`, así que con esto el botón
+# de descarga queda actualizado solo.
+#
+#   git tag print-agent-v1.1.0 && git push origin print-agent-v1.1.0
+on:
+  push:
+    tags: ["print-agent-v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Compilar mesapay-print-agent.exe
+        env:
+          TAG: ${{ github.ref_name }}
+        # La versión viaja en cada latido del agente (main.version): sale del
+        # tag para que el panel muestre exactamente lo que se publicó.
+        run: |
+          version="${TAG#print-agent-v}"
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
+            -trimpath -ldflags "-s -w -X main.version=${version}" \
+            -o mesapay-print-agent.exe ./cmd/mesapay-print-agent
+          sha256sum mesapay-print-agent.exe > mesapay-print-agent.exe.sha256
+          cat mesapay-print-agent.exe.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent/mesapay-print-agent.exe
+            agent/mesapay-print-agent.exe.sha256

@@ -1,0 +1,30 @@
+[Unit]
+# Barrido de emisión a la DIAN — red de seguridad de la emisión automática.
+# El caso normal sale segundos después del cobro (intento inmediato en
+# issueInvoiceOnPaid); esto retoma lo que ese intento no logró: proceso
+# muerto, DIAN caída (backoff), configuración incompleta que el operador
+# ya completó, rango de resolución agotado que ya se renovó.
+#
+# Instalación (una vez, como root):
+#   cp docs/cron/mesapay-dian-emit.service /etc/systemd/system/
+#   cp docs/cron/mesapay-dian-emit.timer   /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now mesapay-dian-emit.timer
+#
+# CRON_SECRET sale del mismo .env.production que usa la app (se lee con
+# EnvironmentFile; NUNCA se sourcea el archivo). La URL apunta a nginx,
+# que enruta al color activo (blue/green); no a un puerto fijo.
+Description=MESAPAY · barrido de emisión DIAN
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+EnvironmentFile=/opt/mesapay/shared/.env.production
+ExecStart=/usr/bin/curl -sS -m 120 -X POST \
+  -H "x-cron-secret: ${CRON_SECRET}" \
+  https://mesapay.co/api/cron/dian-emit
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-dian-emit

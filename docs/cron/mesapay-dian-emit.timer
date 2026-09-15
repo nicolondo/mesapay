@@ -1,0 +1,15 @@
+[Unit]
+# Cada 5 minutos. El barrido es idempotente (reclamo por estado) y toma
+# hasta 50 documentos por corrida con un presupuesto de 50 s, así que
+# correrlo de más no duplica ni se pisa con la corrida anterior.
+Description=MESAPAY · barrido de emisión DIAN (cada 5 min)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+# Si el servidor estuvo apagado, corre apenas vuelva.
+Persistent=true
+Unit=mesapay-dian-emit.service
+
+[Install]
+WantedBy=timers.target

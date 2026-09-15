@@ -10,7 +10,7 @@ import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
 /**
@@ -152,7 +152,7 @@ async function POSTHandler(
   // Factura pedida en el checkout: se emite recién ahora, con el cobro
   // confirmado.
   if (result.fullyPaid) {
-    await issueRequestedInvoiceOnPaid({
+    await issueInvoiceOnPaid({
       tenantId: payment.order.restaurantId,
       orderId: payment.orderId,
     });

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
 import { resolveDianRecipient } from "@/lib/dian/invoiceEmail";
+import { pendingEmissionSummary } from "@/lib/dian/pendingEmission";
 import { FacturasClient } from "./FacturasClient";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ const orderInclude = {
             cufe: true,
             errors: true,
             emailedAt: true,
+            lastError: true,
           },
         },
       },
@@ -60,6 +62,7 @@ type OrderWithInvoice = {
       cufe: string | null;
       errors: unknown;
       emailedAt: Date | null;
+      lastError: string | null;
     } | null;
   } | null;
 };
@@ -77,6 +80,7 @@ function toDian(order: OrderWithInvoice, einvoicingOn: boolean) {
       ? (doc.errors as unknown[]).filter((e): e is string => typeof e === "string")
       : [],
     emailedAt: doc?.emailedAt?.toISOString() ?? null,
+    lastError: doc?.lastError ?? null,
     emailTo: resolveDianRecipient({
       invoiceRequestEmail: order.invoiceRequests[0]?.email,
       simpleInvoiceEmail: inv?.email,
@@ -116,11 +120,15 @@ export default async function FacturasPage({
   ]);
 
   const einvoicingOn = isModuleEnabled(restaurant?.enabledModules, "einvoicing");
+  // Con emisión automática, una configuración incompleta frena TODAS las
+  // facturas del comercio en silencio: el resumen es lo que lo hace visible.
+  const emission = einvoicingOn ? await pendingEmissionSummary(restaurantId) : null;
 
   return (
     <FacturasClient
       tab={tab}
       einvoicingOn={einvoicingOn}
+      emission={emission}
       pending={pending.map((r) => ({
         id: r.id,
         customerName: r.customerName,

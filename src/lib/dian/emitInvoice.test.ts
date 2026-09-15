@@ -1,8 +1,9 @@
 // La emisión como librería: el adquiriente que viaja en el XML, el CUFE
-// que se calcula con ESE mismo adquiriente, y los guards que frenan antes
-// de gastar un consecutivo. Los mocks sustituyen sólo lo que tocaría DB,
-// certificados o la red; el builder UBL, el CUFE y los guards corren de
-// verdad.
+// que se calcula con ESE mismo adquiriente, los guards que frenan antes
+// de gastar un consecutivo, y el reclamo/backoff de la emisión
+// automática. Los mocks sustituyen sólo lo que tocaría DB, certificados
+// o la red; el builder UBL, el CUFE, los guards y las reglas de reintento
+// corren de verdad.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
@@ -12,6 +13,7 @@ const m = vi.hoisted(() => ({
   docFindUnique: vi.fn(),
   docCreate: vi.fn(),
   docUpdate: vi.fn(),
+  docUpdateMany: vi.fn(),
   signXmlDian: vi.fn(),
   zipInvoice: vi.fn(),
   sendBillSync: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: m.docFindUnique,
       create: m.docCreate,
       update: m.docUpdate,
+      updateMany: m.docUpdateMany,
     },
   },
 }));
@@ -45,8 +48,9 @@ vi.mock("@/lib/dian/sendInvoiceEmail", () => ({
   sendDianInvoiceEmail: m.sendDianInvoiceEmail,
 }));
 
-import { emitDianInvoice } from "./emitInvoice";
+import { emitDianInvoice, markDocumentBlocked } from "./emitInvoice";
 import { computeCufe } from "./crypto";
+import { BLOCKED_RETRY_MS, emissionBackoffMs } from "./retry";
 import type { EmisorData } from "./config";
 
 // Son & Melona: prefijo FESM, resolución 18764094877213, rango 1..10000.
@@ -82,11 +86,13 @@ const ANA = {
   email: "ana@correo.com",
 };
 
-function invoice(over: { invoiceRequests?: unknown[]; restaurantId?: string } = {}) {
+function invoice(
+  over: { invoiceRequests?: unknown[]; restaurantId?: string; invoiceNumber?: number } = {},
+) {
   return {
     id: "inv-1",
     restaurantId: over.restaurantId ?? "rest-1",
-    invoiceNumber: 6482,
+    invoiceNumber: over.invoiceNumber ?? 6482,
     snapshot: {
       restaurantName: "Son y Melona",
       invoicePrefix: "FESM",
@@ -95,6 +101,7 @@ function invoice(over: { invoiceRequests?: unknown[]; restaurantId?: string } = 
     },
     restaurant: { salesTaxKind: "inc", salesTaxPct: 8 },
     order: {
+      id: "order-1",
       items: [
         {
           nameSnapshot: "Bandeja paisa",
@@ -110,7 +117,9 @@ function invoice(over: { invoiceRequests?: unknown[]; restaurantId?: string } = 
   };
 }
 
-const emit = () => emitDianInvoice({ simpleInvoiceId: "inv-1", restaurantId: "rest-1" });
+const NOW = new Date("2026-09-15T20:00:00.000Z");
+const emit = () =>
+  emitDianInvoice({ simpleInvoiceId: "inv-1", restaurantId: "rest-1", now: NOW });
 
 /** El XML que se firmó (sin firmar: el mock devuelve lo mismo). */
 function sentXml(): string {
@@ -129,6 +138,12 @@ function tag(xml: string, name: string): string {
   return xml.match(new RegExp(`<${name}[^>]*>([^<]*)</${name}>`))?.[1] ?? "";
 }
 
+/** Lo que se escribió en el documento en la última llamada a update. */
+function lastUpdateData(): Record<string, unknown> {
+  const calls = m.docUpdate.mock.calls;
+  return (calls[calls.length - 1][0] as { data: Record<string, unknown> }).data;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   m.resolveEmisor.mockResolvedValue(emisor());
@@ -142,8 +157,16 @@ beforeEach(() => {
     testSetId: null,
   });
   m.invoiceFindUnique.mockResolvedValue(invoice());
+  // Sin documento previo: se crea en to_send y el reclamo (updateMany →
+  // sent) lo gana este emisor.
   m.docFindUnique.mockResolvedValue(null);
-  m.docCreate.mockResolvedValue({ id: "doc-1" });
+  m.docCreate.mockResolvedValue({ id: "doc-1", state: "to_send", attempts: 0 });
+  // updateMany sirve para dos cosas: adoptar un placeholder (acá no hay:
+  // 0 filas) y RECLAMAR el documento pasándolo a `sent` (lo gana este
+  // emisor: 1 fila).
+  m.docUpdateMany.mockImplementation(async (args: { data?: { state?: string } }) => ({
+    count: args.data?.state === "sent" ? 1 : 0,
+  }));
   m.docUpdate.mockResolvedValue({ id: "doc-1" });
   m.signXmlDian.mockImplementation((xml: string) => xml);
   m.zipInvoice.mockResolvedValue(Buffer.from("zip"));
@@ -257,7 +280,7 @@ describe("CUFE — NumAdq es el documento del adquiriente que va en el XML", () 
   });
 });
 
-describe("resultado y persistencia", () => {
+describe("reclamo — nunca dos emisiones del mismo documento", () => {
   it("not_found si la factura no existe o es de otro comercio", async () => {
     m.invoiceFindUnique.mockResolvedValue(null);
     expect(await emit()).toEqual({ outcome: "not_found" });
@@ -266,15 +289,50 @@ describe("resultado y persistencia", () => {
     expect(m.docCreate).not.toHaveBeenCalled();
   });
 
-  it("already_emitted si el documento está aceptado o en vuelo", async () => {
-    m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "accepted" });
-    expect(await emit()).toEqual({ outcome: "already_emitted" });
-    m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "pending" });
-    expect(await emit()).toEqual({ outcome: "already_emitted" });
-    expect(m.sendBillSync).not.toHaveBeenCalled();
+  it("el reclamo es un updateMany condicionado por estado que pasa a `sent`", async () => {
+    await emit();
+    expect(m.docUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "doc-1" }),
+        data: { state: "sent" },
+      }),
+    );
+    const claim = m.docUpdateMany.mock.calls
+      .map((c) => c[0] as { where: { OR: unknown[] }; data: { state?: string } })
+      .find((c) => c.data.state === "sent")!;
+    expect(claim.where.OR).toEqual([
+      { state: { in: ["to_send", "error", "rejected"] } },
+      { state: "sent", updatedAt: { lt: new Date(NOW.getTime() - 15 * 60_000) } },
+    ]);
   });
 
-  it("aceptada ⇒ documento actualizado, intento contado, correo al adquiriente", async () => {
+  it("si otro lo reclamó primero (0 filas) ⇒ already_emitted, sin enviar", async () => {
+    m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "to_send", attempts: 0 });
+    m.docUpdateMany.mockImplementation(async () => ({ count: 0 }));
+    expect(await emit()).toEqual({ outcome: "already_emitted" });
+    expect(m.sendBillSync).not.toHaveBeenCalled();
+    expect(m.signXmlDian).not.toHaveBeenCalled();
+    expect(m.docCreate).not.toHaveBeenCalled();
+  });
+
+  it("crea el documento en to_send si no existía (con la orden)", async () => {
+    await emit();
+    expect(m.docCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          restaurantId: "rest-1",
+          simpleInvoiceId: "inv-1",
+          orderId: "order-1",
+          kind: "invoice",
+          state: "to_send",
+        },
+      }),
+    );
+  });
+});
+
+describe("resultado y persistencia", () => {
+  it("aceptada ⇒ documento actualizado, intento contado, sin reintento, correo al adquiriente", async () => {
     const r = await emit();
     expect(r).toMatchObject({
       outcome: "accepted",
@@ -283,27 +341,69 @@ describe("resultado y persistencia", () => {
       errors: [],
     });
     expect(r.outcome === "accepted" && r.qrUrl).toMatch(/catalogo-vpfe\.dian\.gov\.co/);
-    expect(m.docUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "doc-1" },
-        data: expect.objectContaining({ state: "accepted", attempts: { increment: 1 } }),
-      }),
-    );
+    expect(lastUpdateData()).toMatchObject({
+      state: "accepted",
+      attempts: { increment: 1 },
+      lastError: null,
+      nextAttemptAt: null,
+    });
     expect(m.sendDianInvoiceEmail).toHaveBeenCalledWith({
       documentId: "doc-1",
       environment: "produccion",
     });
   });
 
-  it("error de canal ⇒ outcome error, sin QR y sin correo", async () => {
+  it("error de canal ⇒ outcome error, backoff exponencial desde los intentos previos, sin correo", async () => {
+    m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "error", attempts: 2 });
     m.sendBillSync.mockResolvedValue({ state: "error", errors: ["timeout"] });
     const r = await emit();
     expect(r).toMatchObject({ outcome: "error", errors: ["timeout"], qrUrl: null });
+    expect(lastUpdateData()).toMatchObject({
+      state: "error",
+      lastError: "timeout",
+      attempts: { increment: 1 },
+      // Tercer intento ⇒ 2 min × 2² = 8 min.
+      nextAttemptAt: new Date(NOW.getTime() + emissionBackoffMs(3)),
+    });
     expect(m.sendDianInvoiceEmail).not.toHaveBeenCalled();
+  });
+
+  it("rechazada ⇒ queda el motivo pero SIN reintento automático", async () => {
+    m.sendBillSync.mockResolvedValue({ state: "rejected", errors: ["FAJ71", "FAB10a"] });
+    const r = await emit();
+    expect(r).toMatchObject({ outcome: "rejected", errors: ["FAJ71", "FAB10a"] });
+    expect(lastUpdateData()).toMatchObject({
+      state: "rejected",
+      lastError: "FAJ71",
+      nextAttemptAt: null,
+      attempts: { increment: 1 },
+    });
+  });
+
+  it("si revienta la firma, el documento queda en error con backoff (no reclamado para siempre)", async () => {
+    m.signXmlDian.mockImplementation(() => {
+      throw new Error("cert vencido");
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await emit();
+    expect(r).toMatchObject({ outcome: "error", errors: ["cert vencido"], qrUrl: null });
+    expect(lastUpdateData()).toMatchObject({
+      state: "error",
+      lastError: "cert vencido",
+      attempts: { increment: 1 },
+      nextAttemptAt: new Date(NOW.getTime() + emissionBackoffMs(1)),
+    });
+    expect(m.sendBillSync).not.toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it("la fecha de emisión es la del `now` recibido", async () => {
+    await emit();
+    expect(tag(sentXml(), "cbc:IssueDate")).toBe("2026-09-15");
   });
 });
 
-describe("guards — bloquean ANTES de firmar y enviar", () => {
+describe("guards — bloquean ANTES de firmar y enviar, sin consumir nada", () => {
   it.each([
     ["resolution_incomplete", emisor({ invoicePrefix: null }), ["invoicePrefix"]],
     ["location_incomplete", emisor({ legalCityCode: null }), ["legalCityCode"]],
@@ -314,9 +414,14 @@ describe("guards — bloquean ANTES de firmar y enviar", () => {
     expect(r).toEqual({ outcome: "blocked", reason, missing });
     expect(m.signXmlDian).not.toHaveBeenCalled();
     expect(m.sendBillSync).not.toHaveBeenCalled();
-    expect(m.docUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { state: "error", errors: [reason] } }),
-    );
+    // Vuelve a la cola con el motivo visible y una espera fija; NO cuenta
+    // como intento (no se mandó nada) y el consecutivo sigue intacto.
+    expect(lastUpdateData()).toEqual({
+      state: "to_send",
+      errors: [reason],
+      lastError: reason,
+      nextAttemptAt: new Date(NOW.getTime() + BLOCKED_RETRY_MS),
+    });
   });
 
   it("sin certificado (DianConfigError) ⇒ blocked con ese código", async () => {
@@ -324,6 +429,21 @@ describe("guards — bloquean ANTES de firmar y enviar", () => {
     m.loadDianConfig.mockRejectedValue(new DianConfigError("no_certificate"));
     expect(await emit()).toEqual({ outcome: "blocked", reason: "no_certificate", missing: [] });
     expect(m.sendBillSync).not.toHaveBeenCalled();
+    expect(lastUpdateData()).toMatchObject({ state: "to_send", lastError: "no_certificate" });
+  });
+
+  it("número fuera del rango de la resolución ⇒ number_out_of_range (FAB05b seguro)", async () => {
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceNumber: 10001 }));
+    expect(await emit()).toEqual({ outcome: "blocked", reason: "number_out_of_range", missing: [] });
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceNumber: 0 }));
+    expect(await emit()).toEqual({ outcome: "blocked", reason: "number_out_of_range", missing: [] });
+    expect(m.sendBillSync).not.toHaveBeenCalled();
+  });
+
+  it("el último número del rango sí se emite", async () => {
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceNumber: 10000 }));
+    expect((await emit()).outcome).toBe("accepted");
+    expect(sentXml()).toContain("<cbc:ID>FESM10000</cbc:ID>");
   });
 
   it("sin líneas vivas ⇒ no_lines", async () => {
@@ -332,5 +452,20 @@ describe("guards — bloquean ANTES de firmar y enviar", () => {
     m.invoiceFindUnique.mockResolvedValue(inv);
     expect(await emit()).toEqual({ outcome: "blocked", reason: "no_lines", missing: [] });
     expect(m.sendBillSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("markDocumentBlocked (barrido)", () => {
+  it("sólo toca estados reintentables, con el mismo dato que un bloqueo del emit", async () => {
+    await markDocumentBlocked("doc-9", "contact_email_incomplete", NOW);
+    expect(m.docUpdateMany).toHaveBeenCalledWith({
+      where: { id: "doc-9", state: { in: ["to_send", "error", "rejected"] } },
+      data: {
+        state: "to_send",
+        errors: ["contact_email_incomplete"],
+        lastError: "contact_email_incomplete",
+        nextAttemptAt: new Date(NOW.getTime() + BLOCKED_RETRY_MS),
+      },
+    });
   });
 });

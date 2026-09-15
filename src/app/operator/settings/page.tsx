@@ -5,6 +5,10 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianConfigStatus } from "@/lib/dian/config";
+import {
+  NUMBERS_LEFT_WARNING,
+  pendingEmissionSummary,
+} from "@/lib/dian/pendingEmission";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AGENT_ONLINE_MS } from "@/lib/print/agentStatus";
 import { resolveTipPolicy, resolveShiftPolicy } from "@/lib/staffPolicies";
@@ -67,6 +71,13 @@ export default async function SettingsPage() {
   const dian = await dianConfigStatus(restaurantId);
   const dianStatus = dian.status.status;
   const resolutionReady = dian.status.missingResolution.length === 0;
+  // Emisión automática: si algo del comercio frena las facturas (config
+  // incompleta, rango agotado) la tarjeta tiene que gritarlo en rojo; con
+  // emisión manual no importaba, ahora deja TODA la facturación parada.
+  const emission = einvoicing ? await pendingEmissionSummary(restaurantId) : null;
+  const emissionBlocked = (emission?.blockedCount ?? 0) > 0;
+  const numbersLow =
+    emission?.numbersLeft != null && emission.numbersLeft < NUMBERS_LEFT_WARNING;
 
   // Reservas próximas (confirmadas/pendientes futuras) para el badge.
   const upcomingReservations = await db.reservation.count({
@@ -188,21 +199,28 @@ export default async function SettingsPage() {
       subtitle: einvoicing
         ? tDian("cardSubtitle")
         : tDian("cardResolutionSubtitle"),
-      badge: !einvoicing
-        ? resolutionReady
-          ? tDian("cardBadgeResolutionReady")
-          : tDian("cardBadgeConfigure")
-        : dianStatus === "enabled"
-          ? tDian("cardBadgeEnabled")
-          : dianStatus === "testing"
-            ? tDian("cardBadgeTesting")
-            : tDian("cardBadgeConfigure"),
-      tint:
-        (!einvoicing && resolutionReady) || dianStatus === "enabled"
-          ? "bg-ok/15 text-ok"
-          : einvoicing && dianStatus === "testing"
-            ? "bg-[#C98A2E]/20 text-[#8F6828]"
-            : "bg-paper text-op-muted",
+      badge: emissionBlocked
+        ? tDian("cardBadgeBlocked", { count: emission!.blockedCount })
+        : numbersLow
+          ? tDian("cardBadgeNumbersLeft", { count: emission!.numbersLeft! })
+          : !einvoicing
+            ? resolutionReady
+              ? tDian("cardBadgeResolutionReady")
+              : tDian("cardBadgeConfigure")
+            : dianStatus === "enabled"
+              ? tDian("cardBadgeEnabled")
+              : dianStatus === "testing"
+                ? tDian("cardBadgeTesting")
+                : tDian("cardBadgeConfigure"),
+      tint: emissionBlocked
+        ? "bg-danger/15 text-danger"
+        : numbersLow
+          ? "bg-[#C98A2E]/20 text-[#8F6828]"
+          : (!einvoicing && resolutionReady) || dianStatus === "enabled"
+            ? "bg-ok/15 text-ok"
+            : einvoicing && dianStatus === "testing"
+              ? "bg-[#C98A2E]/20 text-[#8F6828]"
+              : "bg-paper text-op-muted",
     },
     // Al lado de Facturación DIAN a propósito: es el dato que esa pantalla
     // consume en cada factura. Sin impuesto se ve como PENDIENTE (mismo

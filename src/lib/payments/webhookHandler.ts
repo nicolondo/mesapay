@@ -4,7 +4,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { lockOrder } from "@/lib/orderLock";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import type { AutoFiredRound } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 
@@ -52,7 +52,7 @@ export async function processKushkiWebhook(payload: KushkiWebhookPayload): Promi
     if (result.order) {
       publishOrderEvent(result.order.restaurantId, { type: result.order.paid ? "order.paid" : "order.updated", orderId: result.order.id });
       publishOrderEvent(result.order.restaurantId, { type: result.order.approved ? "payment.approved" : "payment.declined", orderId: result.order.id, paymentId: result.order.paymentId });
-      if (result.order.paid) await issueRequestedInvoiceOnPaid({ tenantId: result.order.restaurantId, orderId: result.order.id });
+      if (result.order.paid) await issueInvoiceOnPaid({ tenantId: result.order.restaurantId, orderId: result.order.id });
       // Rondas prepagas activadas por este cobro y marchadas solas: la comanda sale ahora, fuera de la tx.
       await notifyAutoFiredTickets({ restaurantId: result.order.restaurantId, orderId: result.order.id, rounds: result.order.fired });
     }

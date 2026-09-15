@@ -2751,7 +2751,27 @@
     "dianEmailNotAccepted": "DIAN has not accepted this invoice yet.",
     "dianEmailIncomplete": "This invoice is missing data needed to send it.",
     "dianEmailNoConfig": "The business has not set up electronic invoicing.",
-    "dianEmailError": "The email could not be sent. Please try again."
+    "dianEmailError": "The email could not be sent. Please try again.",
+    "emissionBlocked": "{count, plural, one {# invoice waiting to be issued} other {# invoices waiting to be issued}}: {reason}.",
+    "emissionBlockedHint": "With automatic electronic invoicing, an incomplete configuration halts ALL of the business's invoices without anyone pressing anything. Complete it under DIAN Invoicing and they go out on their own within minutes.",
+    "emissionBlockedCta": "Go to DIAN Invoicing",
+    "emissionWaiting": "{count, plural, one {# invoice queued for issuing} other {# invoices queued for issuing}}; they retry on their own.",
+    "numbersLeftWarning": "{count, plural, one {# number} other {# numbers}} left in the invoicing resolution. Request the new resolution before it runs out: without valid numbers nothing can be invoiced.",
+    "numbersExhausted": "The invoicing resolution range is exhausted: new sales remain uninvoiced until you load the new resolution.",
+    "dianStatusWaiting": "Waiting to be issued",
+    "dianWaitingReason": "Not going out yet: {reason}.",
+    "blockReason_no_config": "DIAN configuration is missing",
+    "blockReason_no_certificate": "the digital certificate is missing",
+    "blockReason_missing_credentials": "DIAN credentials are missing",
+    "blockReason_master_key_missing": "the server has no master key to decrypt credentials",
+    "blockReason_decrypt_failed": "the saved credentials could not be decrypted",
+    "blockReason_no_emisor": "the business's issuer could not be resolved",
+    "blockReason_resolution_incomplete": "the numbering resolution is missing",
+    "blockReason_location_incomplete": "the establishment's municipality is missing (Business identity)",
+    "blockReason_contact_email_incomplete": "the email for receiving electronic documents is missing",
+    "blockReason_numbering_exhausted": "the numbering resolution range is exhausted",
+    "blockReason_number_out_of_range": "the invoice number falls outside the resolution range",
+    "blockReason_no_lines": "the bill has no invoiceable lines"
   },
   "opWallet": {
     "noRestaurant": "No restaurant.",
@@ -5659,7 +5679,9 @@
     "emisorSalesTax": "Sales tax",
     "salesTaxValue": "{kind} {pct}%",
     "salesTaxEdit": "Change it in Settings → Taxes",
-    "salesTaxNoneWarning": "This business is issuing invoices WITH NO sales tax: every one goes out with zero tax. If it is liable for consumption tax, set it up in Settings → Taxes before invoicing again. If it is not liable, this is fine."
+    "salesTaxNoneWarning": "This business is issuing invoices WITH NO sales tax: every one goes out with zero tax. If it is liable for consumption tax, set it up in Settings → Taxes before invoicing again. If it is not liable, this is fine.",
+    "cardBadgeBlocked": "{count, plural, one {# invoice not issued} other {# invoices not issued}}",
+    "cardBadgeNumbersLeft": "{count} numbers left"
   },
   "opSalesTax": {
     "cardTitle": "Taxes",

@@ -10,7 +10,7 @@ import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
-import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 
@@ -160,7 +160,7 @@ async function POSTHandler(
   // La cuenta quedó cerrada: si el comensal pidió factura en el checkout, se
   // emite y se envía ahora. Fuera de la transacción y a prueba de fallos.
   if (result.fullyPaid) {
-    await issueRequestedInvoiceOnPaid({
+    await issueInvoiceOnPaid({
       tenantId: payment.order.restaurantId,
       orderId: payment.orderId,
     });

@@ -2,15 +2,20 @@
 //
 // Vivía entera dentro del route handler `POST /api/operator/dian/emit/
 // [simpleInvoiceId]`, o sea que sólo se podía emitir con un operador
-// logueado apretando un botón. Sacarla a una función de librería es lo
-// que permite emitir desde un barrido (cron) o desde el riel del cobro,
-// sin request ni sesión. La ruta la sigue llamando y traduce el resultado
-// a HTTP; el comportamiento (guards, códigos, transiciones) es el mismo.
+// logueado apretando un botón. Como función de librería la llaman tres
+// rieles: esa ruta ("Emitir" / "Reintentar"), el intento inmediato al
+// cobrar (`issueInvoiceOnPaid`) y el barrido (`sweepDianEmissions`). El
+// cerrojo entre los tres es el reclamo del documento (`claimDianDocument`):
+// pasa a `sent` con un updateMany condicionado por estado, y sólo el que
+// lo logra firma y envía.
 //
 // Los guards de configuración (resolución, ubicación DANE, correo del
-// emisor) corren ANTES de firmar y enviar, a propósito: cada uno de esos
-// faltantes es un rechazo seguro de la DIAN, y cada rechazo quema un
-// consecutivo del rango autorizado. Bloquear antes es gratis.
+// emisor, certificado, número dentro del rango) corren ANTES de firmar y
+// enviar, a propósito: cada uno de esos faltantes es un rechazo seguro de
+// la DIAN, y cada rechazo quema un consecutivo del rango autorizado.
+// Bloquear antes es gratis. Un documento bloqueado vuelve a `to_send` con
+// el motivo en `lastError` —sin contar intento, sin consumir nada— y el
+// barrido lo retoma cuando el operador completa la configuración.
 import { db } from "@/lib/db";
 import {
   DianConfigError,
@@ -32,6 +37,11 @@ import {
   customerPartyFor,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
+import {
+  BLOCKED_RETRY_MS,
+  emissionBackoffMs,
+  RETRYABLE_STATES,
+} from "@/lib/dian/retry";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 
@@ -46,12 +56,30 @@ export type EmitBlockReason =
   | "resolution_incomplete"
   | "location_incomplete"
   | "contact_email_incomplete"
+  /** El consecutivo de la tirilla no cae dentro del rango de la resolución. */
+  | "number_out_of_range"
   | "no_lines";
+
+/**
+ * Motivos que pueden dejar una orden pagada SIN factura: los del emit más
+ * `numbering_exhausted` (el rango se agotó antes de numerar la tirilla —
+ * ver `issueInvoiceOnPaid`). Es lo que la pantalla traduce.
+ */
+export type PendingBlockReason = EmitBlockReason | "numbering_exhausted";
+
+/**
+ * ¿El motivo frena a TODO el comercio (configuración) o sólo a este
+ * documento? El barrido usa la distinción para no re-evaluar cien veces
+ * la misma config rota, y la pantalla para el aviso rojo.
+ */
+export function isRestaurantWideReason(reason: string): boolean {
+  return reason !== "no_lines" && reason !== "number_out_of_range";
+}
 
 export type EmitDianInvoiceResult =
   /** No existe la factura simple, o es de otro comercio. */
   | { outcome: "not_found" }
-  /** Ya aceptada o en vuelo: no se re-emite. */
+  /** Ya aceptada, pendiente en la DIAN o reclamada por otro: no se re-emite. */
   | { outcome: "already_emitted" }
   /**
    * Un guard la frenó ANTES de enviar. No se consumió nada en la DIAN.
@@ -69,11 +97,30 @@ export type EmitDianInvoiceResult =
       statusMessage: string | null;
     };
 
-/** Marca el documento como frenado por un guard, con el motivo legible. */
-async function markBlocked(documentId: string, reason: EmitBlockReason): Promise<void> {
-  await db.dianDocument.update({
-    where: { id: documentId },
-    data: { state: "error", errors: [reason] },
+/** Datos que deja un bloqueo: vuelve a la cola con el motivo y una espera. */
+function blockedData(reason: EmitBlockReason, now: Date) {
+  return {
+    state: "to_send",
+    errors: [reason],
+    lastError: reason,
+    nextAttemptAt: new Date(now.getTime() + BLOCKED_RETRY_MS),
+  };
+}
+
+/**
+ * Marca un documento como frenado por configuración SIN haberlo reclamado
+ * (el barrido, cuando ya sabe que la config del comercio está rota por
+ * otro documento del mismo lote). Sólo toca estados reintentables: si
+ * alguien lo reclamó entre medio, es suyo.
+ */
+export async function markDocumentBlocked(
+  documentId: string,
+  reason: EmitBlockReason,
+  now: Date = new Date(),
+): Promise<void> {
+  await db.dianDocument.updateMany({
+    where: { id: documentId, state: { in: [...RETRYABLE_STATES] } },
+    data: blockedData(reason, now),
   });
 }
 
@@ -89,6 +136,7 @@ async function markBlocked(documentId: string, reason: EmitBlockReason): Promise
 export async function emitDianInvoice(opts: {
   simpleInvoiceId: string;
   restaurantId: string;
+  now?: Date;
 }): Promise<EmitDianInvoiceResult> {
   const inv = await db.simpleInvoice.findUnique({
     where: { id: opts.simpleInvoiceId },
@@ -100,6 +148,7 @@ export async function emitDianInvoice(opts: {
       restaurant: { select: { salesTaxKind: true, salesTaxPct: true } },
       order: {
         select: {
+          id: true,
           items: {
             select: {
               nameSnapshot: true,
@@ -135,53 +184,70 @@ export async function emitDianInvoice(opts: {
     return { outcome: "not_found" };
   }
 
-  const claim = await claimDianDocument(inv.id, opts.restaurantId);
+  const now = opts.now ?? new Date();
+  const claim = await claimDianDocument(inv.id, opts.restaurantId, {
+    orderId: inv.order.id,
+    now,
+  });
   if (!claim) return { outcome: "already_emitted" };
+
+  const blocked = async (
+    reason: EmitBlockReason,
+    missing: string[] = [],
+  ): Promise<EmitDianInvoiceResult> => {
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: blockedData(reason, now),
+    });
+    return { outcome: "blocked", reason, missing };
+  };
 
   const emisor = await resolveEmisor(opts.restaurantId);
   let config;
   try {
     config = await loadDianConfig(opts.restaurantId);
   } catch (err) {
-    if (err instanceof DianConfigError) {
-      await markBlocked(claim.id, err.code);
-      return { outcome: "blocked", reason: err.code, missing: [] };
-    }
+    if (err instanceof DianConfigError) return blocked(err.code);
+    // Un fallo inesperado no puede dejar el documento reclamado para
+    // siempre: se libera y se reintenta más tarde.
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: blockedData("no_config", now),
+    });
     throw err;
   }
-  if (!emisor) {
-    return { outcome: "blocked", reason: "no_emisor", missing: [] };
-  }
+  if (!emisor) return blocked("no_emisor");
   // Sin la resolución completa NO se envía: la DIAN rechazaría el
   // documento y el consecutivo quedaría quemado (FAB05b…FAD05c).
   const resolution = emisorResolution(emisor);
   if (!resolution) {
-    await markBlocked(claim.id, "resolution_incomplete");
-    return {
-      outcome: "blocked",
-      reason: "resolution_incomplete",
-      missing: missingResolutionFields(emisor),
-    };
+    return blocked("resolution_incomplete", missingResolutionFields(emisor));
+  }
+  // El número de la tirilla tiene que caer dentro del rango autorizado.
+  // Fuera de él la DIAN rechaza (FAB05b) y, peor, un número por encima
+  // del tope es una factura que nunca va a poder existir: hace falta una
+  // resolución nueva. `issueInvoiceOnPaid` lo frena antes de numerar; esto
+  // es la red para tirillas ya numeradas o un `invoiceNextNumber` que
+  // alguien ajustó a mano.
+  if (inv.invoiceNumber < resolution.from || inv.invoiceNumber > resolution.to) {
+    return blocked("number_out_of_range");
   }
   // Ubicación DANE del establecimiento: mismo criterio que la resolución.
   // Mandar Bogotá fija hacía que la DIAN resolviera mal el punto de
   // facturación (FAB10a / FAJ50) y quemaba el consecutivo en el rechazo.
   const missingLocation = missingLocationFields(emisor);
   if (missingLocation.length > 0) {
-    await markBlocked(claim.id, "location_incomplete");
-    return { outcome: "blocked", reason: "location_incomplete", missing: missingLocation };
+    return blocked("location_incomplete", missingLocation);
   }
   // Correo de recepción de documentos electrónicos: mismo criterio.
   // Sin él el emisor viaja sin cac:Contact y la DIAN rechaza con FAJ71
   // — con el consecutivo ya quemado.
   const missingContact = missingContactFields(emisor);
   if (missingContact.length > 0) {
-    await markBlocked(claim.id, "contact_email_incomplete");
-    return { outcome: "blocked", reason: "contact_email_incomplete", missing: missingContact };
+    return blocked("contact_email_incomplete", missingContact);
   }
   const snap = inv.snapshot as unknown as InvoiceSnapshot;
   const invoiceNumber = formatInvoiceNumber(snap, inv.invoiceNumber);
-  const now = new Date();
   const issueDate = now.toISOString().slice(0, 10);
   const env: "1" | "2" = config.environment === "produccion" ? "1" : "2";
 
@@ -191,10 +257,7 @@ export async function emitDianInvoice(opts: {
     kind: inv.restaurant.salesTaxKind as "none" | "inc" | "iva",
     pct: inv.restaurant.salesTaxPct,
   });
-  if (lines.length === 0) {
-    await markBlocked(claim.id, "no_lines");
-    return { outcome: "blocked", reason: "no_lines", missing: [] };
-  }
+  if (lines.length === 0) return blocked("no_lines");
 
   const input: DianInvoiceInput = {
     environment: env,
@@ -213,21 +276,54 @@ export async function emitDianInvoice(opts: {
     paymentMeansCode: "10",
   };
 
-  const built = buildDianInvoiceXml(input);
-  const signed = signXmlDian(built.xml, config.cert);
-  const zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
+  // De acá en adelante se firma y se envía. Cualquier excepción (firma,
+  // zip, red fuera del parser SOAP) deja el documento en `error` con
+  // backoff, igual que un error de canal: reclamado para siempre no.
+  const attempts = claim.attempts + 1;
+  let built: ReturnType<typeof buildDianInvoiceXml>;
+  let zip: Buffer;
+  let result: Awaited<ReturnType<typeof sendBillSync>>;
+  try {
+    built = buildDianInvoiceXml(input);
+    const signed = signXmlDian(built.xml, config.cert);
+    zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
 
-  // Habilitación usa test set; producción usa SendBillSync síncrono.
-  const result =
-    env === "2" && config.testSetId
-      ? await sendTestSetAsync(zip, config.testSetId, {
-          environment: "habilitacion",
-          cert: config.cert,
-        })
-      : await sendBillSync(zip, {
-          environment: config.environment,
-          cert: config.cert,
-        });
+    // Habilitación usa test set; producción usa SendBillSync síncrono.
+    result =
+      env === "2" && config.testSetId
+        ? await sendTestSetAsync(zip, config.testSetId, {
+            environment: "habilitacion",
+            cert: config.cert,
+          })
+        : await sendBillSync(zip, {
+            environment: config.environment,
+            cert: config.cert,
+          });
+  } catch (err) {
+    const message = String((err as Error)?.message ?? err).slice(0, 500);
+    console.error("[dian-emit] la emisión reventó antes de tener respuesta", {
+      simpleInvoiceId: inv.id,
+      err,
+    });
+    await db.dianDocument.update({
+      where: { id: claim.id },
+      data: {
+        state: "error",
+        errors: [message],
+        lastError: message,
+        attempts: { increment: 1 },
+        nextAttemptAt: new Date(now.getTime() + emissionBackoffMs(attempts)),
+      },
+    });
+    return {
+      outcome: "error",
+      documentId: claim.id,
+      cufe: null,
+      qrUrl: null,
+      errors: [message],
+      statusMessage: null,
+    };
+  }
   const t = transitionAfterSend(result, built.cufe);
 
   await db.dianDocument.update({
@@ -242,6 +338,15 @@ export async function emitDianInvoice(opts: {
       responseXml: result.raw ?? null,
       xmlZip: new Uint8Array(zip),
       attempts: { increment: 1 },
+      // Error de canal ⇒ el barrido lo reintenta con backoff. Rechazo ⇒
+      // queda el motivo pero SIN reintento automático (mismo XML, mismo
+      // rechazo, otro consecutivo quemado): se corrige y se reintenta a
+      // mano. Aceptada/pendiente ⇒ nada que reintentar.
+      lastError: t.state === "error" || t.state === "rejected" ? (t.errors[0] ?? null) : null,
+      nextAttemptAt:
+        t.state === "error"
+          ? new Date(now.getTime() + emissionBackoffMs(attempts))
+          : null,
     },
   });
 

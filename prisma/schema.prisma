@@ -1426,6 +1426,7 @@ model Order {
   invoiceRequests InvoiceRequest[]
   simpleInvoice   SimpleInvoice?
   stockMovements  StockMovement[]
+  dianDocuments   DianDocument[]
 
   @@index([restaurantId, status])
   @@index([tableId])
@@ -2455,8 +2456,24 @@ model DianDocument {
   simpleInvoiceId String?        @unique
   simpleInvoice   SimpleInvoice? @relation(fields: [simpleInvoiceId], references: [id], onDelete: SetNull)
 
+  /// Orden de la que sale el documento. Con SimpleInvoice ya se llega a la
+  /// orden; se guarda igual por el placeholder de `numbering_exhausted`:
+  /// cuando el rango de la resolución se agotó no hay número válido, así
+  /// que no hay tirilla ni SimpleInvoice, y la orden pagada tiene que
+  /// quedar registrada en algún lado para que el barrido la facture cuando
+  /// haya resolución nueva. Los documentos del set de pruebas no tienen ni
+  /// orden ni tirilla (los dos en null).
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
   kind  String @default("invoice") // invoice | credit_note
-  state String @default("to_send") // to_send | sent | pending | accepted | rejected | error
+  /// to_send | sent | pending | accepted | rejected | error.
+  /// `sent` es además el RECLAMO de la emisión: el que logra pasar el
+  /// documento a `sent` (updateMany condicionado por estado) es el único
+  /// que firma y envía; el barrido y el intento inmediato del cobro no
+  /// pueden emitir el mismo documento dos veces. Un `sent` que no vuelve
+  /// (el proceso murió a mitad) se re-reclama pasada `STALE_CLAIM_MS`.
+  state String @default("to_send")
 
   cufe        String?
   // XML firmado, comprimido (zip) — lo que se envió a la DIAN.
@@ -2466,6 +2483,15 @@ model DianDocument {
   trackId     String?
   errors      Json?
   attempts    Int     @default(0)
+  /// Barrido: antes de este instante no se reintenta (backoff exponencial
+  /// tras un error de canal; espera fija tras un bloqueo de configuración).
+  /// null ⇒ se puede intentar ya.
+  nextAttemptAt DateTime?
+  /// Por qué NO salió la última vez: un guard de configuración
+  /// (resolution_incomplete, contact_email_incomplete…), numbering_exhausted,
+  /// o la primera regla/error que devolvió la DIAN o el canal. Es lo que la
+  /// pantalla muestra como "N facturas esperando emisión — falta X".
+  lastError     String?
 
   /// Envío automático del AttachedDocument al adquiriente. Se marca al
   /// reclamar el envío (updateMany con emailedAt: null), así los DOS rieles
@@ -2481,6 +2507,10 @@ model DianDocument {
   updatedAt DateTime @updatedAt
 
   @@index([restaurantId, state])
+  // El barrido busca por estado + vencimiento del backoff, en TODOS los
+  // comercios a la vez.
+  @@index([state, nextAttemptAt])
+  @@index([orderId])
 }
 
 // === ERP · Fase B2: gastos y contabilidad ==================================

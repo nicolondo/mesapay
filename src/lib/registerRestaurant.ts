@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type ServiceMode } from "@prisma/client";
 import { db } from "./db";
 import { isCountryEnabled } from "./billing/countries";
+import { defaultSalesTaxForCountry } from "./salesTax";
 import {
   generateResetToken,
   hashResetToken,
@@ -130,6 +131,11 @@ export async function registerRestaurant(
   }
 
   const result = await db.$transaction(async (tx) => {
+    // El impuesto de ventas nace resuelto por país (Colombia ⇒ impoconsumo
+    // 8%). Antes todo comercio nacía en "none" y había que acordarse de
+    // configurarlo; nadie se acordaba, y eso terminó en facturas emitidas a
+    // la DIAN con impuesto cero. Se puede cambiar desde Contabilidad.
+    const salesTax = defaultSalesTaxForCountry(country);
     const restaurant = await tx.restaurant.create({
       data: {
         slug,
@@ -140,6 +146,8 @@ export async function registerRestaurant(
         country,
         countryName,
         placeId,
+        salesTaxKind: salesTax.kind,
+        salesTaxPct: salesTax.pct,
       },
     });
 

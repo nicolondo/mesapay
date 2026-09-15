@@ -913,6 +913,7 @@
     "labelDate": "Data",
     "labelTotal": "Total",
     "labelCufe": "CUFE",
+    "phone": "Tel: {phone}",
     "cufeLead": "O CUFE é o código único que identifica sua nota fiscal perante a DIAN.",
     "attachmentTitle": "Arquivo anexo",
     "attachmentLead": "Anexamos o XML oficial da sua nota fiscal ({file}) junto com o comprovante de aceitação da DIAN. Guarde-o: é o documento que vale para a sua contabilidade.",

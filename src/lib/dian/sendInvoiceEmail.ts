@@ -199,6 +199,11 @@ export async function sendDianInvoiceEmail(opts: {
       verifyUrl: dianQrUrl(doc.cufe, envCode),
       attachmentName: attachment?.filename ?? null,
       locale: inv.order.locale,
+      // Del snapshot, no del Restaurant de hoy: lo mismo que muestra la
+      // representación gráfica y lo que viajó en el XML de ESTA factura.
+      issuerAddress: snap.legalAddress,
+      issuerCity: snap.legalCity,
+      issuerPhone: snap.legalPhone,
     });
 
     // Mismo remitente que la tirilla: para el comensal los dos correos

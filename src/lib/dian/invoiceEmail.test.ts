@@ -126,3 +126,41 @@ describe("renderDianInvoiceEmail — lo que el adquiriente tiene que ver", () =>
     expect(mail.html).toContain("&lt;script&gt;");
   });
 });
+
+describe("renderDianInvoiceEmail — datos del emisor", () => {
+  it("muestra dirección, ciudad y teléfono cuando vienen en el snapshot", async () => {
+    const { html, text } = await renderDianInvoiceEmail({
+      ...base,
+      issuerAddress: "Vía Las Palmas Km 17, Mall Indiana LC 112",
+      issuerCity: "Envigado, Antioquia",
+      issuerPhone: "+57 320 123 4567",
+    });
+    expect(html).toContain("Vía Las Palmas Km 17, Mall Indiana LC 112");
+    expect(html).toContain("Envigado, Antioquia");
+    expect(html).toContain("Tel: +57 320 123 4567");
+    expect(text).toContain("Tel: +57 320 123 4567");
+    // El emisor va ANTES del número de factura, como en la tirilla.
+    expect(text.indexOf("Envigado")).toBeLessThan(text.indexOf("FESM6482"));
+  });
+
+  it("sin datos del emisor no deja renglones vacíos ni un 'Tel:' huérfano", async () => {
+    const { html, text } = await renderDianInvoiceEmail({
+      ...base,
+      issuerAddress: null,
+      issuerCity: "   ",
+      issuerPhone: undefined,
+    });
+    expect(html).not.toContain("Tel:");
+    expect(text).not.toContain("Tel:");
+    expect(text).not.toMatch(/\n\n\n/);
+  });
+
+  it("escapa HTML en la dirección: nada del comercio se interpreta como markup", async () => {
+    const { html } = await renderDianInvoiceEmail({
+      ...base,
+      issuerAddress: "Cra 6 <b>24A</b> Sur",
+    });
+    expect(html).toContain("Cra 6 &lt;b&gt;24A&lt;/b&gt; Sur");
+    expect(html).not.toContain("<b>24A</b>");
+  });
+});

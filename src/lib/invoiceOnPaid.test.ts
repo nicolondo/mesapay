@@ -223,14 +223,17 @@ describe("CON facturación electrónica — toda venta se factura", () => {
     });
   });
 
-  it("con solicitud: tirilla nominativa + correo + DianDocument", async () => {
+  it("con solicitud: tirilla nominativa + DianDocument, y NUNCA el comprobante por correo", async () => {
     m.requestFindFirst.mockResolvedValue(REQUEST);
     m.issueSimpleInvoice.mockResolvedValue(issuedOk({ email: "ana@correo.com" }));
     await call();
     expect(m.issueSimpleInvoice).toHaveBeenCalledWith(
       expect.objectContaining({ email: "ana@correo.com", customer: CUSTOMER }),
     );
-    expect(m.sendSimpleInvoiceEmail).toHaveBeenCalledTimes(1);
+    // Con facturación electrónica el comensal recibe la FACTURA ELECTRÓNICA
+    // (la manda la aceptación de la DIAN), no el comprobante de MESAPAY.
+    // Regla en invoiceDelivery.ts, pedida textual por el dueño.
+    expect(m.sendSimpleInvoiceEmail).not.toHaveBeenCalled();
     expect(m.ensureDianDocument).toHaveBeenCalledTimes(1);
     expect(m.emitDianInvoice).toHaveBeenCalledTimes(1);
   });

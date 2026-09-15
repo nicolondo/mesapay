@@ -470,11 +470,39 @@ function isActive(pathname: string | null, href: string): boolean {
 
 /* ───────────────────── Barra de acciones superior ─────────────────────
    Buscar orden + accesos rápidos (cierre de turno · nueva orden). En móvil
-   los botones muestran solo el ícono; el label aparece desde `sm`. */
+   los botones muestran solo el ícono; el label aparece desde `sm`.
+
+   "Nueva orden" ofrece dos cosas: ir a Mesas (tomar el pedido de una
+   mesa) o abrir una FACTURA MANUAL directo — una cuenta sin mesa que se
+   crea acá mismo y aterriza en Mesas con su ficha desplegada. */
 function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
   const t = useTranslations("operator");
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [openingManual, setOpeningManual] = useState(false);
+  const [manualErr, setManualErr] = useState<string | null>(null);
+
+  async function openManualInvoice() {
+    setOpeningManual(true);
+    setManualErr(null);
+    try {
+      const res = await fetch("/api/operator/manual-invoices", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setManualErr(t("newOrderManualFailed"));
+        return;
+      }
+      const j = (await res.json()) as { tableId: string };
+      setChooserOpen(false);
+      router.push(`/operator/tables?open=${encodeURIComponent(j.tableId)}`);
+    } catch {
+      setManualErr(t("newOrderManualFailed"));
+    } finally {
+      setOpeningManual(false);
+    }
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -545,9 +573,14 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
         </svg>
         <span className="hidden sm:inline">{t("shiftClose")}</span>
       </Link>
-      <Link
-        href="/operator/tables"
+      <button
+        type="button"
+        onClick={() => {
+          setManualErr(null);
+          setChooserOpen(true);
+        }}
         aria-label={t("newOrder")}
+        aria-haspopup="dialog"
         className="mp-btn mp-btn--primary mp-btn--sm shrink-0"
       >
         <svg
@@ -564,7 +597,57 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
           <line x1="4.5" y1="10" x2="15.5" y2="10" />
         </svg>
         <span className="hidden sm:inline">{t("newOrder")}</span>
-      </Link>
+      </button>
+
+      {chooserOpen && (
+        <AppDialog
+          label={t("newOrder")}
+          onClose={() => setChooserOpen(false)}
+          className="w-[min(92vw,24rem)] rounded-3xl"
+        >
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="font-display text-2xl">{t("newOrderChoose")}</h2>
+              <button
+                type="button"
+                onClick={() => setChooserOpen(false)}
+                className="text-op-muted text-sm shrink-0"
+                aria-label={t("newOrderCancel")}
+              >
+                {"✕"}
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              <Link
+                href="/operator/tables"
+                onClick={() => setChooserOpen(false)}
+                className="block w-full rounded-2xl border border-op-border bg-op-surface px-4 py-3 text-left hover:bg-op-bg"
+              >
+                <div className="text-sm font-medium">{t("newOrderTable")}</div>
+                <div className="text-xs text-op-muted mt-0.5">
+                  {t("newOrderTableHint")}
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={openManualInvoice}
+                disabled={openingManual}
+                className="block w-full rounded-2xl border border-terracotta/50 bg-terracotta/5 px-4 py-3 text-left hover:bg-terracotta/10 disabled:opacity-60"
+              >
+                <div className="text-sm font-medium text-terracotta">
+                  {openingManual
+                    ? t("newOrderManualOpening")
+                    : t("newOrderManual")}
+                </div>
+                <div className="text-xs text-op-muted mt-0.5">
+                  {t("newOrderManualHint")}
+                </div>
+              </button>
+              {manualErr && <div className="text-xs text-danger">{manualErr}</div>}
+            </div>
+          </div>
+        </AppDialog>
+      )}
     </div>
   );
 }

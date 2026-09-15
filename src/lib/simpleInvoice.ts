@@ -5,6 +5,7 @@ import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
 import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
 import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
+import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
 
 /** Datos del cliente para una factura personalizada. */
 export type InvoiceCustomer = {
@@ -174,8 +175,12 @@ export async function issueSimpleInvoice(opts: {
     dianResolutionDate: r.dianResolutionDate?.toISOString() ?? null,
     invoicePrefix: r.invoicePrefix,
     shortCode: order.shortCode,
+    // Una factura manual no tiene mesa que nombrar: "Mesa -100" en la
+    // tirilla sería un número interno filtrado al cliente.
     tableLabel: order.table
-      ? `Mesa ${order.table.number}${order.table.label ? ` · ${order.table.label}` : ""}`
+      ? order.table.kind === "manual"
+        ? (order.table.label ?? MANUAL_TABLE_LABEL)
+        : `Mesa ${order.table.number}${order.table.label ? ` · ${order.table.label}` : ""}`
       : "Mostrador",
     paidAtIso: (order.paidAt ?? new Date()).toISOString(),
     items: order.items.map((i) => ({

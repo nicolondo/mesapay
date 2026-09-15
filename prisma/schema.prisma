@@ -1044,6 +1044,19 @@ model Table {
   qrToken      String     @unique
   createdAt    DateTime   @default(now())
 
+  // Qué ES esta fila. Las mesas "pseudo" (recogida, factura manual) siguen
+  // llevando número negativo para que todos los guards `number < 0` las
+  // excluyan sin tocarlos; `kind` es lo que se consulta cuando hay que
+  // distinguirlas entre sí (Mesas separa la de recogida de las manuales).
+  //
+  //   standard → mesa física (o el mostrador, número 0).
+  //   pickup   → la mesa oculta del pedido anticipado (número -1).
+  //   manual   → una "factura manual": una orden sin mesa física que se
+  //              cobra como cualquier otra. Una fila por factura abierta,
+  //              reutilizable cuando se cierra. Números desde -100 hacia
+  //              abajo (ver src/lib/manualInvoice.ts).
+  kind         TableKind  @default(standard)
+
   // Llamadas al mesero PRE-orden — cuando un cliente escanea el QR
   // y aprieta "Llamar mesero" sin haber pedido nada todavía no hay
   // Order donde colgar la flag. Persistimos a nivel de Table para
@@ -1086,6 +1099,7 @@ model Table {
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
+  @@index([restaurantId, kind])
   @@index([restaurantId, waiterCalledAt])
 }
 
@@ -1093,6 +1107,12 @@ enum TableShape {
   square
   round
   bar
+}
+
+enum TableKind {
+  standard
+  pickup
+  manual
 }
 
 // Reservas: el diner aparta una mesa para un slot (definido por la

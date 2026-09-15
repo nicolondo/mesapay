@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { auth } from "@/auth";
@@ -125,6 +126,9 @@ export async function PayFlow({
     ? `/mesero/cobrar/${orderId}/done`
     : `/t/${slug}/pay/${orderId}/done?op=1`;
 
+  // Una factura manual no tiene mesa que nombrar en el encabezado del cobro.
+  const tMenu = await getTranslations("menu");
+
   return (
     <PayClient
       operatorMode={operatorMode}
@@ -141,9 +145,11 @@ export async function PayFlow({
       shortCode={order.shortCode}
       tableId={order.table.id}
       locationLabel={
-        tenant.serviceMode === "counter"
-          ? "Mostrador"
-          : `Mesa ${order.table.number}`
+        order.table.kind === "manual"
+          ? tMenu("manualInvoice")
+          : tenant.serviceMode === "counter"
+            ? "Mostrador"
+            : `Mesa ${order.table.number}`
       }
       // Lo cobrable va NETO del descuento del comensal identificado: todo
       // el cálculo de la pantalla (partes iguales, lo mío, saldo) cuelga de

@@ -37,8 +37,10 @@ export default async function MenuPage({
       session.user.role === "mesero");
   const operatorMode = isStaff;
   // Donde aterriza el staff después de enviar el round. Mesero no
-  // tiene acceso a /operator/* (layout gated) → /mesero/salon.
-  const postSendHref =
+  // tiene acceso a /operator/* (layout gated) → /mesero/salon. Con una
+  // factura manual (mesa `manual`) vuelve a Mesas con esa factura
+  // abierta — se resuelve más abajo, cuando ya se conoce la mesa.
+  const staffHomeHref =
     session?.user?.role === "mesero" ? "/mesero/salon" : "/operator/serve";
 
   const tenant = await db.restaurant.findUnique({
@@ -92,6 +94,11 @@ export default async function MenuPage({
   if (!table || table.restaurantId !== tenant.id) {
     return notFound();
   }
+  const isManualInvoice = table.kind === "manual";
+  const postSendHref =
+    isManualInvoice && session?.user?.role !== "mesero"
+      ? `/operator/tables?open=${table.id}`
+      : staffHomeHref;
 
   if (!await canAccessTable(tenant.id, table.id)) {
     const query = new URLSearchParams({ table: tableToken });
@@ -203,9 +210,11 @@ export default async function MenuPage({
               table.waiterCalledAt.getTime()))
       }
       locationLabel={
-        tenant.serviceMode === "counter"
-          ? tMenu("counter")
-          : tMenu("tableLabel", { number: table.number })
+        isManualInvoice
+          ? tMenu("manualInvoice")
+          : tenant.serviceMode === "counter"
+            ? tMenu("counter")
+            : tMenu("tableLabel", { number: table.number })
       }
       menus={localizedMenus}
       menuTags={localizedMenuTags}

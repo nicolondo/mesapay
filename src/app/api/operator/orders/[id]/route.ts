@@ -34,7 +34,10 @@ async function PATCHHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const order = await db.order.findUnique({ where: { id } });
+  const order = await db.order.findUnique({
+    where: { id },
+    include: { table: { select: { kind: true } } },
+  });
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
   const activeId = await getActiveRestaurantId();
   if (order.restaurantId !== activeId) {
@@ -61,9 +64,12 @@ async function PATCHHandler(
       where: { orderId: order.id, cancelledAt: null },
       select: { id: true, kitchenStatus: true, nameSnapshot: true, qty: true },
     });
-    const kitchenStarted = liveItems.some(
-      (i) => i.kitchenStatus !== "placed",
-    );
+    // En una FACTURA MANUAL (mesa `manual`) nada pasa por cocina: los
+    // ítems nacen "ready" como sello técnico, así que el gate no aplica y
+    // la factura se descarta entera, tenga o no ítems.
+    const kitchenStarted =
+      order.table.kind !== "manual" &&
+      liveItems.some((i) => i.kitchenStatus !== "placed");
     if (kitchenStarted) {
       return NextResponse.json(
         {

@@ -3,12 +3,17 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { getMeseroScope } from "@/lib/meseroScope";
+import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { NewTableForm } from "./NewTableForm";
 import { LiveRefresh } from "../LiveRefresh";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { computeWalkoutRisk, computeVisualState } from "@/lib/walkoutRisk";
-import { MesasGrid, type TileData } from "./MesasGrid";
+import {
+  MesasGrid,
+  type ActiveOrder,
+  type ManualTile,
+  type TileData,
+} from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +31,21 @@ export const dynamic = "force-dynamic";
  *   - Marcar "recién pagadas" (últimos 15min)
  *   - Render del header (Mesas/Mostrador, Imprimir QRs, alta de
  *     mesas nuevas, pickup card) — sólo en operator/admin
+ *   - Facturas manuales abiertas (mesas `kind = manual` con cuenta
+ *     viva) en su propia sección, fuera de los chips y del conteo de
+ *     libres — sólo caja; el mesero no las ve (scope)
+ *
+ * `?open=<tableId>` abre la ficha de esa mesa al cargar: es cómo
+ * "Nueva orden → Factura manual" del cockpit y el menú en modo
+ * operador vuelven a la factura recién abierta.
  */
-export default async function TablesPage() {
+export default async function TablesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ open?: string }>;
+}) {
   const tr = await getTranslations("opTables");
+  const sp = (await searchParams) ?? {};
   const ux = await getTranslations("workspaceUi");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId)
@@ -58,12 +75,10 @@ export default async function TablesPage() {
     tenant?.adminOnlyCharge ?? false,
   );
 
-  // Mesero scoped: sólo ve sus mesas asignadas.
+  // Mesero scoped: sólo ve sus mesas asignadas — y nunca las facturas
+  // manuales, tenga o no sección.
   const scope = await getMeseroScope();
-  const tableNumberFilter =
-    scope.scoped && scope.tableNumbers
-      ? { number: { in: scope.tableNumbers } }
-      : {};
+  const tableNumberFilter = meseroTableWhere(scope) ?? {};
 
   const RECENTLY_PAID_MS = 15 * 60 * 1000;
   const recentlyPaidSince = new Date((await requestTime()) - RECENTLY_PAID_MS);
@@ -111,14 +126,22 @@ export default async function TablesPage() {
     },
   });
 
-  const pickupTable = allTables.find((t) => t.number === -1) ?? null;
+  const pickupTable = allTables.find((t) => t.kind === "pickup") ?? null;
   const counterMode = tenant?.serviceMode === "counter";
-  const tables = counterMode
-    ? allTables.filter((t) => t.number !== -1).slice(0, 1)
-    : allTables.filter((t) => t.number !== -1);
+  const standardTables = allTables.filter((t) => t.kind === "standard");
+  const tables = counterMode ? standardTables.slice(0, 1) : standardTables;
+  // Facturas manuales ABIERTAS. Las que ya se cobraron o descartaron
+  // dejan su mesa oculta libre para la próxima factura y no se dibujan.
+  // Sólo caja: el scope del mesero ya las filtró, y por las dudas acá
+  // tampoco se le pasan.
+  const manualTables = isMeseroView
+    ? []
+    : allTables.filter((t) => t.kind === "manual" && t.orders.length > 0);
 
   // Mesas libres (sin orden abierta) — necesarias para "Mover a
   // otra mesa" del detail sheet (mueve el pedido ENTERO, solo a libres).
+  // Sólo mesas físicas: una factura manual no es destino de nada ni
+  // se muda a ningún lado (el servidor también lo rechaza).
   const freeTables = tables
     .filter((t) => t.orders.length === 0)
     .map((t) => ({ id: t.id, number: t.number, label: t.label }));
@@ -156,6 +179,69 @@ export default async function TablesPage() {
   const dangerMinutes = tenant?.walkoutDangerMinutes ?? 20;
   const now = new Date();
 
+  // Lo que el tile necesita de una cuenta viva, compartido entre las mesas
+  // físicas y las facturas manuales: cobrable neto del descuento, lo que
+  // falta por cobrar, y el resumen de rondas/cliente para la ficha.
+  const summarizeOrder = (order: (typeof allTables)[number]["orders"][number]) => {
+    const approved = order.payments.filter((p) => p.status === "approved");
+    const foodPaid = approved.reduce(
+      (s, p) => s + p.amountCents - p.tipCents,
+      0,
+    );
+    // El descuento del comensal identificado baja lo que falta por
+    // cobrar. Sin restarlo acá, el mesero vería un pendiente mayor al
+    // real y el cobro se rechazaría por "excede lo pendiente".
+    const chargeableCents = Math.max(
+      0,
+      order.subtotalCents - order.discountCents,
+    );
+    const outstandingCents = Math.max(0, chargeableCents - foodPaid);
+    const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
+    const activeOrder: ActiveOrder = {
+      id: order.id,
+      shortCode: order.shortCode,
+      status: order.status,
+      itemCount,
+      subtotalCents: chargeableCents,
+      grossSubtotalCents: order.subtotalCents,
+      discountCents: order.discountCents,
+      discountPct: order.discountPct,
+      customer: order.diner
+        ? {
+            id: order.diner.id,
+            name: order.diner.name,
+            email: order.diner.email,
+            cedula: order.diner.cedula,
+          }
+        : null,
+      outstandingCents,
+      needsWaiter: order.needsWaiter,
+      rounds: order.rounds.map((r) => ({
+        id: r.id,
+        seq: r.seq,
+        status: r.status,
+        placedAt: r.placedAt.toISOString(),
+        items: r.items.map((i) => ({
+          id: i.id,
+          name: i.nameSnapshot,
+          qty: i.qty,
+          priceCents: i.priceCentsSnapshot,
+          kitchenStatus: i.kitchenStatus,
+          preparationStartedAt: i.preparationStartedAt
+            ? i.preparationStartedAt.toISOString()
+            : null,
+          servedAt: i.servedAt ? i.servedAt.toISOString() : null,
+          expediteRequestedAt: i.expediteRequestedAt
+            ? i.expediteRequestedAt.toISOString()
+            : null,
+          guestName: i.guestName ?? null,
+          notes: i.notes ?? null,
+        })),
+      })),
+    };
+    return { activeOrder, approved, outstandingCents };
+  };
+
   // Pre-compute TileData server-side. El cliente recibe el shape
   // chico (sin payments crudos) y sólo decide filtros + qué sheet
   // está abierto.
@@ -183,19 +269,7 @@ export default async function TablesPage() {
     }
 
     // Active table — calcula outstanding + walkout risk.
-    const approved = order.payments.filter((p) => p.status === "approved");
-    const foodPaid = approved.reduce(
-      (s, p) => s + p.amountCents - p.tipCents,
-      0,
-    );
-    // El descuento del comensal identificado baja lo que falta por
-    // cobrar. Sin restarlo acá, el mesero vería un pendiente mayor al
-    // real y el cobro se rechazaría por "excede lo pendiente".
-    const chargeableCents = Math.max(
-      0,
-      order.subtotalCents - order.discountCents,
-    );
-    const outstandingCents = Math.max(0, chargeableCents - foodPaid);
+    const { activeOrder, approved, outstandingCents } = summarizeOrder(order);
 
     // Pending payments para Señal 1 del walkout. Excluimos los que
     // ya están pinneados a un datafono esperando aprobación (tienen
@@ -253,8 +327,6 @@ export default async function TablesPage() {
       riskLevel: risk.level,
     });
 
-    const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
-
     return {
       id: t.id,
       number: t.number,
@@ -267,50 +339,18 @@ export default async function TablesPage() {
         agingMinutes: risk.agingMinutes,
         reason: risk.reason,
       },
-      order: {
-        id: order.id,
-        shortCode: order.shortCode,
-        status: order.status,
-        itemCount,
-        subtotalCents: chargeableCents,
-        grossSubtotalCents: order.subtotalCents,
-        discountCents: order.discountCents,
-        discountPct: order.discountPct,
-        customer: order.diner
-          ? {
-              id: order.diner.id,
-              name: order.diner.name,
-              email: order.diner.email,
-              cedula: order.diner.cedula,
-            }
-          : null,
-        outstandingCents,
-        needsWaiter: order.needsWaiter,
-        rounds: order.rounds.map((r) => ({
-          id: r.id,
-          seq: r.seq,
-          status: r.status,
-          placedAt: r.placedAt.toISOString(),
-          items: r.items.map((i) => ({
-            id: i.id,
-            name: i.nameSnapshot,
-            qty: i.qty,
-            priceCents: i.priceCentsSnapshot,
-            kitchenStatus: i.kitchenStatus,
-            preparationStartedAt: i.preparationStartedAt
-              ? i.preparationStartedAt.toISOString()
-              : null,
-            servedAt: i.servedAt ? i.servedAt.toISOString() : null,
-            expediteRequestedAt: i.expediteRequestedAt
-              ? i.expediteRequestedAt.toISOString()
-              : null,
-            guestName: i.guestName ?? null,
-            notes: i.notes ?? null,
-          })),
-        })),
-      },
+      order: activeOrder,
     };
   });
+
+  // Facturas manuales: sin walkout-risk ni estado de cocina (nada se
+  // prepara ni se entrega) — sólo la cuenta.
+  const manualTiles: ManualTile[] = manualTables.map((t) => ({
+    id: t.id,
+    number: t.number,
+    qrToken: t.qrToken,
+    order: summarizeOrder(t.orders[0]).activeOrder,
+  }));
 
   const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
@@ -372,6 +412,9 @@ export default async function TablesPage() {
       <MesasGrid
         initialTime={await requestTime()}
         tiles={tiles}
+        manualTiles={manualTiles}
+        canOpenManual={!isMeseroView}
+        initialOpenTileId={sp.open ?? null}
         tenantSlug={tenant!.slug}
         counterMode={counterMode}
         isMeseroView={isMeseroView}

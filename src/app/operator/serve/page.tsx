@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
-import { getMeseroScope } from "@/lib/meseroScope";
+import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { auth } from "@/auth";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { ServeBoard } from "./ServeBoard";
@@ -28,9 +28,10 @@ export default async function ServePage() {
     session?.user?.role,
     tenant?.adminOnlyCharge ?? false,
   );
-  const tableFilter = scope.scoped
-    ? { table: { number: { in: scope.tableNumbers ?? [] } } }
-    : {};
+  // Para un mesero siempre hay algo que filtrar: sus mesas y, con o sin
+  // sección, nunca una factura manual (mesa `kind = manual`).
+  const tableWhere = meseroTableWhere(scope);
+  const tableFilter = tableWhere ? { table: tableWhere } : {};
 
   // Surface rounds with at least one ready-but-not-yet-served item.
   // That's what the waiter can actually pick up. For "together" mode
@@ -127,9 +128,7 @@ export default async function ServePage() {
           // Prisma no soporta column-vs-column comparison directo;
           // hacemos el filtro fino abajo en JS.
         ],
-        ...(scope.scoped
-          ? { number: { in: scope.tableNumbers ?? [] } }
-          : {}),
+        ...(tableWhere ?? {}),
       },
       select: {
         id: true,

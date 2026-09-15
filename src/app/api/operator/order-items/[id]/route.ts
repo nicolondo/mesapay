@@ -98,7 +98,10 @@ async function PATCHHandler(
   try {
     await db.$transaction(async (tx) => {
     await lockOrder(tx, item.orderId);
-    const currentItem = await tx.orderItem.findUniqueOrThrow({ where: { id: item.id }, include: { order: true } });
+    const currentItem = await tx.orderItem.findUniqueOrThrow({
+      where: { id: item.id },
+      include: { order: { include: { table: { select: { kind: true } } } } },
+    });
     const now = new Date();
 
     if (parsed.data.cancel) {
@@ -114,7 +117,13 @@ async function PATCHHandler(
       // que el gate de "ya servido" no les aplica: se cancelan y punto. Sin
       // esto un cargo escrito a mano quedaba imposible de quitar de la
       // cuenta — la UI ofrecía "Cancelar" y el servidor lo rechazaba.
-      if (kind === "cancel" && currentItem.servedAt && currentItem.menuItemId !== null) {
+      // Lo mismo vale para los platos de una FACTURA MANUAL (mesa `manual`):
+      // nacen servidos porque nadie los prepara, no porque alguien los
+      // haya entregado.
+      const technicalServe =
+        currentItem.menuItemId === null ||
+        currentItem.order.table.kind === "manual";
+      if (kind === "cancel" && currentItem.servedAt && !technicalServe) {
         throw new Error("CANCEL_AFTER_SERVED");
       }
       // Cancelación / comp del currentItem. Idempotente: si ya estaba

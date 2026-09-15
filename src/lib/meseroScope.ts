@@ -10,6 +10,7 @@
 // scope; operator/admin/kitchen/bar/terminal always see the whole
 // restaurant.
 
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 
@@ -20,6 +21,16 @@ export type MeseroScope = {
   // The set of table numbers the user is allowed to see. Null = no
   // restriction (the caller skips the filter entirely).
   tableNumbers: number[] | null;
+  // Las facturas manuales (mesas `kind = manual`) son de caja, no del
+  // salón: un mesero no las ve NUNCA, tenga o no sección asignada. Para
+  // los demás roles no aplica.
+  hideManual: boolean;
+};
+
+const NO_SCOPE: MeseroScope = {
+  scoped: false,
+  tableNumbers: null,
+  hideManual: false,
 };
 
 /**
@@ -31,7 +42,7 @@ export async function getMeseroScope(): Promise<MeseroScope> {
   const role = session?.user?.role;
   const userId = session?.user?.id;
   if (!session?.user || !userId || role !== "mesero") {
-    return { scoped: false, tableNumbers: null };
+    return NO_SCOPE;
   }
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -39,19 +50,27 @@ export async function getMeseroScope(): Promise<MeseroScope> {
   });
   const nums = user?.assignedTableNumbers ?? [];
   if (nums.length === 0) {
-    return { scoped: false, tableNumbers: null };
+    return { scoped: false, tableNumbers: null, hideManual: true };
   }
-  return { scoped: true, tableNumbers: nums };
+  return { scoped: true, tableNumbers: nums, hideManual: true };
 }
 
 /**
- * Convenience: build a Prisma-compatible `table` filter from a scope.
+ * Convenience: build a Prisma-compatible `Table` filter from a scope.
  * Returns undefined when there's no restriction so the caller can
- * spread it into a `where` without adding a clause.
+ * spread it into a `where` without adding a clause. Para un mesero
+ * siempre hay algo que filtrar (las facturas manuales), aunque no
+ * tenga sección asignada.
  */
 export function meseroTableWhere(
   scope: MeseroScope,
-): { number: { in: number[] } } | undefined {
-  if (!scope.scoped || !scope.tableNumbers) return undefined;
-  return { number: { in: scope.tableNumbers } };
+): Prisma.TableWhereInput | undefined {
+  const where: Prisma.TableWhereInput = {};
+  if (scope.scoped && scope.tableNumbers) {
+    where.number = { in: scope.tableNumbers };
+  }
+  if (scope.hideManual) {
+    where.kind = { not: "manual" };
+  }
+  return Object.keys(where).length > 0 ? where : undefined;
 }

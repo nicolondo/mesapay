@@ -883,6 +883,7 @@
     "footerHelp": "If you have questions about your bill, contact {brand} directly.",
     "sentBy": "Sent by MESAPAY · Made in Colombia",
     "generatedBy": "Generated with MESAPAY",
+    "generatedByUrl": "mesapay.co",
     "metaTitleFallback": "Invoice — MESAPAY",
     "print": "Print",
     "dianFiscalTitle": "Electronic sales invoice",

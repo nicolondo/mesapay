@@ -11,6 +11,10 @@ import {
 } from "@/lib/dian/pendingEmission";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AGENT_ONLINE_MS } from "@/lib/print/agentStatus";
+import {
+  stationPrintHealth,
+  stationsMissingPrinter,
+} from "@/lib/print/stationPrintHealth";
 import { resolveTipPolicy, resolveShiftPolicy } from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +45,11 @@ export default async function SettingsPage() {
       enabledModules: true,
       salesTaxKind: true,
       salesTaxPct: true,
+      kitchenPrintEnabled: true,
+      barPrintEnabled: true,
+      kitchenAutoFire: true,
+      barAutoFire: true,
+      barSubStations: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -126,8 +135,11 @@ export default async function SettingsPage() {
   // encolando contra un PC apagado y nadie se entera hasta que un cliente
   // reclama. Sin impresoras registradas la tarjeta sólo dice "Configurar".
   const printersNow = new Date();
-  const [printerCount, liveAgents] = await Promise.all([
-    db.printer.count({ where: { restaurantId, active: true } }),
+  const [printers, liveAgents] = await Promise.all([
+    db.printer.findMany({
+      where: { restaurantId },
+      select: { kind: true, station: true, barSubStation: true, active: true },
+    }),
     db.printAgent.count({
       where: {
         restaurantId,
@@ -138,7 +150,22 @@ export default async function SettingsPage() {
       },
     }),
   ]);
+  const printerCount = printers.filter((p) => p.active).length;
   const printersOffline = printerCount > 0 && liveAgents === 0;
+  // El otro silencio: una estación con la impresión encendida y ninguna
+  // impresora activa que la sirva (o una sub-estación del bar sin cubrir).
+  // La comanda se marcha y no sale nada; ámbar, como Estaciones lo dice.
+  const printersMissing =
+    stationsMissingPrinter(
+      stationPrintHealth({
+        kitchenPrintEnabled: tenant.kitchenPrintEnabled,
+        barPrintEnabled: tenant.barPrintEnabled,
+        kitchenAutoFire: tenant.kitchenAutoFire,
+        barAutoFire: tenant.barAutoFire,
+        barSubStations: tenant.barSubStations,
+        printers,
+      }),
+    ).length > 0;
 
   const settings: (SettingsItem | false)[] = [
     {
@@ -306,17 +333,24 @@ export default async function SettingsPage() {
       href: "/operator/settings/impresoras",
       title: t("cardPrintersTitle"),
       subtitle: t("cardPrintersSubtitle"),
-      badge:
-        printerCount === 0
-          ? t("badgePrintersEmpty")
-          : printersOffline
-            ? t("badgePrintersOffline")
+      // "Sin responder" (rojo) manda sobre "sin impresora" (ámbar): con el
+      // agente caído no sale NADA, ni lo que sí tiene impresora. Y el
+      // "sin impresora" va antes que "Configurar": un local con todas sus
+      // impresoras apagadas y la impresión encendida tiene un hueco, no
+      // una pantalla por estrenar.
+      badge: printersOffline
+        ? t("badgePrintersOffline")
+        : printersMissing
+          ? t("badgePrintersMissing")
+          : printerCount === 0
+            ? t("badgePrintersEmpty")
             : t("badgePrintersOk", { count: printerCount }),
-      tint:
-        printerCount === 0
-          ? "bg-paper text-op-muted"
-          : printersOffline
-            ? "bg-danger/10 text-danger"
+      tint: printersOffline
+        ? "bg-danger/10 text-danger"
+        : printersMissing
+          ? "bg-[#C98A2E]/20 text-[#8F6828]"
+          : printerCount === 0
+            ? "bg-paper text-op-muted"
             : "bg-ok/15 text-ok",
     },
     {

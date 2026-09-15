@@ -57,7 +57,20 @@ export async function notifyAutoFiredTickets(args: {
           group.station === "kitchen"
             ? tenant.kitchenPrintEnabled
             : tenant.barPrintEnabled;
-        if (!printEnabled) continue;
+        if (!printEnabled) {
+          // No es un error (hay locales que miran el tablero), pero es la
+          // respuesta a "el pedido pasó a Preparando solo y no se imprimió
+          // nada": que quede en el log en vez de seguir en silencio.
+          console.info(
+            `[kds:auto-fire] impresión de ${group.station} apagada; comanda marchada sin imprimir`,
+            {
+              restaurantId: args.restaurantId,
+              roundId: round.roundId,
+              station: group.station,
+            },
+          );
+          continue;
+        }
         await notifyAcceptedRoundTicketSafe({
           restaurantId: args.restaurantId,
           orderId: args.orderId,

@@ -26,6 +26,7 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pending/*.{ts,tsx}",
   "src/app/operator/orders/\\[id\\]/RefundButton.tsx",
   "src/components/LocaleSwitcher.tsx",
+  "src/components/SalesTaxConfigEditor.tsx",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",
   "src/app/signup/page.tsx",
@@ -103,6 +104,7 @@ const MIGRATED = [
   "src/app/operator/settings/identidad/**/*.{ts,tsx}",
   "src/app/operator/settings/pagos/**/*.{ts,tsx}",
   "src/app/operator/settings/facturacion-dian/**/*.{ts,tsx}",
+  "src/app/operator/settings/impuestos/**/*.{ts,tsx}",
   "src/app/operator/menu/page.tsx",
   "src/app/operator/menu/MenuEditor.tsx",
   "src/app/operator/menu/import/**/*.{ts,tsx}",

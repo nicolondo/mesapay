@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -696,11 +697,7 @@ function PnlTab({
 
       {/* Impuestos (ERP A3): causados en ventas + pagados en compras. */}
       {tax && (
-        <PnlTaxes
-          tax={tax}
-          currency={currency}
-          onConfigSaved={() => setTaxCache({})}
-        />
+        <PnlTaxes tax={tax} currency={currency} />
       )}
 
       {/* Ventas (y CMV, cuando hay inventory+recipes) por categoría del
@@ -750,21 +747,20 @@ function PnlTab({
 /**
  * Sección de impuestos (ERP A3): impuesto de ventas (INC/IVA) causado
  * embebido en los subtotales + impuestos pagados en compras (IVA, INC,
- * retenciones). Config del impuesto de ventas inline.
+ * retenciones).
+ *
+ * SÓLO LECTURA. El editor del impuesto de ventas vivió acá, dentro de una
+ * tarjeta del estado de resultados, y el dueño lo buscó tres veces sin
+ * encontrarlo (y antes facturó a la DIAN en cero sin notarlo). Un dato
+ * fiscal del comercio no es un renglón del PYG: ahora se edita en
+ * Configuración → Impuestos, y SÓLO ahí — un editor en dos pantallas es lo
+ * que dejó a la resolución de numeración con un número en una y otro
+ * distinto en el XML.
  */
-function PnlTaxes({
-  tax,
-  currency,
-  onConfigSaved,
-}: {
-  tax: TaxSummaryDto;
-  currency: string;
-  onConfigSaved: () => void;
-}) {
+function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
   const money = (c: number) => formatMoney(c, { currency, locale });
-  const [editing, setEditing] = useState(false);
   const kindLabel = (k: SalesTaxKind) =>
     k === "inc" ? t("taxKindInc") : k === "iva" ? t("taxKindIva") : "";
 
@@ -784,35 +780,18 @@ function PnlTaxes({
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {t("taxSectionTitle")}
         </span>
-        {/* Botón de verdad, no un subrayado gris de 11px. Este control
-            decide si las facturas del comercio llevan impuesto, y estaba
-            tan escondido que un comercio facturó a la DIAN en CERO sin que
-            nadie lo notara. Cuando no hay impuesto configurado grita más,
-            porque ahí es cuando hay que tocarlo. */}
-        <button
-          type="button"
-          onClick={() => setEditing((e) => !e)}
+        {/* Camino al único editor. Sin impuesto configurado va en primario:
+            ahí es cuando hay que tocarlo. */}
+        <Link
+          href="/operator/settings/impuestos"
           className={
             "mp-btn mp-btn--sm " +
-            (tax.sales.kind === "none" && !editing
-              ? "mp-btn--primary"
-              : "mp-btn--secondary")
+            (tax.sales.kind === "none" ? "mp-btn--primary" : "mp-btn--secondary")
           }
         >
           {t("taxConfigButton")}
-        </button>
+        </Link>
       </div>
-
-      {editing && (
-        <TaxConfigEditor
-          current={tax.sales}
-          onSaved={() => {
-            setEditing(false);
-            onConfigSaved();
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
 
       {/* Impuesto sobre ventas */}
       <div className="px-4 py-2.5 border-b border-op-border">
@@ -853,103 +832,6 @@ function PnlTaxes({
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-/** Editor inline del impuesto de ventas: tipo (none/inc/iva) + tarifa. */
-function TaxConfigEditor({
-  current,
-  onSaved,
-  onCancel,
-}: {
-  current: { kind: SalesTaxKind; pct: number };
-  onSaved: () => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const [kind, setKind] = useState<SalesTaxKind>(current.kind);
-  const [pct, setPct] = useState(current.pct ? String(current.pct) : "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(false);
-
-  function changeKind(k: SalesTaxKind) {
-    setKind(k);
-    // Sugerencia de tarifa típica al elegir el tipo (editable).
-    if (k === "inc" && !pct) setPct("8");
-    if (k === "iva" && !pct) setPct("19");
-  }
-
-  async function save() {
-    setBusy(true);
-    setErr(false);
-    try {
-      const r = await fetch("/api/operator/accounting/tax-config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          salesTaxKind: kind,
-          salesTaxPct: kind === "none" ? 0 : Number(pct) || 0,
-        }),
-      });
-      if (!r.ok) throw new Error("save_failed");
-      onSaved();
-    } catch {
-      setErr(true);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="px-4 py-3 border-b border-op-border bg-op-bg/40 space-y-2">
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="text-[11px] text-op-muted">
-          <span className="block mb-0.5">{t("taxConfigKind")}</span>
-          <select
-            value={kind}
-            onChange={(e) => changeKind(e.target.value as SalesTaxKind)}
-            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-surface text-sm"
-          >
-            <option value="none">{t("taxConfigNone")}</option>
-            <option value="inc">{t("taxKindInc")}</option>
-            <option value="iva">{t("taxKindIva")}</option>
-          </select>
-        </label>
-        {kind !== "none" && (
-          <label className="text-[11px] text-op-muted">
-            <span className="block mb-0.5">{t("taxConfigPct")}</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={100}
-              value={pct}
-              onChange={(e) => setPct(e.target.value.replace(/\D/g, "").slice(0, 3))}
-              className="w-20 min-h-[40px] px-2 rounded-lg border border-op-border bg-op-surface text-sm"
-            />
-          </label>
-        )}
-      </div>
-      <p className="text-[10px] text-op-muted">{t("taxConfigHint")}</p>
-      {err && <div className="text-[11px] text-danger">{t("errSaveFailed")}</div>}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={busy}
-          className="mp-btn mp-btn--sm mp-btn--primary"
-        >
-          {busy ? t("taxConfigSaving") : t("taxConfigSave")}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={busy}
-          className="mp-btn mp-btn--sm mp-btn--secondary"
-        >
-          {t("cancel")}
-        </button>
       </div>
     </div>
   );

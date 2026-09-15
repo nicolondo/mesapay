@@ -167,9 +167,9 @@ export function isValidSalesTaxRate(
 // colombiano. Ponerle 8% a un restaurante en México o Brasil sería
 // inventarle un impuesto que no existe.
 //
-// Es un DEFAULT, no una regla: se cambia desde Contabilidad. Hay casos
-// colombianos legítimos que no son INC 8% — un restaurante en franquicia
-// paga IVA, y un no responsable no cobra nada.
+// Es un DEFAULT, no una regla: se cambia desde Configuración → Impuestos.
+// Hay casos colombianos legítimos que no son INC 8% — un restaurante en
+// franquicia paga IVA, y un no responsable no cobra nada.
 
 export type SalesTaxDefault = { kind: SalesTaxKind; pct: number };
 

@@ -95,7 +95,15 @@ export default async function PrintersSettingsPage() {
         {tSettings("backToSettings")}
       </Link>
       <div className="font-display text-3xl mt-2 mb-1">{t("title")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
+      <p className="text-sm text-op-muted mb-1">{t("intro")}</p>
+      {/* Las instrucciones de instalación viven en Ayuda, no acá: esta
+          pantalla es de diagnóstico. Sólo el enlace. */}
+      <Link
+        href="/operator/ayuda#impresoras"
+        className="inline-block text-sm underline text-op-muted hover:text-ink mb-6"
+      >
+        {t("helpLink")}
+      </Link>
 
       <PrintersClient
         serverNow={new Date().toISOString()}

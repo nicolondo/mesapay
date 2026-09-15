@@ -4,7 +4,8 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
-import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice";
+import { issueSimpleInvoice } from "@/lib/simpleInvoice";
+import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 
 /**
  * Customer-submitted billing info attached to an order. We store it
@@ -122,14 +123,23 @@ async function POSTHandler(
       department: parsed.data.department,
     },
   });
-  if (inv.ok && !inv.alreadyIssued && inv.email) {
-    void sendSimpleInvoiceEmail({
-      invoiceId: inv.invoiceId,
-      snapshot: inv.snapshot,
-      invoiceNumber: inv.invoiceNumber,
-      invoiceUrl: inv.invoiceUrl,
-      email: inv.email,
-      locale: inv.locale,
+  // Qué correo va (comprobante vs. factura electrónica) lo decide UN solo
+  // lugar: invoiceDelivery.ts. Con `einvoicing` activo NUNCA sale el
+  // comprobante; y si la DIAN ya aceptó la factura sin destinatario, el
+  // correo que el comensal acaba de dejar la hace salir ahora.
+  if (inv.ok) {
+    void deliverInvoiceEmail({
+      tenant: { id: tenant.id, enabledModules: tenant.enabledModules },
+      invoice: {
+        invoiceId: inv.invoiceId,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceUrl: inv.invoiceUrl,
+        snapshot: inv.snapshot,
+        email: inv.email ?? parsed.data.email,
+        locale: inv.locale,
+      },
+      firstIssuance: !inv.alreadyIssued,
+      emailJustProvided: inv.alreadyIssued && !inv.email,
     });
   }
 

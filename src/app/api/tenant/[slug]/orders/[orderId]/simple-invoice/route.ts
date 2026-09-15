@@ -2,7 +2,8 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice";
+import { issueSimpleInvoice } from "@/lib/simpleInvoice";
+import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 
 const bodySchema = z.object({
   // Correo OPCIONAL: vacío/ausente = solo se genera para imprimir/descargar
@@ -39,7 +40,7 @@ async function POSTHandler(
   const { slug, orderId } = await params;
   const tenant = await db.restaurant.findUnique({
     where: { slug },
-    select: { id: true },
+    select: { id: true, enabledModules: true },
   });
   if (!tenant) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -78,26 +79,53 @@ async function POSTHandler(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  // Con facturación electrónica la tirilla se emite AL PAGAR, así que
+  // cuando el comensal llega acá con su correo la factura ya existe:
+  // `alreadyIssued` es el caso normal, no la excepción. Antes este camino
+  // devolvía sin guardar el correo en ningún lado y el comensal se quedaba
+  // sin nada — ni comprobante ni factura electrónica, que después no
+  // encontraba destinatario. Ahora el correo se persiste (en la tirilla si
+  // no tenía, y en la orden, que es lo que lee la factura electrónica) y se
+  // decide el envío con la misma regla que al pagar.
+  const providedEmail = parsed.data.email ?? null;
+  const emailJustProvided =
+    result.alreadyIssued && !!providedEmail && !result.email;
+  if (emailJustProvided) {
+    await db.$transaction([
+      db.simpleInvoice.updateMany({
+        where: { id: result.invoiceId, email: null },
+        data: { email: providedEmail },
+      }),
+      db.order.updateMany({
+        where: { id: orderId, restaurantId: tenant.id },
+        data: { simpleInvoiceEmail: providedEmail },
+      }),
+    ]);
+  }
+
+  // Fire-and-forget del correo — no bloqueamos la respuesta. Qué correo
+  // (comprobante vs. factura electrónica) lo decide invoiceDelivery.ts:
+  // con `einvoicing` activo NUNCA sale el comprobante.
+  void deliverInvoiceEmail({
+    tenant: { id: tenant.id, enabledModules: tenant.enabledModules },
+    invoice: {
+      invoiceId: result.invoiceId,
+      invoiceNumber: result.invoiceNumber,
+      invoiceUrl: result.invoiceUrl,
+      snapshot: result.snapshot,
+      email: result.email ?? providedEmail,
+      locale: result.locale,
+    },
+    firstIssuance: !result.alreadyIssued,
+    emailJustProvided,
+  });
+
   if (result.alreadyIssued) {
     return NextResponse.json({
       ok: true,
       alreadyIssued: true,
       invoiceId: result.invoiceId,
       invoiceUrl: result.invoiceUrl,
-    });
-  }
-
-  // Fire-and-forget del correo — no bloqueamos la respuesta. La factura ya
-  // existe y el link es válido aun si el correo demora o falla. Solo si hay
-  // correo.
-  if (result.email) {
-    void sendSimpleInvoiceEmail({
-      invoiceId: result.invoiceId,
-      snapshot: result.snapshot,
-      invoiceNumber: result.invoiceNumber,
-      invoiceUrl: result.invoiceUrl,
-      email: result.email,
-      locale: result.locale,
     });
   }
 

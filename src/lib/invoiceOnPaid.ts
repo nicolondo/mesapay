@@ -4,7 +4,8 @@ import { resolveEmisor } from "@/lib/dian/config";
 import { ensureDianDocument, recordNumberingExhausted } from "@/lib/dian/emit";
 import { emitDianInvoice, type EmitDianInvoiceResult } from "@/lib/dian/emitInvoice";
 import { isModuleEnabled } from "@/lib/modules";
-import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "@/lib/simpleInvoice";
+import { issueSimpleInvoice } from "@/lib/simpleInvoice";
+import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 
 /**
  * Facturación al cerrar la cuenta.
@@ -186,18 +187,22 @@ export async function issueInvoiceOnPaid(
     });
     if (!inv.ok) return { status: "skipped", reason: inv.error === "not_found" ? "not_found" : "not_paid" };
 
-    // Correo best-effort, sólo la primera vez: la factura ya existe y su
-    // link es válido aunque el envío demore o falle. No lanza.
-    if (!inv.alreadyIssued && inv.email) {
-      void sendSimpleInvoiceEmail({
+    // Qué correo va (comprobante vs. factura electrónica) lo decide UN solo
+    // lugar: invoiceDelivery.ts. Con `einvoicing` activo nunca sale el
+    // comprobante; la factura electrónica la manda la aceptación de la DIAN.
+    // Best-effort y no lanza.
+    void deliverInvoiceEmail({
+      tenant: { id: order.restaurantId, enabledModules: order.restaurant.enabledModules },
+      invoice: {
         invoiceId: inv.invoiceId,
-        snapshot: inv.snapshot,
         invoiceNumber: inv.invoiceNumber,
         invoiceUrl: inv.invoiceUrl,
+        snapshot: inv.snapshot,
         email: inv.email,
         locale: inv.locale,
-      });
-    }
+      },
+      firstIssuance: !inv.alreadyIssued,
+    });
 
     if (!automatic) {
       return { status: "issued", invoiceId: inv.invoiceId, alreadyIssued: inv.alreadyIssued, emit: null };

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
@@ -147,10 +148,12 @@ async function POSTHandler(
       },
     });
     const totals = await recomputeOrderTotalsInTx(tx, order.id);
-    if (totals.fullyPaid) {
-      await activateOpenRounds(tx, order.id);
-    }
-    return { fullyPaid: totals.fullyPaid, compAmountCents };
+    // Una cortesía también "paga" la cuenta: activa rondas prepagas y, si
+    // la estación marcha sola, `fired` trae qué imprimir después de la tx.
+    const fired = totals.fullyPaid
+      ? await activateOpenRounds(tx, order.id)
+      : [];
+    return { fullyPaid: totals.fullyPaid, compAmountCents, fired };
   });
 
   if (!result) return NextResponse.json({ error: "order_closed_or_payment_pending" }, { status: 409 });
@@ -160,6 +163,11 @@ async function POSTHandler(
   publishOrderEvent(tenant.id, {
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: order.id,
+  });
+  await notifyAutoFiredTickets({
+    restaurantId: tenant.id,
+    orderId: order.id,
+    rounds: result.fired,
   });
 
   // La cortesía cierra la cuenta en $0: sigue siendo una cuenta pagada y, si

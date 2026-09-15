@@ -60,6 +60,11 @@ vi.mock("@/lib/payments", () => ({
   getRestaurantPrivateKey: vi.fn(async () => null),
 }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "es") }));
+// La impresión de comandas marchadas solas es `server-only`; acá no se
+// llega a marchar nada (el gate corta antes de la transacción).
+vi.mock("@/lib/kds/autoFireTickets", () => ({
+  notifyAutoFiredTickets: vi.fn(async () => {}),
+}));
 
 async function post(
   method: string,

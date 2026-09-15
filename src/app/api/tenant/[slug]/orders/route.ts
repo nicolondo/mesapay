@@ -9,6 +9,8 @@ import { db } from "@/lib/db";
 import { getDiner } from "@/lib/dinerSession";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
+import { autoFireRoundInTx } from "@/lib/kds/autoFire";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import {
   computeSelectionsPriceDelta,
   normalizeModifiers,
@@ -199,6 +201,20 @@ async function POSTHandler(
         data: { status: "ready", readyAt: new Date() },
       });
     }
+
+    // Marchado automático: las estaciones configuradas marchan solas sus
+    // ítems "placed" en este mismo instante (in_kitchen + cronómetro +
+    // recálculo de la ronda). La comanda se imprime DESPUÉS del commit
+    // (abajo). Una ronda prepaga (counter) nace "open" y se marcha recién
+    // al activarse con el pago — ver activateOpenRounds. Sin auto-fire en
+    // ninguna estación no lee ni escribe nada.
+    const fired = isCounter
+      ? []
+      : await autoFireRoundInTx(tx, {
+          roundId: round.id,
+          flags: tenant,
+          now: new Date(),
+        });
     const updated = await tx.order.update({
       where: { id: order.id },
       data: {
@@ -213,16 +229,23 @@ async function POSTHandler(
       },
     });
     const recalculated = await recomputeOrderLinesInTx(tx, updated.id);
-    return { order: recalculated, round, roundItems };
+    return { order: recalculated, round, roundItems, fired };
   });
 
   if (!result) return NextResponse.json({ error: "order_closed" }, { status: 409 });
 
   publishOrderEvent(tenant.id, { type: "order.updated", orderId: result.order.id });
 
-  // Printing now fires on placed → in_kitchen for both stations (see
-  // operator/order-items PATCH route). At round-arrival we only update
-  // the boards; no ticket prints until someone clicks "Empezar".
+  // Printing fires on placed → in_kitchen for both stations (see
+  // operator/order-items PATCH route). At round-arrival the boards just
+  // update; no ticket prints until someone clicks "Empezar" — unless the
+  // station is set to auto-fire, in which case the transition already
+  // happened inside the tx and the ticket goes out right now.
+  await notifyAutoFiredTickets({
+    restaurantId: tenant.id,
+    orderId: result.order.id,
+    rounds: [{ roundId: result.round.id, groups: result.fired }],
+  });
 
   return NextResponse.json({
     orderId: result.order.id,

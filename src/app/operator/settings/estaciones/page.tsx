@@ -20,6 +20,8 @@ export default async function StationsSettingsPage() {
         kitchenPrintEnabled: true,
         barPrintEnabled: true,
         printPaperWidthMm: true,
+        kitchenAutoFire: true,
+        barAutoFire: true,
       },
     }),
     db.category.findMany({
@@ -50,6 +52,8 @@ export default async function StationsSettingsPage() {
       kitchenPrintEnabled={tenant.kitchenPrintEnabled}
       barPrintEnabled={tenant.barPrintEnabled}
       printPaperWidthMm={tenant.printPaperWidthMm as 58 | 80}
+      kitchenAutoFire={tenant.kitchenAutoFire}
+      barAutoFire={tenant.barAutoFire}
       menus={menus}
       categories={categories.map((c) => ({
         id: c.id,

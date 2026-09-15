@@ -18,6 +18,8 @@ import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
+import { autoFireRoundInTx } from "@/lib/kds/autoFire";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import {
   computeSelectionsPriceDelta,
   normalizeModifiers,
@@ -186,7 +188,7 @@ async function POSTHandler(
       const previous = await tx.payment.findUnique({ where: { requestKey }, include: { order: true } });
       if (previous) {
         if (previous.amountCents !== subtotalCents) throw new Error("operation_conflict");
-        return { order: previous.order, payment: previous, created: false };
+        return { order: previous.order, payment: previous, created: false, fired: [] };
       }
     }
     // Prepaid: the bill is closed at creation (status=paid, paidAt=now) so
@@ -268,6 +270,13 @@ async function POSTHandler(
       });
     }
 
+    // Marchado automático (ver /orders): sólo si la ronda ya nació "placed"
+    // (pago demo, aprobado en el acto). Con Kushki la ronda espera "open"
+    // hasta que el cobro se apruebe y se marcha en activateOpenRounds.
+    const fired = isKushki
+      ? []
+      : await autoFireRoundInTx(tx, { roundId: round.id, flags: tenant, now });
+
     const payment = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -279,7 +288,7 @@ async function POSTHandler(
       },
     });
 
-    return { order, payment, created: true };
+    return { order, payment, created: true, round, fired };
   });
   await grantGuestAccess({ restaurantId: tenant.id, orderId: result.order.id });
   if (isKushki && result.created && provider && privateKey && parsed.data.token) {
@@ -311,8 +320,17 @@ async function POSTHandler(
     orderId: result.order.id,
   });
 
-  // No more arrival-print for bar — pickup tickets print when somebody
-  // taps "Empezar" at the station (see operator/order-items PATCH).
+  // Pickup tickets print when somebody taps "Empezar" at the station (see
+  // operator/order-items PATCH) — or right now, if the station auto-fires
+  // and this round was born "placed". A Kushki round gets here already
+  // handled by the webhook path (activateOpenRounds), so `fired` is empty.
+  if (result.round && result.fired.length > 0) {
+    await notifyAutoFiredTickets({
+      restaurantId: tenant.id,
+      orderId: result.order.id,
+      rounds: [{ roundId: result.round.id, groups: result.fired }],
+    });
+  }
 
   if (diner) {
     welcomeIfFirstTime(diner.id, result.order.locale).catch((err) =>

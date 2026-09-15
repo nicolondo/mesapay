@@ -8,6 +8,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueRequestedInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
@@ -131,17 +132,23 @@ async function POSTHandler(
     const totals = await recomputeOrderTotalsInTx(tx, payment.orderId);
 
     // Counter-mode prepay rounds stay "open" until cash is settled — release
-    // them to the kitchen the moment the operator confirms payment.
-    if (totals.fullyPaid) {
-      await activateOpenRounds(tx, payment.orderId);
-    }
+    // them to the kitchen the moment the operator confirms payment. Si la
+    // estación marcha sola, `fired` trae qué imprimir después de la tx.
+    const fired = totals.fullyPaid
+      ? await activateOpenRounds(tx, payment.orderId)
+      : [];
 
-    return { payment: updatedPayment, fullyPaid: totals.fullyPaid };
+    return { payment: updatedPayment, fullyPaid: totals.fullyPaid, fired };
   });
 
   publishOrderEvent(payment.order.restaurantId, {
     type: result.fullyPaid ? "order.paid" : "order.updated",
     orderId: payment.orderId,
+  });
+  await notifyAutoFiredTickets({
+    restaurantId: payment.order.restaurantId,
+    orderId: payment.orderId,
+    rounds: result.fired,
   });
 
   if (result.fullyPaid && payment.order.dinerId) {

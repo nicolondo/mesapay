@@ -1917,6 +1917,8 @@
     "printKitchenHelp": "Imprime ao passar de “A preparar” para “Na cozinha”.",
     "printBarLabel": "Bar",
     "printBarHelp": "Imprime ao passar de “A preparar” para “Em preparo”. A contagem regressiva do prato começa ao mesmo tempo.",
+    "autoFireLabel": "Marchar automaticamente quando o pedido chega",
+    "autoFireHelp": "Os pedidos passam para “Preparando” sozinhos, sem tocar no painel. Se a impressão estiver ativa, a comanda sai na hora.",
     "paperWidthLabel": "Largura do papel",
     "paperWidthHelp": "Mais comum na Colômbia: 80mm.",
     "paperWidth80": "80 mm",

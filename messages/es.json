@@ -883,6 +883,7 @@
     "footerHelp": "Si tienes dudas con tu cuenta, escríbele directamente a {brand}.",
     "sentBy": "Enviado por MESAPAY · Hecho en Colombia",
     "generatedBy": "Generado con MESAPAY",
+    "generatedByUrl": "mesapay.co",
     "metaTitleFallback": "Factura — MESAPAY",
     "print": "Imprimir",
     "dianFiscalTitle": "Factura electrónica de venta",

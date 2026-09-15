@@ -316,6 +316,13 @@ export default async function FacturaPage({
             <span style={{ fontSize: "9px", opacity: 0.6 }}>
               {t("generatedBy")}
             </span>
+            <br />
+            {/* El dominio va en su propio renglón y un poco menos tenue que
+                la línea de arriba: en una térmica, 9px al 60% se pierde, y
+                esto es justamente lo que alguien podría querer teclear. */}
+            <span style={{ fontSize: "9px", opacity: 0.8 }}>
+              {t("generatedByUrl")}
+            </span>
           </div>
         </article>
       </div>

@@ -11,7 +11,12 @@ import { lockOrder } from "../src/lib/orderLock";
 
 // Keep external side effects out of a real PostgreSQL transaction test.
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
-vi.mock("@/lib/invoiceOnPaid", () => ({ issueRequestedInvoiceOnPaid: vi.fn() }));
+// El helper se llama tras cada cobro que deja la orden pagada; acá se
+// mockea porque estos tests miden invariantes de pago, no facturación.
+// OJO: el nombre tiene que ser el export REAL — un mock con un nombre
+// viejo hace que vitest lance al primer uso y el webhook lo reporte
+// como `webhook_processing_failed` (fue lo que tumbó CI en #445).
+vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: vi.fn(async () => ({ status: "skipped", reason: "mocked" })) }));
 
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 if (!["127.0.0.1", "localhost"].includes(url.hostname) || !/^\/mesapay_.*(?:test|validation)$/.test(url.pathname)) {

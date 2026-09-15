@@ -2,17 +2,24 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import { fmtCOP, formatDate } from "@/lib/format";
+import type { Locale } from "@/i18n/config";
 
 // Estado DIAN por factura. `simpleInvoiceId` null ⇒ el cliente aún no
 // generó la tirilla electrónica de la orden (no hay nada que emitir).
 // `state` null ⇒ hay tirilla pero nunca se emitió a la DIAN.
 type DianInfo = {
   simpleInvoiceId: string | null;
+  /** DianDocument.id — lo que necesita el reenvío del correo. */
+  documentId: string | null;
   state: string | null;
   cufe: string | null;
   errors: string[];
+  /** Último envío de la factura electrónica al adquiriente. null ⇒ nunca. */
+  emailedAt: string | null;
+  /** A qué correo saldría (misma precedencia que el envío). null ⇒ nadie. */
+  emailTo: string | null;
 };
 
 type Req = {
@@ -323,13 +330,14 @@ function GeneratedCard({
  * la orden (dian.simpleInvoiceId):
  *   - sin tirilla generada ⇒ nota "el cliente aún no generó la factura".
  *   - sin documento o en error/rejected ⇒ botón Emitir / Reintentar.
- *   - accepted ⇒ badge verde + CUFE copiable.
+ *   - accepted ⇒ badge verde + CUFE copiable + envío/reenvío por correo.
  * El estado se refresca localmente tras el POST (router.refresh reevalúa
  * el server component, pero mantenemos el resultado optimista para el
  * feedback inmediato del CUFE/errores).
  */
 function DianBlock({ dian }: { dian: DianInfo }) {
   const t = useTranslations("opFacturas");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [, startTx] = useTransition();
   const [emitting, setEmitting] = useState(false);
@@ -337,6 +345,15 @@ function DianBlock({ dian }: { dian: DianInfo }) {
   const [cufe, setCufe] = useState<string | null>(dian.cufe);
   const [errors, setErrors] = useState<string[]>(dian.errors);
   const [copied, setCopied] = useState(false);
+  // Correo de la factura electrónica al adquiriente. `emailedAt` empieza
+  // en lo que trajo el servidor y lo pisa el resultado del reenvío: es lo
+  // que decide si el botón dice "Enviar" o "Reenviar".
+  const [emailing, setEmailing] = useState(false);
+  const [emailedAt, setEmailedAt] = useState<string | null>(dian.emailedAt);
+  const [emailMsg, setEmailMsg] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const inFlight =
     state === "to_send" || state === "sent" || state === "pending";
@@ -378,6 +395,62 @@ function DianBlock({ dian }: { dian: DianInfo }) {
     }
   }
 
+  /** Motivo del backend → texto. Códigos de `DianEmailFailure`. */
+  function emailFailureText(code: string | undefined): string {
+    switch (code) {
+      case "no_recipient":
+        return t("dianEmailNoRecipient");
+      case "not_accepted":
+        return t("dianEmailNotAccepted");
+      case "incomplete_document":
+        return t("dianEmailIncomplete");
+      case "no_config":
+        return t("dianEmailNoConfig");
+      default:
+        return t("dianEmailError");
+    }
+  }
+
+  /**
+   * Manda (o vuelve a mandar) la factura electrónica al adquiriente. El
+   * endpoint va con `force`, así que sirve tanto para la factura que nunca
+   * salió como para la que hay que reenviar.
+   */
+  async function resendEmail() {
+    if (!dian.documentId) return;
+    setEmailing(true);
+    setEmailMsg(null);
+    try {
+      const res = await fetch(
+        `/api/operator/dian/documents/${dian.documentId}/resend-email`,
+        { method: "POST" },
+      );
+      const data = (await res.json().catch(() => null)) as {
+        sentTo?: string;
+        emailedAt?: string;
+        attachment?: boolean;
+        error?: string;
+      } | null;
+      if (res.ok && data?.sentTo) {
+        setEmailedAt(data.emailedAt ?? new Date().toISOString());
+        setEmailMsg({
+          ok: true,
+          text:
+            data.attachment === false
+              ? t("dianEmailSentNoAttachment", { email: data.sentTo })
+              : t("dianEmailSent", { email: data.sentTo }),
+        });
+        startTx(() => router.refresh());
+      } else {
+        setEmailMsg({ ok: false, text: emailFailureText(data?.error) });
+      }
+    } catch {
+      setEmailMsg({ ok: false, text: t("dianEmailError") });
+    } finally {
+      setEmailing(false);
+    }
+  }
+
   function copyCufe() {
     if (!cufe) return;
     navigator.clipboard
@@ -413,7 +486,48 @@ function DianBlock({ dian }: { dian: DianInfo }) {
                 : t("dianEmit")}
           </button>
         )}
+
+        {/* Aceptada por la DIAN ⇒ se le puede mandar al adquiriente. Dos
+            situaciones distintas para el que mira la pantalla: nunca salió
+            (enviar) o ya salió y hay que repetirlo (reenviar). */}
+        {accepted && dian.documentId && (
+          <button
+            type="button"
+            onClick={resendEmail}
+            disabled={emailing}
+            className="mp-btn mp-btn--sm mp-btn--secondary"
+          >
+            {emailing
+              ? t("dianEmailSending")
+              : emailedAt
+                ? t("dianResendEmail")
+                : t("dianSendEmail")}
+          </button>
+        )}
       </div>
+
+      {accepted && dian.documentId && (
+        <p
+          className={
+            "mt-2 text-[11px] " +
+            (emailMsg && !emailMsg.ok
+              ? "text-danger"
+              : emailMsg
+                ? "text-ok"
+                : "text-op-muted")
+          }
+        >
+          {emailMsg
+            ? emailMsg.text
+            : emailedAt
+              ? t("dianEmailedAt", {
+                  date: formatDate(emailedAt, { locale }),
+                })
+              : dian.emailTo
+                ? t("dianEmailNeverSent", { email: dian.emailTo })
+                : t("dianEmailNoRecipient")}
+        </p>
+      )}
 
       {!dian.simpleInvoiceId && (
         <p className="mt-2 text-[11px] text-op-muted">{t("dianNoInvoiceYet")}</p>

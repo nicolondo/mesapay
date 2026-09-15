@@ -496,6 +496,26 @@ export class DianConfigError extends Error {
 }
 
 /**
+ * Sólo el AMBIENTE del emisor, sin tocar el certificado.
+ *
+ * `loadDianConfig` exige P12 + credenciales porque su caller va a FIRMAR.
+ * Reenviarle al adquiriente un documento que la DIAN YA aceptó no firma
+ * nada: sólo necesita saber contra qué catálogo se arma el enlace de
+ * validación del CUFE. Quedarse sin poder reenviar un correo porque venció
+ * el certificado sería absurdo, de ahí esta puerta aparte.
+ *
+ * null ⇒ el comercio no tiene configuración DIAN.
+ */
+export async function dianEnvironment(
+  restaurantId: string,
+): Promise<"habilitacion" | "produccion" | null> {
+  const emisor = await resolveEmisor(restaurantId);
+  const config = emisor ? await findConfig(emisor.ref) : null;
+  if (!config) return null;
+  return config.environment as "habilitacion" | "produccion";
+}
+
+/**
  * Carga la config DESCIFRADA para firmar/enviar (solo server-side).
  * Lanza DianConfigError si falta algo — nunca devuelve secretos parciales.
  */

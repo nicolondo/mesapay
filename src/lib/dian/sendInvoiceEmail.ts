@@ -1,10 +1,14 @@
-// Envío AUTOMÁTICO de la factura electrónica al adquiriente.
+// Envío de la factura electrónica al adquiriente.
 //
-// Se dispara desde los DOS caminos por los que puede llegar la aceptación
-// de la DIAN: la respuesta síncrona de `SendBillSync` (emit) y la consulta
-// diferida de `GetStatusZip` (status). La DIAN valida asíncrono, así que
-// cualquiera de los dos puede ser el primero en enterarse — y por eso el
-// envío es idempotente por `DianDocument.emailedAt`.
+// AUTOMÁTICO: se dispara desde los DOS caminos por los que puede llegar la
+// aceptación de la DIAN: la respuesta síncrona de `SendBillSync` (emit) y
+// la consulta diferida de `GetStatusZip` (status). La DIAN valida
+// asíncrono, así que cualquiera de los dos puede ser el primero en
+// enterarse — y por eso el envío es idempotente por `DianDocument.emailedAt`.
+//
+// MANUAL (`force: true`): el reenvío desde el panel. Ahí la idempotencia
+// sobra —es justamente lo que hay que saltarse— y el operador es el que
+// decide cuándo vuelve a salir el correo.
 //
 // Contrato, igual que `invoiceOnPaid.ts`: NUNCA lanza. Cuando esto corre la
 // factura YA está aceptada por la DIAN; un fallo de correo no puede tumbar
@@ -29,18 +33,60 @@ import {
   zipInvoice,
 } from "@/lib/dian/soap";
 
+/** Por qué NO salió el correo. Se devuelve y se escribe en `emailError`. */
+export type DianEmailFailure =
+  /** No existe el documento. */
+  | "not_found"
+  /** La DIAN todavía no lo aceptó: no hay documento fiscal que mandar. */
+  | "not_accepted"
+  /** Ya se mandó y no se pidió `force`. El camino automático sale por acá. */
+  | "already_emailed"
+  /** Aceptado pero sin tirilla enlazada o sin CUFE: no se puede armar nada. */
+  | "incomplete_document"
+  /** Nadie pidió factura en esa cuenta — no hay a quién mandarle. */
+  | "no_recipient"
+  /** El correo se intentó y el proveedor lo rechazó. */
+  | "send_failed";
+
+export type DianEmailOutcome =
+  | {
+      ok: true;
+      /** A qué correo salió. */
+      to: string;
+      /** Momento del envío, ISO — lo que quedó en `emailedAt`. */
+      emailedAt: string;
+      /** false ⇒ salió sin el AttachedDocument (ver `buildAttachment`). */
+      attachment: boolean;
+    }
+  | { ok: false; reason: DianEmailFailure };
+
 /**
  * Manda la factura electrónica (AttachedDocument) al adquiriente.
  *
- * Idempotente: el envío se RECLAMA con un `updateMany` acotado a
- * `emailedAt: null`, así que si los dos rieles corren a la vez sólo uno
- * manda. Si el envío falla se libera la marca para poder reintentar.
+ * Idempotente por defecto: el envío se RECLAMA con un `updateMany` acotado
+ * a `emailedAt: null`, así que si los dos rieles de la aceptación corren a
+ * la vez sólo uno manda. Si el envío falla se libera la marca para poder
+ * reintentar.
+ *
+ * Con `force` —el reenvío manual— el reclamo deja de filtrar por
+ * `emailedAt: null` y el documento vuelve a salir aunque ya se haya
+ * mandado. Es el ÚNICO efecto de la opción: el resto de los guardarraíles
+ * (aceptado, con CUFE, con destinatario) siguen igual, y el camino
+ * automático, que nunca la pasa, conserva su idempotencia intacta.
  */
 export async function sendDianInvoiceEmail(opts: {
   documentId: string;
   /** Ambiente del emisor — decide contra qué catálogo DIAN se valida. */
   environment: "habilitacion" | "produccion";
-}): Promise<void> {
+  /** Reenvío manual: manda aunque `emailedAt` ya tenga valor. */
+  force?: boolean;
+}): Promise<DianEmailOutcome> {
+  // Lo que había ANTES de reclamar. Si el envío falla se restaura tal cual:
+  // en el camino automático siempre es null (idéntico a como estaba), y en
+  // un reenvío fallido no se borra la constancia del envío anterior.
+  let previousEmailedAt: Date | null = null;
+  // La marca que escribimos nosotros, para poder revertir SOLO la nuestra.
+  let claimedAt: Date | null = null;
   try {
     const doc = await db.dianDocument.findUnique({
       where: { id: opts.documentId },
@@ -71,11 +117,18 @@ export async function sendDianInvoiceEmail(opts: {
         },
       },
     });
-    // Guardarraíles: sólo sale lo ACEPTADO y sólo una vez. El estado se
-    // vuelve a mirar acá (no sólo en el caller) justamente porque son dos
-    // rieles distintos los que llaman.
-    if (!doc || doc.state !== "accepted" || doc.emailedAt) return;
-    if (!doc.simpleInvoice || !doc.cufe) return;
+    // Guardarraíles: sólo sale lo ACEPTADO y —salvo reenvío— sólo una vez.
+    // El estado se vuelve a mirar acá (no sólo en el caller) justamente
+    // porque son varios los rieles que llaman.
+    if (!doc) return { ok: false, reason: "not_found" };
+    if (doc.state !== "accepted") return { ok: false, reason: "not_accepted" };
+    if (doc.emailedAt && !opts.force) {
+      return { ok: false, reason: "already_emailed" };
+    }
+    if (!doc.simpleInvoice || !doc.cufe) {
+      return { ok: false, reason: "incomplete_document" };
+    }
+    previousEmailedAt = doc.emailedAt;
     const inv = doc.simpleInvoice;
 
     // La personalizada manda sobre la genérica (mismo criterio que
@@ -99,15 +152,19 @@ export async function sendDianInvoiceEmail(opts: {
         data: { emailError: "no_recipient" },
       });
       console.log("[dian-email] sin destinatario", { documentId: doc.id });
-      return;
+      return { ok: false, reason: "no_recipient" };
     }
 
     // Reclamo del envío ANTES de mandar: el que pierde la carrera sale acá.
+    // El reenvío manual NO filtra por `emailedAt: null` — ahí no hay
+    // carrera que ganar, hay un operador pidiendo que vuelva a salir.
+    const at = new Date();
     const claimed = await db.dianDocument.updateMany({
-      where: { id: doc.id, emailedAt: null },
-      data: { emailedAt: new Date(), emailError: null },
+      where: { id: doc.id, ...(opts.force ? {} : { emailedAt: null }) },
+      data: { emailedAt: at, emailError: null },
     });
-    if (claimed.count === 0) return;
+    if (claimed.count === 0) return { ok: false, reason: "already_emailed" };
+    claimedAt = at;
 
     const snap = inv.snapshot as unknown as InvoiceSnapshot;
     const invoiceNumber = formatInvoiceNumber(snap, inv.invoiceNumber);
@@ -156,13 +213,14 @@ export async function sendDianInvoiceEmail(opts: {
       ...(attachment && { attachments: [attachment] }),
     });
     if (!ok) {
-      // Se libera la marca: el documento queda otra vez enviable y el
-      // motivo queda escrito.
+      // Se revierte el reclamo: el documento queda otra vez enviable y el
+      // motivo queda escrito. En un reenvío fallido vuelve la marca del
+      // envío ANTERIOR, que sigue siendo cierta.
       await db.dianDocument.update({
         where: { id: doc.id },
-        data: { emailedAt: null, emailError: "send_failed" },
+        data: { emailedAt: previousEmailedAt, emailError: "send_failed" },
       });
-      return;
+      return { ok: false, reason: "send_failed" };
     }
     if (!attachment) {
       // El correo salió igual (número, CUFE, total y enlace a la
@@ -173,19 +231,24 @@ export async function sendDianInvoiceEmail(opts: {
         data: { emailError: "attachment_unavailable" },
       });
     }
+    return { ok: true, to, emailedAt: at.toISOString(), attachment: !!attachment };
   } catch (err) {
     console.error("[dian-email] no se pudo enviar la factura electrónica", {
       documentId: opts.documentId,
       err,
     });
     // Best-effort del best-effort: si el reclamo alcanzó a escribirse, se
-    // libera para que un reintento pueda mandarla.
-    await db.dianDocument
-      .updateMany({
-        where: { id: opts.documentId, emailedAt: { not: null } },
-        data: { emailedAt: null, emailError: "send_failed" },
-      })
-      .catch(() => undefined);
+    // revierte para que un reintento pueda mandarla. El `where` apunta a
+    // NUESTRA marca: si alguien más reclamó después, no se le pisa.
+    if (claimedAt) {
+      await db.dianDocument
+        .updateMany({
+          where: { id: opts.documentId, emailedAt: claimedAt },
+          data: { emailedAt: previousEmailedAt, emailError: "send_failed" },
+        })
+        .catch(() => undefined);
+    }
+    return { ok: false, reason: "send_failed" };
   }
 }
 

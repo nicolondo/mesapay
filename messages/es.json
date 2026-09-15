@@ -2733,7 +2733,19 @@
     "dianCopyCufe": "Copiar CUFE",
     "dianCufeCopied": "CUFE copiado",
     "dianErrorsTitle": "Ver detalle del rechazo",
-    "dianErrorGeneric": "No se pudo emitir la factura. Inténtalo de nuevo."
+    "dianErrorGeneric": "No se pudo emitir la factura. Inténtalo de nuevo.",
+    "dianSendEmail": "Enviar por correo",
+    "dianResendEmail": "Reenviar por correo",
+    "dianEmailSending": "Enviando…",
+    "dianEmailedAt": "Enviada al cliente el {date}.",
+    "dianEmailNeverSent": "Todavía no se le ha enviado al cliente. Saldría a {email}.",
+    "dianEmailSent": "Enviada a {email} ✓",
+    "dianEmailSentNoAttachment": "Enviada a {email}, pero sin el archivo XML adjunto.",
+    "dianEmailNoRecipient": "Nadie pidió factura en esta cuenta: no hay correo al cual enviarla.",
+    "dianEmailNotAccepted": "La DIAN todavía no ha aceptado esta factura.",
+    "dianEmailIncomplete": "A esta factura le faltan datos para poder enviarla.",
+    "dianEmailNoConfig": "El comercio no tiene configurada la facturación electrónica.",
+    "dianEmailError": "No se pudo enviar el correo. Inténtalo de nuevo."
   },
   "opWallet": {
     "noRestaurant": "Sin restaurante.",

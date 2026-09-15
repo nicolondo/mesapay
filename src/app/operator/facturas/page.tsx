@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
+import { resolveDianRecipient } from "@/lib/dian/invoiceEmail";
 import { FacturasClient } from "./FacturasClient";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,29 @@ const orderInclude = {
     shortCode: true,
     totalCents: true,
     paidAt: true,
+    // Las tres fuentes del destinatario de la factura electrónica, para
+    // poder mostrar a qué correo saldría el reenvío ANTES de apretar el
+    // botón. Mismo orden de precedencia que `resolveDianRecipient`, y la
+    // misma solicitud que mira el envío (la más reciente de la orden).
+    simpleInvoiceEmail: true,
+    invoiceRequests: {
+      orderBy: { createdAt: "desc" },
+      take: 1,
+      select: { email: true },
+    },
     simpleInvoice: {
       select: {
         id: true,
-        dianDocument: { select: { state: true, cufe: true, errors: true } },
+        email: true,
+        dianDocument: {
+          select: {
+            id: true,
+            state: true,
+            cufe: true,
+            errors: true,
+            emailedAt: true,
+          },
+        },
       },
     },
   },
@@ -29,12 +49,17 @@ type OrderWithInvoice = {
   shortCode: string;
   totalCents: number;
   paidAt: Date | null;
+  simpleInvoiceEmail: string | null;
+  invoiceRequests: { email: string }[];
   simpleInvoice: {
     id: string;
+    email: string | null;
     dianDocument: {
+      id: string;
       state: string;
       cufe: string | null;
       errors: unknown;
+      emailedAt: Date | null;
     } | null;
   } | null;
 };
@@ -45,11 +70,18 @@ function toDian(order: OrderWithInvoice, einvoicingOn: boolean) {
   const doc = inv?.dianDocument ?? null;
   return {
     simpleInvoiceId: inv?.id ?? null,
+    documentId: doc?.id ?? null,
     state: doc?.state ?? null,
     cufe: doc?.cufe ?? null,
     errors: Array.isArray(doc?.errors)
       ? (doc.errors as unknown[]).filter((e): e is string => typeof e === "string")
       : [],
+    emailedAt: doc?.emailedAt?.toISOString() ?? null,
+    emailTo: resolveDianRecipient({
+      invoiceRequestEmail: order.invoiceRequests[0]?.email,
+      simpleInvoiceEmail: inv?.email,
+      orderSimpleInvoiceEmail: order.simpleInvoiceEmail,
+    }),
   };
 }
 

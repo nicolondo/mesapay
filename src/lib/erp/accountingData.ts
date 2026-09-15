@@ -11,8 +11,10 @@ import {
   type LaborSummary,
   type Pnl,
   type SalesTaxKind,
+  type SalesTaxSlice,
   type TaxSummary,
 } from "@/lib/erp/accounting";
+import { frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
 import { lineTaxCents } from "@/lib/erp/purchaseTax";
 import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { grossQty } from "@/lib/erp/recipes";
@@ -302,22 +304,57 @@ export async function computeMonthPnl(
 
 /**
  * Resumen de impuestos del mes (ERP A3) para la contabilidad y el reporte al
- * contador. Ventas: impuesto (INC/IVA) EMBEBIDO en los subtotales pagados,
- * según la config del comercio. Compras: IVA desde el taxPct de las líneas
- * recibidas + INC/retenciones capturados a nivel factura en la OC.
+ * contador. Compras: IVA desde el taxPct de las líneas recibidas +
+ * INC/retenciones capturados a nivel factura en la OC.
+ *
+ * Lado ventas, el impuesto embebido sale de lo FACTURADO: cada
+ * `SimpleInvoice` congeló en su snapshot la tarifa vigente al emitirla y
+ * el impuesto/base que declaró (ver `InvoiceSnapshot.embeddedTaxCents`),
+ * y acá se suma eso agrupado por tarifa. Antes era "tarifa de HOY ×
+ * ventas del mes": prender INC a mitad de septiembre recalculaba
+ * septiembre entero con impuesto —incluidas facturas ya aceptadas por la
+ * DIAN con impuesto cero— y los libros decían una cosa y las facturas
+ * otra. Ahora prender el impuesto no toca nada emitido antes.
+ *
+ * El mes se corta por `Order.paidAt`, la misma fecha del libro de ventas
+ * (`loadSalesBook`) y del asiento, para que impuesto y bruto caigan en el
+ * mismo período aunque la tirilla se haya numerado después.
+ *
+ * Criterios documentados:
+ *   · Snapshot sin tarifa (anterior a congelarla) ⇒ tramo "none", cero
+ *     impuesto: es la verdad de cómo se emitió y así lo declaró el XML.
+ *   · Ventas pagadas SIN factura (comercio sin facturación electrónica,
+ *     o cuentas que nunca la generaron) siguen como hasta hoy: tarifa
+ *     actual del comercio × su subtotal. No hay documento que las
+ *     congele, y es lo que el contador venía recibiendo.
  */
 export async function computeTaxSummary(
   restaurantId: string,
   range: MonthRange,
 ): Promise<TaxSummary> {
-  const [tenant, sales, poItems, poHeaders] = await Promise.all([
+  const paidInMonth = {
+    status: "paid" as const,
+    paidAt: { gte: range.from, lt: range.to },
+  };
+  const [tenant, sales, uninvoiced, invoices, poItems, poHeaders] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { salesTaxKind: true, salesTaxPct: true },
     }),
     db.order.aggregate({
-      where: { restaurantId, status: "paid", paidAt: { gte: range.from, lt: range.to } },
+      where: { restaurantId, ...paidInMonth },
       _sum: { subtotalCents: true },
+    }),
+    // Ventas del mes que no tienen factura: siguen con la tarifa actual.
+    db.order.aggregate({
+      where: { restaurantId, ...paidInMonth, simpleInvoice: null },
+      _sum: { subtotalCents: true },
+    }),
+    // Facturas del mes: lo que cada una congeló. El snapshot es JSON, así
+    // que se agrupa en memoria (una fila por venta facturada del mes).
+    db.simpleInvoice.findMany({
+      where: { restaurantId, order: paidInMonth },
+      select: { snapshot: true },
     }),
     // IVA de compras: por línea recibida en el mes, taxPct × neto recibido.
     db.purchaseOrderItem.findMany({
@@ -341,10 +378,51 @@ export async function computeTaxSummary(
     }),
   ]);
 
-  const kind = (tenant?.salesTaxKind ?? "none") as SalesTaxKind;
-  const pct = tenant?.salesTaxPct ?? 0;
+  const current = {
+    kind: (tenant?.salesTaxKind ?? "none") as SalesTaxKind,
+    pct: tenant?.salesTaxPct ?? 0,
+  };
+  if (current.kind === "none") current.pct = 0;
+
+  // Tramos por tarifa: (tipo, %) → acumulado.
+  const slices = new Map<string, SalesTaxSlice>();
+  const add = (kind: SalesTaxKind, pct: number, grossCents: number, taxCents: number) => {
+    const key = `${kind}:${pct}`;
+    const s = slices.get(key) ?? { kind, pct, grossCents: 0, taxCents: 0, baseCents: 0 };
+    s.grossCents += grossCents;
+    s.taxCents += taxCents;
+    s.baseCents = s.grossCents - s.taxCents;
+    slices.set(key, s);
+  };
+  for (const inv of invoices) {
+    const snap = inv.snapshot as unknown as InvoiceSnapshot;
+    const frozen = frozenSalesTax(snap);
+    const taxCents = frozen.kind === "none" ? 0 : (snap.embeddedTaxCents ?? 0);
+    // Bruto del tramo: los platos del menú (base + impuesto) cuando el
+    // snapshot lo congeló; para los viejos, el subtotal entero, que es lo
+    // que el cálculo anterior tomaba como bruto.
+    const grossCents =
+      snap.embeddedBaseCents != null
+        ? snap.embeddedBaseCents + taxCents
+        : snap.subtotalCents;
+    add(frozen.kind, frozen.pct, grossCents, taxCents);
+  }
+  const uninvoicedGross = uninvoiced._sum.subtotalCents ?? 0;
+  if (uninvoicedGross > 0) {
+    add(
+      current.kind,
+      current.pct,
+      uninvoicedGross,
+      current.kind === "none" ? 0 : embeddedTaxCents(uninvoicedGross, current.pct),
+    );
+  }
+
+  const byRate = [...slices.values()]
+    .filter((s) => s.kind !== "none" && s.taxCents > 0)
+    .sort((a, b) => b.taxCents - a.taxCents);
   const grossCents = sales._sum.subtotalCents ?? 0;
-  const salesTaxCents = kind === "none" ? 0 : embeddedTaxCents(grossCents, pct);
+  const salesTaxCents = byRate.reduce((s, r) => s + r.taxCents, 0);
+  const label = byRate[0] ?? current;
 
   const ivaCents = poItems.reduce(
     (s, it) => s + lineTaxCents(it.receivedCostCents, it.taxPct),
@@ -353,11 +431,12 @@ export async function computeTaxSummary(
 
   return {
     sales: {
-      kind,
-      pct,
+      kind: label.kind,
+      pct: label.pct,
       grossCents,
       taxCents: salesTaxCents,
       baseCents: grossCents - salesTaxCents,
+      byRate,
     },
     purchases: {
       ivaCents,

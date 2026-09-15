@@ -38,17 +38,42 @@ export function embeddedTaxCents(grossCents: number, pct: number): number {
   return Math.round((grossCents * pct) / (100 + pct));
 }
 
+/**
+ * Un tramo del impuesto de ventas del mes: una tarifa (tipo + %) y lo que
+ * causó. Un mes normal tiene un solo tramo; si el comercio cambió de
+ * tarifa a mitad de mes hay dos, y el asiento tiene que poder llevar los
+ * dos códigos (241205 para INC, el auxiliar por tarifa para IVA).
+ */
+export type SalesTaxSlice = {
+  kind: SalesTaxKind;
+  pct: number;
+  /** Σ bruto de las ventas de este tramo (el precio ya incluye el impuesto). */
+  grossCents: number;
+  /** Impuesto embebido causado en este tramo. */
+  taxCents: number;
+  /** Base gravable = grossCents − taxCents. */
+  baseCents: number;
+};
+
 /** Resumen de impuestos del mes: causados en ventas + pagados en compras. */
 export type TaxSummary = {
   sales: {
+    /**
+     * Régimen con el que se ETIQUETA el mes: el del tramo que más impuesto
+     * causó, o la configuración actual del comercio si ningún tramo causó
+     * (así "none" sigue significando "sin impuesto configurado"). Para
+     * contabilizar NO se usa esto sino `byRate`.
+     */
     kind: SalesTaxKind;
     pct: number;
     /** Σ subtotales de órdenes pagadas (el precio ya incluye el impuesto). */
     grossCents: number;
-    /** Componente de impuesto embebido (INC o IVA) causado en ventas. */
+    /** Impuesto embebido (INC + IVA) causado en ventas: Σ de `byRate`. */
     taxCents: number;
     /** Base gravable = grossCents − taxCents. */
     baseCents: number;
+    /** Tramos con impuesto (kind ≠ none y taxCents > 0), de mayor a menor. */
+    byRate: SalesTaxSlice[];
   };
   purchases: {
     /** IVA pagado en compras (Σ por línea desde taxPct). */

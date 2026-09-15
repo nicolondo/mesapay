@@ -43,7 +43,11 @@ import {
   RETRYABLE_STATES,
 } from "@/lib/dian/retry";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
-import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import {
+  formatInvoiceNumber,
+  frozenSalesTax,
+  type InvoiceSnapshot,
+} from "@/lib/invoice";
 
 /**
  * Por qué NO se envió. Los cinco primeros son `DianConfigError.code`
@@ -145,11 +149,21 @@ export async function emitDianInvoice(opts: {
       restaurantId: true,
       invoiceNumber: true,
       snapshot: true,
-      restaurant: { select: { salesTaxKind: true, salesTaxPct: true } },
+      // La tarifa del impuesto NO se lee del comercio: va congelada en el
+      // snapshot (`frozenSalesTax`). Ver abajo.
       order: {
         select: {
           id: true,
+          // Mismos ítems VIVOS que la tirilla (`issueSimpleInvoice`): sin
+          // cancelar Y sin ronda cancelada. Cancelar una ronda no marca
+          // `cancelledAt` en sus platos, así que filtrar sólo por eso
+          // metía al XML platos que el subtotal y el papel ya no cobran —
+          // y la DIAN aceptaba un total distinto del pagado.
           items: {
+            where: {
+              cancelledAt: null,
+              OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+            },
             select: {
               nameSnapshot: true,
               qty: true,
@@ -251,12 +265,12 @@ export async function emitDianInvoice(opts: {
   const issueDate = now.toISOString().slice(0, 10);
   const env: "1" | "2" = config.environment === "produccion" ? "1" : "2";
 
-  // Impuesto real: el del comercio para los platos (embebido) y el
-  // propio de cada línea libre (sumado encima) — ver salesTax.ts.
-  const lines = orderToInvoiceLines(inv.order.items, {
-    kind: inv.restaurant.salesTaxKind as "none" | "inc" | "iva",
-    pct: inv.restaurant.salesTaxPct,
-  });
+  // Impuesto real: para los platos del menú, la tarifa CONGELADA en la
+  // tirilla al emitirla (no la del comercio hoy: el XML tiene que decir
+  // lo mismo que el papel, y un reintento días después no puede cambiar
+  // lo declarado); para cada línea libre, el suyo, sumado encima — ver
+  // salesTax.ts. Snapshot viejo sin tarifa ⇒ sin impuesto embebido.
+  const lines = orderToInvoiceLines(inv.order.items, frozenSalesTax(snap));
   if (lines.length === 0) return blocked("no_lines");
 
   const input: DianInvoiceInput = {

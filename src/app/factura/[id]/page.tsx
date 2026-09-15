@@ -8,6 +8,7 @@ import { fmtCOP, localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
+  taxLabelsFrom,
   taxRows,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
@@ -221,14 +222,12 @@ export default async function FacturaPage({
               <span>{t("subtotal")}</span>
               <span className="right">{fmtCOP(snap.subtotalCents)}</span>
             </div>
-            {/* Impuesto sumado encima por las líneas libres (servicios,
-                alquileres). En una cuenta sólo de menú no hay filas: ahí el
-                impuesto va embebido en el precio de cada plato. */}
-            {taxRows(snap, {
-              inc: t("taxInc"),
-              iva: t("taxIva"),
-              other: t("tax"),
-            }).map((r) => (
+            {/* Primero el impuesto EMBEBIDO en los platos (base gravable +
+                "Incl. impoconsumo 8%", informativo: ya está dentro del
+                subtotal) tal como quedó congelado en la factura; después el
+                que suman encima las líneas libres (servicios, alquileres).
+                Sin ninguno de los dos no hay filas. */}
+            {taxRows(snap, taxLabelsFrom(t)).map((r) => (
               <div className="row" key={r.label}>
                 <span>{r.label}</span>
                 <span className="right">{fmtCOP(r.cents)}</span>

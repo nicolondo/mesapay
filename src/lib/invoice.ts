@@ -51,6 +51,22 @@ export type InvoiceSnapshot = {
    */
   taxCents?: number;
   taxByKind?: { inc: number; iva: number };
+  /**
+   * Impuesto EMBEBIDO de los platos del menú, CONGELADO con la tarifa del
+   * comercio vigente al emitir. Es lo que declara el XML a la DIAN y lo que
+   * suma la contabilidad: cambiar la tarifa del comercio después no toca
+   * esta factura. `embeddedBaseCents` = Σ bruto de los platos − impuesto
+   * (mismo reparto por línea que el XML, ver `dian/emit.embeddedMenuTax`).
+   *
+   * Opcionales: los snapshots anteriores a esto no los tienen y se leen
+   * como "sin impuesto embebido" — que es la verdad de cómo se emitieron
+   * (ver `frozenSalesTax`). `salesTaxKind: "none"` explícito también vale
+   * cero, pero deja constancia de que se emitió así a propósito.
+   */
+  salesTaxKind?: "none" | "inc" | "iva";
+  salesTaxPct?: number;
+  embeddedTaxCents?: number;
+  embeddedBaseCents?: number;
   // Descuento del comensal identificado. Opcional: las facturas emitidas
   // antes de esta feature no lo tienen y el renderer lo trata como 0.
   discountCents?: number;
@@ -70,22 +86,89 @@ export type InvoiceSnapshot = {
 };
 
 /**
- * Filas de impuesto que la tirilla muestra entre el subtotal y la propina.
+ * Tarifa CONGELADA en la factura: la que el comercio tenía al emitirla.
  *
- * Vacío en una cuenta sólo de menú: ahí el impuesto va EMBEBIDO en el precio y
- * ya está contado dentro del subtotal, así que una fila aparte haría parecer
- * que se cobra dos veces. Se desglosa por tipo porque el punto de las líneas
- * libres es justamente poder facturar un servicio con IVA en un restaurante
- * que cobra impoconsumo.
+ * Es lo que lee la emisión a la DIAN (`dian/emitInvoice`) en vez de
+ * `Restaurant.salesTaxKind/Pct`: así el XML y la tirilla salen de la misma
+ * cifra, y reintentar una emisión días después —o cambiar la tarifa del
+ * comercio— no cambia lo que se declara. Snapshot sin los campos ⇒ "none",
+ * NUNCA la tarifa actual del comercio: esas facturas se emitieron sin
+ * impuesto embebido y resucitar la tarifa de hoy sería volver a la
+ * retroactividad que esto elimina.
+ */
+export function frozenSalesTax(
+  snapshot: Pick<InvoiceSnapshot, "salesTaxKind" | "salesTaxPct">,
+): { kind: "none" | "inc" | "iva"; pct: number } {
+  const kind = snapshot.salesTaxKind ?? "none";
+  if (kind === "none") return { kind: "none", pct: 0 };
+  return { kind, pct: snapshot.salesTaxPct ?? 0 };
+}
+
+/**
+ * Impuesto embebido que la factura declara, o null si no lleva (comercio en
+ * "none" al emitir, cuenta sin platos del menú, o snapshot anterior a que
+ * se congelara). Con null las superficies no muestran nada: byte a byte
+ * como antes.
+ */
+export function embeddedTaxOf(
+  snapshot: InvoiceSnapshot,
+): { kind: "inc" | "iva"; pct: number; taxCents: number; baseCents: number } | null {
+  const { kind, pct } = frozenSalesTax(snapshot);
+  const taxCents = snapshot.embeddedTaxCents ?? 0;
+  if (kind === "none" || taxCents <= 0) return null;
+  return { kind, pct, taxCents, baseCents: snapshot.embeddedBaseCents ?? 0 };
+}
+
+/** Etiquetas ya traducidas para `taxRows` (ver ahí por qué no el translator). */
+export type TaxRowLabels = {
+  /** Impuesto que las líneas libres SUMAN encima, por tipo. */
+  inc: string;
+  iva: string;
+  /** Fila genérica para snapshots viejos con total pero sin desglose. */
+  other: string;
+  /** Base gravable de los platos del menú (bruto − impuesto embebido). */
+  base: string;
+  /** Impuesto EMBEBIDO en los platos, con su tarifa: "Incl. impoconsumo 8%". */
+  incIncluded: (pct: number) => string;
+  ivaIncluded: (pct: number) => string;
+};
+
+/**
+ * Filas de impuesto que la tirilla muestra debajo del subtotal.
+ *
+ * Dos cosas distintas, en este orden:
+ *
+ *   1. El impuesto EMBEBIDO en los platos del menú, congelado en el
+ *      snapshot (`embeddedTaxOf`): base gravable + "Incl. impoconsumo 8%".
+ *      Es informativo —ya está DENTRO del subtotal, no se suma al total—
+ *      y es la fila que exige discriminar el impuesto en la factura: el
+ *      XML aceptado por la DIAN lo declara, y el papel que ve el cliente
+ *      tiene que decir lo mismo. Sin impuesto embebido, ninguna fila.
+ *
+ *   2. El impuesto que las líneas libres SUMAN encima (`taxByKind`), que
+ *      sí entra al total. Se desglosa por tipo porque el punto de las
+ *      líneas libres es justamente poder facturar un servicio con IVA en
+ *      un restaurante que cobra impoconsumo.
  */
 export function taxRows(
   snapshot: InvoiceSnapshot,
   // Etiquetas ya traducidas en vez del translator: la tirilla impresa
   // (`/factura/[id]`, server component de next-intl) y el correo usan
   // traductores de tipos distintos, y así las dos comparten esta lógica.
-  labels: { inc: string; iva: string; other: string },
+  labels: TaxRowLabels,
 ): Array<{ label: string; cents: number }> {
   const rows: Array<{ label: string; cents: number }> = [];
+  const embedded = embeddedTaxOf(snapshot);
+  if (embedded) {
+    rows.push({ label: labels.base, cents: embedded.baseCents });
+    rows.push({
+      label:
+        embedded.kind === "inc"
+          ? labels.incIncluded(embedded.pct)
+          : labels.ivaIncluded(embedded.pct),
+      cents: embedded.taxCents,
+    });
+  }
   const inc = snapshot.taxByKind?.inc ?? 0;
   const iva = snapshot.taxByKind?.iva ?? 0;
   if (inc > 0) rows.push({ label: labels.inc, cents: inc });
@@ -93,15 +176,28 @@ export function taxRows(
   // Fallback: facturas viejas guardaron el total sin desglose. Se muestra lo
   // que falte como una fila genérica para que subtotal + impuesto + propina
   // siga sumando exactamente el total cobrado.
-  const listed = rows.reduce((s, r) => s + r.cents, 0);
+  const listed = inc + iva;
   const rest = (snapshot.taxCents ?? 0) - listed;
   if (rest > 0) rows.push({ label: labels.other, cents: rest });
   return rows;
 }
 
-/** Etiquetas de impuesto del catálogo `emailInvoice`, para `taxRows`. */
-function taxLabelsFrom(t: Translator) {
-  return { inc: t("taxInc"), iva: t("taxIva"), other: t("tax") };
+/**
+ * Etiquetas de impuesto del catálogo `emailInvoice`, para `taxRows`.
+ * Exportada porque la tirilla térmica, el datáfono y `/factura/[id]` arman
+ * las mismas seis etiquetas desde el mismo namespace.
+ */
+export function taxLabelsFrom(
+  t: (key: string, values?: Record<string, string | number>) => string,
+): TaxRowLabels {
+  return {
+    inc: t("taxInc"),
+    iva: t("taxIva"),
+    other: t("tax"),
+    base: t("taxBase"),
+    incIncluded: (pct) => t("taxIncIncluded", { pct }),
+    ivaIncluded: (pct) => t("taxIvaIncluded", { pct }),
+  };
 }
 
 /**

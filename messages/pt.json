@@ -5609,7 +5609,12 @@
     "contactEmailHint": "O mesmo registrado no seu RUT e no portal da DIAN para receber documentos e instrumentos eletrônicos. Se não coincidir, a DIAN rejeita a fatura.",
     "contactMissing": "Falta um dado obrigatório do emissor: {fields}. Sem ele a DIAN rejeita todos os documentos (regra FAJ71).",
     "habBlockedByContact": "Cadastre o e-mail para recebimento de documentos eletrônicos antes de rodar o conjunto de testes: a DIAN rejeitaria o documento.",
-    "errContactIncomplete": "Falta o e-mail do emissor para recebimento de documentos eletrônicos. Ele é cadastrado nesta mesma tela."
+    "errContactIncomplete": "Falta o e-mail do emissor para recebimento de documentos eletrônicos. Ele é cadastrado nesta mesma tela.",
+    "emisorSalesTax": "Imposto sobre vendas",
+    "salesTaxValue": "{kind} {pct}%",
+    "salesTaxEdit": "Configurar em Contabilidade",
+    "salesTaxNoneWarning": "Este estabelecimento está emitindo faturas SEM imposto sobre vendas: todas saem com imposto zero. Se for responsável pelo imposto sobre consumo, configure-o em Contabilidade antes de continuar faturando. Se não for responsável, está tudo certo assim.",
+    "salesTaxNoneWarningNoModule": "Este estabelecimento está emitindo faturas SEM imposto sobre vendas: todas saem com imposto zero. Se for responsável pelo imposto sobre consumo, peça que ativem o módulo de contabilidade para poder configurá-lo. Se não for responsável, está tudo certo assim."
   },
   "billAlert": {
     "kickerDiner": "Pediram a conta",

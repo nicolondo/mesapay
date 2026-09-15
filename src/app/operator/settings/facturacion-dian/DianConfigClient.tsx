@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -25,7 +26,12 @@ type DianStatus = {
   missingResolution: string[];
   missingLocation: string[];
   missingContact: string[];
+  /** Impuesto de ventas del comercio — se edita en Contabilidad, no acá. */
+  salesTaxKind: "none" | "inc" | "iva";
+  salesTaxPct: number;
   einvoicingEnabled: boolean;
+  /** Sin el módulo, /operator/contabilidad no existe: no hay a dónde enlazar. */
+  accountingEnabled: boolean;
 };
 
 type Emisor = {
@@ -71,6 +77,9 @@ type DianView = {
 
 export function DianConfigClient() {
   const t = useTranslations("opDian");
+  // Los nombres de los impuestos ya existen en Contabilidad; se reusan tal
+  // cual para que las dos pantallas no puedan decir cosas distintas.
+  const tErp = useTranslations("opErp");
   const locale = useLocale() as Locale;
 
   const [view, setView] = useState<DianView | null>(null);
@@ -143,7 +152,13 @@ export function DianConfigClient() {
       )}
 
       {/* Emisor (solo lectura) */}
-      <EmisorSection t={t} emisor={emisor} missing={status.missingEmisor} />
+      <EmisorSection
+        t={t}
+        tErp={tErp}
+        emisor={emisor}
+        status={status}
+        missing={status.missingEmisor}
+      />
 
       {/* Resolución de numeración — ÚNICA superficie de carga. */}
       <ResolutionSection
@@ -206,13 +221,25 @@ const EMISOR_LABEL_KEY: Record<string, string> = {
 
 function EmisorSection({
   t,
+  tErp,
   emisor,
+  status,
   missing,
 }: {
   t: ReturnType<typeof useTranslations>;
+  tErp: ReturnType<typeof useTranslations>;
   emisor: Emisor;
+  status: DianStatus;
   missing: string[];
 }) {
+  // El impuesto viaja en cada factura igual que la razón social o el NIT,
+  // así que se muestra con ellos. Sin impuesto configurado + facturación
+  // electrónica activa, TODO sale con impuesto en cero: eso se avisa, pero
+  // no se bloquea — hay comercios legítimamente no responsables y la DIAN
+  // acepta el documento igual (el problema es fiscal, del comercio).
+  const warnNoSalesTax =
+    status.salesTaxKind === "none" && status.einvoicingEnabled;
+
   return (
     <section className="rounded-2xl border border-op-border bg-op-surface p-5">
       <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-3">
@@ -223,6 +250,7 @@ function EmisorSection({
         <ReadonlyField label={t("emisorTaxId")} value={emisor?.taxId} t={t} />
         <ReadonlyField label={t("emisorAddress")} value={emisor?.addressLine} t={t} />
         <ReadonlyField label={t("emisorCity")} value={emisor?.cityLabel} t={t} />
+        <SalesTaxField t={t} tErp={tErp} status={status} />
       </dl>
       {missing.length > 0 && (
         <div className="mt-4">
@@ -236,7 +264,72 @@ function EmisorSection({
           <p className="text-[11px] text-op-muted mt-2">{t("emisorMissingHint")}</p>
         </div>
       )}
+      {warnNoSalesTax && (
+        <div className="mt-4">
+          <Banner tone="warning">
+            {status.accountingEnabled
+              ? t("salesTaxNoneWarning")
+              : t("salesTaxNoneWarningNoModule")}
+          </Banner>
+        </div>
+      )}
     </section>
+  );
+}
+
+/**
+ * Impuesto de ventas del comercio, SÓLO LECTURA.
+ *
+ * El editor vive únicamente en Contabilidad. Duplicarlo acá repetiría el
+ * error de la resolución de numeración, que estuvo editable en dos
+ * pantallas y dejó a este mismo comercio con un número en una y otro
+ * distinto en el XML. Acá va el valor y el camino a donde se edita.
+ *
+ * Sin el módulo de contabilidad esa pantalla hace notFound(), así que el
+ * enlace se omite: un enlace muerto es peor que no tenerlo (el aviso de
+ * arriba explica que hay que pedir que se lo activen).
+ */
+function SalesTaxField({
+  t,
+  tErp,
+  status,
+}: {
+  t: ReturnType<typeof useTranslations>;
+  tErp: ReturnType<typeof useTranslations>;
+  status: DianStatus;
+}) {
+  const kindLabel =
+    status.salesTaxKind === "inc"
+      ? tErp("taxKindInc")
+      : status.salesTaxKind === "iva"
+        ? tErp("taxKindIva")
+        : tErp("taxConfigNone");
+  const value =
+    status.salesTaxKind === "none"
+      ? kindLabel
+      : t("salesTaxValue", { kind: kindLabel, pct: status.salesTaxPct });
+
+  return (
+    <div>
+      <dt className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-0.5">
+        {t("emisorSalesTax")}
+      </dt>
+      <dd
+        className={
+          "text-sm " + (status.salesTaxKind === "none" ? "text-op-muted italic" : "")
+        }
+      >
+        {value}
+      </dd>
+      {status.accountingEnabled && (
+        <Link
+          href="/operator/contabilidad"
+          className="inline-block mt-0.5 text-[11px] text-terracotta underline"
+        >
+          {t("salesTaxEdit")}
+        </Link>
+      )}
+    </div>
   );
 }
 

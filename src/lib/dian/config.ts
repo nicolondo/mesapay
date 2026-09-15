@@ -12,6 +12,7 @@ import { decryptSecret, loadP12, type LoadedCert } from "@/lib/dian/crypto";
 import { computeNitDv } from "@/lib/erp/exogena";
 import { isModuleEnabled } from "@/lib/modules";
 import type { DianParty, DianResolution } from "@/lib/dian/ubl";
+import type { SalesTaxKind } from "@/lib/salesTax";
 
 export type EmisorRef =
   | { kind: "legalEntity"; id: string }
@@ -357,8 +358,23 @@ export type DianConfigStatus = {
   missingLocation: LocationField[];
   /** Correo de recepción de documentos electrónicos que falta (bloquea). */
   missingContact: ContactField[];
+  /**
+   * Impuesto de ventas del comercio (Restaurant.salesTaxKind/salesTaxPct).
+   * NO se edita acá — el editor vive sólo en Contabilidad — pero viaja en
+   * CADA factura: con "none" todo se emite con impuesto en cero. Son &
+   * Melona facturó así todo su arranque sin que nadie lo notara, porque el
+   * dato sólo era visible detrás del módulo de contabilidad.
+   */
+  salesTaxKind: SalesTaxKind;
+  salesTaxPct: number;
   /** ¿El módulo de facturación electrónica está activo para el comercio? */
   einvoicingEnabled: boolean;
+  /**
+   * ¿El módulo de contabilidad está activo? Sin él /operator/contabilidad
+   * hace notFound(), así que el aviso del impuesto no puede mandar al
+   * operador para allá: le toca pedir que se lo activen.
+   */
+  accountingEnabled: boolean;
 };
 
 /** Último documento enviado a la DIAN — para mostrar el resultado real. */
@@ -445,7 +461,7 @@ export async function dianConfigStatus(
   // certificado y la habilitación sólo aplican con el módulo activo.
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { enabledModules: true },
+    select: { enabledModules: true, salesTaxKind: true, salesTaxPct: true },
   });
   const now = Date.now();
   const status: DianConfigStatus = {
@@ -467,7 +483,10 @@ export async function dianConfigStatus(
     missingResolution: emisor ? missingResolutionFields(emisor) : [],
     missingLocation: emisor ? missingLocationFields(emisor) : [],
     missingContact: emisor ? missingContactFields(emisor) : [],
+    salesTaxKind: (tenant?.salesTaxKind ?? "none") as SalesTaxKind,
+    salesTaxPct: tenant?.salesTaxPct ?? 0,
     einvoicingEnabled: isModuleEnabled(tenant?.enabledModules, "einvoicing"),
+    accountingEnabled: isModuleEnabled(tenant?.enabledModules, "accounting"),
   };
   return { emisor, status };
 }

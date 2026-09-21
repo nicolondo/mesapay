@@ -86,7 +86,23 @@ async function GETHandler(
   if (!order || order.restaurantId !== ctx.restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  return NextResponse.json({ order });
+  // Nombre de la cuenta de origen de cada abono (caja, banco…) para el
+  // historial. Null en los abonos anteriores al campo: la UI cae en `method`.
+  const codes = [
+    ...new Set(order.payments.map((p) => p.accountCode).filter((c) => c != null)),
+  ];
+  const accountRows = codes.length
+    ? await db.ledgerAccount.findMany({
+        where: { restaurantId: ctx.restaurantId, code: { in: codes } },
+        select: { code: true, name: true },
+      })
+    : [];
+  const accountNames = new Map(accountRows.map((a) => [a.code, a.name]));
+  const payments = order.payments.map((p) => ({
+    ...p,
+    accountName: p.accountCode ? (accountNames.get(p.accountCode) ?? null) : null,
+  }));
+  return NextResponse.json({ order: { ...order, payments } });
 }
 
 async function PATCHHandler(

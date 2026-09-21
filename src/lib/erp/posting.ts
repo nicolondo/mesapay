@@ -18,6 +18,7 @@ import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
 import { depreciationForMonth } from "./activos";
 import { IVA_DESCONTABLE_CODE, ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
+import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 
 type Line = { code: string; debit?: number; credit?: number; memo?: string };
 type DraftEntry = { source: string; memo: string; lines: Line[] };
@@ -198,6 +199,33 @@ async function buildMonthEntries(
           ret,
         });
       }
+    }
+  }
+
+  // 2b) PAGOS A PROVEEDORES — D proveedores (220505) · C de donde salió.
+  // Hasta ahora los abonos de compras no se asentaban: la CxP que crea "2)"
+  // nunca se cancelaba y proveedores crecía sin fin. Se agrupa por la cuenta
+  // que eligió el operador en cada abono (caja, banco, pasarela); los abonos
+  // anteriores al campo caen en caja/banco según el texto del método.
+  {
+    const pays = await db.purchasePayment.findMany({
+      where: {
+        restaurantId,
+        paidAt: { gte: range.from, lt: range.to },
+      },
+      select: { amountCents: true, accountCode: true, method: true },
+    });
+    const byAccount = new Map<string, number>();
+    for (const p of pays) {
+      if (p.amountCents <= 0) continue;
+      const code = resolvePurchasePaymentAccount(p);
+      byAccount.set(code, (byAccount.get(code) ?? 0) + p.amountCents);
+    }
+    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
+    if (total > 0) {
+      const lines: Line[] = [{ code: "220505", debit: total }];
+      for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
+      entries.push({ source: "purchase_payment", memo: "Pagos a proveedores", lines });
     }
   }
 

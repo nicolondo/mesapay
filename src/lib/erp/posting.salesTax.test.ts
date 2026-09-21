@@ -11,7 +11,7 @@ vi.mock("@/lib/db", () => ({
       groupBy: async () => [{ method: "cash", _sum: { amountCents: 5_200_000 } }],
     },
     expense: { findMany: async () => [] },
-    expensePayment: { findMany: async () => [] },
+    expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] },
     $transaction: async (fn: (tx: unknown) => unknown) =>
       fn({ journalEntry: { deleteMany: async () => ({}), create: m.createEntry } }),
   },

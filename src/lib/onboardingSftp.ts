@@ -1,7 +1,11 @@
 import path from "path";
 import { readFile } from "fs/promises";
 import { db } from "@/lib/db";
-import { sftpConfigured, uploadFileToSftp } from "@/lib/sftp";
+import {
+  deleteFileFromSftp,
+  sftpConfigured,
+  uploadFileToSftp,
+} from "@/lib/sftp";
 import { computeNitDv } from "@/lib/erp/exogena";
 import {
   buildOnboardingWorkbook,
@@ -148,6 +152,40 @@ export async function deliverDocumentToSftp(
         data: { sftpError: msg, sftpAttempts: { increment: 1 } },
       })
       .catch(() => undefined);
+  }
+}
+
+/**
+ * Quita del SFTP el archivo de un documento que ya fue entregado y que el
+ * operador reemplazó por otro con distinto nombre remoto (cambió la
+ * extensión). Si el nombre remoto coincide no hace falta llamarlo: el `put`
+ * del documento nuevo sobreescribe. Best-effort: nunca lanza. Devuelve true
+ * sólo si efectivamente se intentó y logró el borrado.
+ */
+export async function removeDocumentFromSftp(doc: {
+  id: string;
+  kind: KushkiDocumentKind;
+  mimeType: string;
+  sftpUploadedAt: Date | null;
+  restaurant: { legalName: string | null; taxId: string | null };
+}): Promise<boolean> {
+  if (!sftpConfigured() || !doc.sftpUploadedAt) return false;
+  try {
+    const folder = folderNameForRestaurant(
+      doc.restaurant.legalName,
+      doc.restaurant.taxId,
+    );
+    const fileName = fileNameForSftpDocument(doc);
+    await deleteFileFromSftp({ folder, fileName });
+    console.log(`[onboarding/sftp] removed ${folder}/${fileName}`);
+    return true;
+  } catch (err) {
+    console.error(
+      "[onboarding/sftp] remove failed",
+      doc.id,
+      err instanceof Error ? err.message.slice(0, 200) : err,
+    );
+    return false;
   }
 }
 

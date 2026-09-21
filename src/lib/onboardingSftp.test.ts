@@ -4,6 +4,7 @@ const m = vi.hoisted(() => ({
   siblings: vi.fn(),
   update: vi.fn(),
   upload: vi.fn(),
+  remove: vi.fn(),
   read: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
@@ -12,6 +13,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/sftp", () => ({
   sftpConfigured: () => true,
   uploadFileToSftp: m.upload,
+  deleteFileFromSftp: m.remove,
 }));
 vi.mock("fs/promises", () => ({ readFile: m.read }));
 import {
@@ -20,6 +22,7 @@ import {
   deliverDocumentToSftp,
   deliverOnboardingManifest,
   deliverOnboardingWorkbook,
+  removeDocumentFromSftp,
 } from "./onboardingSftp";
 
 beforeEach(() => {
@@ -28,6 +31,7 @@ beforeEach(() => {
   m.read.mockResolvedValue(Buffer.from("test document"));
   m.update.mockResolvedValue({});
   m.upload.mockResolvedValue(undefined);
+  m.remove.mockResolvedValue(undefined);
   m.find.mockResolvedValue({
     id: "doc-123456",
     restaurantId: "merchant",
@@ -210,6 +214,42 @@ it("does not upload a manifest that assigns two documents to the same name", asy
     documents: [{ fileName: "RUT.pdf" }, { fileName: "RUT.pdf" }],
   })).toBe(false);
   expect(m.upload).not.toHaveBeenCalled();
+});
+
+describe("removeDocumentFromSftp", () => {
+  const delivered = {
+    id: "doc-123456",
+    kind: "rut" as const,
+    mimeType: "application/pdf",
+    sftpUploadedAt: new Date("2026-09-01T00:00:00Z"),
+    restaurant: { legalName: "SON Y MELONA S.A.S.", taxId: "901944469-1" },
+  };
+  it("borra el archivo remoto de un documento ya entregado", async () => {
+    expect(await removeDocumentFromSftp(delivered)).toBe(true);
+    expect(m.remove).toHaveBeenCalledWith({
+      folder: "SON Y MELONA SAS - 901944469",
+      fileName: "RUT.pdf",
+    });
+  });
+  it("no toca el SFTP si el documento nunca llegó", async () => {
+    expect(
+      await removeDocumentFromSftp({ ...delivered, sftpUploadedAt: null }),
+    ).toBe(false);
+    expect(m.remove).not.toHaveBeenCalled();
+  });
+  it("devuelve false sin lanzar si la identidad del comercio es inválida", async () => {
+    expect(
+      await removeDocumentFromSftp({
+        ...delivered,
+        restaurant: { legalName: null, taxId: null },
+      }),
+    ).toBe(false);
+    expect(m.remove).not.toHaveBeenCalled();
+  });
+  it("devuelve false sin lanzar si el borrado remoto falla", async () => {
+    m.remove.mockRejectedValue(new Error("sftp down"));
+    expect(await removeDocumentFromSftp(delivered)).toBe(false);
+  });
 });
 
 describe("deliverOnboardingWorkbook", () => {

@@ -107,6 +107,31 @@ export async function uploadFileToSftp(args: {
 }
 
 /**
+ * Borra `<folder>/<fileName>` del SFTP si existe. Se usa cuando un documento
+ * reemplazado cambia de extensión (RUT.pdf → RUT.jpg): el `put` del nuevo no
+ * pisa el nombre viejo y quedaría un archivo huérfano en la carpeta de Kushki.
+ * Lanza si algo falla (el caller decide best-effort).
+ */
+export async function deleteFileFromSftp(args: {
+  folder: string;
+  fileName: string;
+}): Promise<void> {
+  const folder = safeSegment(args.folder) || "sin-nombre";
+  const fileName = safeSegment(args.fileName);
+  if (!fileName) throw new Error("sftp_empty_filename");
+
+  const sftp = await connectSftp();
+  try {
+    const remotePath = `/${folder}/${fileName}`;
+    if (await sftp.exists(remotePath)) {
+      await sftp.delete(remotePath);
+    }
+  } finally {
+    await sftp.end().catch(() => undefined);
+  }
+}
+
+/**
  * Diagnóstico: conecta al SFTP y lista la raíz. Para verificar credenciales/
  * conectividad sin subir un documento real. No lanza — devuelve ok/error.
  */

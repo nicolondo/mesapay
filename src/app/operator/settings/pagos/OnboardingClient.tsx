@@ -167,12 +167,19 @@ export function OnboardingClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
+  // Modo edición: una solicitud ya enviada queda bloqueada, pero el operador
+  // puede reabrirla para reemplazar un documento que no quedó bien y volver a
+  // enviarla. Una cuenta activa no se edita desde acá.
+  const [editing, setEditing] = useState(false);
   const [, startTx] = useTransition();
 
-  const isLocked =
+  const lockedByStatus =
     tenant.status === "submitted" ||
     tenant.status === "in_review" ||
     tenant.status === "active";
+  const canEdit =
+    tenant.status === "submitted" || tenant.status === "in_review";
+  const isLocked = lockedByStatus && !editing;
 
   async function uploadDocument(file: File, kind: DocKind) {
     setError(null);
@@ -188,9 +195,18 @@ export function OnboardingClient({
       setError(j.error ?? t("uploadError"));
       return null;
     }
-    const j = await res.json();
-    const newDoc = j.document as UploadedDoc;
-    setDocs((prev) => [newDoc, ...prev]);
+    const j = (await res.json()) as {
+      document: UploadedDoc;
+      replacedIds?: string[];
+    };
+    const newDoc = j.document;
+    // Subir otro documento del mismo tipo lo reemplaza en el server: sacamos
+    // los reemplazados de la lista para que la ficha muestre uno solo.
+    const replacedIds = j.replacedIds ?? [];
+    setDocs((prev) => [
+      newDoc,
+      ...prev.filter((d) => !replacedIds.includes(d.id)),
+    ]);
     startTx(() => router.refresh());
 
     // Auto-OCR the documents we know how to read so the operator doesn't
@@ -340,6 +356,9 @@ export function OnboardingClient({
         setError(humanError(t, j));
         return;
       }
+      // Reenviada: la solicitud vuelve a quedar bloqueada hasta que el
+      // operador decida editarla otra vez.
+      setEditing(false);
       startTx(() => router.refresh());
     } finally {
       setBusy(false);
@@ -403,7 +422,18 @@ export function OnboardingClient({
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
-      <StatusBanner tenant={tenant} t={t} deliveryPending={deliveryPending} />
+      <StatusBanner
+        tenant={tenant}
+        t={t}
+        deliveryPending={deliveryPending}
+        editing={editing}
+        canEdit={canEdit}
+        onEdit={() => {
+          setError(null);
+          setEditing(true);
+        }}
+        onCancelEdit={() => setEditing(false)}
+      />
 
       {/* Step 1: documents ---------------------------------------------- */}
       <Section title={t("step1Title")} subtitle={t("step1Subtitle")}>
@@ -625,11 +655,19 @@ export function OnboardingClient({
           disabled={!canSubmit || busy}
           className="mp-btn mp-btn--accent"
         >
-          {busy ? t("submitting") : t("submit")}
+          {editing
+            ? t(busy ? "resubmitting" : "resubmit")
+            : t(busy ? "submitting" : "submit")}
         </button>
         {isLocked && (
           <span className="text-xs text-op-muted">
-            {t(deliveryPending ? "deliveryLockedNotice" : "lockedNotice")}
+            {t(
+              deliveryPending
+                ? "deliveryLockedNotice"
+                : tenant.status === "active"
+                  ? "lockedActiveNotice"
+                  : "lockedNotice",
+            )}
           </span>
         )}
       </div>
@@ -663,6 +701,10 @@ function StatusBanner({
   tenant,
   t,
   deliveryPending,
+  editing,
+  canEdit,
+  onEdit,
+  onCancelEdit,
 }: {
   tenant: {
     status: Status;
@@ -672,6 +714,10 @@ function StatusBanner({
   };
   t: Translator;
   deliveryPending: boolean;
+  editing: boolean;
+  canEdit: boolean;
+  onEdit: () => void;
+  onCancelEdit: () => void;
 }) {
   if (tenant.status === "active") {
     return (
@@ -700,6 +746,28 @@ function StatusBanner({
             <p className="mt-2">{t("deliveryPendingHelp")}</p>
           )}
         </div>
+        {/* Reabrir la solicitud para reemplazar documentos y reenviarla. */}
+        {canEdit && !editing && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="mp-btn mp-btn--secondary mp-btn--sm mt-3"
+          >
+            {t("editDocuments")}
+          </button>
+        )}
+        {editing && (
+          <div className="mt-3">
+            <p className="text-sm">{t("editingHint")}</p>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="mp-btn mp-btn--secondary mp-btn--sm mt-2"
+            >
+              {t("cancelEdit")}
+            </button>
+          </div>
+        )}
       </div>
     );
   }

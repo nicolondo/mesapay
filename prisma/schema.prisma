@@ -2161,6 +2161,10 @@ model PurchasePayment {
   amountCents     Int
   paidAt          DateTime // fecha del abono (editable)
   method          String? // efectivo / transferencia / … (texto libre)
+  /// Cuenta del PUC de donde SALE la plata (caja, banco, pasarela). Null sólo
+  /// en abonos anteriores a que existiera el campo; el asiento los resuelve
+  /// con una heurística sobre `method` (ver erp/paymentAccounts.ts).
+  accountCode     String?
   note            String?
   createdById     String?
   createdBy       User?         @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)

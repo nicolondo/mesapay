@@ -10,8 +10,13 @@ import {
   resolveTipPolicy,
 } from "@/lib/staffPolicies";
 import { isCashMethod } from "@/lib/shift";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
+import { currentMonthPeriod, todayIso } from "@/lib/erp/reports/period";
+import { loadSealedCommissions } from "@/lib/erp/reports/waiterCommissionQueries";
+import { buildCommissionReport } from "@/lib/waiterCommissions";
 import { YoClient } from "./YoClient";
 import { MisMesasClient, type MesaPick } from "./MisMesasClient";
+import { MisComisionesClient, type MisComisionesData } from "./MisComisionesClient";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +41,11 @@ export default async function YoPage() {
       role: true,
       restaurantId: true,
       assignedTableNumbers: true,
+      waiterCommissionBps: true,
       restaurant: {
         select: {
           name: true,
+          country: true,
           tipPolicy: true,
           shiftPolicy: true,
           businessDayCutoffHour: true,
@@ -162,6 +169,30 @@ export default async function YoPage() {
     });
   }
 
+  // «Mis comisiones» (solo mesero): el mes en curso pre-cargado, con lo
+  // SELLADO en cada cuenta al cobrarla. Se muestra si el mesero tiene un %
+  // configurado o si ya tiene cuentas con comisión este mes (el % pudo
+  // quitarse después: el histórico no se esconde).
+  let misComisiones: { currency: string; today: string; initial: MisComisionesData } | null = null;
+  if (user.role === "mesero" && user.restaurantId) {
+    const today = todayIso();
+    const period = currentMonthPeriod(today);
+    const rows = await loadSealedCommissions(user.restaurantId, period, { waiterId: user.id });
+    if (user.waiterCommissionBps != null || rows.length > 0) {
+      const report = buildCommissionReport(rows);
+      misComisiones = {
+        currency: await getCurrencyForCountry(user.restaurant?.country),
+        today,
+        initial: {
+          period,
+          summary: report.summary[0] ?? null,
+          detail: report.detail,
+          totals: report.totals,
+        },
+      };
+    }
+  }
+
   const displayName = user.name?.trim() || user.email.split("@")[0];
   const initials = (user.name?.trim() || user.email)
     .split(/\s+/)
@@ -207,6 +238,14 @@ export default async function YoPage() {
           tipPolicy={tipPolicy}
           shiftPolicy={shiftPolicy}
           initial={initialStats}
+        />
+      )}
+
+      {misComisiones && (
+        <MisComisionesClient
+          currency={misComisiones.currency}
+          today={misComisiones.today}
+          initial={misComisiones.initial}
         />
       )}
 

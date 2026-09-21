@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
+import { useActiveNav } from "./useActiveNav";
 
 type NavItem = { href: string; label: string };
 /**
@@ -44,15 +45,17 @@ export function OperatorMobileMenu({
   const t = useTranslations("operator");
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  // Ítem activo resuelto sobre TODA la nav (ruta + ?tab=), una sola vez.
+  const { activeHref, locationKey } = useActiveNav(items);
   // ¿Algún tablero con novedad? (para el punto en el botón del menú, ya que
   // en móvil la nav de escritorio con los puntos por ítem está oculta).
   const anyBoardAlert = useAnyBoardAlert(boardActivity, pathname);
 
   // Close on navigation so the overlay doesn't linger — state adjust
   // during render (not an effect; react-hooks/set-state-in-effect).
-  const [lastPath, setLastPath] = useState(pathname);
-  if (pathname !== lastPath) {
-    setLastPath(pathname);
+  const [lastLocation, setLastLocation] = useState(locationKey);
+  if (locationKey !== lastLocation) {
+    setLastLocation(locationKey);
     setOpen(false);
   }
 
@@ -146,7 +149,7 @@ export function OperatorMobileMenu({
                     </div>
                     <div className="flex flex-col gap-1">
                       {it.children.map((c) => (
-                        <DrawerLink key={c.href} href={c.href} pathname={pathname}>
+                        <DrawerLink key={c.href} href={c.href} active={c.href === activeHref}>
                           {c.label}
                         </DrawerLink>
                       ))}
@@ -156,7 +159,7 @@ export function OperatorMobileMenu({
                   <DrawerLink
                     key={it.href}
                     href={it.href}
-                    pathname={pathname}
+                    active={it.href === activeHref}
                     boardActivity={boardActivity}
                   >
                     {it.label}
@@ -164,7 +167,7 @@ export function OperatorMobileMenu({
                 ),
               )}
               {isAdmin && (
-                <DrawerLink href="/admin" pathname={pathname}>
+                <DrawerLink href="/admin" active={false}>
                   {t("platformAdminLink")}
                 </DrawerLink>
               )}
@@ -188,21 +191,17 @@ export function OperatorMobileMenu({
 
 function DrawerLink({
   href,
-  pathname,
+  active,
   children,
   boardActivity,
 }: {
   href: string;
-  pathname: string | null;
+  // Resuelto por el padre con `resolveActiveHref` sobre toda la nav (exacto,
+  // prefijo más largo o pestaña) — un solo ítem encendido a la vez.
+  active: boolean;
   children: React.ReactNode;
   boardActivity?: BoardActivity;
 }) {
-  // Match by exact path or as a parent prefix (so /operator/menu/import
-  // still highlights "Menú"). The root "/operator" exact-only — otherwise
-  // it would match everything under it and stay always-active.
-  const active =
-    pathname === href ||
-    (href !== "/operator" && pathname?.startsWith(href + "/"));
   const board = BOARD_BY_HREF[href];
   return (
     <Link

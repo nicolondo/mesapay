@@ -119,13 +119,23 @@ export function DiarioTab({
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-xs text-op-muted">{t("journalIntro")}</p>
-        {/* Libro completo (todos los meses, manuales, detalle y export). */}
-        <Link
-          href="/operator/contabilidad/comprobantes"
-          className="text-xs font-medium text-op-accent hover:underline shrink-0"
-        >
-          {tc("viewAll")}
-        </Link>
+        <span className="flex gap-3 shrink-0">
+          {/* Cierre por mes con la vista del año entero (numeración, candado,
+              cierre del ejercicio). Los controles de acá siguen funcionando. */}
+          <Link
+            href="/operator/contabilidad/cierre"
+            className="text-xs font-medium text-op-accent hover:underline"
+          >
+            {t("periodCloseLink")}
+          </Link>
+          {/* Libro completo (todos los meses, manuales, detalle y export). */}
+          <Link
+            href="/operator/contabilidad/comprobantes"
+            className="text-xs font-medium text-op-accent hover:underline"
+          >
+            {tc("viewAll")}
+          </Link>
+        </span>
       </div>
       {monthClosed ? (
         <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 flex items-center justify-between gap-3">

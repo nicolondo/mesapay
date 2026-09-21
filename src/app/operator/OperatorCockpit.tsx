@@ -10,6 +10,7 @@ import { AppDialog } from "@/components/ui/AppDialog";
 import { Icon, routeIcon } from "@/components/ui/Icon";
 import { NavigationSearch } from "./NavigationSearch";
 import type { NavEntry } from "./OperatorMobileMenu";
+import { useActiveNav } from "./useActiveNav";
 
 /**
  * Shell "cockpit" del operador (rediseño detrás del flag mp_shell=cockpit):
@@ -59,13 +60,17 @@ export function OperatorCockpit({
   const t = useTranslations("operator");
   const ux = useTranslations("workspaceUi");
   const pathname = usePathname();
+  // Ítem activo (ruta + ?tab=) resuelto UNA vez sobre toda la nav.
+  const { activeHref, locationKey } = useActiveNav(navItems);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const anyAlert = useAnyBoardAlert(boardActivity, pathname);
 
-  // Cerrar el drawer al navegar (ajuste en render, no en efecto).
-  const [lastPath, setLastPath] = useState(pathname);
-  if (pathname !== lastPath) {
-    setLastPath(pathname);
+  // Cerrar el drawer al navegar (ajuste en render, no en efecto). Se mira la
+  // ubicación completa: tocar una pestaña de contabilidad desde el drawer
+  // también debe cerrarlo aunque la ruta no cambie.
+  const [lastLocation, setLastLocation] = useState(locationKey);
+  if (locationKey !== lastLocation) {
+    setLastLocation(locationKey);
     setDrawerOpen(false);
   }
 
@@ -79,7 +84,8 @@ export function OperatorCockpit({
       isAdmin={isAdmin}
       localeSwitcher={localeSwitcher}
       signOut={signOut}
-      pathname={pathname}
+      activeHref={activeHref}
+      locationKey={locationKey}
       adminLabel={t("adminLink")}
       liveLabel={t("liveSection")}
     />
@@ -192,7 +198,8 @@ function Rail({
   isAdmin,
   localeSwitcher,
   signOut,
-  pathname,
+  activeHref,
+  locationKey,
   adminLabel,
   liveLabel,
 }: {
@@ -204,7 +211,10 @@ function Rail({
   isAdmin: boolean;
   localeSwitcher: React.ReactNode;
   signOut: React.ReactNode;
-  pathname: string | null;
+  /** Href del único ítem activo (ver `resolveActiveHref`). */
+  activeHref: string | null;
+  /** Cambia con ruta o pestaña — para reabrir el grupo que contiene el activo. */
+  locationKey: string;
   adminLabel: string;
   liveLabel: string;
 }) {
@@ -263,7 +273,7 @@ function Rail({
               <RailLink
                 href={summary.href}
                 label={summary.label}
-                active={pathname === summary.href}
+                active={summary.href === activeHref}
                 board
               />
             )}
@@ -272,7 +282,7 @@ function Rail({
                 key={b.href}
                 href={b.href}
                 label={b.label}
-                active={isActive(pathname, b.href)}
+                active={b.href === activeHref}
                 board
                 boardActivity={boardActivity}
               />
@@ -288,14 +298,15 @@ function Rail({
                 key={it.label}
                 label={it.label}
                 items={it.children}
-                pathname={pathname}
+                activeHref={activeHref}
+                locationKey={locationKey}
               />
             ) : (
               <RailLink
                 key={it.href}
                 href={it.href}
                 label={it.label}
-                active={isActive(pathname, it.href)}
+                active={it.href === activeHref}
                 boardActivity={boardActivity}
               />
             ),
@@ -384,21 +395,28 @@ function RailLink({
   );
 }
 
+/**
+ * Grupo plegable del riel (Pedidos, Carta, Administración, Contabilidad,
+ * Reportes, Negocio…): arranca abierto si contiene el ítem activo y se
+ * reabre al navegar hacia adentro (también al cambiar sólo de pestaña).
+ */
 function RailGroup({
   label,
   items,
-  pathname,
+  activeHref,
+  locationKey,
 }: {
   label: string;
   items: { href: string; label: string }[];
-  pathname: string | null;
+  activeHref: string | null;
+  locationKey: string;
 }) {
-  const containsActive = items.some((i) => isActive(pathname, i.href));
+  const containsActive = activeHref != null && items.some((i) => i.href === activeHref);
   const [open, setOpen] = useState(containsActive);
   const id = useId();
-  const [lastPath, setLastPath] = useState(pathname);
-  if (pathname !== lastPath) {
-    setLastPath(pathname);
+  const [lastLocation, setLastLocation] = useState(locationKey);
+  if (locationKey !== lastLocation) {
+    setLastLocation(locationKey);
     if (containsActive) setOpen(true);
   }
   return (
@@ -439,7 +457,7 @@ function RailGroup({
           style={{ borderLeft: "1px solid var(--rail-line-2)" }}
         >
           {items.map((i) => {
-            const on = isActive(pathname, i.href);
+            const on = i.href === activeHref;
             return (
               <Link
                 key={i.href}
@@ -459,13 +477,6 @@ function RailGroup({
       )}
     </div>
   );
-}
-
-/** Activo por match exacto o prefijo (excepto "/operator" que es exacto). */
-function isActive(pathname: string | null, href: string): boolean {
-  if (!pathname) return false;
-  if (href === "/operator") return pathname === "/operator";
-  return pathname === href || pathname.startsWith(href + "/");
 }
 
 /* ───────────────────── Barra de acciones superior ─────────────────────

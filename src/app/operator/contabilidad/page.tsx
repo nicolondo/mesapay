@@ -20,6 +20,11 @@ export const dynamic = "force-dynamic";
  * ya vive en los GET de /api/operator (expenses, accounting/pnl,
  * accounting/books) — el client hace fetch al montar y al cambiar de
  * mes/tab, con caché por mes.
+ *
+ * La pestaña inicial sale de `?tab=` (el menú lateral y el hub de reportes
+ * enlazan así). El cliente usa `useSearchParams` sin Suspense: la página es
+ * `force-dynamic` (y todo /operator lo es por el layout), nunca se
+ * prerenderiza, así que Next no exige la barrera.
  */
 export default async function ContabilidadPage() {
   const t = await getTranslations("opErp");

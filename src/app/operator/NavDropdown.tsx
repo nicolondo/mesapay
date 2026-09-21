@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useActiveNav } from "./useActiveNav";
 
 type NavItem = { href: string; label: string };
 
@@ -12,6 +12,10 @@ type NavItem = { href: string; label: string };
  * item por módulo activado. Click para abrir (hover-only es hostil en
  * touch), cierra con click afuera, Escape o al navegar. El trigger se
  * resalta cuando la ruta actual pertenece a un módulo del grupo.
+ *
+ * El ítem activo se resuelve sobre los ítems del grupo (los hrefs que se
+ * solapan — hub y subpáginas, página y pestañas — siempre viven en el
+ * mismo grupo, así que alcanza).
  */
 export function NavDropdown({
   label,
@@ -21,14 +25,14 @@ export function NavDropdown({
   items: NavItem[];
 }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
+  const { activeHref, locationKey } = useActiveNav(items);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Cerrar al navegar — ajuste de estado DURANTE el render (patrón React
   // "derived state"), no en un efecto (react-hooks/set-state-in-effect).
-  const [lastPath, setLastPath] = useState(pathname);
-  if (pathname !== lastPath) {
-    setLastPath(pathname);
+  const [lastLocation, setLastLocation] = useState(locationKey);
+  if (locationKey !== lastLocation) {
+    setLastLocation(locationKey);
     setOpen(false);
   }
 
@@ -49,9 +53,7 @@ export function NavDropdown({
     };
   }, [open]);
 
-  const activeGroup = items.some(
-    (it) => pathname === it.href || pathname?.startsWith(it.href + "/"),
-  );
+  const activeGroup = activeHref != null && items.some((it) => it.href === activeHref);
 
   return (
     <div ref={rootRef} className="relative">
@@ -89,8 +91,7 @@ export function NavDropdown({
           className="absolute left-0 top-full mt-1 min-w-44 overflow-hidden rounded-xl border border-op-border bg-op-surface shadow-lg py-1 z-30"
         >
           {items.map((it) => {
-            const active =
-              pathname === it.href || pathname?.startsWith(it.href + "/");
+            const active = it.href === activeHref;
             return (
               <Link
                 key={it.href}

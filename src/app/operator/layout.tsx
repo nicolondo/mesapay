@@ -8,7 +8,7 @@ import { localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import { IMPERSONATE_COOKIE, getActiveContext } from "@/lib/activeRestaurant";
 import { deriveMembershipStatus } from "@/lib/membership";
-import { isModuleEnabled } from "@/lib/modules";
+import { buildOperatorNav } from "@/lib/operatorNav";
 import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";
 import { OperatorCockpit } from "./OperatorCockpit";
 import { NavDropdown } from "./NavDropdown";
@@ -168,77 +168,21 @@ export default async function OperatorLayout({
   }
 
   // ── Nav: fuente única para ambos shells (clásico + cockpit) ──────────────
-  const erpItems: { href: string; label: string }[] = [
-    ...(isModuleEnabled(tenant?.enabledModules, "inventory")
-      ? [{ href: "/operator/inventario", label: t("navInventory") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "inventory") ||
-    isModuleEnabled(tenant?.enabledModules, "purchasing") ||
-    isModuleEnabled(tenant?.enabledModules, "recipes")
-      ? [{ href: "/operator/settings/insumos", label: t("navInsumos") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "purchasing")
-      ? [{ href: "/operator/compras", label: t("navPurchasing") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "recipes")
-      ? [{ href: "/operator/recetas", label: t("navRecipes") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "accounting")
-      ? [{ href: "/operator/contabilidad", label: t("navAccounting") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "production")
-      ? [{ href: "/operator/produccion", label: t("navProduction") }]
-      : []),
-    ...(isModuleEnabled(tenant?.enabledModules, "staff")
-      ? [
-          { href: "/operator/horarios", label: t("navStaff") },
-          { href: "/operator/nomina", label: t("navPayroll") },
-        ]
-      : []),
-  ];
-  const ordersGroup = [
-    { href: "/operator/orders", label: t("navOrders") },
-    { href: "/operator/clientes", label: t("navCustomers") },
-    { href: "/operator/payments", label: t("navPayments") },
-    { href: "/operator/facturas", label: t("navInvoices") },
-    { href: "/operator/ratings", label: t("navRatings") },
-  ];
-  const menuGroup = [
-    { href: "/operator/menu", label: t("navMenu") },
-    { href: "/operator/menus", label: t("navMenus") },
-  ];
-  const businessGroup = [
-    { href: "/operator/reports", label: t("navClose") },
-    { href: "/operator/wallet", label: t("navWallet") },
-    { href: "/operator/insights", label: t("navInsights") },
-    // Bonos empresariales: sólo con el módulo `vouchers` activo (la página
-    // también devuelve 404 sin él).
-    ...(isModuleEnabled(tenant?.enabledModules, "vouchers")
-      ? [{ href: "/operator/bonos", label: t("navVouchers") }]
-      : []),
-  ];
-  const navItems: NavEntry[] = [
-    { href: "/operator", label: t("navSummary") },
-    { href: "/operator/kitchen", label: t("navKitchen") },
-    ...(tenant?.hasBar ? [{ href: "/operator/bar", label: t("navBar") }] : []),
-    { href: "/operator/serve", label: t("navHall") },
-    {
-      href: "/operator/tables",
-      label:
-        tenant?.serviceMode === "counter" ? t("navCounter") : t("navTables"),
-    },
-    ...(tenant?.reservationsEnabled
-      ? [{ href: "/operator/reservas", label: t("navReservations") }]
-      : []),
-    { label: t("navGroupOrders"), children: ordersGroup },
-    { label: t("navGroupMenu"), children: menuGroup },
-    ...(erpItems.length > 0
-      ? [{ label: t("navErpGroup"), children: erpItems }]
-      : []),
-    { label: t("navGroupBusiness"), children: businessGroup },
-    { href: "/operator/settings", label: t("navSettings") },
-    { href: "/operator/ayuda", label: t("navHelp") },
-  ];
+  // El armado (módulos → grupos, orden, hrefs) vive en `@/lib/operatorNav`;
+  // acá sólo se traducen las claves del namespace `operator`.
+  const navItems: NavEntry[] = buildOperatorNav({
+    enabledModules: tenant?.enabledModules,
+    hasBar: tenant?.hasBar ?? false,
+    counterMode: tenant?.serviceMode === "counter",
+    reservationsEnabled: tenant?.reservationsEnabled ?? false,
+  }).map((entry) =>
+    "children" in entry
+      ? {
+          label: t(entry.labelKey),
+          children: entry.children.map((c) => ({ href: c.href, label: t(c.labelKey) })),
+        }
+      : { href: entry.href, label: t(entry.labelKey) },
+  );
   const signOutDesktop = (
     <form
       action={async () => {

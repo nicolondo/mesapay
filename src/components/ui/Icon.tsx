@@ -112,7 +112,8 @@ export function Icon({
   );
 }
 export function routeIcon(href: string): IconName {
-  const part = href.split("/")[2] ?? "";
+  // Sin query: "/operator/contabilidad?tab=chart" → "contabilidad".
+  const part = href.split("?")[0]?.split("/")[2] ?? "";
   return (
     (
       {

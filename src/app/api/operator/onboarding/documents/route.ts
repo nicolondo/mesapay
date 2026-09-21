@@ -1,13 +1,17 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { deliverDocumentToSftp } from "@/lib/onboardingSftp";
+import {
+  deliverDocumentToSftp,
+  fileNameForSftpDocument,
+  removeDocumentFromSftp,
+} from "@/lib/onboardingSftp";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MIME_EXT: Record<string, string> = {
@@ -81,39 +85,85 @@ async function POSTHandler(req: Request) {
     );
   }
 
+  // Cada ficha del wizard es UN documento por tipo: subir otro del mismo tipo
+  // es un reemplazo. Antes quedaban dos filas y el nuevo nunca llegaba al SFTP
+  // porque el nombre remoto es por tipo ("RUT.pdf") y la entrega abortaba con
+  // sftp_document_name_conflict. `other` admite varios y no se reemplaza.
+  const previous =
+    kind === "other"
+      ? []
+      : await db.kushkiDocument.findMany({
+          where: { restaurantId, kind },
+          select: {
+            id: true,
+            kind: true,
+            mimeType: true,
+            fileUrl: true,
+            sftpUploadedAt: true,
+            restaurant: { select: { legalName: true, taxId: true } },
+          },
+        });
+
   const dir = uploadDir();
   await mkdir(dir, { recursive: true });
   const name = `${restaurantId}_${randomBytes(8).toString("hex")}.${ext}`;
   const buf = Buffer.from(await file.arrayBuffer());
   await writeFile(path.join(dir, name), buf);
 
-  const doc = await db.kushkiDocument.create({
-    data: {
-      restaurantId,
-      uploadedById: session.user.id ?? null,
-      kind,
-      fileUrl: `/uploads/onboarding/${name}`,
-      fileName: file.name.slice(0, 200),
-      mimeType: file.type,
-      fileSize: file.size,
-    },
+  // Alta del nuevo y baja de los reemplazados en una sola transacción: nunca
+  // queda el comercio sin documento de ese tipo ni con dos a la vez.
+  const doc = await db.$transaction(async (tx) => {
+    const created = await tx.kushkiDocument.create({
+      data: {
+        restaurantId,
+        uploadedById: session.user.id ?? null,
+        kind,
+        fileUrl: `/uploads/onboarding/${name}`,
+        fileName: file.name.slice(0, 200),
+        mimeType: file.type,
+        fileSize: file.size,
+      },
+    });
+    if (previous.length > 0) {
+      await tx.kushkiDocument.deleteMany({
+        where: { id: { in: previous.map((p) => p.id) } },
+      });
+    }
+    return created;
   });
 
-  // Bump the restaurant's onboarding status if it was untouched. Helps the
-  // settings landing reflect "Documentos cargados" without a manual step.
-  await db.restaurant.update({
-    where: { id: restaurantId },
-    data: {
-      kushkiOnboardingStatus: { set: "docs_uploaded" },
-    },
+  // Limpieza best-effort de los reemplazados, sin bloquear la respuesta:
+  // el archivo local se borra; en el SFTP sólo hay que borrar si el nombre
+  // remoto cambió (distinta extensión) — si es el mismo, el `put` del nuevo
+  // lo sobreescribe y no queda nada huérfano.
+  const newRemoteName = fileNameForSftpDocument(doc);
+  for (const p of previous) {
+    void unlink(path.join(dir, path.basename(p.fileUrl))).catch(
+      () => undefined,
+    );
+    if (p.sftpUploadedAt && fileNameForSftpDocument(p) !== newRemoteName) {
+      void removeDocumentFromSftp(p);
+    }
+  }
+
+  // Sólo un comercio que todavía no empezó pasa a "documentos cargados": un
+  // reemplazo durante la revisión no puede bajar el estado del comercio.
+  await db.restaurant.updateMany({
+    where: { id: restaurantId, kushkiOnboardingStatus: "not_started" },
+    data: { kushkiOnboardingStatus: "docs_uploaded" },
   });
 
   // Entrega best-effort por SFTP (AWS Transfer) a una carpeta por comercio.
   // Fire-and-forget: no bloqueamos la respuesta; un cron reintenta si falla.
-  // Solo corre si el SFTP está configurado (env del server).
+  // Solo corre si el SFTP está configurado (env del server). Las filas
+  // reemplazadas ya no existen, así que no hay conflicto de nombre.
   void deliverDocumentToSftp(doc.id);
 
-  return NextResponse.json({ ok: true, document: doc });
+  return NextResponse.json({
+    ok: true,
+    document: doc,
+    replacedIds: previous.map((p) => p.id),
+  });
 }
 
 async function GETHandler() {

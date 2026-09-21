@@ -2,97 +2,56 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import {
-  accumulatedThrough,
-  depreciationForAssetMonth,
-} from "@/lib/erp/activos";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { loadAssetAccountIndex, validateAssetInput } from "@/lib/erp/activos";
+import { listAssets, loadAssetFormOptions } from "@/lib/erp/activosQuery";
 import type { ModuleSlug } from "@/lib/modules";
+import { assetBodySchema } from "./schema";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/** Cuentas del activo permitidas en el alta (PPE del PUC sembrado). */
-const ASSET_ACCOUNTS = new Set([
-  "151605", // mejoras a propiedad ajena
-  "152005", // equipo de cocina
-  "152405", // muebles y enseres
-  "152805", // cómputo y POS
-  "154005", // vehículos
-]);
-
-/** Activos del comercio con su estado de depreciación al mes actual. */
+/**
+ * Activos del comercio con su progreso contabilizado (depreciado, valor en
+ * libros, meses contabilizados / vida útil) + cuentas para el formulario
+ * (imputables activas 15xx y 5xxx).
+ */
 async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const assets = await db.fixedAsset.findMany({
-    where: { restaurantId: ctx.restaurantId },
-    orderBy: [{ active: "desc" }, { purchaseDate: "desc" }],
-  });
-  const month = new Date().toISOString().slice(0, 7);
-  return NextResponse.json({
-    assets: assets.map((a) => ({
-      id: a.id,
-      name: a.name,
-      purchaseDate: a.purchaseDate.toISOString().slice(0, 10),
-      purchaseCents: a.purchaseCents,
-      salvageCents: a.salvageCents,
-      usefulLifeMonths: a.usefulLifeMonths,
-      assetAccountCode: a.assetAccountCode,
-      active: a.active,
-      monthlyCents: depreciationForAssetMonth(a, month),
-      accumulatedCents: accumulatedThrough(a, month),
-    })),
-  });
+  const [assets, options] = await Promise.all([
+    listAssets(ctx.restaurantId),
+    loadAssetFormOptions(ctx.restaurantId),
+  ]);
+  return NextResponse.json({ assets, ...options });
 }
 
-const createSchema = z.object({
-  name: z.string().min(2).max(160),
-  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  purchaseCents: z.number().int().min(100).max(50_000_000_000),
-  salvageCents: z.number().int().min(0).default(0),
-  usefulLifeMonths: z.number().int().min(1).max(600),
-  assetAccountCode: z.string().default("152405"),
-});
-
+/** Alta (sin asiento: el activo ya quedó contabilizado por la compra). 201 / 400 con código. */
 async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const body = await req.json().catch(() => null);
-  const parsed = createSchema.safeParse(body);
+  const parsed = assetBodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const b = parsed.data;
-  if (!ASSET_ACCOUNTS.has(b.assetAccountCode)) {
-    return NextResponse.json({ error: "account_not_allowed" }, { status: 400 });
-  }
-  if (b.salvageCents >= b.purchaseCents) {
-    return NextResponse.json({ error: "salvage_too_high" }, { status: 400 });
-  }
+  const v = validateAssetInput(parsed.data, await loadAssetAccountIndex(ctx.restaurantId));
+  if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   const asset = await db.fixedAsset.create({
-    data: {
-      restaurantId: ctx.restaurantId,
-      name: b.name,
-      purchaseDate: new Date(`${b.purchaseDate}T00:00:00Z`),
-      purchaseCents: b.purchaseCents,
-      salvageCents: b.salvageCents,
-      usefulLifeMonths: b.usefulLifeMonths,
-      assetAccountCode: b.assetAccountCode,
-    },
+    data: { restaurantId: ctx.restaurantId, ...v.normalized },
     select: { id: true },
   });
-  return NextResponse.json({ ok: true, id: asset.id });
+  return NextResponse.json({ ok: true, id: asset.id }, { status: 201 });
 }
 
 const patchSchema = z.object({
   assetId: z.string(),
-  // Baja del activo: deja de depreciar desde el mes de la baja.
+  // Baja: deprecia hasta el mes de la baja inclusive y nada después.
+  // Reactivar vuelve a la vida útil completa.
   action: z.enum(["dispose", "reactivate"]),
 });
 

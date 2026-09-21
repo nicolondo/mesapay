@@ -17,7 +17,7 @@ import {
   loadSalesBook,
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountIndex } from "./ledger";
-import { depreciationForMonth } from "./activos";
+import { depreciationLinesForMonth } from "./activos";
 import { deferredAmortizationLinesForMonth } from "./deferred";
 import { resolvePostableCode } from "./chart";
 import { ENGINE } from "./engineCodes";
@@ -327,19 +327,16 @@ async function buildMonthEntries(
     }
   }
 
-  // 6b) DEPRECIACIÓN — cuota mensual de los activos fijos activos
-  // (línea recta, arranca el mes siguiente a la compra — ver erp/activos).
+  // 6b) DEPRECIACIÓN — cuota mensual de los activos fijos, cada uno contra
+  // SUS cuentas (Debe gasto 5xxx · Haber depreciación acumulada 15xx),
+  // agregadas por cuenta. Antes era el par fijo 516005/159205 para todos;
+  // ahora las cuentas viven en cada activo (defaults iguales). Línea recta,
+  // arranca el mes siguiente a la compra — ver erp/activos.
   {
-    const dep = await depreciationForMonth(restaurantId, month);
-    if (dep > 0) {
-      entries.push({
-        source: "depreciation",
-        memo: "Depreciación del mes",
-        lines: [
-          { code: ENGINE.DEPRECIACION_GASTO, debit: dep },
-          { code: ENGINE.DEPRECIACION_ACUMULADA, credit: dep },
-        ],
-      });
+    const lines = await depreciationLinesForMonth(restaurantId, month);
+    const total = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+    if (total > 0) {
+      entries.push({ source: "depreciation", memo: "Depreciación del mes", lines });
     }
   }
 

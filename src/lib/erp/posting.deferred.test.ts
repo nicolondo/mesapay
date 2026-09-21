@@ -36,7 +36,7 @@ vi.mock("./ledger", () => ({
       ]),
     ),
 }));
-vi.mock("./activos", () => ({ depreciationForMonth: async () => 0 }));
+vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 import { generateJournalForMonth } from "./posting";
 

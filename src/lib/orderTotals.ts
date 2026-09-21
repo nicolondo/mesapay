@@ -3,6 +3,7 @@ import { db } from "./db";
 import { lockOrder } from "./orderLock";
 import { orderTaxTotals } from "./salesTax";
 import { computeDiscountCents } from "./dinerDiscount";
+import { sealOrderCommission } from "./waiterCommissionsSeal";
 
 /**
  * Single source of truth for how an order's totals are computed from its
@@ -229,6 +230,19 @@ export async function recomputeOrderTotalsInTx(
       paidAt: totals.fullyPaid ? (order.paidAt ?? now) : null,
     },
   });
+  if (totals.fullyPaid) {
+    // Comisión del mesero: se sella en la MISMA transacción del cobro (si
+    // el pago se revierte, el sello también). Es best-effort: la función no
+    // lanza (registra `[comisiones]` y sigue) y es idempotente, así que un
+    // recálculo posterior sobre la cuenta ya pagada no la re-sella. El
+    // try/catch de acá es el cinturón por si alguna vez dejara de serlo:
+    // el cobro NUNCA se bloquea por la comisión.
+    try {
+      await sealOrderCommission(tx, orderId);
+    } catch (err) {
+      console.error("[comisiones] sellado falló fuera de su guardia", { orderId, err });
+    }
+  }
   return totals;
 }
 

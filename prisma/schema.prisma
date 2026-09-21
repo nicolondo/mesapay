@@ -820,6 +820,15 @@ model User {
   referredRestaurants Restaurant[]      @relation("RestaurantSalesRep")
   commissionEntries   CommissionEntry[]
 
+  /// Comisión de ventas del MESERO, en puntos base (250 = 2,5 %; null = sin
+  /// comisión). Es la tasa VIGENTE: al cobrar una cuenta se copia a
+  /// `Order.commissionBps` (sellado), así que cambiarla acá sólo afecta
+  /// cuentas futuras. No confundir con `commissionBps`, que es la tasa del
+  /// COMERCIAL (rol comercial) sobre las membresías que trae a MESAPAY.
+  waiterCommissionBps Int?
+  /// Cuentas cuya comisión quedó sellada a nombre de este mesero.
+  commissionOrders    Order[] @relation("OrderCommissionWaiter")
+
   /// usuario desactivado: no puede iniciar sesión; un comercial desactivado
   /// tampoco acumula comisiones nuevas. null = activo.
   disabledAt DateTime?
@@ -1456,6 +1465,26 @@ model Order {
   // (módulos apagados / sin recetas) para que el cron no re-visite.
   stockConsumedAt DateTime?
 
+  /// ── Comisión del mesero, SELLADA al cobrar ─────────────────────────────
+  /// Cuando la cuenta pasa a `paid` (`recomputeOrderTotalsInTx`) se copia
+  /// acá el mesero que la atendió y su `User.waiterCommissionBps` vigente,
+  /// y se calcula la comisión de una vez: cambiar el % del mesero después
+  /// NO reescribe cuentas ya cobradas (sólo afecta las futuras). El mesero
+  /// se resuelve por quién cobró (`Payment.collectedByUserId` con rol
+  /// mesero) y, si nadie del staff cobró, por la mesa asignada
+  /// (`User.assignedTableNumbers`). Ver src/lib/waiterCommissionsSeal.ts.
+  ///
+  /// Base = subtotal (sin propina ni impuesto) neto del descuento del
+  /// comensal; la comisión se redondea al centavo. Todo null = la cuenta se
+  /// cobró sin mesero identificable o sin % configurado (no comisiona).
+  /// El sellado es best-effort: nunca bloquea el cobro.
+  commissionWaiterId  String?
+  commissionWaiter    User?     @relation("OrderCommissionWaiter", fields: [commissionWaiterId], references: [id], onDelete: SetNull)
+  commissionBps       Int?
+  commissionBaseCents Int?
+  commissionCents     Int?
+  commissionSealedAt  DateTime?
+
   items           OrderItem[]
   payments        Payment[]
   rounds          Round[]
@@ -1470,6 +1499,10 @@ model Order {
   @@index([tableId])
   @@index([restaurantId, needsWaiter])
   @@index([dinerId])
+  // Reporte de comisiones (cuentas selladas del período, por fecha de pago)
+  // y «Mis comisiones» (las de un mesero).
+  @@index([restaurantId, commissionSealedAt])
+  @@index([commissionWaiterId, paidAt])
 }
 
 model Round {

@@ -20,8 +20,11 @@
  */
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { BalanceInput } from "./balanceSheet";
 import type { DailyBookEntryInput } from "./dailyBook";
 import type { LedgerLineInput } from "./generalLedger";
+import type { ResultMovement } from "./incomeStatement";
+import { isoDateUtc } from "./period";
 import type { TrialBalanceDbRow } from "./trialBalance";
 
 export type ReportAccount = {
@@ -220,6 +223,106 @@ export async function loadEntriesWithLines(
     cursor = batch[batch.length - 1]!.id;
   }
   return out;
+}
+
+type RawBalanceRow = { accountCode: string; balanceCents: bigint | number };
+
+/**
+ * Saldo ACUMULADO firmado (Σ débito − crédito) por cuenta con fecha < `to`
+ * (`to` = 00:00Z del día siguiente al corte, ver `period.ts`), para el
+ * estado de situación financiera. Todos los estados y TODOS los orígenes,
+ * cierre incluido: tras un cierre las 4/5/6 quedan en cero y la utilidad
+ * vive en 3605/3610, que es lo que un balance a esa fecha debe mostrar.
+ */
+export async function loadBalancesThrough(
+  restaurantId: string,
+  to: Date,
+): Promise<BalanceInput[]> {
+  const rows = await db.$queryRaw<RawBalanceRow[]>(Prisma.sql`
+    SELECT
+      l."accountCode" AS "accountCode",
+      COALESCE(SUM(l."debitCents" - l."creditCents"), 0) AS "balanceCents"
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e."id" = l."entryId"
+    WHERE e."restaurantId" = ${restaurantId}
+      AND e."date" < ${to}
+    GROUP BY l."accountCode"
+    ORDER BY l."accountCode"
+  `);
+  return rows.map((r) => ({ accountCode: r.accountCode, balanceCents: Number(r.balanceCents) }));
+}
+
+type RawMovementRow = { accountCode: string; month: string; movementCents: bigint | number };
+
+/**
+ * Movimiento firmado (Σ débito − crédito) por cuenta y MES (`yyyy-mm`,
+ * UTC) de las cuentas de resultado (ingreso / costo / gasto) y del
+ * patrimonio `38*` (otro resultado integral) en el rango, para el estado
+ * de resultado. El resto del patrimonio no entra: no es resultado.
+ *
+ * Se EXCLUYEN los asientos de cierre (`source = 'closing'`) y sus reversas
+ * (`reversalOfId` → un cierre): el cierre no es un hecho económico, es la
+ * reclasificación al patrimonio, y con él dentro el estado daría cero. Los
+ * demás anulados y sus reversas sí entran (se netean entre sí).
+ */
+export async function loadResultMovements(
+  restaurantId: string,
+  from: Date,
+  to: Date,
+): Promise<ResultMovement[]> {
+  const rows = await db.$queryRaw<RawMovementRow[]>(Prisma.sql`
+    SELECT
+      l."accountCode" AS "accountCode",
+      to_char(e."date", 'YYYY-MM') AS "month",
+      COALESCE(SUM(l."debitCents" - l."creditCents"), 0) AS "movementCents"
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e."id" = l."entryId"
+    JOIN "LedgerAccount" a ON a."id" = l."accountId"
+    WHERE e."restaurantId" = ${restaurantId}
+      AND e."date" >= ${from}
+      AND e."date" < ${to}
+      AND (
+        a."type"::text IN ('ingreso', 'costo', 'gasto')
+        OR (a."type"::text = 'patrimonio' AND l."accountCode" LIKE '38%')
+      )
+      AND e."source" <> 'closing'
+      AND NOT EXISTS (
+        SELECT 1 FROM "JournalEntry" c
+        WHERE c."id" = e."reversalOfId" AND c."source" = 'closing'
+      )
+    GROUP BY l."accountCode", to_char(e."date", 'YYYY-MM')
+    ORDER BY l."accountCode", 2
+  `);
+  return rows.map((r) => ({
+    accountCode: r.accountCode,
+    month: r.month,
+    movementCents: Number(r.movementCents),
+  }));
+}
+
+/**
+ * Fechas (`yyyy-mm-dd`, UTC) de los asientos de cierre VIGENTES del
+ * comercio, ascendentes. Un cierre anulado por reversa no cuenta: sus
+ * líneas quedaron neteadas y la utilidad de ese año sigue «al vuelo».
+ */
+export async function loadClosingDates(restaurantId: string): Promise<string[]> {
+  const rows = await db.journalEntry.findMany({
+    where: { restaurantId, source: "closing", status: "posted" },
+    select: { date: true },
+    orderBy: { date: "asc" },
+  });
+  return rows.map((r) => isoDateUtc(r.date));
+}
+
+/** Años (UTC) con al menos un asiento, descendentes (selector de ejercicio). */
+export async function loadEntryYears(restaurantId: string): Promise<number[]> {
+  const rows = await db.$queryRaw<{ year: number }[]>(Prisma.sql`
+    SELECT DISTINCT EXTRACT(YEAR FROM e."date")::int AS "year"
+    FROM "JournalEntry" e
+    WHERE e."restaurantId" = ${restaurantId}
+    ORDER BY "year" DESC
+  `);
+  return rows.map((r) => Number(r.year));
 }
 
 /** Datos del comercio para el encabezado legal impreso. */

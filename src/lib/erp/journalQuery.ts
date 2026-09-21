@@ -7,6 +7,8 @@
 // búsqueda server-side sobre todo el libro, no sobre lo ya cargado).
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { getAccountingConfig, isMonthClosed } from "./cierre";
+import { canMutateManual, canReverse, monthOf } from "./journalManual";
 
 export const ENTRIES_PAGE_SIZE = 50;
 export const ENTRIES_PAGE_MAX = 200;
@@ -183,5 +185,114 @@ export async function listEntries(
           })
         : null,
     total,
+  };
+}
+
+// ── Detalle ─────────────────────────────────────────────────────────────────
+
+export type EntryDetailLine = {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  costCenterId: string | null;
+  costCenterName: string | null;
+  debitCents: number;
+  creditCents: number;
+  memo: string | null;
+};
+
+export type EntryDetail = {
+  id: string;
+  date: string;
+  voucherNumber: number | null;
+  source: string;
+  memo: string | null;
+  thirdPartyName: string | null;
+  thirdPartyTaxId: string | null;
+  status: string;
+  annulledAt: string | null;
+  createdAt: string;
+  /** Si este comprobante es una reversa: el original (si todavía existe). */
+  reversalOf: { id: string; voucherNumber: number | null } | null;
+  reversalOfId: string | null;
+  /** Si este comprobante fue reversado: la reversa. */
+  reversedBy: { id: string; voucherNumber: number | null } | null;
+  lines: EntryDetailLine[];
+  totalDebitCents: number;
+  totalCreditCents: number;
+  balanced: boolean;
+  monthClosed: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canReverse: boolean;
+};
+
+/** Comprobante con líneas (ordenadas por código), nombres y permisos. */
+export async function loadEntryDetail(
+  restaurantId: string,
+  entryId: string,
+): Promise<EntryDetail | null> {
+  const entry = await db.journalEntry.findFirst({
+    where: { id: entryId, restaurantId },
+    include: {
+      lines: {
+        orderBy: { accountCode: "asc" },
+        include: { costCenter: { select: { name: true } } },
+      },
+    },
+  });
+  if (!entry) return null;
+  const [cfg, accounts, reversalOf, reversedBy] = await Promise.all([
+    getAccountingConfig(restaurantId),
+    db.ledgerAccount.findMany({
+      where: { restaurantId, code: { in: [...new Set(entry.lines.map((l) => l.accountCode))] } },
+      select: { code: true, name: true },
+    }),
+    entry.reversalOfId
+      ? db.journalEntry.findFirst({
+          where: { id: entry.reversalOfId, restaurantId },
+          select: { id: true, voucherNumber: true },
+        })
+      : Promise.resolve(null),
+    db.journalEntry.findFirst({
+      where: { restaurantId, reversalOfId: entry.id },
+      select: { id: true, voucherNumber: true },
+    }),
+  ]);
+  const nameByCode = new Map(accounts.map((a) => [a.code, a.name]));
+  const totalDebitCents = entry.lines.reduce((s, l) => s + l.debitCents, 0);
+  const totalCreditCents = entry.lines.reduce((s, l) => s + l.creditCents, 0);
+  const mutable = canMutateManual(entry, cfg.closedThrough).ok;
+  return {
+    id: entry.id,
+    date: entry.date.toISOString(),
+    voucherNumber: entry.voucherNumber,
+    source: entry.source,
+    memo: entry.memo,
+    thirdPartyName: entry.thirdPartyName,
+    thirdPartyTaxId: entry.thirdPartyTaxId,
+    status: entry.status,
+    annulledAt: entry.annulledAt ? entry.annulledAt.toISOString() : null,
+    createdAt: entry.createdAt.toISOString(),
+    reversalOf,
+    reversalOfId: entry.reversalOfId,
+    reversedBy,
+    lines: entry.lines.map((l) => ({
+      id: l.id,
+      accountCode: l.accountCode,
+      accountName: nameByCode.get(l.accountCode) ?? "—",
+      costCenterId: l.costCenterId,
+      costCenterName: l.costCenter?.name ?? null,
+      debitCents: l.debitCents,
+      creditCents: l.creditCents,
+      memo: l.memo,
+    })),
+    totalDebitCents,
+    totalCreditCents,
+    balanced: totalDebitCents === totalCreditCents,
+    monthClosed: isMonthClosed(cfg.closedThrough, monthOf(entry.date)),
+    canEdit: mutable,
+    canDelete: mutable,
+    canReverse: canReverse(entry, cfg.closedThrough).ok,
   };
 }

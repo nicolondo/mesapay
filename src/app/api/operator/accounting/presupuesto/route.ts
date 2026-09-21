@@ -1,122 +1,102 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { monthRange } from "@/lib/erp/accounting";
+import { deleteBudget, loadBudgetExecution, upsertBudget } from "@/lib/erp/budgets";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/**
- * Grupos PUC presupuestables (prefijo → lo ejecutado se lee del libro).
- * Ingresos van por naturaleza crédito (crédito − débito); el resto débito.
- */
-export const BUDGET_GROUPS: Array<{ code: string; credit: boolean }> = [
-  { code: "41", credit: true }, // ingresos operacionales
-  { code: "51", credit: false }, // gastos de administración
-  { code: "52", credit: false }, // gastos de ventas
-  { code: "53", credit: false }, // no operacionales
-  { code: "61", credit: false }, // costo de ventas
-];
+/** `?year=2026&month=9` o `?month=2026-09` → {year, month}; null si no sirve. */
+function parsePeriod(searchParams: URLSearchParams): { year: number; month: number } | null {
+  const monthRaw = searchParams.get("month") ?? "";
+  const ym = /^(\d{4})-(\d{2})$/.exec(monthRaw);
+  const year = ym ? Number(ym[1]) : Number(searchParams.get("year"));
+  const month = ym ? Number(ym[2]) : Number(monthRaw);
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return { year, month };
+}
 
 /**
- * Presupuesto del año + ejecutado del MES pedido, por grupo PUC. Lo
- * ejecutado suma las líneas del libro cuyo código arranca con el prefijo.
+ * Ejecución del presupuesto del mes (presupuesto vs. real por cuenta y
+ * centro, con semáforo) + todos los presupuestos del año.
  */
 async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const { searchParams } = new URL(req.url);
-  const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
-  if (!range) {
-    return NextResponse.json({ error: "invalid" }, { status: 400 });
-  }
-  const year = Number(month.slice(0, 4));
-
-  const [budgets, lines] = await Promise.all([
-    db.budget.findMany({ where: { restaurantId: ctx.restaurantId, year } }),
-    db.journalLine.findMany({
-      where: {
-        entry: {
-          restaurantId: ctx.restaurantId,
-          date: { gte: range.from, lt: range.to },
-        },
-      },
-      select: { accountCode: true, debitCents: true, creditCents: true },
-    }),
-  ]);
-
-  const byCode = new Map(budgets.map((b) => [b.accountCode, b.monthlyCents]));
-  const rows = BUDGET_GROUPS.map((g) => {
-    let executed = 0;
-    for (const l of lines) {
-      if (!l.accountCode.startsWith(g.code)) continue;
-      executed += g.credit
-        ? l.creditCents - l.debitCents
-        : l.debitCents - l.creditCents;
-    }
-    return {
-      accountCode: g.code,
-      monthlyCents: byCode.get(g.code) ?? 0,
-      executedCents: executed,
-    };
-  });
-  return NextResponse.json({ month, year, rows });
+  const period = parsePeriod(new URL(req.url).searchParams);
+  if (!period) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const execution = await loadBudgetExecution(ctx.restaurantId, period.year, period.month);
+  return NextResponse.json(execution);
 }
 
-const putSchema = z.object({
-  year: z.number().int().min(2020).max(2100),
-  rows: z
-    .array(
-      z.object({
-        accountCode: z.string().min(2).max(6),
-        monthlyCents: z.number().int().min(0).max(100_000_000_000),
-      }),
-    )
-    .max(20),
+// La forma la valida zod; las reglas (cuenta del plan, centro activo,
+// rangos) las devuelve `upsertBudget` con su código.
+const bodySchema = z.object({
+  accountCode: z.string().max(20),
+  costCenterId: z.string().max(64).nullable().optional(),
+  year: z.number().int(),
+  month: z.number().int().nullable().optional(),
+  amountCents: z.number().int(),
+  /** true → la fila aplica a todos los meses del año (month = null). */
+  allMonths: z.boolean().optional(),
 });
 
-/** Guarda el presupuesto mensual del año (upsert por grupo). */
-async function PUTHandler(req: Request) {
+/**
+ * Crea (201) o actualiza (200) el presupuesto del alcance (año, mes | todo
+ * el año, cuenta, centro | general). 400 con el código de validación; 409
+ * si otra alta ganó la carrera por el mismo alcance.
+ */
+async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const parsed = putSchema.safeParse(await req.json().catch(() => null));
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const allowed = new Set(BUDGET_GROUPS.map((g) => g.code));
-  for (const row of parsed.data.rows) {
-    if (!allowed.has(row.accountCode)) {
-      return NextResponse.json({ error: "invalid" }, { status: 400 });
-    }
-    await db.budget.upsert({
-      where: {
-        restaurantId_year_accountCode: {
-          restaurantId: ctx.restaurantId,
-          year: parsed.data.year,
-          accountCode: row.accountCode,
-        },
-      },
-      create: {
-        restaurantId: ctx.restaurantId,
-        year: parsed.data.year,
-        accountCode: row.accountCode,
-        monthlyCents: row.monthlyCents,
-      },
-      update: { monthlyCents: row.monthlyCents },
-    });
+  const b = parsed.data;
+  const month = b.allMonths ? null : (b.month ?? null);
+  if (month === null && !b.allMonths) {
+    return NextResponse.json({ error: "invalid_month" }, { status: 400 });
   }
+  const r = await upsertBudget(ctx.restaurantId, {
+    accountCode: b.accountCode,
+    costCenterId: b.costCenterId ?? null,
+    year: b.year,
+    month,
+    amountCents: b.amountCents,
+  });
+  if (!r.ok) {
+    return NextResponse.json({ error: r.error }, { status: r.error === "duplicate" ? 409 : 400 });
+  }
+  return NextResponse.json(
+    { ok: true, budget: r.budget, created: r.created },
+    { status: r.created ? 201 : 200 },
+  );
+}
+
+/** Borra un presupuesto (`?id=`). */
+async function DELETEHandler(req: Request) {
+  const ctx = await getErpContext(GATE);
+  if (isDenied(ctx)) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+  const id = (new URL(req.url).searchParams.get("id") ?? "").trim();
+  if (!id) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const r = await deleteBudget(ctx.restaurantId, id);
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 
 export const GET = secureApi(GETHandler);
 
-export const PUT = secureApi(PUTHandler);
+export const POST = secureApi(POSTHandler);
+
+export const DELETE = secureApi(DELETEHandler);

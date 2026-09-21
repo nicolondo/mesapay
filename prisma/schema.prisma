@@ -387,6 +387,8 @@ model Restaurant {
   payouts                Payout[]
   accountingConfig       AccountingConfig?
   retentionConcepts      RetentionConcept[]
+  exogenaShareholders    ExogenaShareholder[]
+  exogenaHoldings        ExogenaHolding[]
   bankStatementLines     BankStatementLine[]
   bankRecRules           BankRecRule[]
   fixedAssets            FixedAsset[]
@@ -3357,22 +3359,43 @@ model CostCenter {
   expenses      Expense[]
   lines         JournalLine[]
   deferredItems DeferredItem[]
+  budgets       Budget[]
 
   @@index([restaurantId])
 }
 
-/// Presupuesto mensual por grupo/cuenta PUC (prefijo): lo ejecutado del mes
-/// se compara sumando las líneas del libro cuyo código arranca con el prefijo.
+/// Presupuesto por cuenta (prefijo PUC) y mes, con centro de costos opcional
+/// (port de zenith /contabilidad/presupuestos). Lo ejecutado del mes se compara
+/// sumando las líneas del libro cuyo código arranca con el prefijo, llevado a
+/// la naturaleza de la cuenta (ver src/lib/erp/budgets.ts).
+///
+/// UNICIDAD: vive en el índice SQL `Budget_scope_key` de la migración
+/// 20260918070000 — (restaurantId, year, COALESCE(month,0), accountCode,
+/// COALESCE(costCenterId,'')) — porque PostgreSQL trata los NULL como
+/// distintos y un @@unique de Prisma dejaría duplicar el presupuesto general o
+/// el anual. Prisma no puede expresar ese índice, así que `upsertBudget`
+/// busca la fila por alcance ANTES de insertar y trata el P2002 como carrera.
 model Budget {
-  id           String     @id @default(cuid())
+  id           String      @id @default(cuid())
   restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   year         Int
+  /// Mes 1..12. null = aplica a TODOS los meses del año (las filas anteriores
+  /// a la migración quedan así). Si una cuenta/centro tiene fila mensual y
+  /// anual, la mensual gana para ese mes.
+  month        Int?
   accountCode  String
+  /// Centro de costos; null = presupuesto GENERAL de la cuenta (lo real se
+  /// suma sin filtrar por centro). Si el centro se borra, la fila queda general.
+  costCenterId String?
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  /// Valor del mes en centavos. El nombre se conserva por compatibilidad: es
+  /// el presupuesto DEL mes (o de cada mes del año cuando month es null).
   monthlyCents Int
-  updatedAt    DateTime   @updatedAt
+  updatedAt    DateTime    @updatedAt
 
-  @@unique([restaurantId, year, accountCode])
+  @@index([restaurantId, year])
+  @@index([costCenterId])
 }
 
 /// Línea de extracto bancario importada por CSV para conciliar: cada línea
@@ -3410,20 +3433,32 @@ model BankRecRule {
 /// Activo fijo con depreciación en línea recta mensual (estilo zenith): la
 /// depreciación arranca el MES SIGUIENTE al de compra; la cuota es
 /// (compra − salvamento) / vida, y el último mes absorbe el residuo de
-/// redondeo. El asiento mensual (516005 → 159205) lo genera el motor.
+/// redondeo. El asiento mensual (Debe gasto · Haber depreciación acumulada,
+/// con las cuentas de CADA activo) lo genera el motor. Ver src/lib/erp/activos.ts.
 model FixedAsset {
-  id               String     @id @default(cuid())
-  restaurantId     String
-  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name             String
-  purchaseDate     DateTime
-  purchaseCents    Int
-  salvageCents     Int        @default(0)
-  usefulLifeMonths Int
-  assetAccountCode String     @default("152405")
-  active           Boolean    @default(true)
-  disposedAt       DateTime?
-  createdAt        DateTime   @default(now())
+  id                      String     @id @default(cuid())
+  restaurantId            String
+  restaurant              Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name                    String
+  /// Código interno (placa, inventario), opcional, hasta 20 caracteres.
+  code                    String?
+  purchaseDate            DateTime
+  purchaseCents           Int
+  salvageCents            Int        @default(0)
+  usefulLifeMonths        Int
+  /// Cuenta del activo (15xx). Sin asiento de alta: el activo ya quedó
+  /// contabilizado por la compra.
+  assetAccountCode        String     @default("152405")
+  /// Cuentas de la cuota mensual de ESTE activo: depreciación acumulada
+  /// (contra-activo 15xx) y gasto de depreciación (5xxx). El motor arma el
+  /// asiento `depreciation` del mes agrupando los activos por cuenta.
+  depreciationAccountCode String     @default("159205")
+  expenseAccountCode      String     @default("516005")
+  notes                   String?
+  active                  Boolean    @default(true)
+  /// Baja: deprecia hasta el mes de la baja INCLUSIVE y nada después.
+  disposedAt              DateTime?
+  createdAt               DateTime   @default(now())
 
   @@index([restaurantId])
 }
@@ -3478,6 +3513,45 @@ model RetentionConcept {
   createdAt    DateTime   @default(now())
 
   @@index([restaurantId])
+}
+
+/// Exógena 1010: socios/accionistas (captura manual por año gravable).
+/// `sharePctBps` es el porcentaje de participación en BASIS POINTS
+/// (1 % = 100 bps; 33,3333 % = 333333). Valores en centavos, BigInt: el
+/// capital social y las inversiones superan con facilidad los $21,4 M COP
+/// que caben en un Int de 32 bits.
+model ExogenaShareholder {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  year         Int
+  name         String
+  docType      String // NIT | CC | CE | PA
+  docNumber    String
+  dv           String?
+  sharePctBps  Int
+  nominalCents BigInt
+  premiumCents BigInt     @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, year])
+}
+
+/// Exógena 1012: inversiones y cuentas al 31/12 (captura manual por año).
+/// `concept`: 1110 cuentas bancarias, 1115 inversiones, 1200-1206 otros.
+model ExogenaHolding {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  year            Int
+  concept         String
+  entityName      String
+  entityDocType   String // NIT | CC | CE | PA
+  entityDocNumber String
+  valueCents      BigInt
+  createdAt       DateTime   @default(now())
+
+  @@index([restaurantId, year])
 }
 
 /// Movimiento de un asiento: débito O crédito sobre una cuenta.

@@ -22,6 +22,7 @@ import {
   concepto1001DeCategoria,
   type FormatoExogena,
 } from "./normativa";
+import { resolveCustomerMunicipio } from "@/lib/dian/emit";
 import { CONSUMIDOR_FINAL_NID, CONSUMIDOR_FINAL_RAZ, dianIdType, PAIS_COLOMBIA } from "./xml";
 
 /* ─────────────────────────────── Terceros ─────────────────────────────── */
@@ -161,6 +162,84 @@ export function consumidorFinalTercero(): Tercero {
     mun: "0",
     pais: PAIS_COLOMBIA,
     href: null,
+  };
+}
+
+/* ────────────────────── Adquirientes (ventas y bonos) ─────────────────── */
+
+/** dpto/mun a partir de un código DANE de 5 dígitos ("05001" → "05" / "001"). */
+export function daneParts(code: string | null | undefined): { dpto: string; mun: string } {
+  const c = (code ?? "").replace(/\D/g, "");
+  if (c.length !== 5) return { dpto: "0", mun: "0" };
+  return { dpto: c.slice(0, 2), mun: c.slice(2) };
+}
+
+export type InvoiceRequestTerceroInput = {
+  customerName: string;
+  docType: string;
+  docNumber: string;
+  /**
+   * Opcionales: la solicitud de factura ya no pide dirección, ciudad ni
+   * departamento; sólo las filas viejas los traen.
+   */
+  address?: string | null;
+  city?: string | null;
+  department?: string | null;
+};
+
+/**
+ * Adquiriente de una tirilla: la solicitud de factura de su orden. Sin
+ * dirección —lo normal desde que no se pide— va como un proveedor sin datos
+ * fiscales: dir vacía, dpto/mun "0" (el contador los completa en el
+ * prevalidador) y país Colombia. Con dirección, el municipio DANE se
+ * resuelve del texto libre como en la factura electrónica.
+ */
+export function requestTercero(r: InvoiceRequestTerceroInput): Tercero {
+  const digits = r.docNumber.replace(/\D/g, "");
+  const municipio = resolveCustomerMunicipio(r.city, r.department);
+  return {
+    key: `cli:${r.docType}:${digits || r.docNumber.trim()}`,
+    name: r.customerName.trim(),
+    docType: r.docType,
+    docNumber: r.docNumber,
+    dvGiven: null,
+    kind: r.docType === "NIT" ? "juridica" : "natural",
+    dir: (r.address ?? "").trim(),
+    ...(municipio ? { dpto: municipio.deptCode, mun: municipio.code.slice(2) } : { dpto: "0", mun: "0" }),
+    pais: PAIS_COLOMBIA,
+    href: "/operator/facturas",
+  };
+}
+
+export type BillingCustomerTerceroInput = {
+  id: string;
+  customerName: string;
+  docType: string;
+  docNumber: string;
+  verificationDigit: string | null;
+  /** null desde que el alta de clientes no pide dirección ni municipio. */
+  address: string | null;
+  municipalityCode: string | null;
+  country: string;
+};
+
+/**
+ * Cliente de facturación (bonos): documento estructurado + DANE. Sin
+ * municipio ⇒ dpto/mun "0"; sin dirección ⇒ dir vacía; el país sale de
+ * `country` (Colombia por defecto).
+ */
+export function billingCustomerTercero(c: BillingCustomerTerceroInput): Tercero {
+  return {
+    key: `bc:${c.id}`,
+    name: c.customerName.trim(),
+    docType: c.docType,
+    docNumber: c.docNumber,
+    dvGiven: c.verificationDigit?.trim() || null,
+    kind: c.docType === "NIT" ? "juridica" : "natural",
+    dir: (c.address ?? "").trim(),
+    ...daneParts(c.municipalityCode),
+    pais: c.country.trim().toUpperCase() === "CO" ? PAIS_COLOMBIA : "0",
+    href: "/operator/clientes",
   };
 }
 

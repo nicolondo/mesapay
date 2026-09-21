@@ -18,19 +18,19 @@
  */
 
 import { db } from "@/lib/db";
-import { resolveCustomerMunicipio } from "@/lib/dian/emit";
 import { frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
 import { lineTaxCents, poTotals } from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
 import { uvtDelAno } from "./normativa";
 import {
+  billingCustomerTercero,
   buildExogenaReport,
+  requestTercero,
   type ExogenaInputs,
   type ExogenaReport,
   type SaleInput,
   type Tercero,
 } from "./sources";
-import { PAIS_COLOMBIA } from "./xml";
 
 /** Límites UTC del año gravable: `from` inclusivo, `to` EXCLUSIVO. */
 export function yearRange(year: number): { from: Date; to: Date } {
@@ -38,63 +38,6 @@ export function yearRange(year: number): { from: Date; to: Date } {
 }
 
 const supplierSelect = { id: true, name: true, taxId: true, address: true } as const;
-
-/** dpto/mun a partir de un código DANE de 5 dígitos ("05001" → "05" / "001"). */
-function daneParts(code: string | null | undefined): { dpto: string; mun: string } {
-  const c = (code ?? "").replace(/\D/g, "");
-  if (c.length !== 5) return { dpto: "0", mun: "0" };
-  return { dpto: c.slice(0, 2), mun: c.slice(2) };
-}
-
-/** Adquiriente de una tirilla: la solicitud de factura de su orden. */
-function requestTercero(r: {
-  customerName: string;
-  docType: string;
-  docNumber: string;
-  address: string;
-  city: string;
-  department: string;
-}): Tercero {
-  const digits = r.docNumber.replace(/\D/g, "");
-  const municipio = resolveCustomerMunicipio(r.city, r.department);
-  return {
-    key: `cli:${r.docType}:${digits || r.docNumber.trim()}`,
-    name: r.customerName.trim(),
-    docType: r.docType,
-    docNumber: r.docNumber,
-    dvGiven: null,
-    kind: r.docType === "NIT" ? "juridica" : "natural",
-    dir: r.address.trim(),
-    ...(municipio ? { dpto: municipio.deptCode, mun: municipio.code.slice(2) } : { dpto: "0", mun: "0" }),
-    pais: PAIS_COLOMBIA,
-    href: "/operator/facturas",
-  };
-}
-
-/** Cliente de facturación (bonos): documento estructurado + DANE. */
-function billingCustomerTercero(c: {
-  id: string;
-  customerName: string;
-  docType: string;
-  docNumber: string;
-  verificationDigit: string | null;
-  address: string;
-  municipalityCode: string;
-  country: string;
-}): Tercero {
-  return {
-    key: `bc:${c.id}`,
-    name: c.customerName.trim(),
-    docType: c.docType,
-    docNumber: c.docNumber,
-    dvGiven: c.verificationDigit?.trim() || null,
-    kind: c.docType === "NIT" ? "juridica" : "natural",
-    dir: c.address.trim(),
-    ...daneParts(c.municipalityCode),
-    pais: c.country.trim().toUpperCase() === "CO" ? PAIS_COLOMBIA : "0",
-    href: "/operator/clientes",
-  };
-}
 
 /**
  * Impuesto y base de una tirilla desde su snapshot congelado: el embebido

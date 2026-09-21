@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// `requestTercero` resuelve el municipio con `@/lib/dian/emit`, que importa
+// el cliente Prisma en el tope. Todo lo de acá es puro; se stubea para que
+// el import no abra conexión.
+vi.mock("@/lib/db", () => ({ db: {} }));
+
 import { buildFormatoXml } from "./download";
 import {
   aggregate1001,
@@ -9,7 +15,9 @@ import {
   aggregate1009,
   aggregate1011,
   aggregate2276,
+  billingCustomerTercero,
   buildExogenaReport,
+  requestTercero,
   resolveTerceroDoc,
   supplierTercero,
   type ExogenaInputs,
@@ -86,6 +94,102 @@ describe("1001 — pagos por tercero y concepto", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ vimpCents: 150_000, ivadeCents: 0 });
+  });
+});
+
+describe("requestTercero / billingCustomerTercero — adquiriente sin dirección", () => {
+  // Lo que guarda la solicitud de factura desde que no pide dirección,
+  // ciudad ni departamento.
+  const anaSinDireccion = {
+    customerName: "Ana María Pérez Gómez",
+    docType: "CC",
+    docNumber: "1.020.304.050",
+    address: null,
+    city: null,
+    department: null,
+  };
+  const acmeSinDireccion = {
+    id: "bc1",
+    customerName: "ACME S.A.S.",
+    docType: "NIT",
+    docNumber: "900123456",
+    verificationDigit: "8",
+    address: null,
+    municipalityCode: null,
+    country: "CO",
+  };
+
+  it("solicitud sin dirección: como un proveedor sin datos fiscales (dir vacía, dpto/mun 0, país Colombia)", () => {
+    expect(requestTercero(anaSinDireccion)).toEqual({
+      key: "cli:CC:1020304050",
+      name: "Ana María Pérez Gómez",
+      docType: "CC",
+      docNumber: "1.020.304.050",
+      dvGiven: null,
+      kind: "natural",
+      dir: "",
+      dpto: "0",
+      mun: "0",
+      pais: "169",
+      href: "/operator/facturas",
+    });
+    // Campos ausentes del todo (no sólo null) y cadenas vacías: lo mismo.
+    const sinCampos = { customerName: "Ana María Pérez Gómez", docType: "CC", docNumber: "1.020.304.050" };
+    expect(requestTercero(sinCampos)).toMatchObject({ dir: "", dpto: "0", mun: "0", pais: "169" });
+    expect(requestTercero({ ...anaSinDireccion, address: "  ", city: "", department: "" })).toMatchObject({ dir: "", dpto: "0", mun: "0" });
+  });
+
+  it("solicitud vieja con dirección: sigue resolviendo el municipio DANE del texto libre", () => {
+    expect(
+      requestTercero({ ...anaSinDireccion, address: " Calle 1 # 2-3 ", city: "Envigado", department: "Antioquia" }),
+    ).toMatchObject({ dir: "Calle 1 # 2-3", dpto: "05", mun: "266", pais: "169" });
+  });
+
+  it("cliente de facturación sin dirección ni municipio: dir vacía, dpto/mun 0, país de `country`", () => {
+    expect(billingCustomerTercero(acmeSinDireccion)).toEqual({
+      key: "bc:bc1",
+      name: "ACME S.A.S.",
+      docType: "NIT",
+      docNumber: "900123456",
+      dvGiven: "8",
+      kind: "juridica",
+      dir: "",
+      dpto: "0",
+      mun: "0",
+      pais: "169",
+      href: "/operator/clientes",
+    });
+    expect(billingCustomerTercero({ ...acmeSinDireccion, address: "Cra 1 # 2-3", municipalityCode: "05001" })).toMatchObject({ dir: "Cra 1 # 2-3", dpto: "05", mun: "001" });
+    expect(billingCustomerTercero({ ...acmeSinDireccion, country: "US" })).toMatchObject({ pais: "0" });
+  });
+
+  it("1007 / 1006 / 1008: el nominativo sin dirección sale con los valores por defecto, sin incidencias", () => {
+    const uvt = 1000;
+    const report = buildExogenaReport({
+      ...empty,
+      sales: [{ customer: requestTercero(anaSinDireccion), baseCents: 100_000, ivaCents: 19_000, incCents: 0 }],
+      receivables: [{ customer: billingCustomerTercero(acmeSinDireccion), saldoCents: 5_000_000 }],
+    });
+    expect(report.issues).toEqual([]);
+
+    const r1007 = buildFormatoXml(report, "1007", 2025, uvt, { fecEnvio: "x" });
+    if (!r1007.ok) throw new Error(r1007.error);
+    expect(r1007.xml).toContain(
+      '<ingresos cpt="4001" tdoc="13" nid="1020304050" apl1="Gómez" apl2="Pérez" nom1="Ana" nom2="María" raz="" pais="169" ibru="1000" dred="0"/>',
+    );
+
+    const r1006 = buildFormatoXml(report, "1006", 2025, uvt, { fecEnvio: "x" });
+    if (!r1006.ok) throw new Error(r1006.error);
+    expect(r1006.xml).toContain(
+      '<impoventas tdoc="13" nid="1020304050" dv="" apl1="Gómez" apl2="Pérez" nom1="Ana" nom2="María" raz="" imp="190" iva="0" icon="0"/>',
+    );
+
+    // El 1008 es el único de estos que imprime la ubicación: dir vacía,
+    // dpto/mun "0" y país 169, igual que un proveedor sin datos.
+    const r1008 = buildFormatoXml(report, "1008", 2025, uvt, { fecEnvio: "x" });
+    if (!r1008.ok) throw new Error(r1008.error);
+    const saldo = (r1008.xml.match(/<saldoscc\b[^>]*>/g) ?? []).find((x) => x.includes('nid="900123456"'));
+    expect(saldo).toContain('raz="ACME S.A.S." dir="" dpto="0" mun="0" pais="169"');
   });
 });
 

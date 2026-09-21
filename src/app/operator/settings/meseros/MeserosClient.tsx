@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { bpsToPct, pctToBps } from "@/lib/waiterCommissions";
 
 /** Espera antes de guardar, para no disparar un PUT por cada mesa tocada. */
 const AUTOSAVE_DELAY_MS = 600;
@@ -17,6 +18,8 @@ type Mesero = {
   email: string;
   name: string | null;
   assignedTableNumbers: number[];
+  /** Comisión de ventas en puntos base (250 = 2,5 %); null = sin comisión. */
+  commissionBps: number | null;
 };
 
 type Table = {
@@ -215,6 +218,8 @@ function MeseroCard({
         </div>
       </div>
 
+      <CommissionField meseroId={mesero.id} initialBps={mesero.commissionBps} />
+
       {/* Quick actions */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <button
@@ -322,6 +327,135 @@ function MeseroCard({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Texto del campo → bps. `null` = vacío (sin comisión); `undefined` =
+ * inválido (fuera de 0..100 o no numérico): no se guarda.
+ */
+function parsePct(raw: string): number | null | undefined {
+  const v = raw.trim().replace(",", ".");
+  if (v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return undefined;
+  return pctToBps(n);
+}
+
+/**
+ * Comisión de ventas (%) del mesero. Se guarda sola, con la misma espera
+ * que las mesas, pero con su propio guardado serializado: es otro endpoint
+ * y otro dato, y así un error en uno no bloquea al otro. Entra como
+ * porcentaje con dos decimales; viaja y se guarda en puntos base.
+ */
+function CommissionField({
+  meseroId,
+  initialBps,
+}: {
+  meseroId: string;
+  initialBps: number | null;
+}) {
+  const tr = useTranslations("opSettings");
+  const [text, setText] = useState(initialBps == null ? "" : String(bpsToPct(initialBps)));
+  const [state, setState] = useState<"clean" | "saving" | "saved" | "error" | "invalid">(
+    "clean",
+  );
+  // Lo confirmado por el servidor (bps) y la última intención válida.
+  const savedRef = useRef<number | null>(initialBps);
+  const latestRef = useRef<number | null | undefined>(initialBps);
+  const runningRef = useRef(false);
+
+  const save = useCallback(
+    async function save(target: number | null) {
+      if (runningRef.current) return;
+      if (target === savedRef.current) return;
+      runningRef.current = true;
+      setState("saving");
+      try {
+        const r = await fetch(`/api/operator/users/${meseroId}/commission`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ commissionPct: target == null ? null : bpsToPct(target) }),
+        });
+        if (!r.ok) throw new Error("save_failed");
+        const j = (await r.json()) as { commissionBps?: number | null };
+        savedRef.current = j.commissionBps === undefined ? target : j.commissionBps;
+        setState("saved");
+      } catch {
+        setState("error");
+        return;
+      } finally {
+        runningRef.current = false;
+      }
+      const latest = latestRef.current;
+      if (latest !== undefined && latest !== savedRef.current) void save(latest);
+    },
+    [meseroId],
+  );
+
+  useEffect(() => {
+    const target = parsePct(text);
+    latestRef.current = target;
+    if (target === undefined) {
+      setState("invalid");
+      return;
+    }
+    if (target === savedRef.current) {
+      setState((s) => (s === "error" || s === "invalid" ? "clean" : s));
+      return;
+    }
+    const id = setTimeout(() => void save(target), AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [text, save]);
+
+  return (
+    <div className="mb-4 rounded-xl border border-op-border bg-op-bg p-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2">
+          <span className="text-[10px] text-op-muted font-mono uppercase tracking-wider">
+            {tr("meserosCommissionLabel")}
+          </span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={100}
+            step={0.01}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={tr("meserosCommissionNone")}
+            aria-invalid={state === "invalid" || undefined}
+            className={
+              "h-8 w-28 px-2 rounded-md border bg-op-surface text-sm font-mono tabular text-right " +
+              (state === "invalid" ? "border-danger" : "border-op-border")
+            }
+          />
+        </label>
+        <span className="ml-auto text-xs" aria-live="polite">
+          {state === "invalid" && (
+            <span className="text-danger">{tr("meserosCommissionInvalid")}</span>
+          )}
+          {state === "saving" && <span className="text-op-muted">{tr("meserosSaving")}</span>}
+          {state === "saved" && <span className="text-ok">{tr("meserosSaved")}</span>}
+          {state === "error" && (
+            <>
+              <span className="text-danger">{tr("meserosSaveFailed")}</span>{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  const latest = latestRef.current;
+                  if (latest !== undefined) void save(latest);
+                }}
+                className="mp-btn mp-btn--ghost mp-btn--sm"
+              >
+                {tr("meserosSaveRetry")}
+              </button>
+            </>
+          )}
+        </span>
+      </div>
+      <p className="mt-1.5 text-[11px] text-op-muted">{tr("meserosCommissionHint")}</p>
     </div>
   );
 }

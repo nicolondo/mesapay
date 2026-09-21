@@ -24,6 +24,7 @@ export default async function MeserosSettingsPage() {
         email: true,
         name: true,
         assignedTableNumbers: true,
+        waiterCommissionBps: true,
       },
       orderBy: { createdAt: "asc" },
     }),
@@ -67,6 +68,7 @@ export default async function MeserosSettingsPage() {
             email: m.email,
             name: m.name,
             assignedTableNumbers: m.assignedTableNumbers,
+            commissionBps: m.waiterCommissionBps,
           }))}
         />
       )}

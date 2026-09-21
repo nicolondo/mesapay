@@ -3,7 +3,14 @@
  * API y las páginas. Fechas `yyyy-mm-dd`; cuentas = dígitos (prefijo PUC).
  */
 import { z } from "zod";
-import { isIsoDate, resolveReportPeriod, todayIso, type ResolvedPeriod } from "./period";
+import {
+  currentMonthPeriod,
+  isIsoDate,
+  resolveReportPeriod,
+  todayIso,
+  type ReportPeriod,
+  type ResolvedPeriod,
+} from "./period";
 
 const isoDate = z
   .string()
@@ -60,6 +67,31 @@ export function cutoffFromQuery(
   today: string = todayIso(),
 ): string {
   return q.corte ?? today;
+}
+
+/**
+ * Comisiones de meseros: `?desde&hasta[&format=csv-resumen|csv-detalle]`.
+ * El período corta por FECHA DE PAGO; sin fechas es el mes en curso.
+ */
+export const commissionsQuery = z.object({
+  desde: isoDate.optional(),
+  hasta: isoDate.optional(),
+  format: z.enum(["csv-resumen", "csv-detalle"]).optional(),
+});
+
+/**
+ * Período de comisiones: el mes en curso salvo que la URL traiga fechas
+ * (la que falte se rellena con el borde del mes en curso). null si el
+ * rango está al revés (la ruta responde 400 `invalid`).
+ */
+export function commissionPeriodFromQuery(
+  q: { desde?: string; hasta?: string },
+  today: string = todayIso(),
+): ReportPeriod | null {
+  const month = currentMonthPeriod(today);
+  const desde = q.desde ?? month.desde;
+  const hasta = q.hasta ?? month.hasta;
+  return desde <= hasta ? { desde, hasta } : null;
 }
 
 /** Query string → objeto plano (las claves vacías se descartan). */

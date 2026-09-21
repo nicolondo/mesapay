@@ -174,6 +174,31 @@ export function buildCommissionReport(rows: readonly CommissionRow[]): Commissio
   return { summary, detail, totals };
 }
 
+/** Textos con los que se nombra la cuenta (dependen del idioma). */
+export type AccountLabels = {
+  /** «Mesa {n}». */
+  table: (n: number) => string;
+  /** Pedido para recoger. */
+  pickup: string;
+  /** Factura manual (cuenta sin mesa física). */
+  manual: string;
+};
+
+/**
+ * Cómo se llama la cuenta en pantalla y en el CSV: la etiqueta de la mesa
+ * si la tiene, «Mesa N» si es una mesa real, y los dos casos sin mesa
+ * física (recogida y factura manual, que llevan número negativo).
+ */
+export function accountLabel(
+  row: Pick<CommissionRow, "orderType" | "tableNumber" | "tableLabel">,
+  labels: AccountLabels,
+): string {
+  if (row.orderType === "pickup") return labels.pickup;
+  if (row.tableNumber != null && row.tableNumber < 0) return labels.manual;
+  if (row.tableLabel?.trim()) return row.tableLabel.trim();
+  return row.tableNumber == null ? labels.manual : labels.table(row.tableNumber);
+}
+
 /** Textos que el CSV necesita y que dependen del idioma. */
 export type CommissionCsvLabels = {
   /** Etiqueta de la fila de totales («TOTAL»). */

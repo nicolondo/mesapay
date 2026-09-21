@@ -4,6 +4,8 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { loadAccountMap } from "@/lib/erp/ledger";
+import { isMoneyAccountCode } from "@/lib/erp/paymentAccounts";
 import { poTotals } from "@/lib/erp/purchaseTax";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -23,6 +25,10 @@ class PayError extends Error {
 const schema = z.object({
   amountCents: z.number().int().min(1).max(2_000_000_000),
   paidAt: z.string().datetime().nullable().optional(),
+  /** Cuenta del PUC de donde SALE la plata (caja, banco, pasarela). */
+  accountCode: z.string().trim().min(4).max(10),
+  // Texto libre histórico; el cliente ya no lo manda, se conserva por
+  // compatibilidad con integraciones viejas.
   method: z.string().trim().max(40).nullable().optional(),
   note: z.string().trim().max(300).nullable().optional(),
 });
@@ -32,6 +38,10 @@ const schema = z.object({
  * total bruto de la OC = Σ bruto de los ítems recibidos (neto + IVA). El
  * saldo = total − paidCents; se rechaza un abono que exceda el saldo.
  * Cuando el saldo llega a 0, la OC queda pagada (paidAt).
+ *
+ * `accountCode` dice de qué cuenta sale la plata (caja, banco, pasarela): es
+ * la que el asiento de pagos a proveedores acredita contra la CxP (ver
+ * erp/posting.ts, bloque 2b).
  */
 async function POSTHandler(
   req: Request,
@@ -48,6 +58,15 @@ async function POSTHandler(
   }
   const b = parsed.data;
   const session = await auth();
+
+  // La cuenta debe existir en el plan del comercio y ser de dinero: un
+  // código inexistente dejaría el asiento sin generar en silencio (posting
+  // omite el asiento cuya cuenta no encuentra), y una que no es de
+  // caja/banco/pasarela no puede ser el origen de un pago.
+  const accounts = await loadAccountMap(ctx.restaurantId);
+  if (!accounts.get(b.accountCode) || !isMoneyAccountCode(b.accountCode)) {
+    return NextResponse.json({ error: "account_invalid" }, { status: 400 });
+  }
 
   try {
     const result = await db.$transaction(async (tx) => {
@@ -83,6 +102,7 @@ async function POSTHandler(
           amountCents: b.amountCents,
           paidAt,
           method: b.method || null,
+          accountCode: b.accountCode,
           note: b.note || null,
           createdById: session?.user?.id ?? null,
         },

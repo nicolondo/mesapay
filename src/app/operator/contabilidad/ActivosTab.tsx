@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
@@ -34,6 +35,7 @@ const ASSET_ACCOUNT_KEYS: [string, string][] = [
  */
 export function ActivosTab({ currency }: { currency: string }) {
   const t = useTranslations("opErp");
+  const tDeferred = useTranslations("opDiferidos");
   const locale = useLocale() as Locale;
   const [assets, setAssets] = useState<Asset[] | null>(null);
   const [err, setErr] = useState(false);
@@ -122,7 +124,17 @@ export function ActivosTab({ currency }: { currency: string }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-op-muted">{t("assetsIntro")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-xs text-op-muted">{t("assetsIntro")}</p>
+        {/* Los diferidos son el hermano contable de los activos (un valor
+            que se reparte en cuotas mensuales); viven en su propia página. */}
+        <Link
+          href="/operator/contabilidad/diferidos"
+          className="text-xs font-medium text-op-accent hover:underline shrink-0"
+        >
+          {tDeferred("linkFromAssets")}
+        </Link>
+      </div>
 
       {!formOpen ? (
         <button

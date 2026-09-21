@@ -13,14 +13,16 @@ const GATE: ModuleSlug[] = ["accounting"];
 
 /**
  * Plan de cuentas del comercio (PUC NIIF Grupo 2). Lo siembra perezosamente
- * la primera vez.
+ * la primera vez. Sólo las activas, salvo `?all=1` (la pantalla del plan
+ * las muestra marcadas para poder reactivarlas).
  */
-async function GETHandler() {
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const accounts = await loadChartOfAccounts(ctx.restaurantId);
+  const includeInactive = new URL(req.url).searchParams.get("all") === "1";
+  const accounts = await loadChartOfAccounts(ctx.restaurantId, { includeInactive });
   return NextResponse.json({ accounts });
 }
 

@@ -14,6 +14,8 @@ import { isModuleEnabled } from "@/lib/modules";
 export async function reportGate(): Promise<{
   restaurantId: string;
   currency: string;
+  /** ISO-2 del comercio («CO» activa la cascada colombiana del estado de resultado). */
+  country: string | null;
   business: { name: string; taxId: string | null };
 } | null> {
   const restaurantId = await getActiveRestaurantId();
@@ -29,6 +31,7 @@ export async function reportGate(): Promise<{
   return {
     restaurantId,
     currency,
+    country: tenant.country,
     business: { name: tenant.legalName ?? tenant.name, taxId: tenant.taxId },
   };
 }

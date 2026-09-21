@@ -7,9 +7,11 @@ export const dynamic = "force-dynamic";
 /**
  * Hub «Todos los reportes» (portado de zenith `/reportes`): tarjetas por
  * categoría con nombre, destino y una línea de detalle. Los reportes que
- * todavía viven como pestañas de /operator/contabilidad (estados,
- * impuestos, exógena) enlazan allí: `ContabilidadClient` no lee la
- * pestaña de la URL, así que no hay `?tab=` que respetar.
+ * todavía viven como pestañas de /operator/contabilidad (impuestos,
+ * exógena) enlazan allí: `ContabilidadClient` no lee la pestaña de la
+ * URL, así que no hay `?tab=` que respetar. Los estados financieros ya
+ * tienen página propia (situación financiera a fecha de corte y
+ * resultado por período).
  */
 export default async function ReportesHubPage() {
   const t = await getTranslations("opReportes");
@@ -41,8 +43,16 @@ export default async function ReportesHubPage() {
       key: "financieros",
       label: t("catFinancieros"),
       items: [
-        { href: "/operator/contabilidad", name: t("rEsf"), detail: t("rEsfDesc") },
-        { href: "/operator/contabilidad", name: t("rEr"), detail: t("rErDesc") },
+        {
+          href: "/operator/reportes/estado-situacion",
+          name: t("rEsf"),
+          detail: t("rEsfDesc"),
+        },
+        {
+          href: "/operator/reportes/estado-resultado",
+          name: t("rEr"),
+          detail: t("rErDesc"),
+        },
       ],
     },
     {

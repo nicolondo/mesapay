@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
@@ -33,6 +34,7 @@ export function DiarioTab({
   currency: string;
 }) {
   const t = useTranslations("opErp");
+  const tc = useTranslations("opComprobantes");
   const locale = useLocale() as Locale;
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [err, setErr] = useState(false);
@@ -115,7 +117,16 @@ export function DiarioTab({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-op-muted">{t("journalIntro")}</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs text-op-muted">{t("journalIntro")}</p>
+        {/* Libro completo (todos los meses, manuales, detalle y export). */}
+        <Link
+          href="/operator/contabilidad/comprobantes"
+          className="text-xs font-medium text-op-accent hover:underline shrink-0"
+        >
+          {tc("viewAll")}
+        </Link>
+      </div>
       {monthClosed ? (
         <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-sm">

@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
+import {
+  type ContabilidadTab,
+  DEFAULT_CONTABILIDAD_TAB,
+  parseContabilidadTab,
+} from "@/lib/erp/contabilidadTabs";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { PresupuestoTab } from "./PresupuestoTab";
@@ -270,25 +276,37 @@ function profitCls(cents: number): string {
 // puro (regla react-hooks/purity); la precisión de horas no importa acá.
 const NOW_MS = Date.now();
 
-type Tab =
-  | "expenses"
-  | "pnl"
-  | "books"
-  | "chart"
-  | "diario"
-  | "estados"
-  | "impuestos"
-  | "bancos"
-  | "activos"
-  | "presupuesto";
+// La lista de pestañas vive en `@/lib/erp/contabilidadTabs` (la comparten el
+// menú lateral y el hub de reportes, que enlazan con `?tab=`).
+type Tab = ContabilidadTab;
 
 /* ───────────────────────────── Shell ───────────────────────────────── */
 
 export function ContabilidadClient({ currency }: { currency: string }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<Tab>("expenses");
+  // Pestaña en la URL (`?tab=`): el menú lateral y el hub de reportes abren
+  // una pestaña directa y el menú marca la activa leyéndola de ahí. La URL
+  // manda: si cambia por fuera (clic en otro ítem del menú estando ya en
+  // esta página) la pestaña se sincroniza — ajuste de estado durante el
+  // render, no en un efecto. Sin `?tab=` válido: Gastos.
+  const urlTab = parseContabilidadTab(searchParams.get("tab")) ?? DEFAULT_CONTABILIDAD_TAB;
+  const [tab, setTab] = useState<Tab>(urlTab);
+  const [lastUrlTab, setLastUrlTab] = useState(urlTab);
+  if (urlTab !== lastUrlTab) {
+    setLastUrlTab(urlTab);
+    setTab(urlTab);
+  }
+  function selectTab(next: Tab) {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
   const [month, setMonth] = useState(currentMonth);
   // El payload viaja con SU mes: al cambiar de mes, `data` (derivado abajo)
   // vuelve a null (cargando) sin resetear estado dentro del efecto; al
@@ -405,7 +423,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             type="button"
             role="tab"
             aria-selected={tab === value}
-            onClick={() => setTab(value)}
+            onClick={() => selectTab(value)}
             className="mp-seg__i"
           >
             {label}

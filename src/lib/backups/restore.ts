@@ -4,6 +4,7 @@ import { BackupError } from "./errors";
 import { deserializeRow, type SnapshotRow } from "./serialize";
 import { createBackup } from "./service";
 import { delegate, SNAPSHOT_VERSION, type Client, type SnapshotData } from "./snapshot";
+import { disableUserTriggers, enableUserTriggers } from "./triggers";
 import {
   backupModelNames,
   delegateName,
@@ -100,10 +101,17 @@ export type RestoreResult = {
  *      borraría sin reinsertarse).
  *   3. Se guarda una copia `pre_restore` del estado actual, ANTES y fuera
  *      de la transacción, para poder deshacer la restauración.
- *   4. En una sola transacción: borrar hijos→padres, insertar padres→hijos
+ *   4. En una sola transacción: lock por comercio, triggers de usuario de
+ *      las tablas recargadas DESACTIVADOS (ver triggers.ts: el snapshot es
+ *      consistente por construcción y los triggers de negocio —
+ *      `reserve_payment`, `order_event` — están hechos para operaciones
+ *      incrementales, no para recargar un estado completo; las FKs y los
+ *      CHECK siguen activos), borrar hijos→padres, insertar padres→hijos
  *      (saneando referencias a usuarios u otras filas de plataforma que ya
  *      no existen: nulable → null, obligatoria → se omite la fila y sus
- *      hijos), y actualizar la fila `Restaurant` (nunca se borra).
+ *      hijos), actualizar la fila `Restaurant` (nunca se borra) y volver a
+ *      activar los triggers. Si algo falla, la transacción se revierte
+ *      entera — triggers incluidos, porque el ALTER es transaccional.
  */
 export async function restoreSnapshot(args: {
   restaurantId: string;
@@ -155,6 +163,7 @@ async function restoreInTransaction(
 
   const models = new Map(tenantModels().map((m) => [m.name, m]));
   const order = topologicalOrder();
+  const triggers = await disableUserTriggers(tx, order.insert);
 
   for (const name of order.delete) {
     const model = models.get(name)!;
@@ -174,6 +183,7 @@ async function restoreInTransaction(
   }
 
   await updateRestaurantRow(tx, restaurantId, data.restaurant);
+  await enableUserTriggers(tx, triggers);
   return { restored, pruned };
 }
 

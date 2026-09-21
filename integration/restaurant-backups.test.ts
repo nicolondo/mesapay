@@ -75,10 +75,27 @@ beforeAll(async () => {
   ).id;
 });
 
+// Limpieza en el orden que exigen las FKs RESTRICT (JournalLine → LedgerAccount
+// no cascadea desde Restaurant), tolerante a un caso que haya quedado a medias:
+// cada paso se intenta aunque el anterior falle, y la desconexión siempre corre.
+async function cleanup() {
+  const steps = [
+    () => db.restaurantBackup.deleteMany({ where: { restaurantId: { in: restaurants } } }),
+    () => db.journalEntry.deleteMany({ where: { restaurantId: { in: restaurants } } }),
+    () => db.order.deleteMany({ where: { restaurantId: { in: restaurants } } }),
+    () => db.restaurant.deleteMany({ where: { id: { in: restaurants } } }),
+    () => db.platformEvent.deleteMany({ where: { restaurantId: { in: restaurants } } }),
+  ];
+  const errors: unknown[] = [];
+  for (const step of steps) await step().catch((e) => errors.push(e));
+  if (errors.length) throw errors[0];
+}
 afterAll(async () => {
-  await db.restaurantBackup.deleteMany({ where: { restaurantId: { in: restaurants } } });
-  await db.restaurant.deleteMany({ where: { id: { in: restaurants } } });
-  await db.$disconnect();
+  try {
+    await cleanup();
+  } finally {
+    await db.$disconnect();
+  }
 });
 
 describe("restaurant backups on PostgreSQL", () => {
@@ -187,17 +204,23 @@ describe("restaurant backups on PostgreSQL", () => {
     const shift = await db.shift.create({
       data: { restaurantId, openedById: ghost.id, openingCashCents: 0, userId: ghost.id },
     });
+    // La cuenta lleva saldo: el trigger reserve_payment rechaza un cobro que
+    // supere subtotal + impuesto − descuento (así se creó el estado real).
     const order = await db.order.create({
-      data: { restaurantId, tableId: table1, shortCode: randomUUID().slice(0, 8), status: "paid" },
+      data: { restaurantId, tableId: table1, shortCode: randomUUID().slice(0, 8), status: "paid", subtotalCents: 1000, totalCents: 1000 },
     });
     const payment = await db.payment.create({
       data: { orderId: order.id, method: "demo_cash", amountCents: 1000, status: "approved", shiftId: shift.id, collectedByUserId: ghost.id },
     });
+    // Después del cobro la cuenta se cancela: estado histórico legítimo que el
+    // trigger, evaluado fila por fila al recargar, rechazaría (`order_closed`).
+    await db.order.update({ where: { id: order.id }, data: { status: "cancelled" } });
     const backup = await createBackup({ restaurantId, kind: "manual" });
 
     await db.payment.delete({ where: { id: payment.id } });
     await db.shift.delete({ where: { id: shift.id } });
     await db.user.delete({ where: { id: ghost.id } });
+    const eventsBefore = await db.platformEvent.count({ where: { restaurantId } });
 
     const result = await restoreSnapshot({ restaurantId, backupId: backup.id });
     // El turno exige openedById: sin el usuario, se omite. El cobro apunta al
@@ -208,6 +231,17 @@ describe("restaurant backups on PostgreSQL", () => {
     expect(restoredPayment.shiftId).toBeNull();
     expect(restoredPayment.collectedByUserId).toBeNull();
     expect(restoredPayment.amountCents).toBe(1000);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("cancelled");
+    // order_event estuvo apagado durante la recarga: ni un evento SSE por las
+    // órdenes reinsertadas…
+    expect(await db.platformEvent.count({ where: { restaurantId } })).toBe(eventsBefore);
+    // …y los triggers volvieron a quedar activos al terminar.
+    const triggers = await db.$queryRaw<{ tgname: string; tgenabled: string }[]>`
+      SELECT tgname, tgenabled::text AS tgenabled FROM pg_trigger WHERE tgname IN ('reserve_payment', 'order_event')`;
+    expect(triggers.map((t) => t.tgenabled)).toEqual(["O", "O"]);
+    await expect(
+      db.payment.create({ data: { orderId: order.id, method: "demo_cash", amountCents: 5000, status: "approved" } }),
+    ).rejects.toThrow(/order_closed|amount_exceeds_outstanding/);
   });
 
   it("runs the daily job once per restaurant and purges what expired", async () => {

@@ -390,6 +390,7 @@ model Restaurant {
   bankStatementLines     BankStatementLine[]
   bankRecRules           BankRecRule[]
   fixedAssets            FixedAsset[]
+  deferredItems          DeferredItem[]
   taxFilings             TaxFiling[]
   costCenters            CostCenter[]
   budgets                Budget[]
@@ -3349,8 +3350,9 @@ model CostCenter {
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
 
-  expenses Expense[]
-  lines    JournalLine[]
+  expenses      Expense[]
+  lines         JournalLine[]
+  deferredItems DeferredItem[]
 
   @@index([restaurantId])
 }
@@ -3420,6 +3422,38 @@ model FixedAsset {
   createdAt        DateTime   @default(now())
 
   @@index([restaurantId])
+}
+
+/// Diferido: gasto pagado por anticipado (kind expense, puente 17xx) o ingreso
+/// recibido por anticipado (kind income, puente 27xx) que se amortiza mes a mes
+/// contra la cuenta destino. El asiento inicial por el total se registra al
+/// crearlo (source deferred_item, sourceRef = id); la cuota del mes la arma el
+/// motor al vuelo como un resumen más (source deferred). Ver src/lib/erp/deferred.ts.
+model DeferredItem {
+  id                  String      @id @default(cuid())
+  restaurantId        String
+  restaurant          Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name                String
+  kind                String // "expense" | "income"
+  totalCents          Int
+  /// La primera cuota cae en el MISMO mes de inicio (inclusive).
+  startDate           DateTime
+  months              Int
+  sourceAccountCode   String // caja/banco 11xx
+  deferralAccountCode String // puente 17xx (gasto) / 27xx (ingreso)
+  targetAccountCode   String // gasto 5xxx-6xxx / ingreso 4xxx
+  costCenterId        String?
+  costCenter          CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  notes               String?
+  status              String      @default("active") // "active" | "closed"
+  /// Baja: deja de amortizar desde el mes SIGUIENTE al de la baja; el saldo
+  /// queda en la cuenta puente (sin asiento de baja, como zenith).
+  closedAt            DateTime?
+  createdById         String?
+  createdAt           DateTime    @default(now())
+
+  @@index([restaurantId, status])
+  @@index([costCenterId])
 }
 
 /// Concepto de retención del comercio (retefuente/reteIVA/reteICA) al estilo

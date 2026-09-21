@@ -152,6 +152,12 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("252005", "Prima por pagar", "pasivo", "credito"),
   P("2525", "Vacaciones consolidadas", "pasivo", "credito"),
   P("252505", "Vacaciones por pagar", "pasivo", "credito"),
+  // Puente de los diferidos de INGRESO (erp/deferred.ts): lo cobrado por
+  // anticipado entra acá y se devenga mes a mes contra la cuenta de ingreso.
+  // El espejo del gasto ya existe en 1705.
+  P("27", "Diferidos", "pasivo", "credito"),
+  P("2705", "Ingresos recibidos por anticipado", "pasivo", "credito"),
+  P("270505", "Ingresos recibidos por anticipado", "pasivo", "credito"),
   P("28", "Otros pasivos", "pasivo", "credito"),
   P("2805", "Anticipos y avances recibidos", "pasivo", "credito"),
   P("280505", "Depósitos / abonos de reserva", "pasivo", "credito"),

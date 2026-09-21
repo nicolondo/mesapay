@@ -1,5 +1,7 @@
 import { SettingsDirectory, type SettingsItem } from "./SettingsDirectory";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveMenuTags } from "@/lib/menuTags";
@@ -25,6 +27,8 @@ export default async function SettingsPage() {
   const tDian = await getTranslations("opDian");
   const tSalesTax = await getTranslations("opSalesTax");
   const tVouchers = await getTranslations("opVouchers");
+  const tBackups = await getTranslations("opBackups");
+  const locale = (await getLocale()) as Locale;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -100,6 +104,13 @@ export default async function SettingsPage() {
       startsAt: { gte: new Date() },
       status: { in: ["pending", "confirmed"] },
     },
+  });
+
+  // Copias de seguridad: el badge dice cuándo fue la última (auto o manual).
+  const lastBackup = await db.restaurantBackup.findFirst({
+    where: { restaurantId },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
   });
 
   const status = humanStatus(tenant.kushkiOnboardingStatus);
@@ -404,6 +415,17 @@ export default async function SettingsPage() {
       subtitle: t("subscriptionCardDesc"),
       badge: t("badgeConfigure"),
       tint: "bg-paper text-op-muted",
+    },
+    {
+      href: "/operator/settings/backups",
+      title: tBackups("cardTitle"),
+      subtitle: tBackups("cardSubtitle"),
+      badge: lastBackup
+        ? tBackups("cardBadgeLast", {
+            date: formatDate(lastBackup.createdAt, { locale }),
+          })
+        : tBackups("cardBadgeNone"),
+      tint: lastBackup ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
     },
   ];
   return (

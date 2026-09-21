@@ -1,0 +1,14 @@
+[Unit]
+# Diario a las 03:30 (hora del servidor), antes de la copia por comercio
+# de las 04:00 (mesapay-backups-daily), así el dump de la noche no incluye
+# los snapshots recién creados y las dos capas no se pisan.
+Description=MESAPAY · pg_dump + uploads (03:30)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Si el servidor estuvo apagado a esa hora, corre apenas vuelva.
+Persistent=true
+Unit=mesapay-pgdump.service
+
+[Install]
+WantedBy=timers.target

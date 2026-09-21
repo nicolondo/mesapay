@@ -1,0 +1,15 @@
+[Unit]
+# Diario a las 04:00 (hora del servidor), media hora después del pg_dump
+# (03:30) para que las dos capas no compitan por la base. La corrida es
+# idempotente: un comercio con una copia `auto` de las últimas 20 h se
+# salta, así que si el timer se dispara dos veces no duplica.
+Description=MESAPAY · copia de seguridad diaria por comercio (04:00)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+# Si el servidor estuvo apagado a esa hora, corre apenas vuelva.
+Persistent=true
+Unit=mesapay-backups-daily.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,26 @@
+[Unit]
+# Respaldo de DESASTRE del VPS: pg_dump completo de la base (formato custom,
+# restaurable con pg_restore) + tar.gz de los archivos subidos, en
+# /var/backups/mesapay, retención 14 días. Ver docs/cron/mesapay-pgdump.sh
+# y docs/backups.md.
+#
+# Instalación (una vez, como root):
+#   install -m 700 -o deploy -g deploy docs/cron/mesapay-pgdump.sh /opt/mesapay/shared/mesapay-pgdump.sh
+#   install -d -m 700 -o deploy -g deploy /var/backups/mesapay
+#   cp docs/cron/mesapay-pgdump.service docs/cron/mesapay-pgdump.timer /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now mesapay-pgdump.timer
+#
+# A diferencia de los otros timers NO usa EnvironmentFile: el script lee
+# DATABASE_URL con un grep puntual del .env.production (nunca lo sourcea).
+Description=MESAPAY · pg_dump + uploads (respaldo de desastre)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/usr/bin/env bash /opt/mesapay/shared/mesapay-pgdump.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-pgdump

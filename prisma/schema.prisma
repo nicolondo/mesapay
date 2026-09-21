@@ -428,6 +428,7 @@ model Restaurant {
   voucherRedemptions     VoucherRedemption[]
   voucherStatements      VoucherStatement[]
   paymentLinks           PaymentLink[]
+  backups                RestaurantBackup[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
   salesRepUserId        String?
@@ -4027,4 +4028,26 @@ model PaymentLink {
 
   @@index([restaurantId, status])
   @@index([providerRef])
+}
+
+/// Snapshot completo de los datos de un comercio (JSON), para restaurar ante
+/// un error operativo. Retención 7 días (auto y manual). Ver src/lib/backups.
+model RestaurantBackup {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// "manual" | "auto" | "pre_restore"
+  kind         String
+  createdById  String?
+  sizeBytes    Int
+  /// { "Order": 1234, "MenuItem": 80, ... }
+  tableCounts  Json
+  /// { version, takenAt, restaurantId, restaurant, tables: { <Model>: Row[] } }
+  data         Json
+  note         String?
+  createdAt    DateTime   @default(now())
+  expiresAt    DateTime
+
+  @@index([restaurantId, createdAt])
+  @@index([expiresAt])
 }

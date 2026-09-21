@@ -3279,12 +3279,30 @@ model JournalEntry {
   /// Número de comprobante consecutivo por comercio. Se asigna al CERRAR el
   /// mes (los meses abiertos se regeneran y no pueden numerar en firme).
   voucherNumber Int?
+  /// Tercero del comprobante, DESNORMALIZADO (nombre + NIT/CC). MESAPAY no
+  /// tiene una entidad "tercero" única (hay Supplier y BillingCustomer), así
+  /// que el asiento guarda el texto tal cual se eligió/escribió. Hoy lo
+  /// llenan los comprobantes manuales; los orígenes automáticos pueden
+  /// llenarlo más adelante.
+  thirdPartyName  String?
+  thirdPartyTaxId String?
+  /// Quién creó el comprobante (sólo manuales/reversas; null en los que
+  /// genera el motor).
+  createdById     String?
+  /// Cuándo se anuló por reversa. Las líneas SIGUEN en el libro: la reversa
+  /// las netea (mismo criterio que zenith). status pasa a "annulled".
+  annulledAt      DateTime?
+  /// Si este comprobante es una reversa, id del comprobante que anula.
+  /// Columna simple con índice, sin relación Prisma: el original puede
+  /// desaparecer si su mes se reabre y el motor lo regenera.
+  reversalOfId    String?
   createdAt     DateTime   @default(now())
 
   lines JournalLine[]
 
   @@unique([restaurantId, source, sourceRef])
   @@index([restaurantId, date])
+  @@index([reversalOfId])
 }
 
 /// Configuración contable del comercio (una fila por restaurante, perezosa).
@@ -3331,6 +3349,7 @@ model CostCenter {
   createdAt    DateTime   @default(now())
 
   expenses Expense[]
+  lines    JournalLine[]
 
   @@index([restaurantId])
 }
@@ -3433,9 +3452,14 @@ model JournalLine {
   debitCents  Int           @default(0)
   creditCents Int           @default(0)
   memo        String?
+  /// Centro de costos de la línea (opcional; hoy sólo lo asignan los
+  /// comprobantes manuales). Si el centro se borra, la línea queda sin él.
+  costCenterId String?
+  costCenter   CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
   @@index([entryId])
   @@index([accountId])
+  @@index([costCenterId])
 }
 
 /// Abono a un gasto. Un gasto puede pagarse de contado (la UI crea el abono

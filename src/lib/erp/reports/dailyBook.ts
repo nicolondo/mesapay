@@ -5,11 +5,12 @@
  *  · `detallado`: comprobante por comprobante, con sus líneas;
  *  · `resumido`: agrupa por día × cuenta (Σ débitos y créditos).
  *
- * Los asientos anulados (status ≠ posted) se INCLUYEN marcados, como en
- * zenith: el libro es cronológico y no se le quitan folios. Sí se
- * cuentan en los totales (un anulado también cuadra).
+ * Los asientos anulados (`status = "annulled"`) se INCLUYEN marcados y
+ * SUMAN en los totales, como en zenith: la anulación es por reversa (el
+ * original conserva sus líneas y un asiento `manual` invertido las netea),
+ * el libro es cronológico y no se le quitan folios.
  */
-import { compareMovements, formatVoucherNumber } from "./generalLedger";
+import { compareMovements, formatVoucherNumber, isAnnulled } from "./generalLedger";
 
 export type DailyBookLineInput = {
   accountCode: string;
@@ -79,10 +80,6 @@ export function parseDailyBookMode(raw: string | undefined | null): DailyBookMod
   return raw === "resumido" ? "resumido" : "detallado";
 }
 
-export function isVoided(status: string): boolean {
-  return status !== "posted";
-}
-
 function toDate(d: Date | string): Date {
   return d instanceof Date ? d : new Date(d);
 }
@@ -111,7 +108,7 @@ export function buildDailyBook(
     const c = e.lines.reduce((s, l) => s + l.creditCents, 0);
     debit += d;
     credit += c;
-    const isVoid = isVoided(e.status);
+    const isVoid = isAnnulled(e.status);
     if (isVoid) voided++;
     return {
       id: e.id,

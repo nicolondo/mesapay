@@ -4,6 +4,7 @@ import {
   buildGeneralLedger,
   formatVoucherNumber,
   generalLedgerCsvRows,
+  isAnnulled,
   type LedgerLineInput,
 } from "./generalLedger";
 
@@ -144,6 +145,49 @@ describe("buildGeneralLedger — movimientos", () => {
   });
 });
 
+describe("buildGeneralLedger — anulación por reversa", () => {
+  // Original anulado (status annulled, líneas vigentes) + reversa manual
+  // invertida: en la cuenta suman CERO. Si el anulado se descartara, la
+  // reversa quedaría sola y el saldo bajaría dos veces.
+  const reversalCase: LedgerLineInput[] = [
+    line({ accountCode: "110505", date: "2026-08-05T00:00:00Z", entryId: "orig", voucherNumber: 7, status: "annulled", source: "manual", memo: "Ajuste", creditCents: 9_000 }),
+    line({ accountCode: "530505", date: "2026-08-05T00:00:00Z", entryId: "orig", voucherNumber: 7, status: "annulled", source: "manual", memo: "Ajuste", debitCents: 9_000 }),
+    line({ accountCode: "110505", date: "2026-08-06T00:00:00Z", entryId: "rev", voucherNumber: 8, status: "posted", source: "manual", memo: "Reversa de #000007", debitCents: 9_000 }),
+    line({ accountCode: "530505", date: "2026-08-06T00:00:00Z", entryId: "rev", voucherNumber: 8, status: "posted", source: "manual", memo: "Reversa de #000007", creditCents: 9_000 }),
+  ];
+
+  it("original anulado + reversa suman cero en la cuenta y ambos aparecen (el anulado marcado)", () => {
+    const gl = buildGeneralLedger(reversalCase, accounts, { from, to });
+    const caja = gl.accounts.find((a) => a.code === "110505")!;
+    expect(caja).toMatchObject({ initialCents: 0, debitCents: 9_000, creditCents: 9_000, balanceCents: 0 });
+    expect(caja.movements.map((m) => [m.entryId, m.voided, m.runningCents])).toEqual([
+      ["orig", true, -9_000],
+      ["rev", false, 0],
+    ]);
+    const gastos = gl.accounts.find((a) => a.code === "530505")!;
+    expect(gastos.balanceCents).toBe(0);
+    expect(gl.totals).toEqual({ debitCents: 18_000, creditCents: 18_000 });
+    expect(gl.balanced).toBe(true);
+  });
+
+  it("un anulado anterior al «desde» también entra en el saldo inicial (junto con su reversa)", () => {
+    const gl = buildGeneralLedger(reversalCase, accounts, {
+      from: new Date("2026-08-07T00:00:00Z"),
+      to,
+      accountCode: "110505",
+    });
+    expect(gl.accounts[0]).toMatchObject({ initialCents: 0, movements: [] });
+  });
+
+  it("sin `status` (asientos viejos) el movimiento no se marca", () => {
+    const gl = buildGeneralLedger(lines, accounts, { from, to });
+    expect(gl.accounts.flatMap((a) => a.movements).every((m) => m.voided === false)).toBe(true);
+    expect(isAnnulled(undefined)).toBe(false);
+    expect(isAnnulled("posted")).toBe(false);
+    expect(isAnnulled("annulled")).toBe(true);
+  });
+});
+
 describe("CSV del mayor", () => {
   it("formatVoucherNumber → #000123", () => {
     expect(formatVoucherNumber(123)).toBe("#000123");
@@ -155,10 +199,26 @@ describe("CSV del mayor", () => {
     const rows = generalLedgerCsvRows(gl, {
       initial: "Saldo inicial",
       unnumbered: "s/n",
+      voided: "ANULADO",
       sourceLabel: (s) => `src:${s}`,
     });
     expect(rows[0]).toEqual(["110505", "Caja general", "", "", "", "Saldo inicial", 0, 0, 100_000]);
     expect(rows[1]).toEqual(["110505", "Caja general", "2026-08-10", "#000011", "src:expense_payment", "", 0, 20_000, 80_000]);
     expect(rows[3][3]).toBe("s/n");
+  });
+
+  it("un movimiento anulado lleva la marca en la descripción", () => {
+    const gl = buildGeneralLedger(
+      [line({ accountCode: "110505", date: "2026-08-05T00:00:00Z", status: "annulled", memo: "Ajuste", creditCents: 9_000 })],
+      accounts,
+      { from, to },
+    );
+    const rows = generalLedgerCsvRows(gl, {
+      initial: "Saldo inicial",
+      unnumbered: "s/n",
+      voided: "ANULADO",
+      sourceLabel: (s) => s,
+    });
+    expect(rows[1][5]).toBe("ANULADO · Ajuste");
   });
 });

@@ -64,6 +64,7 @@ async function GETHandler(req: Request) {
       rows: generalLedgerCsvRows(ledger, {
         initial: t("glInitial"),
         unnumbered: t("unnumbered"),
+        voided: t("voided"),
         sourceLabel: makeSourceLabel(tErp),
       }),
     });

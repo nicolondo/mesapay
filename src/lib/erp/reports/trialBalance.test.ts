@@ -114,6 +114,21 @@ describe("buildTrialBalance — cuadre", () => {
     expect(tb.differenceCents).toBe(10_000);
   });
 
+  it("original anulado + reversa: la consulta trae ambos y la cuenta queda en cero con movimiento", () => {
+    // `loadTrialBalanceRows` NO filtra por status, así que la fila de la
+    // cuenta ya llega neteada: D 9.000 (reversa) y C 9.000 (original).
+    const withReversal: TrialBalanceDbRow[] = [
+      ...balancedRows,
+      { accountCode: "110510", initialCents: 0, debitCents: 9_000, creditCents: 9_000, finalCents: 0 },
+      { accountCode: "530505", initialCents: 0, debitCents: 9_000, creditCents: 9_000, finalCents: 0 },
+    ];
+    const tb = buildTrialBalance(withReversal, { level: 6, accounts });
+    const caja = tb.rows.find((r) => r.code === "110510")!;
+    expect(caja).toMatchObject({ initialCents: 0, debitCents: 9_000, creditCents: 9_000, finalCents: 0 });
+    expect(tb.balanced).toBe(true);
+    expect(tb.totals.debitCents).toBe(118_000);
+  });
+
   it("descarta las cuentas sin saldo ni movimiento", () => {
     const tb = buildTrialBalance(
       [...balancedRows, { accountCode: "999999", initialCents: 0, debitCents: 0, creditCents: 0, finalCents: 0 }],

@@ -34,7 +34,7 @@ const entries: DailyBookEntryInput[] = [
     voucherNumber: null,
     source: "bank",
     memo: "Comisión bancaria",
-    status: "void",
+    status: "annulled",
     createdAt: "2026-08-10T12:00:00Z",
     lines: [
       { accountCode: "530505", accountName: "Gastos bancarios", debitCents: 1_000, creditCents: 0 },
@@ -87,6 +87,52 @@ describe("buildDailyBook — detallado", () => {
       { mode: "detallado" },
     );
     expect(broken.stats.balanced).toBe(false);
+  });
+});
+
+describe("buildDailyBook — anulación por reversa", () => {
+  const original: DailyBookEntryInput = {
+    id: "e-orig",
+    date: "2026-08-05T00:00:00Z",
+    voucherNumber: 7,
+    source: "manual",
+    memo: "Ajuste",
+    status: "annulled",
+    createdAt: "2026-08-05T10:00:00Z",
+    lines: [
+      { accountCode: "530505", accountName: "Gastos", debitCents: 9_000, creditCents: 0 },
+      { accountCode: "110505", accountName: "Caja", debitCents: 0, creditCents: 9_000 },
+    ],
+  };
+  const reversal: DailyBookEntryInput = {
+    id: "e-rev",
+    date: "2026-08-06T00:00:00Z",
+    voucherNumber: 8,
+    source: "manual",
+    memo: "Reversa de #000007",
+    status: "posted",
+    createdAt: "2026-08-06T10:00:00Z",
+    lines: [
+      { accountCode: "110505", accountName: "Caja", debitCents: 9_000, creditCents: 0 },
+      { accountCode: "530505", accountName: "Gastos", debitCents: 0, creditCents: 9_000 },
+    ],
+  };
+
+  it("el original anulado y su reversa entran los dos, marcados y sumando", () => {
+    const book = buildDailyBook([original, reversal], { mode: "detallado" });
+    if (book.mode !== "detallado") throw new Error("mode");
+    expect(book.entries.map((e) => [e.id, e.voided])).toEqual([
+      ["e-orig", true],
+      ["e-rev", false],
+    ]);
+    expect(book.stats).toEqual({ entries: 2, voided: 1, debitCents: 18_000, creditCents: 18_000, balanced: true });
+  });
+
+  it("en resumido, día × cuenta netea a cero entre los dos días", () => {
+    const book = buildDailyBook([original, reversal], { mode: "resumido" });
+    if (book.mode !== "resumido") throw new Error("mode");
+    const caja = book.days.flatMap((d) => d.rows).filter((r) => r.accountCode === "110505");
+    expect(caja.reduce((s, r) => s + r.debitCents - r.creditCents, 0)).toBe(0);
   });
 });
 

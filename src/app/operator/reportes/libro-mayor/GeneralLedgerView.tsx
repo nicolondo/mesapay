@@ -162,7 +162,7 @@ function AccountRows({
                   </thead>
                   <tbody className="divide-y divide-op-border/40">
                     {a.movements.map((m) => (
-                      <tr key={m.id}>
+                      <tr key={m.id} className={m.voided ? "opacity-60" : ""}>
                         <td className="px-2 py-1 whitespace-nowrap">{fmtIsoDate(m.date, locale)}</td>
                         <td className="px-2 py-1 font-mono whitespace-nowrap">
                           {formatVoucherNumber(m.voucherNumber) ?? (
@@ -173,6 +173,11 @@ function AccountRows({
                           <span className="mr-2 inline-block rounded-full border border-op-border px-1.5 text-[10px] text-op-muted">
                             {sourceLabel(m.source)}
                           </span>
+                          {m.voided && (
+                            <span className="mr-2 inline-block rounded-full bg-danger/10 px-1.5 text-[10px] font-semibold text-danger">
+                              {t("voided")}
+                            </span>
+                          )}
                           {m.memo}
                         </td>
                         <td className="px-2 py-1 text-right font-mono tabular whitespace-nowrap">

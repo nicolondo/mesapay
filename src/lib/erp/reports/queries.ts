@@ -4,8 +4,15 @@
  * `generalLedger.ts`, `dailyBook.ts`); no calcula nada.
  *
  * Solo LECTURA del libro: `JournalEntry` / `JournalLine` / `LedgerAccount`.
- * Solo cuentan los asientos `posted` (un asiento anulado no mueve saldos);
- * el libro diario sí los lista marcados, por eso lee todos los estados.
+ *
+ * ── Estado de los asientos: NO se filtra ─────────────────────────────────
+ * La anulación es por REVERSA (como en zenith): el original pasa a
+ * `status = "annulled"` pero SUS LÍNEAS SIGUEN VIGENTES en el libro, y se
+ * crea un asiento `manual` con las líneas invertidas que las netea. Los
+ * dos tienen que sumar en balance, mayor y diario: si se descartara el
+ * anulado, la reversa quedaría sola y se restaría dos veces. El único
+ * estado que podría excluirse sería un futuro «borrador», que hoy no
+ * existe. Las vistas marcan los anulados con `status` (ver `isAnnulled`).
  *
  * Todas las fechas son límites UTC (`from` inclusivo, `to` EXCLUSIVO), ver
  * `period.ts`. Las consultas van parametrizadas (`Prisma.sql`), nunca por
@@ -51,6 +58,9 @@ type RawTrialRow = {
  * saldo inicial (fecha < from), débitos y créditos del rango, saldo final
  * (fecha < to). Postgres devuelve `bigint` en los SUM: se convierte a
  * Number (los centavos de un comercio caben de sobra en 2^53).
+ *
+ * Sin filtro por `status`: un asiento anulado por reversa conserva sus
+ * líneas y la reversa las netea, así que ambos deben sumar (ver cabecera).
  */
 export async function loadTrialBalanceRows(
   restaurantId: string,
@@ -67,7 +77,6 @@ export async function loadTrialBalanceRows(
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e."id" = l."entryId"
     WHERE e."restaurantId" = ${restaurantId}
-      AND e."status" = 'posted'
       AND e."date" < ${to}
     GROUP BY l."accountCode"
     ORDER BY l."accountCode"
@@ -91,6 +100,9 @@ const BATCH = 2000;
  * pura. Hoy el volumen es chico (asientos-resumen mensuales); si los
  * asientos manuales crecen, el saldo inicial debería pasar a un SUM en
  * SQL como en `loadTrialBalanceRows`.
+ *
+ * Sin filtro por `status`: el anulado por reversa y su reversa suman los
+ * dos (ver cabecera); `status` viaja para que la vista lo marque.
  */
 export async function loadLedgerLines(
   restaurantId: string,
@@ -103,7 +115,7 @@ export async function loadLedgerLines(
     const batch = await db.journalLine.findMany({
       where: {
         ...(accountCode ? { accountCode } : {}),
-        entry: { restaurantId, status: "posted", date: { lt: to } },
+        entry: { restaurantId, date: { lt: to } },
       },
       select: {
         id: true,
@@ -113,7 +125,14 @@ export async function loadLedgerLines(
         creditCents: true,
         memo: true,
         entry: {
-          select: { date: true, voucherNumber: true, source: true, memo: true, createdAt: true },
+          select: {
+            date: true,
+            voucherNumber: true,
+            source: true,
+            memo: true,
+            status: true,
+            createdAt: true,
+          },
         },
       },
       orderBy: { id: "asc" },
@@ -128,6 +147,7 @@ export async function loadLedgerLines(
         voucherNumber: l.entry.voucherNumber,
         source: l.entry.source,
         memo: l.entry.memo,
+        status: l.entry.status,
         createdAt: l.entry.createdAt,
         accountCode: l.accountCode,
         debitCents: l.debitCents,
@@ -142,8 +162,9 @@ export async function loadLedgerLines(
 }
 
 /**
- * Comprobantes del rango con sus líneas y el nombre de cada cuenta (todos
- * los estados: el diario lista los anulados marcados).
+ * Comprobantes del rango con sus líneas y el nombre de cada cuenta. Sin
+ * filtro por `status` (ver cabecera): el diario lista el anulado marcado
+ * y su reversa, y ambos entran en los totales.
  */
 export async function loadEntriesWithLines(
   restaurantId: string,

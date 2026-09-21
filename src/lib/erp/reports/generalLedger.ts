@@ -9,7 +9,20 @@
  * van en orden `fecha, comprobante, createdAt` con saldo corrido.
  * Solo salen las cuentas con movimiento en el rango o saldo inicial ≠ 0
  * (salvo la cuenta pedida explícitamente, que sale aunque esté en cero).
+ *
+ * Los asientos ANULADOS suman igual que los demás: la anulación es por
+ * reversa (el original queda `annulled` con sus líneas vigentes y un
+ * asiento `manual` invertido las netea), así que original + reversa = 0
+ * en la cuenta. Solo se MARCAN (`voided`) para que la vista los rotule.
  */
+
+/** Estado del asiento anulado por reversa (PR de comprobantes). */
+export const ANNULLED_STATUS = "annulled";
+
+/** ¿Es un asiento anulado? Se apoya en `status`, no en `annulledAt`. */
+export function isAnnulled(status: string | null | undefined): boolean {
+  return status === ANNULLED_STATUS;
+}
 
 export type LedgerLineInput = {
   id: string;
@@ -18,6 +31,8 @@ export type LedgerLineInput = {
   voucherNumber: number | null;
   source: string;
   memo: string | null;
+  /** Estado del asiento (`posted` | `annulled`); ausente = vigente. */
+  status?: string | null;
   createdAt: Date | string;
   accountCode: string;
   debitCents: number;
@@ -41,6 +56,8 @@ export type LedgerMovement = {
   voucherNumber: number | null;
   source: string;
   memo: string | null;
+  /** Asiento anulado por reversa: suma igual, se rotula «Anulado». */
+  voided: boolean;
   debitCents: number;
   creditCents: number;
   /** Saldo corrido a naturaleza tras este movimiento. */
@@ -183,6 +200,7 @@ export function buildGeneralLedger(
         voucherNumber: line.voucherNumber,
         source: line.source,
         memo: line.lineMemo ?? line.memo,
+        voided: isAnnulled(line.status),
         debitCents: line.debitCents,
         creditCents: line.creditCents,
         runningCents: running,
@@ -219,11 +237,17 @@ export function formatVoucherNumber(n: number | null | undefined): string | null
 
 /**
  * Filas del CSV: Cuenta, Nombre, Fecha, Comprobante, Origen, Descripción,
- * Debe, Haber, Saldo. La primera fila de cada cuenta es su saldo inicial.
+ * Debe, Haber, Saldo. La primera fila de cada cuenta es su saldo inicial;
+ * un movimiento anulado lleva la marca al frente de la descripción.
  */
 export function generalLedgerCsvRows(
   ledger: GeneralLedger,
-  labels: { initial: string; unnumbered: string; sourceLabel: (source: string) => string },
+  labels: {
+    initial: string;
+    unnumbered: string;
+    voided: string;
+    sourceLabel: (source: string) => string;
+  },
 ): (string | number)[][] {
   const rows: (string | number)[][] = [];
   for (const a of ledger.accounts) {
@@ -235,7 +259,7 @@ export function generalLedgerCsvRows(
         m.date.slice(0, 10),
         formatVoucherNumber(m.voucherNumber) ?? labels.unnumbered,
         labels.sourceLabel(m.source),
-        m.memo ?? "",
+        [m.voided ? labels.voided : null, m.memo].filter(Boolean).join(" · "),
         m.debitCents,
         m.creditCents,
         m.runningCents,

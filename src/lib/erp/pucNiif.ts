@@ -259,13 +259,17 @@ export function pucLevel(code: string): number {
   return code.length; // 1=clase, 2=grupo, 4=cuenta, 6=subcuenta, 8=auxiliar
 }
 
-/** Código de la cuenta padre (prefijo), o null para las clases (1 dígito). */
+/**
+ * Código de la cuenta padre (prefijo), o null para las clases (1 dígito).
+ * De la subcuenta para abajo cada nivel agrega dos dígitos: 8 → 6 (auxiliar
+ * → subcuenta) y 10 → 8 (auxiliar de segundo nivel → auxiliar).
+ */
 export function pucParentCode(code: string): string | null {
   if (code.length <= 1) return null;
   if (code.length === 2) return code.slice(0, 1);
   if (code.length === 4) return code.slice(0, 2);
   if (code.length === 6) return code.slice(0, 4);
-  return code.slice(0, 6); // 8 → 6 (auxiliar por tarifa → subcuenta)
+  return code.slice(0, code.length - 2);
 }
 
 /**

@@ -29,8 +29,13 @@ vi.mock("./accountingData", () => ({
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
-  loadAccountMap: async () =>
-    new Map(["110505", "413505", "241205", "24080501", "238030"].map((c) => [c, c])),
+  loadAccountIndex: async () =>
+    new Map(
+      ["110505", "413505", "241205", "24080501", "238030"].map((c) => [
+        c,
+        { id: c, postable: true, active: true },
+      ]),
+    ),
 }));
 vi.mock("./activos", () => ({ depreciationForMonth: async () => 0 }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));

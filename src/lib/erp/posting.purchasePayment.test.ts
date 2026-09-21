@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   purchases: vi.fn(),
   purchasePayments: vi.fn(),
   createEntry: vi.fn(),
+  index: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -29,22 +30,32 @@ vi.mock("./accountingData", () => ({
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
-  loadAccountMap: async () =>
-    new Map(
-      ["110505", "111005", "112005", "143505", "519505", "24081001", "220505"].map(
-        (code) => [code, code],
-      ),
-    ),
+  loadAccountIndex: mocks.index,
 }));
 vi.mock("./activos", () => ({ depreciationForMonth: async () => 0 }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 import { generateJournalForMonth } from "./posting";
 
-type CreatedLine = { accountCode: string; debitCents: number; creditCents: number };
+type CreatedLine = {
+  accountId: string;
+  accountCode: string;
+  debitCents: number;
+  creditCents: number;
+};
 const range = { from: new Date("2026-09-01"), to: new Date("2026-10-01") };
+
+/** Índice código → {id, postable, active} como lo devuelve loadAccountIndex. */
+const indexOf = (entries: Array<[string, boolean]>) =>
+  new Map(entries.map(([code, postable]) => [code, { id: `id-${code}`, postable, active: true }]));
+
+const BASE_INDEX: Array<[string, boolean]> = [
+  ["110505", true], ["111005", true], ["112005", true], ["143505", true],
+  ["519505", true], ["24081001", true], ["220505", true],
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.index.mockResolvedValue(indexOf(BASE_INDEX));
   // Sin compras del mes: sólo interesa el asiento de pagos.
   mocks.purchases.mockResolvedValue({
     totals: {
@@ -93,6 +104,45 @@ describe("asiento de pagos a proveedores", () => {
     const results = await generateJournalForMonth("r", "2026-09", range);
     expect(results.some((r) => r.source === "purchase_payment")).toBe(false);
     expect(mocks.createEntry).not.toHaveBeenCalled();
+  });
+
+  it("si la cuenta base tiene una auxiliar imputable, el crédito cae en la auxiliar", async () => {
+    // El contador abrió 11100501 (Bancolombia) debajo de 111005: la base
+    // dejó de ser imputable y el motor debe asentar en la hija, guardando
+    // ese código (y ese id) en la línea.
+    mocks.index.mockResolvedValue(
+      indexOf([...BASE_INDEX.filter(([c]) => c !== "111005"), ["111005", false], ["11100501", true]]),
+    );
+    mocks.purchasePayments.mockResolvedValue([
+      { amountCents: 20000, accountCode: "111005", method: null },
+    ]);
+    await generateJournalForMonth("r", "2026-09", range);
+    const lines = mocks.createEntry.mock.calls[0][0].data.lines.create as CreatedLine[];
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ accountCode: "220505", accountId: "id-220505", debitCents: 20000 }),
+        expect.objectContaining({ accountCode: "11100501", accountId: "id-11100501", creditCents: 20000 }),
+      ]),
+    );
+    expect(lines.some((l) => l.accountCode === "111005")).toBe(false);
+  });
+
+  it("una madre sin hijas imputables deja el asiento sin generar", async () => {
+    mocks.index.mockResolvedValue(
+      indexOf([...BASE_INDEX.filter(([c]) => c !== "111005"), ["111005", false]]),
+    );
+    mocks.purchasePayments.mockResolvedValue([
+      { amountCents: 20000, accountCode: "111005", method: null },
+    ]);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const results = await generateJournalForMonth("r", "2026-09", range);
+    expect(mocks.createEntry).not.toHaveBeenCalled();
+    expect(results).toEqual([]);
+    expect(err).toHaveBeenCalledWith(
+      "[posting] cuenta no imputable",
+      expect.objectContaining({ source: "purchase_payment", code: "111005" }),
+    );
+    err.mockRestore();
   });
 
   it("ignora abonos con monto 0 o negativo", async () => {

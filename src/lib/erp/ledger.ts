@@ -65,6 +65,26 @@ export async function loadAccountMap(
   return new Map(rows.map((r) => [r.code, r.id]));
 }
 
+export type AccountIndexEntry = { id: string; postable: boolean; active: boolean };
+
+/**
+ * Índice código → {id, postable, active} de TODAS las cuentas del comercio.
+ * Es lo que necesita el motor para resolver cada código base a su auxiliar
+ * imputable (`resolvePostableCode` en chart.ts) antes de asentar.
+ */
+export async function loadAccountIndex(
+  restaurantId: string,
+): Promise<Map<string, AccountIndexEntry>> {
+  await ensureChartOfAccounts(restaurantId);
+  const rows = await db.ledgerAccount.findMany({
+    where: { restaurantId },
+    select: { id: true, code: true, postable: true, active: true },
+  });
+  return new Map(
+    rows.map((r) => [r.code, { id: r.id, postable: r.postable, active: r.active }]),
+  );
+}
+
 export type ChartAccount = {
   code: string;
   name: string;
@@ -73,15 +93,21 @@ export type ChartAccount = {
   level: number;
   parentCode: string | null;
   postable: boolean;
+  active: boolean;
 };
 
-/** Plan de cuentas del comercio (ordenado por código), sembrando si hace falta. */
+/**
+ * Plan de cuentas del comercio (ordenado por código), sembrando si hace
+ * falta. Por defecto sólo las activas (selectores, motor); la pantalla del
+ * plan pide `includeInactive` para poder mostrarlas y reactivarlas.
+ */
 export async function loadChartOfAccounts(
   restaurantId: string,
+  opts: { includeInactive?: boolean } = {},
 ): Promise<ChartAccount[]> {
   await ensureChartOfAccounts(restaurantId);
   return db.ledgerAccount.findMany({
-    where: { restaurantId, active: true },
+    where: opts.includeInactive ? { restaurantId } : { restaurantId, active: true },
     orderBy: { code: "asc" },
     select: {
       code: true,
@@ -91,6 +117,7 @@ export async function loadChartOfAccounts(
       level: true,
       parentCode: true,
       postable: true,
+      active: true,
     },
   });
 }

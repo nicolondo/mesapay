@@ -3,7 +3,9 @@
 // por fuente y por mes (source + sourceRef=mes), idempotente: re-generar borra
 // y recrea el del mes, así se refresca cuando entra más data.
 //
-// Las cuentas son las POSTABLES (subcuentas de 6 dígitos) del PUC NIIF sembrado.
+// Los códigos base viven en engineCodes.ts (ENGINE). Antes de asentar, cada
+// uno se resuelve a su cuenta IMPUTABLE (chart.ts resolvePostableCode): si
+// el contador abrió auxiliares debajo, el movimiento cae en la auxiliar.
 // El mapeo lo debe validar el contador.
 import { db } from "@/lib/db";
 import { embeddedTaxCents, monthRange } from "./accounting";
@@ -14,9 +16,11 @@ import {
   loadPurchasesBook,
   loadSalesBook,
 } from "./accountingData";
-import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
+import { ensureChartOfAccounts, loadAccountIndex } from "./ledger";
 import { depreciationForMonth } from "./activos";
-import { IVA_DESCONTABLE_CODE, ivaGeneradoCodeForPct } from "./pucNiif";
+import { resolvePostableCode } from "./chart";
+import { ENGINE } from "./engineCodes";
+import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 
@@ -27,33 +31,33 @@ export type GenResult = { source: string; totalCents: number };
 
 /** Método de pago → cuenta de caja/banco/pasarela (débito de la venta). */
 function cashAccountForMethod(method: string): string {
-  if (method === "cash" || method === "demo_cash") return "110505"; // Caja
-  if (method === "external_terminal") return "111005"; // Banco (datáfono propio)
+  if (method === "cash" || method === "demo_cash") return ENGINE.CAJA; // Caja
+  if (method === "external_terminal") return ENGINE.BANCOS; // Banco (datáfono propio)
   // Bono empresarial: no entra plata en la mesa — baja el pasivo "bonos por
   // redimir". El lado del pasivo (emisión/cobro del lote) lo define la fase
   // fiscal; acá sólo se evita clasificarlo como caja o pasarela.
-  if (method === "voucher") return "280510";
-  return "112005"; // kushki_* → saldo en pasarela
+  if (method === "voucher") return ENGINE.BONOS_POR_REDIMIR;
+  return ENGINE.PASARELA; // kushki_* → saldo en pasarela
 }
 
 /**
  * Cuenta donde se acumulan los gastos por pagar. El gasto acredita acá al
  * registrarse y se cancela contra la caja/banco al pagarse.
  */
-export const EXPENSE_PAYABLE_CODE = "233505";
+export const EXPENSE_PAYABLE_CODE = ENGINE.GASTOS_POR_PAGAR;
 
 /** Categoría del gasto → cuenta PUC (heurística por palabras clave). */
 export function expenseAccountFor(category: string): string {
   const c = category.toLowerCase();
-  if (/(arriend|alquil|\blocal\b|renta)/.test(c)) return "512010";
-  if (/(honorar|contad|asesor|jur[ií]dic)/.test(c)) return "511005";
-  if (/(internet|tel[eé]fon|datos|celular|plan)/.test(c)) return "513535";
-  if (/(servici|agua|luz|energ|\bgas\b|acueduct|p[uú]blic)/.test(c)) return "513505";
-  if (/(manteni|reparac|arreglo)/.test(c)) return "514505";
-  if (/(comis|pasarela|tarjeta|dat[aá]fono)/.test(c)) return "524505";
-  if (/(public|marketing|redes|pauta|volante)/.test(c)) return "529505";
-  if (/(n[oó]mina|salari|sueld|personal)/.test(c)) return "510506";
-  return "519505"; // Gastos diversos
+  if (/(arriend|alquil|\blocal\b|renta)/.test(c)) return ENGINE.ARRIENDOS;
+  if (/(honorar|contad|asesor|jur[ií]dic)/.test(c)) return ENGINE.HONORARIOS;
+  if (/(internet|tel[eé]fon|datos|celular|plan)/.test(c)) return ENGINE.TELECOMUNICACIONES;
+  if (/(servici|agua|luz|energ|\bgas\b|acueduct|p[uú]blic)/.test(c)) return ENGINE.SERVICIOS_PUBLICOS;
+  if (/(manteni|reparac|arreglo)/.test(c)) return ENGINE.MANTENIMIENTO;
+  if (/(comis|pasarela|tarjeta|dat[aá]fono)/.test(c)) return ENGINE.COMISIONES;
+  if (/(public|marketing|redes|pauta|volante)/.test(c)) return ENGINE.PUBLICIDAD;
+  if (/(n[oó]mina|salari|sueld|personal)/.test(c)) return ENGINE.NOMINA_SALARIOS;
+  return ENGINE.GASTOS_DIVERSOS; // Gastos diversos
 }
 
 async function sumRefunds(
@@ -110,7 +114,7 @@ async function buildMonthEntries(
   // generado va al auxiliar de la tarifa — habilita armar el formulario
   // 300 directo del libro. INC (restaurantes) va a 241205.
   const salesTaxCodeFor = (kind: string, pct: number): string | null =>
-    kind === "iva" ? ivaGeneradoCodeForPct(pct) : kind === "inc" ? "241205" : null;
+    kind === "iva" ? ivaGeneradoCodeForPct(pct) : kind === "inc" ? ENGINE.INC_GENERADO : null;
   // Para las devoluciones (que no tienen factura que las congele) se usa el
   // régimen con el que quedó etiquetado el mes.
   const salesTaxCode = salesTaxCodeFor(tax.sales.kind, tax.sales.pct);
@@ -145,9 +149,9 @@ async function buildMonthEntries(
     const tips = salesBook.totals.tipCents;
     const income = totalCash - salesTax - tips;
     if (totalCash > 0 && income >= 0) {
-      if (income > 0) lines.push({ code: "413505", credit: income });
+      if (income > 0) lines.push({ code: ENGINE.INGRESOS, credit: income });
       for (const [code, credit] of taxByCode) lines.push({ code, credit });
-      if (tips > 0) lines.push({ code: "238030", credit: tips });
+      if (tips > 0) lines.push({ code: ENGINE.PROPINAS_POR_PAGAR, credit: tips });
       entries.push({ source: "sale", memo: "Ventas del mes", lines });
     } else if (totalCash > 0) {
       // Cobros < impuesto + propinas de los pedidos: datos inconsistentes
@@ -172,22 +176,22 @@ async function buildMonthEntries(
     const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents;
     if (purchaseCost > 0 || t.ivaCents > 0) {
       const lines: Line[] = [];
-      if (invDebit > 0) lines.push({ code: "143505", debit: invDebit });
-      if (expenseDebit > 0) lines.push({ code: "519505", debit: expenseDebit });
+      if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });
+      if (expenseDebit > 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, debit: expenseDebit });
       // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
       // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
       if (deductibleVat > 0)
-        lines.push({ code: IVA_DESCONTABLE_CODE, debit: deductibleVat });
+        lines.push({ code: ENGINE.IVA_DESCONTABLE, debit: deductibleVat });
       if (t.retefuenteCents > 0)
-        lines.push({ code: "236505", credit: t.retefuenteCents });
+        lines.push({ code: ENGINE.RETEFUENTE, credit: t.retefuenteCents });
       if (t.reteIvaCents > 0)
-        lines.push({ code: "236705", credit: t.reteIvaCents });
+        lines.push({ code: ENGINE.RETEIVA, credit: t.reteIvaCents });
       if (t.reteIcaCents > 0)
-        lines.push({ code: "236805", credit: t.reteIcaCents });
+        lines.push({ code: ENGINE.RETEICA, credit: t.reteIcaCents });
       const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
       const proveedores = purchaseCost + t.ivaCents - ret;
       if (proveedores >= 0) {
-        lines.push({ code: "220505", credit: proveedores });
+        lines.push({ code: ENGINE.PROVEEDORES, credit: proveedores });
         entries.push({ source: "purchase", memo: "Compras del mes", lines });
       } else {
         // Retenciones > compra: datos mal capturados. Un crédito negativo no
@@ -223,7 +227,7 @@ async function buildMonthEntries(
     }
     const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
     if (total > 0) {
-      const lines: Line[] = [{ code: "220505", debit: total }];
+      const lines: Line[] = [{ code: ENGINE.PROVEEDORES, debit: total }];
       for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
       entries.push({ source: "purchase_payment", memo: "Pagos a proveedores", lines });
     }
@@ -235,8 +239,8 @@ async function buildMonthEntries(
       source: "cogs",
       memo: "Costo de ventas del mes",
       lines: [
-        { code: "613505", debit: pnl.consumptionCents },
-        { code: "143505", credit: pnl.consumptionCents },
+        { code: ENGINE.COSTO_VENTAS, debit: pnl.consumptionCents },
+        { code: ENGINE.INVENTARIO, credit: pnl.consumptionCents },
       ],
     });
   }
@@ -247,8 +251,8 @@ async function buildMonthEntries(
       source: "waste",
       memo: "Mermas del mes",
       lines: [
-        { code: "519505", debit: pnl.wasteCents },
-        { code: "143505", credit: pnl.wasteCents },
+        { code: ENGINE.GASTOS_DIVERSOS, debit: pnl.wasteCents },
+        { code: ENGINE.INVENTARIO, credit: pnl.wasteCents },
       ],
     });
   }
@@ -324,8 +328,8 @@ async function buildMonthEntries(
         source: "depreciation",
         memo: "Depreciación del mes",
         lines: [
-          { code: "516005", debit: dep },
-          { code: "159205", credit: dep },
+          { code: ENGINE.DEPRECIACION_GASTO, debit: dep },
+          { code: ENGINE.DEPRECIACION_ACUMULADA, credit: dep },
         ],
       });
     }
@@ -338,9 +342,9 @@ async function buildMonthEntries(
     const run = await payrollTotalsForPosting(restaurantId, month);
     if (run) {
       const lines: Line[] = [
-        { code: "510506", debit: run.devengadoCents },
+        { code: ENGINE.NOMINA_SALARIOS, debit: run.devengadoCents },
         {
-          code: "510527",
+          code: ENGINE.NOMINA_APORTES,
           debit:
             run.aportesCents +
             run.provCesantiasCents +
@@ -348,20 +352,20 @@ async function buildMonthEntries(
             run.provVacacionesCents,
         },
         {
-          code: "250505",
+          code: ENGINE.SALARIOS_POR_PAGAR,
           credit: run.devengadoCents - run.deduccionesCents,
         },
         {
-          code: "237005",
+          code: ENGINE.RETENCIONES_Y_APORTES_NOMINA,
           credit: run.deduccionesCents + run.aportesCents,
         },
       ];
       if (run.provCesantiasCents > 0)
-        lines.push({ code: "251005", credit: run.provCesantiasCents });
+        lines.push({ code: ENGINE.CESANTIAS, credit: run.provCesantiasCents });
       if (run.provPrimaCents > 0)
-        lines.push({ code: "252005", credit: run.provPrimaCents });
+        lines.push({ code: ENGINE.PRIMA, credit: run.provPrimaCents });
       if (run.provVacacionesCents > 0)
-        lines.push({ code: "252505", credit: run.provVacacionesCents });
+        lines.push({ code: ENGINE.VACACIONES, credit: run.provVacacionesCents });
       entries.push({
         source: "payroll",
         memo: "Nómina del mes (liquidación)",
@@ -374,8 +378,8 @@ async function buildMonthEntries(
           source: "payroll",
           memo: "Nómina del mes",
           lines: [
-            { code: "510506", debit: labor },
-            { code: "250505", credit: labor },
+            { code: ENGINE.NOMINA_SALARIOS, debit: labor },
+            { code: ENGINE.SALARIOS_POR_PAGAR, credit: labor },
           ],
         });
       }
@@ -386,10 +390,10 @@ async function buildMonthEntries(
   if (refunds > 0) {
     const rtax =
       tax.sales.kind === "none" ? 0 : embeddedTaxCents(refunds, tax.sales.pct);
-    const lines: Line[] = [{ code: "417505", debit: refunds - rtax }];
+    const lines: Line[] = [{ code: ENGINE.DEVOLUCIONES, debit: refunds - rtax }];
     if (rtax > 0 && salesTaxCode)
       lines.push({ code: salesTaxCode, debit: rtax });
-    lines.push({ code: "112005", credit: refunds });
+    lines.push({ code: ENGINE.PASARELA, credit: refunds });
     entries.push({ source: "refund", memo: "Devoluciones del mes", lines });
   }
 
@@ -406,7 +410,7 @@ export async function generateJournalForMonth(
   range: MonthRange,
 ): Promise<GenResult[]> {
   await ensureChartOfAccounts(restaurantId);
-  const map = await loadAccountMap(restaurantId);
+  const index = await loadAccountIndex(restaurantId);
   const drafts = await buildMonthEntries(restaurantId, month, range);
   // Fecha del asiento = último instante del mes.
   const date = new Date(range.to.getTime() - 1);
@@ -427,8 +431,27 @@ export async function generateJournalForMonth(
       }
       continue;
     }
-    if (e.lines.some((l) => !map.get(l.code))) {
-      console.error("[posting] cuenta faltante", { source: e.source, month });
+    // Cada código base se resuelve a su cuenta IMPUTABLE: si el contador
+    // abrió auxiliares debajo (11100501 Bancolombia), el movimiento cae en
+    // la auxiliar y la línea guarda ESE código. Sin dónde asentar (cuenta
+    // faltante o madre sin hijas imputables) el asiento entero se omite.
+    const lines: Array<Line & { accountId: string }> = [];
+    let unresolved: string | null = null;
+    for (const l of e.lines) {
+      const code = resolvePostableCode(index, l.code);
+      const account = code ? index.get(code) : undefined;
+      if (!code || !account) {
+        unresolved = l.code;
+        break;
+      }
+      lines.push({ ...l, code, accountId: account.id });
+    }
+    if (unresolved) {
+      console.error("[posting] cuenta no imputable", {
+        source: e.source,
+        month,
+        code: unresolved,
+      });
       continue;
     }
     await db.$transaction(async (tx) => {
@@ -444,8 +467,8 @@ export async function generateJournalForMonth(
           memo: e.memo,
           status: "posted",
           lines: {
-            create: e.lines.map((l) => ({
-              accountId: map.get(l.code)!,
+            create: lines.map((l) => ({
+              accountId: l.accountId,
               accountCode: l.code,
               debitCents: l.debit ?? 0,
               creditCents: l.credit ?? 0,

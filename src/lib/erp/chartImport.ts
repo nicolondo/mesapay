@@ -56,8 +56,69 @@ function defaultNature(type: PucType): PucNature {
     : "credito";
 }
 
-/** Longitudes válidas: clase, grupo, cuenta, subcuenta, auxiliar. */
-const VALID_LENGTHS = new Set([1, 2, 4, 6, 8]);
+/** Longitudes válidas: clase, grupo, cuenta, subcuenta, auxiliar (8 y 10). */
+const VALID_LENGTHS = new Set([1, 2, 4, 6, 8, 10]);
+
+/** Índice de cada columna en la fila (−1 = la columna no viene). */
+type ColumnMap = { code: number; name: number; nature: number; postable: number };
+
+/** Sin encabezado reconocible se lee por posición: código;nombre;naturaleza;acepta movimiento. */
+const DEFAULT_COLUMNS: ColumnMap = { code: 0, name: 1, nature: 2, postable: 3 };
+
+/** Nombres (sin tildes, minúsculas) con los que puede venir cada columna. */
+const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
+  code: ["code", "codigo", "cuenta"],
+  name: ["name", "nombre", "descripcion"],
+  nature: ["nature", "naturaleza"],
+  postable: [
+    "postable",
+    "acepta movimiento",
+    "acepta movimientos",
+    "imputable",
+    "movimiento",
+    "transaccional",
+  ],
+};
+
+function normalizeHeader(raw: string): string {
+  return raw
+    .replace(/^\uFEFF/, "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+}
+
+/**
+ * Ubica las columnas por el nombre del encabezado, así el archivo puede
+ * traerlas en otro orden (el export propio va código;nombre;tipo;naturaleza;
+ * acepta movimiento;activa). Si no se reconoce ninguna, se lee por posición.
+ * Una columna sin nombre reconocido cuya posición por defecto ya la ocupa
+ * otra se da por ausente: mejor un default que leer la celda equivocada.
+ */
+function columnsFromHeader(cells: string[]): ColumnMap {
+  const norm = cells.map(normalizeHeader);
+  const cols: ColumnMap = { ...DEFAULT_COLUMNS };
+  const matched = new Set<number>();
+  const keys = Object.keys(HEADER_ALIASES) as (keyof ColumnMap)[];
+  for (const key of keys) {
+    const idx = norm.findIndex((h) => HEADER_ALIASES[key].includes(h));
+    if (idx >= 0) {
+      cols[key] = idx;
+      matched.add(idx);
+    }
+  }
+  if (matched.size === 0) return DEFAULT_COLUMNS;
+  for (const key of keys) {
+    const idx = norm.findIndex((h) => HEADER_ALIASES[key].includes(h));
+    if (idx < 0 && matched.has(cols[key])) cols[key] = -1;
+  }
+  return cols;
+}
+
+function cell(cells: string[], idx: number): string {
+  return idx >= 0 ? (cells[idx] ?? "") : "";
+}
 
 /**
  * Parte una línea CSV respetando comillas — los nombres de cuenta traen comas
@@ -140,19 +201,22 @@ export function parseChartCsv(text: string): ParsedChart {
   const issues: ChartImportIssue[] = [];
   const byCode = new Map<string, ParsedAccount>();
   let seenFirstData = false;
+  let cols = DEFAULT_COLUMNS;
 
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i]!;
     if (line.trim() === "") continue;
     const cells = splitCells(line, sep);
-    const raw = (cells[0] ?? "").trim();
+    const raw = cell(cells, cols.code).trim();
     const code = raw.replace(/\s/g, "");
-    const name = (cells[1] ?? "").trim();
+    const name = cell(cells, cols.name).trim();
 
     if (!/^\d+$/.test(code)) {
-      // Encabezado: sólo se salta en silencio si es la primera fila con datos.
+      // Encabezado: sólo se salta en silencio si es la primera fila con
+      // datos, y de paso dice en qué columna viene cada cosa.
       if (!seenFirstData) {
         seenFirstData = true;
+        cols = columnsFromHeader(cells);
         continue;
       }
       issues.push({ line: i + 1, code: raw.slice(0, 40), reason: "not_numeric" });
@@ -182,10 +246,10 @@ export function parseChartCsv(text: string): ParsedChart {
       code,
       name: name.slice(0, 120),
       type,
-      nature: parseNature(cells[2] ?? "", type),
+      nature: parseNature(cell(cells, cols.nature), type),
       level: pucLevel(code),
       parentCode: pucParentCode(code),
-      postable: parsePostable(cells[3] ?? ""),
+      postable: parsePostable(cell(cells, cols.postable)),
       synthesized: false,
     };
     byCode.set(code, row);

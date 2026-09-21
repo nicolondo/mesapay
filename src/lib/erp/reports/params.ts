@@ -33,6 +33,18 @@ export const dailyBookQuery = baseReportQuery.extend({
   modo: z.enum(["detallado", "resumido"]).optional(),
 });
 
+/** Cartera: `?vista=todas|cxc|cxp&hasta[&format=csv]` (sin `desde`: es un corte a una fecha). */
+export const carteraQuery = z.object({
+  vista: z.enum(["todas", "cxc", "cxp"]).optional(),
+  hasta: isoDate.optional(),
+  format: z.enum(["csv"]).optional(),
+});
+
+/** Extracto de cartera de un tercero: sólo la fecha de corte. */
+export const carteraStatementQuery = z.object({
+  hasta: isoDate.optional(),
+});
+
 /** Query string → objeto plano (las claves vacías se descartan). */
 export function searchParamsToObject(sp: URLSearchParams): Record<string, string> {
   const out: Record<string, string> = {};

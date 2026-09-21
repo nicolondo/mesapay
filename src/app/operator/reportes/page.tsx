@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function ReportesHubPage() {
   const t = await getTranslations("opReportes");
   const tSettings = await getTranslations("opSettings");
+  const tCartera = await getTranslations("opCartera");
   const gate = await reportGate();
   if (!gate) return <div className="p-6">{tSettings("noRestaurant")}</div>;
 
@@ -50,6 +51,13 @@ export default async function ReportesHubPage() {
       items: [
         { href: "/operator/contabilidad", name: t("rImpuestos"), detail: t("rImpuestosDesc") },
         { href: "/operator/contabilidad", name: t("rExogena"), detail: t("rExogenaDesc") },
+      ],
+    },
+    {
+      key: "comerciales",
+      label: tCartera("hubCategory"),
+      items: [
+        { href: "/operator/reportes/cartera", name: tCartera("hubName"), detail: tCartera("hubDesc") },
       ],
     },
   ];

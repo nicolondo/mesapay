@@ -387,6 +387,8 @@ model Restaurant {
   payouts                Payout[]
   accountingConfig       AccountingConfig?
   retentionConcepts      RetentionConcept[]
+  exogenaShareholders    ExogenaShareholder[]
+  exogenaHoldings        ExogenaHolding[]
   bankStatementLines     BankStatementLine[]
   bankRecRules           BankRecRule[]
   fixedAssets            FixedAsset[]
@@ -3478,6 +3480,45 @@ model RetentionConcept {
   createdAt    DateTime   @default(now())
 
   @@index([restaurantId])
+}
+
+/// Exógena 1010: socios/accionistas (captura manual por año gravable).
+/// `sharePctBps` es el porcentaje de participación en BASIS POINTS
+/// (1 % = 100 bps; 33,3333 % = 333333). Valores en centavos, BigInt: el
+/// capital social y las inversiones superan con facilidad los $21,4 M COP
+/// que caben en un Int de 32 bits.
+model ExogenaShareholder {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  year         Int
+  name         String
+  docType      String // NIT | CC | CE | PA
+  docNumber    String
+  dv           String?
+  sharePctBps  Int
+  nominalCents BigInt
+  premiumCents BigInt     @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId, year])
+}
+
+/// Exógena 1012: inversiones y cuentas al 31/12 (captura manual por año).
+/// `concept`: 1110 cuentas bancarias, 1115 inversiones, 1200-1206 otros.
+model ExogenaHolding {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  year            Int
+  concept         String
+  entityName      String
+  entityDocType   String // NIT | CC | CE | PA
+  entityDocNumber String
+  valueCents      BigInt
+  createdAt       DateTime   @default(now())
+
+  @@index([restaurantId, year])
 }
 
 /// Movimiento de un asiento: débito O crédito sobre una cuenta.

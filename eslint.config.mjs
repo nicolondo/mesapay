@@ -18,6 +18,8 @@ import i18next from "eslint-plugin-i18next";
  * MIGRATED cubra `src/**` entero.
  */
 const MIGRATED = [
+  // Reportes contables: nacieron trilingües, quedan blindados de una.
+  "src/app/operator/reportes/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
   "src/app/admin/configuracion/MenuAiCard.tsx",

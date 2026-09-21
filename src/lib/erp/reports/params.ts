@@ -45,6 +45,23 @@ export const carteraStatementQuery = z.object({
   hasta: isoDate.optional(),
 });
 
+/** Estado de situación financiera: `?corte=yyyy-mm-dd` (default hoy) y `format`. */
+export const balanceSheetQuery = z.object({
+  corte: isoDate.optional(),
+  format: z.enum(["csv"]).optional(),
+});
+
+/** Estado de resultado: el período común (`anio` / `desde` / `hasta`). */
+export const incomeStatementQuery = baseReportQuery;
+
+/** Fecha de corte efectiva: la de la query si es válida, si no HOY. */
+export function cutoffFromQuery(
+  q: { corte?: string },
+  today: string = todayIso(),
+): string {
+  return q.corte ?? today;
+}
+
 /** Query string → objeto plano (las claves vacías se descartan). */
 export function searchParamsToObject(sp: URLSearchParams): Record<string, string> {
   const out: Record<string, string> = {};

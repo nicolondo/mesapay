@@ -12,7 +12,7 @@ vi.mock("./accountingData", () => ({
   computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
 }));
 vi.mock("./ledger", () => ({ ensureChartOfAccounts: vi.fn(), loadAccountIndex: async () => new Map(["143505", "519505", "24081001", "220505", "236505", "236705", "236805"].map((code) => [code, { id: code, postable: true, active: true }])) }));
-vi.mock("./activos", () => ({ depreciationForMonth: async () => 0 }));
+vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 import { generateJournalForMonth } from "./posting";
 

@@ -314,6 +314,15 @@ describe("createAccount", () => {
       where: { restaurantId: "r1", assetAccountCode: "111005" },
       data: { assetAccountCode: "11100501" },
     });
+    // Las cuentas de depreciación por activo también siguen a la hija.
+    expect(m.refs.fixedAsset).toHaveBeenCalledWith({
+      where: { restaurantId: "r1", depreciationAccountCode: "111005" },
+      data: { depreciationAccountCode: "11100501" },
+    });
+    expect(m.refs.fixedAsset).toHaveBeenCalledWith({
+      where: { restaurantId: "r1", expenseAccountCode: "111005" },
+      data: { expenseAccountCode: "11100501" },
+    });
   });
 
   it("madre agrupadora: crea la hija sin tocar nada más", async () => {

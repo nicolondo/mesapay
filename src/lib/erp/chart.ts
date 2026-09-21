@@ -328,6 +328,16 @@ export async function createAccount(
           where: { restaurantId, assetAccountCode: parent.code },
           data: { assetAccountCode: created.code },
         });
+        // Cada activo lleva también sus cuentas de depreciación (acumulada y
+        // gasto): si la madre deja de ser imputable, siguen a la hija.
+        await tx.fixedAsset.updateMany({
+          where: { restaurantId, depreciationAccountCode: parent.code },
+          data: { depreciationAccountCode: created.code },
+        });
+        await tx.fixedAsset.updateMany({
+          where: { restaurantId, expenseAccountCode: parent.code },
+          data: { expenseAccountCode: created.code },
+        });
       }
       return { ok: true, account: toDto(created), transferredLines };
     });

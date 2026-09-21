@@ -2904,10 +2904,13 @@ model BillingCustomer {
   verificationDigit String?
   email             String
   phone             String?
-  address           String
-  municipalityCode  String
-  city              String
-  department        String
+  // Dirección/municipio: OPCIONALES desde que la factura nominativa dejó
+  // de pedirlos (el bloque cac:PhysicalLocation del adquiriente es
+  // opcional en el XML DIAN). null = el cliente no dejó dirección.
+  address           String?
+  municipalityCode  String?
+  city              String?
+  department        String?
   country           String         @default("CO")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -2929,9 +2932,11 @@ model InvoiceRequest {
   customerName String
   docType      InvoiceDocType
   docNumber    String
-  address      String
-  city         String
-  department   String
+  // Opcionales: la solicitud ya no pide dirección, ciudad ni departamento.
+  // Las filas viejas los conservan; las nuevas van en null.
+  address      String?
+  city         String?
+  department   String?
   email        String
 
   // For audit + future API integrations — keep the raw Google Place when

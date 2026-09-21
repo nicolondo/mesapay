@@ -32,10 +32,9 @@ async function fillCustomer(page: Page, name: string, docType: "CC" | "NIT", doc
   await page.getByLabel("Número de documento", { exact: true }).fill(doc);
   await page.getByLabel("Correo electrónico", { exact: true }).fill("facturas@example.test");
   await page.getByLabel("Teléfono", { exact: true }).fill("3005550101");
-  await page.getByLabel("Dirección", { exact: true }).fill("Calle 10 # 20-30");
-  await page.getByLabel("Municipio", { exact: true }).fill("Medell");
-  await page.getByRole("option", { name: /Medellín, Antioquia/ }).click();
-  await expect(page.getByLabel("Departamento", { exact: true })).toHaveValue("Antioquia");
+  // La factura nominativa ya no pide dirección ni municipio: no hay campos.
+  await expect(page.getByLabel("Dirección", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Municipio", { exact: true })).toHaveCount(0);
 }
 
 for (const width of [390, 1440]) {
@@ -61,7 +60,7 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Guardar cliente", exact: true }).click();
       await expect.poll(() => db.billingCustomer.count({ where: { restaurantId: restaurant.id } })).toBe(1);
       const cc = await db.billingCustomer.findFirstOrThrow({ where: { restaurantId: restaurant.id, docType: "CC" } });
-      expect(cc).toMatchObject({ docNumber: "1020304050", verificationDigit: null, municipalityCode: "05001", city: "Medellín", department: "Antioquia", address: "Calle 10 # 20-30" });
+      expect(cc).toMatchObject({ docNumber: "1020304050", verificationDigit: null, municipalityCode: null, city: null, department: null, address: null });
 
       await page.reload();
       await page.getByRole("button", { name: "Crear cliente", exact: true }).click();
@@ -78,11 +77,10 @@ for (const width of [390, 1440]) {
       await expect(edit).toBeVisible();
       await expect(page.getByRole("button", { name: "Editar Cliente particular de prueba", exact: true })).toHaveCount(0);
       await edit.click();
-      await expect(page.getByLabel("Municipio", { exact: true })).toHaveValue(/Medellín/);
       await expect(page.getByLabel("Dígito de verificación", { exact: true })).toHaveValue("1");
-      await page.getByLabel("Dirección", { exact: true }).fill("Carrera 43 # 10-20");
+      await page.getByLabel("Teléfono", { exact: true }).fill("3005550202");
       await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
-      await expect.poll(async () => (await db.billingCustomer.findUniqueOrThrow({ where: { id: nit.id } })).address).toBe("Carrera 43 # 10-20");
+      await expect.poll(async () => (await db.billingCustomer.findUniqueOrThrow({ where: { id: nit.id } })).phone).toBe("3005550202");
       await page.reload();
       await page.getByLabel("Buscar clientes para facturación", { exact: true }).fill("Empresa");
       await expect(edit).toBeVisible();
@@ -90,7 +88,7 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
       const duplicate = await page.request.post("/api/operator/billing-customers", {
-        data: { customerName: "Empresa duplicada", docType: "NIT", docNumber: "901.944.469-1", email: "otra@example.test", address: "Calle 10 # 20-30", municipalityCode: "05001" },
+        data: { customerName: "Empresa duplicada", docType: "NIT", docNumber: "901.944.469-1", email: "otra@example.test" },
       });
       expect(duplicate.status()).toBe(409);
       expect(await db.billingCustomer.count({ where: { restaurantId: restaurant.id } })).toBe(2);
@@ -115,9 +113,8 @@ for (const width of [390, 1440]) {
       await expect(page.getByLabel("Tipo", { exact: true })).toHaveValue("NIT");
       await expect(page.getByLabel("Número de identificación", { exact: true })).toHaveValue("901944469-1");
       await expect(page.getByLabel("Correo electrónico")).toHaveValue("facturas@example.test");
-      await expect(page.getByLabel("Dirección")).toHaveValue("Carrera 43 # 10-20");
-      await expect(page.getByLabel("Ciudad", { exact: true })).toHaveValue("Medellín");
-      await expect(page.getByLabel("Departamento", { exact: true })).toHaveValue("Antioquia");
+      await expect(page.getByLabel("Dirección")).toHaveCount(0);
+      await expect(page.getByLabel("Ciudad", { exact: true })).toHaveCount(0);
       // Selection is only a draft: no fiscal emission, email, payment or print.
       expect(await db.invoiceRequest.count({ where: { orderId: order.id } })).toBe(0);
       expect(await db.payment.count({ where: { orderId: order.id } })).toBe(0);
@@ -137,7 +134,7 @@ test("billing clients stay scoped to their restaurant and waiters cannot create 
   const second = await db.restaurant.create({ data: { name: "Comercio B", slug: `billing-b-${token}` } });
   const admin = await db.user.create({ data: { email: `billing-admin-${token}@example.test`, passwordHash, role: "platform_admin" } });
   const waiter = await db.user.create({ data: { email: `billing-waiter-${token}@example.test`, passwordHash, role: "mesero", restaurantId: first.id } });
-  const payload = { customerName: "Cliente privado comercio A", docType: "CC", docNumber: "1020304050", email: "privado@example.test", address: "Calle 10 # 20-30", municipalityCode: "05001" };
+  const payload = { customerName: "Cliente privado comercio A", docType: "CC", docNumber: "1020304050", email: "privado@example.test" };
   const waiterContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL, locale: "es-CO" });
   try {
     await login(page, admin.email, password);

@@ -214,6 +214,47 @@ describe("adquiriente", () => {
     expect(block).not.toContain("schemeID=");
   });
 
+  it("sin dirección sale a nombre del comensal SIN cac:PhysicalLocation, como la de consumidor final", async () => {
+    m.invoiceFindUnique.mockResolvedValue(
+      invoice({ invoiceRequests: [{ ...ANA, address: null, city: null, department: null }] }),
+    );
+    const r = await emit();
+    expect(r.outcome).toBe("accepted");
+    const block = customerBlock(sentXml());
+    expect(block).toMatchSnapshot();
+    expect(block).not.toContain("<cac:PhysicalLocation>");
+    expect(block).not.toContain("<cac:Address>");
+    expect(block).not.toContain("<cac:RegistrationAddress>");
+    // El resto del adquiriente es el mismo que con dirección.
+    expect(block).toContain(">1020304050</cbc:CompanyID>");
+    expect(block).toContain('schemeName="13"');
+    expect(block).toContain("<cbc:RegistrationName>Ana Pérez</cbc:RegistrationName>");
+    expect(block).toContain("<cbc:ElectronicMail>ana@correo.com</cbc:ElectronicMail>");
+    expect(block).toContain("<cac:PartyIdentification>");
+    expect(block).not.toContain("222222222222");
+  });
+
+  it("sin dirección: el XML es el de con dirección menos el bloque cac:PhysicalLocation", async () => {
+    // Dos emisiones en el mismo test: `sentXml()` lee la primera firma, así
+    // que la segunda se toma de la última llamada.
+    const lastSignedXml = () => m.signXmlDian.mock.calls.at(-1)?.[0] as string;
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceRequests: [ANA] }));
+    expect((await emit()).outcome).toBe("accepted");
+    const conDireccion = customerBlock(lastSignedXml());
+    m.invoiceFindUnique.mockResolvedValue(
+      invoice({ invoiceRequests: [{ ...ANA, address: null, city: null, department: null }] }),
+    );
+    expect((await emit()).outcome).toBe("accepted");
+    const sinDireccion = customerBlock(lastSignedXml());
+    expect(sinDireccion).not.toBe(conDireccion);
+    const sinBloque = conDireccion.replace(
+      /<cac:PhysicalLocation>.*?<\/cac:PhysicalLocation>/,
+      "",
+    );
+    expect(sinBloque).not.toBe(conDireccion);
+    expect(sinDireccion).toBe(sinBloque);
+  });
+
   it("con NIT va como persona jurídica con el DV en @schemeID", async () => {
     m.invoiceFindUnique.mockResolvedValue(
       invoice({ invoiceRequests: [{ ...ANA, docType: "NIT", docNumber: "901944469-1", customerName: "ACME S.A.S." }] }),

@@ -126,6 +126,62 @@ describe("customerPartyFor — nombre, dirección y correo", () => {
   });
 });
 
+describe("customerPartyFor — nominativa SIN dirección (la solicitud ya no la pide)", () => {
+  const SIN_DIRECCION = { address: null, city: null, department: null };
+
+  it("omite el bloque de dirección y conserva nombre, documento, régimen y correo", () => {
+    const con = customerPartyFor(request());
+    const sin = customerPartyFor(request(SIN_DIRECCION));
+    expect(sin.address).toBeNull();
+    // Todo lo demás es byte-idéntico al adquiriente con dirección.
+    expect({ ...sin, address: undefined }).toEqual({ ...con, address: undefined });
+    expect(sin).toMatchObject({
+      name: "Ana Pérez",
+      companyId: "1020304050",
+      idSchemeName: "13",
+      personType: "2",
+      taxLevelCode: "R-99-PN",
+      taxRegimeCode: "49",
+      email: "ana@correo.com",
+    });
+  });
+
+  it("acepta los campos ausentes (undefined) o vacíos, no sólo null", () => {
+    const sinCampos: InvoiceRequestParty = {
+      customerName: "Ana Pérez",
+      docType: "CC",
+      docNumber: "1.020.304.050",
+      email: "ana@correo.com",
+    };
+    expect(customerPartyFor(sinCampos).address).toBeNull();
+    expect(customerPartyFor(request({ address: "", city: "", department: "" })).address).toBeNull();
+    expect(customerPartyFor(request({ address: "  ", city: " ", department: null })).address).toBeNull();
+  });
+
+  it("NIT sin dirección: persona jurídica con DV, también sin bloque de dirección", () => {
+    const p = customerPartyFor(
+      request({ ...SIN_DIRECCION, docType: "NIT", docNumber: "901944469", customerName: "ACME S.A.S." }),
+    );
+    expect(p.address).toBeNull();
+    expect(p).toMatchObject({ idSchemeName: "31", personType: "1", companyId: "901944469", dv: "1" });
+  });
+
+  it("no manda medio bloque: municipio resuelto pero sin línea de dirección ⇒ sin dirección", () => {
+    expect(customerPartyFor(request({ address: null })).address).toBeNull();
+    expect(customerPartyFor(request({ address: "   " })).address).toBeNull();
+  });
+
+  it("con dirección completa sigue saliendo el bloque igual que antes", () => {
+    expect(customerPartyFor(request()).address).toEqual({
+      cityCode: "05266",
+      cityName: "Envigado",
+      deptCode: "05",
+      deptName: "Antioquia",
+      line: "Calle 1 # 2-3",
+    });
+  });
+});
+
 describe("resolveCustomerMunicipio", () => {
   it("desambigua con el departamento: 'ciudad, departamento' primero", () => {
     // Hay dos "Armenia" (Antioquia y Quindío); con el departamento queda

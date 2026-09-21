@@ -36,7 +36,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: BillingCusto
     {selected && <p role="status" className="text-xs text-success mt-2">{t("selected", { name: selected })}</p>}
     {query.trim().length >= 2 && (failed ? <p role="alert" className="text-xs text-danger mt-2">{t("loadError")}</p> : loading ? <p role="status" className="text-xs text-muted mt-2">{t("loading")}</p> : customers.length === 0 ? <p className="text-xs text-muted mt-2">{t("noResults")}</p> : <ul className="max-h-56 overflow-auto space-y-1.5 mt-3">
       {customers.map(customer => <li key={customer.id}><button type="button" aria-label={t("useCustomer", { name: customer.customerName })} onClick={() => { onSelect(customer); setSelected(customer.customerName); setQuery(""); setCustomers([]); }} className="w-full rounded-lg border border-hairline bg-paper p-3 text-left hover:border-terracotta focus-visible:ring-2 focus-visible:ring-terracotta">
-        <span className="block text-sm font-medium break-words">{customer.customerName}</span><span className="block text-xs text-muted mt-1">{customer.docType} {billingDocument(customer)} · {customer.city}</span>
+        <span className="block text-sm font-medium break-words">{customer.customerName}</span><span className="block text-xs text-muted mt-1">{customer.docType} {billingDocument(customer)}{customer.city ? ` · ${customer.city}` : ""}</span>
       </button></li>)}
     </ul>)}
   </div>;

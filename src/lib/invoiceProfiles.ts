@@ -3,7 +3,7 @@
  *
  * Stored in localStorage under a single key so that any restaurant on the
  * mesapay.co domain can offer "fill with saved data" without the diner
- * having to retype name + NIT + address. Nothing leaves the device — we
+ * having to retype name + NIT + email. Nothing leaves the device — we
  * never sync this server-side. If the user clears their browser data
  * they lose the profiles, which is the expected behaviour for
  * privacy-by-default storage.
@@ -23,11 +23,9 @@ const ProfileSchema = z.object({
   docType: DocType,
   docNumber: z.string().min(4).max(40),
   email: z.string().email(),
-  address: z.string().min(4).max(240),
-  city: z.string().min(2).max(80),
-  department: z.string().min(2).max(80),
-  placeId: z.string().nullable().optional(),
-  rawComponents: z.unknown().optional(),
+  // Dirección, ciudad y departamento ya no se guardan: la factura no los
+  // pide. Los perfiles viejos que los traen siguen cargando (zod descarta
+  // las claves desconocidas) y se reescriben sin ellos al volver a usarse.
   // Used to sort recent-first.
   lastUsedAt: z.number(),
 });
@@ -74,11 +72,6 @@ export function saveProfile(
     docType: profile.docType,
     docNumber: profile.docNumber,
     email: profile.email,
-    address: profile.address,
-    city: profile.city,
-    department: profile.department,
-    placeId: profile.placeId ?? null,
-    rawComponents: profile.rawComponents,
     lastUsedAt: now,
   };
   const filtered = profiles.filter((p) => !matchKey(p));

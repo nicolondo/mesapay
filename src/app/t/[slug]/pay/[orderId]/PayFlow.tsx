@@ -78,9 +78,6 @@ export async function PayFlow({
       docType: true,
       docNumber: true,
       email: true,
-      address: true,
-      city: true,
-      department: true,
     },
   });
   const invoiceIntent: InvoiceIntent | null = invoiceRequest

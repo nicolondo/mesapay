@@ -2,11 +2,16 @@
 
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { MunicipioAutocomplete } from "@/components/MunicipioAutocomplete";
 import type { BillingCustomerRecord } from "./types";
 
 const inputClass = "w-full min-w-0 rounded-xl border border-hairline bg-ivory px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta/40";
 
+/**
+ * Alta/edición de un cliente de facturación: identidad, correo y teléfono.
+ * No pide dirección ni municipio — la factura electrónica nominativa sale
+ * sin el bloque de dirección del adquiriente, igual que la de consumidor
+ * final, así que no hay para qué cargarlos.
+ */
 export function CustomerForm({ initial, onSaved, onCancel }: {
   initial: BillingCustomerRecord | null;
   onSaved: (customer: BillingCustomerRecord) => void;
@@ -17,11 +22,8 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
   const [values, setValues] = useState({
     customerName: initial?.customerName ?? "", docType: initial?.docType ?? "CC",
     docNumber: initial?.docNumber ?? "", verificationDigit: initial?.verificationDigit ?? "",
-    email: initial?.email ?? "", phone: initial?.phone ?? "", address: initial?.address ?? "",
+    email: initial?.email ?? "", phone: initial?.phone ?? "",
   });
-  const [municipio, setMunicipio] = useState(initial ? {
-    code: initial.municipalityCode, label: `${initial.city}, ${initial.department}`, deptName: initial.department,
-  } : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, unknown>>({});
@@ -32,12 +34,11 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    if (!municipio) { setError(t("municipalityRequired")); return; }
     setBusy(true); setError(""); setFieldErrors({});
     try {
       const response = await fetch(initial ? `/api/operator/billing-customers/${initial.id}` : "/api/operator/billing-customers", {
         method: initial ? "PATCH" : "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...values, verificationDigit: values.docType === "NIT" ? values.verificationDigit : null, municipalityCode: municipio.code }),
+        body: JSON.stringify({ ...values, verificationDigit: values.docType === "NIT" ? values.verificationDigit : null }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.customer) {
@@ -51,7 +52,7 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
   }
   function field(key: Exclude<keyof typeof values, "docType">, options: { type?: string; required?: boolean; maxLength?: number; inputMode?: "text" | "numeric" | "tel" } = {}) {
     const invalid = Boolean(fieldErrors[key]);
-    return <div key={key} className={key === "customerName" || key === "address" ? "sm:col-span-2" : ""}>
+    return <div key={key} className={key === "customerName" ? "sm:col-span-2" : ""}>
       <label htmlFor={`${formId}-${key}`} className="block text-sm text-muted mb-1.5">{t(key)}</label>
       <input id={`${formId}-${key}`} name={key} value={values[key]} onChange={e => change(key, e.target.value)} type={options.type ?? "text"} required={options.required ?? true} maxLength={options.maxLength ?? 160} inputMode={options.inputMode} className={inputClass} aria-invalid={invalid} aria-describedby={invalid ? `${formId}-${key}-error` : undefined} />
       {invalid && <p id={`${formId}-${key}-error`} className="text-xs text-danger mt-1">{t("checkField")}</p>}
@@ -75,15 +76,6 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
       </div>}
       {field("email", { type: "email" })}
       {field("phone", { type: "tel", required: false, maxLength: 32 })}
-      {field("address", { maxLength: 240 })}
-      <div>
-        <label htmlFor={`${formId}-municipio`} className="block text-sm text-muted mb-1.5">{t("municipality")}</label>
-        <MunicipioAutocomplete id={`${formId}-municipio`} value={municipio} onChange={setMunicipio} disabled={busy} required showCode={false} inputClassName={inputClass} />
-      </div>
-      <div>
-        <label htmlFor={`${formId}-department`} className="block text-sm text-muted mb-1.5">{t("department")}</label>
-        <input id={`${formId}-department`} value={municipio?.deptName ?? ""} readOnly className={`${inputClass} text-muted`} />
-      </div>
     </fieldset>
     {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
     <div className="flex flex-wrap justify-end gap-3 mt-6">

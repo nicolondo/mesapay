@@ -44,9 +44,15 @@ export type InvoiceRequestParty = {
   /** CC | CE | NIT | PA — el enum `InvoiceDocType` del schema. */
   docType: string;
   docNumber: string;
-  address: string;
-  city: string;
-  department: string;
+  /**
+   * Dirección, ciudad y departamento: OPCIONALES. La solicitud de factura
+   * dejó de pedirlos; sólo las filas viejas (o un cliente de facturación
+   * cargado antes) los traen. Sin ellos la factura sale sin el bloque de
+   * dirección del adquiriente, igual que la de consumidor final.
+   */
+  address?: string | null;
+  city?: string | null;
+  department?: string | null;
   email?: string | null;
 };
 
@@ -119,8 +125,12 @@ function customerCompanyId(docNumber: string, scheme: DianParty["idSchemeName"])
  *     acepta la DIAN para un adquiriente del que no se declara nada más.
  *   · Régimen "49" (no responsable de IVA): la solicitud no trae el dato y
  *     declarar "48" sin saberlo sería afirmar algo del cliente.
- *   · Dirección: el municipio DANE resuelto del texto libre (ver
- *     `resolveCustomerMunicipio`) + la línea que escribió el comensal.
+ *   · Dirección: OPCIONAL. Sólo va el bloque cac:PhysicalLocation cuando
+ *     hay municipio DANE resuelto del texto libre (ver
+ *     `resolveCustomerMunicipio`) Y una línea de dirección; sin alguno de
+ *     los dos se omite entero — la misma forma con la que sale (y la DIAN
+ *     acepta) la factura a consumidor final. La solicitud ya no pide estos
+ *     datos, así que lo normal es que no vayan.
  *   · Correo en cac:Contact — es a donde le llega el AttachedDocument.
  *
  * OJO: cambiar el adquiriente cambia el CUFE (`NumAdq` es este
@@ -146,6 +156,7 @@ export function customerPartyFor(
   }
   const isNit = scheme === "31";
   const municipio = resolveCustomerMunicipio(request.city, request.department);
+  const addressLine = (request.address ?? "").trim();
   const email = request.email?.trim();
   return {
     name,
@@ -155,15 +166,18 @@ export function customerPartyFor(
     taxLevelCode: "R-99-PN",
     taxRegimeCode: "49",
     personType: isNit ? "1" : "2",
-    address: municipio
-      ? {
-          cityCode: municipio.code,
-          cityName: municipio.name,
-          deptCode: municipio.deptCode,
-          deptName: municipio.deptName,
-          line: request.address.trim(),
-        }
-      : null,
+    // Bloque de dirección sólo completo (municipio + línea): un
+    // <cbc:Line> vacío o un municipio sin dirección nunca se ha enviado.
+    address:
+      municipio && addressLine
+        ? {
+            cityCode: municipio.code,
+            cityName: municipio.name,
+            deptCode: municipio.deptCode,
+            deptName: municipio.deptName,
+            line: addressLine,
+          }
+        : null,
     email: email || null,
   };
 }

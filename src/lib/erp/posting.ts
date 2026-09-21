@@ -18,13 +18,21 @@ import {
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountIndex } from "./ledger";
 import { depreciationForMonth } from "./activos";
+import { deferredAmortizationLinesForMonth } from "./deferred";
 import { resolvePostableCode } from "./chart";
 import { ENGINE } from "./engineCodes";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 
-type Line = { code: string; debit?: number; credit?: number; memo?: string };
+type Line = {
+  code: string;
+  debit?: number;
+  credit?: number;
+  memo?: string;
+  /** Centro de costos de la línea (hoy sólo lo traen los diferidos). */
+  costCenterId?: string | null;
+};
 type DraftEntry = { source: string; memo: string; lines: Line[] };
 
 export type GenResult = { source: string; totalCents: number };
@@ -335,6 +343,23 @@ async function buildMonthEntries(
     }
   }
 
+  // 6c) DIFERIDOS — amortización del mes: gastos pagados por anticipado
+  // (D gasto/costo · C puente 17xx) e ingresos recibidos por anticipado
+  // (D puente 27xx · C ingreso), agregados por cuenta y centro de costos.
+  // La cuota se calcula al vuelo por mes (ver erp/deferred): regenerar el
+  // mes ya cubre huecos y bajas, sin filas por período ni cron.
+  {
+    const lines = await deferredAmortizationLinesForMonth(restaurantId, month);
+    const total = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+    if (total > 0) {
+      entries.push({
+        source: "deferred",
+        memo: "Amortización de diferidos del mes",
+        lines,
+      });
+    }
+  }
+
   // 6) NÓMINA — con corrida liquidada: asiento completo (devengados, aportes,
   // provisiones, retenciones y neto por pagar). Sin corrida: fallback simple
   // salario+recargos del P&L.
@@ -473,6 +498,9 @@ export async function generateJournalForMonth(
               debitCents: l.debit ?? 0,
               creditCents: l.credit ?? 0,
               memo: l.memo,
+              // Sólo cuando la fuente lo trae: las demás siguen creando
+              // la línea exactamente igual que antes.
+              ...(l.costCenterId ? { costCenterId: l.costCenterId } : {}),
             })),
           },
         },

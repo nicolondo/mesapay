@@ -12,6 +12,7 @@ vi.mock("@/lib/db", () => ({
     },
     expense: { findMany: async () => [] },
     expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] },
+    deferredItem: { findMany: async () => [] },
     $transaction: async (fn: (tx: unknown) => unknown) =>
       fn({ journalEntry: { deleteMany: async () => ({}), create: m.createEntry } }),
   },

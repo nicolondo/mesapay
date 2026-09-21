@@ -60,9 +60,6 @@ export default async function MeseroCobradoPage({
       docType: true,
       docNumber: true,
       email: true,
-      address: true,
-      city: true,
-      department: true,
     },
   });
 

@@ -22,18 +22,32 @@ import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
  * cuando el cobro se confirme.
  *
  * One outstanding request per order — if a diner submits twice (e.g.
- * because they typo'd an address) we overwrite the existing pending row
+ * because they typo'd their document) we overwrite the existing pending row
  * instead of stacking them. Already-generated invoices are immutable; if
  * the customer needs a correction the restaurant emits a credit note.
+ *
+ * Dirección, ciudad y departamento son OPCIONALES: el formulario ya no los
+ * pide (la factura electrónica sale sin el bloque de dirección del
+ * adquiriente, como la de consumidor final). Si un cliente viejo los manda
+ * igual, se validan como antes y se guardan; ausentes o vacíos ⇒ null.
  */
+
+const optionalText = (min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullish()
+    .transform((v) => v || null)
+    .refine((v) => v === null || v.length >= min);
 
 const schema = z.object({
   customerName: z.string().trim().min(2).max(160),
   docType: z.enum(["CC", "CE", "NIT", "PA"]),
   docNumber: z.string().trim().min(4).max(40),
-  address: z.string().trim().min(4).max(240),
-  city: z.string().trim().min(2).max(80),
-  department: z.string().trim().min(2).max(80),
+  address: optionalText(4, 240),
+  city: optionalText(2, 80),
+  department: optionalText(2, 80),
   email: z.string().email().max(160),
   placeId: z.string().max(200).optional(),
   rawComponents: z.unknown().optional(),

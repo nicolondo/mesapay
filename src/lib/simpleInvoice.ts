@@ -7,14 +7,18 @@ import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
 
-/** Datos del cliente para una factura personalizada. */
+/**
+ * Datos del cliente para una factura personalizada. Dirección, ciudad y
+ * departamento son opcionales: la solicitud ya no los pide y sólo vienen
+ * en solicitudes viejas.
+ */
 export type InvoiceCustomer = {
   name: string;
   docType: string; // CC | CE | NIT | PA
   docNumber: string;
-  address: string;
-  city: string;
-  department: string;
+  address?: string | null;
+  city?: string | null;
+  department?: string | null;
 };
 
 export type IssueSimpleInvoiceResult =

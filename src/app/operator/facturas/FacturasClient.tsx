@@ -58,6 +58,11 @@ const BLOCK_REASONS = new Set([
   "no_lines",
 ]);
 
+/** "Ciudad, Departamento" con lo que haya (solicitudes viejas); "" si no hay. */
+function cityDept(req: Pick<Req, "city" | "department">): string {
+  return [req.city, req.department].filter(Boolean).join(", ");
+}
+
 function blockReasonText(
   code: string,
   t: (key: string, values?: Record<string, string | number>) => string,
@@ -70,9 +75,10 @@ type Req = {
   customerName: string;
   docType: "CC" | "CE" | "NIT" | "PA";
   docNumber: string;
-  address: string;
-  city: string;
-  department: string;
+  /** Sólo en solicitudes viejas: la factura ya no pide dirección. */
+  address: string | null;
+  city: string | null;
+  department: string | null;
   email: string;
   notes: string | null;
   createdAt: string;
@@ -293,10 +299,11 @@ function RequestCard({
 }) {
   const t = useTranslations("opFacturas");
   function copyAll() {
+    const where = [req.address, cityDept(req)].filter(Boolean).join(", ");
     const text = [
       `${req.customerName}`,
       `${req.docType}: ${req.docNumber}`,
-      `${req.address}, ${req.city}, ${req.department}`,
+      ...(where ? [where] : []),
       `${t("copyEmail")}: ${req.email}`,
       `${t("copyOrder")}: ${req.order.shortCode} · ${fmtCOP(req.order.totalCents)}`,
     ].join("\n");
@@ -330,10 +337,8 @@ function RequestCard({
             {req.email}
           </a>
         </Row>
-        <Row label={t("fieldAddress")}>{req.address}</Row>
-        <Row label={t("fieldCityDept")}>
-          {req.city}, {req.department}
-        </Row>
+        {req.address && <Row label={t("fieldAddress")}>{req.address}</Row>}
+        {cityDept(req) && <Row label={t("fieldCityDept")}>{cityDept(req)}</Row>}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -402,7 +407,8 @@ function GeneratedCard({
         </span>
       </div>
       <div className="text-xs text-op-muted">
-        {req.email} · {req.city}, {req.department}
+        {req.email}
+        {cityDept(req) ? ` · ${cityDept(req)}` : ""}
       </div>
       {req.generatedAt && (
         <div className="text-[11px] text-op-muted mt-1">

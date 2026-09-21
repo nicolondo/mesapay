@@ -75,13 +75,15 @@ export type InvoiceSnapshot = {
   totalCents: number;
   // Datos del cliente cuando la factura es PERSONALIZADA (con razón social /
   // documento). null/ausente = tirilla genérica (consumidor final).
+  // Dirección/ciudad/departamento: sólo en facturas viejas — la solicitud
+  // ya no los pide. Los renderers omiten la línea cuando no hay.
   customer?: {
     name: string;
     docType: string; // CC | CE | NIT | PA
     docNumber: string;
-    address: string;
-    city: string;
-    department: string;
+    address?: string | null;
+    city?: string | null;
+    department?: string | null;
   } | null;
 };
 

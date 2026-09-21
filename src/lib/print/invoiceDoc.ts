@@ -123,7 +123,7 @@ export function buildThermalInvoice(args: {
     customerLines.push(`${t("customerLabel")}: ${s.customer.name}`);
     customerLines.push(`${s.customer.docType} ${s.customer.docNumber}`);
     const where = [s.customer.address, s.customer.city]
-      .filter((p) => p && p.trim().length > 0)
+      .filter((p): p is string => !!p && p.trim().length > 0)
       .join(", ");
     if (where) customerLines.push(where);
   }

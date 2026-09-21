@@ -90,9 +90,6 @@ export default async function PayDone({
       docType: true,
       docNumber: true,
       email: true,
-      address: true,
-      city: true,
-      department: true,
     },
   });
   const invoiceSummary = existingInvoice
@@ -102,9 +99,6 @@ export default async function PayDone({
         docType: existingInvoice.docType,
         docNumber: existingInvoice.docNumber,
         email: existingInvoice.email,
-        address: existingInvoice.address,
-        city: existingInvoice.city,
-        department: existingInvoice.department,
       }
     : null;
 

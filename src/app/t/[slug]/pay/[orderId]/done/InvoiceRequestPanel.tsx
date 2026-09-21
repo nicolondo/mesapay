@@ -112,9 +112,6 @@ export function InvoiceRequestPanel({
                 <strong>{existing.customerName}</strong> · {existing.docType}{" "}
                 {existing.docNumber}
               </div>
-              <div className="mt-0.5">
-                {existing.address}, {existing.city}, {existing.department}
-              </div>
             </div>
           </div>
           <button

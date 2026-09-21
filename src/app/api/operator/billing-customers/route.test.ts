@@ -9,7 +9,10 @@ vi.mock("@/lib/rateLimit", () => ({ rateLimit: m.rate }));
 vi.mock("@/lib/db", () => ({ db: { billingCustomer: { findMany: m.findMany, create: m.create, update: m.update } } }));
 import { GET, POST } from "./route";
 import { PATCH } from "./[id]/route";
-const payload = { customerName: "Cliente prueba", docType: "NIT", docNumber: "901944469-1", email: "cliente@example.test", address: "Calle 10 # 20-30", municipalityCode: "05001" };
+// Lo que manda el formulario hoy: sin dirección ni municipio.
+const minimal = { customerName: "Cliente prueba", docType: "NIT", docNumber: "901944469-1", email: "cliente@example.test" };
+// Un cliente viejo que todavía manda dirección y municipio.
+const payload = { ...minimal, address: "Calle 10 # 20-30", municipalityCode: "05001" };
 const req = (method = "POST", body: unknown = payload) => new Request("http://localhost/api/operator/billing-customers", { method, headers: { "content-type": "application/json" }, ...(method !== "GET" ? { body: JSON.stringify(body) } : {}) });
 const params = { params: Promise.resolve({ id: "customer-1" }) };
 beforeEach(() => {
@@ -25,6 +28,15 @@ it("creates a contact with canonical identity and only the session tenant", asyn
   const response = await POST(req("POST", { ...payload, restaurantId: "foreign", city: "Bogotá" }));
   expect(response.status).toBe(201);
   expect(m.create).toHaveBeenCalledWith({ data: expect.objectContaining({ restaurantId: "restaurant-1", docNumber: "901944469", verificationDigit: "1", city: "Medellín" }) });
+});
+it("creates a contact without address or municipality: the nominative invoice no longer asks for them", async () => {
+  const response = await POST(req("POST", minimal));
+  expect(response.status).toBe(201);
+  expect(m.create).toHaveBeenCalledWith({ data: expect.objectContaining({ restaurantId: "restaurant-1", docNumber: "901944469", verificationDigit: "1", address: null, municipalityCode: null, city: null, department: null }) });
+});
+it("updates a contact without address or municipality", async () => {
+  expect((await PATCH(req("PATCH", minimal), params)).status).toBe(200);
+  expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ address: null, municipalityCode: null, city: null, department: null }) }));
 });
 it("bounds searches to the current tenant and normalizes formatted document queries", async () => {
   const response = await GET(new Request("http://localhost/api/operator/billing-customers?q=901.944.469-1"));

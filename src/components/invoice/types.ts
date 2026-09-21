@@ -13,14 +13,11 @@ export type InvoiceRequestSummary = {
   docType: DocType;
   docNumber: string;
   email: string;
-  address: string;
-  city: string;
-  department: string;
 };
 
 /**
  * Lo que el comensal ya pidió en esta cuenta, si pidió algo:
- *  - `formal`: cargó sus datos (nombre, documento, dirección) → InvoiceRequest.
+ *  - `formal`: cargó sus datos (nombre, documento, correo) → InvoiceRequest.
  *  - `simple`: sólo dejó el correo para la tirilla a consumidor final.
  */
 export type InvoiceIntent =

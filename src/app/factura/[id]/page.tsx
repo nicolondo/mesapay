@@ -193,11 +193,15 @@ export default async function FacturaPage({
                 <span>{snap.customer.docType}</span>
                 <span className="right">{snap.customer.docNumber}</span>
               </div>
-              <div className="row">
-                <span className="iname">
-                  {snap.customer.address}, {snap.customer.city}
-                </span>
-              </div>
+              {(snap.customer.address || snap.customer.city) && (
+                <div className="row">
+                  <span className="iname">
+                    {[snap.customer.address, snap.customer.city]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                </div>
+              )}
             </>
           )}
 

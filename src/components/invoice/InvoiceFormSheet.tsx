@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   loadProfiles,
@@ -14,7 +14,9 @@ import { billingDocument } from "@/components/billingCustomers/types";
 import type { DocType, InvoiceRequestSummary } from "./types";
 
 /**
- * Factura PERSONALIZADA: nombre o razón social, documento, dirección y correo.
+ * Factura PERSONALIZADA: nombre o razón social, documento y correo. No se
+ * pide dirección, ciudad ni departamento: la factura electrónica sale sin el
+ * bloque de dirección del adquiriente, igual que la de consumidor final.
  * Los datos van al restaurante (`/operator/facturas`), que emite la factura
  * electrónica desde su propio proveedor (Siigo, Alegra, …).
  *
@@ -53,13 +55,8 @@ export function InvoiceFormSheet({
   const [customerName, setCustomerName] = useState(initial?.customerName ?? "");
   const [docType, setDocType] = useState<DocType>(initial?.docType ?? "CC");
   const [docNumber, setDocNumber] = useState(initial?.docNumber ?? "");
-  const [address, setAddress] = useState(initial?.address ?? "");
-  const [city, setCity] = useState(initial?.city ?? "");
-  const [department, setDepartment] = useState(initial?.department ?? "");
   // Correo: el de una solicitud previa manda; si no, el que tipeó al pagar.
   const [email, setEmail] = useState(initial?.email ?? prefillEmail ?? "");
-  const [placeId, setPlaceId] = useState<string | null>(null);
-  const [rawComponents, setRawComponents] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Tras enviar: o la factura imprimible ya generada, o el aviso de que sale
@@ -92,11 +89,6 @@ export function InvoiceFormSheet({
     setDocType(p.docType);
     setDocNumber(p.docNumber);
     setEmail(p.email);
-    setAddress(p.address);
-    setCity(p.city);
-    setDepartment(p.department);
-    setPlaceId(p.placeId ?? null);
-    setRawComponents(p.rawComponents ?? null);
     setShowSaved(false);
   }
 
@@ -105,105 +97,10 @@ export function InvoiceFormSheet({
     setProfiles(loadProfiles());
   }
 
-  const addressRef = useRef<HTMLInputElement | null>(null);
-  // Track the Maps Autocomplete instance to clean up on close. Without a
-  // ref we leak listeners every time the sheet reopens.
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-
-  // Lazy-load the Google Maps Places library and attach Autocomplete to the
-  // address input. Restricted to Colombia and biased to address-type results.
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
-
-    function attach() {
-      if (!addressRef.current || !window.google?.maps?.places) return;
-      const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
-        types: ["address"],
-        componentRestrictions: { country: "co" },
-        fields: [
-          "address_components",
-          "formatted_address",
-          "place_id",
-          "geometry",
-        ],
-      });
-      ac.addListener("place_changed", () => {
-        const place = ac.getPlace();
-        const comps = place.address_components ?? [];
-        let route = "";
-        let streetNumber = "";
-        let cityVal = "";
-        let deptVal = "";
-        for (const c of comps) {
-          if (c.types.includes("street_number")) streetNumber = c.long_name;
-          else if (c.types.includes("route")) route = c.long_name;
-          else if (
-            c.types.includes("locality") ||
-            c.types.includes("postal_town") ||
-            c.types.includes("administrative_area_level_2")
-          ) {
-            // Locality is the city in CO. Some Google results put the city
-            // under admin level 2 (e.g. small towns), so fall back.
-            if (!cityVal) cityVal = c.long_name;
-          } else if (c.types.includes("administrative_area_level_1")) {
-            deptVal = c.long_name;
-          }
-        }
-        const composed =
-          place.formatted_address ??
-          [route, streetNumber].filter(Boolean).join(" ");
-        if (composed) setAddress(composed);
-        if (cityVal) setCity(cityVal);
-        if (deptVal) setDepartment(deptVal);
-        if (place.place_id) setPlaceId(place.place_id);
-        setRawComponents(comps);
-      });
-      autocompleteRef.current = ac;
-    }
-
-    if (window.google?.maps?.places) {
-      attach();
-      return;
-    }
-
-    // Avoid loading the script twice across the app lifecycle.
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-google-maps="true"]',
-    );
-    if (existing) {
-      existing.addEventListener("load", attach);
-      return () => existing.removeEventListener("load", attach);
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      apiKey,
-    )}&libraries=places&language=es&region=CO`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleMaps = "true";
-    script.onload = attach;
-    document.head.appendChild(script);
-  }, []);
-
-  // Unbind the listener when the sheet closes so the next mount starts clean.
-  useEffect(() => {
-    return () => {
-      if (autocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current = null;
-      }
-    };
-  }, []);
-
   const canSubmit =
     !busy &&
     customerName.trim().length >= 2 &&
     docNumber.trim().length >= 4 &&
-    address.trim().length >= 4 &&
-    city.trim().length >= 2 &&
-    department.trim().length >= 2 &&
     /.+@.+\..+/.test(email);
 
   async function submit() {
@@ -214,9 +111,6 @@ export function InvoiceFormSheet({
       customerName: customerName.trim(),
       docType,
       docNumber: docNumber.trim(),
-      address: address.trim(),
-      city: city.trim(),
-      department: department.trim(),
       email: email.trim(),
     };
     const res = await fetch(
@@ -224,11 +118,7 @@ export function InvoiceFormSheet({
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          placeId: placeId ?? undefined,
-          rawComponents,
-        }),
+        body: JSON.stringify(payload),
       },
     );
     if (!res.ok) {
@@ -246,7 +136,7 @@ export function InvoiceFormSheet({
     // Wrapped in try so a storage failure (private mode, full quota) doesn't
     // hide the success state from the user.
     try {
-      if (!operatorMode) saveProfile({ ...payload, placeId, rawComponents });
+      if (!operatorMode) saveProfile(payload);
     } catch {
       /* ignore */
     }
@@ -359,11 +249,6 @@ export function InvoiceFormSheet({
             setDocType(customer.docType);
             setDocNumber(billingDocument(customer));
             setEmail(customer.email);
-            setAddress(customer.address);
-            setCity(customer.city);
-            setDepartment(customer.department);
-            setPlaceId(null);
-            setRawComponents(null);
           }} />}
           {showSaved && profiles.length > 0 && (
             <div className="rounded-xl border border-hairline bg-ivory p-3">
@@ -398,7 +283,7 @@ export function InvoiceFormSheet({
                           {p.customerName}
                         </span>
                         <span className="block text-[11px] text-muted truncate">
-                          {p.docType} {p.docNumber} · {p.address.split(",")[0]}
+                          {p.docType} {p.docNumber}
                         </span>
                       </span>
                     </button>
@@ -468,29 +353,6 @@ export function InvoiceFormSheet({
             placeholder={t("invEmailPlaceholder2")}
             hint={t("invEmailHint")}
           />
-          <div>
-            <label className="block">
-              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                {t("invAddress")}
-              </span>
-              <input
-                ref={addressRef}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder={t("invAddressPlaceholder")}
-                className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm focus:outline-none focus:border-terracotta"
-              />
-            </label>
-            <p className="text-[11px] text-muted mt-1">{t("invAddressHint")}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label={t("invCity")} value={city} onChange={setCity} />
-            <Field
-              label={t("invDepartment")}
-              value={department}
-              onChange={setDepartment}
-            />
-          </div>
           {err && <div className="text-sm text-danger">{err}</div>}
           <button
             type="button"

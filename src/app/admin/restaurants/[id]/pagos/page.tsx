@@ -31,6 +31,7 @@ const KIND_TKEY: Record<string, string> = {
   cedula_rep_legal: "kindCedulaRepLegal",
   rut: "kindRut",
   camara_comercio: "kindCamaraComercio",
+  composicion_accionaria: "kindComposicionAccionaria",
   bank_cert: "kindBankCert",
   origen_fondos: "kindOrigenFondos",
   estados_financieros: "kindEstadosFinancieros",

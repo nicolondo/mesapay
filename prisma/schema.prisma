@@ -2621,6 +2621,10 @@ enum KushkiDocumentKind {
   cedula_rep_legal
   rut
   camara_comercio
+  // Certificación de composición accionaria. Kushki la exige expedida hace
+  // menos de 90 días; como no capturamos la fecha de expedición, la vigencia
+  // se aproxima con la fecha de subida (ver lib/onboardingDocuments).
+  composicion_accionaria
   bank_cert
   // Origen de fondos firmado por contador, requerido por compliance.
   origen_fondos

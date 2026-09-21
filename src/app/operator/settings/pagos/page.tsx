@@ -72,6 +72,7 @@ export default async function KushkiOnboardingPage() {
         fileUrl: d.fileUrl,
         mimeType: d.mimeType,
         fileSize: d.fileSize,
+        createdAt: d.createdAt.toISOString(),
         extractedFields:
           (d.extractedFields as Record<string, unknown> | null) ?? null,
       }))}

@@ -133,18 +133,27 @@ type ReceptionMovement = {
   createdBy: { id: string; name: string | null } | null;
 };
 
-/** Abono de una OC (CxP · F3): monto, fecha, método/nota y quién lo registró. */
+/**
+ * Abono de una OC (CxP · F3): monto, fecha, cuenta de origen, nota y quién
+ * lo registró. `accountCode`/`accountName` son null en los abonos anteriores
+ * al campo: para ésos se muestra el texto libre de `method`.
+ */
 type PurchasePaymentRef = {
   id: string;
   amountCents: number;
   paidAt: string;
   method: string | null;
+  accountCode: string | null;
+  accountName: string | null;
   note: string | null;
   createdBy: { id: string; name: string | null } | null;
   createdAt: string;
 };
 
 type OrderItem = OrderDetail["items"][number];
+
+/** Cuenta de dinero (caja, banco, pasarela) de donde puede salir un abono. */
+type PaymentAccountRef = { code: string; name: string };
 
 /* ─────────────────────────── Helpers ───────────────────────────────── */
 
@@ -3956,7 +3965,7 @@ function OrderDetailSheet({
                               <div className="text-[11px] text-op-muted mt-0.5 truncate">
                                 {[
                                   formatDate(p.paidAt, { locale }),
-                                  p.method,
+                                  p.accountName ?? p.method,
                                   p.createdBy?.name ?? null,
                                 ]
                                   .filter(Boolean)
@@ -4684,6 +4693,7 @@ const API_PAYMENT_ERROR_KEYS: Record<string, string> = {
   wrong_status: "errWrongStatus",
   invalid: "errLineInvalid",
   not_found: "errLoadFailed",
+  account_invalid: "errAccountInvalid",
 };
 
 /** Resultado del POST/DELETE de abonos (saldos frescos del server). */
@@ -4695,9 +4705,9 @@ type PaymentResult = {
 
 /**
  * Formulario de un abono: monto (prellenado con el saldo, editable),
- * fecha, método (texto libre con sugerencias) y nota. Botón "Registrar
- * pago" + atajo "Pagar saldo" (abono por el saldo completo). Reutilizado
- * por el sheet de la CxP y por el detalle de la OC.
+ * fecha, cuenta de donde sale la plata (caja, banco, pasarela) y nota.
+ * Botón "Registrar pago" + atajo "Pagar saldo" (abono por el saldo
+ * completo). Reutilizado por el sheet de la CxP y por el detalle de la OC.
  */
 function PaymentForm({
   orderId,
@@ -4718,15 +4728,48 @@ function PaymentForm({
 
   const [amount, setAmount] = useState(() => centsToPesosInput(outstanding));
   const [paidAt, setPaidAt] = useState(todayDateInput);
-  const [method, setMethod] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Cuentas de dinero de donde puede salir el pago. null = cargando;
+  // [] = la carga falló o el plan no tiene ninguna (no se puede pagar).
+  const [accounts, setAccounts] = useState<PaymentAccountRef[] | null>(null);
+  const [accountCode, setAccountCode] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/operator/purchase-orders/payment-accounts")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
+      .then((j) => {
+        if (!alive) return;
+        const rows = (j as { accounts: PaymentAccountRef[] }).accounts;
+        setAccounts(rows);
+        // Default: la primera cuenta (caja general), sin pisar una elección previa.
+        setAccountCode((prev) => prev || (rows[0]?.code ?? ""));
+      })
+      .catch(() => {
+        if (alive) setAccounts([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const accountsReady = (accounts?.length ?? 0) > 0;
+  const accountsError =
+    accounts !== null && accounts.length === 0
+      ? t("paymentAccountsLoadFailed")
+      : null;
 
   async function post(amountCents: number) {
     if (busy) return;
     if (!Number.isInteger(amountCents) || amountCents < 1) {
       setErr(t("errLineInvalid"));
+      return;
+    }
+    if (!accountCode) {
+      setErr(t("errAccountInvalid"));
       return;
     }
     if (amountCents > outstanding) {
@@ -4743,7 +4786,7 @@ function PaymentForm({
         body: JSON.stringify({
           amountCents,
           paidAt: paidAt ? dateInputToIso(paidAt) : null,
-          method: method.trim() || null,
+          accountCode,
           note: note.trim() || null,
         }),
       },
@@ -4817,20 +4860,19 @@ function PaymentForm({
             className={inputCls}
           />
         </Field>
-        <Field label={t("fieldPaymentMethod")}>
-          <input
-            type="text"
-            list="cxp-payment-methods"
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            maxLength={40}
-            className={inputCls}
-          />
-          <datalist id="cxp-payment-methods">
-            <option value={t("methodCash")} />
-            <option value={t("methodTransfer")} />
-            <option value={t("methodCard")} />
-          </datalist>
+        <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
+          <select
+            value={accountCode}
+            onChange={(e) => setAccountCode(e.target.value)}
+            disabled={!accountsReady}
+            className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+          >
+            {(accounts ?? []).map((a) => (
+              <option key={a.code} value={a.code}>
+                {`${a.code} · ${a.name}`}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label={t("fieldPaymentNote")} hint={t("paymentNoteHint")}>
           <textarea
@@ -4843,13 +4885,15 @@ function PaymentForm({
         </Field>
       </div>
 
-      {err && <div className="text-xs text-danger mt-3">{err}</div>}
+      {(err ?? accountsError) && (
+        <div className="text-xs text-danger mt-3">{err ?? accountsError}</div>
+      )}
 
       <div className="flex items-center justify-end gap-3 mt-4">
         <button
           type="button"
           onClick={payFull}
-          disabled={busy || outstanding < 1}
+          disabled={busy || outstanding < 1 || !accountsReady}
           className="mp-btn mp-btn--secondary"
         >
           {t("payFull")}
@@ -4857,7 +4901,7 @@ function PaymentForm({
         <button
           type="button"
           onClick={submit}
-          disabled={busy}
+          disabled={busy || !accountsReady}
           className="mp-btn mp-btn--primary"
         >
           {busy ? t("saving") : t("registerPayment")}

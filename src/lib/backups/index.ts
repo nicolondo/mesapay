@@ -33,4 +33,3 @@ export {
 } from "./service";
 export { takeSnapshot, totalRows, type Snapshot, type SnapshotData } from "./snapshot";
 export { backupModelNames, EXCLUDED_MODELS, tenantModels, topologicalOrder } from "./tables";
-export { disableUserTriggers, enableUserTriggers, listUserTriggers, type UserTrigger } from "./triggers";

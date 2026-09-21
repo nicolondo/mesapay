@@ -38,13 +38,15 @@ Código en `src/lib/backups/`:
      copia no trae, aborta con `backup_missing_tables` (nombrando cuáles).
      Nunca se restaura a medias — esa tabla se borraría sin reinsertarse;
   3. guarda una copia `pre_restore` del estado actual, ANTES de tocar nada;
-  4. desactiva los **triggers de usuario** de las tablas que recarga
-     (`reserve_payment`, `order_event`; ver `triggers.ts`): el snapshot es
-     consistente por construcción y esos triggers están hechos para
-     operaciones incrementales, no para recargar un estado completo. Las FKs
-     y los CHECK siguen activos — si un CHECK falla, la copia trae una fila
-     inválida y debe abortar. Los triggers vuelven a su estado al final (y
-     solos si la transacción se revierte: el ALTER es transaccional);
+  4. pone `SET LOCAL app.restoring = '1'`: los triggers de negocio
+     (`reserve_payment`, `order_event`) salen temprano con ese GUC (migración
+     `20260918000100_restore_bypass_triggers`). El snapshot es consistente
+     por construcción y esos triggers están hechos para operaciones
+     incrementales, no para recargar un estado completo. El GUC muere con la
+     transacción (nada que revertir, un fallo no deja nada colgado), no toma
+     locks de tabla ni exige superusuario. Las FKs y los CHECK siguen
+     activos — si un CHECK falla, la copia trae una fila inválida y debe
+     abortar;
   5. borra hijos→padres, inserta padres→hijos (orden topológico calculado
      de las FKs), saneando referencias a filas que ya no existen (un turno
      abierto por un usuario borrado se omite; un cobro cuyo cobrador ya no

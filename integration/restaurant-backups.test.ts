@@ -232,16 +232,24 @@ describe("restaurant backups on PostgreSQL", () => {
     expect(restoredPayment.collectedByUserId).toBeNull();
     expect(restoredPayment.amountCents).toBe(1000);
     expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("cancelled");
-    // order_event estuvo apagado durante la recarga: ni un evento SSE por las
-    // órdenes reinsertadas…
+    // order_event salió temprano durante la recarga (GUC app.restoring): ni
+    // un evento SSE por las órdenes reinsertadas…
     expect(await db.platformEvent.count({ where: { restaurantId } })).toBe(eventsBefore);
-    // …y los triggers volvieron a quedar activos al terminar.
-    const triggers = await db.$queryRaw<{ tgname: string; tgenabled: string }[]>`
-      SELECT tgname, tgenabled::text AS tgenabled FROM pg_trigger WHERE tgname IN ('reserve_payment', 'order_event')`;
-    expect(triggers.map((t) => t.tgenabled)).toEqual(["O", "O"]);
+    // …el GUC murió con la transacción…
+    const [{ restoring }] = await db.$queryRaw<{ restoring: string | null }[]>`
+      SELECT current_setting('app.restoring', true) AS restoring`;
+    expect(restoring ?? "").toBe("");
+    // …y fuera de la restauración los triggers siguen mandando: un cobro que
+    // supera el saldo se rechaza, y uno sobre la cuenta cancelada también.
+    const open = await db.order.create({
+      data: { restaurantId, tableId: table1, shortCode: randomUUID().slice(0, 8), status: "placed", subtotalCents: 1000, totalCents: 1000 },
+    });
     await expect(
-      db.payment.create({ data: { orderId: order.id, method: "demo_cash", amountCents: 5000, status: "approved" } }),
-    ).rejects.toThrow(/order_closed|amount_exceeds_outstanding/);
+      db.payment.create({ data: { orderId: open.id, method: "demo_cash", amountCents: 5000, status: "approved" } }),
+    ).rejects.toThrow(/amount_exceeds_outstanding/);
+    await expect(
+      db.payment.create({ data: { orderId: order.id, method: "demo_cash", amountCents: 1000, status: "approved" } }),
+    ).rejects.toThrow(/order_closed/);
   });
 
   it("runs the daily job once per restaurant and purges what expired", async () => {

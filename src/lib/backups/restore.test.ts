@@ -3,9 +3,9 @@ import { Prisma } from "@prisma/client";
 
 /**
  * Flujo de la restauración con la base mockeada: el orden exacto de lo que
- * pasa dentro de la transacción es lo que importa (lock → triggers apagados
- * → borrado → inserción → Restaurant → triggers encendidos), y eso no lo
- * puede verificar el test de integración desde afuera.
+ * pasa dentro de la transacción es lo que importa (lock → SET LOCAL
+ * app.restoring → borrado → inserción → Restaurant), y eso no lo puede
+ * verificar el test de integración desde afuera.
  */
 const mocks = vi.hoisted(() => {
   const log: string[] = [];
@@ -82,10 +82,6 @@ beforeEach(() => {
     mocks.log.push(`raw:${sqlOf(args).sql.replace(/\s+/g, " ").trim().slice(0, 60)}`);
     return 0;
   });
-  mocks.query.mockResolvedValue([
-    { table: "Order", trigger: "order_event", enabled: "O" },
-    { table: "Payment", trigger: "reserve_payment", enabled: "O" },
-  ]);
   mocks.restaurantFind.mockResolvedValue({ invoiceNextNumber: 9 });
   mocks.restaurantUpdate.mockImplementation(async () => {
     mocks.log.push("update:Restaurant");
@@ -129,30 +125,24 @@ describe("restoreSnapshot", () => {
 
     const order = topologicalOrder();
     const log = mocks.log;
-    // 1. lock, 2. triggers apagados, 3. borrado hijos→padres, 4. inserción
-    // padres→hijos, 5. Restaurant, 6. triggers encendidos.
+    // 1. lock, 2. GUC de bypass (local a la transacción), 3. borrado
+    // hijos→padres, 4. inserción padres→hijos, 5. Restaurant. Nada después.
     expect(log[0]).toMatch(/^raw:SELECT pg_advisory_xact_lock/);
-    expect(log.slice(1, 3)).toEqual([
-      'raw:ALTER TABLE "Order" DISABLE TRIGGER "order_event"',
-      'raw:ALTER TABLE "Payment" DISABLE TRIGGER "reserve_payment"',
-    ]);
+    expect(log[1]).toBe("raw:SET LOCAL app.restoring = '1'");
     // El log registra el delegate (`orderItem`), el orden trae el modelo (`OrderItem`).
+    expect(log[2]).toBe("delete:" + delegateName(order.delete[0]));
     const deletes = log.filter((l) => l.startsWith("delete:")).map((l) => l.slice(7));
     expect(deletes).toEqual(order.delete.map(delegateName));
     const inserts = log.filter((l) => l.startsWith("insert:")).map((l) => l.split(":")[1]);
     expect(inserts).toEqual(["table", "order", "payment"]); // sólo las tablas con filas
     expect(log.indexOf("delete:" + delegateName(order.delete.at(-1)!))).toBeLessThan(log.indexOf("insert:table:1"));
     expect(log.indexOf("insert:payment:1")).toBeLessThan(log.indexOf("update:Restaurant"));
-    expect(log.slice(-2)).toEqual([
-      'raw:ALTER TABLE "Order" ENABLE TRIGGER "order_event"',
-      'raw:ALTER TABLE "Payment" ENABLE TRIGGER "reserve_payment"',
-    ]);
-    // Los triggers se consultan sobre las tablas que se recargan, nunca sobre Restaurant ni User.
-    const asked = sqlOf(mocks.query.mock.calls[0]);
-    expect(asked.values).toEqual(order.insert);
-    expect(asked.values).not.toContain("Restaurant");
-    expect(asked.values).not.toContain("User");
-    expect(asked.sql).toMatch(/NOT t\.tgisinternal/);
+    expect(log.at(-1)).toBe("update:Restaurant");
+    // El GUC se pone UNA vez y con SET LOCAL: sin RESET al final (muere con la
+    // transacción) y sin ALTER TABLE (nada de locks de tabla).
+    expect(log.filter((l) => l.includes("app.restoring"))).toHaveLength(1);
+    expect(log.some((l) => /ALTER TABLE|TRIGGER|RESET/.test(l))).toBe(false);
+    expect(mocks.query).not.toHaveBeenCalled();
   });
   it("updates the restaurant row without identity, credentials or platform columns, and never lowers the invoice counter", async () => {
     mocks.backupFind.mockResolvedValue({
@@ -166,10 +156,12 @@ describe("restoreSnapshot", () => {
       expect(patch).not.toHaveProperty(skipped);
     }
   });
-  it("leaves the triggers alone when the tables have none", async () => {
-    mocks.query.mockResolvedValue([]);
+  it("does not touch the triggers themselves, only the transaction-local setting", async () => {
     mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: snapshot() });
     await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
-    expect(mocks.log.filter((l) => l.includes("TRIGGER"))).toEqual([]);
+    expect(mocks.log.filter((l) => l.startsWith("raw:"))).toEqual([
+      expect.stringMatching(/^raw:SELECT pg_advisory_xact_lock/),
+      "raw:SET LOCAL app.restoring = '1'",
+    ]);
   });
 });

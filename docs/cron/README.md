@@ -7,6 +7,8 @@ tiene la ruta; el disparo lo hace un `systemd timer` con `curl`.
 | Timer | Ruta | Frecuencia | Qué hace |
 |---|---|---|---|
 | `mesapay-dian-emit` | `/api/cron/dian-emit` | cada 5 min | Emite a la DIAN los `DianDocument` en `to_send` (y los `error` con backoff vencido). Red de seguridad de la emisión automática de facturas. |
+| `mesapay-backups-daily` | `/api/cron/backups-daily` | diario 04:00 | Copia de seguridad `auto` de cada comercio (tabla `RestaurantBackup`) + purga de las vencidas (7 días). Ver `docs/backups.md`. |
+| `mesapay-pgdump` | — (script local, sin ruta) | diario 03:30 | `pg_dump` completo de la base + `tar.gz` de los uploads en `/var/backups/mesapay`, retención 14 días. Respaldo de desastre; ver `docs/backups.md`. |
 
 Instalación de un par `.service` + `.timer`:
 

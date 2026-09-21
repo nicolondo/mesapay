@@ -1,0 +1,32 @@
+[Unit]
+# Copia de seguridad automática diaria de TODOS los comercios (snapshot JSON
+# por comercio en la tabla RestaurantBackup) + purga de las copias vencidas
+# (7 días, automáticas y manuales). Es el "deshacer" del comercio desde
+# Configuración → Copias de seguridad; NO reemplaza al pg_dump del VPS
+# (mesapay-pgdump.*), que es el respaldo ante pérdida del servidor.
+# Ver docs/backups.md.
+#
+# Instalación (una vez, como root):
+#   cp docs/cron/mesapay-backups-daily.service /etc/systemd/system/
+#   cp docs/cron/mesapay-backups-daily.timer   /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now mesapay-backups-daily.timer
+#
+# CRON_SECRET sale del mismo .env.production que usa la app (se lee con
+# EnvironmentFile; NUNCA se sourcea el archivo). La URL apunta a nginx,
+# que enruta al color activo (blue/green); no a un puerto fijo. El timeout
+# es largo a propósito: son N comercios en serie, cada uno con su snapshot.
+Description=MESAPAY · copia de seguridad diaria por comercio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+EnvironmentFile=/opt/mesapay/shared/.env.production
+ExecStart=/usr/bin/curl -sS -m 1800 -X POST \
+  -H "x-cron-secret: ${CRON_SECRET}" \
+  https://mesapay.co/api/cron/backups-daily
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-backups-daily

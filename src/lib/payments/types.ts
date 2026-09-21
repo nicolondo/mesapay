@@ -40,6 +40,7 @@ export type OnboardingDoc = {
     | "cedula_rep_legal"
     | "rut"
     | "camara_comercio"
+    | "composicion_accionaria"
     | "bank_cert"
     | "origen_fondos"
     | "estados_financieros"

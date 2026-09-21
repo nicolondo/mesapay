@@ -4,11 +4,16 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { compareBeneficiaryIds } from "@/lib/beneficiaryIdentity";
+import {
+  DOCUMENT_MAX_AGE_DAYS,
+  isStaleDocument,
+} from "@/lib/onboardingDocuments";
 
 type DocKind =
   | "cedula_rep_legal"
   | "rut"
   | "camara_comercio"
+  | "composicion_accionaria"
   | "bank_cert"
   | "origen_fondos"
   | "estados_financieros"
@@ -22,6 +27,8 @@ type UploadedDoc = {
   fileUrl: string;
   mimeType: string;
   fileSize: number;
+  /** ISO. Fecha de subida: aproxima la vigencia de los documentos que vencen. */
+  createdAt: string;
   extractedFields: Record<string, unknown> | null;
 };
 
@@ -54,6 +61,7 @@ const KIND_LABEL_KEYS: Record<DocKind, string> = {
   cedula_rep_legal: "kindCedulaRepLegal",
   rut: "kindRut",
   camara_comercio: "kindCamaraComercio",
+  composicion_accionaria: "kindComposicionAccionaria",
   bank_cert: "kindBankCert",
   origen_fondos: "kindOrigenFondos",
   estados_financieros: "kindEstadosFinancieros",
@@ -65,6 +73,17 @@ function kindLabel(t: Translator, kind: DocKind): string {
   return t(KIND_LABEL_KEYS[kind]);
 }
 
+// Texto de ayuda bajo el título de la ficha; sólo lo tienen los tipos con
+// alguna condición que el operador debe saber antes de subir el archivo.
+const KIND_HINT_KEYS: Partial<Record<DocKind, string>> = {
+  composicion_accionaria: "kindComposicionAccionariaHint",
+};
+
+function kindHint(t: Translator, kind: DocKind): string | undefined {
+  const key = KIND_HINT_KEYS[kind];
+  return key ? t(key, { days: DOCUMENT_MAX_AGE_DAYS[kind] ?? 0 }) : undefined;
+}
+
 // Order matters — this is the order the tiles appear in the wizard.
 // estatutos is kept in DocKind for back-compat but excluded from the new
 // flow; if a tenant has a legacy estatutos doc it still renders via the
@@ -73,6 +92,7 @@ const REQUIRED_KINDS: DocKind[] = [
   "cedula_rep_legal",
   "rut",
   "camara_comercio",
+  "composicion_accionaria",
   "bank_cert",
   "origen_fondos",
   "estados_financieros",
@@ -172,6 +192,10 @@ export function OnboardingClient({
   // enviarla. Una cuenta activa no se edita desde acá.
   const [editing, setEditing] = useState(false);
   const [, startTx] = useTransition();
+  // Instante de referencia para la vigencia de los documentos que vencen.
+  // Se fija una vez por montaje: no hace falta que cambie en vivo, y así
+  // ningún render llama a Date.now() por su cuenta.
+  const [now] = useState(() => Date.now());
 
   const lockedByStatus =
     tenant.status === "submitted" ||
@@ -443,6 +467,7 @@ export function OnboardingClient({
               "cedula_rep_legal",
               "rut",
               "camara_comercio",
+              "composicion_accionaria",
               "origen_fondos",
               "estados_financieros",
             ] as DocKind[]
@@ -454,6 +479,9 @@ export function OnboardingClient({
               onUpload={(file) => uploadDocument(file, kind)}
               onDelete={deleteDocument}
               disabled={isLocked}
+              hint={kindHint(t, kind)}
+              maxAgeDays={DOCUMENT_MAX_AGE_DAYS[kind]}
+              now={now}
             />
           ))}
         </ul>
@@ -795,16 +823,33 @@ function DocumentTile({
   onUpload,
   onDelete,
   disabled,
+  hint,
+  maxAgeDays,
+  now,
 }: {
   kind: DocKind;
   docs: UploadedDoc[];
   onUpload: (file: File) => void;
   onDelete: (id: string) => void;
   disabled: boolean;
+  /** Ayuda bajo el título (p. ej. la vigencia que exige Kushki). */
+  hint?: string;
+  /**
+   * Vigencia máxima en días. Si el documento se subió hace más que esto, la
+   * ficha avisa y ofrece reemplazarlo; no bloquea el envío. Sin valor, el
+   * documento no vence.
+   */
+  maxAgeDays?: number;
+  /** Instante de referencia (ms) para calcular la vigencia. */
+  now?: number;
 }) {
   const t = useTranslations("opPagos");
   const inputId = `doc-${kind}`;
   const [dragOver, setDragOver] = useState(false);
+  const stale =
+    maxAgeDays !== undefined &&
+    now !== undefined &&
+    docs.some((d) => isStaleDocument(d.createdAt, now, maxAgeDays));
 
   function handleDrop(e: React.DragEvent<HTMLLIElement>) {
     e.preventDefault();
@@ -862,6 +907,9 @@ function DocumentTile({
           </span>
         )}
       </div>
+      {hint && (
+        <div className="mt-0.5 text-[11px] text-op-muted">{hint}</div>
+      )}
       <div className="mt-2">
         {docs.length === 0 ? (
           <label
@@ -903,6 +951,14 @@ function DocumentTile({
                 </button>
               </li>
             ))}
+            {stale && (
+              <li
+                role="status"
+                className="rounded-lg border border-[#C98A2E]/40 bg-[#C98A2E]/10 text-[#7F5A1F] text-xs px-2 py-1.5"
+              >
+                {t("docExpiredHint", { days: maxAgeDays })}
+              </li>
+            )}
             <label
               htmlFor={inputId}
               className={

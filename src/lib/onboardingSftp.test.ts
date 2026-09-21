@@ -130,6 +130,7 @@ describe("SFTP readable document names", () => {
     ["rut", "RUT"],
     ["bank_cert", "Certificacion bancaria"],
     ["camara_comercio", "Camara de comercio"],
+    ["composicion_accionaria", "Certificacion de composicion accionaria"],
     ["cedula_rep_legal", "Cedula del representante legal"],
     ["origen_fondos", "Certificacion de origen de fondos"],
     ["estados_financieros", "Estados financieros"],

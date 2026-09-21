@@ -57,6 +57,7 @@ const DOCUMENT_LABELS: Record<KushkiDocumentKind, string> = {
   rut: "RUT",
   cedula_rep_legal: "Cedula del representante legal",
   camara_comercio: "Camara de comercio",
+  composicion_accionaria: "Certificacion de composicion accionaria",
   bank_cert: "Certificacion bancaria",
   origen_fondos: "Certificacion de origen de fondos",
   estados_financieros: "Estados financieros",

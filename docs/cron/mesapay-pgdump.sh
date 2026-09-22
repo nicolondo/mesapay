@@ -59,7 +59,21 @@ resolver_database_url() {
   local valor
   valor="$(grep -m1 '^DATABASE_URL=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'"'"'\r' || true)"
   [[ -n "$valor" ]] || fail "no hay DATABASE_URL= en $ENV_FILE"
-  echo "$valor"
+  limpiar_url_prisma "$valor"
+}
+
+# ── La URL de Prisma trae parámetros que libpq NO entiende ─────────────────
+# `?schema=public`, `connection_limit`, `pool_timeout`, `pgbouncer`… son de
+# Prisma; pg_dump los rechaza ("invalid URI query parameter: schema"). Se
+# quitan de la query string y se deja el resto (sslmode, connect_timeout…).
+limpiar_url_prisma() {
+  local url="$1" base query
+  [[ "$url" == *\?* ]] || { printf '%s' "$url"; return; }
+  base="${url%%\?*}"
+  query="$( (printf '%s' "${url#*\?}" | tr '&' '\n' \
+    | grep -Ev '^(schema|connection_limit|pool_timeout|pgbouncer|statement_cache_size|socket_timeout)=' || true) \
+    | paste -sd '&' -)"
+  if [[ -n "$query" ]]; then printf '%s?%s' "$base" "$query"; else printf '%s' "$base"; fi
 }
 
 # ── Verificación: el último dump se puede leer entero ──────────────────────

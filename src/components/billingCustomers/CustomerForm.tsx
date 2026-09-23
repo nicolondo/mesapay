@@ -11,6 +11,12 @@ const inputClass = "w-full min-w-0 rounded-xl border border-hairline bg-ivory px
  * No pide dirección ni municipio — la factura electrónica nominativa sale
  * sin el bloque de dirección del adquiriente, igual que la de consumidor
  * final, así que no hay para qué cargarlos.
+ *
+ * Tampoco pide el dígito de verificación: la identificación es SÓLO el
+ * número. Para un NIT el DV lo calcula el servidor (`billingCustomerSchema`)
+ * y lo guarda aparte para la DIAN; si el operador igual lo escribe
+ * ("901944469-1") se acepta y, si no corresponde, el error cae sobre el
+ * número con un mensaje claro.
  */
 export function CustomerForm({ initial, onSaved, onCancel }: {
   initial: BillingCustomerRecord | null;
@@ -21,7 +27,7 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
   const formId = useId();
   const [values, setValues] = useState({
     customerName: initial?.customerName ?? "", docType: initial?.docType ?? "CC",
-    docNumber: initial?.docNumber ?? "", verificationDigit: initial?.verificationDigit ?? "",
+    docNumber: initial?.docNumber ?? "",
     email: initial?.email ?? "", phone: initial?.phone ?? "",
   });
   const [busy, setBusy] = useState(false);
@@ -38,7 +44,7 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
     try {
       const response = await fetch(initial ? `/api/operator/billing-customers/${initial.id}` : "/api/operator/billing-customers", {
         method: initial ? "PATCH" : "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...values, verificationDigit: values.docType === "NIT" ? values.verificationDigit : null }),
+        body: JSON.stringify(values),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.customer) {
@@ -50,12 +56,17 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
     } catch { setError(t("saveError")); }
     finally { setBusy(false); }
   }
-  function field(key: Exclude<keyof typeof values, "docType">, options: { type?: string; required?: boolean; maxLength?: number; inputMode?: "text" | "numeric" | "tel" } = {}) {
-    const invalid = Boolean(fieldErrors[key]);
+  function field(key: Exclude<keyof typeof values, "docType">, options: { type?: string; required?: boolean; maxLength?: number; inputMode?: "text" | "numeric" | "tel"; hint?: string } = {}) {
+    const messages = fieldErrors[key];
+    const invalid = Boolean(messages);
+    // El DV equivocado dentro del número merece su propio mensaje: "revisa
+    // este dato" no le dice al operador que sobra (o está mal) el dígito.
+    const dvMismatch = Array.isArray(messages) && messages.includes("invalid_verification_digit");
     return <div key={key} className={key === "customerName" ? "sm:col-span-2" : ""}>
       <label htmlFor={`${formId}-${key}`} className="block text-sm text-muted mb-1.5">{t(key)}</label>
       <input id={`${formId}-${key}`} name={key} value={values[key]} onChange={e => change(key, e.target.value)} type={options.type ?? "text"} required={options.required ?? true} maxLength={options.maxLength ?? 160} inputMode={options.inputMode} className={inputClass} aria-invalid={invalid} aria-describedby={invalid ? `${formId}-${key}-error` : undefined} />
-      {invalid && <p id={`${formId}-${key}-error`} className="text-xs text-danger mt-1">{t("checkField")}</p>}
+      {invalid && <p id={`${formId}-${key}-error`} className="text-xs text-danger mt-1">{t(dvMismatch ? "dvMismatch" : "checkField")}</p>}
+      {options.hint && <p className="text-xs text-muted mt-1">{options.hint}</p>}
     </div>;
   }
   return <form onSubmit={submit} className="rounded-2xl border border-hairline bg-paper p-5 sm:p-6" aria-label={t(initial ? "editTitle" : "createTitle")}>
@@ -65,15 +76,11 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
       {field("customerName")}
       <div>
         <label htmlFor={`${formId}-docType`} className="block text-sm text-muted mb-1.5">{t("docType")}</label>
-        <select id={`${formId}-docType`} value={values.docType} onChange={e => { change("docType", e.target.value); change("verificationDigit", ""); }} className={inputClass}>
+        <select id={`${formId}-docType`} value={values.docType} onChange={e => change("docType", e.target.value)} className={inputClass}>
           {(["CC", "NIT", "CE", "PA"] as const).map(type => <option key={type} value={type}>{t(`documentTypes.${type}`)}</option>)}
         </select>
       </div>
-      {field("docNumber", { maxLength: 40, inputMode: values.docType === "CC" ? "numeric" : "text" })}
-      {values.docType === "NIT" && <div className="sm:col-span-2">
-        <div className="max-w-xs">{field("verificationDigit", { required: false, maxLength: 1, inputMode: "numeric" })}</div>
-        <p className="mt-1 text-xs text-muted">{t("dvHint")}</p>
-      </div>}
+      {field("docNumber", { maxLength: 40, inputMode: values.docType === "CC" ? "numeric" : "text", hint: values.docType === "NIT" ? t("docNumberHintNit") : undefined })}
       {field("email", { type: "email" })}
       {field("phone", { type: "tel", required: false, maxLength: 32 })}
     </fieldset>

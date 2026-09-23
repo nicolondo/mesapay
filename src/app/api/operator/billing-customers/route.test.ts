@@ -64,7 +64,8 @@ it("rejects missing active restaurant", async () => {
 it("validates documents before any write", async () => {
   const response = await POST(req("POST", { ...payload, docNumber: "901944469-9" }));
   expect(response.status).toBe(400);
-  expect(await response.json()).toMatchObject({ error: "invalid", fieldErrors: { verificationDigit: expect.any(Array) } });
+  // El formulario ya no tiene campo de DV: el error se marca sobre el número.
+  expect(await response.json()).toMatchObject({ error: "invalid", fieldErrors: { docNumber: ["invalid_verification_digit"] } });
   expect(m.create).not.toHaveBeenCalled();
 });
 it("returns a duplicate code for the database uniqueness guarantee", async () => {

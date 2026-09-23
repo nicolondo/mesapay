@@ -15,6 +15,7 @@ import {
   type TileData,
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,20 @@ export default async function TablesPage({
           diner: {
             select: { id: true, name: true, email: true, cedula: true },
           },
+          // Cliente de la factura (solicitud pendiente): en una factura
+          // manual es lo que el operador identifica desde la ficha.
+          invoiceRequests: {
+            where: { status: "pending" },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              status: true,
+              customerName: true,
+              docType: true,
+              docNumber: true,
+              email: true,
+            },
+          },
         },
       },
       _count: { select: { orders: true } },
@@ -214,6 +229,7 @@ export default async function TablesPage({
             cedula: order.diner.cedula,
           }
         : null,
+      invoiceRequest: order.invoiceRequests[0] ?? null,
       outstandingCents,
       needsWaiter: order.needsWaiter,
       rounds: order.rounds.map((r) => ({
@@ -424,6 +440,10 @@ export default async function TablesPage({
         freeTables={freeTables}
         allTables={allTablesForMove}
         country={tenant!.country}
+        salesTax={{
+          kind: asSalesTaxKind(tenant!.salesTaxKind),
+          pct: tenant!.salesTaxPct,
+        }}
       />
     </div>
   );

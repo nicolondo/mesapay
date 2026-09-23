@@ -30,6 +30,15 @@ import {
  * la fila con `taxKind`/`taxPct` y se deja que la función canónica
  * (`syncOrderSubtotalFromLiveItems`) re-derive subtotal, impuesto y total.
  *
+ * `taxKind: "included"` es el otro caso: un cargo que se cobra como un plato
+ * de la carta, con el impuesto del comercio YA DENTRO del precio digitado
+ * ("almuerzos $25.000" en un restaurante en impoconsumo 8%). Es lo que
+ * necesita una factura manual, que se arma con cargos: nacía con "Ninguno"
+ * y salía sin impuesto, mientras el mismo valor en platos de una mesa sí lo
+ * declaraba. Se guarda como un plato (`taxKind`/`taxPct` en null): así la
+ * tirilla, el XML de la DIAN y la contabilidad le aplican la tarifa
+ * congelada del comercio sin un solo `if` nuevo.
+ *
  * La línea NO es un plato: nace sin ronda, en estación "counter" y ya
  * servida, así que no cae en el board de cocina (que consulta rondas y
  * filtra por estación), no dispara comanda, no tiene receta y no se califica.
@@ -43,7 +52,8 @@ const bodySchema = z.object({
   name: z.string().trim().min(2).max(120),
   qty: z.number().int().min(1).max(MAX_FREE_LINE_QTY),
   unitPriceCents: z.number().int().min(0).max(MAX_FREE_LINE_TOTAL_CENTS),
-  taxKind: z.enum(["none", "inc", "iva"]),
+  // "included" ⇒ impuesto del comercio embebido (como un plato del menú).
+  taxKind: z.enum(["none", "inc", "iva", "included"]),
   taxPct: z.number().int().min(0).max(100),
   notes: z.string().trim().max(240).optional(),
 });
@@ -68,7 +78,14 @@ async function POSTHandler(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const { orderId, name, qty, unitPriceCents, taxKind, taxPct } = parsed.data;
+  const { orderId, name, qty, unitPriceCents, taxKind: chosenKind, taxPct: chosenPct } = parsed.data;
+  // Con el impuesto incluido no hay tarifa propia que validar ni sumar: la
+  // del comercio se congela al facturar, igual que en un plato. `own` es el
+  // impuesto propio de la línea, o null cuando va incluido.
+  const own = chosenKind === "included" ? null : { kind: chosenKind, pct: chosenPct };
+  const included = own === null;
+  const taxKind = own?.kind ?? null;
+  const taxPct = own?.pct ?? null;
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -95,14 +112,16 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ error: "order_paying" }, { status: 409 });
   }
 
-  const tenant = await db.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { country: true },
-  });
-  // La tarifa tiene que ser una de las del país; si no, un cliente viejo (o
-  // manipulado) podría facturar un IVA que no existe.
-  if (!isValidSalesTaxRate(taxKind, taxPct, tenant?.country)) {
-    return NextResponse.json({ error: "invalid_tax_rate" }, { status: 400 });
+  if (own) {
+    const tenant = await db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { country: true },
+    });
+    // La tarifa tiene que ser una de las del país; si no, un cliente viejo (o
+    // manipulado) podría facturar un IVA que no existe.
+    if (!isValidSalesTaxRate(own.kind, own.pct, tenant?.country)) {
+      return NextResponse.json({ error: "invalid_tax_rate" }, { status: 400 });
+    }
   }
 
   const lineCents = unitPriceCents * qty;
@@ -164,7 +183,7 @@ async function POSTHandler(req: Request) {
     kind: "order_item.free_line",
     restaurantId,
     target: { type: "order_item", id: item.id },
-    summary: `Agregó línea libre ${qty}× ${name} (${taxKind} ${taxPct}%) a ${
+    summary: `Agregó línea libre ${qty}× ${name} (${included ? "impuesto incluido" : `${taxKind} ${taxPct}%`}) a ${
       order.table ? `Mesa ${order.table.number}` : "Mostrador"
     }`,
     diff: {

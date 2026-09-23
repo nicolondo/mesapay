@@ -116,6 +116,47 @@ it("sobrescribe la solicitud pendiente de la misma cuenta sin exigir dirección"
   expect(m.create).not.toHaveBeenCalled();
 });
 
+// La identificación se captura SIN dígito de verificación: el número queda
+// solo (la DIAN recibe el DV calculado en `customerPartyFor`) y, si el
+// comensal igual lo escribe, se separa; uno que no corresponde se rechaza con
+// un código que el formulario traduce.
+it.each(["901944469", "901.944.469", "901944469-1", "901.944.469-1"])("NIT %s: guarda y factura el número sin DV", async (docNumber) => {
+  const res = await post({ ...payload, docType: "NIT", docNumber, customerName: "ACME S.A.S." });
+  expect(res.status).toBe(200);
+  expect(m.create).toHaveBeenCalledWith({
+    data: expect.objectContaining({ docType: "NIT", docNumber: "901944469" }),
+  });
+  expect(m.issue).toHaveBeenCalledWith(
+    expect.objectContaining({ customer: expect.objectContaining({ docType: "NIT", docNumber: "901944469" }) }),
+  );
+  // El resumen que vuelve al formulario ya viene normalizado.
+  expect(await res.json()).toMatchObject({ request: expect.objectContaining({ docNumber: "901944469" }) });
+});
+
+it("una cédula se guarda sin puntos", async () => {
+  const res = await post({ ...payload, docNumber: "1.020.304.050" });
+  expect(res.status).toBe(200);
+  expect(m.create).toHaveBeenCalledWith({ data: expect.objectContaining({ docNumber: "1020304050" }) });
+});
+
+it("un DV que no corresponde al NIT se rechaza con su código", async () => {
+  const res = await post({ ...payload, docType: "NIT", docNumber: "901944469-2" });
+  expect(res.status).toBe(400);
+  expect(await res.json()).toMatchObject({ error: "invalid", code: "invalid_verification_digit" });
+  expect(m.create).not.toHaveBeenCalled();
+});
+
+it.each([
+  { docType: "NIT", docNumber: "12ABC34" },
+  { docType: "CC", docNumber: "AB123456" },
+  { docType: "CC", docNumber: "1020304050-1" },
+])("un documento con forma inválida se rechaza con su código: %j", async (extra) => {
+  const res = await post({ ...payload, ...extra });
+  expect(res.status).toBe(400);
+  expect(await res.json()).toMatchObject({ error: "invalid", code: "invalid_document" });
+  expect(m.create).not.toHaveBeenCalled();
+});
+
 it.each([
   { customerName: "A" },
   { docNumber: "12" },

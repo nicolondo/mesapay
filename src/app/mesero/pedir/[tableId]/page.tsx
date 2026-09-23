@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
+import { normalizeMenuItemOrder, sortMenuItems } from "@/lib/menuOrder";
+import { defaultLocale } from "@/i18n/config";
 import { MenuClient } from "@/app/t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +95,8 @@ export default async function MeseroPedirPage({
       }),
       db.menuItem.findMany({
         where: { restaurantId: tenant.id, available: true },
-        orderBy: { sortOrder: "asc" },
+        // Desempate fijo para que el modo "manual" coincida con el editor.
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       }),
       db.order.findFirst({
         where: {
@@ -108,6 +111,15 @@ export default async function MeseroPedirPage({
         },
       }),
     ]);
+
+  // Mismo orden de platos que ve el comensal: alfabético (default) o manual
+  // (según el editor). Acá los nombres no se traducen (se muestran tal como
+  // los cargó el comercio), así que se ordenan en el idioma de la carta.
+  const orderedItems = sortMenuItems(
+    items,
+    normalizeMenuItemOrder(tenant.menuItemOrder),
+    defaultLocale,
+  );
 
   const ratingByItem = new Map(
     ratingAgg.map((r) => [
@@ -156,7 +168,7 @@ export default async function MeseroPedirPage({
         menuId: c.menuId ?? menus[0]?.id ?? "",
         parentId: c.parentId ?? null,
       }))}
-      items={items.map((m) => {
+      items={orderedItems.map((m) => {
         const r = ratingByItem.get(m.id);
         return {
           id: m.id,

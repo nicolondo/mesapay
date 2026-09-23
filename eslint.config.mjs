@@ -26,7 +26,9 @@ const MIGRATED = [
   "src/app/operator/menu/DescriptionAi.tsx",
   "src/i18n/**/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pending/*.{ts,tsx}",
-  "src/app/operator/orders/\\[id\\]/RefundButton.tsx",
+  // Pedidos del operador (lista, detalle y acciones de la factura):
+  // migrados enteros, quedan blindados.
+  "src/app/operator/orders/**/*.{ts,tsx}",
   "src/components/LocaleSwitcher.tsx",
   "src/components/SalesTaxConfigEditor.tsx",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.

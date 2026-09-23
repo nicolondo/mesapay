@@ -5,7 +5,9 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import type { Prisma } from "@prisma/client";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { isModuleEnabled } from "@/lib/modules";
 import { LiveRefresh } from "../LiveRefresh";
+import { InvoiceActions } from "./InvoiceActions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +42,12 @@ export default async function OrdersPage({
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true, serviceMode: true },
+    select: { slug: true, serviceMode: true, enabledModules: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Con facturación electrónica, la factura ACEPTADA por la DIAN también
+  // se puede reenviar por correo desde acá (misma ruta que en Facturas).
+  const einvoicingOn = isModuleEnabled(tenant?.enabledModules, "einvoicing");
 
   const sp = await searchParams;
   const status: StatusFilter =
@@ -88,6 +93,14 @@ export default async function OrdersPage({
         where: { status: "approved" },
         select: { amountCents: true, refundedCents: true },
       },
+      // Sólo lo que hace falta para las acciones: el snapshot (JSON) no se
+      // carga acá — son hasta 100 filas.
+      simpleInvoice: {
+        select: {
+          id: true,
+          dianDocument: { select: { id: true, state: true } },
+        },
+      },
     },
   });
 
@@ -114,6 +127,16 @@ export default async function OrdersPage({
     // Neto del descuento del comensal identificado: es lo que se cobra.
     subtotalCents: Math.max(0, o.subtotalCents - o.discountCents),
     paid: o.payments.reduce((s, p) => s + p.amountCents - p.refundedCents, 0),
+    // Factura de la cuenta (si ya se cobró): ver / reimprimir / reenviar.
+    invoice: o.simpleInvoice
+      ? {
+          id: o.simpleInvoice.id,
+          dianDocumentId:
+            einvoicingOn && o.simpleInvoice.dianDocument?.state === "accepted"
+              ? o.simpleInvoice.dianDocument.id
+              : null,
+        }
+      : null,
     place:
       o.table.kind === "manual"
         ? t("manualInvoice")
@@ -186,6 +209,7 @@ export default async function OrdersPage({
               <Th align="right">{t("colItems")}</Th>
               <Th align="right">{t("colSubtotal")}</Th>
               <Th align="right">{t("colPaid")}</Th>
+              <Th>{t("colInvoice")}</Th>
               <Th />
             </tr>
           </thead>
@@ -213,6 +237,17 @@ export default async function OrdersPage({
                 <Td align="right" className="font-mono tabular">
                   {r.paid === 0 ? "—" : fmtCOP(r.paid)}
                 </Td>
+                <Td>
+                  {r.invoice ? (
+                    <InvoiceActions
+                      orderId={r.id}
+                      invoiceId={r.invoice.id}
+                      dianDocumentId={r.invoice.dianDocumentId}
+                    />
+                  ) : (
+                    <span className="text-op-muted">{"—"}</span>
+                  )}
+                </Td>
                 <Td align="right">
                   <Link
                     href={`/operator/orders/${r.id}`}
@@ -226,7 +261,7 @@ export default async function OrdersPage({
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="text-center py-10 text-sm text-op-muted"
                 >
                   {t("empty")}
@@ -237,39 +272,54 @@ export default async function OrdersPage({
         </table>
       </div>
 
-      {/* Móvil: lista de tarjetas. Toda la tarjeta enlaza al detalle. */}
+      {/* Móvil: lista de tarjetas. La tarjeta enlaza al detalle; las
+          acciones de la factura van DEBAJO del enlace (un botón adentro de
+          un <a> no es HTML válido y el tap navegaría en vez de imprimir). */}
       <div className="lg:hidden space-y-2">
         {rows.map((r) => (
-          <Link
+          <div
             key={r.id}
-            href={`/operator/orders/${r.id}`}
-            className="block bg-op-surface border border-op-border rounded-2xl p-4 active:bg-op-bg/40"
+            className="bg-op-surface border border-op-border rounded-2xl"
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-sm font-medium" title={r.shortCode}>
-                {displayOrderCode(r.shortCode)}
-              </span>
-              <StatusPill status={r.status} />
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-              <span className="truncate">{r.place}</span>
-              <span className="text-[11px] text-op-muted shrink-0">
-                {fmtDate(r.createdAt)} · {fmtTime(r.createdAt)}
-              </span>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-op-border pt-3">
-              <CardStat label={t("colItems")} value={String(r.items)} />
-              <CardStat
-                label={t("colSubtotal")}
-                value={fmtCOP(r.subtotalCents)}
-              />
-              <CardStat
-                label={t("colPaid")}
-                value={r.paid === 0 ? "—" : fmtCOP(r.paid)}
-                align="right"
-              />
-            </div>
-          </Link>
+            <Link
+              href={`/operator/orders/${r.id}`}
+              className="block rounded-2xl p-4 active:bg-op-bg/40"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-sm font-medium" title={r.shortCode}>
+                  {displayOrderCode(r.shortCode)}
+                </span>
+                <StatusPill status={r.status} />
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{r.place}</span>
+                <span className="text-[11px] text-op-muted shrink-0">
+                  {fmtDate(r.createdAt)} · {fmtTime(r.createdAt)}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 border-t border-op-border pt-3">
+                <CardStat label={t("colItems")} value={String(r.items)} />
+                <CardStat
+                  label={t("colSubtotal")}
+                  value={fmtCOP(r.subtotalCents)}
+                />
+                <CardStat
+                  label={t("colPaid")}
+                  value={r.paid === 0 ? "—" : fmtCOP(r.paid)}
+                  align="right"
+                />
+              </div>
+            </Link>
+            {r.invoice && (
+              <div className="px-4 pb-4">
+                <InvoiceActions
+                  orderId={r.id}
+                  invoiceId={r.invoice.id}
+                  dianDocumentId={r.invoice.dianDocumentId}
+                />
+              </div>
+            )}
+          </div>
         ))}
         {rows.length === 0 && (
           <div className="text-center py-10 text-sm text-op-muted">

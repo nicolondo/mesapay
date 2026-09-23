@@ -314,3 +314,75 @@ describe("buildThermalInvoice — impuesto embebido congelado en la factura", ()
     expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
   });
 });
+
+describe("buildThermalInvoice — factura electrónica (dian)", () => {
+  const dian = {
+    cufe: "0123456789abcdef".repeat(6),
+    verifyUrl:
+      "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=" +
+      "0123456789abcdef".repeat(6),
+    qr: true,
+  };
+  const einvoice = (
+    over: Partial<InvoiceSnapshot> = {},
+    d: typeof dian | null = dian,
+  ) =>
+    buildThermalInvoice({
+      snapshot: { ...snapshot, ...over },
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: "15/01/26",
+      payments: [],
+      money,
+      t,
+      dian: d,
+    });
+
+  it("sin dian es el comprobante: rótulo receiptLabel, sin bloque fiscal y sin 'Consumidor final'", () => {
+    const doc = einvoice({}, null);
+    expect(doc.documentLabel).toBe("receiptLabel");
+    expect(doc.fiscal).toBeNull();
+    expect(doc.customerLines).toEqual([]);
+  });
+
+  it("con dian el rótulo es el de la factura electrónica de venta", () => {
+    expect(einvoice().documentLabel).toBe("einvoiceLabel");
+  });
+
+  it("el adquiriente sin datos dice 'Consumidor final' — es lo que viajó en el XML", () => {
+    expect(einvoice().customerLines).toEqual(["customerLabel: finalConsumer"]);
+  });
+
+  it("con datos del cliente, el cliente (igual que en el comprobante)", () => {
+    const doc = einvoice({
+      customer: { name: "Ana Pérez", docType: "CC", docNumber: "1.020.304.050" },
+    });
+    expect(doc.customerLines).toEqual(["customerLabel: Ana Pérez", "CC 1.020.304.050"]);
+  });
+
+  it("el bloque fiscal lleva el CUFE entero, la URL de consulta, el QR según la impresora y la leyenda", () => {
+    expect(einvoice().fiscal).toEqual({
+      cufeLabel: "dianCufeLabel",
+      cufe: dian.cufe,
+      verifyUrl: dian.verifyUrl,
+      qr: true,
+      verifyLabel: "einvoiceVerify",
+      noticeLines: ["einvoiceRepresentation"],
+    });
+  });
+
+  it("qr false cuando la impresora destino no lo soporta", () => {
+    expect(einvoice({}, { ...dian, qr: false }).fiscal?.qr).toBe(false);
+  });
+
+  it("ítems, totales, número y pie son los mismos que en el comprobante: es la misma venta", () => {
+    const comprobante = einvoice({}, null);
+    const factura = einvoice();
+    expect(factura.items).toEqual(comprobante.items);
+    expect(factura.totals).toEqual(comprobante.totals);
+    expect(factura.documentNumber).toBe(comprobante.documentNumber);
+    expect(factura.footerLines).toEqual(comprobante.footerLines);
+    expect(factura.businessLines).toEqual(comprobante.businessLines);
+  });
+});

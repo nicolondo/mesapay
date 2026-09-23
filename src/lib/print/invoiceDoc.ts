@@ -18,6 +18,13 @@
  * mismo documento que le llega al cliente por correo, y si el papel y el
  * mail se nombran distinto ("Comprobante" acá, "Factura" allá) el que
  * queda mal parado frente al cliente es el comercio.
+ *
+ * Con `dian` (la factura ya ACEPTADA por la DIAN) el mismo snapshot se
+ * vuelve la FACTURA ELECTRÓNICA: cambia el rótulo, el adquiriente sin
+ * datos pasa a decir "Consumidor final" y se agrega el bloque fiscal con
+ * el CUFE y el QR (o la URL de consulta). Todo lo demás —ítems, totales,
+ * impuesto discriminado, forma de pago, resolución— es idéntico: es la
+ * misma venta.
  */
 
 import { displayOrderCode } from "@/lib/orderCode";
@@ -29,6 +36,7 @@ import {
 } from "@/lib/invoice";
 import type {
   ThermalInvoice,
+  ThermalInvoiceFiscal,
   ThermalInvoiceRow,
 } from "@/lib/escpos";
 
@@ -70,6 +78,18 @@ export type InvoiceTranslator = (
 ) => string;
 
 /**
+ * Lo que vuelve al documento una factura ELECTRÓNICA. `qr` es de la
+ * IMPRESORA destino (`Printer.supportsQr`), no de la factura: la misma
+ * factura sale con QR en una térmica y con la URL en texto en otra.
+ */
+export type InvoiceDianDocData = {
+  cufe: string;
+  /** URL de consulta en el catálogo de la DIAN. */
+  verifyUrl: string;
+  qr: boolean;
+};
+
+/**
  * Suma los pagos por método, en orden de aparición. Una cuenta partida
  * entre tres tarjetas no gasta tres renglones: dice "Tarjeta $90.000",
  * que es lo que el cliente puede verificar contra su bolsillo.
@@ -107,8 +127,11 @@ export function buildThermalInvoice(args: {
   payments: InvoicePaymentLine[];
   money: (cents: number) => string;
   t: InvoiceTranslator;
+  /** Factura electrónica ACEPTADA. null/ausente = el comprobante. */
+  dian?: InvoiceDianDocData | null;
 }): ThermalInvoice {
   const { snapshot: s, money, t } = args;
+  const dian = args.dian ?? null;
 
   const businessLines = [
     s.taxId ? t("taxId", { id: s.taxId }) : null,
@@ -119,7 +142,9 @@ export function buildThermalInvoice(args: {
 
   // Factura nominativa: los datos del cliente sólo existen cuando pidió
   // la factura a su nombre. Sin ellos es una tirilla a consumidor final y
-  // el bloque entero desaparece — no se imprime "Cliente: —".
+  // el bloque entero desaparece — no se imprime "Cliente: —"... salvo en
+  // la factura ELECTRÓNICA, donde el adquiriente es parte del documento
+  // y "Consumidor final" es lo que dice el XML que viajó a la DIAN.
   const customerLines: string[] = [];
   if (s.customer) {
     customerLines.push(`${t("customerLabel")}: ${s.customer.name}`);
@@ -128,6 +153,8 @@ export function buildThermalInvoice(args: {
       .filter((p): p is string => !!p && p.trim().length > 0)
       .join(", ");
     if (where) customerLines.push(where);
+  } else if (dian) {
+    customerLines.push(`${t("customerLabel")}: ${t("finalConsumer")}`);
   }
 
   const totals: ThermalInvoiceRow[] = [
@@ -173,11 +200,26 @@ export function buildThermalInvoice(args: {
     t("thanks"),
   ].filter((l): l is string => !!l);
 
+  // El bloque fiscal sólo existe con la factura aceptada. El CUFE va
+  // entero (el cliente lo teclea en el portal si el QR no le sirve) y la
+  // URL en texto sólo cuando NO hay QR: es la misma información dos
+  // veces, y en 58mm son tres renglones de sopa de letras.
+  const fiscal: ThermalInvoiceFiscal | null = dian
+    ? {
+        cufeLabel: t("dianCufeLabel"),
+        cufe: dian.cufe,
+        verifyUrl: dian.verifyUrl,
+        qr: dian.qr,
+        verifyLabel: t("einvoiceVerify"),
+        noticeLines: [t("einvoiceRepresentation")],
+      }
+    : null;
+
   return {
     paperWidthMm: args.paperWidthMm,
     businessName: s.legalName?.trim() || s.restaurantName,
     businessLines,
-    documentLabel: t("receiptLabel"),
+    documentLabel: dian ? t("einvoiceLabel") : t("receiptLabel"),
     documentNumber: formatInvoiceNumber(s, args.invoiceNumber),
     metaRows: [
       { label: t("date"), value: args.paidAtLabel },
@@ -193,5 +235,6 @@ export function buildThermalInvoice(args: {
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
     paymentRows,
     footerLines,
+    fiscal,
   };
 }

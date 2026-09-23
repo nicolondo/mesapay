@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CP850_HIGH } from "./codepage";
-import { columnsForWidth, padRow } from "./commands";
+import { columnsForWidth, padRow, qr } from "./commands";
 import {
   INVOICE_PAYLOAD_VERSION,
   parseInvoicePayload,
@@ -37,7 +37,8 @@ function readable(inv: ThermalInvoice): string {
         i += 2;
         continue;
       }
-      if (op === 0x74 || op === 0x61 || op === 0x45 || op === 0x64) {
+      // ESC t / a / E / d / M: un byte de parámetro.
+      if (op === 0x74 || op === 0x61 || op === 0x45 || op === 0x64 || op === 0x4d) {
         i += 3;
         continue;
       }
@@ -51,6 +52,13 @@ function readable(inv: ThermalInvoice): string {
       }
       if (op === 0x56) {
         i += 4;
+        continue;
+      }
+      // GS ( k: pL pH dicen cuánto sigue (cn fn + datos). El QR no se
+      // "lee": se salta entero, como haría el papel.
+      if (op === 0x28) {
+        const len = b[i + 3] | (b[i + 4] << 8);
+        i += 5 + len;
         continue;
       }
       throw new Error(`comando GS desconocido: 0x${op.toString(16)}`);
@@ -262,6 +270,185 @@ describe("renderInvoice — 58mm vs 80mm", () => {
     expect(lines[first]).not.toContain("$ 45.000");
     const withAmount = lines.slice(first).find((x) => x.includes("$ 45.000"))!;
     expect(withAmount.endsWith("$ 45.000")).toBe(true);
+  });
+});
+
+describe("renderInvoice — factura electrónica (bloque fiscal)", () => {
+  const CUFE = "0123456789abcdef".repeat(6);
+  const VERIFY =
+    "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=" + CUFE;
+  const electronica: ThermalInvoice = {
+    ...base,
+    documentLabel: "FACTURA ELECTRÓNICA DE VENTA",
+    customerLines: ["Cliente: Consumidor final"],
+    paymentTitle: "Forma de pago",
+    paymentRows: [{ label: "Efectivo", amount: "$ 61.000" }],
+    footerLines: [
+      "Resolución DIAN: 18764012345678",
+      "Numeración del 1 al 5000",
+      "¡Gracias por tu visita!",
+    ],
+    fiscal: {
+      cufeLabel: "CUFE",
+      cufe: CUFE,
+      verifyUrl: VERIFY,
+      qr: false,
+      verifyLabel: "Consulta esta factura en la DIAN:",
+      noticeLines: ["Representación impresa de la factura electrónica de venta"],
+    },
+  };
+  const conQr: ThermalInvoice = {
+    ...electronica,
+    fiscal: { ...electronica.fiscal!, qr: true },
+  };
+  const GS_PAREN_K = Buffer.from([0x1d, 0x28, 0x6b]);
+  const ESC_M = Buffer.from([0x1b, 0x4d]);
+
+  it("snapshot de bytes SIN QR (la URL en texto)", () => {
+    expect(hex(electronica)).toMatchSnapshot();
+  });
+
+  it("snapshot de bytes CON QR", () => {
+    expect(hex(conQr)).toMatchSnapshot();
+  });
+
+  it("snapshot de bytes CON QR en 58mm", () => {
+    expect(hex({ ...conQr, paperWidthMm: 58 })).toMatchSnapshot();
+  });
+
+  it("el comprobante de siempre no emite ni ESC M ni GS ( k: sus bytes no cambian", () => {
+    const bytes = renderInvoice(base);
+    expect(bytes.includes(GS_PAREN_K)).toBe(false);
+    expect(bytes.includes(ESC_M)).toBe(false);
+  });
+
+  it("con QR emite GS ( k con la URL de consulta, y la URL NO va en texto", () => {
+    const bytes = renderInvoice(conQr);
+    expect(bytes.includes(qr(VERIFY, { size: 4, correction: "M" }))).toBe(true);
+    expect(readable(conQr)).not.toContain("https://");
+    expect(readable(conQr)).not.toContain("Consulta esta factura");
+  });
+
+  it("sin QR imprime la URL de consulta en texto y ningún GS ( k", () => {
+    const bytes = renderInvoice(electronica);
+    expect(bytes.includes(GS_PAREN_K)).toBe(false);
+    const paper = readable(electronica);
+    expect(paper).toContain("Consulta esta factura en la DIAN:");
+    expect(paper.replace(/\n/g, "")).toContain(VERIFY);
+  });
+
+  /** Los renglones entre el rótulo "CUFE" y el de la URL: el CUFE partido. */
+  function cufeLines(inv: ThermalInvoice): string[] {
+    const lines = readable(inv).split("\n");
+    const start = lines.indexOf("CUFE") + 1;
+    expect(start).toBeGreaterThan(0);
+    const end = lines.findIndex((l, i) => i >= start && l.startsWith("Consulta"));
+    expect(end).toBeGreaterThan(start);
+    return lines.slice(start, end);
+  }
+
+  it("el CUFE sale completo, en fuente chica, partido en renglones", () => {
+    const bytes = renderInvoice(electronica);
+    // Entra a fuente B antes del CUFE y vuelve a A antes de la leyenda.
+    expect(bytes.includes(ESC_M)).toBe(true);
+    // Ningún renglón del CUFE es el CUFE entero: en 80mm son 2 (64 col).
+    const lines = cufeLines(electronica);
+    expect(lines).toHaveLength(2);
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(64);
+    expect(lines.join("")).toBe(CUFE);
+  });
+
+  it("en 58mm el CUFE va en 3 renglones de a lo sumo 42 columnas", () => {
+    const lines = cufeLines({ ...electronica, paperWidthMm: 58 });
+    expect(lines).toHaveLength(3);
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(42);
+    expect(lines.join("")).toBe(CUFE);
+  });
+
+  it("el bloque fiscal va después de la forma de pago y antes del pie legal", () => {
+    const paper = readable(electronica);
+    const pago = paper.indexOf("Forma de pago");
+    const cufe = paper.indexOf("CUFE");
+    const leyenda = paper.indexOf("Representación impresa");
+    const resolucion = paper.indexOf("Resolución DIAN");
+    expect(pago).toBeGreaterThan(0);
+    expect(cufe).toBeGreaterThan(pago);
+    expect(leyenda).toBeGreaterThan(cufe);
+    expect(resolucion).toBeGreaterThan(leyenda);
+  });
+
+  it("el rótulo y el adquiriente son los de la factura electrónica", () => {
+    const paper = readable(electronica);
+    expect(paper).toContain("FACTURA ELECTRÓNICA DE VENTA");
+    expect(paper).toContain("Cliente: Consumidor final");
+  });
+
+  it("sigue cerrando con corte parcial", () => {
+    expect(renderInvoice(conQr).subarray(-8).toString("hex")).toBe("1b64041d5642040a");
+  });
+
+  it("renderPrintJobPayload imprime la factura electrónica con su QR", () => {
+    const bytes = renderPrintJobPayload({
+      v: INVOICE_PAYLOAD_VERSION,
+      invoice: conQr,
+    })!;
+    expect(bytes.includes(GS_PAREN_K)).toBe(true);
+  });
+});
+
+describe("parseInvoicePayload — bloque fiscal", () => {
+  const fiscal = {
+    cufeLabel: "CUFE",
+    cufe: "abc",
+    verifyUrl: "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=abc",
+    qr: true,
+    verifyLabel: "Consulta:",
+    noticeLines: ["Representación impresa"],
+  };
+
+  it("lo acepta y lo devuelve entero", () => {
+    const parsed = parseInvoicePayload({
+      v: INVOICE_PAYLOAD_VERSION,
+      invoice: { ...base, fiscal },
+    });
+    expect(parsed?.fiscal).toEqual(fiscal);
+  });
+
+  it("ausente o null ⇒ fiscal null (el comprobante, y los payloads viejos)", () => {
+    expect(
+      parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: base })?.fiscal,
+    ).toBeNull();
+    expect(
+      parseInvoicePayload({
+        v: INVOICE_PAYLOAD_VERSION,
+        invoice: { ...base, fiscal: null },
+      })?.fiscal,
+    ).toBeNull();
+  });
+
+  it("qr que no es true se lee como false: sin GS ( k por las dudas", () => {
+    const parsed = parseInvoicePayload({
+      v: INVOICE_PAYLOAD_VERSION,
+      invoice: { ...base, fiscal: { ...fiscal, qr: "sí" } },
+    });
+    expect(parsed?.fiscal?.qr).toBe(false);
+  });
+
+  it("un bloque fiscal sin CUFE o sin URL invalida el payload: mejor no imprimir que imprimir a medias", () => {
+    for (const bad of [
+      { ...fiscal, cufe: "" },
+      { ...fiscal, cufe: undefined },
+      { ...fiscal, verifyUrl: "" },
+      { ...fiscal, cufeLabel: 3 },
+      "fiscal",
+    ]) {
+      expect(
+        parseInvoicePayload({
+          v: INVOICE_PAYLOAD_VERSION,
+          invoice: { ...base, fiscal: bad },
+        }),
+      ).toBeNull();
+    }
   });
 });
 

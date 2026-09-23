@@ -984,7 +984,11 @@
     "prebillOutstanding": "Saldo a pagar",
     "prebillSuggestedTip": "Gorjeta sugerida {pct}%",
     "prebillTotalWithTip": "Total com gorjeta",
-    "prebillTipVoluntary": "A gorjeta é voluntária: você pode aceitá-la, recusá-la ou alterá-la."
+    "prebillTipVoluntary": "A gorjeta é voluntária: você pode aceitá-la, recusá-la ou alterá-la.",
+    "einvoiceLabel": "FATURA ELETRÔNICA DE VENDA",
+    "finalConsumer": "Consumidor final",
+    "einvoiceVerify": "Consulte esta fatura na DIAN:",
+    "einvoiceRepresentation": "Representação impressa da fatura eletrônica de venda"
   },
   "emailDianInvoice": {
     "subject": "Sua nota fiscal eletrônica de {brand} — {number}",

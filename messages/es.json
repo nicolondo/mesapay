@@ -984,7 +984,11 @@
     "prebillOutstanding": "Pendiente por pagar",
     "prebillSuggestedTip": "Propina sugerida {pct}%",
     "prebillTotalWithTip": "Total con propina",
-    "prebillTipVoluntary": "La propina es voluntaria: podés aceptarla, rechazarla o cambiarla."
+    "prebillTipVoluntary": "La propina es voluntaria: podés aceptarla, rechazarla o cambiarla.",
+    "einvoiceLabel": "FACTURA ELECTRÓNICA DE VENTA",
+    "finalConsumer": "Consumidor final",
+    "einvoiceVerify": "Consulta esta factura en la DIAN:",
+    "einvoiceRepresentation": "Representación impresa de la factura electrónica de venta"
   },
   "emailDianInvoice": {
     "subject": "Tu factura electrónica de {brand} — {number}",

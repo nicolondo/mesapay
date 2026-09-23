@@ -984,7 +984,11 @@
     "prebillOutstanding": "Balance due",
     "prebillSuggestedTip": "Suggested tip {pct}%",
     "prebillTotalWithTip": "Total with tip",
-    "prebillTipVoluntary": "The tip is voluntary: you may accept, decline or change it."
+    "prebillTipVoluntary": "The tip is voluntary: you may accept, decline or change it.",
+    "einvoiceLabel": "ELECTRONIC SALES INVOICE",
+    "finalConsumer": "Final consumer",
+    "einvoiceVerify": "Look up this invoice at DIAN:",
+    "einvoiceRepresentation": "Printed representation of the electronic sales invoice"
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",

@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
+import { PlacedByLine } from "@/components/PlacedByLine";
 
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
@@ -31,6 +32,9 @@ type Round = {
   id: string;
   seq: number;
   readyAt: string | null;
+  // Quién montó la ronda cuando fue el personal; null = el comensal.
+  placedByName: string | null;
+  placedByRole: string | null;
   order: {
     id: string;
     shortCode: string;
@@ -1380,6 +1384,11 @@ function LooseItemsCard({
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
+      <PlacedByLine
+        name={r.placedByName}
+        role={r.placedByRole}
+        className="mt-0.5 font-mono text-[10px] tracking-wider uppercase text-op-muted truncate"
+      />
 
       <ul className="mt-2 space-y-2">
         {items.map((i) => {
@@ -1518,6 +1527,11 @@ function MainsWaitingCard({
           {tr("badgeMainsTogether")}
         </span>
       </div>
+      <PlacedByLine
+        name={r.placedByName}
+        role={r.placedByRole}
+        className="mt-0.5 font-mono text-[10px] tracking-wider uppercase text-op-muted truncate"
+      />
       <div className="mt-2 text-xs text-op-muted">
         {tr("waitingKitchen", { count: cookingCount })}
       </div>
@@ -1545,6 +1559,11 @@ function MainsBulkCard({
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
+      <PlacedByLine
+        name={r.placedByName}
+        role={r.placedByRole}
+        className="mt-0.5 font-mono text-[10px] tracking-wider uppercase text-op-muted truncate"
+      />
       <ul className="mt-2 space-y-1 text-sm">
         {items.map((i) => (
           <li key={i.id} className="flex items-start gap-2">

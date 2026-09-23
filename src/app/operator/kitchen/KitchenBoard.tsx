@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { PlacedByLine } from "@/components/PlacedByLine";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
@@ -37,6 +38,10 @@ type Round = {
   status: KitchenStatus;
   placedAt: string;
   readyAt: string | null;
+  // Quién montó la ronda cuando fue el personal (snapshot: nombre + rol).
+  // Null = pidió el comensal desde su celular.
+  placedByName: string | null;
+  placedByRole: string | null;
   order: {
     id: string;
     shortCode: string;
@@ -366,6 +371,16 @@ export function KitchenBoard({
                         )}
                       </div>
                     </div>
+
+                    {/* Quién montó la ronda (mesero, administrador…): debajo
+                        de la mesa y el código, un punto más grande que el
+                        encabezado para leerlo desde el pase. El nombre del
+                        comensal sigue yendo por plato. */}
+                    <PlacedByLine
+                      name={r.placedByName}
+                      role={r.placedByRole}
+                      className="mt-1 text-xs font-semibold tracking-wide uppercase text-op-muted truncate"
+                    />
 
                     {isPartial && (
                       <div className="mt-1 font-mono text-[9px] tracking-wider uppercase text-op-muted">

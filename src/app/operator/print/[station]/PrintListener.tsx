@@ -4,6 +4,7 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { roleLabelKey } from "@/lib/orders/placedBy";
 
 type Station = "kitchen" | "bar";
 
@@ -16,6 +17,8 @@ type Ticket = {
   barSubStation: string | null;
   roundSeq: number;
   placedAt: string;
+  // Quién montó la ronda cuando fue el personal; null = el comensal.
+  placedBy: { name: string; role: string | null } | null;
   order: {
     shortCode: string;
     orderType: "dineIn" | "pickup";
@@ -58,6 +61,9 @@ export function PrintListener({
   availableSubStations: string[];
 }) {
   const t = useTranslations("opPrint");
+  // Etiquetas de rol ("Mesero", "Administrador"…) para la línea de quién
+  // montó la ronda: viven en `kitchen`, el namespace de los tableros.
+  const tk = useTranslations("kitchen");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [history, setHistory] = useState<PrintEntry[]>([]);
   const [connected, setConnected] = useState(false);
@@ -153,7 +159,7 @@ export function PrintListener({
   function renderAndPrint(ticket: Ticket) {
     const iframe = iframeRef.current;
     if (!iframe) return;
-    const html = buildTicketHtml(ticket, t);
+    const html = buildTicketHtml(ticket, t, tk);
     iframe.srcdoc = html;
     // The print() call needs to wait for the iframe to load, otherwise
     // we'd print an empty document. The iframe's onload fires once
@@ -333,8 +339,18 @@ export function PrintListener({
  * so most browsers render at the printer's actual paper width and
  * skip the standard A4 margins.
  */
-function buildTicketHtml(ticket: Ticket, t: Tr): string {
+function buildTicketHtml(ticket: Ticket, t: Tr, tk: Tr): string {
   const width = ticket.paperWidthMm;
+  // Misma línea que imprime el agente ESC/POS (buildThermalTicket): los
+  // dos caminos tienen que decir lo mismo.
+  const placedBy = (() => {
+    if (!ticket.placedBy) return null;
+    const name = ticket.placedBy.name.toUpperCase();
+    const roleKey = roleLabelKey(ticket.placedBy.role);
+    return roleKey
+      ? t("ticketPlacedBy", { name, role: tk(roleKey).toUpperCase() })
+      : t("ticketPlacedByNoRole", { name });
+  })();
   const dest =
     ticket.order.orderType === "pickup"
       ? t("ticketPickup", {
@@ -394,6 +410,12 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
     font-size: 13px;
     margin-bottom: 6px;
   }
+  .placedby {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
   hr {
     border: 0;
     border-top: 1px dashed #000;
@@ -435,6 +457,7 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
   <div class="station">${escapeHtml(stationName)}</div>
   <div class="dest">${escapeHtml(dest)}</div>
   <div class="meta">${escapeHtml(displayOrderCode(ticket.order.shortCode))} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? ` · ${escapeHtml(t("ticketMainsTogether"))}` : ""}</div>
+  ${placedBy ? `<div class="placedby">${escapeHtml(placedBy)}</div>` : ""}
   <hr/>
   ${ticket.items
     .map(
@@ -477,6 +500,7 @@ function buildSampleTicket(
     barSubStation: sub,
     roundSeq: 1,
     placedAt: new Date().toISOString(),
+    placedBy: null,
     order: {
       shortCode: t("sampleShortCode"),
       orderType: "dineIn",

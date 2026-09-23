@@ -1115,7 +1115,16 @@
     "cancelling": "Cancelling…",
     "cancelConfirm": "Confirm cancellation",
     "cancelError": "We couldn't cancel.",
-    "barTabAll": "Whole bar"
+    "barTabAll": "Whole bar",
+    "placedBy": "Placed by: {name} · {role}",
+    "placedByNoRole": "Placed by: {name}",
+    "roleMesero": "Waiter",
+    "roleOperator": "Admin",
+    "roleKitchen": "Kitchen",
+    "roleBar": "Bar",
+    "roleTerminal": "Terminal",
+    "roleGroupAdmin": "Group",
+    "rolePlatformAdmin": "MESAPAY"
   },
   "serve": {
     "noRestaurant": "No restaurant.",
@@ -3481,7 +3490,9 @@
     "ticketTableNote": "Table",
     "sampleShortCode": "TEST",
     "sampleItemName": "Test ticket",
-    "sampleItemNote": "If you can see this text, the printer is connected correctly."
+    "sampleItemNote": "If you can see this text, the printer is connected correctly.",
+    "ticketPlacedBy": "PLACED BY: {name} ({role})",
+    "ticketPlacedByNoRole": "PLACED BY: {name}"
   },
   "opPrinters": {
     "title": "Network printers",

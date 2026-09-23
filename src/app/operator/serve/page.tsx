@@ -168,6 +168,8 @@ export default async function ServePage() {
         id: r.id,
         seq: r.seq,
         readyAt: r.readyAt ? r.readyAt.toISOString() : null,
+        placedByName: r.placedByName,
+        placedByRole: r.placedByRole,
         order: {
           id: r.order.id,
           shortCode: r.order.shortCode,

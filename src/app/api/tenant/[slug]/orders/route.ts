@@ -7,6 +7,8 @@ import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getDiner } from "@/lib/dinerSession";
+import { getActiveContext } from "@/lib/activeRestaurant";
+import { resolvePlacedBy, roundPlacedByData } from "@/lib/orders/placedBy";
 import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import { autoFireRoundInTx } from "@/lib/kds/autoFire";
@@ -62,6 +64,12 @@ async function POSTHandler(
   // carta con su propia sesión — en producción la mayoría de las órdenes
   // "con comensal" eran justamente eso.
   const diner = await getDiner(tenant.id);
+  // Quién MONTA la ronda. Si detrás del request hay PERSONAL del comercio
+  // (el mesero tomando el pedido desde la carta con su sesión, el
+  // administrador, un admin impersonando el local), la ronda queda a su
+  // nombre para que en cocina sepan quién la montó. Pedido del comensal
+  // desde su celular: null, como siempre.
+  const placedBy = resolvePlacedBy(await getActiveContext(), tenant.id);
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -148,6 +156,7 @@ async function POSTHandler(
         seq: (existingRounds._max.seq ?? 0) + 1,
         status: isManual ? "served" : isCounter ? "open" : "placed",
         readyAt: isManual ? now : undefined,
+        ...roundPlacedByData(placedBy),
       },
     });
 

@@ -73,6 +73,7 @@ export async function buildTestTicket(args: {
     stationLine: t("testTicketTitle"),
     destinationLine: args.printerLabel,
     metaLine: `${args.host}:${args.port} · ${args.paperWidthMm}mm · ${columnsForWidth(args.paperWidthMm)} col · ${time}`,
+    placedByLine: null,
     noticeLine: args.stationLine,
     items: [
       {

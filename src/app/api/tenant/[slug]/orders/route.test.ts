@@ -57,6 +57,9 @@ const h = vi.hoisted(() => {
       barAutoFire: true,
     },
     table: vi.fn(),
+    // Contexto activo (sesión de personal + comercio impersonado). Null =
+    // pide el comensal desde su celular.
+    activeContext: vi.fn(async (): Promise<unknown> => null),
     autoFire: vi.fn(async () => [{ station: "kitchen", barSubStation: null }]),
     tickets: vi.fn(async () => {}),
     recompute: vi.fn(async (_tx: unknown, id: string) => ({ id, shortCode: "AAAAAA-BBBBBB" })),
@@ -87,6 +90,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/dinerSession", () => ({ getDiner: vi.fn(async () => null) }));
+vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: h.activeContext }));
 vi.mock("@/lib/dinerDiscount", () => ({ getActiveDiscountPct: vi.fn(async () => null) }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: vi.fn(async () => {}) }));
@@ -114,6 +118,65 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.created.items.length = 0;
   h.created.rounds.length = 0;
+  h.activeContext.mockResolvedValue(null);
+});
+
+/**
+ * Quién montó la ronda: si detrás del request hay personal del comercio (el
+ * mesero tomando el pedido desde la carta con su sesión), la ronda queda a
+ * su nombre para que cocina sepa quién fue. El comensal no deja huella.
+ */
+describe("POST /api/tenant/[slug]/orders — quién montó la ronda", () => {
+  const mesa = { id: "table-x", restaurantId: "rest-1", number: 4, kind: "standard" };
+  const staff = (role: string, restaurantId: string | null, name: string | null = "Juan") => ({
+    session: { user: { id: "user-juan", email: "juan.perez@resto.co", name, role } },
+    restaurantId,
+    impersonating: false,
+    groupId: null,
+  });
+
+  it("con sesión de mesero del comercio la ronda queda estampada con nombre y rol", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.activeContext.mockResolvedValue(staff("mesero", "rest-1"));
+
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(h.created.rounds[0]).toMatchObject({
+      placedByUserId: "user-juan",
+      placedByName: "Juan",
+      placedByRole: "mesero",
+    });
+    // El nombre del comensal por plato es otra cosa y no se toca.
+    expect(h.created.items[0].guestName).toBeUndefined();
+  });
+
+  it("sin sesión de personal (pide el comensal) los tres campos quedan en null", async () => {
+    h.table.mockResolvedValue(mesa);
+
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(h.created.rounds[0]).toMatchObject({
+      placedByUserId: null,
+      placedByName: null,
+      placedByRole: null,
+    });
+  });
+
+  it("personal de OTRO comercio no estampa nada", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.activeContext.mockResolvedValue(staff("mesero", "rest-2"));
+
+    await send();
+    expect(h.created.rounds[0]).toMatchObject({ placedByUserId: null, placedByName: null });
+  });
+
+  it("un usuario sin nombre queda identificado por su correo", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.activeContext.mockResolvedValue(staff("operator", "rest-1", null));
+
+    await send();
+    expect(h.created.rounds[0]).toMatchObject({ placedByName: "juan.perez", placedByRole: "operator" });
+  });
 });
 
 describe("POST /api/tenant/[slug]/orders — factura manual", () => {

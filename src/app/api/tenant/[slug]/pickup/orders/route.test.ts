@@ -41,11 +41,14 @@ const h = vi.hoisted(() => {
       return { order: { id: "order-1", shortCode: "P-1234", locale: "es" } };
     }),
   };
-  return { writes, db };
+  return { writes, db, activeContext: vi.fn(async (): Promise<unknown> => null) };
 });
 
 vi.mock("@/lib/db", () => ({ db: h.db }));
 vi.mock("@/lib/dinerSession", () => ({ getDiner: vi.fn(async () => null) }));
+// Sesión de personal detrás del pedido (quién montó la ronda). Null = el
+// cliente pide desde su celular.
+vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: h.activeContext }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/mailer", () => ({ welcomeIfFirstTime: vi.fn(async () => {}) }));
 vi.mock("@/lib/pickupEta", () => ({ computeEtaMinutes: vi.fn(async () => 15) }));

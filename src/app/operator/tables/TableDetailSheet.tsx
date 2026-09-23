@@ -10,6 +10,8 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import { roleLabelKey } from "@/lib/orders/placedBy";
+import type { CompPolicyView } from "@/lib/staffPolicies";
 import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
@@ -122,6 +124,7 @@ export function TableDetailSheet({
   country,
   salesTax = null,
   chargeLocked,
+  compPolicy,
   manual = false,
   invoiceRequest = null,
 }: {
@@ -194,6 +197,11 @@ export function TableDetailSheet({
   // esta cuenta). Es lo que el operador identifica en la ficha —nombre,
   // documento sin DV y correo— y lo que la caja ya ve cargado al cobrar.
   invoiceRequest?: InvoiceRequestSummary | null;
+  // Quién puede "No cobrar" un plato (Restaurant.compAllowedRoles): si quien
+  // mira está fuera de la lista el botón se muestra deshabilitado con quién
+  // sí puede. El servidor lo rebota igual (src/lib/compGuard.ts). Sin prop
+  // ⇒ no se bloquea nada en la UI (back-compat).
+  compPolicy?: CompPolicyView;
   // FACTURA MANUAL: la cuenta vive en una mesa oculta (`kind = manual`) y
   // nada pasa por cocina — los platos nacen servidos como sello técnico.
   // La ficha entonces no ofrece mover (ni la cuenta ni un plato), trata
@@ -202,6 +210,21 @@ export function TableDetailSheet({
   manual?: boolean;
 }) {
   const tr = useTranslations("opTables");
+  // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
+  // namespace `kitchen`, el mismo que usa "Montó: …".
+  const tk = useTranslations("kitchen");
+  const compLocked = compPolicy?.locked === true;
+  // "Sólo puede hacerlo: Administrador, Mesero" — o el aviso de que nadie
+  // del equipo puede, si el dueño dejó la lista vacía.
+  const compAllowedLabel = (compPolicy?.allowedRoles ?? [])
+    .map((role) => {
+      const key = roleLabelKey(role);
+      return key ? tk(key) : role;
+    })
+    .join(", ");
+  const compOnlyNote = compAllowedLabel
+    ? tr("compOnlyRoles", { roles: compAllowedLabel })
+    : tr("compOnlyNobody");
   const [internalOpen, setInternalOpen] = useState(false);
   const [identifyQuery, setIdentifyQuery] = useState("");
   const [identifyBusy, setIdentifyBusy] = useState(false);
@@ -503,11 +526,15 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const body = await r.json().catch(() => null);
+      // 403 comp_not_allowed: el rol no está entre los que pueden no cobrar
+      // (la política cambió con el sheet abierto, o alguien forzó el botón).
       const msg =
-        body?.message ??
-        (kind === "comp"
-          ? tr("compItemFailed")
-          : tr("cancelItemFailed"));
+        body?.error === "comp_not_allowed"
+          ? `${tr("compNotAllowedError")} ${compOnlyNote}`
+          : (body?.message ??
+            (kind === "comp"
+              ? tr("compItemFailed")
+              : tr("cancelItemFailed")));
       alert(msg);
       return;
     }
@@ -1257,6 +1284,21 @@ export function TableDetailSheet({
                               >
                                 {tr("cancelItem")}
                               </button>
+                            ) : compLocked ? (
+                              // "No cobrar" fuera de la lista de roles del
+                              // comercio: deshabilitado y con quién sí
+                              // puede en el tooltip (y en la nota al pie de
+                              // la lista, que en el celular sí se ve). El
+                              // servidor lo rebota igual.
+                              <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                title={compOnlyNote}
+                                className="font-mono text-[10px] tracking-wider uppercase text-op-muted/60 px-2 py-1 rounded-full cursor-not-allowed"
+                              >
+                                {tr("compItem")}
+                              </button>
                             ) : (
                               <button
                                 type="button"
@@ -1296,6 +1338,23 @@ export function TableDetailSheet({
                 </ul>
               </section>
             ))}
+
+            {/* Aviso de "No cobrar" bloqueado: sólo si hay algún plato ya
+                entregado (los que muestran ese botón) y quien mira no
+                puede. En el celular no hay tooltip, así que va en texto. */}
+            {compLocked &&
+              !manual &&
+              rounds.some(
+                (r) =>
+                  r.status !== "cancelled" &&
+                  r.items.some((i) => !!i.servedAt),
+              ) && (
+                <p className="text-[11px] text-op-muted">
+                  {tr("compItem")}
+                  {": "}
+                  {compOnlyNote}
+                </p>
+              )}
 
             {/* Líneas libres: van aparte de las rondas porque no son platos
                 — nadie las prepara ni las entrega. Se muestra el impuesto de

@@ -16,6 +16,11 @@ import {
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
+import {
+  canCompOrders,
+  resolveCompAllowedRoles,
+  type CompPolicyView,
+} from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +80,13 @@ export default async function TablesPage({
     session?.user?.role,
     tenant?.adminOnlyCharge ?? false,
   );
+  // Quién puede "No cobrar" un plato: si el rol de quien mira no está en la
+  // lista del comercio, el sheet deshabilita el botón y dice quién sí puede.
+  // El servidor bloquea igual (src/lib/compGuard.ts).
+  const compPolicy: CompPolicyView = {
+    locked: !canCompOrders(session?.user?.role, tenant?.compAllowedRoles),
+    allowedRoles: resolveCompAllowedRoles(tenant?.compAllowedRoles),
+  };
 
   // Mesero scoped: sólo ve sus mesas asignadas — y nunca las facturas
   // manuales, tenga o no sección.
@@ -437,6 +449,7 @@ export default async function TablesPage({
         counterMode={counterMode}
         isMeseroView={isMeseroView}
         chargeLocked={chargeLocked}
+        compPolicy={compPolicy}
         freeTables={freeTables}
         allTables={allTablesForMove}
         country={tenant!.country}

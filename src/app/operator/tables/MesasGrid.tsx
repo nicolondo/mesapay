@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import type { CompPolicyView } from "@/lib/staffPolicies";
 import { fmtCOP } from "@/lib/format";
 import {
   tileTokensForState,
@@ -152,6 +153,7 @@ export function MesasGrid({
   counterMode,
   isMeseroView,
   chargeLocked,
+  compPolicy,
   freeTables,
   allTables,
   country,
@@ -174,6 +176,9 @@ export function MesasGrid({
   // "Solo el administrador cobra" activo y quien mira es un mesero: el
   // sheet cambia "Cobrar la cuenta" por "Pedir la cuenta".
   chargeLocked: boolean;
+  // Quién puede "No cobrar" un plato: si quien mira está bloqueado y qué
+  // roles sí pueden (para el aviso). Ver src/lib/staffPolicies.ts.
+  compPolicy: CompPolicyView;
   freeTables: FreeTable[];
   allTables: AllTable[];
   // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
@@ -344,6 +349,7 @@ export function MesasGrid({
                 country={country}
                 salesTax={salesTax}
                 chargeLocked={chargeLocked}
+                compPolicy={compPolicy}
               />
             ))}
           </div>
@@ -415,6 +421,7 @@ export function MesasGrid({
               country={country}
               salesTax={salesTax}
               chargeLocked={chargeLocked}
+              compPolicy={compPolicy}
             />
           );
         })}
@@ -777,6 +784,7 @@ function ManualInvoiceTile({
   country,
   salesTax,
   chargeLocked,
+  compPolicy,
 }: {
   tile: ManualTile;
   open: boolean;
@@ -785,6 +793,7 @@ function ManualInvoiceTile({
   country: string | null;
   salesTax: RestaurantTax | null;
   chargeLocked: boolean;
+  compPolicy: CompPolicyView;
 }) {
   const tr = useTranslations("opTables");
   // El cliente de la factura (si ya se identificó) es lo que distingue una
@@ -846,6 +855,7 @@ function ManualInvoiceTile({
           country={country}
           salesTax={salesTax}
           chargeLocked={chargeLocked}
+          compPolicy={compPolicy}
         />
       )}
     </>
@@ -868,6 +878,7 @@ function ActiveTile({
   country,
   salesTax,
   chargeLocked,
+  compPolicy,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
@@ -880,6 +891,7 @@ function ActiveTile({
   country: string | null;
   salesTax: RestaurantTax | null;
   chargeLocked: boolean;
+  compPolicy: CompPolicyView;
 }) {
   const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
@@ -990,6 +1002,7 @@ function ActiveTile({
           country={country}
           salesTax={salesTax}
           chargeLocked={chargeLocked}
+          compPolicy={compPolicy}
         />
       )}
     </>

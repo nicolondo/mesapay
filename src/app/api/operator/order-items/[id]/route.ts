@@ -12,6 +12,7 @@ import { recordAuditEvent } from "@/lib/auditLog";
 import { notifyAcceptedRoundTicketSafe } from "@/lib/print/enqueue";
 import { itemKitchenStatusData } from "@/lib/kds/roundStatus";
 import { recomputeRoundStatusInTx } from "@/lib/kds/transition";
+import { compBlockedResponse, isCompBlocked } from "@/lib/compGuard";
 
 const schema = z
   .object({
@@ -91,6 +92,19 @@ async function PATCHHandler(
   const activeId = await getActiveRestaurantId();
   if (item.order.restaurantId !== activeId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // "No cobrar" (kind=comp) es plata que entró y no se registra: sólo los
+  // roles que el comercio eligió en /operator/settings/staff-policies
+  // pueden hacerlo (Restaurant.compAllowedRoles, default: sólo el
+  // administrador). La cancelación normal (kind=cancel, plato que nunca
+  // salió) no pasa por acá. El botón se esconde en la UI, pero el guard
+  // está en el servidor porque el mesero puede pegarle a la API directo.
+  if (
+    parsed.data.cancel?.kind === "comp" &&
+    (await isCompBlocked(session.user.role, item.order.restaurantId))
+  ) {
+    return compBlockedResponse();
   }
 
   let becameRoundReady = false;

@@ -12,6 +12,7 @@ import {
   type RiskLevel,
   type TableVisualState,
 } from "@/lib/walkoutRisk";
+import { sortTablesForSalon } from "@/lib/tables/sortTables";
 import { TableDetailSheet } from "./TableDetailSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
 import type { RestaurantTax } from "@/lib/salesTax";
@@ -24,6 +25,11 @@ import type { RestaurantTax } from "@/lib/salesTax";
  *
  * Densidad target: 3 cols en mobile (iPhone 390px → ~24 tiles
  * visibles), 4 en tablet, 5-6 en desktop.
+ *
+ * ORDEN: las mesas activas (cuenta abierta) van primero — las que piden
+ * acción arriba de todo — y después las vacías, cada grupo por número.
+ * Ver src/lib/tables/sortTables.ts. El orden vale dentro de cada chip y
+ * se recalcula con cada refresh (los tiles llegan nuevos del servidor).
  *
  * El sheet de detalle (TableDetailSheet) se renderea en modo
  * controlled — el padre maneja qué tile está expandido. Sólo uno a
@@ -232,13 +238,19 @@ export function MesasGrid({
     return c;
   }, [tiles]);
 
+  // Activas primero (las que piden acción arriba), después las vacías;
+  // dentro de cada grupo por número. Se ordena ANTES de filtrar, así el
+  // orden vale igual en cualquier chip. `tiles` llega nuevo con cada
+  // refresh de LiveRefresh y React reordena solo por la `key` del tile.
+  const ordered = useMemo(() => sortTablesForSalon(tiles), [tiles]);
+
   const filtered = useMemo(() => {
-    if (filter === "all") return tiles;
-    if (filter === "by_pay") return tiles.filter((t) => t.state === "active");
+    if (filter === "all") return ordered;
+    if (filter === "by_pay") return ordered.filter((t) => t.state === "active");
     if (filter === "recent")
-      return tiles.filter((t) => t.state === "recently_paid");
-    return tiles.filter((t) => t.state === "free");
-  }, [tiles, filter]);
+      return ordered.filter((t) => t.state === "recently_paid");
+    return ordered.filter((t) => t.state === "free");
+  }, [ordered, filter]);
 
   return (
     <>

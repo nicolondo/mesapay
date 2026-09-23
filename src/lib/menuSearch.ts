@@ -87,3 +87,134 @@ export function matchesQuery(haystack: string, tokens: string[]): boolean {
   const hay = fuzzyNormalize(haystack);
   return tokens.every((t) => hay.includes(t));
 }
+
+/*
+ * ---------------------------------------------------------------------
+ * Búsqueda global de la carta del comensal
+ * ---------------------------------------------------------------------
+ *
+ * Con texto en el buscador, los resultados salen de TODA la carta:
+ * todas las pestañas (Carta, Vinos, Bebidas…) y todas las categorías,
+ * sin importar en cuál estaba parado el comensal. Antes el componente
+ * armaba las "cubetas" sólo con las categorías de la pestaña activa, así
+ * que buscar "malbec" parado en "Carta" no devolvía nada aunque el vino
+ * existiera en "Vinos": el ítem caía en una categoría sin cubeta y se
+ * descartaba en silencio.
+ *
+ * La función es pura y no recibe categoría ni pestaña activa a propósito:
+ * no hay forma de que un filtro de presentación se cuele en la búsqueda.
+ * Lo único que "filtra" es lo que ya venía filtrado del server
+ * (`available: true`): un plato agotado no está en `allItems` y por eso
+ * no aparece; eso no cambia acá.
+ */
+
+export type SearchableCategory = {
+  id: string;
+  label: string;
+  menuId: string;
+  parentId: string | null;
+};
+export type SearchableMenu = { id: string; label: string };
+export type SearchableItem = {
+  categoryId: string;
+  name: string;
+  description?: string | null;
+};
+
+/** Un grupo de resultados: la categoría, de dónde viene y sus platos. */
+export type MenuSearchGroup<
+  I extends SearchableItem,
+  C extends SearchableCategory,
+> = {
+  category: C;
+  /** Categoría padre (el grupo: "Tintos" para "Malbec"), si es subcategoría. */
+  parent: C | null;
+  /** Pestaña de carta a la que pertenece; null si no se pasaron pestañas. */
+  menu: SearchableMenu | null;
+  items: I[];
+};
+
+/**
+ * Orden de la carta: pestañas en su orden, dentro de cada una las
+ * categorías de nivel superior seguidas de sus subcategorías, y al final
+ * cualquier categoría que no cuelgue de ninguna pestaña conocida (no
+ * debería pasar, pero si pasa se muestra en vez de perderse).
+ */
+function categoriesInMenuOrder<C extends SearchableCategory>(
+  categories: C[],
+  menus: SearchableMenu[],
+): C[] {
+  const ordered: C[] = [];
+  const seen = new Set<string>();
+  const pushTree = (tops: C[]) => {
+    for (const top of tops) {
+      if (seen.has(top.id)) continue;
+      ordered.push(top);
+      seen.add(top.id);
+      for (const child of categories) {
+        if (child.parentId === top.id && !seen.has(child.id)) {
+          ordered.push(child);
+          seen.add(child.id);
+        }
+      }
+    }
+  };
+  for (const m of menus) {
+    pushTree(categories.filter((c) => c.menuId === m.id && !c.parentId));
+  }
+  pushTree(categories.filter((c) => !c.parentId));
+  for (const c of categories) {
+    if (!seen.has(c.id)) {
+      ordered.push(c);
+      seen.add(c.id);
+    }
+  }
+  return ordered;
+}
+
+/**
+ * Busca `query` en toda la carta y devuelve los resultados agrupados por
+ * categoría, en el orden de la carta (no hay puntaje de relevancia: la
+ * coincidencia es todo-o-nada por palabras, ver `matchesQuery`).
+ *
+ * - Se busca en nombre y descripción, con TODAS las palabras.
+ * - Consulta vacía o sin letras/números ⇒ `[]` (no hay búsqueda activa).
+ * - Un ítem cuya categoría no está en `categories` se omite: no habría
+ *   dónde mostrarlo. Con el FK de Prisma no debería ocurrir.
+ */
+export function searchMenuItems<
+  I extends SearchableItem,
+  C extends SearchableCategory,
+>(
+  allItems: I[],
+  query: string,
+  ctx: { categories: C[]; menus?: SearchableMenu[] },
+): MenuSearchGroup<I, C>[] {
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return [];
+  const menus = ctx.menus ?? [];
+  const byCat = new Map<string, I[]>();
+  for (const it of allItems) {
+    if (!matchesQuery(`${it.name} ${it.description ?? ""}`, tokens)) continue;
+    const bucket = byCat.get(it.categoryId);
+    if (bucket) bucket.push(it);
+    else byCat.set(it.categoryId, [it]);
+  }
+  if (byCat.size === 0) return [];
+  const catById = new Map(ctx.categories.map((c) => [c.id, c] as const));
+  const menuById = new Map(menus.map((m) => [m.id, m] as const));
+  const groups: MenuSearchGroup<I, C>[] = [];
+  for (const category of categoriesInMenuOrder(ctx.categories, menus)) {
+    const items = byCat.get(category.id);
+    if (!items || items.length === 0) continue;
+    groups.push({
+      category,
+      parent: category.parentId
+        ? (catById.get(category.parentId) ?? null)
+        : null,
+      menu: menuById.get(category.menuId) ?? null,
+      items,
+    });
+  }
+  return groups;
+}

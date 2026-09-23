@@ -16,6 +16,18 @@ export {
   type ThermalInvoiceRow,
 } from "./invoice";
 export {
+  PREBILL_JOB_KIND,
+  PREBILL_PAYLOAD_VERSION,
+  buildPrebillTicket,
+  parsePrebillPayload,
+  renderPrebill,
+  type PrebillPrintJobPayload,
+  type PrebillTranslator,
+  type ThermalPrebill,
+  type ThermalPrebillItem,
+  type ThermalPrebillRow,
+} from "./prebill";
+export {
   TICKET_PAYLOAD_VERSION,
   parseTicketPayload,
   renderTicket,

@@ -8,7 +8,10 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { isModuleEnabled } from "@/lib/modules";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { TableActions } from "../../tables/TableActions";
+import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
 
 export const dynamic = "force-dynamic";
@@ -42,14 +45,39 @@ export default async function OperatorOrderDetail({
       },
       rounds: { orderBy: { seq: "asc" } },
       payments: { orderBy: { createdAt: "asc" } },
+      simpleInvoice: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          snapshot: true,
+          dianDocument: { select: { id: true, state: true } },
+        },
+      },
     },
   });
   if (!order || order.restaurantId !== restaurantId) return notFound();
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { serviceMode: true, slug: true },
+    select: { serviceMode: true, slug: true, enabledModules: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // La factura de la cuenta, si ya se cobró. El número sale del snapshot
+  // (prefijo congelado al emitir), igual que en /factura/[id]. El reenvío
+  // por correo sólo con facturación electrónica y la factura ACEPTADA.
+  const invoice = order.simpleInvoice
+    ? {
+        id: order.simpleInvoice.id,
+        number: formatInvoiceNumber(
+          order.simpleInvoice.snapshot as unknown as InvoiceSnapshot,
+          order.simpleInvoice.invoiceNumber,
+        ),
+        dianDocumentId:
+          isModuleEnabled(tenant?.enabledModules, "einvoicing") &&
+          order.simpleInvoice.dianDocument?.state === "accepted"
+            ? order.simpleInvoice.dianDocument.id
+            : null,
+      }
+    : null;
 
   const groups = new Map<
     string,
@@ -151,6 +179,24 @@ export default async function OperatorOrderDetail({
             status={order.status}
             outstandingCents={outstandingCents}
           />
+        </div>
+      )}
+
+      {invoice && (
+        <div className="mt-4 bg-op-surface border border-op-border rounded-2xl p-4">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+            {t("invoiceSection")}
+          </div>
+          <div className="font-display text-xl tracking-[-0.015em]">
+            {t("invoiceLabel", { number: invoice.number })}
+          </div>
+          <div className="mt-3">
+            <InvoiceActions
+              orderId={order.id}
+              invoiceId={invoice.id}
+              dianDocumentId={invoice.dianDocumentId}
+            />
+          </div>
         </div>
       )}
 

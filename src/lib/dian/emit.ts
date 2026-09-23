@@ -9,7 +9,7 @@
 import { db } from "@/lib/db";
 import { suggestMunicipioFromText, type DaneMunicipio } from "@/lib/dane/municipios";
 import { BLOCKED_RETRY_MS, claimWhere } from "@/lib/dian/retry";
-import { splitTaxIncludedCents, type DianLine, type DianParty } from "@/lib/dian/ubl";
+import { splitTaxIncludedCents, type DianInvoiceInput, type DianLine, type DianParty } from "@/lib/dian/ubl";
 import { computeNitDv } from "@/lib/erp/exogena";
 import { isOwnTaxLine, type RestaurantTax, type SalesTaxKind } from "@/lib/salesTax";
 
@@ -320,6 +320,29 @@ export function embeddedMenuTax(
     baseCents += r.line.lineTotalCents;
   }
   return { taxCents, baseCents, grossCents: baseCents + taxCents };
+}
+
+/**
+ * Forma y medio de pago del XML según cómo se cobró la cuenta. Contado
+ * (ID 1, efectivo "10") salvo que haya un cobro a crédito a un cliente:
+ * entonces forma de pago "2" (crédito), medio "1" (instrumento no
+ * definido — la plata llega después por el abono) y vencimiento = emisión
+ * + plazo del cliente. `payments` es lo que trae la orden filtrado a
+ * customer_credit aprobados (vacío en una venta normal).
+ */
+export function creditPaymentMeans(
+  payments: readonly { billingCustomer: { creditTermsDays: number } | null }[],
+  issueDate: string,
+): Pick<DianInvoiceInput, "paymentMeansCode" | "paymentMeansId" | "paymentDueDate"> {
+  const credit = payments.find((p) => p.billingCustomer);
+  if (!credit?.billingCustomer) return { paymentMeansCode: "10" };
+  const due = new Date(`${issueDate}T00:00:00Z`);
+  due.setUTCDate(due.getUTCDate() + Math.max(0, credit.billingCustomer.creditTermsDays));
+  return {
+    paymentMeansCode: "1",
+    paymentMeansId: "2",
+    paymentDueDate: due.toISOString().slice(0, 10),
+  };
 }
 
 /** Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. */

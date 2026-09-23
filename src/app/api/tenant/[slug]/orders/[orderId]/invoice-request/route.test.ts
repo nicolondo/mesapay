@@ -12,6 +12,9 @@ const m = vi.hoisted(() => ({
   publish: vi.fn(),
   issue: vi.fn(),
   deliver: vi.fn(),
+  staff: vi.fn(),
+  customer: vi.fn(),
+  applyDiscount: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
@@ -20,11 +23,20 @@ vi.mock("@/lib/db", () => ({
     restaurant: { findUnique: m.restaurant },
     order: { findUnique: m.order },
     invoiceRequest: { findFirst: m.findFirst, create: m.create, update: m.update },
+    billingCustomer: { findFirst: m.customer },
+    $transaction: async (fn: (tx: unknown) => unknown) => fn({ tx: true }),
   },
 }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: m.publish }));
 vi.mock("@/lib/simpleInvoice", () => ({ issueSimpleInvoice: m.issue }));
 vi.mock("@/lib/invoiceDelivery", () => ({ deliverInvoiceEmail: m.deliver }));
+// staffAccess arrastra @/auth (next-auth), que no carga en el entorno node
+// de vitest: se mockea sin importOriginal.
+vi.mock("@/lib/staffAccess", () => ({
+  staffForRestaurant: m.staff,
+  COLLECTOR_ROLES: ["operator", "platform_admin", "group_admin", "mesero", "terminal"],
+}));
+vi.mock("@/lib/customerDiscount", () => ({ applyCustomerDiscount: m.applyDiscount }));
 
 import { POST } from "./route";
 
@@ -56,6 +68,8 @@ beforeEach(() => {
   m.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "req-1", ...data }));
   // La orden todavía no está paga: la factura sale al confirmarse el cobro.
   m.issue.mockResolvedValue({ ok: false, error: "order_not_paid" });
+  m.staff.mockResolvedValue(null);
+  m.customer.mockResolvedValue(null);
 });
 
 it("registra la solicitud sólo con documento, nombre y correo (sin dirección)", async () => {
@@ -168,4 +182,28 @@ it.each([
   expect(await res.json()).toMatchObject({ error: "invalid" });
   expect(m.create).not.toHaveBeenCalled();
   expect(m.issue).not.toHaveBeenCalled();
+});
+
+it("ligada a un cliente de facturación por el staff, aplica su descuento comercial", async () => {
+  m.staff.mockResolvedValue({ user: { id: "user-1", role: "mesero" } });
+  m.customer.mockResolvedValue({ discountEnabled: true, discountBps: 1000 });
+  m.applyDiscount.mockResolvedValue({ applied: true, changed: true, discountPct: 10, discountCents: 5_000, subtotalCents: 50_000 });
+  const res = await post({ ...payload, billingCustomerId: "cust-1" });
+  expect(res.status).toBe(200);
+  expect(m.customer).toHaveBeenCalledWith({
+    where: { id: "cust-1", restaurantId: "rest-1" },
+    select: { discountEnabled: true, discountBps: true },
+  });
+  expect(m.applyDiscount).toHaveBeenCalledWith({ tx: true }, "order-1", "rest-1", { discountEnabled: true, discountBps: 1000 });
+  expect((await res.json()).discount).toMatchObject({ applied: true, discountCents: 5_000 });
+  // La solicitud se guarda igual, sin el id del cliente (no es columna suya).
+  expect(m.create).toHaveBeenCalledWith({ data: expect.not.objectContaining({ billingCustomerId: "cust-1" }) });
+});
+
+it("sin sesión de staff el billingCustomerId se ignora: el comensal no puede darse descuentos", async () => {
+  const res = await post({ ...payload, billingCustomerId: "cust-1" });
+  expect(res.status).toBe(200);
+  expect(m.customer).not.toHaveBeenCalled();
+  expect(m.applyDiscount).not.toHaveBeenCalled();
+  expect((await res.json()).discount).toBeNull();
 });

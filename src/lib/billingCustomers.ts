@@ -35,6 +35,14 @@ export const billingCustomerSchema = z.object({
     { message: "invalid_municipality" },
   ),
   country: z.literal("CO").optional(),
+  // Crédito: opcionales para que los clientes viejos del formulario sigan
+  // andando; un límite vacío/0 = sin tope. El plazo no puede ser negativo.
+  creditEnabled: z.boolean().optional(),
+  creditLimitCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
+  creditTermsDays: z.number().int().min(0).max(3650).optional(),
+  // Descuento comercial fijo, en puntos base (1000 = 10 %; tope 50 %).
+  discountEnabled: z.boolean().optional(),
+  discountBps: z.number().int().min(0).max(5000).optional(),
 }).transform((input, ctx) => {
   // El municipio sólo se resuelve si vino: el catálogo DANE sigue siendo la
   // única fuente de ciudad/departamento, nunca texto libre del cliente.
@@ -67,6 +75,15 @@ export const billingCustomerSchema = z.object({
     city: municipality?.name ?? null,
     department: municipality?.deptName ?? null,
     country: "CO" as const,
+    // Si el cliente no manda los campos de crédito quedan `undefined`: en el
+    // alta Prisma aplica los defaults y en la edición no los toca (un
+    // formulario viejo no puede apagar el crédito sin querer).
+    creditEnabled: input.creditEnabled,
+    creditLimitCents:
+      input.creditLimitCents === undefined ? undefined : input.creditLimitCents || null,
+    creditTermsDays: input.creditTermsDays,
+    discountEnabled: input.discountEnabled,
+    discountBps: input.discountBps,
   };
 });
 

@@ -5,6 +5,7 @@ import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
 import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
 import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
+import { invoicePrintArgs } from "@/lib/print/routing";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
 
 /**
@@ -88,14 +89,7 @@ export async function issueSimpleInvoice(opts: {
     // impresora de la caja no existía todavía (o el encolado falló), esta
     // llamada la imprime. El `dedupeKey` impide el duplicado en el caso
     // normal, que es el que importa.
-    await enqueueInvoicePrintSafe({
-      restaurantId: opts.tenantId,
-      orderId: order.id,
-      invoiceId: order.simpleInvoice.id,
-      invoiceNumber: order.simpleInvoice.invoiceNumber,
-      snapshot,
-      locale: order.locale,
-    });
+    await enqueueInvoicePrintSafe(invoicePrintArgs(order.simpleInvoice, order));
     return {
       ok: true,
       invoiceId: order.simpleInvoice.id,
@@ -220,14 +214,18 @@ export async function issueSimpleInvoice(opts: {
   // La tirilla sale por la impresora de la caja en el mismo momento del
   // cobro. Se AWAITEA (son dos queries y un insert) pero no puede fallar
   // hacia afuera: la factura ya está emitida y numerada.
-  await enqueueInvoicePrintSafe({
-    restaurantId: opts.tenantId,
-    orderId: order.id,
-    invoiceId: inv.id,
-    invoiceNumber,
-    snapshot,
-    locale: order.locale,
-  });
+  await enqueueInvoicePrintSafe(
+    invoicePrintArgs(
+      {
+        id: inv.id,
+        restaurantId: opts.tenantId,
+        orderId: order.id,
+        invoiceNumber,
+        snapshot,
+      },
+      order,
+    ),
+  );
 
   return {
     ok: true,

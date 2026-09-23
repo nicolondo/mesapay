@@ -1,8 +1,31 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type CSSProperties,
+} from "react";
+import { useVisualViewport } from "@/lib/useVisualViewport";
+import { centerInVisualViewport } from "@/lib/visualViewport";
 
-/** Native modal semantics provide focus containment, Escape and an inert background. */
+/** Margen entre el popup centrado y el borde del viewport visual (px). */
+const CENTER_MARGIN = 12;
+
+/**
+ * Native modal semantics provide focus containment, Escape and an inert background.
+ *
+ * `placement`:
+ *   - "default": el `<dialog>` se ubica como siempre, según el CSS de cada
+ *     uso (hoja inferior, drawer lateral, centrado con `margin: auto`…).
+ *   - "center": popup centrado en el VIEWPORT VISUAL, no en el de layout.
+ *     En iOS el teclado achica el viewport visual sin mover el de layout,
+ *     así que un centrado clásico queda tapado. Acá se reposiciona con
+ *     `useVisualViewport` (fixed, `top = offsetTop + …`), se limita a
+ *     `max-height = alto visible − 2·margen` con scroll interno y se
+ *     centra horizontalmente con ancho `min(100vw − 32px, 28rem)`.
+ */
 export function AppDialog({
   label,
   onClose,
@@ -10,6 +33,7 @@ export function AppDialog({
   className = "",
   style,
   mobileOnly = false,
+  placement = "default",
 }: {
   label: string;
   onClose: () => void;
@@ -17,9 +41,15 @@ export function AppDialog({
   className?: string;
   style?: CSSProperties;
   mobileOnly?: boolean;
+  placement?: "default" | "center";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
+  const centered = placement === "center";
+  const viewport = useVisualViewport(centered);
+  // Alto real del diálogo ya renderizado, para centrarlo. Cero hasta la
+  // primera medición: ese frame se pinta invisible para no verlo saltar.
+  const [dialogHeight, setDialogHeight] = useState(0);
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
@@ -38,13 +68,51 @@ export function AppDialog({
       if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, [mobileOnly]);
+  useEffect(() => {
+    if (!centered) return;
+    const dialog = ref.current!;
+    // ResizeObserver cubre tanto el showModal (display none → block) como
+    // cambios de contenido (un error que aparece, un botón que cambia).
+    const observer = new ResizeObserver(() =>
+      setDialogHeight(dialog.offsetHeight),
+    );
+    observer.observe(dialog);
+    return () => observer.disconnect();
+  }, [centered]);
+
+  let placementStyle: CSSProperties | undefined;
+  if (centered) {
+    if (viewport && dialogHeight > 0) {
+      const box = centerInVisualViewport({
+        offsetTop: viewport.offsetTop,
+        height: viewport.height,
+        dialogHeight,
+        margin: CENTER_MARGIN,
+      });
+      placementStyle = {
+        position: "fixed",
+        top: box.top,
+        bottom: "auto",
+        left: 0,
+        right: 0,
+        margin: "0 auto",
+        width: `min(calc(100vw - ${CENTER_MARGIN * 2 + 8}px), 28rem)`,
+        maxHeight: box.maxHeight,
+        overflowY: "auto",
+      };
+    } else {
+      placementStyle = { visibility: "hidden" };
+    }
+  }
+
   return (
     <dialog
       ref={ref}
       tabIndex={-1}
       aria-label={label}
+      aria-modal="true"
       className={`mp-dialog ${className}`}
-      style={style}
+      style={placementStyle ? { ...placementStyle, ...style } : style}
       onKeyDown={(e) => {
         if (e.key !== "Tab") return;
         const controls = Array.from(

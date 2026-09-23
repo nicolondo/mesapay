@@ -825,17 +825,12 @@
     display: none;
   }
 }
+/* Diálogo del nombre del comensal: popup centrado en el viewport visual
+   (AppDialog placement="center" pone posición, ancho y max-height inline
+   para que siga visible con el teclado de iOS abierto). Ya no es hoja
+   inferior: cuatro esquinas redondeadas y sin asa. */
 .mp-guest-dialog {
-  width: min(448px, 100vw);
-  margin: auto;
   border: 0;
   border-radius: 24px;
-  overflow-y: auto;
-}
-@media (max-width: 767px) {
-  .mp-guest-dialog {
-    inset: auto 0 var(--menu-modal-bottom-reserve, 0px);
-    margin: 0 auto;
-    border-radius: 24px 24px 0 0;
-  }
+  padding: 0;
 }

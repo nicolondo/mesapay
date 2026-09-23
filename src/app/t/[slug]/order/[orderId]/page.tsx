@@ -3,7 +3,8 @@ import { canAccessOrder } from "@/lib/guestAccess";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { fmtCOP } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { OrderLive } from "./OrderLive";
@@ -12,8 +13,15 @@ import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
 import { CallWaiterButton } from "./CallWaiterButton";
+import { TipPreview } from "./TipPreview";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import { asSalesTaxKind, checkoutTaxLine } from "@/lib/checkoutTax";
+import {
+  asSalesTaxKind,
+  checkoutTaxLine,
+  outstandingSubtotalCents,
+  paidFoodCents,
+} from "@/lib/checkoutTax";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 
 export default async function OrderView({
   params,
@@ -96,10 +104,35 @@ export default async function OrderView({
   // traen embebido, así que el renglón es informativo y no cambia el total.
   // null cuando el comercio no tiene impuesto configurado.
   const netSubtotalCents = Math.max(0, order.subtotalCents - order.discountCents);
-  const taxLine = checkoutTaxLine(netSubtotalCents, {
+
+  // Cuenta abierta: se previsualiza el total con propina sobre lo que FALTA,
+  // calculado igual que en el flujo de pago (PayFlow/PayClient): neto del
+  // descuento, menos la comida ya pagada en pagos aprobados (split,
+  // parciales). Si el número saliera de otro lado, el comensal vería un
+  // total acá y otro al pagar.
+  const isOpen = order.status !== "paid" && order.status !== "cancelled";
+  const approvedSums = isOpen
+    ? await db.payment.aggregate({
+        where: { orderId: order.id, status: "approved" },
+        _sum: { amountCents: true, tipCents: true },
+      })
+    : null;
+  const paidCents = approvedSums?._sum.amountCents ?? 0;
+  const paidTipCents = approvedSums?._sum.tipCents ?? 0;
+  const paidFood = paidFoodCents(paidCents, paidTipCents);
+  const outstandingCents = outstandingSubtotalCents(
+    netSubtotalCents,
+    paidCents,
+    paidTipCents,
+  );
+  // El renglón de impuesto embebido va sobre lo que se está mostrando: lo
+  // pendiente en la cuenta abierta, el neto en la ya cerrada.
+  const taxLine = checkoutTaxLine(isOpen ? outstandingCents : netSubtotalCents, {
     kind: asSalesTaxKind(tenant.salesTaxKind),
     pct: tenant.salesTaxPct,
   });
+  const locale = (await getLocale()) as Locale;
+  const currency = await getCurrencyForCountry(tenant.country);
 
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
@@ -373,64 +406,72 @@ export default async function OrderView({
         );
       })()}
 
-      <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
-        <div>
-          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
-            {order.discountCents > 0 ? t("discountedTotal") : t("subtotal")}
+      {/* Cuenta abierta: "Total a pagar" con la propina incluida (10 % por
+          defecto) y el control para moverla y previsualizar el total. Ahí
+          mismo viven "Añadir más" y "Pagar" — el link a pagar lleva el %
+          elegido para que llegue preseleccionado. Una orden ya paid /
+          cancelled no tiene nada más para cobrar ni para añadir — el cliente
+          llegó acá desde "Ver pedido completo" del done page para mirar la
+          cuenta, no para volver a pagar — así que muestra el total suelto. */}
+      {isOpen ? (
+        <TipPreview
+          orderId={order.id}
+          currency={currency}
+          locale={locale}
+          grossSubtotalCents={order.subtotalCents}
+          discountCents={order.discountCents}
+          discountPct={order.discountPct}
+          paidFoodCents={paidFood}
+          baseCents={outstandingCents}
+          taxLine={
+            taxLine
+              ? { kind: taxLine.kind, pct: taxLine.pct, taxCents: taxLine.taxCents }
+              : null
+          }
+          payHref={`/t/${slug}/pay/${order.id}`}
+          addMoreHref={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
+        />
+      ) : (
+        <div className="mt-8 border-t border-hairline pt-5 flex items-center justify-between">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
+              {order.discountCents > 0 ? t("discountedTotal") : t("subtotal")}
+            </div>
+            <div className="font-display text-3xl">{fmtCOP(netSubtotalCents)}</div>
+            {order.discountCents > 0 && (
+              <div className="font-mono text-[10px] text-terracotta mt-1">
+                {order.discountPct
+                  ? t("discountRowPct", { pct: order.discountPct })
+                  : t("discountRow")}{" "}
+                {"− " + fmtCOP(order.discountCents)}
+              </div>
+            )}
+            {taxLine && (
+              <div className="font-mono text-[10px] text-muted mt-1">
+                {taxLine.kind === "inc"
+                  ? tCommon("taxIncludedInc", { pct: taxLine.pct })
+                  : tCommon("taxIncludedIva", { pct: taxLine.pct })}
+                {" · "}
+                {fmtCOP(taxLine.taxCents)}
+              </div>
+            )}
           </div>
-          <div className="font-display text-3xl">{fmtCOP(netSubtotalCents)}</div>
-          {order.discountCents > 0 && (
-            <div className="font-mono text-[10px] text-terracotta mt-1">
-              {order.discountPct
-                ? t("discountRowPct", { pct: order.discountPct })
-                : t("discountRow")}{" "}
-              {"− " + fmtCOP(order.discountCents)}
-            </div>
-          )}
-          {taxLine && (
-            <div className="font-mono text-[10px] text-muted mt-1">
-              {taxLine.kind === "inc"
-                ? tCommon("taxIncludedInc", { pct: taxLine.pct })
-                : tCommon("taxIncludedIva", { pct: taxLine.pct })}
-              {" · "}
-              {fmtCOP(taxLine.taxCents)}
-            </div>
-          )}
-        </div>
-        {/* Acciones solo cuando la cuenta sigue abierta. Una orden ya
-            paid / cancelled no tiene nada más para cobrar ni para
-            añadir — el cliente llegó acá desde "Ver pedido completo"
-            del done page para mirar la cuenta, no para volver a pagar. */}
-        {order.status !== "paid" && order.status !== "cancelled" ? (
-          <div className="flex gap-2">
+          {order.status === "cancelled" ? (
+            // Orden cancelada: el cliente puede volver a la carta y arrancar un
+            // pedido nuevo (no se reanuda la cancelada — el menú la excluye).
             <Link
-              href={`/t/${slug}/menu?table=${order.table.qrToken}&order=${order.id}`}
-              className="h-11 px-5 rounded-full border border-hairline inline-flex items-center text-sm font-medium"
-            >
-              {t("addMore")}
-            </Link>
-            <Link
-              href={`/t/${slug}/pay/${order.id}`}
+              href={`/t/${slug}/menu?table=${order.table.qrToken}`}
               className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
             >
-              {t("pay")}
+              {t("orderAgain")}
             </Link>
-          </div>
-        ) : order.status === "cancelled" ? (
-          // Orden cancelada: el cliente puede volver a la carta y arrancar un
-          // pedido nuevo (no se reanuda la cancelada — el menú la excluye).
-          <Link
-            href={`/t/${slug}/menu?table=${order.table.qrToken}`}
-            className="h-11 px-5 rounded-full bg-ink text-bone inline-flex items-center text-sm font-medium"
-          >
-            {t("orderAgain")}
-          </Link>
-        ) : (
-          <span className="h-11 px-4 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] inline-flex items-center text-sm font-medium">
-            {t("paidPill")}
-          </span>
-        )}
-      </div>
+          ) : (
+            <span className="h-11 px-4 rounded-full bg-[#2E6B4C]/15 text-[#1E5339] inline-flex items-center text-sm font-medium">
+              {t("paidPill")}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Comprobante — link explícito al /done que tiene los botones de
           tirilla por email + factura electrónica. Mostramos sólo en

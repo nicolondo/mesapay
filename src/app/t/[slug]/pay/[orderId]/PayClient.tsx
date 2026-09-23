@@ -16,15 +16,22 @@ import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import {
   checkoutTaxLine,
+  outstandingSubtotalCents as computeOutstandingSubtotalCents,
+  paidFoodCents as computePaidFoodCents,
   payModeSubtotalCents,
   type CheckoutTax,
   type PayMode,
 } from "@/lib/checkoutTax";
-
-// Tips suggested at checkout. $0 stays for "sin propina"; 10% is the
-// implicit social default in Colombia ("propina del 10"); 15% / 20%
-// cubren the "el servicio fue muy bueno" case.
-const TIP_OPTIONS = [0, 5, 10, 15, 20] as const;
+// Chips, default y redondeo de la propina viven en lib/tips: el estado del
+// pedido previsualiza el total con la MISMA aritmética con la que acá se
+// cobra, así el comensal no ve un número allá y otro acá.
+import {
+  DEFAULT_TIP_PCT,
+  TIP_OPTIONS,
+  parseTipPct,
+  tipCentsFor,
+  tipStorageKey,
+} from "@/lib/tips";
 
 type PayItem = {
   id: string;
@@ -79,10 +86,18 @@ export function PayClient({
   invoicePrefillEmail = null,
   salesTax = null,
   vouchersEnabled = false,
+  initialTipPct = null,
 }: {
   tenantSlug: string;
   tenantName: string;
   orderId: string;
+  /**
+   * Propina con la que arranca la pantalla, ya validada (entero 0..30) —
+   * viene del `?tip=` con el que el estado del pedido manda al comensal a
+   * pagar. null ⇒ el 10 % de siempre. Si el comensal ya eligió una para
+   * esta cuenta (sessionStorage), esa pisa a ambas al montar.
+   */
+  initialTipPct?: number | null;
   shortCode: string;
   tableId: string;
   locationLabel: string;
@@ -190,7 +205,7 @@ export function PayClient({
   const t = useTranslations("pay");
   const tCommon = useTranslations("common");
   const apiError = useApiError();
-  const [tipPct, setTipPct] = useState<number>(10);
+  const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<PayMode>("full");
@@ -255,8 +270,42 @@ export function PayClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const paidFoodCents = Math.max(0, paidCents - paidTipCents);
-  const outstandingSubtotalCents = Math.max(0, subtotalCents - paidFoodCents);
+  // Propina elegida antes, para ESTA cuenta, en el estado del pedido (o acá
+  // mismo antes de recargar): se retoma al montar. Pisa al `?tip=` de la
+  // URL y al default. Solo flujo de cliente: el staff cobra por otros.
+  useEffect(() => {
+    if (operatorMode) return;
+    let saved: number | null = null;
+    try {
+      saved = parseTipPct(sessionStorage.getItem(tipStorageKey(orderId)));
+    } catch {
+      return;
+    }
+    if (saved !== null) startTransition(() => setTipPct(saved));
+    // Solo al montar: si el usuario cambia la selección a mano, no se la pisamos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cambiar la propina la deja recordada para la cuenta: si el comensal
+  // vuelve al estado del pedido, la previsualización arranca con su elección.
+  function chooseTip(pct: number) {
+    setTipPct(pct);
+    if (operatorMode) return;
+    try {
+      sessionStorage.setItem(tipStorageKey(orderId), String(pct));
+    } catch {
+      // Sin persistencia — la elección vive igual en el estado.
+    }
+  }
+
+  // Lo pendiente de comida se calcula con el mismo helper que usa el estado
+  // del pedido para previsualizar el total con propina.
+  const paidFoodCents = computePaidFoodCents(paidCents, paidTipCents);
+  const outstandingSubtotalCents = computeOutstandingSubtotalCents(
+    subtotalCents,
+    paidCents,
+    paidTipCents,
+  );
 
   // Lo que se paga de comida en cada modo (Todo / Partes iguales / Lo mío)
   // vive en checkoutTax.ts: siempre sobre lo PENDIENTE, nunca más que eso.
@@ -265,7 +314,7 @@ export function PayClient({
     splitCount,
     mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
   });
-  const amountTip = Math.round((amountSubtotal * tipPct) / 100);
+  const amountTip = tipCentsFor(amountSubtotal, tipPct);
   const amountCents = amountSubtotal + amountTip;
   // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
   // pagando de comida en este modo. La propina no lleva impuesto.
@@ -928,7 +977,7 @@ export function PayClient({
             {TIP_OPTIONS.map((p) => (
               <button
                 key={p}
-                onClick={() => setTipPct(p)}
+                onClick={() => chooseTip(p)}
                 className={
                   "h-9 px-3 rounded-full text-sm border " +
                   (tipPct === p

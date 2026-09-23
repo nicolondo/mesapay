@@ -226,7 +226,13 @@
     "etaHeadlineMax": "Tu pedido sale en más de {min} min",
     "discountRow": "Descuento",
     "discountRowPct": "Descuento {pct}%",
-    "discountedTotal": "Total con descuento"
+    "discountedTotal": "Total con descuento",
+    "tipPreviewTitle": "Total a pagar",
+    "tipPreviewBase": "Consumo",
+    "tipPreviewTip": "Propina {pct} %",
+    "tipPreviewTotal": "Total con propina",
+    "tipPreviewHint": "La propina es voluntaria; podés cambiarla al pagar.",
+    "tipPreviewSlider": "Ajustar propina"
   },
   "pay": {
     "pay": "Pagar",

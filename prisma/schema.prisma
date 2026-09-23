@@ -430,6 +430,7 @@ model Restaurant {
   vouchers               Voucher[]
   voucherRedemptions     VoucherRedemption[]
   voucherStatements      VoucherStatement[]
+  customerCreditPayments CustomerCreditPayment[]
   paymentLinks           PaymentLink[]
   backups                RestaurantBackup[]
 
@@ -857,6 +858,7 @@ model User {
   voucherBatchesIssued VoucherBatch[]       @relation("VoucherBatchIssuer")
   voucherRedemptions   VoucherRedemption[]  @relation("VoucherRedeemer")
   voucherStatements    VoucherStatement[]   @relation("VoucherStatementCreator")
+  customerCreditPaymentsCreated CustomerCreditPayment[] @relation("CustomerCreditPaymentCreator")
 
   @@index([restaurantId])
   @@index([groupId])
@@ -1681,6 +1683,11 @@ enum PaymentMethod {
   // es plata que entra en la mesa: la empresa lo pagó por adelantado (link
   // de pago) o lo paga por corte. Nunca cuenta como caja.
   voucher
+  // Venta a crédito a un cliente de facturación (BillingCustomer con
+  // creditEnabled). La cuenta queda pagada para la mesa y la cocina, pero
+  // no entra plata: va a cuentas por cobrar (130505) y se cancela con los
+  // abonos (CustomerCreditPayment). Nunca cuenta como caja.
+  customer_credit
 }
 
 /**
@@ -1750,12 +1757,20 @@ model Payment {
   collectedByUserId String?
   collectedBy       User?   @relation("PaymentsCollected", fields: [collectedByUserId], references: [id])
 
+  // Sólo en method=customer_credit: el cliente de facturación que debe
+  // esta cuenta. Su deuda = Σ estos pagos − Σ sus abonos
+  // (CustomerCreditPayment). SetNull para no perder el histórico del cobro
+  // si el cliente se borra.
+  billingCustomerId String?
+  billingCustomer   BillingCustomer? @relation(fields: [billingCustomerId], references: [id], onDelete: SetNull)
+
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
 
   @@index([orderId])
   @@index([shiftId])
   @@index([collectedByUserId])
+  @@index([billingCustomerId])
 }
 
 // === Cierre de turno ======================================================
@@ -2963,11 +2978,52 @@ model BillingCustomer {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  // Crédito: con creditEnabled la cuenta se puede cobrar "a crédito" a
+  // este cliente (Payment.method = customer_credit). creditLimitCents null
+  // = sin tope; creditTermsDays = plazo para el vencimiento en cartera y
+  // la fecha de pago de la factura DIAN.
+  creditEnabled     Boolean        @default(false)
+  creditLimitCents  Int?
+  creditTermsDays   Int            @default(30)
+  // Descuento comercial fijo del cliente, en puntos base (1000 = 10 %). Se
+  // aplica a la cuenta al asociarla al cliente (cobro o factura nominativa)
+  // con el mismo mecanismo del descuento por comensal (Order.discount*).
+  discountEnabled   Boolean        @default(false)
+  discountBps       Int            @default(0)
+
   voucherBatches    VoucherBatch[]
   voucherStatements VoucherStatement[]
+  creditCharges     Payment[]
+  creditPayments    CustomerCreditPayment[]
 
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])
+}
+
+/**
+ * Abono de un cliente a su deuda por ventas a crédito. Entra plata real a
+ * la cuenta de dinero `accountCode` (caja, banco, pasarela — plan del
+ * comercio) y baja Clientes (130505). No se liga a una cuenta puntual: la
+ * deuda se aplica FIFO al cobro más viejo (customerCredit.allocateFifo)
+ * para las edades de cartera. Borrar la fila revierte el abono.
+ */
+model CustomerCreditPayment {
+  id                String          @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  billingCustomerId String
+  billingCustomer   BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Cascade)
+  amountCents       Int
+  paidAt            DateTime
+  /** Cuenta de dinero (11xx) donde entró la plata. */
+  accountCode       String
+  note              String?
+  createdById       String?
+  createdBy         User?           @relation("CustomerCreditPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime        @default(now())
+
+  @@index([restaurantId, paidAt])
+  @@index([billingCustomerId])
 }
 
 model InvoiceRequest {

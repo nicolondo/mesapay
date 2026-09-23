@@ -60,6 +60,7 @@ const PAYMENT_METHOD_KEY: Record<string, string> = {
   wompi_nequi: "methodNequi",
   reservation_deposit: "methodDeposit",
   voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
 };
 
 /** Traductor mínimo — `createTranslator` de next-intl encaja tal cual. */

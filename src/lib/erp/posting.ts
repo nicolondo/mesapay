@@ -45,6 +45,9 @@ function cashAccountForMethod(method: string): string {
   // redimir". El lado del pasivo (emisión/cobro del lote) lo define la fase
   // fiscal; acá sólo se evita clasificarlo como caja o pasarela.
   if (method === "voucher") return ENGINE.BONOS_POR_REDIMIR;
+  // Venta a crédito a un cliente de facturación: tampoco entra plata —
+  // debita Clientes (CxC). La plata llega con los abonos (bloque 1b).
+  if (method === "customer_credit") return ENGINE.CLIENTES;
   return ENGINE.PASARELA; // kushki_* → saldo en pasarela
 }
 
@@ -171,6 +174,32 @@ async function buildMonthEntries(
         salesTax,
         tips,
       });
+    }
+  }
+
+  // 1b) ABONOS DE CLIENTES — D cuenta de dinero de cada abono · C clientes.
+  // La venta a crédito debitó Clientes (130505) en "1)"; acá se cancela
+  // esa CxC cuando el cliente paga, agrupado por la cuenta (caja, banco,
+  // pasarela) que eligió el operador al registrar el abono.
+  {
+    const pays = await db.customerCreditPayment.findMany({
+      where: {
+        restaurantId,
+        paidAt: { gte: range.from, lt: range.to },
+      },
+      select: { amountCents: true, accountCode: true },
+    });
+    const byAccount = new Map<string, number>();
+    for (const p of pays) {
+      if (p.amountCents <= 0) continue;
+      byAccount.set(p.accountCode, (byAccount.get(p.accountCode) ?? 0) + p.amountCents);
+    }
+    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
+    if (total > 0) {
+      const lines: Line[] = [];
+      for (const [code, amount] of byAccount) lines.push({ code, debit: amount });
+      lines.push({ code: ENGINE.CLIENTES, credit: total });
+      entries.push({ source: "customer_credit_payment", memo: "Abonos de clientes", lines });
     }
   }
 

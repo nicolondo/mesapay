@@ -17,6 +17,8 @@ export const ENGINE = {
   PASARELA: "112005",
   /** Bonos empresariales por redimir (pasivo). */
   BONOS_POR_REDIMIR: "280510",
+  /** Clientes nacionales: ventas a crédito (customer_credit) y sus abonos. */
+  CLIENTES: "130505",
   INVENTARIO: "143505",
   PROVEEDORES: "220505",
   /** Costos y gastos por pagar: el gasto nace acá y se cancela al pagarse. */

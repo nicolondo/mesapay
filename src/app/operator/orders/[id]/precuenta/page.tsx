@@ -112,13 +112,13 @@ export default async function PrecuentaPage({
             {doc.items.map((it, i) => (
               <div className="item" key={i}>
                 <div className="line">
-                  <span className="qty">{it.qty}x</span>
+                  <span className="qty">{tr("prebillQty", { qty: it.qty })}</span>
                   <span className="iname">{it.name}</span>
                   <span className="amount">{it.amount}</span>
                 </div>
                 {it.unit && (
                   <div className="hung">
-                    {it.qty} x {it.unit}
+                    {tr("prebillQtyUnit", { qty: it.qty, unit: it.unit })}
                   </div>
                 )}
                 {it.modifiers.map((m, j) => (

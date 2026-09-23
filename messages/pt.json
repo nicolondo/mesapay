@@ -1686,7 +1686,9 @@
     "prebillOpenView": "Abrir pré-conta",
     "prebillView": "Ver pré-conta",
     "prebillBack": "Voltar para Mesas",
-    "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo."
+    "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.",
+    "prebillQty": "{qty}x",
+    "prebillQtyUnit": "{qty} x {unit}"
   },
   "opCartera": {
     "hubCategory": "Comerciais",

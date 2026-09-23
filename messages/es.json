@@ -1686,7 +1686,9 @@
     "prebillOpenView": "Abrir precuenta",
     "prebillView": "Ver precuenta",
     "prebillBack": "Volver a Mesas",
-    "prebillUnavailable": "La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo."
+    "prebillUnavailable": "La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.",
+    "prebillQty": "{qty}x",
+    "prebillQtyUnit": "{qty} x {unit}"
   },
   "opCartera": {
     "hubCategory": "Comerciales",

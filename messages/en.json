@@ -1143,7 +1143,13 @@
     "roleBar": "Bar",
     "roleTerminal": "Terminal",
     "roleGroupAdmin": "Group",
-    "rolePlatformAdmin": "MESAPAY"
+    "rolePlatformAdmin": "MESAPAY",
+    "soundOn": "Sound on",
+    "soundOff": "Sound muted",
+    "soundToggleHint": "Beep when a new order comes in",
+    "soundTest": "Test sound",
+    "soundUnlock": "Tap the screen to turn on the new-order sound",
+    "soundUnsupported": "This browser can't play the new-order sound"
   },
   "serve": {
     "noRestaurant": "No restaurant.",

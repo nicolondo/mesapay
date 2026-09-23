@@ -938,7 +938,18 @@
     "methodNequi": "Nequi",
     "methodDeposit": "Abono de reserva",
     "methodVoucher": "Bono empresarial",
-    "methodOther": "Otro medio"
+    "methodOther": "Otro medio",
+    "prebillTitle": "PRECUENTA",
+    "prebillNotInvoice": "Este documento no es una factura",
+    "prebillDocTitle": "Precuenta {code} — {brand}",
+    "prebillTable": "Mesa {number}",
+    "prebillPickup": "Para recoger · {name}",
+    "prebillWaiter": "Mesero",
+    "prebillPaid": "Pagado",
+    "prebillOutstanding": "Pendiente por pagar",
+    "prebillSuggestedTip": "Propina sugerida {pct}%",
+    "prebillTotalWithTip": "Total con propina",
+    "prebillTipVoluntary": "La propina es voluntaria: podés aceptarla, rechazarla o cambiarla."
   },
   "emailDianInvoice": {
     "subject": "Tu factura electrónica de {brand} — {number}",
@@ -1663,7 +1674,17 @@
     "discountRemove": "Quitar descuento",
     "requestBill": "Pedir la cuenta",
     "billRequesting": "Avisando…",
-    "billRequested": "Caja avisada"
+    "billRequested": "Caja avisada",
+    "prebillPrint": "Imprimir precuenta",
+    "prebillPrinting": "Enviando precuenta…",
+    "prebillSent": "Precuenta enviada a {printer}",
+    "prebillNoPrinter": "Sin impresora de facturas: imprimila desde el navegador.",
+    "prebillPrinterOffline": "El agente de impresión no responde: imprimila desde el navegador.",
+    "prebillFailed": "No se pudo imprimir la precuenta.",
+    "prebillOpenView": "Abrir precuenta",
+    "prebillView": "Ver precuenta",
+    "prebillBack": "Volver a Mesas",
+    "prebillUnavailable": "La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo."
   },
   "opCartera": {
     "hubCategory": "Comerciales",

@@ -938,7 +938,18 @@
     "methodNequi": "Nequi",
     "methodDeposit": "Reservation deposit",
     "methodVoucher": "Corporate voucher",
-    "methodOther": "Other method"
+    "methodOther": "Other method",
+    "prebillTitle": "PRE-BILL",
+    "prebillNotInvoice": "This document is not an invoice",
+    "prebillDocTitle": "Pre-bill {code} — {brand}",
+    "prebillTable": "Table {number}",
+    "prebillPickup": "Pickup · {name}",
+    "prebillWaiter": "Server",
+    "prebillPaid": "Paid",
+    "prebillOutstanding": "Balance due",
+    "prebillSuggestedTip": "Suggested tip {pct}%",
+    "prebillTotalWithTip": "Total with tip",
+    "prebillTipVoluntary": "The tip is voluntary: you may accept, decline or change it."
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",
@@ -1663,7 +1674,17 @@
     "discountRemove": "Remove discount",
     "requestBill": "Ask for the bill",
     "billRequesting": "Notifying…",
-    "billRequested": "Cash desk notified"
+    "billRequested": "Cash desk notified",
+    "prebillPrint": "Print pre-bill",
+    "prebillPrinting": "Sending pre-bill…",
+    "prebillSent": "Pre-bill sent to {printer}",
+    "prebillNoPrinter": "No receipt printer: print it from the browser.",
+    "prebillPrinterOffline": "The print agent is not responding: print it from the browser.",
+    "prebillFailed": "The pre-bill could not be printed.",
+    "prebillOpenView": "Open pre-bill",
+    "prebillView": "View pre-bill",
+    "prebillBack": "Back to Tables",
+    "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items."
   },
   "opCartera": {
     "hubCategory": "Commercial",

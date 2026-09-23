@@ -938,7 +938,18 @@
     "methodNequi": "Nequi",
     "methodDeposit": "Sinal da reserva",
     "methodVoucher": "Vale empresarial",
-    "methodOther": "Outro meio"
+    "methodOther": "Outro meio",
+    "prebillTitle": "PRÉ-CONTA",
+    "prebillNotInvoice": "Este documento não é uma fatura",
+    "prebillDocTitle": "Pré-conta {code} — {brand}",
+    "prebillTable": "Mesa {number}",
+    "prebillPickup": "Para retirar · {name}",
+    "prebillWaiter": "Garçom",
+    "prebillPaid": "Pago",
+    "prebillOutstanding": "Saldo a pagar",
+    "prebillSuggestedTip": "Gorjeta sugerida {pct}%",
+    "prebillTotalWithTip": "Total com gorjeta",
+    "prebillTipVoluntary": "A gorjeta é voluntária: você pode aceitá-la, recusá-la ou alterá-la."
   },
   "emailDianInvoice": {
     "subject": "Sua nota fiscal eletrônica de {brand} — {number}",
@@ -1663,7 +1674,17 @@
     "discountRemove": "Remover desconto",
     "requestBill": "Pedir a conta",
     "billRequesting": "Avisando…",
-    "billRequested": "Caixa avisado"
+    "billRequested": "Caixa avisado",
+    "prebillPrint": "Imprimir pré-conta",
+    "prebillPrinting": "Enviando pré-conta…",
+    "prebillSent": "Pré-conta enviada para {printer}",
+    "prebillNoPrinter": "Sem impressora de recibos: imprima pelo navegador.",
+    "prebillPrinterOffline": "O agente de impressão não responde: imprima pelo navegador.",
+    "prebillFailed": "Não foi possível imprimir a pré-conta.",
+    "prebillOpenView": "Abrir pré-conta",
+    "prebillView": "Ver pré-conta",
+    "prebillBack": "Voltar para Mesas",
+    "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo."
   },
   "opCartera": {
     "hubCategory": "Comerciais",

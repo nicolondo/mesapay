@@ -2794,6 +2794,15 @@ function GuestNameSheet({
   const [identifying, setIdentifying] = useState(false);
   const trimmed = value.trim();
   const canSave = trimmed.length > 0;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Foco al abrir (el efecto corre después del showModal de AppDialog, así
+  // que el diálogo ya está visible). En iOS el foco programático no abre
+  // el teclado; cuando el comensal toca el campo, onFocus lo acomoda y el
+  // viewport visual reposiciona el popup.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   async function identify() {
     setIdentifying(true);
@@ -2805,9 +2814,14 @@ function GuestNameSheet({
   }
 
   return (
-    <AppDialog label={t("whatToCallYou")} onClose={onClose} className="mp-guest-dialog">
+    <AppDialog
+      label={t("whatToCallYou")}
+      onClose={onClose}
+      className="mp-guest-dialog"
+      placement="center"
+    >
       <div
-        className="bg-paper text-ink w-full max-w-md rounded-t-3xl md:rounded-3xl slide-up"
+        className="bg-paper text-ink w-full rounded-3xl slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         <form
@@ -2827,10 +2841,16 @@ function GuestNameSheet({
             {t("nameSubtitle")}
           </p>
           <input
+            ref={inputRef}
             autoFocus
             type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onFocus={(e) => {
+              // Refuerzo: con el teclado abierto, que el campo quede a la
+              // vista dentro del popup (scroll interno) y de la página.
+              e.currentTarget.scrollIntoView({ block: "center" });
+            }}
             maxLength={40}
             placeholder={t("namePlaceholder")}
             aria-label={t("namePlaceholder")}

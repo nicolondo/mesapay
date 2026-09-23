@@ -31,6 +31,12 @@ import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
 import { poTotals } from "@/lib/erp/purchaseTax";
 import {
+  allocateFifo,
+  chargeDebtCents,
+  type CreditAbono,
+  type CreditCharge,
+} from "@/lib/customerCredit";
+import {
   addDays,
   NO_SUPPLIER_ID,
   type CarteraDoc,
@@ -203,6 +209,20 @@ export async function loadPayablesDocs(restaurantId: string, hasta: string): Pro
 
 // ─── Por cobrar ──────────────────────────────────────────────────────────
 
+type CustomerRow = {
+  id: string;
+  customerName: string;
+  docType: string;
+  docNumber: string;
+  verificationDigit: string | null;
+};
+
+function customerTaxId(c: CustomerRow): string {
+  return c.docType === "NIT" && c.verificationDigit
+    ? `${c.docNumber}-${c.verificationDigit}`
+    : c.docNumber;
+}
+
 type StatementRow = {
   id: string;
   createdAt: Date;
@@ -211,20 +231,8 @@ type StatementRow = {
   creditCents: number;
   status: "open" | "paid";
   paidAt: Date | null;
-  billingCustomer: {
-    id: string;
-    customerName: string;
-    docType: string;
-    docNumber: string;
-    verificationDigit: string | null;
-  };
+  billingCustomer: CustomerRow;
 };
-
-function customerTaxId(c: StatementRow["billingCustomer"]): string {
-  return c.docType === "NIT" && c.verificationDigit
-    ? `${c.docNumber}-${c.verificationDigit}`
-    : c.docNumber;
-}
 
 /**
  * Corte de bonos → documento. La deuda es `creditCents` (lo redimido de
@@ -263,8 +271,129 @@ const STATEMENT_SELECT = {
   },
 } as const;
 
-/** ¿Tiene el comercio el módulo de bonos (la única fuente de CxC)? */
-export async function loadReceivablesEnabled(restaurantId: string): Promise<boolean> {
+// ── Ventas a crédito (Payment.method = customer_credit) ──────────────────
+
+type CreditCustomerRow = CustomerRow & { creditTermsDays: number };
+
+type CreditChargeRow = {
+  id: string;
+  settledAt: Date | null;
+  createdAt: Date;
+  amountCents: number;
+  tipCents: number;
+  refundedCents: number;
+  order: { shortCode: string };
+  billingCustomer: CreditCustomerRow | null;
+};
+
+type CreditAbonoRow = {
+  id: string;
+  billingCustomerId: string;
+  paidAt: Date;
+  amountCents: number;
+  accountCode: string;
+  note: string | null;
+};
+
+const CREDIT_CHARGE_SELECT = {
+  id: true,
+  settledAt: true,
+  createdAt: true,
+  amountCents: true,
+  tipCents: true,
+  refundedCents: true,
+  order: { select: { shortCode: true } },
+  billingCustomer: {
+    select: {
+      id: true,
+      customerName: true,
+      docType: true,
+      docNumber: true,
+      verificationDigit: true,
+      creditTermsDays: true,
+    },
+  },
+} as const;
+
+const CREDIT_ABONO_SELECT = {
+  id: true,
+  billingCustomerId: true,
+  paidAt: true,
+  amountCents: true,
+  accountCode: true,
+  note: true,
+} as const;
+
+/** Estados que siguen pesando en la deuda (un cargo devuelto pesa 0 y no sale). */
+const CREDIT_CHARGE_STATUSES = ["approved", "refunded"] as const;
+
+/**
+ * Cargos a crédito y abonos de UN cliente (ya filtrados al corte) →
+ * documentos con saldo FIFO y abonos. Cada cargo es una cuenta cobrada a
+ * crédito: vence a la fecha del cobro + el plazo del cliente. El saldo por
+ * cargo sale de `allocateFifo`; cada abono se muestra bajo el primer cargo
+ * que cubrió (o el último cargo, si pagó de más). Lo devuelto (refunds) se
+ * descuenta con el valor de hoy, no al corte: aceptado.
+ */
+export function creditMovementsFor(
+  customer: CreditCustomerRow,
+  charges: readonly CreditChargeRow[],
+  abonos: readonly CreditAbonoRow[],
+): { docs: CarteraDoc[]; payments: CarteraPayment[] } {
+  const creditCharges: CreditCharge[] = charges.map((c) => ({
+    id: c.id,
+    date: c.settledAt ?? c.createdAt,
+    amountCents: c.amountCents,
+    tipCents: c.tipCents,
+    refundedCents: c.refundedCents,
+  }));
+  const creditAbonos: CreditAbono[] = abonos.map((a) => ({
+    id: a.id,
+    date: a.paidAt,
+    amountCents: a.amountCents,
+  }));
+  const fifo = allocateFifo(creditCharges, creditAbonos);
+  const outstanding = new Map(fifo.charges.map((c) => [c.chargeId, c.outstandingCents]));
+  const docs: CarteraDoc[] = [];
+  for (const c of charges) {
+    const totalCents = chargeDebtCents(c);
+    if (totalCents <= 0) continue;
+    const date = isoDateUtc(c.settledAt ?? c.createdAt);
+    docs.push({
+      id: c.id,
+      source: "customer_credit",
+      partnerId: customer.id,
+      partnerName: customer.customerName,
+      partnerTaxId: customerTaxId(customer),
+      number: c.order.shortCode,
+      date,
+      dueDate: addDays(date, customer.creditTermsDays),
+      totalCents,
+      outstandingCents: outstanding.get(c.id) ?? 0,
+    });
+  }
+  const firstDoc = new Map<string, string>();
+  for (const a of fifo.allocations) {
+    if (!firstDoc.has(a.paymentId)) firstDoc.set(a.paymentId, a.chargeId);
+  }
+  const lastDocId = docs.length > 0 ? docs[docs.length - 1].id : null;
+  const payments: CarteraPayment[] = [];
+  for (const a of abonos) {
+    const docId = firstDoc.get(a.id) ?? lastDocId;
+    if (!docId) continue;
+    payments.push({
+      id: a.id,
+      docId,
+      date: isoDateUtc(a.paidAt),
+      amountCents: a.amountCents,
+      note: a.note ?? a.accountCode,
+    });
+  }
+  return { docs, payments };
+}
+
+/** ¿Tiene el comercio el módulo de bonos? */
+async function loadVouchersEnabled(restaurantId: string): Promise<boolean> {
   const r = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: { enabledModules: true },
@@ -273,30 +402,87 @@ export async function loadReceivablesEnabled(restaurantId: string): Promise<bool
 }
 
 /**
- * Cortes de bonos a crédito pendientes al corte. Con el módulo `vouchers`
- * apagado devuelve `enabled: false` y ningún documento (la UI explica que
- * MESAPAY no tiene otras cuentas por cobrar).
+ * ¿Tiene el comercio alguna fuente de cuentas por cobrar? Bonos (módulo
+ * activo) o crédito a clientes (algún cliente con crédito habilitado o
+ * alguna cuenta ya cobrada a crédito).
+ */
+export async function loadReceivablesEnabled(restaurantId: string): Promise<boolean> {
+  if (await loadVouchersEnabled(restaurantId)) return true;
+  const [customers, charges] = await Promise.all([
+    db.billingCustomer.count({ where: { restaurantId, creditEnabled: true } }),
+    db.payment.count({
+      where: { method: "customer_credit", billingCustomerId: { not: null }, order: { restaurantId } },
+    }),
+  ]);
+  return customers > 0 || charges > 0;
+}
+
+/**
+ * Documentos por cobrar con saldo al corte: cortes de bonos a crédito
+ * (con el módulo `vouchers`) y cuentas cobradas a crédito a clientes de
+ * facturación. `enabled: false` sólo cuando el comercio no tiene ninguna
+ * de las dos fuentes (la UI explica que MESAPAY cobra al momento).
  */
 export async function loadReceivableDocs(
   restaurantId: string,
   hasta: string,
 ): Promise<{ enabled: boolean; docs: CarteraDoc[] }> {
-  if (!(await loadReceivablesEnabled(restaurantId))) return { enabled: false, docs: [] };
   const to = cutoffEnd(hasta);
-  const rows = await db.voucherStatement.findMany({
-    where: {
-      restaurantId,
-      createdAt: { lt: to },
-      creditCents: { gt: 0 },
-      OR: [{ status: "open" }, { paidAt: { gte: to } }],
-    },
-    select: STATEMENT_SELECT,
-    orderBy: { createdAt: "asc" },
-  });
-  return {
-    enabled: true,
-    docs: rows.map((s) => statementToDoc(s, to)).filter((d) => d.outstandingCents > 0),
-  };
+  const [vouchersEnabled, creditCustomers, charges, abonos] = await Promise.all([
+    loadVouchersEnabled(restaurantId),
+    db.billingCustomer.count({ where: { restaurantId, creditEnabled: true } }),
+    db.payment.findMany({
+      where: {
+        method: "customer_credit",
+        status: { in: [...CREDIT_CHARGE_STATUSES] },
+        billingCustomerId: { not: null },
+        settledAt: { lt: to },
+        order: { restaurantId },
+      },
+      select: CREDIT_CHARGE_SELECT,
+      orderBy: [{ settledAt: "asc" }, { createdAt: "asc" }],
+    }),
+    db.customerCreditPayment.findMany({
+      where: { restaurantId, paidAt: { lt: to } },
+      select: CREDIT_ABONO_SELECT,
+      orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  const enabled = vouchersEnabled || creditCustomers > 0 || charges.length > 0;
+  if (!enabled) return { enabled: false, docs: [] };
+
+  const docs: CarteraDoc[] = [];
+  if (vouchersEnabled) {
+    const rows = await db.voucherStatement.findMany({
+      where: {
+        restaurantId,
+        createdAt: { lt: to },
+        creditCents: { gt: 0 },
+        OR: [{ status: "open" }, { paidAt: { gte: to } }],
+      },
+      select: STATEMENT_SELECT,
+      orderBy: { createdAt: "asc" },
+    });
+    for (const s of rows) {
+      const d = statementToDoc(s, to);
+      if (d.outstandingCents > 0) docs.push(d);
+    }
+  }
+  // Crédito: se agrupa por cliente y se aplica FIFO por cliente.
+  const byCustomer = new Map<string, { customer: CreditCustomerRow; charges: CreditChargeRow[]; abonos: CreditAbonoRow[] }>();
+  for (const c of charges) {
+    if (!c.billingCustomer) continue;
+    const g = byCustomer.get(c.billingCustomer.id) ?? { customer: c.billingCustomer, charges: [], abonos: [] };
+    g.charges.push(c);
+    byCustomer.set(c.billingCustomer.id, g);
+  }
+  for (const a of abonos) byCustomer.get(a.billingCustomerId)?.abonos.push(a);
+  for (const g of byCustomer.values()) {
+    for (const d of creditMovementsFor(g.customer, g.charges, g.abonos).docs) {
+      if (d.outstandingCents > 0) docs.push(d);
+    }
+  }
+  return { enabled: true, docs };
 }
 
 // ─── Extracto por tercero ────────────────────────────────────────────────
@@ -322,7 +508,8 @@ export type PartnerMovements = {
  * saldo) y abonos. `null` si el tercero no existe en el comercio. Para un
  * proveedor entran sus OC recibidas y sus gastos; el tercero sintético
  * `NO_SUPPLIER_ID` agrupa los gastos sin proveedor. Para un cliente, sus
- * cortes de bonos (el pago del corte es su único abono).
+ * cortes de bonos (el pago del corte es su abono) y sus cuentas cobradas a
+ * crédito con los abonos que las cancelan.
  */
 export async function loadPartnerMovements(
   restaurantId: string,
@@ -332,17 +519,46 @@ export async function loadPartnerMovements(
 ): Promise<PartnerMovements | null> {
   const to = cutoffEnd(hasta);
   if (kind === "cxc") {
-    if (!(await loadReceivablesEnabled(restaurantId))) return null;
     const customer = await db.billingCustomer.findFirst({
       where: { id: partnerId, restaurantId },
-      select: { id: true, customerName: true, docType: true, docNumber: true, verificationDigit: true, phone: true, email: true },
+      select: {
+        id: true,
+        customerName: true,
+        docType: true,
+        docNumber: true,
+        verificationDigit: true,
+        creditTermsDays: true,
+        phone: true,
+        email: true,
+      },
     });
     if (!customer) return null;
-    const rows = await db.voucherStatement.findMany({
-      where: { restaurantId, billingCustomerId: partnerId, createdAt: { lt: to }, creditCents: { gt: 0 } },
-      select: STATEMENT_SELECT,
-      orderBy: { createdAt: "asc" },
-    });
+    const vouchersEnabled = await loadVouchersEnabled(restaurantId);
+    const [rows, charges, abonos] = await Promise.all([
+      vouchersEnabled
+        ? db.voucherStatement.findMany({
+            where: { restaurantId, billingCustomerId: partnerId, createdAt: { lt: to }, creditCents: { gt: 0 } },
+            select: STATEMENT_SELECT,
+            orderBy: { createdAt: "asc" },
+          })
+        : Promise.resolve([] as StatementRow[]),
+      db.payment.findMany({
+        where: {
+          billingCustomerId: partnerId,
+          method: "customer_credit",
+          status: { in: [...CREDIT_CHARGE_STATUSES] },
+          settledAt: { lt: to },
+          order: { restaurantId },
+        },
+        select: CREDIT_CHARGE_SELECT,
+        orderBy: [{ settledAt: "asc" }, { createdAt: "asc" }],
+      }),
+      db.customerCreditPayment.findMany({
+        where: { restaurantId, billingCustomerId: partnerId, paidAt: { lt: to } },
+        select: CREDIT_ABONO_SELECT,
+        orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
+      }),
+    ]);
     const docs = rows.map((s) => statementToDoc(s, to));
     const payments: CarteraPayment[] = [];
     for (const s of rows) {
@@ -350,6 +566,9 @@ export async function loadPartnerMovements(
         payments.push({ id: `${s.id}:pago`, docId: s.id, date: isoDateUtc(s.paidAt), amountCents: s.creditCents, note: null });
       }
     }
+    const credit = creditMovementsFor(customer, charges, abonos);
+    docs.push(...credit.docs);
+    payments.push(...credit.payments);
     return {
       partner: {
         id: customer.id,

@@ -28,6 +28,7 @@ const METHOD_LABEL: Record<string, string> = {
   kushki_pse: "methodPse",
   reservation_deposit: "methodDeposit",
   voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
 };
 
 function methodLabel(m: string, t: DoneT) {

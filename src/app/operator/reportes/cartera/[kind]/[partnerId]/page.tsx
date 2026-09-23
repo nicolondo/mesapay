@@ -34,18 +34,20 @@ const KIND_BY_SLUG: Record<string, CarteraKind> = { proveedor: "cxp", cliente: "
 const TH = "px-3 py-2 font-mono text-[9px] uppercase tracking-wider font-normal";
 const NUM = "px-3 py-2 text-right font-mono tabular whitespace-nowrap";
 
-const SOURCE_KEY: Record<CarteraDocSource, "srcPurchaseOrder" | "srcExpense" | "srcVoucherStatement"> = {
+const SOURCE_KEY: Record<CarteraDocSource, "srcPurchaseOrder" | "srcExpense" | "srcVoucherStatement" | "srcCustomerCredit"> = {
   purchase_order: "srcPurchaseOrder",
   expense: "srcExpense",
   voucher_statement: "srcVoucherStatement",
+  customer_credit: "srcCustomerCredit",
 };
 
 /**
  * A dónde lleva cada documento. Compras y contabilidad no tienen ruta
  * por documento (abren la pantalla del módulo); los cortes de bonos sí
- * se filtran por cliente en su reporte.
+ * se filtran por cliente en su reporte; las ventas a crédito abren
+ * Clientes, donde están el estado de cuenta y los abonos.
  */
-function docHref(source: CarteraDocSource, partnerId: string): { href: string; key: "openInPurchases" | "openInAccounting" | "openInVouchers" } {
+function docHref(source: CarteraDocSource, partnerId: string): { href: string; key: "openInPurchases" | "openInAccounting" | "openInVouchers" | "openInCustomers" } {
   switch (source) {
     case "purchase_order":
       return { href: "/operator/compras", key: "openInPurchases" };
@@ -53,6 +55,9 @@ function docHref(source: CarteraDocSource, partnerId: string): { href: string; k
       return { href: "/operator/contabilidad", key: "openInAccounting" };
     case "voucher_statement":
       return { href: `/operator/bonos/reporte?customer=${encodeURIComponent(partnerId)}`, key: "openInVouchers" };
+    case "customer_credit":
+      // Los abonos y el estado de cuenta viven en Clientes.
+      return { href: "/operator/clientes", key: "openInCustomers" };
   }
 }
 

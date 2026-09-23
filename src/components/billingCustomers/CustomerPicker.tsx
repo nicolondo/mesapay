@@ -1,25 +1,39 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { useTranslations } from "next-intl";
-import { billingDocument, type BillingCustomerRecord } from "./types";
+import { useLocale, useTranslations } from "next-intl";
+import { formatMoney } from "@/lib/format";
+import type { Locale } from "@/i18n/config";
+import { billingDocument, discountBpsToPctText, type BillingCustomerRecord } from "./types";
 
-/** Only mounted in staff checkout. Customer records never reach diner pages. */
-export function CustomerPicker({ onSelect }: { onSelect: (customer: BillingCustomerRecord) => void }) {
+/**
+ * Only mounted in staff checkout. Customer records never reach diner pages.
+ *
+ * `creditOnly` deja sólo los clientes con crédito habilitado (cobro a
+ * crédito). Cada fila muestra lo que debe y su descuento, que es lo que el
+ * cajero necesita ver antes de elegir.
+ */
+export function CustomerPicker({ onSelect, creditOnly = false, currency = "COP" }: {
+  onSelect: (customer: BillingCustomerRecord) => void;
+  creditOnly?: boolean;
+  currency?: string;
+}) {
   const t = useTranslations("billingCustomers");
+  const locale = useLocale() as Locale;
   const id = useId();
   const [query, setQuery] = useState("");
   const [customers, setCustomers] = useState<BillingCustomerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState("");
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
   useEffect(() => {
     if (query.trim().length < 2) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true); setFailed(false);
       try {
-        const response = await fetch(`/api/operator/billing-customers?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        const response = await fetch(`/api/operator/billing-customers?q=${encodeURIComponent(query)}${creditOnly ? "&credit=1" : ""}`, { signal: controller.signal });
         if (!response.ok) throw new Error("lookup_failed");
         const data = await response.json();
         if (!controller.signal.aborted) setCustomers(data.customers);
@@ -27,16 +41,22 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: BillingCusto
       finally { if (!controller.signal.aborted) setLoading(false); }
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [query]);
+  }, [query, creditOnly]);
   function change(value: string) { setQuery(value); setCustomers([]); setFailed(false); setSelected(""); setLoading(value.trim().length >= 2); }
   return <div className="rounded-xl border border-hairline bg-ivory p-3">
-    <label htmlFor={id} className="block text-sm font-medium mb-1.5">{t("pickerLabel")}</label>
+    <label htmlFor={id} className="block text-sm font-medium mb-1.5">{t(creditOnly ? "pickerLabelCredit" : "pickerLabel")}</label>
     <input id={id} type="search" autoComplete="off" value={query} maxLength={120} onChange={e => change(e.target.value)} placeholder={t("searchPlaceholder")} className="w-full rounded-lg border border-hairline bg-paper px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta/40" />
-    <p className="text-xs text-muted mt-1.5">{t("pickerHint")}</p>
+    <p className="text-xs text-muted mt-1.5">{t(creditOnly ? "pickerHintCredit" : "pickerHint")}</p>
     {selected && <p role="status" className="text-xs text-success mt-2">{t("selected", { name: selected })}</p>}
     {query.trim().length >= 2 && (failed ? <p role="alert" className="text-xs text-danger mt-2">{t("loadError")}</p> : loading ? <p role="status" className="text-xs text-muted mt-2">{t("loading")}</p> : customers.length === 0 ? <p className="text-xs text-muted mt-2">{t("noResults")}</p> : <ul className="max-h-56 overflow-auto space-y-1.5 mt-3">
       {customers.map(customer => <li key={customer.id}><button type="button" aria-label={t("useCustomer", { name: customer.customerName })} onClick={() => { onSelect(customer); setSelected(customer.customerName); setQuery(""); setCustomers([]); }} className="w-full rounded-lg border border-hairline bg-paper p-3 text-left hover:border-terracotta focus-visible:ring-2 focus-visible:ring-terracotta">
-        <span className="block text-sm font-medium break-words">{customer.customerName}</span><span className="block text-xs text-muted mt-1">{customer.docType} {billingDocument(customer)}{customer.city ? ` · ${customer.city}` : ""}</span>
+        <span className="block text-sm font-medium break-words">{customer.customerName}</span>
+        <span className="block text-xs text-muted mt-1">{customer.docType} {billingDocument(customer)}{customer.city ? ` · ${customer.city}` : ""}</span>
+        {(customer.creditEnabled || (customer.debtCents ?? 0) > 0 || customer.discountEnabled) && <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs mt-1">
+          {customer.creditEnabled && <span className="text-muted">{t("creditBadge")}</span>}
+          {(customer.debtCents ?? 0) > 0 && <span className="text-terracotta">{t("debtValue", { amount: money(customer.debtCents ?? 0) })}</span>}
+          {customer.discountEnabled && customer.discountBps > 0 && <span className="text-success">{t("discountBadge", { pct: discountBpsToPctText(customer.discountBps) })}</span>}
+        </span>}
       </button></li>)}
     </ul>)}
   </div>;

@@ -533,6 +533,8 @@ function methodLabel(m: string, t: (key: string) => string) {
       return t("mReservationDeposit");
     case "voucher":
       return t("mVoucher");
+    case "customer_credit":
+      return t("mCustomerCredit");
     default:
       return m;
   }

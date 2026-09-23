@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   loadProfiles,
@@ -55,7 +56,12 @@ export function InvoiceFormSheet({
   onSaved?: (summary: InvoiceRequestSummary) => void;
 }) {
   const t = useTranslations("done");
+  const router = useRouter();
   const [customerName, setCustomerName] = useState(initial?.customerName ?? "");
+  // Cliente de facturación elegido en el selector (staff). Se manda con la
+  // solicitud para ligar la cuenta al cliente y aplicar su descuento; si el
+  // mesero retoca el documento a mano, deja de ser "ese" cliente.
+  const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null);
   const [docType, setDocType] = useState<DocType>(initial?.docType ?? "CC");
   const [docNumber, setDocNumber] = useState(initial?.docNumber ?? "");
   // Correo: el de una solicitud previa manda; si no, el que tipeó al pagar.
@@ -121,7 +127,9 @@ export function InvoiceFormSheet({
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(
+          operatorMode && pickedCustomerId ? { ...payload, billingCustomerId: pickedCustomerId } : payload,
+        ),
       },
     );
     if (!res.ok) {
@@ -135,8 +143,12 @@ export function InvoiceFormSheet({
       deferred?: boolean;
       /** La solicitud guardada: identificación ya normalizada (sin DV). */
       request?: Pick<InvoiceRequestSummary, "customerName" | "docType" | "docNumber" | "email">;
+      discount?: { applied: boolean; changed?: boolean } | null;
     };
     setBusy(false);
+    // El descuento del cliente cambió lo cobrable: la pantalla de cobro
+    // (server component) tiene que releer los totales.
+    if (j.discount?.applied && j.discount.changed) router.refresh();
     // Remember on this device so the next restaurant gets one-tap fill.
     // Wrapped in try so a storage failure (private mode, full quota) doesn't
     // hide the success state from the user.
@@ -254,6 +266,7 @@ export function InvoiceFormSheet({
             setDocType(customer.docType);
             setDocNumber(billingDocument(customer));
             setEmail(customer.email);
+            setPickedCustomerId(customer.id);
           }} />}
           {showSaved && profiles.length > 0 && (
             <div className="rounded-xl border border-hairline bg-ivory p-3">
@@ -332,7 +345,7 @@ export function InvoiceFormSheet({
             <Select
               label={t("invType")}
               value={docType}
-              onChange={(v) => setDocType(v as DocType)}
+              onChange={(v) => { setDocType(v as DocType); setPickedCustomerId(null); }}
               options={[
                 ["CC", "CC"],
                 ["CE", "CE"],
@@ -345,7 +358,7 @@ export function InvoiceFormSheet({
               className="col-span-2"
               label={t("invDocNumber")}
               value={docNumber}
-              onChange={setDocNumber}
+              onChange={(v) => { setDocNumber(v); setPickedCustomerId(null); }}
               type="text"
               inputMode="numeric"
               hint={docType === "NIT" ? t("invNitHint") : undefined}

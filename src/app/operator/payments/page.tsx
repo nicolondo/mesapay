@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import type { Prisma, PaymentStatus } from "@prisma/client";
 import { Icon } from "@/components/ui/Icon";
@@ -182,8 +183,9 @@ export default async function PaymentsPage({
                     <Link
                       href={`/operator/orders/${p.orderId}`}
                       className="mp-text-link font-mono"
+                      title={p.order.shortCode}
                     >
-                      {p.order.shortCode}
+                      {displayOrderCode(p.order.shortCode)}
                     </Link>
                   </Td>
                   <Td>
@@ -242,8 +244,9 @@ export default async function PaymentsPage({
                 <Link
                   href={`/operator/orders/${p.orderId}`}
                   className="mp-text-link font-mono"
+                  title={p.order.shortCode}
                 >
-                  {p.order.shortCode}
+                  {displayOrderCode(p.order.shortCode)}
                 </Link>
                 <span className="font-mono tabular text-base font-semibold">
                   {fmtCOP(p.amountCents)}

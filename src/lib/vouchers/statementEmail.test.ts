@@ -8,8 +8,8 @@ const base = {
   periodTo: new Date("2026-09-15T05:00:00Z"),
   currency: "COP",
   rows: [
-    { redeemedAt: new Date("2026-09-03T17:00:00Z"), code: "SM-7K3Q-9X2A", orderCode: "ABC-123", amountCents: 300_000_00 },
-    { redeemedAt: new Date("2026-09-10T20:00:00Z"), code: "SM-ABCD-2345", orderCode: "DEF-456", amountCents: 120_000_00 },
+    { redeemedAt: new Date("2026-09-03T17:00:00Z"), code: "SM-7K3Q-9X2A", orderCode: "002A77-77C496-58E6EF-6C25C8", amountCents: 300_000_00 },
+    { redeemedAt: new Date("2026-09-10T20:00:00Z"), code: "SM-ABCD-2345", orderCode: "1B9F02-4D8A6E-C31A55-9E7B20", amountCents: 120_000_00 },
   ],
 };
 
@@ -28,7 +28,12 @@ describe("renderVoucherStatementEmail", () => {
     expect(r.text).toContain("https://mesapay.co/r/son-y-melona/pago/tok-st");
     expect(r.text).toContain("420.000");
     expect(r.html).toContain("SM-7K3Q-9X2A");
-    expect(r.html).toContain("ABC-123");
+    // La cuenta va con el código corto (primer grupo) en el correo; el CSV
+    // adjunto conserva el código completo para conciliar.
+    expect(r.html).toContain(">002A77<");
+    expect(r.html).not.toContain("002A77-77C496");
+    expect(r.text).toContain("  002A77  ");
+    expect(r.csv).toContain("002A77-77C496-58E6EF-6C25C8");
     expect(r.html).not.toContain("prepagados");
   });
 
@@ -71,7 +76,7 @@ describe("renderVoucherStatementEmail", () => {
     });
     const lines = r.csv.replace(/^﻿/, "").trim().split("\r\n");
     expect(lines[0]).toBe("Data,Vale,Conta,Resgatado");
-    expect(lines[1]).toBe("2026-09-03,SM-7K3Q-9X2A,ABC-123,300000");
+    expect(lines[1]).toBe("2026-09-03,SM-7K3Q-9X2A,002A77-77C496-58E6EF-6C25C8,300000");
     expect(lines).toHaveLength(3);
   });
 });

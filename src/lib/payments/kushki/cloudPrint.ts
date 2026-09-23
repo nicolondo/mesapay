@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { randomUUID } from "crypto";
 import { createTranslator } from "next-intl";
 import esMessages from "../../../../messages/es.json";
@@ -84,7 +85,7 @@ export function buildInvoiceCommands(
   const paidAt = new Date(snapshot.paidAtIso);
   c.push(
     center(
-      `${snapshot.tableLabel} · ${snapshot.shortCode} · ` +
+      `${snapshot.tableLabel} · ${displayOrderCode(snapshot.shortCode)} · ` +
         paidAt.toLocaleString("es-CO", {
           day: "2-digit",
           month: "2-digit",

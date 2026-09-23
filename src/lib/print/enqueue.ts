@@ -13,6 +13,7 @@
  * eso es lo que importa.
  */
 
+import { displayOrderCode } from "@/lib/orderCode";
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -56,7 +57,7 @@ export async function buildThermalTicket(
   const destinationLine =
     ticket.order.orderType === "pickup"
       ? t("ticketPickup", {
-          name: ticket.order.pickupName ?? ticket.order.shortCode,
+          name: ticket.order.pickupName ?? displayOrderCode(ticket.order.shortCode),
         })
       : t("ticketTable", { number: ticket.order.tableNumber });
 
@@ -75,7 +76,7 @@ export async function buildThermalTicket(
     paperWidthMm,
     stationLine,
     destinationLine,
-    metaLine: `${ticket.order.shortCode} · R${ticket.roundSeq} · ${time}`,
+    metaLine: `${displayOrderCode(ticket.order.shortCode)} · R${ticket.roundSeq} · ${time}`,
     noticeLine:
       ticket.order.servingMode === "together"
         ? t("ticketMainsTogether")

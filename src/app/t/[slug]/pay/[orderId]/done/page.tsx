@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -141,8 +142,8 @@ export default async function PayDone({
             <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted">
               {t("yourCode")}
             </div>
-            <div className="font-display text-6xl leading-none mt-2 tabular">
-              {order.shortCode}
+            <div className="font-display text-6xl leading-none mt-2 tabular" title={order.shortCode}>
+              {displayOrderCode(order.shortCode)}
             </div>
             <div className="text-sm text-muted mt-3">{t("showCashier")}</div>
           </div>
@@ -263,11 +264,11 @@ export default async function PayDone({
 
         <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
           {order.table.kind === "manual"
-            ? t("headerManual", { name: tenant.name, code: order.shortCode })
+            ? t("headerManual", { name: tenant.name, code: displayOrderCode(order.shortCode) })
             : t("headerTable", {
                 number: order.table.number,
                 name: tenant.name,
-                code: order.shortCode,
+                code: displayOrderCode(order.shortCode),
               })}
         </div>
         <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">

@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -200,7 +201,7 @@ export default async function OrdersPage({
                     {fmtTime(r.createdAt)}
                   </div>
                 </Td>
-                <Td className="font-mono">{r.shortCode}</Td>
+                <Td className="font-mono"><span title={r.shortCode}>{displayOrderCode(r.shortCode)}</span></Td>
                 <Td>{r.place}</Td>
                 <Td>
                   <StatusPill status={r.status} />
@@ -245,8 +246,8 @@ export default async function OrdersPage({
             className="block bg-op-surface border border-op-border rounded-2xl p-4 active:bg-op-bg/40"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-sm font-medium">
-                {r.shortCode}
+              <span className="font-mono text-sm font-medium" title={r.shortCode}>
+                {displayOrderCode(r.shortCode)}
               </span>
               <StatusPill status={r.status} />
             </div>

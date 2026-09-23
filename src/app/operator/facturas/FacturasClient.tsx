@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -305,7 +306,7 @@ function RequestCard({
       `${req.docType}: ${req.docNumber}`,
       ...(where ? [where] : []),
       `${t("copyEmail")}: ${req.email}`,
-      `${t("copyOrder")}: ${req.order.shortCode} · ${fmtCOP(req.order.totalCents)}`,
+      `${t("copyOrder")}: ${displayOrderCode(req.order.shortCode)} · ${fmtCOP(req.order.totalCents)}`,
     ].join("\n");
     navigator.clipboard.writeText(text).catch(() => {});
   }
@@ -316,7 +317,7 @@ function RequestCard({
         <div className="min-w-0">
           <div className="font-display text-xl">{req.customerName}</div>
           <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted mt-0.5">
-            {t("orderPrefix")} {req.order.shortCode} ·{" "}
+            {t("orderPrefix")} {displayOrderCode(req.order.shortCode)} ·{" "}
             {fmtCOP(req.order.totalCents)} · {hoursAgo(req.createdAt, t)}
           </div>
         </div>
@@ -398,7 +399,7 @@ function GeneratedCard({
             </span>
           </div>
           <div className="font-mono text-[11px] tracking-wider uppercase text-op-muted mt-0.5">
-            {t("orderPrefix")} {req.order.shortCode} ·{" "}
+            {t("orderPrefix")} {displayOrderCode(req.order.shortCode)} ·{" "}
             {fmtCOP(req.order.totalCents)}
           </div>
         </div>

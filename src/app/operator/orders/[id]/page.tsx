@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { staffForRestaurant, OPERATOR_ROLES } from "@/lib/staffAccess";
 import { ReconcilePayment } from "./ReconcilePayment";
 import Link from "next/link";
@@ -113,9 +114,9 @@ export default async function OperatorOrderDetail({
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
             {t("detailTitle")}{" "}
-            <span className="font-mono text-base text-op-muted">
+            <span className="font-mono text-base text-op-muted" title={order.shortCode}>
               <span aria-hidden>{"· "}</span>
-              {order.shortCode}
+              {displayOrderCode(order.shortCode)}
             </span>
           </div>
         </div>

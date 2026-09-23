@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { getEmailTranslator } from "@/lib/emailIntl";
 import { formatDate, formatMoney } from "@/lib/format";
 import { sendEmail, type EmailAttachment } from "@/lib/mailer";
@@ -71,7 +72,7 @@ export async function renderVoucherStatementEmail(
     "",
     t("detailTitle"),
     ...args.rows.map(
-      (r) => `${day(r.redeemedAt)}  ${r.code}  ${r.orderCode}  ${money(r.amountCents)}`,
+      (r) => `${day(r.redeemedAt)}  ${r.code}  ${displayOrderCode(r.orderCode)}  ${money(r.amountCents)}`,
     ),
     "",
     t("csvNote"),
@@ -84,7 +85,7 @@ export async function renderVoucherStatementEmail(
       (r) => `<tr>
         <td style="padding:6px 0;border-bottom:1px solid #EAE1D0;font-size:13px;">${escapeHtml(day(r.redeemedAt))}</td>
         <td style="padding:6px 0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:13px;letter-spacing:0.04em;">${escapeHtml(r.code)}</td>
-        <td style="padding:6px 0;border-bottom:1px solid #EAE1D0;font-size:13px;color:#8B7B65;">${escapeHtml(r.orderCode)}</td>
+        <td style="padding:6px 0;border-bottom:1px solid #EAE1D0;font-size:13px;color:#8B7B65;">${escapeHtml(displayOrderCode(r.orderCode))}</td>
         <td align="right" style="padding:6px 0;border-bottom:1px solid #EAE1D0;font-size:13px;">${escapeHtml(money(r.amountCents))}</td>
       </tr>`,
     )

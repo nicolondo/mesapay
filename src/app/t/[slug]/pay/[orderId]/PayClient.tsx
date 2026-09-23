@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
@@ -673,8 +674,8 @@ export function PayClient({
           <span>{t("backToOrder")}</span>
         </Link>
       )}
-      <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
-        {locationLabel} · {tenantName} · {shortCode}
+      <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted" title={shortCode}>
+        {locationLabel} · {tenantName} · {displayOrderCode(shortCode)}
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
         {operatorMode ? t("charge") : t("pay")}

@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -1354,8 +1355,8 @@ function SalesBookView({
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-medium shrink-0">
-                      {o.shortCode}
+                    <span className="text-sm font-medium shrink-0" title={o.shortCode}>
+                      {displayOrderCode(o.shortCode)}
                     </span>
                     <span className="text-sm text-op-muted truncate">
                       {o.orderType === "pickup"

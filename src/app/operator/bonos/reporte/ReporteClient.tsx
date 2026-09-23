@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -251,8 +252,8 @@ export function ReporteClient({
                     <td className="px-4 py-3">{r.customerName}</td>
                     <td className="px-4 py-3 font-mono tracking-[0.06em]">{r.code}</td>
                     <td className="px-4 py-3">
-                      <Link href={`/operator/orders/${r.orderId}`} className="text-terracotta underline">
-                        {r.orderCode}
+                      <Link href={`/operator/orders/${r.orderId}`} className="text-terracotta underline" title={r.orderCode}>
+                        {displayOrderCode(r.orderCode)}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">{money(r.amountCents)}</td>

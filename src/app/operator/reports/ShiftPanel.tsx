@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { useEffect, useMemo, useState } from "react";
@@ -214,7 +215,7 @@ function OpenPanel({
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{o.tableLabel}</div>
                   <div className="text-[11px] text-op-muted font-mono">
-                    {o.shortCode} · {o.status}
+                    {displayOrderCode(o.shortCode)} · {o.status}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

@@ -20,6 +20,7 @@
  * queda mal parado frente al cliente es el comercio.
  */
 
+import { displayOrderCode } from "@/lib/orderCode";
 import {
   formatInvoiceNumber,
   taxLabelsFrom,
@@ -179,7 +180,7 @@ export function buildThermalInvoice(args: {
     documentNumber: formatInvoiceNumber(s, args.invoiceNumber),
     metaRows: [
       { label: t("date"), value: args.paidAtLabel },
-      { label: s.tableLabel, value: s.shortCode },
+      { label: s.tableLabel, value: displayOrderCode(s.shortCode) },
     ],
     customerLines,
     items: s.items.map((i) => ({

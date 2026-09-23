@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -179,7 +180,7 @@ export default async function FacturaPage({
           </div>
           <div className="row">
             <span>{snap.tableLabel}</span>
-            <span className="right">{snap.shortCode}</span>
+            <span className="right" title={snap.shortCode}>{displayOrderCode(snap.shortCode)}</span>
           </div>
 
           {snap.customer && (

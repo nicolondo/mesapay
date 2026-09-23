@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -122,7 +123,7 @@ export default async function OperatorRatingsPage() {
                         {r.menuItem.name}
                       </div>
                       <div className="text-xs text-op-muted mt-0.5">
-                        {r.order.shortCode} ·{" "}
+                        {displayOrderCode(r.order.shortCode)} ·{" "}
                         {r.guestName ? r.guestName : t("anonymous")} · {date}{" "}
                         {time}
                       </div>

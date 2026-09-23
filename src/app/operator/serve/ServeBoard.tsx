@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -221,9 +222,9 @@ export function ServeBoard({
       : String(r.order.tableNumber);
   const groupLabel = (r: Round) =>
     r.order.orderType === "pickup"
-      ? tr("pickupLabel", { name: r.order.pickupName ?? r.order.shortCode })
+      ? tr("pickupLabel", { name: r.order.pickupName ?? displayOrderCode(r.order.shortCode) })
       : serviceMode === "counter"
-        ? tr("orderLabel", { code: r.order.shortCode })
+        ? tr("orderLabel", { code: displayOrderCode(r.order.shortCode) })
         : tr("tableLabel", { number: r.order.tableNumber });
 
   const byGroup = new Map<string, { label: string; sort: number; rounds: Round[] }>();
@@ -508,13 +509,13 @@ function CancelledCard({
   const title =
     cancelled.order.orderType === "pickup"
       ? tr("pickupLabel", {
-          name: cancelled.order.pickupName ?? cancelled.order.shortCode,
+          name: cancelled.order.pickupName ?? displayOrderCode(cancelled.order.shortCode),
         })
       : serviceMode === "counter"
-        ? tr("orderLabel", { code: cancelled.order.shortCode })
+        ? tr("orderLabel", { code: displayOrderCode(cancelled.order.shortCode) })
         : tr("tableWithCode", {
             number: cancelled.order.tableNumber,
-            code: cancelled.order.shortCode,
+            code: displayOrderCode(cancelled.order.shortCode),
           });
   return (
     <li className="rounded-2xl border-2 border-danger/40 bg-danger/5 p-4 flex flex-col">
@@ -589,11 +590,11 @@ function WaiterCallCard({
         <div>
           <div className="font-display text-2xl">
             {serviceMode === "counter"
-              ? tr("callOrder", { code: call.shortCode })
+              ? tr("callOrder", { code: call.scope === "table" ? call.shortCode : displayOrderCode(call.shortCode) })
               : tr("callTable", { number: call.tableNumber })}
           </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {call.shortCode}
+            {call.scope === "table" ? call.shortCode : displayOrderCode(call.shortCode)}
           </div>
         </div>
         <CashAge createdAt={call.calledAt} />
@@ -662,10 +663,10 @@ function TerminalPendingCard({
   const isExternal = pending.method === "external_terminal";
   const title =
     serviceMode === "counter"
-      ? tr("orderLabel", { code: pending.order.shortCode })
+      ? tr("orderLabel", { code: displayOrderCode(pending.order.shortCode) })
       : tr("tableWithCode", {
           number: pending.order.tableNumber,
-          code: pending.order.shortCode,
+          code: displayOrderCode(pending.order.shortCode),
         });
 
   async function charge() {
@@ -823,11 +824,11 @@ function CashCard({
         <div>
           <div className="font-display text-2xl">
             {serviceMode === "counter"
-              ? tr("orderLabel", { code: pending.order.shortCode })
+              ? tr("orderLabel", { code: displayOrderCode(pending.order.shortCode) })
               : tr("tableLabel", { number: pending.order.tableNumber })}
           </div>
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {pending.order.shortCode}
+            {displayOrderCode(pending.order.shortCode)}
           </div>
         </div>
         <CashAge createdAt={pending.createdAt} />
@@ -1045,10 +1046,10 @@ function CashSettleModal({
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
               {serviceMode === "counter"
-                ? tr("orderLabel", { code: pending.order.shortCode })
+                ? tr("orderLabel", { code: displayOrderCode(pending.order.shortCode) })
                 : tr("tableWithCode", {
                     number: pending.order.tableNumber,
-                    code: pending.order.shortCode,
+                    code: displayOrderCode(pending.order.shortCode),
                   })}
             </div>
             <div className="font-display text-2xl">{tr("cashModalTitle")}</div>
@@ -1373,9 +1374,9 @@ function LooseItemsCard({
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
           {isPickup
             ? tr("pickupLabel", {
-                name: r.order.pickupName ?? r.order.shortCode,
+                name: r.order.pickupName ?? displayOrderCode(r.order.shortCode),
               })
-            : tr("roundFuertes", { code: r.order.shortCode, seq: r.seq })}
+            : tr("roundFuertes", { code: displayOrderCode(r.order.shortCode), seq: r.seq })}
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
@@ -1458,11 +1459,11 @@ function LooseItemsCard({
           : isPickup
             ? selectedItems.length > 1
               ? tr("deliveredToCount", {
-                  name: r.order.pickupName ?? r.order.shortCode,
+                  name: r.order.pickupName ?? displayOrderCode(r.order.shortCode),
                   count: selectedItems.length,
                 })
               : tr("deliveredTo", {
-                  name: r.order.pickupName ?? r.order.shortCode,
+                  name: r.order.pickupName ?? displayOrderCode(r.order.shortCode),
                 })
             : serviceMode === "counter"
               ? selectedItems.length > 1
@@ -1511,7 +1512,7 @@ function MainsWaitingCard({
     <li className="rounded-xl border border-dashed border-op-border bg-op-bg p-3">
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          {tr("roundFuertes", { code: r.order.shortCode, seq: r.seq })}
+          {tr("roundFuertes", { code: displayOrderCode(r.order.shortCode), seq: r.seq })}
         </div>
         <span className="font-mono text-[9px] tracking-wider uppercase text-terracotta bg-terracotta/10 px-1.5 py-0.5 rounded">
           {tr("badgeMainsTogether")}
@@ -1540,7 +1541,7 @@ function MainsBulkCard({
     <li className="rounded-xl border-2 border-[#2E6B4C]/50 bg-[#2E6B4C]/5 p-3">
       <div className="flex items-center justify-between">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-          {tr("roundFuertesJuntos", { code: r.order.shortCode, seq: r.seq })}
+          {tr("roundFuertesJuntos", { code: displayOrderCode(r.order.shortCode), seq: r.seq })}
         </div>
         {r.readyAt && <PassTimer readyAt={r.readyAt} />}
       </div>
@@ -1583,7 +1584,7 @@ function MainsBulkCard({
         className="mt-3 w-full h-11 rounded-xl bg-ok text-bone text-sm font-medium active:scale-[0.98] transition-transform"
       >
         {serviceMode === "counter"
-          ? tr("deliveredToOrder", { code: r.order.shortCode })
+          ? tr("deliveredToOrder", { code: displayOrderCode(r.order.shortCode) })
           : tr("deliveredToTable", { number: r.order.tableNumber })}
       </button>
     </li>

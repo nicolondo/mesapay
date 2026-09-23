@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -428,7 +429,7 @@ export default async function ReportsPage({
                   return (
                     <tr key={p.id} className="border-t border-op-border">
                       <Td className="font-mono tabular">{bt.time}</Td>
-                      <Td className="font-mono">{p.order.shortCode}</Td>
+                      <Td className="font-mono"><span title={p.order.shortCode}>{displayOrderCode(p.order.shortCode)}</span></Td>
                       <Td>{counterMode ? t("counterLabel") : p.order.table.number}</Td>
                       <Td>{methodLabel(p.method)}</Td>
                       <Td align="right" className="font-mono tabular">

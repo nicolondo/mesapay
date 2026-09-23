@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { canAccessOrder } from "@/lib/guestAccess";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
@@ -109,7 +110,7 @@ export default async function OrderView({
       </div>
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
         {t("yourOrder")}{" "}
-        <span className="font-mono text-base text-muted">· {order.shortCode}</span>
+        <span className="font-mono text-base text-muted" title={order.shortCode}>· {displayOrderCode(order.shortCode)}</span>
       </h1>
 
       <OrderLive orderId={order.id} tenantSlug={slug} initialStatus={order.status} />

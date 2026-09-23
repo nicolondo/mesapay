@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -246,8 +247,8 @@ export function BillRequestAlert({ tenantSlug }: { tenantSlug: string }) {
         )}
 
         {current.shortCode && (
-          <div className="font-mono text-xs md:text-sm tracking-[0.2em] uppercase mt-4 opacity-80">
-            {current.shortCode}
+          <div className="font-mono text-xs md:text-sm tracking-[0.2em] uppercase mt-4 opacity-80" title={current.shortCode}>
+            {displayOrderCode(current.shortCode)}
           </div>
         )}
 

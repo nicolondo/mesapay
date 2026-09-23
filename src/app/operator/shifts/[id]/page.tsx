@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -336,7 +337,7 @@ export default async function ShiftDetailPage({
                         ? fmtBogotaDateTime(p.settledAt).time
                         : t("emptyDash")}
                     </Td>
-                    <Td mono>{p.orderShortCode}</Td>
+                    <Td mono><span title={p.orderShortCode}>{displayOrderCode(p.orderShortCode)}</span></Td>
                     <Td>{p.tableLabel ?? t("emptyDash")}</Td>
                     <Td>{methodLabel(p.method)}</Td>
                     <Td>{p.collectedByLabel ?? t("collectedByCustomer")}</Td>

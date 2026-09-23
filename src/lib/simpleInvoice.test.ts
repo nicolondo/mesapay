@@ -103,6 +103,36 @@ describe("issueSimpleInvoice — impuesto congelado en el snapshot", () => {
     expect(upd.select.salesTaxPct).toBe(true);
   });
 
+  it("una factura manual armada con un cargo 'impuesto incluido' congela el MISMO impoconsumo que ese valor en platos de una mesa", async () => {
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    // Mesa: bandeja de $30.000 del menú.
+    const dish = { qty: 1, nameSnapshot: "Bandeja paisa", priceCentsSnapshot: 3_000_000, taxKind: null, taxPct: null, cancelledAt: null };
+    m.orderFindUnique.mockResolvedValue({ ...order(), items: [dish], subtotalCents: 3_000_000, taxCents: 0, totalCents: 3_000_000 });
+    const table = await issuedSnapshot();
+    vi.resetAllMocks();
+    m.invoiceCreate.mockResolvedValue({ id: "inv-2" });
+    m.enqueue.mockResolvedValue(undefined);
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    // Factura manual: el mismo valor como línea libre con el impuesto incluido
+    // (sin ronda, sin plato del menú, `taxKind` null).
+    const charge = { qty: 1, nameSnapshot: "Almuerzos evento", priceCentsSnapshot: 3_000_000, taxKind: null, taxPct: null, cancelledAt: null, roundId: null, menuItemId: null };
+    m.orderFindUnique.mockResolvedValue({
+      ...order(),
+      table: { number: -100, label: "Factura manual", kind: "manual" },
+      items: [charge],
+      subtotalCents: 3_000_000,
+      taxCents: 0,
+      totalCents: 3_000_000,
+    });
+    const manual = await issuedSnapshot();
+    expect(manual.tableLabel).toBe("Factura manual");
+    // Misma línea de impuesto: base 27.777,78 + impoconsumo 2.222,22 incluido; nada encima.
+    for (const s of [table, manual]) {
+      expect(s).toMatchObject({ salesTaxKind: "inc", salesTaxPct: 8, embeddedTaxCents: 222_222, embeddedBaseCents: 2_777_778, taxCents: 0, totalCents: 3_000_000 });
+      expect(s.taxByKind).toEqual({ inc: 0, iva: 0 });
+    }
+  });
+
   it("con el comercio sin impuesto deja constancia explícita: none, cero, base = bruto", async () => {
     m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "none", salesTaxPct: 0 }));
     const s = await issuedSnapshot();

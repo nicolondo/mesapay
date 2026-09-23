@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
 import { issueSimpleInvoice } from "@/lib/simpleInvoice";
 import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
+import { normalizeCustomerDocument } from "@/lib/customerDocument";
 
 /**
  * Customer-submitted billing info attached to an order. We store it
@@ -30,6 +31,13 @@ import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
  * pide (la factura electrónica sale sin el bloque de dirección del
  * adquiriente, como la de consumidor final). Si un cliente viejo los manda
  * igual, se validan como antes y se guardan; ausentes o vacíos ⇒ null.
+ *
+ * La identificación se guarda SIN dígito de verificación: sólo el número,
+ * que es lo que se muestra en la tirilla, el correo y la ficha de la cuenta.
+ * El DV del NIT lo calcula la emisión a la DIAN (`customerPartyFor`) cuando
+ * arma el XML. Si el comensal igual escribe "901.944.469-1" se separa; un DV
+ * que no corresponde se rechaza con `code` para que el formulario lo diga
+ * claro (ver src/lib/customerDocument.ts).
  */
 
 const optionalText = (min: number, max: number) =>
@@ -75,11 +83,18 @@ async function POSTHandler(
       { status: 400 },
     );
   }
+  const document = normalizeCustomerDocument(parsed.data.docType, parsed.data.docNumber);
+  if (!document.ok) {
+    return NextResponse.json(
+      { error: "invalid", code: document.error },
+      { status: 400 },
+    );
+  }
 
   const data = {
     customerName: parsed.data.customerName,
     docType: parsed.data.docType,
-    docNumber: parsed.data.docNumber,
+    docNumber: document.docNumber,
     address: parsed.data.address,
     city: parsed.data.city,
     department: parsed.data.department,
@@ -131,7 +146,7 @@ async function POSTHandler(
     customer: {
       name: parsed.data.customerName,
       docType: parsed.data.docType,
-      docNumber: parsed.data.docNumber,
+      docNumber: document.docNumber,
       address: parsed.data.address,
       city: parsed.data.city,
       department: parsed.data.department,

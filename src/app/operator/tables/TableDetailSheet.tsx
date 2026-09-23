@@ -265,8 +265,70 @@ export function TableDetailSheet({
   // busy mientras vuela el POST, asked cuando ya avisamos a caja.
   const [billBusy, setBillBusy] = useState(false);
   const [billAsked, setBillAsked] = useState(false);
+  // "Imprimir precuenta": busy mientras vuela el POST; `prebillNote` es lo
+  // que se le dice al mesero después ("enviada a Caja", "sin impresora…");
+  // `prebillOpenLink` aparece cuando el navegador bloqueó la pestaña que
+  // intentamos abrir con la vista imprimible.
+  const [prebillBusy, setPrebillBusy] = useState(false);
+  const [prebillNote, setPrebillNote] = useState<string | null>(null);
+  const [prebillOpenLink, setPrebillOpenLink] = useState(false);
   const router = useRouter();
   const [, startTx] = useTransition();
+
+  // Vista imprimible de la precuenta. En la PWA del mesero navegamos
+  // in-app (scope /mesero/), igual que "Cobrar la cuenta".
+  const prebillHref = isMeseroView
+    ? `/mesero/precuenta/${orderId}`
+    : `/operator/orders/${orderId}/precuenta`;
+
+  /**
+   * Manda la precuenta a la impresora de facturas del local. Si el local
+   * no tiene (o su agente no responde), abre la vista imprimible del
+   * navegador: la precuenta sale igual, sólo que por otro camino.
+   */
+  async function printPrebill() {
+    if (prebillBusy) return;
+    setPrebillBusy(true);
+    setPrebillNote(null);
+    setPrebillOpenLink(false);
+    try {
+      const res = await fetch(`/api/operator/orders/${orderId}/prebill`, {
+        method: "POST",
+      });
+      const body = (await res.json().catch(() => null)) as {
+        queued?: boolean;
+        reason?: string;
+        printerName?: string;
+      } | null;
+      if (!res.ok || !body) {
+        setPrebillNote(tr("prebillFailed"));
+        return;
+      }
+      if (body.queued) {
+        setPrebillNote(tr("prebillSent", { printer: body.printerName ?? "" }));
+        return;
+      }
+      setPrebillNote(
+        body.reason === "agent_offline"
+          ? tr("prebillPrinterOffline")
+          : tr("prebillNoPrinter"),
+      );
+      if (isMeseroView) {
+        router.push(prebillHref);
+        return;
+      }
+      // `?print=1` abre el diálogo de impresión solo. Si el navegador
+      // bloquea la pestaña (Safari lo hace tras un await), queda el link.
+      // Sin `noopener`: con esa feature `window.open` devuelve null SIEMPRE
+      // y no se podría distinguir el bloqueo; la URL es propia del panel.
+      const win = window.open(`${prebillHref}?print=1`, "_blank");
+      if (!win) setPrebillOpenLink(true);
+    } catch {
+      setPrebillNote(tr("prebillFailed"));
+    } finally {
+      setPrebillBusy(false);
+    }
+  }
 
   /**
    * El mesero avisa a caja que la mesa quiere pagar. Dispara el aviso de
@@ -766,12 +828,20 @@ export function TableDetailSheet({
                 orderStatus !== "paid" &&
                 orderStatus !== "cancelled" &&
                 orderStatus !== "paying";
+              // Precuenta: mientras la cuenta siga sin pagar y haya algo
+              // vivo que mostrar. En "paying" también — es justo cuando la
+              // piden — y no depende de quién cobra (chargeLocked).
+              const canPrebill =
+                orderStatus !== "paid" &&
+                orderStatus !== "cancelled" &&
+                (hasAnyLiveItem || freeLines.length > 0);
               if (
                 !canAdd &&
                 !canCharge &&
                 !canMove &&
                 !canCancelOrder &&
-                !canAddFreeLine
+                !canAddFreeLine &&
+                !canPrebill
               )
                 return null;
               return (
@@ -845,6 +915,53 @@ export function TableDetailSheet({
                         {tr("chargeBill")}
                       </a>
                     ))}
+                  {canPrebill && (
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={printPrebill}
+                        disabled={prebillBusy}
+                        className="mp-btn mp-btn--secondary mp-btn--block"
+                      >
+                        {prebillBusy ? tr("prebillPrinting") : tr("prebillPrint")}
+                      </button>
+                      <div className="flex items-center justify-between gap-2 px-1 font-mono text-[10px] text-op-muted">
+                        <span className="min-w-0 truncate">
+                          {prebillNote}
+                          {prebillOpenLink && (
+                            <>
+                              {" "}
+                              <a
+                                href={`${prebillHref}?print=1`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline text-op-text"
+                              >
+                                {tr("prebillOpenView")}
+                              </a>
+                            </>
+                          )}
+                        </span>
+                        {isMeseroView ? (
+                          <Link
+                            href={prebillHref}
+                            className="shrink-0 underline hover:text-op-text"
+                          >
+                            {tr("prebillView")}
+                          </Link>
+                        ) : (
+                          <a
+                            href={prebillHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 underline hover:text-op-text"
+                          >
+                            {tr("prebillView")}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {canMove && (
                     <button
                       type="button"

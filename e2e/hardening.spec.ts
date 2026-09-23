@@ -386,7 +386,7 @@ test("diner can browse first, then supply a name before sending the cart", async
     .click();
   await page.getByRole("button", { name: /Ver pedido/ }).click();
   await page
-    .getByRole("button", { name: "Enviar a cocina", exact: true })
+    .getByRole("button", { name: "Marchar orden", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "¿Cómo te llamamos?" });
   await expect(dialog).toBeVisible();
@@ -397,7 +397,7 @@ test("diner can browse first, then supply a name before sending the cart", async
   await dialog.getByRole("button", { name: "Guardar", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Enviar a cocina", exact: true })
+    .getByRole("button", { name: "Marchar orden", exact: true })
     .click();
   await expect
     .poll(() =>

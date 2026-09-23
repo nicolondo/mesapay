@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { PlacedByLine } from "@/components/PlacedByLine";
+import { NewOrderChime } from "./NewOrderChime";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
@@ -88,6 +89,7 @@ export function KitchenBoard({
   rounds,
   mode: boardMode = "kitchen",
   serverNow,
+  soundScope,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
@@ -97,6 +99,9 @@ export function KitchenBoard({
   // reloj del dispositivo y que la cuenta regresiva no se congele si la
   // tablet tiene la hora desfasada.
   serverNow?: number;
+  // Vista actual del tablero (sub-estación del bar). Al cambiarla aparecen
+  // rondas que ya existían: el pitido de pedido nuevo no debe sonar por eso.
+  soundScope?: string;
 }) {
   const tr = useTranslations("kitchen");
   const COLUMNS = boardMode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
@@ -260,7 +265,7 @@ export function KitchenBoard({
     startTx(() => router.refresh());
   }
 
-  return (
+  const board = (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
       {COLUMNS.map((col) => {
         // Each round appears in every column where it has at least one item
@@ -487,6 +492,19 @@ export function KitchenBoard({
         );
       })}
     </div>
+  );
+
+  return (
+    <>
+      {/* Pitido agudo cuando entra un pedido nuevo (ronda nunca vista en
+          esta página) + control para activarlo/silenciarlo y probarlo. */}
+      <NewOrderChime
+        board={boardMode}
+        roundIds={rounds.map((r) => r.id)}
+        scope={soundScope}
+      />
+      {board}
+    </>
   );
 }
 

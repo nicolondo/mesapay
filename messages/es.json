@@ -1146,7 +1146,13 @@
     "roleBar": "Bar",
     "roleTerminal": "Terminal",
     "roleGroupAdmin": "Grupo",
-    "rolePlatformAdmin": "MESAPAY"
+    "rolePlatformAdmin": "MESAPAY",
+    "soundOn": "Sonido activado",
+    "soundOff": "Sonido silenciado",
+    "soundToggleHint": "Pitido cuando entra un pedido nuevo",
+    "soundTest": "Probar sonido",
+    "soundUnlock": "Tocá la pantalla para activar el sonido de pedidos nuevos",
+    "soundUnsupported": "Este navegador no puede reproducir el sonido de pedidos nuevos"
   },
   "serve": {
     "noRestaurant": "Sin restaurante.",

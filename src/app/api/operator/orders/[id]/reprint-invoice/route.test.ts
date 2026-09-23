@@ -231,7 +231,13 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
       const res = await call();
       expect(m.enqueueInvoicePrint.mock.calls[0][0]).not.toHaveProperty("dian");
       expect(m.dianEnvironment).not.toHaveBeenCalled();
-      expect(await res.json()).toMatchObject({ document: "comprobante" });
+      // Y lo avisa: la UI dice que salió el comprobante, no la electrónica.
+      expect(await res.json()).toEqual({
+        queued: true,
+        printers: 1,
+        document: "comprobante",
+        dianPending: true,
+      });
     },
   );
 
@@ -245,9 +251,11 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
     m.invoiceFindUnique.mockResolvedValue(
       invoice({ dianDocument: { state: "accepted", cufe: "CUFE-1" } }),
     );
-    await call();
+    const res = await call();
     expect(m.enqueueInvoicePrint.mock.calls[0][0]).not.toHaveProperty("dian");
     expect(m.dianEnvironment).not.toHaveBeenCalled();
+    // Sin facturación electrónica no hay nada "pendiente" que avisar.
+    expect(await res.json()).not.toHaveProperty("dianPending");
   });
 });
 

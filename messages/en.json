@@ -1426,6 +1426,8 @@
     "reprintInvoice": "Reprint invoice",
     "reprinting": "Sending…",
     "reprintSent": "Sent to the printer ✓",
+    "reprintSentEinvoice": "Electronic invoice sent to the printer ✓",
+    "reprintSentDianPending": "The receipt was printed: DIAN hasn't accepted this bill's electronic invoice yet.",
     "reprintNoPrinter": "No invoice printer is set up; the print-from-browser version was opened instead.",
     "reprintOpenBrowser": "Open the printable version",
     "reprintError": "Couldn't reprint the invoice.",

@@ -114,7 +114,17 @@ async function POSTHandler(
     diff: { after: { invoiceId: invoice.id, printers, document } },
   });
 
-  return NextResponse.json({ queued: true, printers, document });
+  // Comercio con facturación electrónica y la factura TODAVÍA sin aceptar
+  // (pendiente, rechazada, en error): salió el comprobante, y la UI lo
+  // dice — el operador no puede creer que entregó la factura electrónica.
+  const dianPending =
+    !dian && isModuleEnabled(invoice.restaurant.enabledModules, "einvoicing");
+  return NextResponse.json({
+    queued: true,
+    printers,
+    document,
+    ...(dianPending && { dianPending: true }),
+  });
 }
 
 /**

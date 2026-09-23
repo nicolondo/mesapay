@@ -1426,6 +1426,8 @@
     "reprintInvoice": "Reimprimir fatura",
     "reprinting": "Enviando…",
     "reprintSent": "Enviada para a impressora ✓",
+    "reprintSentEinvoice": "Fatura eletrônica enviada para a impressora ✓",
+    "reprintSentDianPending": "Saiu o comprovante: a DIAN ainda não aceitou a fatura eletrônica desta conta.",
     "reprintNoPrinter": "Não há impressora de faturas configurada; abriu-se a versão para imprimir pelo navegador.",
     "reprintOpenBrowser": "Abrir a versão para imprimir",
     "reprintError": "Não foi possível reimprimir a fatura.",

@@ -17,6 +17,9 @@ import type { DocType, InvoiceRequestSummary } from "./types";
  * Factura PERSONALIZADA: nombre o razón social, documento y correo. No se
  * pide dirección, ciudad ni departamento: la factura electrónica sale sin el
  * bloque de dirección del adquiriente, igual que la de consumidor final.
+ * El documento es SÓLO el número, sin dígito de verificación: el servidor lo
+ * normaliza (y a la DIAN le llega el DV calculado); el resumen que queda en
+ * pantalla es el que el servidor guardó, no lo tecleado.
  * Los datos van al restaurante (`/operator/facturas`), que emite la factura
  * electrónica desde su propio proveedor (Siigo, Alegra, …).
  *
@@ -130,6 +133,8 @@ export function InvoiceFormSheet({
     const j = (await res.json().catch(() => ({}))) as {
       invoiceUrl?: string;
       deferred?: boolean;
+      /** La solicitud guardada: identificación ya normalizada (sin DV). */
+      request?: Pick<InvoiceRequestSummary, "customerName" | "docType" | "docNumber" | "email">;
     };
     setBusy(false);
     // Remember on this device so the next restaurant gets one-tap fill.
@@ -140,7 +145,7 @@ export function InvoiceFormSheet({
     } catch {
       /* ignore */
     }
-    onSaved?.({ status: "pending", ...payload });
+    onSaved?.({ status: "pending", ...payload, ...(j.request ?? {}) });
     if (j.deferred) {
       setDone({ deferred: true, email: payload.email });
     } else if (j.invoiceUrl) {
@@ -343,6 +348,7 @@ export function InvoiceFormSheet({
               onChange={setDocNumber}
               type="text"
               inputMode="numeric"
+              hint={docType === "NIT" ? t("invNitHint") : undefined}
             />
           </div>
           <Field
@@ -378,9 +384,13 @@ export function InvoiceFormSheet({
 }
 
 function humanError(
-  j: { error?: string },
+  j: { error?: string; code?: string },
   t: ReturnType<typeof useTranslations>,
 ): string {
+  // El servidor distingue el documento mal escrito del DV que no
+  // corresponde: son dos correcciones distintas para quien está tecleando.
+  if (j.code === "invalid_verification_digit") return t("invErrVerificationDigit");
+  if (j.code === "invalid_document") return t("invErrDocument");
   switch (j.error) {
     case "already_generated":
       return t("invErrAlreadyGenerated");

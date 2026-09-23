@@ -16,11 +16,23 @@ describe("billingCustomerSchema", () => {
   it("still derives the municipality from the server catalog when a code is sent", () => {
     expect(billingCustomerSchema.parse({ ...withAddress, city: "Bogotá", department: "Bogotá" })).toMatchObject({ address: "Calle 10 # 20-30", municipalityCode: "05001", city: "Medellín", department: "Antioquia" });
   });
-  it.each([{}, { verificationDigit: "1" }, { docNumber: "901.944.469-1" }])("stores NIT and DV separately: %j", (extra) => {
+  // El formulario pide SÓLO el número: el DV del NIT se calcula en el
+  // servidor y se guarda aparte. Si igual llega (sufijo "-D" o el campo viejo
+  // de la API) se respeta cuando es el correcto.
+  it("NIT sin DV: lo calcula y lo guarda aparte del número", () => {
+    expect(billingCustomerSchema.parse({ ...base, docType: "NIT", docNumber: "901944469" })).toMatchObject({ docNumber: "901944469", verificationDigit: "1" });
+    expect(billingCustomerSchema.parse({ ...base, docType: "NIT", docNumber: "901.944.469", verificationDigit: null })).toMatchObject({ docNumber: "901944469", verificationDigit: "1" });
+  });
+  it.each([{ verificationDigit: "1" }, { docNumber: "901.944.469-1" }, { docNumber: "901944469-1", verificationDigit: "1" }])("stores NIT and DV separately when the right DV is given: %j", (extra) => {
     expect(billingCustomerSchema.parse({ ...base, docType: "NIT", docNumber: "901944469", ...extra })).toMatchObject({ docNumber: "901944469", verificationDigit: "1" });
   });
   it.each([{ docNumber: "901944469-2" }, { verificationDigit: "2" }, { docNumber: "901944469-1", verificationDigit: "2" }])("rejects incorrect or conflicting NIT DV: %j", (extra) => {
     expect(billingCustomerSchema.safeParse({ ...base, docType: "NIT", docNumber: "901944469", ...extra }).success).toBe(false);
+  });
+  it("a wrong DV typed inside the number is reported on the number field (the only one the form shows)", () => {
+    const result = billingCustomerSchema.safeParse({ ...base, docType: "NIT", docNumber: "901944469-2" });
+    expect(result.success).toBe(false);
+    expect(result.success ? [] : result.error.issues.map((i) => `${i.path.join(".")}:${i.message}`)).toEqual(["docNumber:invalid_verification_digit"]);
   });
   it("never strips an ambiguous last digit from a NIT without a separator", () => {
     expect(billingCustomerSchema.parse({ ...base, docType: "NIT", docNumber: "9019444691" }).docNumber).toBe("9019444691");

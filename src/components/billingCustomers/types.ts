@@ -16,10 +16,15 @@ export type BillingCustomerRecord = {
   country: string;
 };
 
+/**
+ * Identificación tal como se MUESTRA (y se carga en un formulario): sólo el
+ * número, sin el dígito de verificación. El DV del NIT se guarda aparte
+ * (`verificationDigit`) para quien lo necesita de verdad —el XML de la DIAN
+ * y la exógena lo leen de ese campo o lo recalculan— pero al operador y al
+ * comensal no se les pide ni se les enseña.
+ */
 export function billingDocument(customer: Pick<BillingCustomerRecord, "docType" | "docNumber" | "verificationDigit">): string {
-  return customer.docType === "NIT" && customer.verificationDigit
-    ? `${customer.docNumber}-${customer.verificationDigit}`
-    : customer.docNumber;
+  return customer.docNumber;
 }
 
 /** "Dirección · Ciudad, Departamento" con lo que haya; "" cuando el cliente no dejó dirección. */

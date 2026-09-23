@@ -14,6 +14,8 @@ import {
 } from "@/lib/walkoutRisk";
 import { sortTablesForSalon } from "@/lib/tables/sortTables";
 import { TableDetailSheet } from "./TableDetailSheet";
+import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import type { RestaurantTax } from "@/lib/salesTax";
 
 /**
  * Grilla compacta de mesas con chips de filtro + accordion-on-tap.
@@ -90,6 +92,8 @@ export type ActiveOrder = {
     email: string;
     cedula: string | null;
   } | null;
+  /** Solicitud de factura pendiente de la cuenta: el cliente al que va. */
+  invoiceRequest: InvoiceRequestSummary | null;
   outstandingCents: number;
   needsWaiter: boolean;
   rounds: Round[];
@@ -151,6 +155,7 @@ export function MesasGrid({
   freeTables,
   allTables,
   country,
+  salesTax,
 }: {
   initialTime: number;
   tiles: TileData[];
@@ -174,6 +179,9 @@ export function MesasGrid({
   // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
   // una línea libre — el IVA de Colombia no es el de México.
   country: string | null;
+  // Impuesto de ventas del comercio: el que un cargo puede llevar "incluido"
+  // en el precio (como un plato de la carta) y el que la ficha muestra.
+  salesTax: RestaurantTax | null;
 }) {
   const tr = useTranslations("opTables");
   const router = useRouter();
@@ -334,6 +342,7 @@ export function MesasGrid({
                 }
                 tenantSlug={tenantSlug}
                 country={country}
+                salesTax={salesTax}
                 chargeLocked={chargeLocked}
               />
             ))}
@@ -404,6 +413,7 @@ export function MesasGrid({
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
               country={country}
+              salesTax={salesTax}
               chargeLocked={chargeLocked}
             />
           );
@@ -765,6 +775,7 @@ function ManualInvoiceTile({
   onOpenChange,
   tenantSlug,
   country,
+  salesTax,
   chargeLocked,
 }: {
   tile: ManualTile;
@@ -772,10 +783,14 @@ function ManualInvoiceTile({
   onOpenChange: (next: boolean) => void;
   tenantSlug: string;
   country: string | null;
+  salesTax: RestaurantTax | null;
   chargeLocked: boolean;
 }) {
   const tr = useTranslations("opTables");
+  // El cliente de la factura (si ya se identificó) es lo que distingue una
+  // factura manual de otra en la grilla.
   const who =
+    tile.order.invoiceRequest?.customerName ??
     tile.order.customer?.name ??
     (tile.order.itemCount > 0
       ? tr("tileMetaItems", { count: tile.order.itemCount })
@@ -824,10 +839,12 @@ function ManualInvoiceTile({
           discountCents={tile.order.discountCents}
           discountPct={tile.order.discountPct}
           customer={tile.order.customer}
+          invoiceRequest={tile.order.invoiceRequest}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={false}
           country={country}
+          salesTax={salesTax}
           chargeLocked={chargeLocked}
         />
       )}
@@ -849,6 +866,7 @@ function ActiveTile({
   tenantSlug,
   isMeseroView,
   country,
+  salesTax,
   chargeLocked,
 }: {
   tile: Extract<TileData, { state: "active" }>;
@@ -860,6 +878,7 @@ function ActiveTile({
   tenantSlug: string;
   isMeseroView: boolean;
   country: string | null;
+  salesTax: RestaurantTax | null;
   chargeLocked: boolean;
 }) {
   const tr = useTranslations("opTables");
@@ -969,6 +988,7 @@ function ActiveTile({
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}
           country={country}
+          salesTax={salesTax}
           chargeLocked={chargeLocked}
         />
       )}

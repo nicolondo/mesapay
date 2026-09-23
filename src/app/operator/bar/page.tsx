@@ -95,6 +95,7 @@ export default async function BarPage({
       <KitchenBoard
         mode="bar"
         serverNow={serverNowMs}
+        soundScope={activeSub ?? ""}
         tenantSlug={tenant.slug}
         serviceMode={tenant.serviceMode}
         rounds={rounds.map((r) => ({

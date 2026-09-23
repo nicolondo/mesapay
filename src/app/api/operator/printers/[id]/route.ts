@@ -17,10 +17,18 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
  * encolarse contra un aparato que no va a imprimir. El agente se entera
  * en su próximo latido; en su siguiente publicación de config la
  * impresora vuelve a quedar como diga el programa.
+ *
+ * `supportsQr` también se decide acá y no en el programa: es algo que se
+ * sabe MIRANDO el papel (¿salió el QR de la factura de prueba o salió
+ * basura?), y el agente no lo publica, así que sobrevive a cada
+ * republicación de la config.
  */
-const patchSchema = z.object({
-  active: z.boolean(),
-});
+const patchSchema = z
+  .object({
+    active: z.boolean().optional(),
+    supportsQr: z.boolean().optional(),
+  })
+  .refine((b) => b.active !== undefined || b.supportsQr !== undefined);
 
 function guard(role?: string) {
   return role === "operator" || role === "platform_admin";
@@ -53,10 +61,14 @@ async function PATCHHandler(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  const { active, supportsQr } = parsed.data;
   const updated = await db.printer.update({
     where: { id: printer.id },
-    data: { active: parsed.data.active },
-    select: { id: true, active: true },
+    data: {
+      ...(active !== undefined && { active }),
+      ...(supportsQr !== undefined && { supportsQr }),
+    },
+    select: { id: true, active: true, supportsQr: true },
   });
   return NextResponse.json({ ok: true, printer: updated });
 }

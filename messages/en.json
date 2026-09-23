@@ -1686,7 +1686,9 @@
     "prebillOpenView": "Open pre-bill",
     "prebillView": "View pre-bill",
     "prebillBack": "Back to Tables",
-    "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items."
+    "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items.",
+    "prebillQty": "{qty}x",
+    "prebillQtyUnit": "{qty} x {unit}"
   },
   "opCartera": {
     "hubCategory": "Commercial",

@@ -48,7 +48,9 @@ export function invoiceUrlFor(id: string): string {
  *
  * Acá adentro sí se encola la IMPRESIÓN en la impresora de facturas del
  * local, justamente porque este es el único punto por el que pasan todos
- * los flujos. Es best-effort: ver `print/invoiceQueue.ts`.
+ * los flujos. Es best-effort: ver `print/invoiceQueue.ts`. Con el módulo
+ * `einvoicing` la cola NO imprime desde acá (trigger "paid"): lo que sale
+ * es la factura electrónica, cuando la DIAN la acepta.
  */
 export async function issueSimpleInvoice(opts: {
   tenantId: string;
@@ -89,7 +91,10 @@ export async function issueSimpleInvoice(opts: {
     // impresora de la caja no existía todavía (o el encolado falló), esta
     // llamada la imprime. El `dedupeKey` impide el duplicado en el caso
     // normal, que es el que importa.
-    await enqueueInvoicePrintSafe(invoicePrintArgs(order.simpleInvoice, order));
+    await enqueueInvoicePrintSafe({
+      ...invoicePrintArgs(order.simpleInvoice, order),
+      trigger: "paid",
+    });
     return {
       ok: true,
       invoiceId: order.simpleInvoice.id,
@@ -214,8 +219,8 @@ export async function issueSimpleInvoice(opts: {
   // La tirilla sale por la impresora de la caja en el mismo momento del
   // cobro. Se AWAITEA (son dos queries y un insert) pero no puede fallar
   // hacia afuera: la factura ya está emitida y numerada.
-  await enqueueInvoicePrintSafe(
-    invoicePrintArgs(
+  await enqueueInvoicePrintSafe({
+    ...invoicePrintArgs(
       {
         id: inv.id,
         restaurantId: opts.tenantId,
@@ -225,7 +230,8 @@ export async function issueSimpleInvoice(opts: {
       },
       order,
     ),
-  );
+    trigger: "paid",
+  });
 
   return {
     ok: true,

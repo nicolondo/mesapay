@@ -20,6 +20,13 @@ import { parseInvoicePayload } from "@/lib/escpos";
  */
 
 const h = vi.hoisted(() => {
+  const defaultRestaurant = () => ({
+    printPaperWidthMm: 80,
+    country: "CO",
+    invoicePrinterId: null as string | null,
+    invoiceAutoPrint: true,
+    enabledModules: [] as string[],
+  });
   const state = {
     printers: [] as Array<{
       id: string;
@@ -27,7 +34,11 @@ const h = vi.hoisted(() => {
       kind: string;
       active: boolean;
       paperWidthMm: number | null;
+      supportsQr?: boolean;
     }>,
+    restaurant: defaultRestaurant(),
+    /** La fila de la tirilla que lee `printAcceptedDianInvoice`. */
+    invoiceRow: null as Record<string, unknown> | null,
     created: [] as Array<Record<string, unknown>>,
     findManyWhere: null as unknown,
     throwOnCreate: false,
@@ -37,7 +48,7 @@ const h = vi.hoisted(() => {
     printer: {
       findMany: vi.fn(
         async (args: {
-          where: { restaurantId: string; kind: string; active: boolean };
+          where: { restaurantId: string; kind?: string; id?: string; active: boolean };
           select: unknown;
         }) => {
           state.findManyWhere = args.where;
@@ -45,18 +56,22 @@ const h = vi.hoisted(() => {
             .filter(
               (p) =>
                 p.restaurantId === args.where.restaurantId &&
-                p.kind === args.where.kind &&
-                p.active === args.where.active,
+                p.active === args.where.active &&
+                (args.where.id ? p.id === args.where.id : p.kind === args.where.kind),
             )
-            .map((p) => ({ id: p.id, paperWidthMm: p.paperWidthMm }));
+            .map((p) => ({
+              id: p.id,
+              paperWidthMm: p.paperWidthMm,
+              supportsQr: p.supportsQr ?? false,
+            }));
         },
       ),
     },
     restaurant: {
-      findUnique: vi.fn(async () => ({
-        printPaperWidthMm: 80,
-        country: "CO",
-      })),
+      findUnique: vi.fn(async () => state.restaurant),
+    },
+    simpleInvoice: {
+      findUnique: vi.fn(async () => state.invoiceRow),
     },
     payment: {
       findMany: vi.fn(async () => [
@@ -74,7 +89,7 @@ const h = vi.hoisted(() => {
     },
   };
 
-  return { state, db };
+  return { state, db, defaultRestaurant };
 });
 
 vi.mock("@/lib/db", () => ({ db: h.db }));
@@ -119,10 +134,35 @@ const args = {
 beforeEach(() => {
   vi.clearAllMocks();
   h.state.printers = [];
+  h.state.restaurant = h.defaultRestaurant();
+  h.state.invoiceRow = null;
   h.state.created = [];
   h.state.findManyWhere = null;
   h.state.throwOnCreate = false;
 });
+
+const caja = (over: Partial<(typeof h.state.printers)[number]> = {}) => ({
+  id: "p-caja",
+  restaurantId: "rest-1",
+  kind: "factura",
+  active: true,
+  paperWidthMm: 80,
+  ...over,
+});
+const cocina = (over: Partial<(typeof h.state.printers)[number]> = {}) => ({
+  id: "p-cocina",
+  restaurantId: "rest-1",
+  kind: "comanda",
+  active: true,
+  paperWidthMm: 80,
+  ...over,
+});
+
+const CUFE = "0123456789abcdef".repeat(6);
+const dian = {
+  cufe: CUFE,
+  qrUrl: `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${CUFE}`,
+};
 
 describe("enqueueInvoicePrint — a quién le llega", () => {
   it("sólo busca impresoras de factura ACTIVAS del comercio", async () => {
@@ -358,5 +398,241 @@ describe("invoicePrintArgs — el cobro y la reimpresión mandan lo mismo", () =
     );
     expect(await enqueueInvoicePrint(built)).toBe(1);
     expect(h.state.created[0]).toMatchObject({ dedupeKey: "invoice:inv-1" });
+  });
+});
+
+describe("enqueueInvoicePrint — la impresora elegida (Restaurant.invoicePrinterId)", () => {
+  beforeEach(() => {
+    h.state.printers = [caja(), cocina()];
+  });
+
+  it("sin elección: todas las de tipo factura, como siempre", async () => {
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(1);
+    expect(h.state.created.map((r) => r.printerId)).toEqual(["p-caja"]);
+  });
+
+  it("con elección va SÓLO a esa impresora, aunque sea de comanda", async () => {
+    h.state.restaurant.invoicePrinterId = "p-cocina";
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(1);
+    expect(h.state.findManyWhere).toEqual({
+      restaurantId: "rest-1",
+      active: true,
+      id: "p-cocina",
+    });
+    expect(h.state.created.map((r) => r.printerId)).toEqual(["p-cocina"]);
+  });
+
+  it("la elegida apagada ⇒ no sale papel (no se cae a las demás)", async () => {
+    h.state.printers = [caja(), cocina({ active: false })];
+    h.state.restaurant.invoicePrinterId = "p-cocina";
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(0);
+    expect(h.state.created).toHaveLength(0);
+  });
+
+  it("la elegida de OTRO comercio no cuenta: el where sigue acotado al comercio", async () => {
+    h.state.printers = [caja(), { ...cocina(), id: "p-ajena", restaurantId: "rest-2" }];
+    h.state.restaurant.invoicePrinterId = "p-ajena";
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(0);
+  });
+});
+
+describe("enqueueInvoicePrint — qué se imprime y cuándo", () => {
+  beforeEach(() => {
+    h.state.printers = [caja()];
+  });
+
+  it("sin facturación electrónica, el cobro (trigger paid) imprime el COMPROBANTE", async () => {
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint({ ...args, trigger: "paid" })).toBe(1);
+    const doc = parseInvoicePayload(h.state.created[0].payload)!;
+    expect(doc.documentLabel).toBe("Comprobante");
+    expect(doc.fiscal).toBeNull();
+    expect(doc.customerLines).toEqual([]);
+  });
+
+  it("con facturación electrónica, el cobro NO imprime: ni siquiera busca impresoras", async () => {
+    h.state.restaurant.enabledModules = ["einvoicing"];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint({ ...args, trigger: "paid" })).toBe(0);
+    expect(h.db.printer.findMany).not.toHaveBeenCalled();
+    expect(h.db.printJob.createMany).not.toHaveBeenCalled();
+  });
+
+  it("con facturación electrónica, la aceptación de la DIAN imprime la FACTURA ELECTRÓNICA con su CUFE", async () => {
+    h.state.restaurant.enabledModules = ["einvoicing"];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(
+      await enqueueInvoicePrint({ ...args, trigger: "dian_accepted", dian }),
+    ).toBe(1);
+    expect(h.state.created[0]).toMatchObject({
+      kind: "customer_invoice",
+      dedupeKey: "invoice:inv-1",
+    });
+    const doc = parseInvoicePayload(h.state.created[0].payload)!;
+    expect(doc.documentLabel).toBe("FACTURA ELECTRÓNICA DE VENTA");
+    expect(doc.customerLines).toEqual(["Cliente: Consumidor final"]);
+    expect(doc.fiscal).toMatchObject({
+      cufeLabel: "CUFE",
+      cufe: CUFE,
+      verifyUrl: dian.qrUrl,
+      qr: false,
+      noticeLines: ["Representación impresa de la factura electrónica de venta"],
+    });
+  });
+
+  it("el QR sale SÓLO en la impresora que lo soporta; en la otra, la URL en texto", async () => {
+    h.state.printers = [
+      caja({ id: "p-caja-qr", supportsQr: true }),
+      caja({ id: "p-caja-sin", supportsQr: false }),
+    ];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(
+      await enqueueInvoicePrint({ ...args, trigger: "dian_accepted", dian }),
+    ).toBe(2);
+    const byPrinter = Object.fromEntries(
+      h.state.created.map((r) => [
+        r.printerId,
+        parseInvoicePayload(r.payload)!.fiscal!.qr,
+      ]),
+    );
+    expect(byPrinter).toEqual({ "p-caja-qr": true, "p-caja-sin": false });
+  });
+
+  it("el comprobante nunca lleva QR, aunque la impresora lo soporte", async () => {
+    h.state.printers = [caja({ supportsQr: true })];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    await enqueueInvoicePrint({ ...args, trigger: "paid" });
+    expect(parseInvoicePayload(h.state.created[0].payload)!.fiscal).toBeNull();
+  });
+
+  it("con invoiceAutoPrint apagado no imprime ni al cobrar ni al aceptar", async () => {
+    h.state.restaurant.invoiceAutoPrint = false;
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint({ ...args, trigger: "paid" })).toBe(0);
+    expect(
+      await enqueueInvoicePrint({ ...args, trigger: "dian_accepted", dian }),
+    ).toBe(0);
+    expect(h.db.printer.findMany).not.toHaveBeenCalled();
+  });
+
+  it("con invoiceAutoPrint apagado la reimpresión manual sigue saliendo (y sin clave)", async () => {
+    h.state.restaurant.invoiceAutoPrint = false;
+    h.state.restaurant.enabledModules = ["einvoicing"];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint({ ...args, reprint: true, dian })).toBe(1);
+    expect(h.state.created[0]).toMatchObject({ dedupeKey: null });
+    expect(parseInvoicePayload(h.state.created[0].payload)!.fiscal?.cufe).toBe(CUFE);
+  });
+
+  it("sin trigger explícito se asume el cobro (compatibilidad con los llamadores viejos)", async () => {
+    h.state.restaurant.enabledModules = ["einvoicing"];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(0);
+  });
+
+  it.each(["es", "en", "pt"])(
+    "las etiquetas de la factura electrónica existen en el catálogo %s",
+    async (locale) => {
+      const { enqueueInvoicePrint } = await import("./invoiceQueue");
+      await enqueueInvoicePrint({ ...args, locale, trigger: "dian_accepted", dian });
+      const doc = parseInvoicePayload(h.state.created[0].payload)!;
+      for (const label of [
+        doc.documentLabel,
+        ...doc.customerLines,
+        doc.fiscal!.cufeLabel,
+        doc.fiscal!.verifyLabel,
+        ...doc.fiscal!.noticeLines,
+      ]) {
+        expect(label).not.toContain("emailInvoice.");
+        expect(label.trim().length).toBeGreaterThan(0);
+      }
+    },
+  );
+});
+
+describe("printAcceptedDianInvoice — el hook de la aceptación de la DIAN", () => {
+  const row = {
+    id: "inv-1",
+    restaurantId: "rest-1",
+    orderId: "order-1",
+    invoiceNumber: 42,
+    snapshot,
+    order: { locale: "es" },
+  };
+
+  beforeEach(() => {
+    h.state.printers = [caja({ supportsQr: true })];
+    h.state.restaurant.enabledModules = ["einvoicing"];
+    h.state.invoiceRow = row;
+  });
+
+  it("encola la factura electrónica con la clave de la factura: la segunda aceptación choca", async () => {
+    const { printAcceptedDianInvoice } = await import("./invoiceQueue");
+    await printAcceptedDianInvoice({
+      simpleInvoiceId: "inv-1",
+      restaurantId: "rest-1",
+      cufe: CUFE,
+      qrUrl: dian.qrUrl,
+    });
+    expect(h.db.simpleInvoice.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "inv-1" } }),
+    );
+    expect(h.state.created).toHaveLength(1);
+    expect(h.state.created[0]).toMatchObject({
+      printerId: "p-caja",
+      kind: "customer_invoice",
+      orderId: "order-1",
+      dedupeKey: "invoice:inv-1",
+    });
+    expect(h.db.printJob.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+    const doc = parseInvoicePayload(h.state.created[0].payload)!;
+    expect(doc.fiscal).toMatchObject({ cufe: CUFE, verifyUrl: dian.qrUrl, qr: true });
+    expect(doc.documentNumber).toBe("FE42");
+  });
+
+  it("una tirilla de otro comercio no se imprime", async () => {
+    h.state.invoiceRow = { ...row, restaurantId: "rest-2" };
+    const { printAcceptedDianInvoice } = await import("./invoiceQueue");
+    await printAcceptedDianInvoice({
+      simpleInvoiceId: "inv-1",
+      restaurantId: "rest-1",
+      cufe: CUFE,
+      qrUrl: dian.qrUrl,
+    });
+    expect(h.state.created).toHaveLength(0);
+  });
+
+  it("sin tirilla (documento del set de pruebas) no hace nada", async () => {
+    h.state.invoiceRow = null;
+    const { printAcceptedDianInvoice } = await import("./invoiceQueue");
+    await printAcceptedDianInvoice({
+      simpleInvoiceId: "inv-x",
+      restaurantId: "rest-1",
+      cufe: CUFE,
+      qrUrl: dian.qrUrl,
+    });
+    expect(h.db.printJob.createMany).not.toHaveBeenCalled();
+  });
+
+  it("nunca lanza: la factura ya está aceptada y el correo ya salió", async () => {
+    h.state.throwOnCreate = true;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { printAcceptedDianInvoice } = await import("./invoiceQueue");
+    await expect(
+      printAcceptedDianInvoice({
+        simpleInvoiceId: "inv-1",
+        restaurantId: "rest-1",
+        cufe: CUFE,
+        qrUrl: dian.qrUrl,
+      }),
+    ).resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

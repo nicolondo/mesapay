@@ -7,25 +7,38 @@ import { OPERATOR_ROLES } from "@/lib/staffAccess";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { formatInvoiceNumber } from "@/lib/invoice";
 import { displayOrderCode } from "@/lib/orderCode";
+import { isModuleEnabled } from "@/lib/modules";
+import { dianEnvironment } from "@/lib/dian/config";
+import { dianQrUrl } from "@/lib/dian/crypto";
 import { enqueueInvoicePrint } from "@/lib/print/invoiceQueue";
-import { invoicePrintArgs } from "@/lib/print/routing";
+import {
+  invoicePrintArgs,
+  type InvoiceDianPrintData,
+} from "@/lib/print/routing";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/operator/orders/{id}/reprint-invoice
  *
- * Vuelve a mandar la tirilla de la factura de una cuenta a las impresoras
- * de FACTURA del comercio. El dueño lo pidió textual: "quiero tener la
- * opción de poder reimprimir una factura desde la lista de pedidos" — el
- * comensal que se fue sin el papel, el rollo que se acabó a mitad de la
- * tirilla, la copia para la caja.
+ * Vuelve a mandar la factura de una cuenta a la impresora de facturas del
+ * comercio (la elegida en Configuración, o todas las de tipo factura). El
+ * dueño lo pidió textual: "quiero tener la opción de poder reimprimir una
+ * factura desde la lista de pedidos" — el comensal que se fue sin el
+ * papel, el rollo que se acabó a mitad de la tirilla, la copia para la caja.
  *
- * Es la MISMA tirilla que salió al cobrar: los argumentos se arman con
- * `invoicePrintArgs`, el mismo helper de `issueSimpleInvoice`, y van con
- * `reprint: true` para saltar la clave de idempotencia (que existe para que
- * los rieles del cobro no impriman tres veces solos, no para impedir que
- * un humano pida otra copia).
+ * QUÉ sale: con facturación electrónica y la factura ya ACEPTADA por la
+ * DIAN, la factura electrónica (CUFE + QR), que es la misma hoja que salió
+ * sola al aceptarse. Si la DIAN la rechazó o sigue pendiente —o el
+ * comercio no factura electrónicamente— sale el comprobante: una "factura
+ * electrónica" impresa sin CUFE aceptado no existe, y ofrecerla sería
+ * ponerle al cliente en la mano un documento que la DIAN no conoce.
+ *
+ * Los argumentos se arman con `invoicePrintArgs`, el mismo helper de
+ * `issueSimpleInvoice`, y van con `reprint: true` para saltar la clave de
+ * idempotencia (que existe para que los rieles del cobro no impriman tres
+ * veces solos, no para impedir que un humano pida otra copia) y el toggle
+ * de impresión automática (apagarlo no apaga la reimpresión).
  *
  * Nunca lanza: sin impresora de facturas responde `queued: false` y la UI
  * abre la versión imprimible del navegador (/factura/[id]) como respaldo.
@@ -60,13 +73,19 @@ async function POSTHandler(
       invoiceNumber: true,
       snapshot: true,
       order: { select: { locale: true, shortCode: true } },
+      dianDocument: { select: { state: true, cufe: true } },
+      restaurant: { select: { enabledModules: true } },
     },
   });
   if (!invoice || invoice.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "no_invoice" }, { status: 404 });
   }
 
-  const args = invoicePrintArgs(invoice, invoice.order);
+  const dian = await dianPrintDataFor(invoice, restaurantId);
+  const args = {
+    ...invoicePrintArgs(invoice, invoice.order),
+    ...(dian && { dian }),
+  };
   let printers: number;
   try {
     printers = await enqueueInvoicePrint({ ...args, reprint: true });
@@ -86,15 +105,43 @@ async function POSTHandler(
     return NextResponse.json({ queued: false, reason: "no_printer" });
   }
 
+  const document = dian ? "factura_electronica" : "comprobante";
   await recordAuditEvent({
     kind: "invoice.reprint",
     restaurantId,
     target: { type: "order", id: invoice.orderId },
-    summary: `Reimprimió factura ${formatInvoiceNumber(args.snapshot, invoice.invoiceNumber)} de la cuenta ${displayOrderCode(invoice.order.shortCode)}`,
-    diff: { after: { invoiceId: invoice.id, printers } },
+    summary: `Reimprimió ${dian ? "factura electrónica" : "factura"} ${formatInvoiceNumber(args.snapshot, invoice.invoiceNumber)} de la cuenta ${displayOrderCode(invoice.order.shortCode)}`,
+    diff: { after: { invoiceId: invoice.id, printers, document } },
   });
 
-  return NextResponse.json({ queued: true, printers });
+  return NextResponse.json({ queued: true, printers, document });
+}
+
+/**
+ * CUFE + URL del QR si —y sólo si— el comercio factura electrónicamente y
+ * la DIAN ya aceptó ESTA factura. Rechazada, pendiente o sin módulo ⇒
+ * null, y sale el comprobante de siempre.
+ */
+async function dianPrintDataFor(
+  invoice: {
+    restaurant: { enabledModules: unknown };
+    dianDocument: { state: string; cufe: string | null } | null;
+  },
+  restaurantId: string,
+): Promise<InvoiceDianPrintData | null> {
+  if (!isModuleEnabled(invoice.restaurant.enabledModules, "einvoicing")) {
+    return null;
+  }
+  const doc = invoice.dianDocument;
+  if (!doc || doc.state !== "accepted" || !doc.cufe) return null;
+  // `dianEnvironment` no descifra nada: sólo dice contra qué catálogo de
+  // la DIAN se arma la URL de consulta. Sin config (raro con una factura
+  // aceptada) se cae al de habilitación.
+  const environment = await dianEnvironment(restaurantId);
+  return {
+    cufe: doc.cufe,
+    qrUrl: dianQrUrl(doc.cufe, environment === "produccion" ? "1" : "2"),
+  };
 }
 
 export const POST = secureApi(POSTHandler);

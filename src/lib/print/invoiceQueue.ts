@@ -47,7 +47,7 @@ import {
   type ThermalInvoice,
 } from "@/lib/escpos";
 import { buildThermalInvoice, type InvoicePaymentLine } from "./invoiceDoc";
-import { invoiceDedupeKey } from "./routing";
+import { invoiceDedupeKey, type InvoicePrintArgs } from "./routing";
 
 /**
  * Arma el documento resolviendo idioma, moneda y fechas. Separado del
@@ -95,15 +95,18 @@ export async function buildInvoiceDocument(args: {
  * Encola la tirilla en CADA impresora de factura activa del comercio.
  * Devuelve cuántos trabajos creó (0 = el local no tiene impresora de
  * facturas, o esta factura ya se había encolado).
+ *
+ * `reprint`: una REIMPRESIÓN pedida a propósito desde el panel. Va sin
+ * `dedupeKey` (en Postgres varios NULL no chocan contra el unique), que es
+ * exactamente lo que hace `print-jobs/[id]/retry` con las comandas: la
+ * clave de idempotencia existe para que los rieles del cobro no saquen
+ * tres copias solas, no para impedir que un humano pida otra copia. Sin
+ * esto, reimprimir una factura que ya salió una vez daría 0 trabajos y
+ * el operador se quedaría esperando papel.
  */
-export async function enqueueInvoicePrint(args: {
-  restaurantId: string;
-  orderId: string;
-  invoiceId: string;
-  invoiceNumber: number;
-  snapshot: InvoiceSnapshot;
-  locale: string | null;
-}): Promise<number> {
+export async function enqueueInvoicePrint(
+  args: InvoicePrintArgs & { reprint?: boolean },
+): Promise<number> {
   const printers = await db.printer.findMany({
     where: { restaurantId: args.restaurantId, kind: "factura", active: true },
     select: { id: true, paperWidthMm: true },
@@ -126,7 +129,7 @@ export async function enqueueInvoicePrint(args: {
   });
 
   const currency = await getCurrencyForCountry(restaurant.country);
-  const dedupeKey = invoiceDedupeKey(args.invoiceId);
+  const dedupeKey = args.reprint ? null : invoiceDedupeKey(args.invoiceId);
 
   // Una impresora de 58mm y otra de 80mm necesitan documentos distintos
   // (32 vs 48 columnas): el corte de línea se decide al armar el payload,

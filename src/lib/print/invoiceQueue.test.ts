@@ -238,6 +238,21 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     );
   });
 
+  it("una REIMPRESIÓN pedida a propósito va sin dedupeKey: la copia sí sale", async () => {
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint({ ...args, reprint: true })).toBe(1);
+    // Mismo trabajo (kind, orden, payload renderizable) pero sin la clave:
+    // en Postgres varios NULL no chocan contra el unique, así que la
+    // segunda copia no se descarta como duplicado.
+    expect(h.state.created[0]).toMatchObject({
+      kind: "customer_invoice",
+      orderId: "order-1",
+      dedupeKey: null,
+    });
+    const doc = parseInvoicePayload(h.state.created[0].payload)!;
+    expect(doc.documentNumber).toBe("FE42");
+  });
+
   it("el payload es una factura renderizable, con textos de verdad", async () => {
     const { enqueueInvoicePrint } = await import("./invoiceQueue");
     await enqueueInvoicePrint(args);
@@ -298,5 +313,50 @@ describe("enqueueInvoicePrintSafe — no puede tumbar la emisión", () => {
     await expect(enqueueInvoicePrintSafe(args)).resolves.toBeUndefined();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe("invoicePrintArgs — el cobro y la reimpresión mandan lo mismo", () => {
+  it("arma los argumentos desde la fila de la factura y el idioma de la ORDEN", async () => {
+    const { invoicePrintArgs } = await import("./routing");
+    expect(
+      invoicePrintArgs(
+        {
+          id: "inv-1",
+          restaurantId: "rest-1",
+          orderId: "order-1",
+          invoiceNumber: 42,
+          snapshot: snapshot as unknown,
+        },
+        { locale: "pt" },
+      ),
+    ).toEqual({
+      restaurantId: "rest-1",
+      orderId: "order-1",
+      invoiceId: "inv-1",
+      invoiceNumber: 42,
+      snapshot,
+      locale: "pt",
+    });
+  });
+
+  it("lo que arma es exactamente lo que acepta enqueueInvoicePrint", async () => {
+    h.state.printers = [
+      {
+        id: "p-caja",
+        restaurantId: "rest-1",
+        kind: "factura",
+        active: true,
+        paperWidthMm: 80,
+      },
+    ];
+    const { invoicePrintArgs } = await import("./routing");
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    const built = invoicePrintArgs(
+      { id: "inv-1", restaurantId: "rest-1", orderId: "order-1", invoiceNumber: 42, snapshot },
+      { locale: null },
+    );
+    expect(await enqueueInvoicePrint(built)).toBe(1);
+    expect(h.state.created[0]).toMatchObject({ dedupeKey: "invoice:inv-1" });
   });
 });

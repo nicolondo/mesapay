@@ -4,6 +4,8 @@
  * que hay que poder testear sin levantar nada.
  */
 
+import type { InvoiceSnapshot } from "@/lib/invoice";
+
 /** Las dos estaciones que imprimen comanda. `counter` no prepara nada. */
 export type TicketStation = "kitchen" | "bar";
 
@@ -35,6 +37,44 @@ export function ticketDedupeKey(
  */
 export function invoiceDedupeKey(invoiceId: string): string {
   return `invoice:${invoiceId}`;
+}
+
+/** Lo que necesita `enqueueInvoicePrint` para armar la tirilla. */
+export type InvoicePrintArgs = {
+  restaurantId: string;
+  orderId: string;
+  invoiceId: string;
+  invoiceNumber: number;
+  snapshot: InvoiceSnapshot;
+  /** Idioma de la ORDEN (ver invoiceQueue.ts), no del que aprieta el botón. */
+  locale: string | null;
+};
+
+/**
+ * Arma los argumentos del encolado a partir de la fila de la factura y el
+ * idioma de la orden. Es UN solo lugar a propósito: la emisión (las dos
+ * ramas de `issueSimpleInvoice`) y la reimpresión desde el panel tienen
+ * que mandar exactamente lo mismo a la impresora — si mañana la tirilla
+ * necesita un campo más, se agrega acá y sale igual por los dos caminos.
+ */
+export function invoicePrintArgs(
+  invoice: {
+    id: string;
+    restaurantId: string;
+    orderId: string;
+    invoiceNumber: number;
+    snapshot: unknown;
+  },
+  order: { locale: string | null },
+): InvoicePrintArgs {
+  return {
+    restaurantId: invoice.restaurantId,
+    orderId: invoice.orderId,
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    snapshot: invoice.snapshot as InvoiceSnapshot,
+    locale: order.locale,
+  };
 }
 
 /**

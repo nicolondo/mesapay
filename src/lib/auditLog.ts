@@ -46,6 +46,8 @@ export type AuditKind =
   | "order_item.comp"
   | "order_item.move"
   | "order_item.free_line"
+  // Factura de una cuenta (tirilla): reimpresión pedida desde el panel
+  | "invoice.reprint"
   // Grupos
   | "restaurant.create"
   | "restaurant.group.update"
@@ -97,6 +99,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order_item.comp": "No cobró plato",
   "order_item.move": "Movió plato de mesa",
   "order_item.free_line": "Agregó línea libre",
+  "invoice.reprint": "Reimprimió factura",
   "restaurant.create": "Creó restaurante",
   "restaurant.group.update": "Cambió grupo del comercio",
   "restaurant.country.update": "Cambió país del comercio",

@@ -28,6 +28,7 @@
  */
 
 import { displayOrderCode } from "@/lib/orderCode";
+import { groupInvoiceLines } from "@/lib/invoiceLines";
 import {
   formatInvoiceNumber,
   taxLabelsFrom,
@@ -226,10 +227,15 @@ export function buildThermalInvoice(args: {
       { label: s.tableLabel, value: displayOrderCode(s.shortCode) },
     ],
     customerLines,
-    items: s.items.map((i) => ({
+    // Los repetidos AGRUPADOS ("2x Bretaña"): el papel es para una
+    // persona. El XML de la DIAN sigue con una línea por ítem, y la suma
+    // de los importes agrupados es la misma al centavo.
+    items: groupInvoiceLines(s.items).map((i) => ({
       qty: i.qty,
       name: i.name,
-      amount: money(i.qty * i.priceCents),
+      amount: money(i.totalCents),
+      ...(i.modifiers && i.modifiers.length > 0 && { modifiers: i.modifiers }),
+      ...(i.notes && { notes: i.notes }),
     })),
     totals,
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,

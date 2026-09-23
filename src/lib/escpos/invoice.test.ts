@@ -9,6 +9,8 @@ import {
 } from "./invoice";
 import { renderPrintJobPayload } from "./job";
 import { TICKET_PAYLOAD_VERSION, type ThermalTicket } from "./ticket";
+import { buildThermalInvoice } from "@/lib/print/invoiceDoc";
+import type { InvoiceSnapshot } from "@/lib/invoice";
 
 /**
  * Igual que en `ticket.test.ts`: los snapshots guardan el HEX de la
@@ -556,5 +558,124 @@ describe("columnsForWidth — la factura usa el mismo ancho que la comanda", () 
   it("80mm son 48 columnas y 58mm son 32", () => {
     expect(columnsForWidth(80)).toBe(48);
     expect(columnsForWidth(58)).toBe(32);
+  });
+});
+
+describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
+  // El camino real: el snapshot guardado (una entrada por OrderItem, como
+  // el XML) pasa por `buildThermalInvoice`, que agrupa, y de ahí a bytes.
+  const bretana = {
+    qty: 1,
+    name: "Bretaña",
+    priceCents: 600_000,
+    menuItemId: "mi-bretana",
+    taxKind: null,
+    taxPct: null,
+    modifiers: [],
+    notes: null,
+  };
+  const snapshot: InvoiceSnapshot = {
+    restaurantName: "Donde Chucho",
+    logoUrl: null,
+    legalName: "DONDE CHUCHO S.A.S.",
+    taxId: null,
+    legalAddress: null,
+    legalCity: null,
+    legalPhone: null,
+    dianResolution: null,
+    dianResolutionFrom: null,
+    dianResolutionTo: null,
+    dianResolutionDate: null,
+    invoicePrefix: "FE",
+    shortCode: "A4F2",
+    tableLabel: "Mesa 7",
+    paidAtIso: "2026-09-08T19:41:00.000Z",
+    // Dos rondas, una Bretaña en cada una.
+    items: [bretana, { ...bretana }],
+    subtotalCents: 1_200_000,
+    taxCents: 0,
+    discountCents: 0,
+    tipCents: 0,
+    totalCents: 1_200_000,
+    customer: null,
+  };
+  const money = (cents: number) =>
+    `$ ${Math.round(cents / 100).toLocaleString("es-CO")}`;
+  const t = (key: string) => (key === "receiptLabel" ? "Comprobante" : key);
+  const paper = (snap: InvoiceSnapshot, paperWidthMm = 80) =>
+    buildThermalInvoice({
+      snapshot: snap,
+      invoiceNumber: 42,
+      paperWidthMm,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: null,
+      payments: [],
+      money,
+      t,
+    });
+  const itemLines = (inv: ThermalInvoice) =>
+    readable(inv)
+      .split("\n")
+      .filter((l) => /^\d+x /.test(l) || l.startsWith("   "));
+
+  it("snapshot de bytes: dos Bretañas son UNA línea '2x Bretaña'", () => {
+    expect(hex(paper(snapshot))).toMatchSnapshot();
+  });
+
+  it("antes eran dos renglones '1x Bretaña'; ahora uno '2x' con el importe de las dos", () => {
+    const lines = itemLines(paper(snapshot));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^2x Bretaña +\$ 12\.000$/);
+    expect(readable(paper(snapshot))).not.toContain("1x Bretaña");
+  });
+
+  it("mismo plato con modificadores distintos: dos líneas, cada una con su modificador colgado", () => {
+    const hamburguesa = { ...bretana, name: "Hamburguesa", priceCents: 2_800_000 };
+    const snap = {
+      ...snapshot,
+      items: [
+        { ...hamburguesa, modifiers: ["Término: Medio"] },
+        { ...hamburguesa, modifiers: ["Término: Bien asado"], notes: "Sin cebolla" },
+        { ...hamburguesa, modifiers: ["Término: Medio"] },
+      ],
+    };
+    expect(itemLines(paper(snap))).toEqual([
+      "2x Hamburguesa                          $ 56.000",
+      "   - Término: Medio",
+      "1x Hamburguesa                          $ 28.000",
+      "   - Término: Bien asado",
+      '   "Sin cebolla"',
+    ]);
+    expect(hex(paper(snap, 58))).toMatchSnapshot();
+  });
+
+  it("los colgados respetan las 32 columnas de 58mm", () => {
+    const snap = {
+      ...snapshot,
+      items: [
+        {
+          ...bretana,
+          modifiers: ["Acompañamiento: Papas a la francesa, ensalada de la casa"],
+          notes: "Bien fría, por favor, y con limón y sal aparte",
+        },
+      ],
+    };
+    for (const l of readable(paper(snap, 58)).split("\n")) {
+      expect(l.length).toBeLessThanOrEqual(32);
+    }
+  });
+
+  it("el payload con modificadores y nota sobrevive parse → render; uno sin ellos, también", () => {
+    const inv = paper({
+      ...snapshot,
+      items: [{ ...bretana, modifiers: ["Tamaño: 330 ml"], notes: "Fría" }],
+    });
+    const back = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: inv });
+    expect(back?.items).toEqual([
+      { qty: 1, name: "Bretaña", amount: "$ 6.000", modifiers: ["Tamaño: 330 ml"], notes: "Fría" },
+    ]);
+    expect(renderInvoice(back!).equals(renderInvoice(inv))).toBe(true);
+    const plain = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: base });
+    expect(plain?.items).toEqual(base.items);
   });
 });

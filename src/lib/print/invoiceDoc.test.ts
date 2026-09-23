@@ -386,3 +386,83 @@ describe("buildThermalInvoice — factura electrónica (dian)", () => {
     expect(factura.businessLines).toEqual(comprobante.businessLines);
   });
 });
+
+describe("buildThermalInvoice — artículos repetidos AGRUPADOS", () => {
+  const bretana = {
+    qty: 1,
+    name: "Bretaña",
+    priceCents: 600_000,
+    menuItemId: "mi-bretana",
+    taxKind: null,
+    taxPct: null,
+    modifiers: [],
+    notes: null,
+  };
+
+  it("dos Bretañas en dos rondas salen como UNA línea '2x' con el importe de las dos", () => {
+    const doc = build({
+      items: [bretana, { ...snapshot.items[0] }, { ...bretana }],
+      subtotalCents: 1_200_000 + 4_900_000,
+    });
+    expect(doc.items).toEqual([
+      { qty: 2, name: "Bretaña", amount: "$12000" },
+      { qty: 2, name: "Bandeja paisa", amount: "$49000" },
+    ]);
+  });
+
+  it("la suma de los importes agrupados es el subtotal del snapshot al centavo", () => {
+    const items = [
+      { ...bretana, priceCents: 612_345 },
+      { ...bretana, priceCents: 612_345, qty: 2 },
+      { qty: 1, name: "Limonada de coco", priceCents: 1_234_567 },
+      { ...bretana, priceCents: 612_345 },
+    ];
+    const subtotalCents = items.reduce((s, i) => s + i.qty * i.priceCents, 0);
+    const doc = buildThermalInvoice({
+      snapshot: { ...snapshot, items, subtotalCents, totalCents: subtotalCents },
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: "15/01/26",
+      payments: [],
+      // Centavos crudos, para sumar lo que de verdad va al papel.
+      money: (cents) => String(cents),
+      t,
+    });
+    const itemCents = doc.items.map((i) => Number(i.amount));
+    expect(doc.items.map((i) => i.qty)).toEqual([4, 1]);
+    expect(itemCents.reduce((a, b) => a + b, 0)).toBe(subtotalCents);
+  });
+
+  it("mismo plato con otro término son dos líneas, con el modificador y la nota colgados", () => {
+    const doc = build({
+      items: [
+        { ...bretana, name: "Hamburguesa", priceCents: 2_800_000, modifiers: ["Término: Medio"] },
+        {
+          ...bretana,
+          name: "Hamburguesa",
+          priceCents: 2_800_000,
+          modifiers: ["Término: Bien asado"],
+          notes: "Sin cebolla",
+        },
+      ],
+    });
+    expect(doc.items).toEqual([
+      { qty: 1, name: "Hamburguesa", amount: "$28000", modifiers: ["Término: Medio"] },
+      {
+        qty: 1,
+        name: "Hamburguesa",
+        amount: "$28000",
+        modifiers: ["Término: Bien asado"],
+        notes: "Sin cebolla",
+      },
+    ]);
+  });
+
+  it("un snapshot viejo (sin modificadores ni nota) no gana campos: el payload es el de siempre", () => {
+    expect(build().items).toEqual([
+      { qty: 2, name: "Bandeja paisa", amount: "$49000" },
+      { qty: 1, name: "Limonada de coco", amount: "$12000" },
+    ]);
+  });
+});

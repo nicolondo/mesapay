@@ -59,6 +59,14 @@ export type ThermalInvoiceItem = {
   name: string;
   /** Importe de la LÍNEA (qty × unitario), ya formateado con su moneda. */
   amount: string;
+  /**
+   * Modificadores legibles ("Término: Medio") y nota del ítem, colgados
+   * debajo de la línea como en la precuenta. Con los repetidos agrupados
+   * (`groupInvoiceLines`) son lo que distingue dos líneas del mismo plato.
+   * Opcionales: los payloads viejos no los traen y se imprimen igual.
+   */
+  modifiers?: string[];
+  notes?: string | null;
 };
 
 /** Fila de dos columnas del bloque de totales o de formas de pago. */
@@ -166,7 +174,15 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     const it = rawItem as Record<string, unknown>;
     if (typeof it.qty !== "number") return null;
     if (typeof it.name !== "string" || typeof it.amount !== "string") return null;
-    items.push({ qty: it.qty, name: it.name, amount: it.amount });
+    const modifiers = stringList(it.modifiers);
+    const notes = typeof it.notes === "string" && it.notes.trim() ? it.notes : null;
+    items.push({
+      qty: it.qty,
+      name: it.name,
+      amount: it.amount,
+      ...(modifiers.length > 0 && { modifiers }),
+      ...(notes && { notes }),
+    });
   }
 
   const rows = (raw2: unknown): ThermalInvoiceRow[] => {
@@ -289,12 +305,22 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
   }
 
   // ── Ítems ───────────────────────────────────────────────────────────
+  // Ya vienen AGRUPADOS ("2x Bretaña", ver `groupInvoiceLines`). Los
+  // modificadores y la nota cuelgan debajo con la misma sangría y el mismo
+  // formato que la precuenta: el comensal compara una con la otra.
   chunks.push(separator(cols));
+  const hung = { first: INDENT, cont: INDENT + "  " };
   for (const item of invoice.items) {
     for (const l of padRow(`${item.qty}x ${item.name}`, item.amount, cols, {
       cont: INDENT,
     })) {
       chunks.push(line(l));
+    }
+    for (const mod of item.modifiers ?? []) {
+      for (const l of wrap(`- ${mod}`, cols, hung)) chunks.push(line(l));
+    }
+    if (item.notes) {
+      for (const l of wrap(`"${item.notes}"`, cols, hung)) chunks.push(line(l));
     }
   }
 

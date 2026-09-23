@@ -279,3 +279,72 @@ describe("buildPrebillData — identidad y destino", () => {
     expect(build().shortCode).toBe("A4F2");
   });
 });
+
+describe("buildPrebillData — artículos repetidos AGRUPADOS", () => {
+  const bretana = (over: Partial<PrebillOrderItem> = {}) =>
+    menuItem({
+      nameSnapshot: "Bretaña",
+      menuItemId: "mi-bretana",
+      priceCentsSnapshot: 600_000,
+      ...over,
+    });
+
+  it("tres Bretañas de tres rondas son UNA línea '3x', con el importe de las tres", () => {
+    const d = build({ items: [bretana(), order.items[1], bretana(), bretana({ qty: 1 })] });
+    expect(d.lines.map((l) => [l.name, l.qty, l.unitCents, l.lineCents])).toEqual([
+      ["Bretaña", 3, 600_000, 1_800_000],
+      ["Limonada de coco", 1, 1_200_000, 1_200_000],
+    ]);
+  });
+
+  it("los totales no cambian: Σ de las líneas agrupadas = subtotal bruto al centavo", () => {
+    const items = [
+      bretana({ priceCentsSnapshot: 612_345 }),
+      bretana({ priceCentsSnapshot: 612_345, qty: 2 }),
+      bretana({ priceCentsSnapshot: 612_346 }),
+      menuItem({ nameSnapshot: "Servicio", priceCentsSnapshot: 1_234_567, taxKind: "iva", taxPct: 19 }),
+      bretana({ priceCentsSnapshot: 612_345 }),
+    ];
+    const d = build({ items });
+    const gross = items.reduce((s, i) => s + i.qty * i.priceCentsSnapshot, 0);
+    expect(d.lines).toHaveLength(3);
+    expect(d.grossSubtotalCents).toBe(gross);
+    expect(d.lines.reduce((s, l) => s + l.lineCents, 0)).toBe(gross);
+  });
+
+  it("mismo plato con otro término, o con nota distinta, NO se agrupa", () => {
+    const term = {
+      modifiers: [
+        { id: "term", label: "Término", type: "radio", opts: ["Medio", "Tres cuartos"] },
+      ],
+    };
+    const d = build({
+      items: [
+        bretana({ modifierSelections: { term: "Medio" }, menuItem: term }),
+        bretana({ modifierSelections: { term: "Tres cuartos" }, menuItem: term }),
+        bretana({ modifierSelections: { term: "Medio" }, menuItem: term, notes: "bien fría" }),
+        bretana({ modifierSelections: { term: "Medio" }, menuItem: term }),
+      ],
+    });
+    expect(d.lines.map((l) => [l.qty, l.modifiers, l.notes])).toEqual([
+      [2, ["Término: Medio"], null],
+      [1, ["Término: Tres cuartos"], null],
+      [1, ["Término: Medio"], "bien fría"],
+    ]);
+  });
+
+  it("el comensal no separa, pero el grupo sólo conserva su nombre si es de todos", () => {
+    const d = build({
+      items: [
+        bretana({ guestName: "Ana" }),
+        bretana({ guestName: "Luis" }),
+        menuItem({ nameSnapshot: "Limonada de coco", guestName: "Ana" }),
+        menuItem({ nameSnapshot: "Limonada de coco", guestName: " Ana " }),
+      ],
+    });
+    expect(d.lines.map((l) => [l.name, l.qty, l.guestName])).toEqual([
+      ["Bretaña", 2, null],
+      ["Limonada de coco", 2, "Ana"],
+    ]);
+  });
+});

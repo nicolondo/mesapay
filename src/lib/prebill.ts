@@ -29,6 +29,7 @@
 
 import { computeDiscountCents } from "./dinerDiscount";
 import { formatItemSelections } from "./modifiers";
+import { groupInvoiceLines, invoiceLineKey } from "./invoiceLines";
 import { asSalesTaxKind } from "./checkoutTax";
 import {
   isOwnTaxLine,
@@ -53,6 +54,8 @@ export function tipCentsFor(baseCents: number, pct = DEFAULT_TIP_PCT): number {
 /** Lo mínimo de `OrderItem` que hace falta para decidir si entra y cuánto vale. */
 export type PrebillOrderItem = {
   qty: number;
+  /** null = línea libre. Es la referencia del plato al agrupar repetidos. */
+  menuItemId?: string | null;
   nameSnapshot: string;
   priceCentsSnapshot: number;
   /** null ⇒ plato del menú (impuesto embebido). Con valor ⇒ línea libre. */
@@ -96,6 +99,13 @@ export type PrebillRestaurant = {
   salesTaxPct: number;
 };
 
+/**
+ * Una línea de la precuenta. Los repetidos van AGRUPADOS (tres Bretañas
+ * de tres rondas = "3x Bretaña"), con el mismo criterio que la factura
+ * impresa (`groupInvoiceLines`): mismo plato, precio, impuesto,
+ * modificadores y nota. Así la precuenta y la factura que llega después
+ * se leen igual.
+ */
 export type PrebillLine = {
   qty: number;
   name: string;
@@ -104,6 +114,7 @@ export type PrebillLine = {
   lineCents: number;
   modifiers: string[];
   notes: string | null;
+  /** Del comensal que lo pidió; null si el grupo junta a varios distintos. */
   guestName: string | null;
 };
 
@@ -188,14 +199,38 @@ export function buildPrebillData(
 ): PrebillData {
   const live = order.items.filter(isLiveItem);
 
-  const lines: PrebillLine[] = live.map((i) => ({
+  // Los repetidos AGRUPADOS (ver `PrebillLine`). Sólo cambia cómo se
+  // MUESTRA: los totales de abajo se siguen sumando ítem por ítem, y la
+  // suma de las líneas agrupadas es la misma al centavo.
+  const rawLines = live.map((i) => ({
     qty: i.qty,
     name: i.nameSnapshot,
-    unitCents: i.priceCentsSnapshot,
-    lineCents: i.priceCentsSnapshot * i.qty,
+    priceCents: i.priceCentsSnapshot,
+    menuItemId: i.menuItemId ?? null,
+    taxKind: i.taxKind,
+    taxPct: i.taxPct,
     modifiers: formatItemSelections(i.modifierSelections, i.menuItem?.modifiers),
     notes: i.notes?.trim() ? i.notes.trim() : null,
     guestName: i.guestName?.trim() ? i.guestName.trim() : null,
+  }));
+  // El comensal no es parte de "qué se pidió": dos Bretañas de dos
+  // comensales se agrupan igual. Pero el grupo sólo conserva el nombre si
+  // es el de TODOS; si mezcla, null — no se le atribuye a uno lo del otro.
+  const guestsByKey = new Map<string, Set<string | null>>();
+  for (const l of rawLines) {
+    const key = invoiceLineKey(l);
+    const guests = guestsByKey.get(key) ?? new Set<string | null>();
+    guests.add(l.guestName);
+    guestsByKey.set(key, guests);
+  }
+  const lines: PrebillLine[] = groupInvoiceLines(rawLines).map((g) => ({
+    qty: g.qty,
+    name: g.name,
+    unitCents: g.priceCents,
+    lineCents: g.totalCents,
+    modifiers: g.modifiers,
+    notes: g.notes,
+    guestName: guestsByKey.get(invoiceLineKey(g))?.size === 1 ? g.guestName : null,
   }));
 
   const tax: RestaurantTax = {

@@ -7,6 +7,7 @@ import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 import { invoicePrintArgs } from "@/lib/print/routing";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
+import { formatItemSelections } from "@/lib/modifiers";
 
 /**
  * Datos del cliente para una factura personalizada. Dirección, ciudad y
@@ -72,6 +73,10 @@ export async function issueSimpleInvoice(opts: {
           OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
         },
         orderBy: { id: "asc" },
+        // La definición de los modificadores, para guardarlos LEGIBLES en
+        // el snapshot ("Término: Medio"): es lo que distingue dos líneas
+        // del mismo plato al agruparlas en el papel.
+        include: { menuItem: { select: { modifiers: true } } },
       },
       simpleInvoice: true,
     },
@@ -186,10 +191,20 @@ export async function issueSimpleInvoice(opts: {
         : `Mesa ${order.table.number}${order.table.label ? ` · ${order.table.label}` : ""}`
       : "Mostrador",
     paidAtIso: (order.paidAt ?? new Date()).toISOString(),
+    // Una entrada por OrderItem (como el XML). Lo demás es para agrupar
+    // los repetidos al mostrarla: ver src/lib/invoiceLines.ts.
     items: order.items.map((i) => ({
       qty: i.qty,
       name: i.nameSnapshot,
       priceCents: i.priceCentsSnapshot,
+      menuItemId: i.menuItemId,
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+      modifiers: formatItemSelections(
+        i.modifierSelections,
+        i.menuItem?.modifiers,
+      ),
+      notes: i.notes?.trim() ? i.notes.trim() : null,
     })),
     subtotalCents: order.subtotalCents,
     taxCents: order.taxCents,

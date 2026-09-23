@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PrebillData } from "@/lib/prebill";
+import { buildPrebillData, type PrebillData } from "@/lib/prebill";
 import { CP850_HIGH } from "./codepage";
 import { INVOICE_PAYLOAD_VERSION, type ThermalInvoice } from "./invoice";
 import { renderPrintJobPayload } from "./job";
@@ -460,5 +460,56 @@ describe("renderPrintJobPayload — la precuenta es el tercer documento", () => 
 
   it("un payload corrupto sigue devolviendo null", () => {
     expect(renderPrintJobPayload({ v: 1, cosa: {} })).toBeNull();
+  });
+});
+
+describe("precuenta con artículos repetidos — de la cuenta al papel, AGRUPADOS", () => {
+  it("dos Bretañas de dos rondas salen como '2x Bretaña' con su unitario colgado", () => {
+    const bretana = {
+      qty: 1,
+      menuItemId: "mi-bretana",
+      nameSnapshot: "Bretaña",
+      priceCentsSnapshot: 600_000,
+      taxKind: null,
+      taxPct: null,
+      cancelledAt: null,
+      round: { status: "placed" },
+    };
+    const d = buildPrebillData(
+      {
+        shortCode: "A4F2",
+        orderType: "dineIn",
+        discountPct: null,
+        discountCents: 0,
+        table: { number: 7, label: null, kind: "standard" },
+        items: [bretana, { ...bretana }],
+        payments: [],
+      },
+      {
+        name: "Donde Chucho",
+        legalName: null,
+        taxId: null,
+        legalAddress: null,
+        legalCity: null,
+        legalPhone: null,
+        salesTaxKind: "none",
+        salesTaxPct: 0,
+      },
+      { now: new Date("2026-09-18T19:41:00.000Z") },
+    );
+    const doc = buildPrebillTicket({
+      data: d,
+      paperWidthMm: 80,
+      dateLabel: "18/09/26, 14:41",
+      money,
+      t,
+    });
+    const lines = readable(doc).split("\n");
+    const bretanas = lines.filter((l) => l.includes("Bretaña"));
+    expect(bretanas).toHaveLength(1);
+    expect(bretanas[0]).toMatch(/^2x Bretaña +\$12000$/);
+    expect(bretanas[0]).toHaveLength(48);
+    expect(lines).toContain("   2 x $6000");
+    expect(hex(doc)).toMatchSnapshot();
   });
 });

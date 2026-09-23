@@ -51,6 +51,8 @@
     "searchPlaceholder": "Search the menu",
     "clearSearch": "Clear search",
     "noResults": "No results for <q>{query}</q>.",
+    "noResultsHint": "We searched the whole menu, across every category.",
+    "searchSummary": "{count, plural, one {# result} other {# results}} across the whole menu",
     "orderLabel": "Order",
     "itemsCount": "{count, plural, one {# item} other {# items}}",
     "addToCode": "Add · {code}",

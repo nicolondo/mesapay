@@ -3,6 +3,8 @@ import { fmtCOP } from "./format";
 import {
   asSalesTaxKind,
   checkoutTaxLine,
+  outstandingSubtotalCents,
+  paidFoodCents,
   payModeSubtotalCents,
   type CheckoutTax,
   type PayMode,
@@ -116,5 +118,32 @@ describe("asSalesTaxKind", () => {
     expect(asSalesTaxKind("INC")).toBe("none");
     expect(asSalesTaxKind(null)).toBe("none");
     expect(asSalesTaxKind(undefined)).toBe("none");
+  });
+});
+
+// Lo pendiente de la cuenta: el mismo número del que parten el flujo de pago
+// (PayClient) y la previsualización con propina del estado del pedido.
+describe("paidFoodCents / outstandingSubtotalCents", () => {
+  it("sin pagos: falta toda la cuenta", () => {
+    expect(paidFoodCents(0, 0)).toBe(0);
+    expect(outstandingSubtotalCents(BILL, 0, 0)).toBe(BILL);
+  });
+  it("un pago parcial descuenta sólo la comida, no la propina", () => {
+    // Alguien pagó $12.500 de comida + $1.250 de propina.
+    expect(paidFoodCents(13_750_00, 1_250_00)).toBe(12_500_00);
+    expect(outstandingSubtotalCents(BILL, 13_750_00, 1_250_00)).toBe(30_400_00);
+  });
+  it("cuenta saldada: cero, nunca negativo", () => {
+    expect(outstandingSubtotalCents(BILL, BILL + 4_290_00, 4_290_00)).toBe(0);
+    // Un sobrepago (propina por vuelto, redondeos) tampoco deja saldo negativo.
+    expect(outstandingSubtotalCents(BILL, BILL + 10_00, 0)).toBe(0);
+  });
+  it("datos inconsistentes (propina mayor que el pago) no restan comida", () => {
+    expect(paidFoodCents(1_000, 2_000)).toBe(0);
+    expect(outstandingSubtotalCents(BILL, 1_000, 2_000)).toBe(BILL);
+  });
+  it("en modo Todo, lo que se cobra es exactamente lo pendiente", () => {
+    const outstanding = outstandingSubtotalCents(BILL, 13_750_00, 1_250_00);
+    expect(payModeSubtotalCents("full", outstanding, SPLIT)).toBe(outstanding);
   });
 });

@@ -226,7 +226,13 @@
     "etaHeadlineMax": "Seu pedido sai em mais de {min} min",
     "discountRow": "Desconto",
     "discountRowPct": "Desconto de {pct}%",
-    "discountedTotal": "Total com desconto"
+    "discountedTotal": "Total com desconto",
+    "tipPreviewTitle": "Total a pagar",
+    "tipPreviewBase": "Consumo",
+    "tipPreviewTip": "Gorjeta {pct}%",
+    "tipPreviewTotal": "Total com gorjeta",
+    "tipPreviewHint": "A gorjeta é voluntária; você pode mudá-la na hora de pagar.",
+    "tipPreviewSlider": "Ajustar gorjeta"
   },
   "pay": {
     "pay": "Pagar",

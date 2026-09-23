@@ -17,6 +17,31 @@ import { embeddedTaxCents, type SalesTaxKind } from "@/lib/erp/accounting";
 
 export type PayMode = "full" | "equal" | "mine";
 
+/**
+ * Comida ya pagada de la cuenta: de cada pago aprobado, lo que NO fue
+ * propina. `paidCents` es la suma de `Payment.amountCents` (comida +
+ * propina) y `paidTipCents` la de `Payment.tipCents`, ambos sólo de pagos
+ * aprobados.
+ */
+export function paidFoodCents(paidCents: number, paidTipCents: number): number {
+  return Math.max(0, paidCents - paidTipCents);
+}
+
+/**
+ * Lo que FALTA de comida: el subtotal NETO (ya con el descuento del
+ * comensal restado) menos lo que ya se pagó de comida. Es la base sobre la
+ * que el flujo de pago reparte (Todo / Partes iguales / Lo mío) y sobre la
+ * que el estado del pedido previsualiza el total con propina — las dos
+ * pantallas tienen que partir del mismo número.
+ */
+export function outstandingSubtotalCents(
+  netSubtotalCents: number,
+  paidCents: number,
+  paidTipCents: number,
+): number {
+  return Math.max(0, netSubtotalCents - paidFoodCents(paidCents, paidTipCents));
+}
+
 /** Impuesto de ventas del comercio (Restaurant.salesTaxKind / salesTaxPct). */
 export type CheckoutTax = { kind: SalesTaxKind; pct: number };
 

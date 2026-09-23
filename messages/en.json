@@ -226,7 +226,13 @@
     "etaHeadlineMax": "Your order is out in more than {min} min",
     "discountRow": "Discount",
     "discountRowPct": "{pct}% discount",
-    "discountedTotal": "Total after discount"
+    "discountedTotal": "Total after discount",
+    "tipPreviewTitle": "Total to pay",
+    "tipPreviewBase": "Food & drinks",
+    "tipPreviewTip": "Tip {pct}%",
+    "tipPreviewTotal": "Total with tip",
+    "tipPreviewHint": "Tipping is voluntary; you can change it when you pay.",
+    "tipPreviewSlider": "Adjust tip"
   },
   "pay": {
     "pay": "Pay",

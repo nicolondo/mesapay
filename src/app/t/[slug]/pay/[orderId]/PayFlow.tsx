@@ -11,6 +11,7 @@ import { isModuleEnabled } from "@/lib/modules";
 import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
+import { parseTipPct } from "@/lib/tips";
 
 /**
  * Núcleo del flujo de cobro, compartido por dos puntos de entrada:
@@ -22,17 +23,23 @@ import { asSalesTaxKind } from "@/lib/checkoutTax";
  *
  * `op` lo pasa el caller (el comensal nunca; el mesero siempre "1").
  * Sólo se honra si la sesión es staff real — la URL sola no basta.
+ *
+ * `tip` es el `?tip=<pct>` con el que el estado del pedido manda al comensal
+ * a pagar con la propina que previsualizó; se valida acá (entero 0..30) y
+ * cualquier otra cosa cae al default.
  */
 export async function PayFlow({
   slug,
   orderId,
   op,
   declined,
+  tip,
 }: {
   slug: string;
   orderId: string;
   op?: string;
   declined?: string;
+  tip?: string;
 }) {
   // Operator-mode pay flow: el staff está cobrando la cuenta en
   // nombre de un comensal que no tiene celular o pidió verbalmente.
@@ -196,6 +203,7 @@ export async function PayFlow({
         kind: asSalesTaxKind(tenant.salesTaxKind),
         pct: tenant.salesTaxPct,
       }}
+      initialTipPct={parseTipPct(tip)}
     />
   );
 }

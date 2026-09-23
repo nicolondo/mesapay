@@ -94,6 +94,8 @@ type Round = {
   seq: number;
   status: string;
   placedAt: string;
+  placedByName: string | null;
+  placedByRole: string | null;
   items: ItemDetail[];
 };
 

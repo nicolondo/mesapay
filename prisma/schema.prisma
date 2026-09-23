@@ -828,6 +828,8 @@ model User {
   waiterCommissionBps Int?
   /// Cuentas cuya comisión quedó sellada a nombre de este mesero.
   commissionOrders    Order[] @relation("OrderCommissionWaiter")
+  /// Rondas que este usuario montó a nombre del comercio (ver Round.placedBy*).
+  roundsPlaced        Round[] @relation("RoundPlacedBy")
 
   /// usuario desactivado: no puede iniciar sesión; un comercial desactivado
   /// tampoco acumula comisiones nuevas. null = activo.
@@ -1525,10 +1527,23 @@ model Round {
   cancellationAckedAt      DateTime?
   cancellationAckedByEmail String?
 
+  /// Quién MONTÓ la ronda cuando fue el personal (mesero, administrador,
+  /// cocina…) y no el comensal desde su celular. Sirve para que en cocina
+  /// sepan a quién preguntarle por el pedido. `placedByName` y
+  /// `placedByRole` son un SNAPSHOT al momento de montar: si el usuario
+  /// cambia de nombre o se borra (la FK queda en null), la comanda sigue
+  /// diciendo quién fue. Los tres quedan null cuando pide el comensal.
+  /// Ver src/lib/orders/placedBy.ts.
+  placedByUserId String?
+  placedByUser   User?   @relation("RoundPlacedBy", fields: [placedByUserId], references: [id], onDelete: SetNull)
+  placedByName   String?
+  placedByRole   String?
+
   items OrderItem[]
 
   @@unique([orderId, seq])
   @@index([orderId])
+  @@index([placedByUserId])
 }
 
 model OrderItem {

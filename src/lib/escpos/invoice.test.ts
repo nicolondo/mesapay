@@ -335,6 +335,7 @@ describe("renderPrintJobPayload — un trabajo, dos documentos", () => {
     stationLine: "COCINA",
     destinationLine: "MESA 7",
     metaLine: "A4F2 · R2 · 19:41",
+    placedByLine: null,
     noticeLine: null,
     items: [
       { qty: 1, name: "Bandeja paisa", modifiers: [], notes: null, guestName: null },

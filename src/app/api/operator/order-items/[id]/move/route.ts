@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { getActiveContext } from "@/lib/activeRestaurant";
+import { resolvePlacedBy, roundPlacedByData } from "@/lib/orders/placedBy";
 import { getLocale } from "next-intl/server";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { publishOrderEvent } from "@/lib/events";
@@ -46,10 +47,13 @@ async function POSTHandler(
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  const restaurantId = await getActiveRestaurantId();
+  const ctx = await getActiveContext();
+  const restaurantId = ctx?.restaurantId ?? null;
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
   }
+  // La ronda nueva de la mesa destino la monta quien mueve el plato.
+  const placedBy = resolvePlacedBy(ctx, restaurantId);
   const { id } = await params;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -176,6 +180,7 @@ async function POSTHandler(
         status: roundState.status,
         kitchenStartedAt: roundState.kitchenStartedAt,
         readyAt: roundState.readyAt,
+        ...roundPlacedByData(placedBy),
       },
       select: { id: true },
     });

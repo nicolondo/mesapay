@@ -30,6 +30,12 @@ export type RoundTicket = {
   barSubStation: string | null;
   roundSeq: number;
   placedAt: Date;
+  /**
+   * Quién montó la ronda cuando fue el personal (snapshot de nombre y rol
+   * de Round.placedBy*). Null = pidió el comensal. El rol viaja crudo
+   * (`mesero`, `operator`…) y cada salida lo traduce a su idioma.
+   */
+  placedBy: { name: string; role: string | null } | null;
   order: {
     shortCode: string;
     orderType: "dineIn" | "pickup";
@@ -97,6 +103,9 @@ export async function loadRoundTicket(args: {
       barSubStation,
       roundSeq: round.seq,
       placedAt: round.placedAt,
+      placedBy: round.placedByName
+        ? { name: round.placedByName, role: round.placedByRole ?? null }
+        : null,
       order: {
         shortCode: round.order.shortCode,
         orderType: round.order.orderType as "dineIn" | "pickup",

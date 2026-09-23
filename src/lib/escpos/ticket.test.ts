@@ -71,6 +71,7 @@ const base: ThermalTicket = {
   stationLine: "COCINA",
   destinationLine: "MESA 7",
   metaLine: "A4F2 · R2 · 19:41",
+  placedByLine: null,
   noticeLine: null,
   items: [{ qty: 1, name: "Bandeja paisa", modifiers: [], notes: null, guestName: null }],
   orderNote: null,
@@ -208,6 +209,40 @@ describe("renderTicket — acentos y ñ", () => {
   });
 });
 
+describe("renderTicket — quién montó la ronda", () => {
+  const montada: ThermalTicket = {
+    ...base,
+    placedByLine: "MONTÓ: JUAN (MESERO)",
+  };
+
+  it("va en el encabezado: después de la mesa y antes de los platos", () => {
+    const text = readable(montada);
+    expect(text).toContain("MONTÓ: JUAN (MESERO)");
+    expect(text.indexOf("MESA 7")).toBeLessThan(text.indexOf("MONTÓ:"));
+    expect(text.indexOf("A4F2 · R2")).toBeLessThan(text.indexOf("MONTÓ:"));
+    expect(text.indexOf("MONTÓ:")).toBeLessThan(text.indexOf("1x Bandeja paisa"));
+  });
+
+  it("sin quién montó (pidió el comensal) la comanda es byte a byte la de siempre", () => {
+    expect(hex({ ...base, placedByLine: null })).toBe(hex(base));
+  });
+
+  it("un nombre largo se parte al ancho del papel", () => {
+    const largo = {
+      ...montada,
+      paperWidthMm: 58,
+      placedByLine: "MONTÓ: MARÍA FERNANDA DEL CARMEN GUTIÉRREZ (ADMINISTRADOR)",
+    };
+    for (const l of readable(largo).split("\n")) {
+      expect(l.length).toBeLessThanOrEqual(32);
+    }
+  });
+
+  it("snapshot de bytes", () => {
+    expect(hex(montada)).toMatchSnapshot();
+  });
+});
+
 describe("wrap", () => {
   it("corta por espacios y cuelga la continuación con sangría", () => {
     expect(wrap("uno dos tres cuatro cinco", 12, { cont: "  " })).toEqual([
@@ -238,6 +273,19 @@ describe("parseTicketPayload", () => {
     });
     expect(parsed?.destinationLine).toBe("MESA 7");
     expect(parsed?.items).toHaveLength(1);
+    expect(parsed?.placedByLine).toBeNull();
+  });
+
+  it("conserva quién montó la ronda, y tolera los jobs viejos que no lo traen", () => {
+    const con = parseTicketPayload({
+      v: TICKET_PAYLOAD_VERSION,
+      ticket: { ...base, placedByLine: "MONTÓ: JUAN (MESERO)" },
+    });
+    expect(con?.placedByLine).toBe("MONTÓ: JUAN (MESERO)");
+    // Encolado antes de que existiera el campo.
+    const { placedByLine: _omit, ...viejo } = base;
+    void _omit;
+    expect(parseTicketPayload({ v: TICKET_PAYLOAD_VERSION, ticket: viejo })?.placedByLine).toBeNull();
   });
 
   it("rechaza basura sin tumbar nada", () => {

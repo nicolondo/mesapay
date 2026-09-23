@@ -1115,7 +1115,16 @@
     "cancelling": "Cancelando…",
     "cancelConfirm": "Confirmar cancelación",
     "cancelError": "No pudimos cancelar.",
-    "barTabAll": "Todo el bar"
+    "barTabAll": "Todo el bar",
+    "placedBy": "Montó: {name} · {role}",
+    "placedByNoRole": "Montó: {name}",
+    "roleMesero": "Mesero",
+    "roleOperator": "Administrador",
+    "roleKitchen": "Cocina",
+    "roleBar": "Bar",
+    "roleTerminal": "Terminal",
+    "roleGroupAdmin": "Grupo",
+    "rolePlatformAdmin": "MESAPAY"
   },
   "serve": {
     "noRestaurant": "Sin restaurante.",
@@ -3481,7 +3490,9 @@
     "ticketTableNote": "Mesa",
     "sampleShortCode": "PRUEBA",
     "sampleItemName": "Ticket de prueba",
-    "sampleItemNote": "Si ves este texto, la impresora está bien conectada."
+    "sampleItemNote": "Si ves este texto, la impresora está bien conectada.",
+    "ticketPlacedBy": "MONTÓ: {name} ({role})",
+    "ticketPlacedByNoRole": "MONTÓ: {name}"
   },
   "opPrinters": {
     "title": "Impresoras de red",

@@ -30,6 +30,7 @@ import {
   ticketDedupeKey,
   type TicketStation,
 } from "./routing";
+import { roleLabelKey } from "@/lib/orders/placedBy";
 import { loadRoundTicket, type RoundTicket } from "./ticketData";
 
 /**
@@ -72,11 +73,28 @@ export async function buildThermalTicket(
     minute: "2-digit",
   });
 
+  // Quién montó la ronda, en el idioma de impresión. La etiqueta del rol
+  // sale del namespace `kitchen` (el mismo que usan los tableros) para no
+  // tener dos traducciones de "Mesero". Un rol que ya no existe (snapshot
+  // viejo) imprime sólo el nombre.
+  let placedByLine: string | null = null;
+  if (ticket.placedBy) {
+    const name = ticket.placedBy.name.toUpperCase();
+    const roleKey = roleLabelKey(ticket.placedBy.role);
+    if (roleKey) {
+      const tk = await getTranslations({ locale: raw, namespace: "kitchen" });
+      placedByLine = t("ticketPlacedBy", { name, role: tk(roleKey).toUpperCase() });
+    } else {
+      placedByLine = t("ticketPlacedByNoRole", { name });
+    }
+  }
+
   return {
     paperWidthMm,
     stationLine,
     destinationLine,
     metaLine: `${displayOrderCode(ticket.order.shortCode)} · R${ticket.roundSeq} · ${time}`,
+    placedByLine,
     noticeLine:
       ticket.order.servingMode === "together"
         ? t("ticketMainsTogether")

@@ -56,6 +56,8 @@ export default async function KitchenPage() {
         status: r.status as "placed" | "in_kitchen" | "ready",
         placedAt: r.placedAt.toISOString(),
         readyAt: r.readyAt ? r.readyAt.toISOString() : null,
+        placedByName: r.placedByName,
+        placedByRole: r.placedByRole,
         order: {
           id: r.order.id,
           shortCode: r.order.shortCode,

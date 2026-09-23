@@ -55,6 +55,11 @@ export type ThermalTicket = {
   destinationLine: string;
   /** Metadatos ya armados: "A4F2 · R2 · 19:41". */
   metaLine: string;
+  /**
+   * Quién montó la ronda cuando fue el personal, ya traducido y en
+   * mayúsculas: "MONTÓ: JUAN (MESERO)". Null si pidió el comensal.
+   */
+  placedByLine: string | null;
   /** Aviso centrado opcional: "FUERTES JUNTOS". */
   noticeLine: string | null;
   items: ThermalTicketItem[];
@@ -110,6 +115,10 @@ export function parseTicketPayload(raw: unknown): ThermalTicket | null {
     stationLine: ticket.stationLine,
     destinationLine: ticket.destinationLine,
     metaLine: ticket.metaLine,
+    // Opcional a propósito: los jobs encolados antes de que existiera no
+    // lo traen y tienen que seguir imprimiendo.
+    placedByLine:
+      typeof ticket.placedByLine === "string" ? ticket.placedByLine : null,
     noticeLine:
       typeof ticket.noticeLine === "string" ? ticket.noticeLine : null,
     items,
@@ -144,6 +153,15 @@ export function renderTicket(ticket: ThermalTicket): Buffer {
   chunks.push(NORMAL_SIZE, bold(false));
 
   for (const l of wrap(ticket.metaLine, cols)) chunks.push(line(l));
+  // Quién montó la ronda: en el encabezado, debajo de la mesa y antes de
+  // los platos, en negrita. Es a quién le pregunta el cocinero por el
+  // pedido; no hace falta a doble tamaño porque no es lo que se lee desde
+  // el otro lado de la cocina, sino cuando algo no cuadra.
+  if (ticket.placedByLine) {
+    chunks.push(bold(true));
+    for (const l of wrap(ticket.placedByLine, cols)) chunks.push(line(l));
+    chunks.push(bold(false));
+  }
   if (ticket.noticeLine) {
     chunks.push(bold(true));
     for (const l of wrap(ticket.noticeLine, cols)) chunks.push(line(l));

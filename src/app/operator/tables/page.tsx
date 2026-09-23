@@ -221,6 +221,8 @@ export default async function TablesPage({
         seq: r.seq,
         status: r.status,
         placedAt: r.placedAt.toISOString(),
+        placedByName: r.placedByName,
+        placedByRole: r.placedByRole,
         items: r.items.map((i) => ({
           id: i.id,
           name: i.nameSnapshot,

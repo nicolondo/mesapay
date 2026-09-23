@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { PlacedByLine } from "@/components/PlacedByLine";
 import {
   lineTaxOnTopCents,
   salesTaxRates,
@@ -50,6 +51,9 @@ type Round = {
   // filtramos por "cancelled" para esconderlas; el resto fluyen.
   status: string;
   placedAt: string;
+  // Quién montó la ronda cuando fue el personal; null = el comensal.
+  placedByName: string | null;
+  placedByRole: string | null;
   items: ItemDetail[];
 };
 
@@ -881,9 +885,18 @@ export function TableDetailSheet({
 
             {visibleRounds.map((round) => (
               <section key={round.id} className="space-y-2">
-                {visibleRounds.length > 1 && (
-                  <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
-                    {tr("round", { seq: round.seq })}
+                {(visibleRounds.length > 1 || round.placedByName) && (
+                  <div className="flex flex-wrap items-baseline gap-x-3 font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                    {visibleRounds.length > 1 && (
+                      <span>{tr("round", { seq: round.seq })}</span>
+                    )}
+                    {/* Quién montó la ronda: así el mesero sabe a quién
+                        preguntarle por un plato que no cargó él. */}
+                    <PlacedByLine
+                      name={round.placedByName}
+                      role={round.placedByRole}
+                      className="truncate"
+                    />
                   </div>
                 )}
                 <ul className="space-y-2">

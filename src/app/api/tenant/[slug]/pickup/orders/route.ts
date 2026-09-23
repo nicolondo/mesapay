@@ -14,6 +14,8 @@ import {
   shouldBlockDemoPayment,
 } from "@/lib/demoPayments";
 import { getDiner } from "@/lib/dinerSession";
+import { getActiveContext } from "@/lib/activeRestaurant";
+import { resolvePlacedBy, roundPlacedByData } from "@/lib/orders/placedBy";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { publishOrderEvent } from "@/lib/events";
 import { computeEtaMinutes } from "@/lib/pickupEta";
@@ -120,6 +122,9 @@ async function POSTHandler(
   // Igual que en /orders: el comensal con sesión EN ESTE COMERCIO, para que
   // el pedido para llevar quede enlazado a su cuenta de acá.
   const diner = await getDiner(tenant.id);
+  // Igual que en /orders: si quien pide es PERSONAL del comercio, la ronda
+  // queda a su nombre; si es el cliente, null.
+  const placedBy = resolvePlacedBy(await getActiveContext(), tenant.id);
   // Subtotal must factor modifier price deltas too — otherwise the
   // Kushki charge below would undercharge by the value of every
   // "+$5.000 Camarón" the diner added.
@@ -220,6 +225,7 @@ async function POSTHandler(
         orderId: order.id,
         seq: 1,
         status: isKushki ? "open" : "placed",
+        ...roundPlacedByData(placedBy),
       },
     });
 

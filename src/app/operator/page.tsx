@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { getTranslations, getLocale } from "next-intl/server";
@@ -280,11 +281,11 @@ export default async function OperatorHome() {
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold">
                     {counterMode
-                      ? o.shortCode
+                      ? displayOrderCode(o.shortCode)
                       : tr("tableLabel", { number: o.table.number })}
                   </span>
                   <span className="block text-xs text-op-muted mt-1">
-                    {o.shortCode} ·{" "}
+                    {displayOrderCode(o.shortCode)} ·{" "}
                     {tr("itemCount", {
                       count: o.items.reduce((sum, item) => sum + item.qty, 0),
                     })}{" "}

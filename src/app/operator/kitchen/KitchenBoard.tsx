@@ -1,4 +1,5 @@
 "use client";
+import { displayOrderCode } from "@/lib/orderCode";
 import { startTransition } from "react";
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -331,15 +332,15 @@ export function KitchenBoard({
                       <div className="font-mono text-[11px] tracking-wider text-op-muted uppercase truncate">
                         {r.order.orderType === "pickup"
                           ? tr("pickupLabel", {
-                              name: r.order.pickupName ?? r.order.shortCode,
+                              name: r.order.pickupName ?? displayOrderCode(r.order.shortCode),
                             })
                           : serviceMode === "counter"
                             ? tr("orderLabel", {
-                                code: r.order.shortCode,
+                                code: displayOrderCode(r.order.shortCode),
                                 seq: r.seq,
                               })
                             : tr("tableLabel", {
-                                code: r.order.shortCode,
+                                code: displayOrderCode(r.order.shortCode),
                                 number: r.order.tableNumber,
                                 seq: r.seq,
                               })}

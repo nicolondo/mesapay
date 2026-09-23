@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
@@ -174,8 +175,8 @@ export default async function ClienteDetallePage({
               className="rounded-xl border border-hairline bg-paper p-4 flex items-start justify-between gap-4"
             >
               <div className="min-w-0">
-                <div className="font-mono text-sm">
-                  {o.simpleInvoice ? `#${o.simpleInvoice.invoiceNumber}` : o.shortCode}
+                <div className="font-mono text-sm" title={o.shortCode}>
+                  {o.simpleInvoice ? `#${o.simpleInvoice.invoiceNumber}` : displayOrderCode(o.shortCode)}
                 </div>
                 <div className="font-mono text-[11px] text-muted mt-0.5">
                   {o.table.number > 0

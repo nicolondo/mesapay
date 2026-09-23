@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -329,7 +330,7 @@ export default async function NoCobradosPage({
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-op-muted">
                       <span>{tableLabel}</span>
                       <span>·</span>
-                      <span className="font-mono">{it.order.shortCode}</span>
+                      <span className="font-mono" title={it.order.shortCode}>{displayOrderCode(it.order.shortCode)}</span>
                       <span>·</span>
                       <span className="font-mono">
                         {it.cancelledByEmail ?? t("noEmail")}

@@ -318,7 +318,12 @@ test("workspace chart, section search and mobile drawer work with keyboard navig
 test("payments can be paginated, filtered and opened for review", async ({
   page,
 }) => {
-  const shortCode = "SEARCH-" + randomUUID().slice(0, 8);
+  // En pantalla la cuenta se muestra con el código corto (primer grupo
+  // antes del guión, ver displayOrderCode): se busca por el código completo
+  // pero el link lleva sólo el primer grupo. Ocho hex del UUID para que
+  // sea único entre corridas.
+  const shownCode = randomUUID().slice(0, 8).toUpperCase();
+  const shortCode = `${shownCode}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const paymentsTable = await db.table.create({
     data: { restaurantId, number: 77, qrToken: randomUUID() },
   });
@@ -352,11 +357,11 @@ test("payments can be paginated, filtered and opened for review", async ({
   await signInOperator(page);
   await page.goto(`/operator/payments?q=${shortCode}`);
   await expect(
-    page.getByRole("link", { name: shortCode, exact: true }),
+    page.getByRole("link", { name: shownCode, exact: true }),
   ).toHaveCount(50);
   await page.getByRole("link", { name: "Siguiente", exact: true }).click();
   await expect(
-    page.getByRole("link", { name: shortCode, exact: true }),
+    page.getByRole("link", { name: shownCode, exact: true }),
   ).toHaveCount(4);
   await expectNoOverflow(page);
   await page
@@ -364,7 +369,7 @@ test("payments can be paginated, filtered and opened for review", async ({
     .selectOption("review");
   await page.getByRole("button", { name: "Filtrar", exact: true }).click();
   await expect(
-    page.getByRole("link", { name: shortCode, exact: true }),
+    page.getByRole("link", { name: shownCode, exact: true }),
   ).toHaveCount(1);
   await page.getByRole("link", { name: /Requiere revisión/ }).click();
   await expect(page).toHaveURL(new RegExp(`/operator/orders/${order.id}$`));

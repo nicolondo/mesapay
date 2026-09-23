@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -190,7 +191,7 @@ export function MisComisionesClient({
                       </span>
                       <span className="min-w-0 flex-1 truncate">
                         {accountLabel(r, labels)}{" "}
-                        <span className="font-mono text-[11px] text-muted">{r.shortCode}</span>
+                        <span className="font-mono text-[11px] text-muted" title={r.shortCode}>{displayOrderCode(r.shortCode)}</span>
                       </span>
                       <span className="font-medium tabular whitespace-nowrap">
                         {money(r.commissionCents)}

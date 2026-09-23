@@ -2,6 +2,7 @@
 // `/factura/[id]` consume el mismo snapshot que aparece en el email
 // para garantizar que ambos vean exactamente la misma versión.
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { fmtCOP, localeTag } from "./format";
 import { getEmailTranslator } from "./emailIntl";
 
@@ -300,7 +301,7 @@ export async function renderInvoiceEmail(args: {
     "",
     `${t("receiptLabel")} ${numberStr}`,
     `${t("date")}: ${fechaStr}`,
-    `${snapshot.tableLabel}  ${snapshot.shortCode}`,
+    `${snapshot.tableLabel}  ${displayOrderCode(snapshot.shortCode)}`,
     "",
     ...snapshot.items.map(
       (i) =>
@@ -488,7 +489,7 @@ function renderHtml(args: {
                 <td valign="top" align="right" style="padding:18px 0;">
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">${escapeHtml(t("table"))}</div>
                   <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:22px;color:#1A1613;line-height:1.1;">${escapeHtml(snapshot.tableLabel)}</div>
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(snapshot.shortCode)}</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(displayOrderCode(snapshot.shortCode))}</div>
                 </td>
               </tr>
             </table>
@@ -552,7 +553,7 @@ function renderHtml(args: {
                     </tr>
                     <tr>
                       <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(snapshot.tableLabel)}</td>
-                      <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(snapshot.shortCode)}</td>
+                      <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(displayOrderCode(snapshot.shortCode))}</td>
                     </tr>
                   </table>
 

@@ -1,4 +1,5 @@
 "use client";
+import { displayOrderCode } from "@/lib/orderCode";
 import { useClock } from "@/lib/browser/clock";
 
 import { useMemo, useState } from "react";
@@ -775,8 +776,8 @@ function ManualInvoiceTile({
         <div className="font-mono text-[9px] tracking-wider uppercase text-terracotta">
           {tr("manualInvoiceLabel")}
         </div>
-        <div className="font-mono text-[10px] text-op-muted truncate w-full mt-0.5">
-          {tile.order.shortCode}
+        <div className="font-mono text-[10px] text-op-muted truncate w-full mt-0.5" title={tile.order.shortCode}>
+          {displayOrderCode(tile.order.shortCode)}
         </div>
         <div className="font-mono text-[12px] tabular leading-tight mt-1">
           {fmtCOP(tile.order.outstandingCents)}

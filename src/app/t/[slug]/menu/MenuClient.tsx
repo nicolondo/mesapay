@@ -1,4 +1,5 @@
 "use client";
+import { displayOrderCode } from "@/lib/orderCode";
 import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 
@@ -1111,9 +1112,10 @@ export function MenuClient({
               {activeOrder && (
                 <Link
                   href={`/t/${tenant.slug}/order/${activeOrder.id}`}
-                  className="h-9 px-3 rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
+                  className="h-9 px-3 shrink-0 whitespace-nowrap rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
+                  title={activeOrder.shortCode}
                 >
-                  {activeOrder.shortCode}
+                  {displayOrderCode(activeOrder.shortCode)}
                 </Link>
               )}
             </div>
@@ -1487,8 +1489,8 @@ export function MenuClient({
                 " bg-paper border border-hairline text-ink rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.18)] px-4 py-3 slide-up text-left flex flex-col justify-center"
               }
             >
-              <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate">
-                {tMenu("orderLabel")} · {activeOrder.shortCode}
+              <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate" title={activeOrder.shortCode}>
+                {tMenu("orderLabel")} · {displayOrderCode(activeOrder.shortCode)}
               </div>
               <div className="text-sm font-medium truncate mt-0.5">
                 {tMenu("itemsCount", { count: activeOrder.itemCount })}
@@ -1508,7 +1510,7 @@ export function MenuClient({
               onNote={setLineNote}
               submitting={submitting}
               onSend={sendToKitchen}
-              appendingTo={activeOrder?.shortCode ?? null}
+              appendingTo={activeOrder ? displayOrderCode(activeOrder.shortCode) : null}
               split={!!activeOrder}
               servingMode={servingMode}
               onServingModeChange={setServingMode}
@@ -1849,8 +1851,8 @@ function ActiveOrderSheet({
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
                 {t("tableOrder")}
               </div>
-              <h3 className="font-display text-3xl tracking-[-0.015em]">
-                {order.shortCode}
+              <h3 className="font-display text-3xl tracking-[-0.015em]" title={order.shortCode}>
+                {displayOrderCode(order.shortCode)}
               </h3>
             </div>
             <button

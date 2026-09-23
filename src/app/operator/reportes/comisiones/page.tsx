@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
 import { formatMoney, localeTag } from "@/lib/format";
@@ -197,7 +198,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: S
                   {report.detail.map((r: CommissionRow) => (
                     <tr key={r.orderId} className="border-t border-op-border/40">
                       <td className={`${TD} whitespace-nowrap`}>{fmtIsoDate(r.paidAt, loc)}</td>
-                      <td className={`${TD} font-mono`}>{r.shortCode}</td>
+                      <td className={`${TD} font-mono`} title={r.shortCode}>{displayOrderCode(r.shortCode)}</td>
                       <td className={TD}>{accountLabel(r, labels)}</td>
                       <td className={TD}>{r.waiterName}</td>
                       <td className={NUM}>{money(r.baseCents)}</td>

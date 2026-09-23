@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -300,7 +301,7 @@ export function PrintListener({
                   key={h.id}
                   className="flex items-center justify-between bg-op-surface border border-op-border rounded-lg px-3 py-2 text-sm"
                 >
-                  <span className="font-mono">{h.shortCode}</span>
+                  <span className="font-mono" title={h.shortCode}>{displayOrderCode(h.shortCode)}</span>
                   <span className="text-op-muted">
                     {t("historyItemCount", { count: h.itemCount })} ·{" "}
                     {new Date(h.printedAt).toLocaleTimeString("es-CO", {
@@ -337,7 +338,7 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
   const dest =
     ticket.order.orderType === "pickup"
       ? t("ticketPickup", {
-          name: ticket.order.pickupName ?? ticket.order.shortCode,
+          name: ticket.order.pickupName ?? displayOrderCode(ticket.order.shortCode),
         })
       : t("ticketTable", { number: ticket.order.tableNumber });
   const stationName =
@@ -433,7 +434,7 @@ function buildTicketHtml(ticket: Ticket, t: Tr): string {
 <body>
   <div class="station">${escapeHtml(stationName)}</div>
   <div class="dest">${escapeHtml(dest)}</div>
-  <div class="meta">${escapeHtml(ticket.order.shortCode)} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? ` · ${escapeHtml(t("ticketMainsTogether"))}` : ""}</div>
+  <div class="meta">${escapeHtml(displayOrderCode(ticket.order.shortCode))} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? ` · ${escapeHtml(t("ticketMainsTogether"))}` : ""}</div>
   <hr/>
   ${ticket.items
     .map(

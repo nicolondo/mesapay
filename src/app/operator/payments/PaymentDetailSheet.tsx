@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
@@ -76,8 +77,8 @@ export function PaymentDetailSheet({ detail }: { detail: PaymentDetail }) {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-op-muted">
-                  {detail.shortCode}
+                <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-op-muted" title={detail.shortCode}>
+                  {displayOrderCode(detail.shortCode)}
                 </div>
                 <h2 className="mt-1 font-display text-2xl">{t("detailTitle")}</h2>
               </div>

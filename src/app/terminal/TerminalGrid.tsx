@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { useMemo, useRef, useState, useTransition } from "react";
@@ -279,8 +280,8 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
         )}
       </div>
       {t.shortCode && (
-        <div className="font-mono text-[10px] tracking-wider opacity-70 mt-1">
-          {t.shortCode}
+        <div className="font-mono text-[10px] tracking-wider opacity-70 mt-1" title={t.shortCode}>
+          {displayOrderCode(t.shortCode)}
         </div>
       )}
       {t.state !== "free" && (
@@ -412,7 +413,7 @@ function DetailSheet({
           <div>
             <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
               {stateLabel(table.state, tr)}
-              {table.shortCode ? tr("guestSuffix", { name: table.shortCode }) : ""}
+              {table.shortCode ? tr("guestSuffix", { name: displayOrderCode(table.shortCode) }) : ""}
             </div>
             <div className="font-display text-xl">
               {tr("tableNumber", { number: table.number })}

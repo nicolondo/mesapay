@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -130,7 +131,7 @@ async function POSTHandler(
     return NextResponse.json(
       {
         error: "target_busy",
-        message: `La mesa ${target.number} ya tiene una cuenta abierta (${targetOpen.shortCode}). Ciérrala antes de mover.`,
+        message: `La mesa ${target.number} ya tiene una cuenta abierta (${displayOrderCode(targetOpen.shortCode)}). Ciérrala antes de mover.`,
       },
       { status: 409 },
     );

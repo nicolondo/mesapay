@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { canAccessOrder } from "@/lib/guestAccess";
 import { notFound, redirect } from "next/navigation";
@@ -50,7 +51,7 @@ export default async function PickupStatusPage({
         </div>
         <div className="font-mono text-[11px] text-muted mt-1">
           {t("codeLine", {
-            code: order.shortCode,
+            code: displayOrderCode(order.shortCode),
             name: order.pickupName ?? "—",
           })}
         </div>

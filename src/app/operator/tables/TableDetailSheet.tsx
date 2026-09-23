@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOrderCode } from "@/lib/orderCode";
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -594,7 +595,7 @@ export function TableDetailSheet({
                 <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
                   {tableLabel}
                   {" · "}
-                  {shortCode}
+                  <span title={shortCode}>{displayOrderCode(shortCode)}</span>
                 </div>
                 <h2 className="font-display text-2xl mt-1">
                   {tr("orderStatusTitle")}

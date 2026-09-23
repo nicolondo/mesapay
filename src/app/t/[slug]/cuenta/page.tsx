@@ -1,3 +1,4 @@
+import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, getLocale } from "next-intl/server";
@@ -141,8 +142,8 @@ export default async function TenantDinerAccountPage({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-display text-lg tracking-[-0.01em]">
-                          {o.shortCode}
+                        <span className="font-display text-lg tracking-[-0.01em]" title={o.shortCode}>
+                          {displayOrderCode(o.shortCode)}
                         </span>
                         <span
                           className={

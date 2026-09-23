@@ -13,6 +13,12 @@ import type { InvoiceRequestSummary } from "@/components/invoice/types";
 import { roleLabelKey } from "@/lib/orders/placedBy";
 import type { CompPolicyView } from "@/lib/staffPolicies";
 import {
+  BrowserPrintStatus,
+  browserPrintStateFrom,
+  type BrowserPrintState,
+} from "@/components/BrowserPrintStatus";
+import { printInBrowserOrOpenTab } from "@/lib/printInBrowser";
+import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
   salesTaxRates,
@@ -319,11 +325,12 @@ export function TableDetailSheet({
   const [billAsked, setBillAsked] = useState(false);
   // "Imprimir precuenta": busy mientras vuela el POST; `prebillNote` es lo
   // que se le dice al mesero después ("enviada a Caja", "sin impresora…");
-  // `prebillOpenLink` aparece cuando el navegador bloqueó la pestaña que
-  // intentamos abrir con la vista imprimible.
+  // `prebillBrowser` es cómo va el respaldo "imprimir desde el navegador"
+  // (preparando, enviada, pestaña de emergencia, error).
   const [prebillBusy, setPrebillBusy] = useState(false);
   const [prebillNote, setPrebillNote] = useState<string | null>(null);
-  const [prebillOpenLink, setPrebillOpenLink] = useState(false);
+  const [prebillBrowser, setPrebillBrowser] =
+    useState<BrowserPrintState | null>(null);
   const router = useRouter();
   const [, startTx] = useTransition();
 
@@ -335,14 +342,16 @@ export function TableDetailSheet({
 
   /**
    * Manda la precuenta a la impresora de facturas del local. Si el local
-   * no tiene (o su agente no responde), abre la vista imprimible del
-   * navegador: la precuenta sale igual, sólo que por otro camino.
+   * no tiene (o su agente no responde), la imprime desde el navegador sin
+   * salir de acá: la vista imprimible se carga en un iframe oculto y el
+   * diálogo de impresión sale sobre esta misma pantalla. La precuenta
+   * sale igual, sólo que por otro camino.
    */
   async function printPrebill() {
     if (prebillBusy) return;
     setPrebillBusy(true);
     setPrebillNote(null);
-    setPrebillOpenLink(false);
+    setPrebillBrowser(null);
     try {
       const res = await fetch(`/api/operator/orders/${orderId}/prebill`, {
         method: "POST",
@@ -365,16 +374,28 @@ export function TableDetailSheet({
           ? tr("prebillPrinterOffline")
           : tr("prebillNoPrinter"),
       );
-      if (isMeseroView) {
-        router.push(prebillHref);
+      setPrebillBrowser({ step: "preparing" });
+      // `?print=1` sólo para la pestaña de respaldo: en el iframe imprime el
+      // helper y la página no se auto-imprime (isEmbeddedFrame).
+      const tabUrl = `${prebillHref}?print=1`;
+      const outcome = await printInBrowserOrOpenTab(prebillHref, {
+        tabUrl,
+        // Si el navegador no deja imprimir embebido se cae a lo de antes:
+        // en la PWA del mesero no hay pestañas, así que se navega in-app a
+        // la vista imprimible (scope /mesero/); en el panel, la pestaña.
+        openTab: isMeseroView
+          ? () => {
+              router.push(prebillHref);
+              return true;
+            }
+          : undefined,
+      });
+      if (outcome.kind === "tab" && isMeseroView) {
+        // Ya navegamos a la precuenta: no hay nada más que contar acá.
+        setPrebillBrowser(null);
         return;
       }
-      // `?print=1` abre el diálogo de impresión solo. Si el navegador
-      // bloquea la pestaña (Safari lo hace tras un await), queda el link.
-      // Sin `noopener`: con esa feature `window.open` devuelve null SIEMPRE
-      // y no se podría distinguir el bloqueo; la URL es propia del panel.
-      const win = window.open(`${prebillHref}?print=1`, "_blank");
-      if (!win) setPrebillOpenLink(true);
+      setPrebillBrowser(browserPrintStateFrom(outcome, tabUrl));
     } catch {
       setPrebillNote(tr("prebillFailed"));
     } finally {
@@ -1035,19 +1056,16 @@ export function TableDetailSheet({
                         {prebillBusy ? tr("prebillPrinting") : tr("prebillPrint")}
                       </button>
                       <div className="flex items-center justify-between gap-2 px-1 font-mono text-[10px] text-op-muted">
-                        <span className="min-w-0 truncate">
+                        <span className="min-w-0 leading-snug">
                           {prebillNote}
-                          {prebillOpenLink && (
+                          {prebillBrowser && (
                             <>
                               {" "}
-                              <a
-                                href={`${prebillHref}?print=1`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline text-op-text"
-                              >
-                                {tr("prebillOpenView")}
-                              </a>
+                              <BrowserPrintStatus
+                                state={prebillBrowser}
+                                linkClassName="underline text-op-text"
+                                sameTab={isMeseroView}
+                              />
                             </>
                           )}
                         </span>

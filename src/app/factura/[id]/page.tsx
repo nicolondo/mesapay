@@ -127,7 +127,7 @@ export default async function FacturaPage({
           </Link>
         </div>
 
-        <article className="receipt">
+        <article className="receipt" data-print-document="factura">
           <img
             className="logo"
             src={restaurantLogoSrc(snap.logoUrl)}

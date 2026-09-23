@@ -30,6 +30,7 @@ const MIGRATED = [
   // migrados enteros, quedan blindados.
   "src/app/operator/orders/**/*.{ts,tsx}",
   "src/components/LocaleSwitcher.tsx",
+  "src/components/BrowserPrintStatus.tsx",
   "src/components/SalesTaxConfigEditor.tsx",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",

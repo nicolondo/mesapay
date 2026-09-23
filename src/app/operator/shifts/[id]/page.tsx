@@ -28,6 +28,7 @@ const METHOD_KEY: Record<string, string> = {
   kushki_pse: "methodKushkiPse",
   reservation_deposit: "methodReservationDeposit",
   voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
 };
 
 /**

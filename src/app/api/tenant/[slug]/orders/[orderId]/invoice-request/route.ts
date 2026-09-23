@@ -7,6 +7,8 @@ import { publishOrderEvent } from "@/lib/events";
 import { issueSimpleInvoice } from "@/lib/simpleInvoice";
 import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
+import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { applyCustomerDiscount, type ApplyCustomerDiscountResult } from "@/lib/customerDiscount";
 
 /**
  * Customer-submitted billing info attached to an order. We store it
@@ -59,6 +61,10 @@ const schema = z.object({
   email: z.string().email().max(160),
   placeId: z.string().max(200).optional(),
   rawComponents: z.unknown().optional(),
+  // Sólo desde el checkout del STAFF: el cliente de facturación elegido en
+  // el selector. Liga la cuenta al cliente y aplica su descuento comercial
+  // (si lo tiene). Sin sesión de staff del comercio se ignora.
+  billingCustomerId: z.string().min(1).max(64).optional(),
 });
 
 async function POSTHandler(
@@ -128,6 +134,23 @@ async function POSTHandler(
       data: { restaurantId: tenant.id, orderId: order.id, ...data },
     });
   }
+  // Factura nominativa ligada a un cliente de facturación existente (staff
+  // en el checkout): se aplica su descuento comercial con el mecanismo del
+  // descuento por comensal. La solicitud ya quedó guardada arriba; si el
+  // descuento no aplica (cuenta con pagos, descuento mayor) se avisa.
+  let discount: ApplyCustomerDiscountResult | null = null;
+  if (parsed.data.billingCustomerId) {
+    const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+    const customer = staff
+      ? await db.billingCustomer.findFirst({
+          where: { id: parsed.data.billingCustomerId, restaurantId: tenant.id },
+          select: { discountEnabled: true, discountBps: true },
+        })
+      : null;
+    if (customer) {
+      discount = await db.$transaction((tx) => applyCustomerDiscount(tx, order.id, tenant.id, customer));
+    }
+  }
   publishOrderEvent(tenant.id, { type: "order.updated", orderId: order.id });
 
   // Además de encolar la solicitud (para la emisión DIAN futura), generamos
@@ -180,6 +203,7 @@ async function POSTHandler(
     // El cliente muestra "te la enviamos apenas se confirme el pago" en vez
     // del botón de imprimir.
     deferred: !inv.ok && inv.error === "order_not_paid",
+    discount,
   });
 }
 

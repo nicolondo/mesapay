@@ -9,7 +9,7 @@ vi.mock("@/lib/db", () => ({
     payment: { groupBy: async () => [] },
     expense: { findMany: async () => [] },
     expensePayment: { findMany: async () => [] },
-    purchasePayment: { findMany: async () => [] },
+    purchasePayment: { findMany: async () => [] }, customerCreditPayment: { findMany: async () => [] },
     deferredItem: { findMany: async () => [] },
     fixedAsset: { findMany: m.assets },
     $transaction: async (fn: (tx: unknown) => unknown) =>

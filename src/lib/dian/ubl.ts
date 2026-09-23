@@ -102,6 +102,10 @@ export type DianInvoiceInput = {
   lines: DianLine[];
   /** Medio de pago (anexo 6.3.4): "10" efectivo, "48" tarjeta, "47" transferencia. */
   paymentMeansCode: string;
+  /** Forma de pago (anexo 6.3.4.1): "1" contado (default), "2" crédito. */
+  paymentMeansId?: "1" | "2";
+  /** Vencimiento "YYYY-MM-DD"; default = fecha de emisión (contado). */
+  paymentDueDate?: string;
   /** Nota opcional (se incluye como cbc:Note). */
   note?: string | null;
 };
@@ -422,7 +426,7 @@ export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
     `<cbc:LineCountNumeric>${i.lines.length}</cbc:LineCountNumeric>` +
     partyXml("supplier", i.supplier, i.resolution.prefix) +
     partyXml("customer", i.customer) +
-    `<cac:PaymentMeans><cbc:ID>1</cbc:ID><cbc:PaymentMeansCode>${esc(i.paymentMeansCode)}</cbc:PaymentMeansCode><cbc:PaymentDueDate>${i.issueDate}</cbc:PaymentDueDate><cbc:PaymentID>1</cbc:PaymentID></cac:PaymentMeans>` +
+    `<cac:PaymentMeans><cbc:ID>${i.paymentMeansId ?? "1"}</cbc:ID><cbc:PaymentMeansCode>${esc(i.paymentMeansCode)}</cbc:PaymentMeansCode><cbc:PaymentDueDate>${i.paymentDueDate ?? i.issueDate}</cbc:PaymentDueDate><cbc:PaymentID>1</cbc:PaymentID></cac:PaymentMeans>` +
     taxGroups.join("") +
     `<cac:LegalMonetaryTotal>` +
     `<cbc:LineExtensionAmount currencyID="COP">${A(totals.lineExtensionCents)}</cbc:LineExtensionAmount>` +

@@ -12,6 +12,46 @@ import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
 import { parseTipPct } from "@/lib/tips";
+import { loadCustomerCreditSummary } from "@/lib/customerCredit";
+import { normalizeCustomerDocument } from "@/lib/customerDocument";
+import type { PayCustomer } from "./PayClient";
+
+/**
+ * Cliente de facturación ligado a la cuenta por la solicitud de factura
+ * nominativa: el mismo tipo y número de documento (normalizado como lo
+ * guarda `billingCustomerSchema`). Sólo en modo staff; null si no hay
+ * solicitud o no coincide con ningún cliente del comercio.
+ */
+async function linkedCustomerFor(
+  restaurantId: string,
+  request: { docType: "CC" | "CE" | "NIT" | "PA"; docNumber: string } | null,
+): Promise<PayCustomer | null> {
+  if (!request) return null;
+  // Misma normalización que el alta del cliente y la solicitud de factura
+  // (una sola fuente de verdad): número sin DV. Una solicitud vieja que
+  // todavía traiga "901944469-1" también liga; un DV que no corresponde no.
+  const document = normalizeCustomerDocument(request.docType, request.docNumber);
+  if (!document.ok) return null;
+  const customer = await db.billingCustomer.findFirst({
+    where: { restaurantId, docType: request.docType, docNumber: document.docNumber },
+    select: {
+      id: true,
+      customerName: true,
+      docType: true,
+      docNumber: true,
+      verificationDigit: true,
+      creditEnabled: true,
+      creditLimitCents: true,
+      discountEnabled: true,
+      discountBps: true,
+    },
+  });
+  if (!customer) return null;
+  const credit = customer.creditEnabled
+    ? await loadCustomerCreditSummary(restaurantId, customer.id)
+    : null;
+  return { ...customer, debtCents: credit?.debtCents ?? 0 };
+}
 
 /**
  * Núcleo del flujo de cobro, compartido por dos puntos de entrada:
@@ -131,6 +171,17 @@ export async function PayFlow({
     ? `/mesero/cobrar/${orderId}/done`
     : `/t/${slug}/pay/${orderId}/done?op=1`;
 
+  // Clientes de facturación (sólo staff): el paso "Cliente" existe si el
+  // comercio tiene alguno; "Cobrar a crédito", si alguno tiene crédito. El
+  // cliente de la factura nominativa (si coincide) llega preseleccionado.
+  const [customerCount, creditCount, linkedCustomer] = operatorMode
+    ? await Promise.all([
+        db.billingCustomer.count({ where: { restaurantId: tenant.id } }),
+        db.billingCustomer.count({ where: { restaurantId: tenant.id, creditEnabled: true } }),
+        linkedCustomerFor(tenant.id, invoiceRequest),
+      ])
+    : [0, 0, null];
+
   // Una factura manual no tiene mesa que nombrar en el encabezado del cobro.
   const tMenu = await getTranslations("menu");
 
@@ -183,6 +234,9 @@ export async function PayFlow({
       // Bonos empresariales: el campo "¿Tenés un bono?" sólo existe con el
       // módulo activo (el server además responde module_disabled sin él).
       vouchersEnabled={isModuleEnabled(tenant.enabledModules, "vouchers")}
+      customerStepEnabled={customerCount > 0}
+      creditEnabled={creditCount > 0}
+      linkedCustomer={linkedCustomer}
       pseBanks={pseBanks}
       assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
       assignedDeviceLabel={assignedDevice?.label ?? null}

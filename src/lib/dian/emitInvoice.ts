@@ -34,6 +34,7 @@ import { transitionAfterSend } from "@/lib/dian/documentState";
 import {
   bogotaIssueTime,
   claimDianDocument,
+  creditPaymentMeans,
   customerPartyFor,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
@@ -190,6 +191,13 @@ export async function emitDianInvoice(opts: {
               email: true,
             },
           },
+          // Cobro a crédito de la cuenta: la factura sale con forma de
+          // pago "crédito" y vence a los días de plazo del cliente.
+          payments: {
+            where: { method: "customer_credit", status: "approved" },
+            take: 1,
+            select: { billingCustomer: { select: { creditTermsDays: true } } },
+          },
         },
       },
     },
@@ -287,7 +295,7 @@ export async function emitDianInvoice(opts: {
     // El CUFE sale de este mismo objeto (NumAdq = companyId).
     customer: customerPartyFor(inv.order.invoiceRequests[0] ?? null),
     lines,
-    paymentMeansCode: "10",
+    ...creditPaymentMeans(inv.order.payments ?? [], issueDate),
   };
 
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,

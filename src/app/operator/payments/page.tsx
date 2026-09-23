@@ -373,6 +373,7 @@ function methodLabel(m: string, t: (key: string) => string) {
     kushki_pse: t("mKushkiPse"),
     reservation_deposit: t("mReservationDeposit"),
     voucher: t("mVoucher"),
+    customer_credit: t("mCustomerCredit"),
   };
   return map[m] ?? m;
 }

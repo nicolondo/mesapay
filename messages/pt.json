@@ -51,6 +51,8 @@
     "searchPlaceholder": "Buscar no cardápio",
     "clearSearch": "Limpar busca",
     "noResults": "Nada encontrado para <q>{query}</q>.",
+    "noResultsHint": "Buscamos em todo o cardápio, em todas as categorias.",
+    "searchSummary": "{count, plural, one {# resultado} other {# resultados}} em todo o cardápio",
     "orderLabel": "Pedido",
     "itemsCount": "{count, plural, one {# item} other {# itens}}",
     "addToCode": "Adicionar · {code}",

@@ -51,6 +51,8 @@
     "searchPlaceholder": "Buscar en el menú",
     "clearSearch": "Borrar búsqueda",
     "noResults": "No encontramos nada para <q>{query}</q>.",
+    "noResultsHint": "Buscamos en toda la carta, en todas las categorías.",
+    "searchSummary": "{count, plural, one {# resultado} other {# resultados}} en toda la carta",
     "orderLabel": "Pedido",
     "itemsCount": "{count, plural, one {# ítem} other {# ítems}}",
     "addToCode": "Añadir · {code}",

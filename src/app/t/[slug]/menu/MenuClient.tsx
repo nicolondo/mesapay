@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
-import { matchesQuery, searchTokens } from "@/lib/menuSearch";
+import { searchMenuItems, searchTokens } from "@/lib/menuSearch";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
@@ -314,6 +314,9 @@ export function MenuClient({
   const [identifiedName, setIdentifiedName] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [query, setQuery] = useState("");
+  // Hay búsqueda activa sólo con al menos un carácter útil (letra o
+  // número): "!!!" no cuenta y la carta se muestra completa.
+  const searching = searchTokens(query).length > 0;
   const [servingMode, setServingMode] = useState<"asReady" | "together">(
     "asReady",
   );
@@ -547,6 +550,39 @@ export function MenuClient({
   // "Entrada" because the stale closure still thought it was active.
   const activeCatRef = useRef(activeCat);
   useEffect(() => { activeCatRef.current = activeCat; }, [activeCat]);
+  // Al ENTRAR en búsqueda, arriba del todo: los resultados arrancan en la
+  // primera sección y no a mitad de página. Al SALIR, volvemos a la
+  // categoría donde el comensal estaba: el chip activo se conservó porque
+  // el spy está apagado y los chips deshabilitados mientras se busca.
+  const searchingRef = useRef(searching);
+  useEffect(() => {
+    const was = searchingRef.current;
+    searchingRef.current = searching;
+    if (searching === was) return;
+    if (searching) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    const slug = activeCatRef.current;
+    const el = document.getElementById(`cat-${slug}`);
+    if (!el) return;
+    const headerH = headerRef.current?.getBoundingClientRect().height ?? 0;
+    const y = window.scrollY + el.getBoundingClientRect().top - headerH - 12;
+    // Salto instantáneo (la carta recién se re-armó, no hay nada que
+    // animar) con el spy muteado un instante para que ese scroll no pise
+    // la categoría recuperada. Sin cleanup a propósito: si el timeout se
+    // cancelara, el spy podría quedar muteado para siempre.
+    const token = ++spyMuteTokenRef.current;
+    window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+    ensureChipVisible(slug);
+    setTimeout(() => {
+      if (spyMuteTokenRef.current === token) spyMuteTokenRef.current = 0;
+    }, 350);
+    // ensureChipVisible se declara en el cuerpo del componente (no
+    // memoizada); sólo interesa reaccionar al cambio de `searching`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching]);
+
   useEffect(() => {
     if (scopedCategories.length === 0) return;
     // El "activo" debe ser siempre una categoría HOJA (la cepa que el comensal
@@ -565,6 +601,10 @@ export function MenuClient({
     function evaluate() {
       rafId = null;
       if (spyMuteTokenRef.current !== 0) return;
+      // Con búsqueda activa las secciones son los resultados (de toda la
+      // carta), no la carta que el comensal venía leyendo: el spy no debe
+      // pisar el chip activo, que se conserva para volver ahí al borrar.
+      if (searchingRef.current) return;
       // Si un overlay bloqueó el scroll del body (useLockBodyScroll pone
       // position:fixed para el popup de categorías o el sheet de plato),
       // window.scrollY queda en 0 artificialmente. Evaluar acá dispararía el
@@ -642,49 +682,67 @@ export function MenuClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopedCategories]);
 
+  // Cubetas categoría → platos de la pestaña activa, para NAVEGAR la carta.
+  // Ya no filtran por búsqueda: la búsqueda va aparte (`searchGroups`) y
+  // recorre toda la carta.
   const itemsByCat = useMemo(() => {
-    const tokens = searchTokens(query);
     const map = new Map<string, MenuItem[]>();
     // Only the categories of the currently-active menu — items whose
     // category lives in a different menu just don't get a bucket and
     // are filtered out implicitly below.
     for (const c of scopedCategories) map.set(c.id, []);
-    for (const it of items) {
-      // Se buscan el nombre Y la descripción, y tienen que estar TODAS
-      // las palabras de la consulta — no la frase entera y contigua. Así
-      // "solomito res" encuentra "Solomito de res"; antes el "de" del
-      // medio rompía la coincidencia. Ver src/lib/menuSearch.ts.
-      if (!matchesQuery(`${it.name} ${it.description ?? ""}`, tokens)) {
-        continue;
-      }
-      map.get(it.categoryId)?.push(it);
-    }
+    for (const it of items) map.get(it.categoryId)?.push(it);
     return map;
-  }, [items, scopedCategories, query]);
+  }, [items, scopedCategories]);
 
-  const searching = query.trim().length > 0;
+  // Búsqueda global: con texto en el buscador los resultados salen de
+  // TODA la carta (todas las pestañas y categorías), sin importar la
+  // pestaña o el chip activos. Antes se filtraban las cubetas de arriba,
+  // así que un plato de otra pestaña no aparecía nunca. Lógica pura y
+  // testeada en src/lib/menuSearch.ts.
+  const searchGroups = useMemo(
+    () => searchMenuItems(items, query, { categories, menus }),
+    [items, query, categories, menus],
+  );
   const visibleCount = searching
-    ? Array.from(itemsByCat.values()).reduce((s, arr) => s + arr.length, 0)
+    ? searchGroups.reduce((s, g) => s + g.items.length, 0)
     : 0;
 
   // Flat ordered list of currently-visible items, used by the detail
   // sheet for swipe navigation (left = next, right = prev). The order
   // mirrors the rendered list — categories in their sortOrder, items
-  // within each category in their sortOrder. Filtering shrinks the
-  // pool so swipes only move between dishes the user can see.
+  // within each category in their sortOrder. Con búsqueda, el pool son
+  // los resultados en su orden: el swipe sólo pasa por lo que se ve.
   const flatVisibleItems = useMemo(() => {
+    if (searching) return searchGroups.flatMap((g) => g.items);
     const out: MenuItem[] = [];
     for (const c of scopedCategories) {
       const arr = itemsByCat.get(c.id) ?? [];
       for (const it of arr) out.push(it);
     }
     return out;
-  }, [scopedCategories, itemsByCat]);
+  }, [searching, searchGroups, scopedCategories, itemsByCat]);
 
   // Secciones renderizables (filtra categorías vacías) con su tipo, para dar
   // espaciado VARIABLE: las subcategorías quedan pegadas a su grupo y los
   // grupos top-level separados entre sí.
+  //
+  // Con búsqueda, cada grupo de resultados es una sección plana con la
+  // categoría como título y, encima, de dónde viene ("Vinos · Tintos"):
+  // así el comensal ve a qué parte de la carta pertenece cada resultado.
   const menuSections = useMemo(() => {
+    if (searching) {
+      return searchGroups.map((g) => ({
+        c: g.category,
+        rows: g.items,
+        isChild: false,
+        isGroupHeader: false,
+        crumb:
+          [showMenuTabs ? g.menu?.label : null, g.parent?.label]
+            .filter(Boolean)
+            .join(" · ") || null,
+      }));
+    }
     return scopedCategories
       .map((c) => {
         const rows = itemsByCat.get(c.id) ?? [];
@@ -693,10 +751,10 @@ export function MenuClient({
           .filter((x) => x.parentId === c.id)
           .reduce((s, ch) => s + (itemsByCat.get(ch.id)?.length ?? 0), 0);
         const isGroupHeader = !isChild && childItemCount > 0;
-        return { c, rows, isChild, isGroupHeader };
+        return { c, rows, isChild, isGroupHeader, crumb: null as string | null };
       })
       .filter((s) => s.rows.length > 0 || s.isGroupHeader);
-  }, [scopedCategories, itemsByCat]);
+  }, [searching, searchGroups, showMenuTabs, scopedCategories, itemsByCat]);
 
   const openItemIndex = openItem
     ? flatVisibleItems.findIndex((it) => it.id === openItem.id)
@@ -1196,11 +1254,16 @@ export function MenuClient({
                       // the new menu so the diner starts fresh.
                       window.scrollTo({ top: 0, behavior: "auto" });
                     }}
+                    // Con búsqueda activa la pestaña no acota nada (los
+                    // resultados son de toda la carta): queda neutra.
+                    disabled={searching}
                     className={
                       "shrink-0 px-5 h-10 rounded-full text-sm font-display tracking-[-0.01em] border-2 transition-colors " +
-                      (active
-                        ? "bg-ink text-bone border-ink"
-                        : "bg-paper text-ink border-hairline")
+                      (searching
+                        ? "bg-paper text-muted border-hairline opacity-60"
+                        : active
+                          ? "bg-ink text-bone border-ink"
+                          : "bg-paper text-ink border-hairline")
                     }
                   >
                     {m.label}
@@ -1227,11 +1290,18 @@ export function MenuClient({
                     setActiveCat(c.slug);
                     scrollToCategory(c.slug);
                   }}
+                  // Con búsqueda activa los chips no filtran nada (los
+                  // resultados son de toda la carta): quedan neutros y
+                  // deshabilitados, sin perder cuál estaba activo para
+                  // volver ahí al borrar la búsqueda.
+                  disabled={searching}
                   className={
                     "shrink-0 px-4 h-9 rounded-full text-[13px] font-medium border transition-colors " +
-                    (activeCat === c.slug
-                      ? "bg-ink text-bone border-ink"
-                      : "bg-paper text-ink-3 border-hairline")
+                    (searching
+                      ? "bg-paper text-muted border-hairline opacity-60"
+                      : activeCat === c.slug
+                        ? "bg-ink text-bone border-ink"
+                        : "bg-paper text-ink-3 border-hairline")
                   }
                 >
                   {c.label}
@@ -1243,7 +1313,8 @@ export function MenuClient({
                 type="button"
                 onClick={() => setShowCatList(true)}
                 aria-label={tMenu("allCategoriesAria")}
-                className="shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-full border border-hairline bg-paper text-ink-3"
+                disabled={searching}
+                className="shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-full border border-hairline bg-paper text-ink-3 disabled:opacity-60"
               >
                 <svg
                   width="16"
@@ -1360,15 +1431,33 @@ export function MenuClient({
       <div className="max-w-2xl w-full mx-auto px-5 mt-4">
         {searching && visibleCount === 0 && (
           <div className="py-16 text-center text-muted text-sm" role="status">
-            {tMenu.rich("noResults", {
-              query,
-              q: (chunks) => (
-                <span className="text-ink font-medium">“{chunks}”</span>
-              ),
-            })}
+            <p>
+              {tMenu.rich("noResults", {
+                query,
+                q: (chunks) => (
+                  <span className="text-ink font-medium">“{chunks}”</span>
+                ),
+              })}
+            </p>
+            <p className="mt-1 text-xs">{tMenu("noResultsHint")}</p>
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="mt-5 h-10 px-5 rounded-full border border-hairline bg-paper text-ink text-sm font-medium hover:bg-ink/5"
+            >
+              {tMenu("clearSearch")}
+            </button>
           </div>
         )}
-        {menuSections.map(({ c, rows, isChild, isGroupHeader }, idx) => {
+        {searching && visibleCount > 0 && (
+          <p
+            className="mb-4 font-mono text-[10px] tracking-[0.14em] uppercase text-muted"
+            role="status"
+          >
+            {tMenu("searchSummary", { count: visibleCount })}
+          </p>
+        )}
+        {menuSections.map(({ c, rows, isChild, isGroupHeader, crumb }, idx) => {
           // Espaciado superior variable: la primera sección sin margen; las
           // subcategorías pegadas a su grupo (mt-4); los grupos/categorías
           // top-level bien separados (mt-10).
@@ -1389,12 +1478,19 @@ export function MenuClient({
                   (isGroupHeader ? "mb-2" : "mb-3")
                 }
               >
-                <div
-                  className={
-                    "font-display " + (isChild ? "text-lg text-ink-3" : "text-2xl")
-                  }
-                >
-                  {c.label}
+                <div className="min-w-0">
+                  {crumb && (
+                    <div className="font-mono text-[9px] tracking-[0.16em] uppercase text-muted truncate">
+                      {crumb}
+                    </div>
+                  )}
+                  <div
+                    className={
+                      "font-display " + (isChild ? "text-lg text-ink-3" : "text-2xl")
+                    }
+                  >
+                    {c.label}
+                  </div>
                 </div>
                 {rows.length > 0 && (
                   <div className="font-mono text-[10px] tracking-[0.1em] text-muted">

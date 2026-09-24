@@ -82,7 +82,11 @@ export default async function PrecuentaPage({
           </Link>
         </div>
 
-        <article className="receipt" style={{ width: `${paperMm}mm` }}>
+        <article
+          className="receipt"
+          style={{ width: `${paperMm}mm` }}
+          data-print-document="precuenta"
+        >
           <div className="biz-name">{doc.businessName}</div>
           {doc.businessLines.length > 0 && (
             <div className="meta">

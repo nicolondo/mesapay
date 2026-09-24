@@ -190,7 +190,7 @@ describe("cobro", () => {
     m.tx.payment.findMany.mockResolvedValue([{ amountCents: 40_000, tipCents: 0 }]);
     await call();
     expect(m.tx.payment.updateMany).toHaveBeenCalledWith({
-      where: { orderId: "order-1", method: "demo_cash", status: "pending" },
+      where: { orderId: "order-1", method: { in: ["cash", "demo_cash"] }, status: "pending" },
       data: { status: "declined" },
     });
     expect(m.tx.payment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amountCents: 60_000 }) });

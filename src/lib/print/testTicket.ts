@@ -204,7 +204,7 @@ export async function buildTestInvoice(args: {
     currency: args.currency,
     payments: [
       {
-        method: "demo_cash",
+        method: "cash",
         amountCents: totalCents - tipCents,
         tipCents,
       },

@@ -359,7 +359,9 @@ function Td({
 function methodLabel(m: string, t: (key: string) => string) {
   const map: Record<string, string> = {
     demo_card: t("mDemoCard"),
-    demo_cash: t("mDemoCash"),
+    // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
+    demo_cash: t("mCash"),
+    cash: t("mCash"),
     wompi_card: t("mWompiCard"),
     wompi_pse: t("mWompiPse"),
     wompi_nequi: t("mWompiNequi"),

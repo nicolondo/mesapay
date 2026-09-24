@@ -7,7 +7,9 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 
 const METHOD_LABEL: Record<string, string> = {
   demo_card: "Tarjeta (demo)",
+  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
   demo_cash: "Efectivo",
+  cash: "Efectivo",
   wompi_card: "Tarjeta",
   wompi_pse: "PSE",
   wompi_nequi: "Nequi",

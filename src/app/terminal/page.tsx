@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
 import { computeOrderTotals } from "@/lib/orderTotals";
+import { isCashMethod } from "@/lib/payments/methods";
 import { TerminalGrid } from "./TerminalGrid";
 
 export const dynamic = "force-dynamic";
@@ -93,9 +94,9 @@ export default async function TerminalPage() {
     const pendingTerminal = pendingPayments.find(
       (p) => p.method === "kushki_card_terminal",
     );
-    // Cash payments come through demo_cash today (the table flow names it
-    // that way regardless of mock vs real cash). Future: rename to "cash".
-    const pendingCash = pendingPayments.find((p) => p.method === "demo_cash");
+    // Efectivo pedido desde la mesa: `cash` (o `demo_cash` si el pending
+    // se creó antes de que existiera `cash`).
+    const pendingCash = pendingPayments.find((p) => isCashMethod(p.method));
     // El descuento del comensal identificado baja lo cobrable; sin
     // pasarlo, el datáfono cobraría el bruto y el servidor lo rechazaría.
     const totals = computeOrderTotals(

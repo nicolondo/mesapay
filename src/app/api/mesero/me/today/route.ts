@@ -10,7 +10,7 @@ import {
   resolveTipPolicy,
   resolveShiftPolicy,
 } from "@/lib/staffPolicies";
-import { isCashMethod } from "@/lib/shift";
+import { isCashMethod } from "@/lib/payments/methods";
 
 /**
  * Stats personales del mesero para la vista "Yo". Cubre:

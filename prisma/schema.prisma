@@ -1721,6 +1721,13 @@ enum PaymentMethod {
   // no entra plata: va a cuentas por cobrar (130505) y se cancela con los
   // abonos (CustomerCreditPayment). Nunca cuenta como caja.
   customer_credit
+  // Efectivo real cobrado en la mesa/caja (el comensal pide pagar en
+  // efectivo desde el QR y el mesero lo recibe, o el mesero/cajero cobra
+  // directo). `demo_cash` queda para las filas históricas —se grabó así
+  // desde que los pagos eran simulados, pero siempre fue plata real— y
+  // para el modo demo de la plataforma. Para saber si un método es
+  // efectivo usá `isCashMethod` (src/lib/payments/methods.ts): cubre los dos.
+  cash
 }
 
 /**

@@ -86,7 +86,7 @@ export type PaymentValidation =
  *   - Cash settles and tarjeta charges interleave in a way the client
  *     can't possibly know about ahead of time.
  *
- * Includes pending demo_cash payments in the outstanding calc — those
+ * Includes pending cash payments in the outstanding calc — those
  * are mesero-pending but already represent claimed money. Without this
  * a diner could swipe cash at the table and the cashier could
  * simultaneously charge by card the same amount.
@@ -103,7 +103,7 @@ export async function validateNewPaymentAmount(
   // legítimo porque el pending stale reclama outstanding).
   //
   //   excludePending=true → ignora TODOS los pendings (caso cash
-  //     settleNow: el operator sweepa todos los demo_cash en la tx)
+  //     settleNow: el operator sweepa todos los pendings de efectivo en la tx)
   //   excludePendingMethods=[...] → ignora pendings sólo de esos
   //     métodos (caso terminal: el diner retoca el botón, queremos
   //     sweep de pendings del MISMO método sin tocar otros)
@@ -131,7 +131,7 @@ export async function validateNewPaymentAmount(
     return { ok: false, reason: "order_already_paid", outstandingCents: 0 };
   }
   // By default count approved AND pending(cash) payments — a pending
-  // demo_cash payment is money the diner has already "claimed" they
+  // cash payment is money the diner has already "claimed" they
   // will hand to the mesero. Letting another payment slip in on top
   // would double-collect when the cash arrives. excludePending lifts
   // that constraint completamente; excludePendingMethods lo hace por

@@ -20,6 +20,7 @@ import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import { isModuleEnabled } from "@/lib/modules";
+import { reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type MonthRange = { from: Date; to: Date };
 
@@ -475,7 +476,9 @@ export async function loadSalesBook(restaurantId: string, range: MonthRange) {
   const byMethod = new Map<string, number>();
   for (const o of orders) {
     for (const p of o.payments) {
-      byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amountCents);
+      // cash y el histórico demo_cash suman en una sola fila "Efectivo".
+      const method = reportingPaymentMethod(p.method);
+      byMethod.set(method, (byMethod.get(method) ?? 0) + p.amountCents);
     }
   }
   const totals = {

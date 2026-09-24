@@ -11,7 +11,9 @@ import { fmtCOP } from "@/lib/format";
 import type { CashSnapshot } from "@/lib/cashBox";
 
 const METHOD_KEY: Record<string, string> = {
-  demo_cash: "methodDemoCash",
+  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
+  demo_cash: "methodCash",
+  cash: "methodCash",
   demo_card: "methodDemoCard",
   wompi_card: "methodWompiCard",
   wompi_pse: "methodWompiPse",

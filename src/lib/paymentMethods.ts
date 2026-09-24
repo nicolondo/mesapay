@@ -5,9 +5,10 @@
 // column stores an array of slugs; null means "everything we know is
 // enabled" so existing tenants don't lose buttons after this rolls out.
 //
-// Demo methods (demo_card, demo_cash, etc.) are NOT user-toggleable
-// from this surface — they're for dev / sandbox and gated by the
-// absence of real Kushki credentials.
+// Demo methods (demo_card, demo_nequi) are NOT user-toggleable from this
+// surface — they're for dev / sandbox and gated by `demoPaymentsAllowed`.
+// El efectivo sí: el slug "cash" coincide con PaymentMethod.cash (los
+// pagos viejos quedaron como demo_cash; ver lib/payments/methods.ts).
 
 import { db } from "@/lib/db";
 

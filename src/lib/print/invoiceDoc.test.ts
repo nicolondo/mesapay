@@ -197,11 +197,23 @@ describe("paymentRowsFor", () => {
   it("suma la propina al pago: si no, los pagos no cerrarían contra el total", () => {
     expect(
       paymentRowsFor(
-        [{ method: "demo_cash", amountCents: 6_100_000, tipCents: 600_000 }],
+        [{ method: "cash", amountCents: 6_100_000, tipCents: 600_000 }],
         t,
         money,
       ),
     ).toEqual([{ label: "methodCash", amount: "$67000" }]);
+  });
+
+  it("el efectivo de hoy (cash) y el histórico (demo_cash) son un solo renglón «Efectivo»", () => {
+    const rows = paymentRowsFor(
+      [
+        { method: "cash", amountCents: 300_000, tipCents: 0 },
+        { method: "demo_cash", amountCents: 200_000, tipCents: 0 },
+      ],
+      t,
+      money,
+    );
+    expect(rows).toEqual([{ label: "methodCash", amount: "$5000" }]);
   });
 
   it("agrupa por lo que el cliente reconoce, no por el riel técnico", () => {
@@ -209,7 +221,7 @@ describe("paymentRowsFor", () => {
       [
         { method: "kushki_card", amountCents: 1_000_000, tipCents: 0 },
         { method: "wompi_card", amountCents: 2_000_000, tipCents: 0 },
-        { method: "demo_cash", amountCents: 500_000, tipCents: 0 },
+        { method: "cash", amountCents: 500_000, tipCents: 0 },
       ],
       t,
       money,
@@ -257,7 +269,7 @@ describe("paymentRowsFor", () => {
       paperWidthMm: 80,
       paidAtLabel: "8/09/26, 19:41",
       dianResolutionDateLabel: null,
-      payments: [{ method: "demo_cash", amountCents: 6_100_000, tipCents: 0 }],
+      payments: [{ method: "cash", amountCents: 6_100_000, tipCents: 0 }],
       money,
       t,
     });

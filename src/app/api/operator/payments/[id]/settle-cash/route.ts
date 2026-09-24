@@ -13,6 +13,7 @@ import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
+import { CASH_METHOD, isCashMethod } from "@/lib/payments/methods";
 
 const schema = z.object({
   cashReceivedCents: z.number().int().min(0).max(100_000_000),
@@ -58,7 +59,9 @@ async function POSTHandler(
   if (payment.order.restaurantId !== activeId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (payment.method !== "demo_cash") {
+  // `cash`, o `demo_cash` si el comensal lo pidió antes de que existiera
+  // `cash` (mismo efectivo real, nombre viejo).
+  if (!isCashMethod(payment.method)) {
     return NextResponse.json({ error: "not a cash payment" }, { status: 400 });
   }
   // Control de caja: recibir la plata y cerrar el pago es el momento del
@@ -115,13 +118,16 @@ async function POSTHandler(
     const updatedPayment = await tx.payment.update({
       where: { id: payment.id },
       data: {
+        // El cobro se registra como efectivo real: un pending viejo que
+        // quedó como `demo_cash` se cierra ya con el método actual.
+        method: CASH_METHOD,
         amountCents: netReceived,
         tipCents: payment.tipCents + extraTipCents,
         status: "approved",
         settledAt: now,
         // Solo sobreescribimos collectedByUserId si la fila no tenía
         // uno asignado todavía (caso: cliente solicitó cobro desde
-        // su QR con method=demo_cash, mesero llega después y settlea
+        // su QR en efectivo, mesero llega después y settlea
         // — el mesero pasa a ser el cobrador). Si ya estaba seteado
         // (otro mesero le pasó la cuenta y este la cierra) lo
         // respetamos.

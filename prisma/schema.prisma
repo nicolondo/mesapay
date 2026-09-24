@@ -124,6 +124,15 @@ model Restaurant {
   // eliminar desde /operator/settings/etiquetas.
   menuTags Json?
 
+  // Orden de los platos dentro de cada categoría de la carta (comensal,
+  // mesero, factura manual y editor). "alphabetical" | "manual".
+  // El dueño pidió alfabético, así que es el default: natural por el nombre
+  // que se muestra (sin tildes ni mayúsculas, "Plato 2" antes de
+  // "Plato 10"). "manual" conserva el orden por posición (MenuItem.sortOrder)
+  // que se arma a mano en el editor de la carta. Las CATEGORÍAS no se
+  // alfabetizan nunca: conservan su propio sortOrder. Ver src/lib/menuOrder.ts.
+  menuItemOrder String @default("alphabetical")
+
   // Medios de pago habilitados para este comercio (toggles en
   // /admin/restaurants/[id]). Shape: string[] de slugs como
   // "kushki_card_terminal", "kushki_apple_pay", "cash". Null = todos

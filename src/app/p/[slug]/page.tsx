@@ -12,6 +12,7 @@ import { normalizeModifiers } from "@/lib/modifiers";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { getContentTranslations } from "@/lib/translateContent";
 import { defaultLocale, type Locale } from "@/i18n/config";
+import { normalizeMenuItemOrder, sortMenuItems } from "@/lib/menuOrder";
 import { MenuClient } from "../../t/[slug]/menu/MenuClient";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,8 @@ export default async function PickupPage({
       categories: { orderBy: { sortOrder: "asc" } },
       menuItems: {
         where: { available: true },
-        orderBy: { sortOrder: "asc" },
+        // Desempate fijo para que el modo "manual" coincida con el editor.
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       },
     },
   });
@@ -149,6 +151,17 @@ export default async function PickupPage({
     label: tr("MenuTag", tag.slug, "label", tag.label),
   }));
 
+  // Mismo orden de platos que la carta de mesa: alfabético (default) o
+  // manual, por el nombre que ve el comensal en su idioma.
+  const orderedItems = sortMenuItems(
+    tenant.menuItems.map((m) => ({
+      ...m,
+      name: tr("MenuItem", m.id, "name", m.name),
+    })),
+    normalizeMenuItemOrder(tenant.menuItemOrder),
+    locale,
+  );
+
   return (
     <MenuClient
       tenant={{
@@ -169,12 +182,12 @@ export default async function PickupPage({
         menuId: c.menuId ?? "",
         parentId: c.parentId ?? null,
       }))}
-      items={tenant.menuItems.map((m) => {
+      items={orderedItems.map((m) => {
         const r = ratingByItem.get(m.id);
         return {
           id: m.id,
           categoryId: m.categoryId,
-          name: tr("MenuItem", m.id, "name", m.name),
+          name: m.name,
           description: m.description
             ? tr("MenuItem", m.id, "description", m.description)
             : "",

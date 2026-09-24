@@ -58,4 +58,8 @@ export type Item = {
   modifiers: ModifierDef[];
   prepMinutes: number;
   prepStation: PrepStation | null;
+  // Posición dentro de su categoría (orden "manual" del editor: arrastrar o
+  // Subir/Bajar lo persisten). Con orden alfabético se sigue guardando pero
+  // la carta ordena por nombre. Ver src/lib/menuOrder.ts.
+  sortOrder: number;
 };

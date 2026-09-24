@@ -9,6 +9,7 @@ import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
 import { getContentTranslations } from "@/lib/translateContent";
 import { defaultLocale, type Locale } from "@/i18n/config";
+import { normalizeMenuItemOrder, sortMenuItems } from "@/lib/menuOrder";
 import { MenuClient } from "./MenuClient";
 
 export default async function MenuPage({
@@ -49,7 +50,10 @@ export default async function MenuPage({
       categories: { orderBy: { sortOrder: "asc" } },
       menuItems: {
         where: { available: true },
-        orderBy: { sortOrder: "asc" },
+        // Posición del editor, con desempate fijo: el modo "manual" tiene
+        // que verse igual acá que en el editor aunque haya posiciones
+        // repetidas. El orden final lo decide sortMenuItems (más abajo).
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       },
     },
   });
@@ -172,6 +176,20 @@ export default async function MenuPage({
     fallback: string,
   ) => contentT.get(`${entityType}:${entityId}:${field}`) ?? fallback;
 
+  // Orden de los platos dentro de cada categoría: alfabético (default) o
+  // manual (según el editor), ver src/lib/menuOrder.ts. Se ordena por el
+  // nombre YA traducido y en el idioma del comensal, que es el que ve.
+  // MenuClient respeta el orden del array dentro de cada categoría y
+  // subcategoría, y también en los grupos de la búsqueda.
+  const orderedItems = sortMenuItems(
+    tenant.menuItems.map((m) => ({
+      ...m,
+      name: tr("MenuItem", m.id, "name", m.name),
+    })),
+    normalizeMenuItemOrder(tenant.menuItemOrder),
+    locale,
+  );
+
   const localizedMenus = menus.map((m) => ({
     ...m,
     label: tr("Menu", m.id, "label", m.label),
@@ -225,12 +243,12 @@ export default async function MenuPage({
         menuId: c.menuId ?? menus[0]?.id ?? "",
         parentId: c.parentId ?? null,
       }))}
-      items={tenant.menuItems.map((m) => {
+      items={orderedItems.map((m) => {
         const r = ratingByItem.get(m.id);
         return {
           id: m.id,
           categoryId: m.categoryId,
-          name: tr("MenuItem", m.id, "name", m.name),
+          name: m.name,
           description: m.description
             ? tr("MenuItem", m.id, "description", m.description)
             : "",

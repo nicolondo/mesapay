@@ -15,6 +15,7 @@ import { parseTipPct } from "@/lib/tips";
 import { loadCustomerCreditSummary } from "@/lib/customerCredit";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
 import type { PayCustomer } from "./PayClient";
+import { canCompOrders } from "@/lib/staffPolicies";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -191,9 +192,17 @@ export async function PayFlow({
       staffHomeHref={staffHomeHref}
       staffServeHref={staffServeHref}
       doneHref={doneHref}
-      // Gastos de representación (cortesía $0): solo cuando cobra staff y el
-      // comercio lo tiene habilitado. Etiqueta configurable (null ⇒ default).
-      compEnabled={operatorMode && tenant.compEnabled}
+      // Gastos de representación (cortesía $0): solo cuando cobra staff, el
+      // comercio lo tiene habilitado y el rol está entre los que pueden NO
+      // COBRAR (Restaurant.compAllowedRoles — la misma lista que gobierna el
+      // "No cobrar" de un plato). El endpoint lo bloquea igual; acá es para
+      // que el mesero no vea un botón que le va a rebotar. Etiqueta
+      // configurable (null ⇒ default).
+      compEnabled={
+        operatorMode &&
+        tenant.compEnabled &&
+        canCompOrders(session?.user?.role, tenant.compAllowedRoles)
+      }
       compLabel={tenant.compLabel}
       tenantSlug={slug}
       tenantName={tenant.name}

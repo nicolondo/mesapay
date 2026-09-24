@@ -8,6 +8,8 @@ import {
   TIP_POLICIES,
   SHIFT_POLICIES,
   MESERO_SHIFT_WITHOUT_LOCAL,
+  COMP_ROLES,
+  resolveCompAllowedRoles,
 } from "@/lib/staffPolicies";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { shiftPolicyAllowedWith } from "@/lib/chargeControl";
@@ -27,6 +29,11 @@ const putBody = z.object({
   // nombre configurable. compLabel vacío ⇒ null (usa el default de i18n).
   compEnabled: z.boolean().optional(),
   compLabel: z.string().trim().max(40).optional(),
+  // Quién puede NO COBRAR un plato o la cuenta: sólo roles que operan
+  // mesas (COMP_ROLES). Cualquier otro valor (kitchen, bar, inventado)
+  // rebota con 400. [] es válido: nadie del equipo. Se deduplica al
+  // guardar (resolveCompAllowedRoles).
+  compAllowedRoles: z.array(z.enum(COMP_ROLES)).optional(),
   // Control de caja: sólo el administrador inicia el cobro. Implica
   // shiftPolicy = "global" (ver abajo).
   adminOnlyCharge: z.boolean().optional(),
@@ -75,6 +82,7 @@ async function PUTHandler(req: Request) {
       compEnabled: true,
       compLabel: true,
       adminOnlyCharge: true,
+      compAllowedRoles: true,
     },
   });
 
@@ -153,6 +161,9 @@ async function PUTHandler(req: Request) {
       }),
       ...(parsed.data.adminOnlyCharge !== undefined && {
         adminOnlyCharge: parsed.data.adminOnlyCharge,
+      }),
+      ...(parsed.data.compAllowedRoles !== undefined && {
+        compAllowedRoles: resolveCompAllowedRoles(parsed.data.compAllowedRoles),
       }),
     },
   });

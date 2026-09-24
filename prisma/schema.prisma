@@ -344,6 +344,14 @@ model Restaurant {
   // representación").
   compEnabled                 Boolean  @default(true)
   compLabel                   String?
+  // Quién puede NO COBRAR: anular el cobro de un plato ya entregado
+  // (`OrderItem.cancellationKind = "comp"`) o cerrar la cuenta completa como
+  // cortesía. Lista de roles del personal que operan mesas ("operator",
+  // "mesero", "terminal"); `platform_admin` y `group_admin` impersonando
+  // pueden siempre. Default: sólo el administrador. Vacío ⇒ nadie del
+  // equipo. Se enforcea en el servidor (src/lib/compGuard.ts) además de
+  // esconder el botón. Ver canCompOrders en src/lib/staffPolicies.ts.
+  compAllowedRoles            String[] @default(["operator"])
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.

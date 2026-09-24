@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import type { ToolDef } from "./types";
 import { rangeInputZod, rangeJsonSchema, resolveRange } from "./dateRange";
+import { reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type PayRow = { method: string; amountCents: number; tipCents: number };
 
@@ -9,11 +10,14 @@ export function aggregatePayments(rows: PayRow[]) {
   const map = new Map<string, { count: number; amountCents: number; tipCents: number }>();
   let totalAmountCents = 0, totalTipCents = 0;
   for (const r of rows) {
-    const cur = map.get(r.method) ?? { count: 0, amountCents: 0, tipCents: 0 };
+    // El efectivo histórico (demo_cash) sale como "cash": es el mismo
+    // efectivo real y así el asistente no lo presenta como un cobro demo.
+    const method = reportingPaymentMethod(r.method);
+    const cur = map.get(method) ?? { count: 0, amountCents: 0, tipCents: 0 };
     cur.count += 1;
     cur.amountCents += r.amountCents;
     cur.tipCents += r.tipCents;
-    map.set(r.method, cur);
+    map.set(method, cur);
     totalAmountCents += r.amountCents;
     totalTipCents += r.tipCents;
   }

@@ -119,7 +119,7 @@ test("QR guest can order; forged access, demo payment and closed-order edits are
     {
       data: {
         orderId,
-        method: "demo_cash",
+        method: "cash",
         amountCents: 1000000,
         settleNow: true,
       },

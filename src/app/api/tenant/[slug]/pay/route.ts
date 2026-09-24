@@ -19,10 +19,14 @@ import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { welcomeIfFirstTime } from "@/lib/mailer";
+import { CASH_METHOD, CASH_METHODS, isCashMethod } from "@/lib/payments/methods";
 
 const schema = z.object({
   orderId: z.string().min(1),
-  method: z.enum(["demo_card", "demo_cash", "demo_nequi"]),
+  // Efectivo = "cash". "demo_cash" se sigue aceptando porque así lo manda
+  // el front anterior (PWAs con el bundle viejo en caché): es el mismo
+  // efectivo real y se graba como "cash".
+  method: z.enum(["demo_card", "demo_nequi", "cash", "demo_cash"]),
   amountCents: amountCentsSchema,
   tipCents: tipCentsSchema,
   cashTenderCents: z.number().int().min(0).max(2_000_000_000).optional(),
@@ -45,9 +49,10 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
   if (staff && await meseroNeedsShiftToCharge(staff.user.id, staff.user.role, tenant.id)) return NextResponse.json({ error: "mesero_no_shift" }, { status: 409 });
   const order = await db.order.findFirst({ where: { id: input.orderId, restaurantId: tenant.id } });
   if (!order) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  const isCash = isCashMethod(input.method);
   let amountCents = input.amountCents;
   let tipCents = input.tipCents;
-  if (staff && input.method === "demo_cash" && input.cashTenderCents != null && input.changeGivenCents != null) {
+  if (staff && isCash && input.cashTenderCents != null && input.changeGivenCents != null) {
     const net = input.cashTenderCents - input.changeGivenCents;
     if (net < amountCents) return NextResponse.json({ error: "insufficient_cash" }, { status: 400 });
     tipCents += net - amountCents;
@@ -55,7 +60,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
   }
   const retryKey = req.headers.get("idempotency-key");
   const requestKey = retryKey ? createHash("sha256").update(`cash:${order.id}:${retryKey}`).digest("hex") : undefined;
-  const approved = input.method !== "demo_cash" || !!staff;
+  const approved = !isCash || !!staff;
   const result = await db.$transaction(async tx => {
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
@@ -68,9 +73,9 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
     }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     // Only a collector can replace cash requests. Financial attempts stay reserved.
-    if (staff) await tx.payment.updateMany({ where: { orderId: order.id, method: "demo_cash", status: "pending" }, data: { status: "declined" } });
+    if (staff) await tx.payment.updateMany({ where: { orderId: order.id, method: { in: [...CASH_METHODS] }, status: "pending" }, data: { status: "declined" } });
     const payment = await tx.payment.create({ data: {
-      requestKey, orderId: order.id, method: input.method === "demo_nequi" ? "wompi_nequi" : input.method,
+      requestKey, orderId: order.id, method: isCash ? CASH_METHOD : input.method === "demo_nequi" ? "wompi_nequi" : input.method,
       status: approved ? "approved" : "pending", amountCents, tipCents,
       cashTenderCents: input.cashTenderCents, settledAt: approved ? new Date() : null,
       collectedByUserId: staff?.user.id,

@@ -8,8 +8,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *
  * Lo que estos tests blindan:
  *   1. En producción un método demo NO produce NINGUNA escritura.
- *   2. El cobro en EFECTIVO (demo_cash) sigue funcionando en producción,
- *      tanto el pending del comensal como el cobro del mesero.
+ *   2. El cobro en EFECTIVO sigue funcionando en producción, tanto el
+ *      pending del comensal como el cobro del mesero, y se graba como
+ *      `cash` (también si el front viejo todavía manda `demo_cash`).
  *   3. En desarrollo los demo siguen andando (así se prueba la app).
  *
  * Toda escritura pasa por `writes`: si alguien reintroduce el agujero,
@@ -180,7 +181,22 @@ describe("POST /api/tenant/[slug]/pay — gate de pagos demo", () => {
 });
 
 describe("POST /api/tenant/[slug]/pay — el efectivo NO se rompe", () => {
-  it("en producción el comensal puede pedir cobro en efectivo (pending)", async () => {
+  it("en producción el comensal puede pedir cobro en efectivo (pending, grabado como cash)", async () => {
+    const { res, json } = await post(
+      { orderId: "order-1", method: "cash", amountCents: 4300000, tipCents: 0 },
+      PROD,
+    );
+
+    expect(res.status).toBe(200);
+    expect(json.pending).toBe(true);
+    expect(h.tx.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ method: "cash", status: "pending" }),
+      }),
+    );
+  });
+
+  it("el front viejo que todavía manda demo_cash también queda grabado como cash", async () => {
     const { res, json } = await post(
       { orderId: "order-1", method: "demo_cash", amountCents: 4300000, tipCents: 0 },
       PROD,
@@ -190,7 +206,7 @@ describe("POST /api/tenant/[slug]/pay — el efectivo NO se rompe", () => {
     expect(json.pending).toBe(true);
     expect(h.tx.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ method: "demo_cash", status: "pending" }),
+        data: expect.objectContaining({ method: "cash", status: "pending" }),
       }),
     );
   });
@@ -203,7 +219,7 @@ describe("POST /api/tenant/[slug]/pay — el efectivo NO se rompe", () => {
     const { res, json } = await post(
       {
         orderId: "order-1",
-        method: "demo_cash",
+        method: "cash",
         amountCents: 4300000,
         tipCents: 300000,
         settleNow: true,
@@ -216,12 +232,18 @@ describe("POST /api/tenant/[slug]/pay — el efectivo NO se rompe", () => {
     expect(h.tx.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          method: "demo_cash",
+          method: "cash",
           status: "approved",
           collectedByUserId: "user-1",
         }),
       }),
     );
+    // Antes de grabar, el mesero barre los "voy a pagar en efectivo"
+    // pendientes, sean cash o del nombre viejo demo_cash.
+    expect(h.tx.payment.updateMany).toHaveBeenCalledWith({
+      where: { orderId: "order-1", method: { in: ["cash", "demo_cash"] }, status: "pending" },
+      data: { status: "declined" },
+    });
   });
 });
 

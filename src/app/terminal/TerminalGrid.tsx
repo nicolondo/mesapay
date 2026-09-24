@@ -7,6 +7,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { isCashMethod } from "@/lib/payments/methods";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 export type TableState =
@@ -446,7 +447,7 @@ function DetailSheet({
                     // Payment.amountCents = TOTAL). No sumar tipCents.
                     const total = p.amountCents;
                     const isTerminal = p.method === "kushki_card_terminal";
-                    const isCash = p.method === "demo_cash";
+                    const isCash = isCashMethod(p.method);
                     return (
                       <div
                         key={p.id}
@@ -772,6 +773,8 @@ function humanMethod(m: string, tr: Translator): string {
       return tr("methodExternalTerminal");
     case "kushki_pse":
       return tr("methodPse");
+    // Efectivo: el actual (cash) y el histórico (demo_cash).
+    case "cash":
     case "demo_cash":
       return tr("methodCash");
     case "demo_card":

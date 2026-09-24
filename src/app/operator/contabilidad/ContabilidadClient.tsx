@@ -242,7 +242,9 @@ const API_ERROR_KEYS: Record<string, string> = {
 // opPayments/opOrders). Un método futuro sin clave cae al valor crudo:
 // el libro nunca se rompe por un enum nuevo.
 const PAY_METHOD_KEYS: Record<string, string> = {
-  demo_cash: "mDemoCash",
+  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
+  demo_cash: "mCash",
+  cash: "mCash",
   demo_card: "mDemoCard",
   wompi_card: "mWompiCard",
   wompi_pse: "mWompiPse",

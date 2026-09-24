@@ -511,8 +511,11 @@ function methodLabel(m: string, t: (key: string) => string) {
   switch (m) {
     case "demo_card":
       return t("mDemoCard");
+    // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan
+    // igual. demo_cash siempre fue plata real, no un cobro simulado.
+    case "cash":
     case "demo_cash":
-      return t("mDemoCash");
+      return t("mCash");
     case "wompi_card":
       return t("mWompiCard");
     case "wompi_pse":

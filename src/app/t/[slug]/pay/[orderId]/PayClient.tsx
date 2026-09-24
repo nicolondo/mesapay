@@ -54,7 +54,7 @@ type MethodKind =
   | "kushki_card_terminal"
   | "kushki_pse"
   | "external_terminal"
-  | "demo_cash"
+  | "cash"
   | "customer_credit"
   | "representacion";
 
@@ -641,7 +641,7 @@ export function PayClient({
     changeGivenCents: number | null = null,
   ) {
     if (amountCents <= 0) return;
-    setBusy("demo_cash");
+    setBusy("cash");
     setErr(null);
     cashRequestKey.current ??= crypto.randomUUID();
     try {
@@ -650,7 +650,9 @@ export function PayClient({
         headers: { "content-type": "application/json", "idempotency-key": cashRequestKey.current },
         body: JSON.stringify({
           orderId,
-          method: "demo_cash",
+          // Efectivo real (antes se mandaba "demo_cash", nombre heredado
+          // de cuando los pagos eran simulados).
+          method: "cash",
           amountCents,
           tipCents: amountTip,
           cashTenderCents: cashTenderCents ?? undefined,
@@ -1268,7 +1270,7 @@ export function PayClient({
           <PayButton
             kind="cash"
             disabled={busy !== null || amountCents <= 0}
-            busy={busy === "demo_cash"}
+            busy={busy === "cash"}
             // Both diner + operator open a sheet first. Diner sheet:
             // "¿con cuánto vas a pagar?" so the mesero brings the
             // right change. Operator sheet: tender + vuelto + keep-
@@ -1330,7 +1332,7 @@ export function PayClient({
       {cashTenderOpen && !operatorMode && (
         <CashTenderSheet
           amountCents={amountCents}
-          busy={busy === "demo_cash"}
+          busy={busy === "cash"}
           onClose={() => setCashTenderOpen(false)}
           onPay={(tender) => {
             setCashTenderOpen(false);
@@ -1341,7 +1343,7 @@ export function PayClient({
       {cashTenderOpen && operatorMode && (
         <OperatorCashSheet
           amountCents={amountCents}
-          busy={busy === "demo_cash"}
+          busy={busy === "cash"}
           onClose={() => setCashTenderOpen(false)}
           onConfirm={({ tenderCents, changeGivenCents }) => {
             setCashTenderOpen(false);

@@ -47,6 +47,8 @@ export type InvoicePaymentLine = {
  * que su tarjeta haya entrado por Wompi o por Kushki.
  */
 const PAYMENT_METHOD_KEY: Record<string, string> = {
+  // Efectivo: el actual (cash) y el histórico (demo_cash) son un solo renglón.
+  cash: "methodCash",
   demo_cash: "methodCash",
   demo_card: "methodCard",
   wompi_card: "methodCard",

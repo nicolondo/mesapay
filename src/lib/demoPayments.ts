@@ -13,12 +13,13 @@
  * `/api/tenant/[slug]/pickup/orders`, que además regala la comida (crea
  * la orden en `paid` y la manda a cocina).
  *
- * OJO — `demo_cash` NO entra acá. A pesar del prefijo, es el método con
- * el que se registra el EFECTIVO de verdad: el comensal llama al mesero
- * (pago `pending`) o el mesero cobra con sesión verificada (`settleNow`
- * + rol operator/mesero/platform_admin). Bloquearlo en producción
- * dejaría al restaurante sin poder cobrar en efectivo, que es peor que
- * el bug que estamos cerrando.
+ * OJO — el efectivo NO entra acá. Se graba como `cash` (antes como
+ * `demo_cash`, que a pesar del prefijo siempre fue EFECTIVO de verdad; la
+ * ruta lo sigue aceptando del front viejo y lo guarda como `cash`): el
+ * comensal llama al mesero (pago `pending`) o el mesero cobra con sesión
+ * verificada (`settleNow` + rol operator/mesero/platform_admin).
+ * Bloquearlo en producción dejaría al restaurante sin poder cobrar en
+ * efectivo, que es peor que el bug que estamos cerrando.
  *
  * POR QUÉ UNA VARIABLE EXPLÍCITA Y NO SÓLO `NODE_ENV`
  * ---------------------------------------------------

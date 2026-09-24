@@ -13,6 +13,7 @@ import { computeOrderTotals, recomputeOrderTotalsInTx } from "@/lib/orderTotals"
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
+import { CASH_METHODS } from "@/lib/payments/methods";
 import { canChargeOnCredit, loadCustomerCreditSummary } from "@/lib/customerCredit";
 import { applyCustomerDiscount, type ApplyCustomerDiscountResult } from "@/lib/customerDiscount";
 
@@ -95,7 +96,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
     // en efectivo con settleNow). Los pendientes de datáfono/PSE en vuelo
     // sí siguen reclamando su parte.
     await tx.payment.updateMany({
-      where: { orderId: order.id, method: "demo_cash", status: "pending" },
+      where: { orderId: order.id, method: { in: [...CASH_METHODS] }, status: "pending" },
       data: { status: "declined" },
     });
     // Descuento comercial del cliente (si lo tiene) ANTES de calcular lo

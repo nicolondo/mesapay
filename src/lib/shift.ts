@@ -12,6 +12,7 @@
 
 import type { Payment, PaymentMethod, Shift } from "@prisma/client";
 import { db } from "@/lib/db";
+import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type ShiftMethodBreakdown = {
   method: PaymentMethod;
@@ -27,12 +28,6 @@ export type ShiftMetrics = {
   cashCents: number;
   byMethod: ShiftMethodBreakdown[];
 };
-
-export function isCashMethod(m: PaymentMethod): boolean {
-  // demo_cash is the only "physical bills" method today. kushki_card_*
-  // and demo_card never sit in the drawer.
-  return m === "demo_cash";
-}
 
 export async function getCurrentShift(restaurantId: string): Promise<Shift | null> {
   // `userId: null` = SOLO el turno global del restaurante (el que abre/
@@ -117,10 +112,13 @@ function rollUp(
   let tips = 0;
   let cash = 0;
   for (const p of payments) {
-    const row = byMethod.get(p.method) ?? { count: 0, sumCents: 0 };
+    // El efectivo histórico (demo_cash) y el nuevo (cash) van en una sola
+    // fila "Efectivo" del desglose.
+    const method = reportingPaymentMethod(p.method);
+    const row = byMethod.get(method) ?? { count: 0, sumCents: 0 };
     row.count += 1;
     row.sumCents += p.amountCents;
-    byMethod.set(p.method, row);
+    byMethod.set(method, row);
     gross += p.amountCents;
     tips += p.tipCents;
     if (isCashMethod(p.method)) cash += p.amountCents;

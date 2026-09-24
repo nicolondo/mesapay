@@ -71,10 +71,12 @@ describe("shouldBlockDemoPayment", () => {
     expect(m.shouldBlockDemoPayment("demo_nequi")).toBe(true);
   });
 
-  it("NUNCA bloquea demo_cash — es el efectivo de verdad del restaurante", async () => {
+  it("NUNCA bloquea el efectivo (cash, ni el nombre viejo demo_cash) — es el efectivo de verdad del restaurante", async () => {
     const prod = await loadWithEnv({ NODE_ENV: "production" });
+    expect(prod.shouldBlockDemoPayment("cash")).toBe(false);
     expect(prod.shouldBlockDemoPayment("demo_cash")).toBe(false);
     const dev = await loadWithEnv({ NODE_ENV: "development" });
+    expect(dev.shouldBlockDemoPayment("cash")).toBe(false);
     expect(dev.shouldBlockDemoPayment("demo_cash")).toBe(false);
   });
 

@@ -16,7 +16,7 @@
 // Ver docs/superpowers/specs/2026-06-18-caja-management-design.md.
 
 import { db } from "@/lib/db";
-import { isCashMethod } from "@/lib/shift";
+import { isCashMethod } from "@/lib/payments/methods";
 import type { ShiftPolicy } from "@/lib/staffPolicies";
 import { publishOrderEvent } from "@/lib/events";
 import { recordAuditEvent } from "@/lib/auditLog";

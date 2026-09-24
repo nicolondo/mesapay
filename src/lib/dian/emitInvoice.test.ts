@@ -593,3 +593,20 @@ describe("impuesto congelado — el XML lee la tarifa del snapshot, no del comer
     });
   });
 });
+
+describe("medio de pago (PaymentMeans)", () => {
+  it("una cuenta cobrada en efectivo (cash) sale de contado con medio 10 (efectivo)", async () => {
+    // La query sólo trae cobros a crédito; una cuenta en efectivo llega sin
+    // ninguno, se grabe como cash o como el histórico demo_cash.
+    const inv = invoice();
+    m.invoiceFindUnique.mockResolvedValue({ ...inv, order: { ...inv.order, payments: [] } });
+    expect((await emit()).outcome).toBe("accepted");
+    const query = m.invoiceFindUnique.mock.calls[0][0] as {
+      select: { order: { select: { payments: { where: Record<string, unknown> } } } };
+    };
+    expect(query.select.order.select.payments.where).toEqual({ method: "customer_credit", status: "approved" });
+    const xml = sentXml();
+    expect(tag(xml, "cbc:PaymentMeansCode")).toBe("10");
+    expect(xml).toContain("<cac:PaymentMeans><cbc:ID>1</cbc:ID>");
+  });
+});

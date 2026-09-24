@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
 
 const METHOD_KEY: Record<string, string> = {
   demo_card: "methodDemoCard",
-  demo_cash: "methodDemoCash",
+  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
+  demo_cash: "methodCash",
+  cash: "methodCash",
   wompi_card: "methodWompiCard",
   wompi_pse: "methodWompiPse",
   wompi_nequi: "methodWompiNequi",

@@ -16,6 +16,7 @@ import {
   loadSalesBook,
 } from "@/lib/erp/accountingData";
 import { formatBaseQty } from "@/lib/erp/units";
+import { reportingPaymentMethod } from "@/lib/payments/methods";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +74,8 @@ async function GETHandler(req: Request) {
         centsToAmount(o.tipCents),
         centsToAmount(o.taxCents),
         centsToAmount(o.totalCents),
-        [...new Set(o.payments.map((p) => p.method))].join(" | "),
+        // El efectivo histórico (demo_cash) sale como "cash", como el de hoy.
+        [...new Set(o.payments.map((p) => reportingPaymentMethod(p.method)))].join(" | "),
         o.simpleInvoice ? String(o.simpleInvoice.invoiceNumber) : "",
       ]),
       [

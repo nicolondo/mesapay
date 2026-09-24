@@ -9,7 +9,7 @@ import {
   resolveShiftPolicy,
   resolveTipPolicy,
 } from "@/lib/staffPolicies";
-import { isCashMethod } from "@/lib/shift";
+import { isCashMethod } from "@/lib/payments/methods";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { currentMonthPeriod, todayIso } from "@/lib/erp/reports/period";
 import { loadSealedCommissions } from "@/lib/erp/reports/waiterCommissionQueries";

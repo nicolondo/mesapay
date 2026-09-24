@@ -14,7 +14,13 @@ const defaultInvoiceTranslator = (
 ): string => esInvoiceTranslator(key as Parameters<typeof esInvoiceTranslator>[0], values);
 import type { KushkiMode } from "../../platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
-import { formatInvoiceNumber, taxLabelsFrom, taxRows } from "@/lib/invoice";
+import {
+  formatInvoiceNumber,
+  itemDetailLines,
+  taxLabelsFrom,
+  taxRows,
+} from "@/lib/invoice";
+import { groupInvoiceLines } from "@/lib/invoiceLines";
 import {
   buildAuthHash,
   decryptData,
@@ -107,14 +113,19 @@ export function buildInvoiceCommands(
   }
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
-  for (const it of snapshot.items) {
+  // Repetidos AGRUPADOS ("2x Bretaña"), con los modificadores y la nota
+  // debajo — igual que la térmica de la caja (ver src/lib/invoiceLines.ts).
+  for (const it of groupInvoiceLines(snapshot.items)) {
     c.push({
       type: "columns",
       columns: [
         { text: `${it.qty}x ${it.name}`, weight: 2, align: "LEFT" },
-        { text: money(it.priceCents * it.qty), weight: 1, align: "RIGHT" },
+        { text: money(it.totalCents), weight: 1, align: "RIGHT" },
       ],
     });
+    for (const d of itemDetailLines(it)) {
+      c.push({ type: "text", text: `   ${d}\n` });
+    }
   }
   c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
 

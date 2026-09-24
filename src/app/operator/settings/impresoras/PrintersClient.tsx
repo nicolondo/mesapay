@@ -27,6 +27,22 @@ type PrinterView = {
   barSubStation: string | null;
   paperWidthMm: number | null;
   active: boolean;
+  /** Imprime QR nativo (`GS ( k`). Se prende a mano tras ver el de prueba. */
+  supportsQr: boolean;
+};
+
+/** La sección "Facturas": por dónde sale la factura y si sale sola. */
+type InvoiceSettingsView = {
+  /** `Restaurant.invoicePrinterId` — null = todas las de tipo factura. */
+  printerId: string | null;
+  /** `Restaurant.invoiceAutoPrint`. */
+  autoPrint: boolean;
+  /**
+   * Módulo `einvoicing` activo: cambia el copy (la factura sale al
+   * aceptarla la DIAN, no al cobrar) y muestra el check del QR en cada
+   * impresora — sin facturación electrónica no hay QR que imprimir.
+   */
+  einvoicing: boolean;
 };
 
 /**
@@ -105,6 +121,7 @@ export function PrintersClient({
   defaultPaperWidthMm,
   serverNow,
   health,
+  invoiceSettings,
 }: {
   agents: AgentView[];
   orphanPrinters: PrinterView[];
@@ -113,6 +130,7 @@ export function PrintersClient({
   serverNow: string;
   /** Qué estaciones tienen la impresión apagada en Estaciones (con todo lo demás). */
   health: StationPrintHealthByStation;
+  invoiceSettings: InvoiceSettingsView;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -161,6 +179,7 @@ export function PrintersClient({
           now={now}
           defaultPaperWidthMm={defaultPaperWidthMm}
           health={health}
+          einvoicing={invoiceSettings.einvoicing}
         />
       ))}
 
@@ -173,9 +192,15 @@ export function PrintersClient({
             printers={orphanPrinters}
             defaultPaperWidthMm={defaultPaperWidthMm}
             health={health}
+            einvoicing={invoiceSettings.einvoicing}
           />
         </div>
       )}
+
+      <InvoicePrintingCard
+        settings={invoiceSettings}
+        printers={[...agents.flatMap((a) => a.printers), ...orphanPrinters]}
+      />
 
       <NewAgentForm onCreated={setFreshToken} />
 
@@ -309,11 +334,13 @@ function AgentCard({
   now,
   defaultPaperWidthMm,
   health,
+  einvoicing,
 }: {
   agent: AgentView;
   now: number;
   defaultPaperWidthMm: number;
   health: StationPrintHealthByStation;
+  einvoicing: boolean;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -430,6 +457,7 @@ function AgentCard({
             printers={agent.printers}
             defaultPaperWidthMm={defaultPaperWidthMm}
             health={health}
+            einvoicing={einvoicing}
           />
         )}
       </div>
@@ -495,10 +523,12 @@ function PrinterGroups({
   printers,
   defaultPaperWidthMm,
   health,
+  einvoicing,
 }: {
   printers: PrinterView[];
   defaultPaperWidthMm: number;
   health: StationPrintHealthByStation;
+  einvoicing: boolean;
 }) {
   const t = useTranslations("opPrinters");
   const groups = groupByKind(printers);
@@ -519,6 +549,7 @@ function PrinterGroups({
                   printer={p}
                   defaultPaperWidthMm={defaultPaperWidthMm}
                   blockedStation={printerBlockedByStation(p, health)}
+                  einvoicing={einvoicing}
                 />
               ))}
             </ul>
@@ -533,6 +564,7 @@ function PrinterRow({
   printer,
   defaultPaperWidthMm,
   blockedStation,
+  einvoicing,
 }: {
   printer: PrinterView;
   defaultPaperWidthMm: number;
@@ -541,6 +573,8 @@ function PrinterRow({
    * Estaciones: está activa y nunca va a recibir una comanda.
    */
   blockedStation: "kitchen" | "bar" | null;
+  /** Con facturación electrónica se ofrece el check "Imprime códigos QR". */
+  einvoicing: boolean;
 }) {
   const t = useTranslations("opPrinters");
   const router = useRouter();
@@ -572,6 +606,24 @@ function PrinterRow({
     setBusy(false);
     if (!res.ok) {
       setMsg({ kind: "error", text: t("printerToggleFailed") });
+      return;
+    }
+    startTransition(() => router.refresh());
+  }
+
+  // El QR se decide MIRANDO el papel: se imprime la factura de prueba y,
+  // si el QR salió legible, se prende. Nadie lo puede saber desde acá.
+  async function toggleQr() {
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch(`/api/operator/printers/${printer.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ supportsQr: !printer.supportsQr }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg({ kind: "error", text: t("supportsQrFailed") });
       return;
     }
     startTransition(() => router.refresh());
@@ -664,6 +716,24 @@ function PrinterRow({
         </span>
       </div>
 
+      {einvoicing && (
+        <label className="mt-3 flex items-start gap-2 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={printer.supportsQr}
+            onChange={toggleQr}
+            disabled={disabled}
+            className="mt-0.5 accent-terracotta"
+          />
+          <span>
+            <span className="font-medium">{t("supportsQrLabel")}</span>
+            <span className="block text-[11px] text-op-muted">
+              {t("supportsQrHint")}
+            </span>
+          </span>
+        </label>
+      )}
+
       {msg && (
         <div
           className={
@@ -674,6 +744,214 @@ function PrinterRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Configuración → Impresoras → "Facturas": por cuál impresora sale la
+ * factura del cliente, si sale sola, y un botón para verla salir sin
+ * tener que cobrar una cuenta de verdad.
+ *
+ * Los dos ajustes se guardan al tocarlos (no hay "Guardar"): son un
+ * selector y un interruptor, y el que los cambia está mirando la caja.
+ * El valor local sólo se usa para no parpadear entre el guardado y el
+ * `router.refresh()`; si el guardado falla, vuelve a lo que dice el
+ * servidor.
+ */
+function InvoicePrintingCard({
+  settings,
+  printers,
+}: {
+  settings: InvoiceSettingsView;
+  printers: PrinterView[];
+}) {
+  const t = useTranslations("opPrinters");
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+  // undefined = lo que dice el servidor. Se pisa al cambiar y se suelta
+  // si el guardado falla.
+  const [printerDraft, setPrinterDraft] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [autoDraft, setAutoDraft] = useState<boolean | undefined>(undefined);
+
+  const printerId =
+    printerDraft === undefined ? settings.printerId : printerDraft;
+  const autoPrint = autoDraft === undefined ? settings.autoPrint : autoDraft;
+
+  const activePrinters = printers.filter((p) => p.active);
+  const chosen = printerId ? (printers.find((p) => p.id === printerId) ?? null) : null;
+  // La elegida puede estar apagada (o haber desaparecido de la lista): se
+  // muestra igual en el selector y se avisa — las facturas no van a salir.
+  const chosenInactive = !!printerId && !chosen?.active;
+  // Las apagadas no se ofrecen (la API las rechaza), salvo la elegida,
+  // para que el selector no muestre otra cosa que la realidad.
+  const options = printers.filter((p) => p.active || p.id === printerId);
+
+  async function save(patch: {
+    invoicePrinterId?: string | null;
+    invoiceAutoPrint?: boolean;
+  }) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/operator/invoice-printing", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        setPrinterDraft(undefined);
+        setAutoDraft(undefined);
+        setMsg({ kind: "error", text: t("invoiceSettingsFailed") });
+        return;
+      }
+      setMsg({ kind: "ok", text: t("invoiceSettingsSaved") });
+      router.refresh();
+    } catch {
+      setPrinterDraft(undefined);
+      setAutoDraft(undefined);
+      setMsg({ kind: "error", text: t("invoiceSettingsFailed") });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function testPrint() {
+    setTestBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/operator/invoice-printing/test-print", {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => null)) as {
+        jobs?: number;
+        error?: string;
+      } | null;
+      if (res.ok && j?.jobs) {
+        setMsg({ kind: "ok", text: t("invoiceTestQueued", { count: j.jobs }) });
+        router.refresh();
+      } else if (res.status === 404) {
+        setMsg({ kind: "error", text: t("invoiceTestNoPrinter") });
+      } else {
+        setMsg({ kind: "error", text: t("invoiceTestFailed") });
+      }
+    } catch {
+      setMsg({ kind: "error", text: t("invoiceTestFailed") });
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  const kindLabel = (kind: string) => {
+    const key = `kind_${kind}`;
+    return t.has(key) ? t(key) : kind;
+  };
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+      <div className="font-display text-lg">{t("invoiceSettingsTitle")}</div>
+      <p className="text-sm text-op-muted mt-1 mb-4">
+        {settings.einvoicing
+          ? t("invoiceSettingsIntroEinvoicing")
+          : t("invoiceSettingsIntro")}
+      </p>
+
+      <label
+        htmlFor="invoice-printer"
+        className="block text-xs font-medium mb-1"
+      >
+        {t("invoicePrinterLabel")}
+      </label>
+      <select
+        id="invoice-printer"
+        value={printerId ?? ""}
+        onChange={(e) => {
+          const next = e.target.value || null;
+          setPrinterDraft(next);
+          void save({ invoicePrinterId: next });
+        }}
+        disabled={busy}
+        className="w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
+      >
+        <option value="">{t("invoicePrinterAll")}</option>
+        {options.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.active
+              ? t("invoicePrinterOption", {
+                  label: p.label,
+                  kind: kindLabel(p.kind),
+                })
+              : t("invoicePrinterOptionInactive", {
+                  label: p.label,
+                  kind: kindLabel(p.kind),
+                })}
+          </option>
+        ))}
+      </select>
+      {chosenInactive && (
+        <div
+          role="alert"
+          className="mt-2 rounded-lg border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-2.5 text-xs text-[#8F6828]"
+        >
+          {t("invoicePrinterInactive")}
+        </div>
+      )}
+      {activePrinters.length === 0 && (
+        <p className="mt-2 text-[11px] text-op-muted">
+          {t("invoicePrinterNone")}
+        </p>
+      )}
+
+      <label className="mt-4 flex items-start gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={autoPrint}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setAutoDraft(next);
+            void save({ invoiceAutoPrint: next });
+          }}
+          disabled={busy}
+          className="mt-1 accent-terracotta"
+        />
+        <span>
+          <span className="font-medium">{t("invoiceAutoPrintLabel")}</span>
+          <span className="block text-[11px] text-op-muted">
+            {settings.einvoicing
+              ? t("invoiceAutoPrintHintEinvoicing")
+              : t("invoiceAutoPrintHint")}
+          </span>
+        </span>
+      </label>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={testPrint}
+          disabled={testBusy || activePrinters.length === 0}
+          className="mp-btn mp-btn--secondary mp-btn--sm"
+        >
+          {testBusy ? t("invoiceTestBusy") : t("invoiceTestBtn")}
+        </button>
+        <span className="text-[11px] text-op-muted">{t("invoiceTestHint")}</span>
+      </div>
+
+      {msg && (
+        <div
+          role="status"
+          className={
+            "mt-2 text-xs " + (msg.kind === "ok" ? "text-ok" : "text-danger")
+          }
+        >
+          {msg.text}
+        </div>
+      )}
+    </div>
   );
 }
 

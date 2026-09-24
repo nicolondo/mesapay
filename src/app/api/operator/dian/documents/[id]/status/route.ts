@@ -10,6 +10,8 @@ import {
 import { getStatusZip } from "@/lib/dian/soap";
 import { transitionAfterPoll } from "@/lib/dian/documentState";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
+import { dianQrUrl } from "@/lib/dian/crypto";
+import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +50,7 @@ async function POSTHandler(
       cufe: true,
       trackId: true,
       errors: true,
+      simpleInvoiceId: true,
     },
   });
   if (!doc || doc.restaurantId !== ctx.restaurantId) {
@@ -105,6 +108,19 @@ async function POSTHandler(
       documentId: doc.id,
       environment: config.environment,
     });
+    // Y al papel: el otro riel del hook de impresión de la factura
+    // electrónica (ver dian/emitInvoice.ts). Idempotente por el
+    // `dedupeKey` de la factura. Un documento del set de pruebas no tiene
+    // tirilla: nada que imprimir.
+    const cufe = t.cufe ?? doc.cufe;
+    if (doc.simpleInvoiceId && cufe) {
+      await printAcceptedDianInvoice({
+        simpleInvoiceId: doc.simpleInvoiceId,
+        restaurantId: ctx.restaurantId,
+        cufe,
+        qrUrl: dianQrUrl(cufe, config.environment === "produccion" ? "1" : "2"),
+      });
+    }
   }
 
   return NextResponse.json({

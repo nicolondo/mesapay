@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`artículos repetidos AGRUPADOS en el correo y el datáfono > HTML: una fila por artículo agrupado (snapshot) 1`] = `
+[
+  "<tr> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;width:32px;text-align:left;vertical-align:top;">2×</td> <td style="padding:4px 6px;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;vertical-align:top;">Bretaña</td> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;text-align:right;vertical-align:top;white-space:nowrap;">$12.000</td> </tr>",
+  "<tr> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;width:32px;text-align:left;vertical-align:top;">1×</td> <td style="padding:4px 6px;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;vertical-align:top;">Hamburguesa<div style="font-size:11px;color:#3A332B;padding-top:1px;">- Término: Medio</div></td> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;text-align:right;vertical-align:top;white-space:nowrap;">$28.000</td> </tr>",
+  "<tr> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;width:32px;text-align:left;vertical-align:top;">1×</td> <td style="padding:4px 6px;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;vertical-align:top;">Hamburguesa<div style="font-size:11px;color:#3A332B;padding-top:1px;">- Término: Bien asado</div><div style="font-size:11px;color:#3A332B;padding-top:1px;">&quot;Sin cebolla&quot;</div></td> <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;text-align:right;vertical-align:top;white-space:nowrap;">$28.000</td> </tr>",
+]
+`;

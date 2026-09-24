@@ -44,6 +44,8 @@ import {
   RETRYABLE_STATES,
 } from "@/lib/dian/retry";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
+import { dianQrUrl } from "@/lib/dian/crypto";
+import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
 import {
   formatInvoiceNumber,
   frozenSalesTax,
@@ -382,6 +384,21 @@ export async function emitDianInvoice(opts: {
     await sendDianInvoiceEmail({
       documentId: claim.id,
       environment: config.environment,
+    });
+    // Y al PAPEL. Con facturación electrónica la tirilla NO sale al
+    // cobrar: lo que se imprime es esta factura —con su CUFE y su QR— y
+    // sale acá, que es por donde pasan el intento inmediato del cobro y
+    // el barrido (la consulta diferida tiene su gemelo en
+    // dian/documents/[id]/status). Mismo contrato que el correo: no
+    // lanza y es idempotente (dedupeKey `invoice:<id>`), así que si los
+    // dos rieles ven la aceptación sale UNA hoja. Rechazada o pendiente
+    // ⇒ nada de papel. Ver print/invoiceQueue.ts.
+    const cufe = t.cufe ?? built.cufe;
+    await printAcceptedDianInvoice({
+      simpleInvoiceId: inv.id,
+      restaurantId: opts.restaurantId,
+      cufe,
+      qrUrl: dianQrUrl(cufe, env),
     });
   }
 

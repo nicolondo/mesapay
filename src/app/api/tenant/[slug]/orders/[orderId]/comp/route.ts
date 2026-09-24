@@ -12,6 +12,9 @@ import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
+import { canCompOrders } from "@/lib/staffPolicies";
+import { compBlockedResponse } from "@/lib/compGuard";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +26,9 @@ export const dynamic = "force-dynamic";
  *
  * Solo desde sesión staff (operator/mesero/platform_admin) y — como el cobro
  * en efectivo — el mesero necesita turno abierto (arqueo). Requiere que el
- * comercio tenga la función habilitada (Restaurant.compEnabled).
+ * comercio tenga la función habilitada (Restaurant.compEnabled) y que el
+ * rol esté entre los que pueden no cobrar (Restaurant.compAllowedRoles,
+ * misma política que "No cobrar" un plato — ver src/lib/compGuard.ts).
  */
 const schema = z.object({
   // A quién se le dio (obligatorio, es el registro de la cortesía).
@@ -42,6 +47,7 @@ async function POSTHandler(
       compEnabled: true,
       compLabel: true,
       adminOnlyCharge: true,
+      compAllowedRoles: true,
     },
   });
   if (!tenant) {
@@ -65,6 +71,12 @@ async function POSTHandler(
   // abajo, que este endpoint ya compartía con el cobro).
   if (isChargeBlockedForRole(role, tenant.adminOnlyCharge)) {
     return chargeBlockedResponse();
+  }
+  // Sólo los roles que el comercio eligió pueden cerrar una cuenta sin
+  // cobrarla (default: sólo el administrador). La pantalla de cobro ya
+  // esconde el botón (PayFlow), pero la API se defiende sola.
+  if (!canCompOrders(role, tenant.compAllowedRoles)) {
+    return compBlockedResponse();
   }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
@@ -157,6 +169,23 @@ async function POSTHandler(
   });
 
   if (!result) return NextResponse.json({ error: "order_closed_or_payment_pending" }, { status: 409 });
+
+  // Auditoría: quién (usuario + rol, los pone el helper desde la sesión),
+  // cuánto se regaló y a quién. Es lo que el dueño ve en /admin/audit para
+  // controlar el "no cobrar", igual que con el plato suelto.
+  await recordAuditEvent({
+    kind: "order.comp",
+    restaurantId: tenant.id,
+    target: { type: "order", id: order.id },
+    summary: `No cobró la cuenta (${label}) — ${parsed.data.note}`,
+    diff: {
+      after: {
+        compAmountCents: result.compAmountCents,
+        label,
+        note: parsed.data.note,
+      },
+    },
+  });
 
   // Dispara el consumo de inventario (los ítems comp consumen) + cierra la
   // mesa en los tableros.

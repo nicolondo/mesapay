@@ -3,7 +3,14 @@ export {
   encodeCp850,
   toCp850Text,
 } from "./codepage";
-export { columnsForWidth, padRow, wrap } from "./commands";
+export {
+  columnsForWidth,
+  padRow,
+  qr,
+  selectFont,
+  smallColumnsForWidth,
+  wrap,
+} from "./commands";
 export { renderPrintJobPayload } from "./job";
 export {
   CUSTOMER_INVOICE_JOB_KIND,
@@ -12,6 +19,7 @@ export {
   renderInvoice,
   type InvoicePrintJobPayload,
   type ThermalInvoice,
+  type ThermalInvoiceFiscal,
   type ThermalInvoiceItem,
   type ThermalInvoiceRow,
 } from "./invoice";

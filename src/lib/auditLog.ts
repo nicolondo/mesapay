@@ -41,6 +41,7 @@ export type AuditKind =
   | "user.delete"
   // Orden + items (cancel / comp / walkout)
   | "order.cancel"
+  | "order.comp"
   | "order.manual_invoice.open"
   | "order.prebill.print"
   | "order_item.cancel"
@@ -49,6 +50,8 @@ export type AuditKind =
   | "order_item.free_line"
   // Factura de una cuenta (tirilla): reimpresión pedida desde el panel
   | "invoice.reprint"
+  // Configuración → Impresoras → Facturas (impresora elegida / automático)
+  | "printer.invoice_settings.update"
   // Grupos
   | "restaurant.create"
   | "restaurant.group.update"
@@ -95,6 +98,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "user.update": "Editó usuario",
   "user.delete": "Borró usuario",
   "order.cancel": "Canceló orden",
+  "order.comp": "No cobró la cuenta",
   "order.manual_invoice.open": "Abrió factura manual",
   "order.prebill.print": "Imprimió precuenta",
   "order_item.cancel": "Canceló plato",
@@ -102,6 +106,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order_item.move": "Movió plato de mesa",
   "order_item.free_line": "Agregó línea libre",
   "invoice.reprint": "Reimprimió factura",
+  "printer.invoice_settings.update": "Cambió la impresión de facturas",
   "restaurant.create": "Creó restaurante",
   "restaurant.group.update": "Cambió grupo del comercio",
   "restaurant.country.update": "Cambió país del comercio",

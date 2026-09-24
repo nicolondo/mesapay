@@ -124,6 +124,15 @@ model Restaurant {
   // eliminar desde /operator/settings/etiquetas.
   menuTags Json?
 
+  // Orden de los platos dentro de cada categoría de la carta (comensal,
+  // mesero, factura manual y editor). "alphabetical" | "manual".
+  // El dueño pidió alfabético, así que es el default: natural por el nombre
+  // que se muestra (sin tildes ni mayúsculas, "Plato 2" antes de
+  // "Plato 10"). "manual" conserva el orden por posición (MenuItem.sortOrder)
+  // que se arma a mano en el editor de la carta. Las CATEGORÍAS no se
+  // alfabetizan nunca: conservan su propio sortOrder. Ver src/lib/menuOrder.ts.
+  menuItemOrder String @default("alphabetical")
+
   // Medios de pago habilitados para este comercio (toggles en
   // /admin/restaurants/[id]). Shape: string[] de slugs como
   // "kushki_card_terminal", "kushki_apple_pay", "cash". Null = todos
@@ -181,6 +190,21 @@ model Restaurant {
   kitchenPrintEnabled Boolean @default(false)
   barPrintEnabled     Boolean @default(false)
   printPaperWidthMm   Int     @default(80)
+
+  /// ── Impresión de la FACTURA del cliente ──────────────────────────────
+  /// Qué impresora la saca (Configuración → Impresoras → Facturas).
+  /// null = TODAS las activas de tipo `factura`, que es como funcionó
+  /// siempre. Con valor, SÓLO esa — aunque sea de tipo `comanda`: un
+  /// local con una sola térmica en la caja la usa para todo. Si la
+  /// impresora se borra vuelve al comportamiento por defecto (SetNull)
+  /// en vez de dejar al comercio sin facturas.
+  invoicePrinterId String?
+  invoicePrinter   Printer? @relation("RestaurantInvoicePrinter", fields: [invoicePrinterId], references: [id], onDelete: SetNull)
+  /// ¿La factura sale sola? true (default) = al cobrar (sin facturación
+  /// electrónica) o en el momento en que la DIAN la acepta (con el módulo
+  /// `einvoicing`). false = sólo cuando alguien la reimprime a propósito
+  /// desde Pedidos. Ver src/lib/print/invoiceQueue.ts.
+  invoiceAutoPrint Boolean @default(true)
 
   // Marchado automático por estación. Un ítem que nace "placed" en una
   // estación con esto activo pasa solo a "in_kitchen" al llegar la ronda
@@ -344,6 +368,14 @@ model Restaurant {
   // representación").
   compEnabled                 Boolean  @default(true)
   compLabel                   String?
+  // Quién puede NO COBRAR: anular el cobro de un plato ya entregado
+  // (`OrderItem.cancellationKind = "comp"`) o cerrar la cuenta completa como
+  // cortesía. Lista de roles del personal que operan mesas ("operator",
+  // "mesero", "terminal"); `platform_admin` y `group_admin` impersonando
+  // pueden siempre. Default: sólo el administrador. Vacío ⇒ nadie del
+  // equipo. Se enforcea en el servidor (src/lib/compGuard.ts) además de
+  // esconder el botón. Ver canCompOrders en src/lib/staffPolicies.ts.
+  compAllowedRoles            String[] @default(["operator"])
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.
@@ -446,6 +478,7 @@ model Restaurant {
   @@index([slug])
   @@index([groupId])
   @@index([salesRepUserId])
+  @@index([invoicePrinterId])
 }
 
 /// Grupo de restaurantes — agrupa N locales bajo un mismo dueño/cadena.
@@ -3858,7 +3891,20 @@ model Printer {
   /// reparar) sin perder el historial de sus trabajos.
   active Boolean @default(true)
 
+  /// La impresora entiende `GS ( k` (el QR nativo de ESC/POS). Apagado
+  /// por defecto y se prende A MANO desde la web después de ver que el
+  /// QR de la factura de prueba sale bien: las térmicas genéricas no lo
+  /// implementan todas igual, y un QR mal soportado es basura impresa en
+  /// la mitad de la factura. Sin esto la factura electrónica lleva la URL
+  /// de consulta de la DIAN en texto. NO lo publica el agente, así que
+  /// sobrevive a cada republicación de la config local.
+  supportsQr Boolean @default(false)
+
   jobs PrintJob[]
+  /// Comercios que la eligieron como impresora de facturas
+  /// (Restaurant.invoicePrinterId). Es lista porque Prisma exige el lado
+  /// inverso; en la práctica es su propio comercio o nadie.
+  invoicePrinterFor Restaurant[] @relation("RestaurantInvoicePrinter")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

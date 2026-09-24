@@ -5,6 +5,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { fmtCOP, localeTag } from "./format";
 import { getEmailTranslator } from "./emailIntl";
+import { groupInvoiceLines } from "./invoiceLines";
 
 type Translator = Awaited<ReturnType<typeof getEmailTranslator>>["t"];
 
@@ -33,11 +34,26 @@ export type InvoiceSnapshot = {
   shortCode: string;
   tableLabel: string;
   paidAtIso: string;
-  // Items vivos al momento de emitir
+  // Items vivos al momento de emitir. UNA entrada por OrderItem, como el
+  // XML de la DIAN: las representaciones para humanos agrupan los
+  // repetidos al LEER (`groupInvoiceLines`, src/lib/invoiceLines.ts), el
+  // snapshot no se toca.
   items: Array<{
     qty: number;
     name: string;
     priceCents: number; // unitario
+    /**
+     * Lo que distingue a dos líneas del mismo plato al agruparlas. Todo
+     * opcional: los snapshots anteriores no lo traen y se agrupan por
+     * nombre y precio, que es exactamente lo que siempre mostraron.
+     * `menuItemId` null = línea libre; `taxKind` null = plato del menú.
+     * `modifiers` ya legibles ("Término: Medio") y `notes` tal cual.
+     */
+    menuItemId?: string | null;
+    taxKind?: string | null;
+    taxPct?: number | null;
+    modifiers?: string[];
+    notes?: string | null;
   }>;
   subtotalCents: number;
   /**
@@ -235,6 +251,25 @@ export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): strin
 }
 
 /**
+ * Lo que cuelga debajo de un ítem en las representaciones para humanos:
+ * sus modificadores ("- Término: Medio") y la nota entre comillas — el
+ * mismo formato que la precuenta. Con los repetidos agrupados, es lo que
+ * distingue dos líneas del mismo plato. Un snapshot viejo no trae nada.
+ */
+export function itemDetailLines(item: {
+  modifiers?: readonly string[] | null;
+  notes?: string | null;
+}): string[] {
+  const out = (item.modifiers ?? [])
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0)
+    .map((m) => `- ${m}`);
+  const note = item.notes?.trim();
+  if (note) out.push(`"${note}"`);
+  return out;
+}
+
+/**
  * Email HTML completo — frame MESAPAY (Instrument Serif + paleta
  * bone/ink) con la tirilla POS embebida en el body usando solo
  * tablas + estilos inline (Outlook + Gmail seguros). El link a
@@ -303,10 +338,11 @@ export async function renderInvoiceEmail(args: {
     `${t("date")}: ${fechaStr}`,
     `${snapshot.tableLabel}  ${displayOrderCode(snapshot.shortCode)}`,
     "",
-    ...snapshot.items.map(
-      (i) =>
-        `${i.qty}× ${i.name}  ${fmtCOP(i.qty * i.priceCents)}`,
-    ),
+    // Repetidos AGRUPADOS, igual que en el papel (ver invoiceLines.ts).
+    ...groupInvoiceLines(snapshot.items).flatMap((i) => [
+      `${i.qty}× ${i.name}  ${fmtCOP(i.totalCents)}`,
+      ...itemDetailLines(i).map((d) => `   ${d}`),
+    ]),
     "",
     `${t("subtotal")}: ${fmtCOP(snapshot.subtotalCents)}`,
     ...taxRows(snapshot, taxLabelsFrom(t)).map(
@@ -375,16 +411,24 @@ function renderHtml(args: {
 }): string {
   const { t, locale, snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl } = args;
 
-  // Items como filas de tabla — más resistente que divs en Outlook.
-  const itemRows = snapshot.items
-    .map(
-      (i) => `
+  // Items como filas de tabla — más resistente que divs en Outlook. Los
+  // repetidos AGRUPADOS ("2× Bretaña"), con los modificadores y la nota
+  // debajo del nombre, igual que en el papel (ver invoiceLines.ts).
+  const itemRows = groupInvoiceLines(snapshot.items)
+    .map((i) => {
+      const details = itemDetailLines(i)
+        .map(
+          (d) =>
+            `<div style="font-size:11px;color:#3A332B;padding-top:1px;">${escapeHtml(d)}</div>`,
+        )
+        .join("");
+      return `
         <tr>
           <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;width:32px;text-align:left;vertical-align:top;">${i.qty}×</td>
-          <td style="padding:4px 6px;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;vertical-align:top;">${escapeHtml(i.name)}</td>
-          <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;text-align:right;vertical-align:top;white-space:nowrap;">${fmtCOP(i.qty * i.priceCents)}</td>
-        </tr>`,
-    )
+          <td style="padding:4px 6px;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;vertical-align:top;">${escapeHtml(i.name)}${details}</td>
+          <td style="padding:4px 0;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:12px;color:#000;text-align:right;vertical-align:top;white-space:nowrap;">${fmtCOP(i.totalCents)}</td>
+        </tr>`;
+    })
     .join("");
 
   // Línea punteada — span lleno con borde inferior. Más confiable

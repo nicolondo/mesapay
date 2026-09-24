@@ -326,3 +326,155 @@ describe("buildThermalInvoice — impuesto embebido congelado en la factura", ()
     expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
   });
 });
+
+describe("buildThermalInvoice — factura electrónica (dian)", () => {
+  const dian = {
+    cufe: "0123456789abcdef".repeat(6),
+    verifyUrl:
+      "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=" +
+      "0123456789abcdef".repeat(6),
+    qr: true,
+  };
+  const einvoice = (
+    over: Partial<InvoiceSnapshot> = {},
+    d: typeof dian | null = dian,
+  ) =>
+    buildThermalInvoice({
+      snapshot: { ...snapshot, ...over },
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: "15/01/26",
+      payments: [],
+      money,
+      t,
+      dian: d,
+    });
+
+  it("sin dian es el comprobante: rótulo receiptLabel, sin bloque fiscal y sin 'Consumidor final'", () => {
+    const doc = einvoice({}, null);
+    expect(doc.documentLabel).toBe("receiptLabel");
+    expect(doc.fiscal).toBeNull();
+    expect(doc.customerLines).toEqual([]);
+  });
+
+  it("con dian el rótulo es el de la factura electrónica de venta", () => {
+    expect(einvoice().documentLabel).toBe("einvoiceLabel");
+  });
+
+  it("el adquiriente sin datos dice 'Consumidor final' — es lo que viajó en el XML", () => {
+    expect(einvoice().customerLines).toEqual(["customerLabel: finalConsumer"]);
+  });
+
+  it("con datos del cliente, el cliente (igual que en el comprobante)", () => {
+    const doc = einvoice({
+      customer: { name: "Ana Pérez", docType: "CC", docNumber: "1.020.304.050" },
+    });
+    expect(doc.customerLines).toEqual(["customerLabel: Ana Pérez", "CC 1.020.304.050"]);
+  });
+
+  it("el bloque fiscal lleva el CUFE entero, la URL de consulta, el QR según la impresora y la leyenda", () => {
+    expect(einvoice().fiscal).toEqual({
+      cufeLabel: "dianCufeLabel",
+      cufe: dian.cufe,
+      verifyUrl: dian.verifyUrl,
+      qr: true,
+      verifyLabel: "einvoiceVerify",
+      noticeLines: ["einvoiceRepresentation"],
+    });
+  });
+
+  it("qr false cuando la impresora destino no lo soporta", () => {
+    expect(einvoice({}, { ...dian, qr: false }).fiscal?.qr).toBe(false);
+  });
+
+  it("ítems, totales, número y pie son los mismos que en el comprobante: es la misma venta", () => {
+    const comprobante = einvoice({}, null);
+    const factura = einvoice();
+    expect(factura.items).toEqual(comprobante.items);
+    expect(factura.totals).toEqual(comprobante.totals);
+    expect(factura.documentNumber).toBe(comprobante.documentNumber);
+    expect(factura.footerLines).toEqual(comprobante.footerLines);
+    expect(factura.businessLines).toEqual(comprobante.businessLines);
+  });
+});
+
+describe("buildThermalInvoice — artículos repetidos AGRUPADOS", () => {
+  const bretana = {
+    qty: 1,
+    name: "Bretaña",
+    priceCents: 600_000,
+    menuItemId: "mi-bretana",
+    taxKind: null,
+    taxPct: null,
+    modifiers: [],
+    notes: null,
+  };
+
+  it("dos Bretañas en dos rondas salen como UNA línea '2x' con el importe de las dos", () => {
+    const doc = build({
+      items: [bretana, { ...snapshot.items[0] }, { ...bretana }],
+      subtotalCents: 1_200_000 + 4_900_000,
+    });
+    expect(doc.items).toEqual([
+      { qty: 2, name: "Bretaña", amount: "$12000" },
+      { qty: 2, name: "Bandeja paisa", amount: "$49000" },
+    ]);
+  });
+
+  it("la suma de los importes agrupados es el subtotal del snapshot al centavo", () => {
+    const items = [
+      { ...bretana, priceCents: 612_345 },
+      { ...bretana, priceCents: 612_345, qty: 2 },
+      { qty: 1, name: "Limonada de coco", priceCents: 1_234_567 },
+      { ...bretana, priceCents: 612_345 },
+    ];
+    const subtotalCents = items.reduce((s, i) => s + i.qty * i.priceCents, 0);
+    const doc = buildThermalInvoice({
+      snapshot: { ...snapshot, items, subtotalCents, totalCents: subtotalCents },
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: "15/01/26",
+      payments: [],
+      // Centavos crudos, para sumar lo que de verdad va al papel.
+      money: (cents) => String(cents),
+      t,
+    });
+    const itemCents = doc.items.map((i) => Number(i.amount));
+    expect(doc.items.map((i) => i.qty)).toEqual([4, 1]);
+    expect(itemCents.reduce((a, b) => a + b, 0)).toBe(subtotalCents);
+  });
+
+  it("mismo plato con otro término son dos líneas, con el modificador y la nota colgados", () => {
+    const doc = build({
+      items: [
+        { ...bretana, name: "Hamburguesa", priceCents: 2_800_000, modifiers: ["Término: Medio"] },
+        {
+          ...bretana,
+          name: "Hamburguesa",
+          priceCents: 2_800_000,
+          modifiers: ["Término: Bien asado"],
+          notes: "Sin cebolla",
+        },
+      ],
+    });
+    expect(doc.items).toEqual([
+      { qty: 1, name: "Hamburguesa", amount: "$28000", modifiers: ["Término: Medio"] },
+      {
+        qty: 1,
+        name: "Hamburguesa",
+        amount: "$28000",
+        modifiers: ["Término: Bien asado"],
+        notes: "Sin cebolla",
+      },
+    ]);
+  });
+
+  it("un snapshot viejo (sin modificadores ni nota) no gana campos: el payload es el de siempre", () => {
+    expect(build().items).toEqual([
+      { qty: 2, name: "Bandeja paisa", amount: "$49000" },
+      { qty: 1, name: "Limonada de coco", amount: "$12000" },
+    ]);
+  });
+});

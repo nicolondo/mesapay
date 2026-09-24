@@ -779,7 +779,9 @@ export function PayClient({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        // Códigos conocidos (p. ej. comp_not_allowed: el rol no puede no
+        // cobrar) se traducen; el resto conserva el mensaje del servidor.
+        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
       setRepresentacionOpen(false);

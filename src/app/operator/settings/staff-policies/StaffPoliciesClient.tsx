@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import type {
-  TipPolicy,
-  ShiftPolicy,
-  MeseroShiftWithoutLocal,
+import {
+  COMP_ROLES,
+  type CompRole,
+  type TipPolicy,
+  type ShiftPolicy,
+  type MeseroShiftWithoutLocal,
 } from "@/lib/staffPolicies";
 
 export function StaffPoliciesClient({
@@ -17,6 +19,7 @@ export function StaffPoliciesClient({
   initialCompEnabled,
   initialCompLabel,
   initialAdminOnlyCharge,
+  initialCompAllowedRoles,
 }: {
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
@@ -26,6 +29,8 @@ export function StaffPoliciesClient({
   initialCompEnabled: boolean;
   initialCompLabel: string;
   initialAdminOnlyCharge: boolean;
+  // Quién puede NO COBRAR un plato o la cuenta (ya normalizado por el server).
+  initialCompAllowedRoles: CompRole[];
 }) {
   const t = useTranslations("opSettings");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
@@ -44,10 +49,34 @@ export function StaffPoliciesClient({
   const [adminOnlyCharge, setAdminOnlyCharge] = useState<boolean>(
     initialAdminOnlyCharge,
   );
+  // Quién puede no cobrar: casillas por rol. Se guarda como lista; el
+  // orden no importa (se compara como conjunto).
+  const [compAllowedRoles, setCompAllowedRoles] = useState<CompRole[]>(
+    initialCompAllowedRoles,
+  );
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
+
+  function toggleCompRole(role: CompRole, on: boolean) {
+    setCompAllowedRoles((prev) =>
+      on ? (prev.includes(role) ? prev : [...prev, role]) : prev.filter((r) => r !== role),
+    );
+  }
+  function compRoleLabel(role: CompRole): string {
+    switch (role) {
+      case "operator":
+        return t("policiesCompRoleOperator");
+      case "mesero":
+        return t("policiesCompRoleMesero");
+      case "terminal":
+        return t("policiesCompRoleTerminal");
+    }
+  }
+  const compRolesDirty =
+    [...compAllowedRoles].sort().join(",") !==
+    [...initialCompAllowedRoles].sort().join(",");
 
   const dirty =
     tipPolicy !== initialTipPolicy ||
@@ -57,6 +86,7 @@ export function StaffPoliciesClient({
     meseroWithoutLocal !== initialMeseroShiftWithoutLocal ||
     compEnabled !== initialCompEnabled ||
     adminOnlyCharge !== initialAdminOnlyCharge ||
+    compRolesDirty ||
     compLabel.trim() !== initialCompLabel.trim();
 
   async function save() {
@@ -85,6 +115,7 @@ export function StaffPoliciesClient({
         compEnabled,
         compLabel: compLabel.trim(),
         adminOnlyCharge,
+        compAllowedRoles,
       }),
     });
     setBusy(false);
@@ -374,6 +405,43 @@ export function StaffPoliciesClient({
             />
           </label>
         )}
+      </section>
+
+      {/* Quién puede NO COBRAR un plato o la cuenta completa */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {t("policiesCompRolesKicker")}
+        </div>
+        <h2 className="font-display text-lg mb-1">
+          {t("policiesCompRolesQuestion")}
+        </h2>
+        <p className="text-xs text-op-muted mb-3">
+          {t("policiesCompRolesIntro")}
+        </p>
+        <div className="space-y-2">
+          {COMP_ROLES.map((role) => (
+            <label
+              key={role}
+              className="flex items-center gap-3 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={compAllowedRoles.includes(role)}
+                onChange={(e) => toggleCompRole(role, e.target.checked)}
+                className="h-4 w-4 accent-ink"
+              />
+              <span className="text-sm">{compRoleLabel(role)}</span>
+            </label>
+          ))}
+        </div>
+        {compAllowedRoles.length === 0 && (
+          <p className="text-[11px] text-op-muted mt-3 leading-relaxed">
+            {t("policiesCompRolesNone")}
+          </p>
+        )}
+        <p className="text-[10px] text-op-muted mt-3">
+          {t("policiesCompRolesFootnote")}
+        </p>
       </section>
 
       <div className="flex items-center justify-end gap-3 pt-1">

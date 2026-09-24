@@ -165,3 +165,73 @@ describe("issueSimpleInvoice — impuesto congelado en el snapshot", () => {
     expect(m.invoiceCreate).not.toHaveBeenCalled();
   });
 });
+
+describe("issueSimpleInvoice — lo que distingue a dos líneas al agruparlas", () => {
+  it("guarda referencia del plato, impuesto, modificadores LEGIBLES y nota; sin tocar nombre ni precio", async () => {
+    const termino = {
+      id: "mod-1",
+      label: "Término",
+      type: "radio",
+      opts: [{ label: "Medio" }, { label: "Bien asado" }],
+    };
+    m.orderFindUnique.mockResolvedValue({
+      ...order(),
+      items: [
+        {
+          qty: 2,
+          nameSnapshot: "Hamburguesa",
+          priceCentsSnapshot: 2_800_000,
+          menuItemId: "mi-hamburguesa",
+          taxKind: null,
+          taxPct: null,
+          modifierSelections: { "mod-1": "Medio" },
+          menuItem: { modifiers: [termino] },
+          notes: "  sin cebolla ",
+          cancelledAt: null,
+        },
+        {
+          qty: 1,
+          nameSnapshot: "Servicio",
+          priceCentsSnapshot: 1_000_000,
+          menuItemId: null,
+          taxKind: "iva",
+          taxPct: 19,
+          modifierSelections: null,
+          menuItem: null,
+          notes: "   ",
+          cancelledAt: null,
+        },
+      ],
+    });
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "none", salesTaxPct: 0 }));
+    const s = await issuedSnapshot();
+    expect(s.items).toEqual([
+      {
+        qty: 2,
+        name: "Hamburguesa",
+        priceCents: 2_800_000,
+        menuItemId: "mi-hamburguesa",
+        taxKind: null,
+        taxPct: null,
+        modifiers: ["Término: Medio"],
+        notes: "sin cebolla",
+      },
+      {
+        qty: 1,
+        name: "Servicio",
+        priceCents: 1_000_000,
+        menuItemId: null,
+        taxKind: "iva",
+        taxPct: 19,
+        modifiers: [],
+        notes: null,
+      },
+    ]);
+    // Los modificadores se nombran con la definición del plato: la query
+    // la trae junto con los ítems.
+    const q = m.orderFindUnique.mock.calls[0][0] as {
+      include: { items: { include: { menuItem: { select: { modifiers: boolean } } } } };
+    };
+    expect(q.include.items.include.menuItem.select.modifiers).toBe(true);
+  });
+});

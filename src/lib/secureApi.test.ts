@@ -25,9 +25,21 @@ describe("HTTP authorization boundaries", () => {
     expect((await result).status).toBe(403); expect(handler).not.toHaveBeenCalled(); expect(h.rate).not.toHaveBeenCalled();
   });
   it("never dispatches an unowned order", async () => {
-    const { result, handler } = invoke("/api/tenant/local/pay", { orderId: "other-order", method: "demo_cash" });
+    const { result, handler } = invoke("/api/tenant/local/pay", { orderId: "other-order", method: "cash" });
     expect((await result).status).toBe(403); expect(handler).not.toHaveBeenCalled();
     expect(h.access).toHaveBeenCalledWith("rest-a", "other-order");
+  });
+  it("el efectivo (cash, o demo_cash del front viejo) respeta el toggle «cash» del comercio", async () => {
+    h.access.mockResolvedValue(true);
+    for (const method of ["cash", "demo_cash"]) {
+      const allowed = invoke("/api/tenant/local/pay", { orderId: "o", method });
+      expect((await allowed.result).status).toBe(200); expect(allowed.handler).toHaveBeenCalled();
+    }
+    h.restaurant.mockResolvedValue({ id: "rest-a", suspended: false, enabledPaymentMethods: ["kushki_card"] });
+    for (const method of ["cash", "demo_cash"]) {
+      const blocked = invoke("/api/tenant/local/pay", { orderId: "o", method });
+      expect((await blocked.result).status).toBe(403); expect(blocked.handler).not.toHaveBeenCalled();
+    }
   });
   it("blocks a disabled payment method even with a valid order capability", async () => {
     h.access.mockResolvedValue(true);

@@ -75,7 +75,7 @@ const h = vi.hoisted(() => {
     },
     payment: {
       findMany: vi.fn(async () => [
-        { method: "demo_cash", amountCents: 6_100_000, tipCents: 600_000 },
+        { method: "cash", amountCents: 6_100_000, tipCents: 600_000 },
       ]),
     },
     printJob: {

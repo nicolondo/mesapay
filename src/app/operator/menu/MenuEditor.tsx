@@ -10,6 +10,15 @@ import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { matchesQuery, searchTokens } from "@/lib/menuSearch";
+import {
+  isMenuItemOrder,
+  moveToSlot,
+  positionsFor,
+  sortMenuItems,
+  stepItem,
+  type MenuItemOrder,
+} from "@/lib/menuOrder";
+import { defaultLocale } from "@/i18n/config";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { MenuTag } from "@/lib/menuTags";
 import { BulkActionBar } from "./BulkActions";
@@ -40,6 +49,7 @@ export function MenuEditor({
   menuTags,
   categories: initialCategories,
   items: initialItems,
+  menuItemOrder: initialItemOrder,
 }: {
   menus: MenuRef[];
   // Lista de etiquetas del restaurante (resuelta server-side desde
@@ -48,6 +58,9 @@ export function MenuEditor({
   menuTags: MenuTag[];
   categories: Cat[];
   items: Item[];
+  // Orden de los platos en la carta (Restaurant.menuItemOrder):
+  // "alphabetical" (default) o "manual" (el que se arma acá).
+  menuItemOrder: MenuItemOrder;
 }) {
   const tr = useTranslations("opMenuEditor");
   // Local state for items + categories. We mutate on every CRUD op
@@ -62,6 +75,24 @@ export function MenuEditor({
   // Mientras se persiste un reordenamiento de categorías, deshabilitamos las
   // flechas para evitar swaps encimados.
   const [reordering, setReordering] = useState(false);
+  // Orden de los platos (selector del encabezado, se autoguarda).
+  const [itemOrder, setItemOrder] = useState<MenuItemOrder>(initialItemOrder);
+  const [savingItemOrder, setSavingItemOrder] = useState(false);
+  // Orden manual de platos: guardado en curso (se ignoran movimientos
+  // encimados), arrastre activo y hueco donde caería al soltar.
+  const [reorderingItems, setReorderingItems] = useState(false);
+  const [dragItem, setDragItem] = useState<{ id: string; catId: string } | null>(
+    null,
+  );
+  const [dropSlot, setDropSlot] = useState<{ catId: string; slot: number } | null>(
+    null,
+  );
+  // Tras Subir/Bajar el plato cambia de lugar en la lista: devolvemos el foco
+  // a su botón para que se pueda seguir moviendo con el teclado (ver el
+  // efecto junto a stepDish). Ref y no estado: no hace falta re-renderizar.
+  const refocusMoveRef = useRef<{ id: string; dir: "up" | "down" } | null>(
+    null,
+  );
   // Búsqueda de platos por nombre/descripción (sin acentos). Vacía = vista
   // normal; con texto, filtra los platos y oculta categorías sin coincidencias.
   const [query, setQuery] = useState("");
@@ -167,7 +198,15 @@ export function MenuEditor({
   // CRUD helpers passed to children. They return synchronously — the
   // child has already confirmed with the server before calling us.
   function addItem(item: Item) {
-    setItems((prev) => [...prev, item]);
+    setItems((prev) => {
+      // El servidor da de alta el plato al final de su categoría (última
+      // posición + 10). Replicamos ese valor para que el orden manual
+      // optimista coincida con el que tendrá tras recargar.
+      const last = prev
+        .filter((i) => i.categoryId === item.categoryId)
+        .reduce((m, i) => Math.max(m, i.sortOrder), 0);
+      return [...prev, { ...item, sortOrder: last + 10 }];
+    });
   }
   function replaceItem(item: Item) {
     setItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
@@ -204,6 +243,12 @@ export function MenuEditor({
   const byCat = new Map<string, Item[]>();
   for (const c of categories) byCat.set(c.id, []);
   for (const it of items) byCat.get(it.categoryId)?.push(it);
+  // Mismo orden que ve el comensal: alfabético por nombre o manual por
+  // posición (src/lib/menuOrder.ts). Acá se muestran los nombres tal como
+  // los cargó el comercio, así que se ordenan en el idioma de la carta.
+  for (const [catId, rows] of byCat) {
+    byCat.set(catId, sortMenuItems(rows, itemOrder, defaultLocale));
+  }
 
   // When >1 menu we filter the visible category list by the active tab.
   // With a single menu we skip the tab strip entirely so existing
@@ -228,6 +273,9 @@ export function MenuEditor({
   // editor tenía su propia normalización, más pobre, con un comentario
   // que la declaraba equivalente a la del comensal — no lo era.
   const searching = query.trim().length > 0;
+  // Mover platos a mano sólo tiene sentido en orden manual y con la carta
+  // completa a la vista (no sobre resultados de búsqueda).
+  const canReorderItems = itemOrder === "manual" && !searching;
   const tokens = searchTokens(query);
   const matchesItem = (it: Item) =>
     matchesQuery(`${it.name} ${it.description ?? ""}`, tokens);
@@ -373,6 +421,117 @@ export function MenuEditor({
     }
   }
 
+  // Selector "Orden de los platos": se autoguarda. Optimista; si falla,
+  // vuelve al modo anterior y avisa.
+  async function changeItemOrder(next: MenuItemOrder) {
+    if (next === itemOrder || savingItemOrder) return;
+    const prev = itemOrder;
+    setItemOrder(next);
+    setSavingItemOrder(true);
+    try {
+      const res = await fetch("/api/operator/settings/menu", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ menuItemOrder: next }),
+      });
+      if (!res.ok) {
+        setItemOrder(prev);
+        alert(tr("errItemOrder"));
+      }
+    } catch {
+      setItemOrder(prev);
+      alert(tr("errItemOrder"));
+    } finally {
+      setSavingItemOrder(false);
+    }
+  }
+
+  // Guarda el orden manual de los platos de una categoría. `orderedIds` es
+  // la categoría COMPLETA en el orden nuevo (la ruta rechaza listas
+  // parciales). Optimista: reescribe las posiciones en el estado (10, 20,
+  // 30…, igual que el servidor) y, si falla, restaura sólo las posiciones
+  // de esa categoría para no pisar otros cambios hechos mientras tanto.
+  async function saveDishOrder(catId: string, orderedIds: string[]) {
+    if (reorderingItems) return;
+    const before = new Map(
+      items
+        .filter((i) => i.categoryId === catId)
+        .map((i) => [i.id, i.sortOrder] as const),
+    );
+    const next = positionsFor(orderedIds);
+    const revert = () =>
+      setItems((cur) =>
+        cur.map((i) =>
+          before.has(i.id) ? { ...i, sortOrder: before.get(i.id)! } : i,
+        ),
+      );
+    setItems((cur) =>
+      cur.map((i) =>
+        next.has(i.id) ? { ...i, sortOrder: next.get(i.id)! } : i,
+      ),
+    );
+    setReorderingItems(true);
+    try {
+      const res = await fetch("/api/operator/menu/items/reorder", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ categoryId: catId, orderedIds }),
+      });
+      if (!res.ok) {
+        revert();
+        alert(tr("errReorderDish"));
+      }
+    } catch {
+      revert();
+      alert(tr("errReorderDish"));
+    } finally {
+      setReorderingItems(false);
+    }
+  }
+
+  // Botones Subir/Bajar de un plato (accesibles por teclado).
+  function stepDish(catId: string, rows: Item[], index: number, dir: "up" | "down") {
+    if (reorderingItems) return;
+    const ids = rows.map((r) => r.id);
+    const nextIds = stepItem(ids, index, dir);
+    if (nextIds.every((id, i) => id === ids[i])) return;
+    refocusMoveRef.current = { id: ids[index], dir };
+    void saveDishOrder(catId, nextIds);
+  }
+
+  // Arrastrar y soltar: se suelta en el hueco marcado (sólo dentro de la
+  // misma categoría).
+  function dropDish(catId: string, rows: Item[]) {
+    const drag = dragItem;
+    const slot = dropSlot;
+    setDragItem(null);
+    setDropSlot(null);
+    if (!drag || !slot || drag.catId !== catId || slot.catId !== catId) return;
+    const ids = rows.map((r) => r.id);
+    const from = ids.indexOf(drag.id);
+    if (from < 0) return;
+    const nextIds = moveToSlot(ids, from, slot.slot);
+    if (nextIds.every((id, i) => id === ids[i])) return;
+    void saveDishOrder(catId, nextIds);
+  }
+
+  // Se corre cuando cambia `items` (el reordenamiento optimista ya está en
+  // pantalla): al mover la fila, el navegador puede sacarle el foco.
+  useEffect(() => {
+    const pending = refocusMoveRef.current;
+    if (!pending) return;
+    refocusMoveRef.current = null;
+    const find = (dir: "up" | "down") =>
+      document.querySelector<HTMLButtonElement>(
+        `[data-dish-move="${pending.id}:${dir}"]`,
+      );
+    const btn = find(pending.dir);
+    // En el extremo el botón queda deshabilitado: pasamos al otro.
+    const target =
+      btn && !btn.disabled ? btn : find(pending.dir === "up" ? "down" : "up");
+    target?.focus();
+  }, [items]);
+
   return (
     <div
       className={
@@ -388,6 +547,26 @@ export function MenuEditor({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="font-display text-2xl sm:text-3xl">{tr("title")}</div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Orden de los platos dentro de cada categoría (toda la carta:
+              comensal, mesero, factura manual y este editor). Se autoguarda. */}
+          {/* En pantallas angostas se recorta el rótulo, nunca el valor. */}
+          <label className="h-10 pl-4 pr-2 max-w-full min-w-0 rounded-full border border-op-border text-sm inline-flex items-center gap-1.5">
+            <span className="text-op-muted truncate min-w-0">{tr("itemOrderLabel")}</span>
+            <select
+              value={itemOrder}
+              onChange={(e) => {
+                if (isMenuItemOrder(e.target.value)) {
+                  void changeItemOrder(e.target.value);
+                }
+              }}
+              disabled={savingItemOrder}
+              aria-busy={savingItemOrder}
+              className="h-8 shrink-0 bg-transparent text-sm font-medium focus:outline-none disabled:opacity-60"
+            >
+              <option value="alphabetical">{tr("itemOrderAlphabetical")}</option>
+              <option value="manual">{tr("itemOrderManual")}</option>
+            </select>
+          </label>
           <a
             // Pass the active menu so the import wizard lands the new
             // dishes in the tab the operator was looking at. Without
@@ -441,6 +620,19 @@ export function MenuEditor({
             );
           })}
         </div>
+      )}
+
+      {/* Aviso del orden de los platos. En alfabético no hay controles para
+          mover platos (el orden lo da el nombre); en manual, cómo moverlos. */}
+      {items.length > 0 && !searching && (
+        <p
+          role="note"
+          className="mb-4 text-xs text-op-muted border border-op-border rounded-xl bg-op-surface px-3 py-2"
+        >
+          {itemOrder === "alphabetical"
+            ? tr("itemOrderAlphaNotice")
+            : tr("itemOrderManualHint")}
+        </p>
       )}
 
       {/* Búsqueda de platos. Filtra por nombre/descripción sin acentos y oculta
@@ -639,9 +831,55 @@ export function MenuEditor({
                     {tr("noDishesYet")}
                   </li>
                 )}
-                {rows.map((it) => (
+                {rows.map((it, rowIdx) => (
                   <li
                     key={it.id}
+                    // Orden manual: el plato se arrastra dentro de su
+                    // categoría. En pantallas táctiles, donde arrastrar no es
+                    // confiable, están los botones Subir/Bajar.
+                    draggable={canReorderItems}
+                    onDragStart={
+                      canReorderItems
+                        ? (e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            // Firefox no inicia el arrastre sin datos.
+                            e.dataTransfer.setData("text/plain", it.id);
+                            setDragItem({ id: it.id, catId: c.id });
+                          }
+                        : undefined
+                    }
+                    onDragOver={
+                      canReorderItems
+                        ? (e) => {
+                            // Sólo se acepta un plato de esta misma categoría.
+                            if (!dragItem || dragItem.catId !== c.id) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const after = e.clientY > rect.top + rect.height / 2;
+                            const slot = rowIdx + (after ? 1 : 0);
+                            if (dropSlot?.catId !== c.id || dropSlot.slot !== slot) {
+                              setDropSlot({ catId: c.id, slot });
+                            }
+                          }
+                        : undefined
+                    }
+                    onDrop={
+                      canReorderItems
+                        ? (e) => {
+                            e.preventDefault();
+                            dropDish(c.id, rows);
+                          }
+                        : undefined
+                    }
+                    onDragEnd={
+                      canReorderItems
+                        ? () => {
+                            setDragItem(null);
+                            setDropSlot(null);
+                          }
+                        : undefined
+                    }
                     className={
                       // Móvil: grid de 3 columnas (check · foto · contenido) con
                       // las acciones bajando a una 2ª fila a la derecha, así el
@@ -649,9 +887,38 @@ export function MenuEditor({
                       // fila (flex) como siempre.
                       "p-3 sm:p-4 grid grid-cols-[auto_auto_1fr] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
                       (selectedIds.has(it.id) ? "bg-terracotta/5 " : "") +
+                      (dragItem?.id === it.id ? "opacity-40 " : "") +
+                      // Línea donde caería el plato al soltarlo.
+                      (dragItem && dropSlot?.catId === c.id && dropSlot.slot === rowIdx
+                        ? "shadow-[inset_0_2px_0_0_var(--color-terracotta)] "
+                        : "") +
+                      (dragItem &&
+                      dropSlot?.catId === c.id &&
+                      dropSlot.slot === rowIdx + 1 &&
+                      rowIdx === rows.length - 1
+                        ? "shadow-[inset_0_-2px_0_0_var(--color-terracotta)] "
+                        : "") +
                       (it.available ? "" : "opacity-60")
                     }
                   >
+                    {canReorderItems && (
+                      // Asa de arrastre (sólo desktop: `hidden` la saca del
+                      // grid móvil, que queda igual). Decorativa: el orden
+                      // accesible por teclado son los botones Subir/Bajar.
+                      <span
+                        aria-hidden
+                        className="hidden sm:flex self-center shrink-0 -ml-1 cursor-grab text-op-muted"
+                      >
+                        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+                          <circle cx="3" cy="3" r="1.4" />
+                          <circle cx="9" cy="3" r="1.4" />
+                          <circle cx="3" cy="8" r="1.4" />
+                          <circle cx="9" cy="8" r="1.4" />
+                          <circle cx="3" cy="13" r="1.4" />
+                          <circle cx="9" cy="13" r="1.4" />
+                        </svg>
+                      </span>
+                    )}
                     <input
                       type="checkbox"
                       checked={selectedIds.has(it.id)}
@@ -699,6 +966,32 @@ export function MenuEditor({
                       )}
                     </div>
                     <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
+                      {canReorderItems && rows.length > 1 && (
+                        <div className="flex items-center">
+                          <button
+                            type="button"
+                            data-dish-move={`${it.id}:up`}
+                            aria-label={tr("moveDishUp", { name: it.name })}
+                            aria-disabled={reorderingItems || undefined}
+                            onClick={() => stepDish(c.id, rows, rowIdx, "up")}
+                            disabled={rowIdx === 0}
+                            className="h-9 w-8 rounded-full leading-none text-lg sm:text-base text-op-muted hover:text-ink hover:bg-op-border/40 disabled:opacity-25 disabled:hover:bg-transparent"
+                          >
+                            <span aria-hidden>↑</span>
+                          </button>
+                          <button
+                            type="button"
+                            data-dish-move={`${it.id}:down`}
+                            aria-label={tr("moveDishDown", { name: it.name })}
+                            aria-disabled={reorderingItems || undefined}
+                            onClick={() => stepDish(c.id, rows, rowIdx, "down")}
+                            disabled={rowIdx === rows.length - 1}
+                            className="h-9 w-8 rounded-full leading-none text-lg sm:text-base text-op-muted hover:text-ink hover:bg-op-border/40 disabled:opacity-25 disabled:hover:bg-transparent"
+                          >
+                            <span aria-hidden>↓</span>
+                          </button>
+                        </div>
+                      )}
                       <AvailabilityToggle
                         item={it}
                         onChanged={(available) =>
@@ -1754,6 +2047,8 @@ function NewItemForm({
       modifiers: [],
       prepMinutes: mins,
       prepStation: null,
+      // El padre (addItem) calcula la posición real: al final de la categoría.
+      sortOrder: 0,
     });
   }
 

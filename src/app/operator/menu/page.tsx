@@ -4,6 +4,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
+import { normalizeMenuItemOrder } from "@/lib/menuOrder";
 import { MenuEditor } from "./MenuEditor";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function MenuAdminPage() {
   // backfills any null menuId on existing categories.
   await ensureDefaultMenu(restaurantId);
 
-  const [menus, categories, items, menuTags] = await Promise.all([
+  const [menus, categories, items, menuTags, restaurant] = await Promise.all([
     db.menu.findMany({
       where: { restaurantId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -29,14 +30,26 @@ export default async function MenuAdminPage() {
     }),
     db.menuItem.findMany({
       where: { restaurantId },
-      orderBy: [{ categoryId: "asc" }, { sortOrder: "asc" }],
+      // Mismo desempate que la carta del comensal: en orden manual, dos
+      // platos con la misma posición se ven igual acá y allá.
+      orderBy: [
+        { categoryId: "asc" },
+        { sortOrder: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
     }),
     getRestaurantMenuTags(restaurantId),
+    db.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { menuItemOrder: true },
+    }),
   ]);
 
   return (
     <MenuEditor
       menus={menus}
+      menuItemOrder={normalizeMenuItemOrder(restaurant?.menuItemOrder)}
       menuTags={menuTags}
       categories={categories.map((c) => ({
         id: c.id,
@@ -65,6 +78,7 @@ export default async function MenuAdminPage() {
         modifiers: normalizeModifiers(i.modifiers),
         prepMinutes: i.prepMinutes,
         prepStation: i.prepStation,
+        sortOrder: i.sortOrder,
       }))}
     />
   );

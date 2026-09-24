@@ -24,6 +24,7 @@ import { ENGINE } from "./engineCodes";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
+import { isCashMethod } from "@/lib/payments/methods";
 
 type Line = {
   code: string;
@@ -39,7 +40,7 @@ export type GenResult = { source: string; totalCents: number };
 
 /** Método de pago → cuenta de caja/banco/pasarela (débito de la venta). */
 function cashAccountForMethod(method: string): string {
-  if (method === "cash" || method === "demo_cash") return ENGINE.CAJA; // Caja
+  if (isCashMethod(method)) return ENGINE.CAJA; // Caja (cash o el histórico demo_cash)
   if (method === "external_terminal") return ENGINE.BANCOS; // Banco (datáfono propio)
   // Bono empresarial: no entra plata en la mesa — baja el pasivo "bonos por
   // redimir". El lado del pasivo (emisión/cobro del lote) lo define la fase

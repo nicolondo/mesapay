@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getCurrentMeseroShift } from "@/lib/meseroShift";
-import { isCashMethod } from "@/lib/shift";
+import { isCashMethod } from "@/lib/payments/methods";
 import { publishOrderEvent } from "@/lib/events";
 
 const schema = z.object({

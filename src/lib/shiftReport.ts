@@ -11,6 +11,7 @@
 
 import type { PaymentMethod } from "@prisma/client";
 import { db } from "./db";
+import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type ShiftReport = {
   shift: {
@@ -53,7 +54,7 @@ export type ShiftReport = {
   }>;
   cash: {
     // Total recibido en efectivo durante el turno (sum amountCents
-    // donde method=demo_cash + approved).
+    // de los pagos approved en efectivo: cash o el histórico demo_cash).
     receivedCents: number;
     // Vuelto entregado durante el turno: para pagos con
     // cashTenderCents seteado, vuelto = tender - amount.
@@ -76,12 +77,6 @@ export type ShiftReport = {
     collectedByLabel: string | null;
   }>;
 };
-
-const CASH_METHODS: PaymentMethod[] = ["demo_cash"];
-
-function isCashMethod(method: PaymentMethod): boolean {
-  return CASH_METHODS.includes(method);
-}
 
 export async function buildShiftReport(
   shiftId: string,
@@ -156,9 +151,11 @@ export async function buildShiftReport(
     }
   >();
   for (const p of payments) {
-    const entry = methodMap.get(p.method) ?? {
-      method: p.method,
-      isCash: isCashMethod(p.method),
+    // cash y el histórico demo_cash comparten la fila "Efectivo".
+    const method = reportingPaymentMethod(p.method);
+    const entry = methodMap.get(method) ?? {
+      method,
+      isCash: isCashMethod(method),
       count: 0,
       grossCents: 0,
       tipCents: 0,
@@ -166,7 +163,7 @@ export async function buildShiftReport(
     entry.count += 1;
     entry.grossCents += p.amountCents;
     entry.tipCents += p.tipCents;
-    methodMap.set(p.method, entry);
+    methodMap.set(method, entry);
   }
 
   // Breakdown por mesero (collectedByUserId).
@@ -388,6 +385,7 @@ export async function listShiftsWithSummary(
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   demo_card: "Tarjeta (demo)",
   demo_cash: "Efectivo",
+  cash: "Efectivo",
   wompi_card: "Tarjeta",
   wompi_pse: "PSE",
   wompi_nequi: "Nequi",

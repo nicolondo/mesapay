@@ -16,7 +16,9 @@ type DoneT = Awaited<ReturnType<typeof getTranslations>>;
 // método nuevo, sumalo acá o se muestra el slug crudo.
 const METHOD_LABEL: Record<string, string> = {
   demo_card: "methodCard",
+  // Efectivo: el histórico (demo_cash) y el actual (cash).
   demo_cash: "methodCash",
+  cash: "methodCash",
   demo_nequi: "methodNequi",
   wompi_card: "methodCard",
   wompi_nequi: "methodNequi",

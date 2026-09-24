@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { addDaysIso, bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { reportingPaymentMethod } from "@/lib/payments/methods";
 import {
   computeOpenShiftMetrics,
   getCurrentShift,
@@ -20,7 +21,9 @@ export const dynamic = "force-dynamic";
 
 const METHOD_KEY: Record<string, string> = {
   demo_card: "methodDemoCard",
-  demo_cash: "methodDemoCash",
+  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
+  demo_cash: "methodCash",
+  cash: "methodCash",
   wompi_card: "methodWompiCard",
   wompi_pse: "methodWompiPse",
   wompi_nequi: "methodWompiNequi",
@@ -97,10 +100,12 @@ export default async function ReportsPage({
 
   const byMethod = new Map<string, { count: number; sum: number }>();
   for (const p of payments) {
-    const m = byMethod.get(p.method) ?? { count: 0, sum: 0 };
+    // cash y el histórico demo_cash suman en una sola fila "Efectivo".
+    const method = reportingPaymentMethod(p.method);
+    const m = byMethod.get(method) ?? { count: 0, sum: 0 };
     m.count += 1;
     m.sum += p.amountCents;
-    byMethod.set(p.method, m);
+    byMethod.set(method, m);
   }
   const paymentsTotal = payments.reduce((s, p) => s + p.amountCents, 0);
   const tipsTotal = paidOrders.reduce((s, o) => s + o.tipCents, 0);

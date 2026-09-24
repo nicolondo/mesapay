@@ -15,4 +15,10 @@ describe("aggregatePayments", () => {
     expect(r.totalTipCents).toBe(3000);
     expect(r.tipRatePct).toBe(9); // 3000/35000 = 8.57 → 9
   });
+
+  it("el efectivo histórico (demo_cash) y el actual (cash) salen como una sola fila cash", () => {
+    const r = aggregatePayments([...rows, { method: "cash", amountCents: 7000, tipCents: 500 }]);
+    expect(r.methods.find((m) => m.method === "cash")).toEqual({ method: "cash", count: 2, amountCents: 12000, tipCents: 500 });
+    expect(r.methods.some((m) => m.method === "demo_cash")).toBe(false);
+  });
 });

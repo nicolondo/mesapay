@@ -1,4 +1,5 @@
 import { resolveEnabledPaymentMethods, type PaymentMethodSlug } from "./paymentMethods";
+import { isCashMethod } from "./payments/methods";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "./db";
@@ -45,7 +46,7 @@ async function guard(req: Request): Promise<Response | null> {
   if (tenant.suspended && mutation && /^(orders$|pickup\/orders|reservations$)/.test(action)) return deny("restaurant_suspended");
   const body = mutation ? await req.clone().json().catch(() => ({})) : {};
   if (mutation && (action === "pay" || action.startsWith("pay/") || action === "pickup/orders")) {
-    const method = action === "pay/terminal-request" ? "kushki_card_terminal" : action === "pay/external-terminal-request" ? "external_terminal" : action === "pay/kushki-pse-init" ? "kushki_pse" : body?.method === "demo_cash" ? "cash" : body?.method;
+    const method = action === "pay/terminal-request" ? "kushki_card_terminal" : action === "pay/external-terminal-request" ? "external_terminal" : action === "pay/kushki-pse-init" ? "kushki_pse" : isCashMethod(body?.method) ? "cash" : body?.method;
     if (typeof method === "string" && !method.startsWith("demo_") && !resolveEnabledPaymentMethods(tenant.enabledPaymentMethods).includes(method as PaymentMethodSlug)) return deny("method_disabled");
   }
   let orderId: unknown = action.match(/^orders\/([^/]+)/)?.[1] ?? body?.orderId;

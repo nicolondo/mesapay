@@ -5,6 +5,7 @@ import { formatItemSelections } from "@/lib/modifiers";
 import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { auth } from "@/auth";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { CASH_METHODS } from "@/lib/payments/methods";
 import { ServeBoard } from "./ServeBoard";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,9 @@ export default async function ServePage() {
     }),
     db.payment.findMany({
       where: {
-        method: "demo_cash",
+        // Efectivo pedido desde la mesa: cash, o demo_cash si el pending se
+        // creó antes de que existiera cash.
+        method: { in: [...CASH_METHODS] },
         status: "pending",
         order: {
           restaurantId,

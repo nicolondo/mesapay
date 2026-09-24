@@ -7,9 +7,9 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import {
   computeOpenShiftMetrics,
   getCurrentShift,
-  isCashMethod,
   listOpenOrders,
 } from "@/lib/shift";
+import { isCashMethod } from "@/lib/payments/methods";
 import { publishOrderEvent } from "@/lib/events";
 import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";

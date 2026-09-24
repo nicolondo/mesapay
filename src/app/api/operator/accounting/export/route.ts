@@ -9,6 +9,7 @@ import {
   toCsv,
 } from "@/lib/erp/accounting";
 import { loadPurchasesBook, loadSalesBook } from "@/lib/erp/accountingData";
+import { reportingPaymentMethod } from "@/lib/payments/methods";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,8 @@ async function GETHandler(req: Request) {
         centsToCsvAmount(o.tipCents),
         centsToCsvAmount(o.taxCents),
         centsToCsvAmount(o.totalCents),
-        [...new Set(o.payments.map((p) => p.method))].join(" | "),
+        // El efectivo histórico (demo_cash) sale como "cash", como el de hoy.
+        [...new Set(o.payments.map((p) => reportingPaymentMethod(p.method)))].join(" | "),
         o.simpleInvoice ? String(o.simpleInvoice.invoiceNumber) : "",
       ]),
     );

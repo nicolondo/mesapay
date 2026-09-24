@@ -34,6 +34,9 @@ import {
 } from "@/lib/escpos";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { buildInvoiceDocument } from "./invoiceQueue";
+import { invoicePrinterWhere } from "./routing";
+import { dianQrUrl } from "@/lib/dian/crypto";
+import { isModuleEnabled } from "@/lib/modules";
 
 export const PRINTER_TEST_JOB_KIND = "printer_test";
 
@@ -126,6 +129,12 @@ export async function buildTestInvoice(args: {
   currency: string;
   now: Date;
   locale: string;
+  /**
+   * Muestra de FACTURA ELECTRÓNICA (comercio con `einvoicing`): agrega el
+   * bloque fiscal con un CUFE de utilería y el QR si la impresora lo
+   * soporta. null = la tirilla de siempre.
+   */
+  einvoice?: { supportsQr: boolean } | null;
 }): Promise<ThermalInvoice> {
   const t = await getTranslations({
     locale: args.locale,
@@ -201,6 +210,10 @@ export async function buildTestInvoice(args: {
       },
     ],
     locale: args.locale,
+    dian: args.einvoice
+      ? { cufe: TEST_CUFE, qrUrl: dianQrUrl(TEST_CUFE, "2") }
+      : null,
+    supportsQr: args.einvoice?.supportsQr ?? false,
   });
 
   return {
@@ -210,6 +223,8 @@ export async function buildTestInvoice(args: {
     footerLines: [
       ...doc.footerLines,
       t("testInvoiceFooter"),
+      // Con bloque fiscal: que nadie tome el CUFE de utilería por real.
+      ...(args.einvoice ? [t("testEinvoiceFooter")] : []),
       // La misma chapa técnica que lleva la comanda de prueba: contra qué
       // IP salió y con cuántas columnas. Es lo que contesta "probé la
       // impresora, ¿cuál de las dos fue?" sin volver a la pantalla.
@@ -312,4 +327,98 @@ export async function enqueuePrinterTest(args: {
     select: { id: true },
   });
   return job.id;
+}
+
+/**
+ * CUFE de utilería para la factura de prueba: 96 hexadecimales como uno
+ * real —para que el corte de renglones y la densidad del QR sean los de
+ * verdad— pero fijo y reconocible. El pie de la prueba lo aclara, y el
+ * QR apunta al catálogo de HABILITACIÓN de la DIAN, donde no existe.
+ */
+export const TEST_CUFE = "0123456789abcdef".repeat(6);
+
+/**
+ * La factura de PRUEBA del botón "Imprimir factura de prueba" de
+ * Configuración → Impresoras → Facturas. Sale por las MISMAS impresoras
+ * que una factura real (`invoicePrinterWhere`: la elegida, o todas las de
+ * tipo factura) y con el mismo documento por impresora —ancho de papel y
+ * QR según `supportsQr`—, que es justamente lo que hay que mirar: si el
+ * QR sale bien en esa térmica se prende el check; si sale basura, no.
+ *
+ * Con el módulo `einvoicing` es la muestra de la factura electrónica
+ * (bloque fiscal con CUFE de utilería); sin él, el comprobante. Devuelve
+ * cuántos trabajos encoló (0 = no hay impresora activa para facturas).
+ */
+export async function enqueueInvoicePrintTest(args: {
+  restaurantId: string;
+  locale?: Locale;
+}): Promise<number> {
+  const restaurant = await db.restaurant.findUnique({
+    where: { id: args.restaurantId },
+    select: {
+      name: true,
+      printPaperWidthMm: true,
+      country: true,
+      legalName: true,
+      taxId: true,
+      legalAddress: true,
+      legalCity: true,
+      legalPhone: true,
+      dianResolution: true,
+      dianResolutionNumber: true,
+      dianResolutionFrom: true,
+      dianResolutionTo: true,
+      dianResolutionDate: true,
+      invoicePrefix: true,
+      invoicePrinterId: true,
+      enabledModules: true,
+    },
+  });
+  if (!restaurant) return 0;
+
+  const printers = await db.printer.findMany({
+    where: invoicePrinterWhere(args.restaurantId, restaurant.invoicePrinterId),
+    select: {
+      id: true,
+      host: true,
+      port: true,
+      paperWidthMm: true,
+      supportsQr: true,
+    },
+  });
+  if (printers.length === 0) return 0;
+
+  const locale = args.locale ?? (await getLocale());
+  const currency = await getCurrencyForCountry(restaurant.country);
+  const einvoicing = isModuleEnabled(restaurant.enabledModules, "einvoicing");
+  const now = new Date();
+
+  const rows = await Promise.all(
+    printers.map(async (printer) => {
+      const invoice = await buildTestInvoice({
+        restaurant,
+        host: printer.host,
+        port: printer.port,
+        paperWidthMm: printer.paperWidthMm ?? restaurant.printPaperWidthMm,
+        currency,
+        now,
+        locale,
+        einvoice: einvoicing ? { supportsQr: printer.supportsQr } : null,
+      });
+      const payload: InvoicePrintJobPayload = {
+        v: INVOICE_PAYLOAD_VERSION,
+        invoice,
+      };
+      return {
+        restaurantId: args.restaurantId,
+        printerId: printer.id,
+        kind: PRINTER_TEST_JOB_KIND,
+        payload: payload as unknown as object,
+        // Sin dedupeKey: probar dos veces imprime dos veces.
+        dedupeKey: null,
+      };
+    }),
+  );
+  const created = await db.printJob.createMany({ data: rows });
+  return created.count;
 }

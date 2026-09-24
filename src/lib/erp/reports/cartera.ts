@@ -9,15 +9,17 @@
  * Por PAGAR: órdenes de compra recibidas (total bruto de lo recibido) y
  * gastos manuales no recurrentes; los abonos son `PurchasePayment` y
  * `ExpensePayment`. Por COBRAR: cortes de bonos a crédito
- * (`VoucherStatement`), el único crédito real del comercio — MESAPAY cobra
- * las ventas al momento, así que NO hay facturas de venta a plazo. El tipo
- * `CarteraDoc` es genérico a propósito: si mañana aparece otra fuente
- * (ventas a crédito, anticipos), entra como un `source` más sin tocar los
- * cálculos.
+ * (`VoucherStatement`) y las cuentas cobradas a crédito a un cliente de
+ * facturación (`Payment.method = customer_credit`, una por cuenta; sus
+ * abonos son `CustomerCreditPayment`, aplicados FIFO al cargo más viejo en
+ * `customerCredit.allocateFifo`, que es de donde sale el saldo por
+ * documento). El tipo `CarteraDoc` es genérico a propósito: otra fuente
+ * entra como un `source` más sin tocar los cálculos.
  *
  * FUERA DE ALCANCE (a diferencia de zenith): anticipos / saldos a favor,
- * reaplicación FIFO de pagos, notas crédito, retenciones y moneda
- * extranjera. Aquí un abono siempre pertenece a UN documento.
+ * notas crédito, retenciones y moneda extranjera. Aquí un abono se muestra
+ * bajo UN documento (para los abonos de clientes, el primer cargo al que se
+ * aplicó); el saldo por documento ya viene calculado.
  *
  * ── Fechas ──────────────────────────────────────────────────────────────
  * Todas las fechas son `yyyy-mm-dd`. La antigüedad se mide en días
@@ -50,7 +52,7 @@ export const BUCKET_I18N_KEY = {
 export type CarteraKind = "cxc" | "cxp";
 
 /** Origen del documento (decide el enlace y la etiqueta en la UI). */
-export type CarteraDocSource = "purchase_order" | "expense" | "voucher_statement";
+export type CarteraDocSource = "purchase_order" | "expense" | "voucher_statement" | "customer_credit";
 
 /**
  * Tercero sintético para los gastos sin proveedor: se agrupan bajo este

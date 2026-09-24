@@ -100,7 +100,7 @@ export default async function ClientesPage() {
       </h1>
       <p className="text-sm text-muted mb-6">{t("subtitle")}</p>
 
-      {canManageCustomers && <BillingCustomers />}
+      {canManageCustomers && <BillingCustomers currency={currency} />}
 
       <DinerLookup />
 

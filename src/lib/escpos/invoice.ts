@@ -15,11 +15,22 @@
  * total, forma de pago, datos del cliente si la factura es nominativa y
  * el pie con la resolución DIAN.
  *
- * Lo que NO trae y sí traen esas dos: el QR. `GS ( k` no lo implementan
- * las térmicas genéricas de la misma forma (y varias no lo implementan),
- * así que un QR mal soportado sería basura impresa en la mitad de las
- * cajas. El link de la factura viaja por correo, que es donde el cliente
- * lo usa.
+ * Son DOS documentos con la misma forma:
+ *
+ *   · El COMPROBANTE (`fiscal: null`): la tirilla de siempre, la que sale
+ *     al cobrar en un comercio sin facturación electrónica.
+ *   · La FACTURA ELECTRÓNICA (`fiscal` con valor): la misma tirilla con
+ *     el rótulo "Factura electrónica de venta", el adquiriente (o
+ *     "Consumidor final"), el CUFE completo y el QR de consulta de la
+ *     DIAN. Sólo existe cuando la DIAN ya la ACEPTÓ.
+ *
+ * Sobre el QR: `GS ( k` no lo implementan las térmicas genéricas de la
+ * misma forma (y varias no lo implementan), así que un QR mal soportado
+ * sería basura impresa en la mitad de las cajas. Por eso sale SÓLO cuando
+ * la impresora tiene `supportsQr`, que el dueño prende a mano después de
+ * ver el QR de prueba bien impreso; si no, debajo del CUFE va la URL de
+ * consulta de la DIAN en texto. El comprobante nunca lleva QR: el link
+ * viaja por correo, que es donde el cliente lo usa.
  */
 
 import {
@@ -33,8 +44,11 @@ import {
   feed,
   line,
   padRow,
+  qr,
   selectCodePage,
+  selectFont,
   separator,
+  smallColumnsForWidth,
   textSize,
   wrap,
 } from "./commands";
@@ -45,6 +59,14 @@ export type ThermalInvoiceItem = {
   name: string;
   /** Importe de la LÍNEA (qty × unitario), ya formateado con su moneda. */
   amount: string;
+  /**
+   * Modificadores legibles ("Término: Medio") y nota del ítem, colgados
+   * debajo de la línea como en la precuenta. Con los repetidos agrupados
+   * (`groupInvoiceLines`) son lo que distingue dos líneas del mismo plato.
+   * Opcionales: los payloads viejos no los traen y se imprimen igual.
+   */
+  modifiers?: string[];
+  notes?: string | null;
 };
 
 /** Fila de dos columnas del bloque de totales o de formas de pago. */
@@ -53,6 +75,28 @@ export type ThermalInvoiceRow = {
   amount: string;
   /** El TOTAL: negrita y doble alto. No cambia el ancho de columna. */
   strong?: boolean;
+};
+
+/**
+ * Bloque FISCAL de la factura electrónica: sólo cuando la DIAN ya la
+ * aceptó. Va después de la forma de pago y antes del pie legal.
+ */
+export type ThermalInvoiceFiscal = {
+  /** "CUFE", ya traducido. */
+  cufeLabel: string;
+  /** El CUFE completo (96 hex). Se parte en renglones al renderizar. */
+  cufe: string;
+  /** URL de consulta en el catálogo de la DIAN — es también el dato del QR. */
+  verifyUrl: string;
+  /**
+   * true ⇒ QR nativo (`GS ( k`), porque la impresora lo soporta.
+   * false ⇒ la URL en texto debajo del CUFE.
+   */
+  qr: boolean;
+  /** Rótulo de la URL en texto ("Consulta esta factura en la DIAN:"). */
+  verifyLabel: string;
+  /** "Representación impresa de la factura electrónica de venta" y afines. */
+  noticeLines: string[];
 };
 
 /**
@@ -83,6 +127,12 @@ export type ThermalInvoice = {
   paymentRows: ThermalInvoiceRow[];
   /** Resolución DIAN, numeración autorizada, agradecimiento. */
   footerLines: string[];
+  /**
+   * Factura electrónica aceptada: CUFE + QR/URL. Opcional (y null) en el
+   * comprobante, y ausente en los payloads guardados antes de que
+   * existiera — esos se siguen imprimiendo tal cual.
+   */
+  fiscal?: ThermalInvoiceFiscal | null;
 };
 
 /** Versión del sobre que se guarda en PrintJob.payload. */
@@ -124,7 +174,15 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     const it = rawItem as Record<string, unknown>;
     if (typeof it.qty !== "number") return null;
     if (typeof it.name !== "string" || typeof it.amount !== "string") return null;
-    items.push({ qty: it.qty, name: it.name, amount: it.amount });
+    const modifiers = stringList(it.modifiers);
+    const notes = typeof it.notes === "string" && it.notes.trim() ? it.notes : null;
+    items.push({
+      qty: it.qty,
+      name: it.name,
+      amount: it.amount,
+      ...(modifiers.length > 0 && { modifiers }),
+      ...(notes && { notes }),
+    });
   }
 
   const rows = (raw2: unknown): ThermalInvoiceRow[] => {
@@ -153,6 +211,28 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     }
   }
 
+  // El bloque fiscal es todo o nada: una factura electrónica "a medias"
+  // (sin CUFE, sin URL) es peor que no imprimir, así que un bloque
+  // presente pero malformado invalida el payload entero.
+  let fiscal: ThermalInvoiceFiscal | null = null;
+  if (inv.fiscal != null) {
+    const f = inv.fiscal;
+    if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+    const fr = f as Record<string, unknown>;
+    if (typeof fr.cufeLabel !== "string") return null;
+    if (typeof fr.cufe !== "string" || fr.cufe.length === 0) return null;
+    if (typeof fr.verifyUrl !== "string" || fr.verifyUrl.length === 0) return null;
+    if (typeof fr.verifyLabel !== "string") return null;
+    fiscal = {
+      cufeLabel: fr.cufeLabel,
+      cufe: fr.cufe,
+      verifyUrl: fr.verifyUrl,
+      qr: fr.qr === true,
+      verifyLabel: fr.verifyLabel,
+      noticeLines: stringList(fr.noticeLines),
+    };
+  }
+
   return {
     paperWidthMm: inv.paperWidthMm,
     businessName: inv.businessName,
@@ -167,11 +247,15 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
       typeof inv.paymentTitle === "string" ? inv.paymentTitle : null,
     paymentRows: rows(inv.paymentRows),
     footerLines: stringList(inv.footerLines),
+    fiscal,
   };
 }
 
 /** Sangría de los renglones colgados de un ítem largo. */
 const INDENT = "   ";
+
+/** Lado del módulo del QR de la DIAN, en puntos. Ver `qr()` en commands. */
+const QR_MODULE_SIZE = 4;
 
 /**
  * Bytes ESC/POS completos de la tirilla, listos para escribir tal cual al
@@ -212,7 +296,7 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
     for (const l of padRow(row.label, row.value, cols)) chunks.push(line(l));
   }
 
-  // ── Cliente (sólo factura nominativa) ───────────────────────────────
+  // ── Cliente (factura nominativa, o "Consumidor final" en la electrónica) ──
   if (invoice.customerLines.length > 0) {
     chunks.push(separator(cols));
     for (const l of invoice.customerLines) {
@@ -221,12 +305,22 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
   }
 
   // ── Ítems ───────────────────────────────────────────────────────────
+  // Ya vienen AGRUPADOS ("2x Bretaña", ver `groupInvoiceLines`). Los
+  // modificadores y la nota cuelgan debajo con la misma sangría y el mismo
+  // formato que la precuenta: el comensal compara una con la otra.
   chunks.push(separator(cols));
+  const hung = { first: INDENT, cont: INDENT + "  " };
   for (const item of invoice.items) {
     for (const l of padRow(`${item.qty}x ${item.name}`, item.amount, cols, {
       cont: INDENT,
     })) {
       chunks.push(line(l));
+    }
+    for (const mod of item.modifiers ?? []) {
+      for (const l of wrap(`- ${mod}`, cols, hung)) chunks.push(line(l));
+    }
+    if (item.notes) {
+      for (const l of wrap(`"${item.notes}"`, cols, hung)) chunks.push(line(l));
     }
   }
 
@@ -248,6 +342,31 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
     }
     for (const row of invoice.paymentRows) {
       for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
+    }
+  }
+
+  // ── Bloque fiscal (factura electrónica ACEPTADA por la DIAN) ────────
+  // El QR SÓLO si la impresora lo declaró (`supportsQr`); si no, la
+  // misma URL en texto. El CUFE va en fuente chica: son 96 hexadecimales
+  // sin un espacio, y a fuente normal en 58mm serían tres renglones de
+  // sopa de letras. Se parte a lo bruto por columna (`wrap` con una sola
+  // "palabra"), que es la única forma de partirlo sin perder nada.
+  if (invoice.fiscal) {
+    const f = invoice.fiscal;
+    const smallCols = smallColumnsForWidth(invoice.paperWidthMm);
+    chunks.push(separator(cols), align("center"));
+    if (f.qr) {
+      chunks.push(qr(f.verifyUrl, { size: QR_MODULE_SIZE, correction: "M" }), LF);
+    }
+    chunks.push(bold(true), line(f.cufeLabel), bold(false), selectFont("B"));
+    for (const l of wrap(f.cufe, smallCols)) chunks.push(line(l));
+    if (!f.qr) {
+      for (const l of wrap(f.verifyLabel, smallCols)) chunks.push(line(l));
+      for (const l of wrap(f.verifyUrl, smallCols)) chunks.push(line(l));
+    }
+    chunks.push(selectFont("A"));
+    for (const l of f.noticeLines) {
+      for (const w of wrap(l, cols)) chunks.push(line(w));
     }
   }
 

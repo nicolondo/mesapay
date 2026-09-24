@@ -9,10 +9,12 @@ import { fmtCOP, localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
+  itemDetailLines,
   taxLabelsFrom,
   taxRows,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
+import { groupInvoiceLines } from "@/lib/invoiceLines";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { restaurantLogoSrc } from "@/lib/branding";
@@ -208,14 +210,22 @@ export default async function FacturaPage({
 
           <hr className="dashed" />
 
+          {/* Repetidos AGRUPADOS ("2× Bretaña") con los modificadores y la
+              nota debajo, igual que el papel y el correo
+              (src/lib/invoiceLines.ts). El snapshot guardado no cambia. */}
           <div className="items">
-            {snap.items.map((it, idx) => (
+            {groupInvoiceLines(snap.items).map((it, idx) => (
               <div className="line" key={idx}>
                 <span className="qty">{it.qty}×</span>
-                <span className="iname">{it.name}</span>
-                <span className="amount">
-                  {fmtCOP(it.qty * it.priceCents)}
+                <span className="iname">
+                  {it.name}
+                  {itemDetailLines(it).map((d, j) => (
+                    <span className="idetail" key={j}>
+                      {d}
+                    </span>
+                  ))}
                 </span>
+                <span className="amount">{fmtCOP(it.totalCents)}</span>
               </div>
             ))}
           </div>
@@ -411,6 +421,7 @@ const POS_STYLES = `
   }
   .receipt .items .qty { text-align: right; }
   .receipt .items .iname { text-align: left; font-size: 12px; }
+  .receipt .items .idetail { display: block; font-size: 11px; }
   .receipt .items .amount { white-space: nowrap; text-align: right; }
   .receipt .totals { font-size: 12px; }
   .receipt .totals .row { padding: 2px 0; }

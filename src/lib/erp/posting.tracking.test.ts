@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ purchases: vi.fn(), createEntry: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: {
   kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-  payment: { groupBy: async () => [] }, expense: { findMany: async () => [] }, expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] },
+  payment: { groupBy: async () => [] }, expense: { findMany: async () => [] }, expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] }, customerCreditPayment: { findMany: async () => [] },
   deferredItem: { findMany: async () => [] },
   $transaction: async (fn: (tx: unknown) => unknown) => fn({ journalEntry: { deleteMany: async () => ({}), create: mocks.createEntry } }),
 } }));

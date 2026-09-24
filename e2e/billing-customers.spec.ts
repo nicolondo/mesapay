@@ -77,7 +77,9 @@ for (const width of [390, 1440]) {
       await expect(edit).toBeVisible();
       await expect(page.getByRole("button", { name: "Editar Cliente particular de prueba", exact: true })).toHaveCount(0);
       await edit.click();
-      await expect(page.getByLabel("Dígito de verificación", { exact: true })).toHaveValue("1");
+      // La identificación es SÓLO el número: no hay campo de DV (se calcula en el servidor).
+      await expect(page.getByLabel("Dígito de verificación", { exact: true })).toHaveCount(0);
+      await expect(page.getByLabel("Número de documento", { exact: true })).toHaveValue("901944469");
       await page.getByLabel("Teléfono", { exact: true }).fill("3005550202");
       await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
       await expect.poll(async () => (await db.billingCustomer.findUniqueOrThrow({ where: { id: nit.id } })).phone).toBe("3005550202");
@@ -111,7 +113,8 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Usar Empresa de prueba SAS", exact: true }).click();
       await expect(page.getByLabel("Nombre o razón social", { exact: true })).toHaveValue("Empresa de prueba SAS");
       await expect(page.getByLabel("Tipo", { exact: true })).toHaveValue("NIT");
-      await expect(page.getByLabel("Número de identificación", { exact: true })).toHaveValue("901944469-1");
+      // El picker carga el número sin el dígito de verificación.
+      await expect(page.getByLabel("Número de identificación", { exact: true })).toHaveValue("901944469");
       await expect(page.getByLabel("Correo electrónico")).toHaveValue("facturas@example.test");
       await expect(page.getByLabel("Dirección")).toHaveCount(0);
       await expect(page.getByLabel("Ciudad", { exact: true })).toHaveCount(0);

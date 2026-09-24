@@ -5,18 +5,28 @@ import { secureApi } from "@/lib/secureApi";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { rateLimit } from "@/lib/rateLimit";
 import { billingCustomerSchema, BILLING_CUSTOMER_READ_ROLES, BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
+import { loadCustomersDebt } from "@/lib/customerCredit";
 
+/**
+ * Listado/búsqueda de clientes de facturación. Cada fila trae `debtCents`
+ * (lo que debe por ventas a crédito) para la columna "Deuda" del listado y
+ * el "Debe hoy" del cobro. `?credit=1` deja sólo los que tienen crédito
+ * habilitado (el selector del cobro a crédito).
+ */
 async function GETHandler(req: Request) {
   const scope = await requireOperatorScope(BILLING_CUSTOMER_READ_ROLES);
   if (isScopeError(scope)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!await rateLimit(`billing-customers:read:${scope.restaurantId}:${scope.userId}`, 120, 60)) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
   }
-  const q = (new URL(req.url).searchParams.get("q") ?? "").trim().slice(0, 160);
+  const params = new URL(req.url).searchParams;
+  const q = (params.get("q") ?? "").trim().slice(0, 160);
+  const creditOnly = params.get("credit") === "1";
   const documentQuery = q.replace(/[.\s]/g, "").replace(/-\d$/, "").toUpperCase();
-  const customers = await db.billingCustomer.findMany({
+  const rows = await db.billingCustomer.findMany({
     where: {
       restaurantId: scope.restaurantId,
+      ...(creditOnly ? { creditEnabled: true } : {}),
       ...(q ? { OR: [
         { customerName: { contains: q, mode: "insensitive" as const } },
         { email: { contains: q, mode: "insensitive" as const } },
@@ -26,6 +36,8 @@ async function GETHandler(req: Request) {
     orderBy: [{ customerName: "asc" }, { id: "asc" }],
     take: 50,
   });
+  const debt = rows.length > 0 ? await loadCustomersDebt(scope.restaurantId) : new Map<string, number>();
+  const customers = rows.map((c) => ({ ...c, debtCents: debt.get(c.id) ?? 0 }));
   return NextResponse.json({ customers }, { headers: { "Cache-Control": "no-store" } });
 }
 

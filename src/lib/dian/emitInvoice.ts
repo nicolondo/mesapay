@@ -34,6 +34,7 @@ import { transitionAfterSend } from "@/lib/dian/documentState";
 import {
   bogotaIssueTime,
   claimDianDocument,
+  creditPaymentMeans,
   customerPartyFor,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
@@ -43,6 +44,8 @@ import {
   RETRYABLE_STATES,
 } from "@/lib/dian/retry";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
+import { dianQrUrl } from "@/lib/dian/crypto";
+import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
 import {
   formatInvoiceNumber,
   frozenSalesTax,
@@ -190,6 +193,13 @@ export async function emitDianInvoice(opts: {
               email: true,
             },
           },
+          // Cobro a crédito de la cuenta: la factura sale con forma de
+          // pago "crédito" y vence a los días de plazo del cliente.
+          payments: {
+            where: { method: "customer_credit", status: "approved" },
+            take: 1,
+            select: { billingCustomer: { select: { creditTermsDays: true } } },
+          },
         },
       },
     },
@@ -287,7 +297,7 @@ export async function emitDianInvoice(opts: {
     // El CUFE sale de este mismo objeto (NumAdq = companyId).
     customer: customerPartyFor(inv.order.invoiceRequests[0] ?? null),
     lines,
-    paymentMeansCode: "10",
+    ...creditPaymentMeans(inv.order.payments ?? [], issueDate),
   };
 
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,
@@ -374,6 +384,21 @@ export async function emitDianInvoice(opts: {
     await sendDianInvoiceEmail({
       documentId: claim.id,
       environment: config.environment,
+    });
+    // Y al PAPEL. Con facturación electrónica la tirilla NO sale al
+    // cobrar: lo que se imprime es esta factura —con su CUFE y su QR— y
+    // sale acá, que es por donde pasan el intento inmediato del cobro y
+    // el barrido (la consulta diferida tiene su gemelo en
+    // dian/documents/[id]/status). Mismo contrato que el correo: no
+    // lanza y es idempotente (dedupeKey `invoice:<id>`), así que si los
+    // dos rieles ven la aceptación sale UNA hoja. Rechazada o pendiente
+    // ⇒ nada de papel. Ver print/invoiceQueue.ts.
+    const cufe = t.cufe ?? built.cufe;
+    await printAcceptedDianInvoice({
+      simpleInvoiceId: inv.id,
+      restaurantId: opts.restaurantId,
+      cufe,
+      qrUrl: dianQrUrl(cufe, env),
     });
   }
 

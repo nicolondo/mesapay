@@ -191,6 +191,21 @@ model Restaurant {
   barPrintEnabled     Boolean @default(false)
   printPaperWidthMm   Int     @default(80)
 
+  /// ── Impresión de la FACTURA del cliente ──────────────────────────────
+  /// Qué impresora la saca (Configuración → Impresoras → Facturas).
+  /// null = TODAS las activas de tipo `factura`, que es como funcionó
+  /// siempre. Con valor, SÓLO esa — aunque sea de tipo `comanda`: un
+  /// local con una sola térmica en la caja la usa para todo. Si la
+  /// impresora se borra vuelve al comportamiento por defecto (SetNull)
+  /// en vez de dejar al comercio sin facturas.
+  invoicePrinterId String?
+  invoicePrinter   Printer? @relation("RestaurantInvoicePrinter", fields: [invoicePrinterId], references: [id], onDelete: SetNull)
+  /// ¿La factura sale sola? true (default) = al cobrar (sin facturación
+  /// electrónica) o en el momento en que la DIAN la acepta (con el módulo
+  /// `einvoicing`). false = sólo cuando alguien la reimprime a propósito
+  /// desde Pedidos. Ver src/lib/print/invoiceQueue.ts.
+  invoiceAutoPrint Boolean @default(true)
+
   // Marchado automático por estación. Un ítem que nace "placed" en una
   // estación con esto activo pasa solo a "in_kitchen" al llegar la ronda
   // (con su cronómetro corriendo desde ese instante), sin que nadie toque
@@ -353,6 +368,14 @@ model Restaurant {
   // representación").
   compEnabled                 Boolean  @default(true)
   compLabel                   String?
+  // Quién puede NO COBRAR: anular el cobro de un plato ya entregado
+  // (`OrderItem.cancellationKind = "comp"`) o cerrar la cuenta completa como
+  // cortesía. Lista de roles del personal que operan mesas ("operator",
+  // "mesero", "terminal"); `platform_admin` y `group_admin` impersonando
+  // pueden siempre. Default: sólo el administrador. Vacío ⇒ nadie del
+  // equipo. Se enforcea en el servidor (src/lib/compGuard.ts) además de
+  // esconder el botón. Ver canCompOrders en src/lib/staffPolicies.ts.
+  compAllowedRoles            String[] @default(["operator"])
   // Categorías de insumos que NO manejan inventario: sus insumos se
   // excluyen del consumo automático al vender, del reorden y de la vista
   // de existencias. Los nombres coinciden con Ingredient.category.
@@ -439,6 +462,7 @@ model Restaurant {
   vouchers               Voucher[]
   voucherRedemptions     VoucherRedemption[]
   voucherStatements      VoucherStatement[]
+  customerCreditPayments CustomerCreditPayment[]
   paymentLinks           PaymentLink[]
   backups                RestaurantBackup[]
 
@@ -454,6 +478,7 @@ model Restaurant {
   @@index([slug])
   @@index([groupId])
   @@index([salesRepUserId])
+  @@index([invoicePrinterId])
 }
 
 /// Grupo de restaurantes — agrupa N locales bajo un mismo dueño/cadena.
@@ -866,6 +891,7 @@ model User {
   voucherBatchesIssued VoucherBatch[]       @relation("VoucherBatchIssuer")
   voucherRedemptions   VoucherRedemption[]  @relation("VoucherRedeemer")
   voucherStatements    VoucherStatement[]   @relation("VoucherStatementCreator")
+  customerCreditPaymentsCreated CustomerCreditPayment[] @relation("CustomerCreditPaymentCreator")
 
   @@index([restaurantId])
   @@index([groupId])
@@ -1690,6 +1716,11 @@ enum PaymentMethod {
   // es plata que entra en la mesa: la empresa lo pagó por adelantado (link
   // de pago) o lo paga por corte. Nunca cuenta como caja.
   voucher
+  // Venta a crédito a un cliente de facturación (BillingCustomer con
+  // creditEnabled). La cuenta queda pagada para la mesa y la cocina, pero
+  // no entra plata: va a cuentas por cobrar (130505) y se cancela con los
+  // abonos (CustomerCreditPayment). Nunca cuenta como caja.
+  customer_credit
 }
 
 /**
@@ -1759,12 +1790,20 @@ model Payment {
   collectedByUserId String?
   collectedBy       User?   @relation("PaymentsCollected", fields: [collectedByUserId], references: [id])
 
+  // Sólo en method=customer_credit: el cliente de facturación que debe
+  // esta cuenta. Su deuda = Σ estos pagos − Σ sus abonos
+  // (CustomerCreditPayment). SetNull para no perder el histórico del cobro
+  // si el cliente se borra.
+  billingCustomerId String?
+  billingCustomer   BillingCustomer? @relation(fields: [billingCustomerId], references: [id], onDelete: SetNull)
+
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
 
   @@index([orderId])
   @@index([shiftId])
   @@index([collectedByUserId])
+  @@index([billingCustomerId])
 }
 
 // === Cierre de turno ======================================================
@@ -2972,11 +3011,52 @@ model BillingCustomer {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  // Crédito: con creditEnabled la cuenta se puede cobrar "a crédito" a
+  // este cliente (Payment.method = customer_credit). creditLimitCents null
+  // = sin tope; creditTermsDays = plazo para el vencimiento en cartera y
+  // la fecha de pago de la factura DIAN.
+  creditEnabled     Boolean        @default(false)
+  creditLimitCents  Int?
+  creditTermsDays   Int            @default(30)
+  // Descuento comercial fijo del cliente, en puntos base (1000 = 10 %). Se
+  // aplica a la cuenta al asociarla al cliente (cobro o factura nominativa)
+  // con el mismo mecanismo del descuento por comensal (Order.discount*).
+  discountEnabled   Boolean        @default(false)
+  discountBps       Int            @default(0)
+
   voucherBatches    VoucherBatch[]
   voucherStatements VoucherStatement[]
+  creditCharges     Payment[]
+  creditPayments    CustomerCreditPayment[]
 
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])
+}
+
+/**
+ * Abono de un cliente a su deuda por ventas a crédito. Entra plata real a
+ * la cuenta de dinero `accountCode` (caja, banco, pasarela — plan del
+ * comercio) y baja Clientes (130505). No se liga a una cuenta puntual: la
+ * deuda se aplica FIFO al cobro más viejo (customerCredit.allocateFifo)
+ * para las edades de cartera. Borrar la fila revierte el abono.
+ */
+model CustomerCreditPayment {
+  id                String          @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  billingCustomerId String
+  billingCustomer   BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Cascade)
+  amountCents       Int
+  paidAt            DateTime
+  /** Cuenta de dinero (11xx) donde entró la plata. */
+  accountCode       String
+  note              String?
+  createdById       String?
+  createdBy         User?           @relation("CustomerCreditPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime        @default(now())
+
+  @@index([restaurantId, paidAt])
+  @@index([billingCustomerId])
 }
 
 model InvoiceRequest {
@@ -3804,7 +3884,20 @@ model Printer {
   /// reparar) sin perder el historial de sus trabajos.
   active Boolean @default(true)
 
+  /// La impresora entiende `GS ( k` (el QR nativo de ESC/POS). Apagado
+  /// por defecto y se prende A MANO desde la web después de ver que el
+  /// QR de la factura de prueba sale bien: las térmicas genéricas no lo
+  /// implementan todas igual, y un QR mal soportado es basura impresa en
+  /// la mitad de la factura. Sin esto la factura electrónica lleva la URL
+  /// de consulta de la DIAN en texto. NO lo publica el agente, así que
+  /// sobrevive a cada republicación de la config local.
+  supportsQr Boolean @default(false)
+
   jobs PrintJob[]
+  /// Comercios que la eligieron como impresora de facturas
+  /// (Restaurant.invoicePrinterId). Es lista porque Prisma exige el lado
+  /// inverso; en la práctica es su propio comercio o nadie.
+  invoicePrinterFor Restaurant[] @relation("RestaurantInvoicePrinter")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

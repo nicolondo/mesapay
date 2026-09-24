@@ -73,6 +73,8 @@ export async function loadPrebill(args: {
         orderBy: { id: "asc" },
         select: {
           qty: true,
+          // Referencia del plato: agrupa los repetidos (src/lib/invoiceLines.ts).
+          menuItemId: true,
           nameSnapshot: true,
           priceCentsSnapshot: true,
           taxKind: true,

@@ -187,3 +187,77 @@ export function padRow(
     last + " ".repeat(Math.max(1, w - last.length - value.length)) + value;
   return out;
 }
+
+/**
+ * `ESC M n` — fuente. A (12×24 px) es la de todo el ticket; B (9×17 px)
+ * es la chica: entran un tercio más de caracteres por renglón. Se usa
+ * para el CUFE de la factura electrónica —96 caracteres hexadecimales
+ * sin un solo espacio— y para la URL de consulta de la DIAN, que a
+ * fuente normal en 58mm se comerían cuatro renglones cada uno.
+ */
+export type Font = "A" | "B";
+
+export function selectFont(font: Font): Buffer {
+  return Buffer.from([ESC, 0x4d, font === "B" ? 1 : 0]);
+}
+
+/**
+ * Columnas de fuente B según el ancho de papel: 80mm → 64, 58mm → 42.
+ * La fuente B mide 9 px de ancho contra 12 de la A, o sea 4/3 más
+ * caracteres en la misma línea. Se redondea hacia abajo: un renglón que
+ * se pasa por una columna se trunca, y perder el último carácter del
+ * CUFE es perder la factura.
+ */
+export function smallColumnsForWidth(paperWidthMm: number): number {
+  return Math.floor((columnsForWidth(paperWidthMm) * 4) / 3);
+}
+
+/** Nivel de corrección de errores del QR (`GS ( k` fn 69). */
+export type QrCorrection = "L" | "M" | "Q" | "H";
+
+const QR_CORRECTION: Record<QrCorrection, number> = {
+  L: 48,
+  M: 49,
+  Q: 50,
+  H: 51,
+};
+
+/**
+ * `GS ( k` — QR nativo (modelo 2), en cinco comandos: modelo, tamaño de
+ * módulo, corrección, guardar los datos e imprimir. Es el juego estándar
+ * de Epson y lo que implementan las térmicas que sí lo implementan.
+ *
+ * OJO: NO lo entienden todas. Por eso este comando sólo se emite cuando
+ * la impresora tiene `Printer.supportsQr` prendido a mano después de ver
+ * el QR de prueba salir bien — en una impresora que no lo soporta, estos
+ * bytes salen como basura en la mitad de la factura o se ignoran en
+ * silencio, y desde el servidor no hay forma de saber cuál de las dos.
+ *
+ * `size` es el lado del módulo en puntos (1–16). Con la URL de consulta
+ * de la DIAN (~150 caracteres ⇒ QR versión 7 a corrección M) 4 puntos
+ * dan ~22 mm de lado: lo lee cualquier celular y entra en 58mm.
+ */
+export function qr(
+  data: string,
+  opts: { size?: number; correction?: QrCorrection } = {},
+): Buffer {
+  const size = Math.min(16, Math.max(1, Math.trunc(opts.size ?? 4)));
+  const ec = QR_CORRECTION[opts.correction ?? "M"];
+  // Byte a byte: la URL de la DIAN es ASCII puro. Si algún día viajara
+  // otra cosa, latin1 mantiene un byte por carácter y el largo predecible.
+  const bytes = Buffer.from(data, "latin1");
+  const len = bytes.length + 3;
+  return Buffer.concat([
+    // fn 65: modelo 2 (el QR "normal"; el modelo 1 es el original de 1997).
+    Buffer.from([GS, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]),
+    // fn 67: tamaño del módulo.
+    Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, size]),
+    // fn 69: corrección de errores.
+    Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, ec]),
+    // fn 80: guardar los datos en el buffer del símbolo (pL pH = largo + 3).
+    Buffer.from([GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, 0x30]),
+    bytes,
+    // fn 81: imprimir lo guardado.
+    Buffer.from([GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]),
+  ]);
+}

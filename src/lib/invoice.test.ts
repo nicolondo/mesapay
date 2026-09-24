@@ -332,3 +332,115 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
     expect(labels).toEqual(["Subtotal", "Base gravable", "Incl. impoconsumo 8%", "Propina", "TOTAL"]);
   });
 });
+
+describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
+  const bretana = {
+    qty: 1,
+    name: "Bretaña",
+    priceCents: 600_000,
+    menuItemId: "mi-bretana",
+    taxKind: null,
+    taxPct: null,
+    modifiers: [],
+    notes: null,
+  };
+  const hamburguesa = {
+    ...bretana,
+    name: "Hamburguesa",
+    priceCents: 2_800_000,
+    menuItemId: "mi-hamburguesa",
+  };
+  // Tres rondas: dos Bretañas sueltas y una hamburguesa en otro término.
+  const repeated = snap({
+    items: [
+      bretana,
+      { ...hamburguesa, modifiers: ["Término: Medio"] },
+      { ...bretana },
+      { ...hamburguesa, modifiers: ["Término: Bien asado"], notes: "Sin cebolla" },
+    ],
+    subtotalCents: 6_800_000,
+    totalCents: 6_800_000,
+  });
+  /** Las filas de ítems del HTML (las que tienen la cantidad "N×"). */
+  const itemRowsOf = (html: string) =>
+    (html.match(/<tr>\s*<td[^>]*>\d+×<\/td>[\s\S]*?<\/tr>/g) ?? []).map((r) =>
+      r.replace(/\s+/g, " ").trim(),
+    );
+
+  it("texto plano: '2× Bretaña' una vez, y cada hamburguesa con su término colgado", async () => {
+    const { text } = await renderInvoiceEmail({
+      snapshot: repeated, invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    const lines = text.split("\n");
+    const start = lines.findIndex((l) => l.startsWith("2× Bretaña"));
+    expect(lines.slice(start, start + 6)).toEqual([
+      "2× Bretaña  $12.000",
+      "1× Hamburguesa  $28.000",
+      "   - Término: Medio",
+      "1× Hamburguesa  $28.000",
+      "   - Término: Bien asado",
+      '   "Sin cebolla"',
+    ]);
+    expect(text).not.toContain("1× Bretaña");
+  });
+
+  it("HTML: una fila por artículo agrupado (snapshot)", async () => {
+    const { html } = await renderInvoiceEmail({
+      snapshot: repeated, invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    const rows = itemRowsOf(html);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain(">2×</td>");
+    expect(rows[0]).toContain("$12.000");
+    expect(rows[2]).toContain("&quot;Sin cebolla&quot;");
+    expect(rows).toMatchSnapshot();
+  });
+
+  it("los importes agrupados del correo suman el subtotal del snapshot al centavo", async () => {
+    const { text } = await renderInvoiceEmail({
+      snapshot: repeated, invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    const amounts = text
+      .split("\n")
+      .filter((l) => /^\d+× /.test(l))
+      .map((l) => Number(l.split("$")[1].replace(/\./g, "")) * 100);
+    expect(amounts.reduce((a, b) => a + b, 0)).toBe(repeated.subtotalCents);
+  });
+
+  it("un snapshot viejo (sólo qty, nombre y precio) también se agrupa, sin renglones colgados", async () => {
+    const old = snap({
+      items: [
+        { qty: 1, name: "Limonada de coco", priceCents: 1_200_000 },
+        { qty: 2, name: "Limonada de coco", priceCents: 1_200_000 },
+      ],
+    });
+    const { text, html } = await renderInvoiceEmail({
+      snapshot: old, invoiceNumber: 1, invoiceUrl, locale: "es",
+    });
+    expect(text).toContain("3× Limonada de coco  $36.000");
+    expect(itemRowsOf(html)).toHaveLength(1);
+    expect(itemRowsOf(html)[0]).not.toContain("<div");
+  });
+
+  it("datáfono: una fila '2x Bretaña' y los términos como texto debajo de cada hamburguesa", () => {
+    const commands = buildInvoiceCommands(repeated, 1, invoiceUrl);
+    const start = commands.findIndex(
+      (c) => c.type === "columns" && c.columns[0].text === "2x Bretaña",
+    );
+    const slice = commands.slice(start, start + 6).map((c) =>
+      c.type === "columns"
+        ? `${c.columns[0].text} | ${c.columns[1].text}`
+        : c.type === "text"
+          ? c.text
+          : c.type,
+    );
+    expect(slice).toEqual([
+      "2x Bretaña | $ 12.000",
+      "1x Hamburguesa | $ 28.000",
+      "   - Término: Medio\n",
+      "1x Hamburguesa | $ 28.000",
+      "   - Término: Bien asado\n",
+      '   "Sin cebolla"\n',
+    ]);
+  });
+});

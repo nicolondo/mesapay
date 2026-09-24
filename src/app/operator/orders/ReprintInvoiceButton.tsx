@@ -16,8 +16,10 @@ type Notice =
  * el papel sale igual, por otro camino.
  *
  * El aviso de éxito se va solo (como el de "Enviada al datáfono" en
- * Facturas); el de "sin impresora" y el de error se quedan, porque le
- * piden algo al que mira (ir a la pestaña nueva, reintentar).
+ * Facturas) y dice si salió la factura electrónica; el de "sin impresora",
+ * el de error y el de "salió el comprobante porque la DIAN todavía no
+ * aceptó" se quedan, porque le piden algo al que mira (ir a la pestaña
+ * nueva, reintentar, no entregar ese papel como factura electrónica).
  *
  * Va pensado para vivir dentro de un contenedor `flex flex-wrap`: el
  * aviso ocupa la fila entera (`basis-full`) debajo de los botones.
@@ -53,9 +55,24 @@ export function ReprintInvoiceButton({
         queued?: boolean;
         reason?: string;
         error?: string;
+        /** Qué salió: la factura electrónica (aceptada) o el comprobante. */
+        document?: "factura_electronica" | "comprobante";
+        /** Con facturación electrónica y la DIAN todavía sin aceptarla. */
+        dianPending?: boolean;
       };
-      if (res.ok && j.queued) {
-        setNotice({ tone: "ok", text: t("reprintSent") });
+      if (res.ok && j.queued && j.dianPending) {
+        // Salió el comprobante porque la factura electrónica todavía no
+        // existe: se dice y se queda, para que nadie entregue ese papel
+        // creyendo que es la electrónica.
+        setNotice({ tone: "warn", text: t("reprintSentDianPending"), href: null });
+      } else if (res.ok && j.queued) {
+        setNotice({
+          tone: "ok",
+          text:
+            j.document === "factura_electronica"
+              ? t("reprintSentEinvoice")
+              : t("reprintSent"),
+        });
         timer.current = setTimeout(() => setNotice(null), 3000);
       } else if (res.ok && j.reason === "no_printer") {
         const href = `/factura/${invoiceId}?print=1`;

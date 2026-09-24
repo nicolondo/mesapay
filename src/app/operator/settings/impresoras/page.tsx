@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
+import { isModuleEnabled } from "@/lib/modules";
 import { stationPrintHealth } from "@/lib/print/stationPrintHealth";
 import { PrintersClient } from "./PrintersClient";
 
@@ -36,6 +37,7 @@ export default async function PrintersSettingsPage() {
     barSubStation: true,
     paperWidthMm: true,
     active: true,
+    supportsQr: true,
   } as const;
 
   const [restaurant, agents, orphanPrinters, jobs] = await Promise.all([
@@ -51,6 +53,10 @@ export default async function PrintersSettingsPage() {
         kitchenAutoFire: true,
         barAutoFire: true,
         barSubStations: true,
+        // Sección "Facturas": por dónde sale la factura y si sale sola.
+        invoicePrinterId: true,
+        invoiceAutoPrint: true,
+        enabledModules: true,
       },
     }),
     db.printAgent.findMany({
@@ -132,6 +138,11 @@ export default async function PrintersSettingsPage() {
         serverNow={new Date().toISOString()}
         defaultPaperWidthMm={restaurant.printPaperWidthMm}
         health={health}
+        invoiceSettings={{
+          printerId: restaurant.invoicePrinterId,
+          autoPrint: restaurant.invoiceAutoPrint,
+          einvoicing: isModuleEnabled(restaurant.enabledModules, "einvoicing"),
+        }}
         agents={agents.map((a) => ({
           id: a.id,
           label: a.label,

@@ -49,6 +49,12 @@ vi.mock("@/lib/dian/config", async (importOriginal) => ({
   loadDianConfig: m.loadDianConfig,
 }));
 vi.mock("@/lib/dian/xades", () => ({ signXmlDian: m.signXmlDian }));
+// El hook de impresión de la factura electrónica (papel al aceptar) se
+// prueba en lib/dian/emitInvoice.test.ts y lib/print/invoiceQueue.test.ts;
+// acá sólo se lo saca del medio para que no toque la DB parcial.
+vi.mock("@/lib/print/invoiceQueue", () => ({
+  printAcceptedDianInvoice: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/dian/soap", () => ({
   zipInvoice: m.zipInvoice,
   sendBillSync: m.sendBillSync,

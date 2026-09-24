@@ -6,6 +6,7 @@ import {
   resolveTipPolicy,
   resolveShiftPolicy,
   resolveMeseroShiftWithoutLocal,
+  resolveCompAllowedRoles,
 } from "@/lib/staffPolicies";
 import { StaffPoliciesClient } from "./StaffPoliciesClient";
 
@@ -27,6 +28,7 @@ export default async function StaffPoliciesPage() {
       compEnabled: true,
       compLabel: true,
       adminOnlyCharge: true,
+      compAllowedRoles: true,
     },
   });
   if (!tenant) return <div className="p-6">{t("restaurantNotFound")}</div>;
@@ -55,6 +57,9 @@ export default async function StaffPoliciesPage() {
         initialCompEnabled={tenant.compEnabled}
         initialCompLabel={tenant.compLabel ?? ""}
         initialAdminOnlyCharge={tenant.adminOnlyCharge}
+        initialCompAllowedRoles={resolveCompAllowedRoles(
+          tenant.compAllowedRoles,
+        )}
       />
     </div>
   );

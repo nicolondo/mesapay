@@ -8,12 +8,27 @@ import { useTranslations } from "next-intl";
 import { fmtCOP, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
+import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
+import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import { roleLabelKey } from "@/lib/orders/placedBy";
+import type { CompPolicyView } from "@/lib/staffPolicies";
 import {
+  lineTaxEmbeddedCents,
   lineTaxOnTopCents,
   salesTaxRates,
   MAX_FREE_LINE_QTY,
   MAX_FREE_LINE_TOTAL_CENTS,
+  type RestaurantTax,
 } from "@/lib/salesTax";
+
+/**
+ * Impuesto de una línea libre tal como lo elige quien la carga:
+ *   · none / inc / iva → impuesto PROPIO, sumado encima del precio.
+ *   · included → el del comercio, YA DENTRO del precio (como un plato de la
+ *     carta). Es lo que necesita una factura manual: un cargo de $25.000 en
+ *     un restaurante en impoconsumo se cobra $25.000 y declara el 8% adentro.
+ */
+type FreeLineTaxChoice = "none" | "inc" | "iva" | "included";
 
 type ItemDetail = {
   id: string;
@@ -107,8 +122,11 @@ export function TableDetailSheet({
   qrToken,
   isMeseroView,
   country,
+  salesTax = null,
   chargeLocked,
+  compPolicy,
   manual = false,
+  invoiceRequest = null,
 }: {
   orderId: string;
   shortCode: string;
@@ -167,10 +185,23 @@ export function TableDetailSheet({
   // al agregar una línea libre. null cae en las de Colombia, igual que el
   // resto de la app (`purchaseTaxRates`).
   country?: string | null;
+  // Impuesto de ventas del comercio (Restaurant.salesTaxKind/Pct): es lo que
+  // lleva "incluido" un cargo cargado como plato de la carta, y lo que la
+  // ficha muestra al lado de esa línea. null ⇒ sin impuesto.
+  salesTax?: RestaurantTax | null;
   // "Solo el administrador cobra" activo y quien mira es un mesero.
   // Cambiamos "Cobrar la cuenta" por "Pedir la cuenta": el mesero avisa
   // a caja en vez de chocar contra un 403 del servidor.
   chargeLocked?: boolean;
+  // FACTURA MANUAL: el cliente al que va la factura (solicitud pendiente de
+  // esta cuenta). Es lo que el operador identifica en la ficha —nombre,
+  // documento sin DV y correo— y lo que la caja ya ve cargado al cobrar.
+  invoiceRequest?: InvoiceRequestSummary | null;
+  // Quién puede "No cobrar" un plato (Restaurant.compAllowedRoles): si quien
+  // mira está fuera de la lista el botón se muestra deshabilitado con quién
+  // sí puede. El servidor lo rebota igual (src/lib/compGuard.ts). Sin prop
+  // ⇒ no se bloquea nada en la UI (back-compat).
+  compPolicy?: CompPolicyView;
   // FACTURA MANUAL: la cuenta vive en una mesa oculta (`kind = manual`) y
   // nada pasa por cocina — los platos nacen servidos como sello técnico.
   // La ficha entonces no ofrece mover (ni la cuenta ni un plato), trata
@@ -179,6 +210,21 @@ export function TableDetailSheet({
   manual?: boolean;
 }) {
   const tr = useTranslations("opTables");
+  // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
+  // namespace `kitchen`, el mismo que usa "Montó: …".
+  const tk = useTranslations("kitchen");
+  const compLocked = compPolicy?.locked === true;
+  // "Sólo puede hacerlo: Administrador, Mesero" — o el aviso de que nadie
+  // del equipo puede, si el dueño dejó la lista vacía.
+  const compAllowedLabel = (compPolicy?.allowedRoles ?? [])
+    .map((role) => {
+      const key = roleLabelKey(role);
+      return key ? tk(key) : role;
+    })
+    .join(", ");
+  const compOnlyNote = compAllowedLabel
+    ? tr("compOnlyRoles", { roles: compAllowedLabel })
+    : tr("compOnlyNobody");
   const [internalOpen, setInternalOpen] = useState(false);
   const [identifyQuery, setIdentifyQuery] = useState("");
   const [identifyBusy, setIdentifyBusy] = useState(false);
@@ -236,6 +282,12 @@ export function TableDetailSheet({
   // trae el mismo poll del detalle, que corre apenas abre el sheet.
   const [freeLines, setFreeLines] = useState<FreeLine[]>([]);
   const [showFreeLineSheet, setShowFreeLineSheet] = useState(false);
+  // Cliente de la factura manual: lo recién guardado manda sobre lo que trajo
+  // el server (que se refresca detrás con router.refresh).
+  const [invoiceFormOpen, setInvoiceFormOpen] = useState(false);
+  const [savedInvoiceRequest, setSavedInvoiceRequest] =
+    useState<InvoiceRequestSummary | null>(null);
+  const invoiceCustomer = savedInvoiceRequest ?? invoiceRequest;
   const [pendingExpedite, setPendingExpedite] = useState<Set<string>>(
     new Set(),
   );
@@ -474,11 +526,15 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const body = await r.json().catch(() => null);
+      // 403 comp_not_allowed: el rol no está entre los que pueden no cobrar
+      // (la política cambió con el sheet abierto, o alguien forzó el botón).
       const msg =
-        body?.message ??
-        (kind === "comp"
-          ? tr("compItemFailed")
-          : tr("cancelItemFailed"));
+        body?.error === "comp_not_allowed"
+          ? `${tr("compNotAllowedError")} ${compOnlyNote}`
+          : (body?.message ??
+            (kind === "comp"
+              ? tr("compItemFailed")
+              : tr("cancelItemFailed")));
       alert(msg);
       return;
     }
@@ -507,7 +563,7 @@ export function TableDetailSheet({
     name: string;
     qty: number;
     unitPriceCents: number;
-    taxKind: "none" | "inc" | "iva";
+    taxKind: FreeLineTaxChoice;
     taxPct: number;
   }): Promise<string | null> {
     const r = await fetch(`/api/operator/order-items`, {
@@ -724,10 +780,63 @@ export function TableDetailSheet({
               </div>
             )}
 
+            {/* FACTURA MANUAL: el "comensal" es el CLIENTE de la factura
+                —nombre, documento SIN dígito de verificación y correo—, no
+                una cuenta de fidelización. Antes esta ficha mostraba el
+                bloque de abajo (identificar a un comensal registrado por
+                cédula o correo): un NIT ahí nunca encontraba nada, con o
+                sin DV. Lo que se guarda es la solicitud de factura de la
+                cuenta, la misma que la caja ve cargada al cobrar. */}
+            {manual &&
+              tenantSlug &&
+              orderStatus !== "paid" &&
+              orderStatus !== "cancelled" && (
+                <div className="rounded-xl border border-hairline bg-op-bg p-3">
+                  <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
+                    {tr("invoiceCustomerTitle")}
+                  </div>
+                  {invoiceCustomer ? (
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium break-words">
+                          {invoiceCustomer.customerName}
+                        </div>
+                        <div className="font-mono text-[10px] text-op-muted break-all">
+                          {invoiceCustomer.docType} {invoiceCustomer.docNumber}
+                          {" · "}
+                          {invoiceCustomer.email}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceFormOpen(true)}
+                        className="h-9 px-3 rounded-full border border-hairline text-xs font-medium hover:bg-ivory"
+                      >
+                        {tr("invoiceCustomerChange")}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-xs text-op-muted flex-1 min-w-[160px]">
+                        {tr("invoiceCustomerNone")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceFormOpen(true)}
+                        className="h-9 px-3 rounded-full bg-ink text-bone text-xs font-medium"
+                      >
+                        {tr("invoiceCustomerIdentify")}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
             {/* Comensal identificado + su descuento. Identificarlo es lo
                 que aplica el beneficio; quitar el descuento NO borra la
-                identidad (el consumo del cliente se sigue registrando). */}
-            {orderStatus !== "paid" && orderStatus !== "cancelled" && (
+                identidad (el consumo del cliente se sigue registrando).
+                En una factura manual no va: ahí el bloque es el de arriba. */}
+            {!manual && orderStatus !== "paid" && orderStatus !== "cancelled" && (
               <div className="rounded-xl border border-hairline bg-op-bg p-3">
                 <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
                   {tr("customerTitle")}
@@ -1175,6 +1284,21 @@ export function TableDetailSheet({
                               >
                                 {tr("cancelItem")}
                               </button>
+                            ) : compLocked ? (
+                              // "No cobrar" fuera de la lista de roles del
+                              // comercio: deshabilitado y con quién sí
+                              // puede en el tooltip (y en la nota al pie de
+                              // la lista, que en el celular sí se ve). El
+                              // servidor lo rebota igual.
+                              <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                title={compOnlyNote}
+                                className="font-mono text-[10px] tracking-wider uppercase text-op-muted/60 px-2 py-1 rounded-full cursor-not-allowed"
+                              >
+                                {tr("compItem")}
+                              </button>
                             ) : (
                               <button
                                 type="button"
@@ -1215,6 +1339,23 @@ export function TableDetailSheet({
               </section>
             ))}
 
+            {/* Aviso de "No cobrar" bloqueado: sólo si hay algún plato ya
+                entregado (los que muestran ese botón) y quien mira no
+                puede. En el celular no hay tooltip, así que va en texto. */}
+            {compLocked &&
+              !manual &&
+              rounds.some(
+                (r) =>
+                  r.status !== "cancelled" &&
+                  r.items.some((i) => !!i.servedAt),
+              ) && (
+                <p className="text-[11px] text-op-muted">
+                  {tr("compItem")}
+                  {": "}
+                  {compOnlyNote}
+                </p>
+              )}
+
             {/* Líneas libres: van aparte de las rondas porque no son platos
                 — nadie las prepara ni las entrega. Se muestra el impuesto de
                 cada una porque se SUMA al precio, y sin verlo el total de la
@@ -1235,6 +1376,12 @@ export function TableDetailSheet({
                       taxKind: l.taxKind,
                       taxPct: l.taxPct,
                     });
+                    // Cargo con el impuesto del comercio incluido (`taxKind`
+                    // null): se muestra lo que va adentro, informativo.
+                    const includedCents = lineTaxEmbeddedCents(
+                      { amountCents: lineCents, taxKind: l.taxKind, taxPct: l.taxPct },
+                      salesTax ?? { kind: "none", pct: 0 },
+                    );
                     return (
                       <li
                         key={l.id}
@@ -1263,7 +1410,16 @@ export function TableDetailSheet({
                                   pct: l.taxPct ?? 0,
                                   amount: fmtCOP(taxCents),
                                 })
-                              : tr("freeLineNoTax")}
+                              : includedCents > 0 && salesTax
+                                ? tr("freeLineTaxIncludedSummary", {
+                                    kind:
+                                      salesTax.kind === "inc"
+                                        ? tr("taxKindInc")
+                                        : tr("taxKindIva"),
+                                    pct: salesTax.pct,
+                                    amount: fmtCOP(includedCents),
+                                  })
+                                : tr("freeLineNoTax")}
                           </span>
                           <button
                             type="button"
@@ -1319,8 +1475,27 @@ export function TableDetailSheet({
       {showFreeLineSheet && (
         <FreeLineSheet
           country={country ?? null}
+          salesTax={salesTax}
+          // Una factura manual se arma con cargos que son ventas del
+          // restaurante: nacen con el impuesto de la carta incluido.
+          defaultIncluded={manual}
           onClose={() => setShowFreeLineSheet(false)}
           onSubmit={addFreeLine}
+        />
+      )}
+
+      {invoiceFormOpen && tenantSlug && (
+        <InvoiceFormSheet
+          tenantSlug={tenantSlug}
+          orderId={orderId}
+          initial={invoiceCustomer}
+          beforePayment
+          operatorMode
+          onClose={() => setInvoiceFormOpen(false)}
+          onSaved={(summary) => {
+            setSavedInvoiceRequest(summary);
+            startTx(() => router.refresh());
+          }}
         />
       )}
 
@@ -1541,46 +1716,67 @@ function MoveItemSheet({
  */
 function FreeLineSheet({
   country,
+  salesTax,
+  defaultIncluded,
   onClose,
   onSubmit,
 }: {
   country: string | null;
+  /** Impuesto del comercio: la opción "incluido en el precio" sólo existe si lo hay. */
+  salesTax: RestaurantTax | null;
+  /** true ⇒ el selector nace en "incluido" (factura manual). */
+  defaultIncluded: boolean;
   onClose: () => void;
   /** Devuelve un mensaje de error ya traducido, o null si guardó bien. */
   onSubmit: (input: {
     name: string;
     qty: number;
     unitPriceCents: number;
-    taxKind: "none" | "inc" | "iva";
+    taxKind: FreeLineTaxChoice;
     taxPct: number;
   }) => Promise<string | null>;
 }) {
   const tr = useTranslations("opTables");
+  const canInclude = !!salesTax && salesTax.kind !== "none";
   const [name, setName] = useState("");
   const [qtyRaw, setQtyRaw] = useState("1");
   const [priceDigits, setPriceDigits] = useState("");
-  const [taxKind, setTaxKind] = useState<"none" | "inc" | "iva">("none");
+  const [taxKind, setTaxKind] = useState<FreeLineTaxChoice>(
+    defaultIncluded && canInclude ? "included" : "none",
+  );
   const [taxPct, setTaxPct] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const rates = salesTaxRates(taxKind, country);
+  const rates = taxKind === "included" ? [0] : salesTaxRates(taxKind, country);
   const qty = qtyRaw === "" ? 0 : Number(qtyRaw);
   const unitPriceCents = pesosToCents(Number(priceDigits || "0"));
   const lineCents = unitPriceCents * qty;
+  // Impuesto propio, sumado encima (0 con "incluido": nada se suma).
   const taxCents = lineTaxOnTopCents({
     amountCents: lineCents,
-    taxKind,
+    taxKind: taxKind === "included" ? null : taxKind,
     taxPct,
   });
+  // Con "incluido": lo que va DENTRO del precio, sólo para mostrarlo.
+  const includedCents =
+    taxKind === "included" && salesTax
+      ? lineTaxEmbeddedCents({ amountCents: lineCents, taxKind: null, taxPct: null }, salesTax)
+      : 0;
+  const includedKindLabel =
+    salesTax?.kind === "inc" ? tr("taxKindInc") : tr("taxKindIva");
+  // La "base" de la vista previa es como la muestra la tirilla: con el
+  // impuesto incluido, el precio menos lo que va adentro; si no, el precio.
+  const previewBaseCents = lineCents - includedCents;
 
-  function changeKind(k: "none" | "inc" | "iva") {
+  function changeKind(k: FreeLineTaxChoice) {
     setErr(null);
     setTaxKind(k);
     // La tarifa se resetea a la general del país (la última de la lista): 19%
     // de IVA en Colombia, 16% en México, 8% de impoconsumo. Dejar la anterior
     // al cambiar de tipo produciría combinaciones que el backend rechaza.
-    const next = salesTaxRates(k, country);
+    // Con "incluido" no hay tarifa propia: la del comercio manda.
+    const next = k === "included" ? [0] : salesTaxRates(k, country);
     setTaxPct(next[next.length - 1] ?? 0);
   }
 
@@ -1695,11 +1891,14 @@ function FreeLineSheet({
             </div>
             <select
               value={taxKind}
-              onChange={(e) =>
-                changeKind(e.target.value as "none" | "inc" | "iva")
-              }
+              onChange={(e) => changeKind(e.target.value as FreeLineTaxChoice)}
               className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:border-ink/40"
             >
+              {canInclude && salesTax && (
+                <option value="included">
+                  {tr("taxKindIncluded", { kind: includedKindLabel, pct: salesTax.pct })}
+                </option>
+              )}
               <option value="none">{tr("taxKindNone")}</option>
               <option value="inc">{tr("taxKindInc")}</option>
               <option value="iva">{tr("taxKindIva")}</option>
@@ -1711,7 +1910,7 @@ function FreeLineSheet({
             </div>
             <select
               value={String(taxPct)}
-              disabled={taxKind === "none"}
+              disabled={taxKind === "none" || taxKind === "included"}
               onChange={(e) => {
                 setErr(null);
                 setTaxPct(Number(e.target.value));
@@ -1732,7 +1931,7 @@ function FreeLineSheet({
         <div className="rounded-xl border border-hairline bg-op-bg p-3 space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-op-muted">{tr("freeLinePreviewBase")}</span>
-            <span className="font-mono tabular">{fmtCOP(lineCents)}</span>
+            <span className="font-mono tabular">{fmtCOP(previewBaseCents)}</span>
           </div>
           {taxCents > 0 && (
             <div className="flex items-center justify-between text-xs">
@@ -1743,6 +1942,18 @@ function FreeLineSheet({
                 })}
               </span>
               <span className="font-mono tabular">{fmtCOP(taxCents)}</span>
+            </div>
+          )}
+          {includedCents > 0 && salesTax && (
+            // Informativo: ya está dentro del precio, no cambia el total.
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-op-muted">
+                {tr("freeLinePreviewIncluded", {
+                  kind: includedKindLabel,
+                  pct: salesTax.pct,
+                })}
+              </span>
+              <span className="font-mono tabular">{fmtCOP(includedCents)}</span>
             </div>
           )}
           <div className="flex items-center justify-between text-sm font-medium pt-1 border-t border-hairline">

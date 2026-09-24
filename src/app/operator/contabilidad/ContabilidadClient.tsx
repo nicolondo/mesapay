@@ -255,6 +255,7 @@ const PAY_METHOD_KEYS: Record<string, string> = {
   external_terminal: "mExternalTerminal",
   reservation_deposit: "mReservationDeposit",
   voucher: "mVoucher",
+  customer_credit: "mCustomerCredit",
 };
 
 /** % (ya en escala 0-100, 1 decimal) → "66,5 %" localizado; null → "—". */

@@ -19,6 +19,7 @@ const m = vi.hoisted(() => ({
   sendBillSync: vi.fn(),
   sendTestSetAsync: vi.fn(),
   sendDianInvoiceEmail: vi.fn(),
+  printAcceptedDianInvoice: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -46,6 +47,12 @@ vi.mock("@/lib/dian/soap", () => ({
 }));
 vi.mock("@/lib/dian/sendInvoiceEmail", () => ({
   sendDianInvoiceEmail: m.sendDianInvoiceEmail,
+}));
+// El hook de impresión de la factura electrónica: se prueba QUE se llama
+// (y con qué) al aceptar, y que no se llama en ningún otro desenlace. El
+// encolado en sí vive en print/invoiceQueue.test.ts.
+vi.mock("@/lib/print/invoiceQueue", () => ({
+  printAcceptedDianInvoice: m.printAcceptedDianInvoice,
 }));
 
 import { emitDianInvoice, markDocumentBlocked } from "./emitInvoice";
@@ -182,6 +189,7 @@ beforeEach(() => {
   m.zipInvoice.mockResolvedValue(Buffer.from("zip"));
   m.sendBillSync.mockResolvedValue({ state: "accepted", errors: [], cufe: "CUFE-DIAN" });
   m.sendDianInvoiceEmail.mockResolvedValue({ ok: true });
+  m.printAcceptedDianInvoice.mockResolvedValue(undefined);
 });
 
 describe("adquiriente", () => {
@@ -404,6 +412,55 @@ describe("resultado y persistencia", () => {
     });
   });
 
+  it("aceptada ⇒ la factura electrónica va al papel UNA vez, con el CUFE y la URL del QR de producción", async () => {
+    await emit();
+    expect(m.printAcceptedDianInvoice).toHaveBeenCalledTimes(1);
+    expect(m.printAcceptedDianInvoice).toHaveBeenCalledWith({
+      simpleInvoiceId: "inv-1",
+      restaurantId: "rest-1",
+      cufe: "CUFE-DIAN",
+      qrUrl: "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=CUFE-DIAN",
+    });
+  });
+
+  it("aceptada en habilitación ⇒ la URL del QR apunta al catálogo -hab", async () => {
+    m.loadDianConfig.mockResolvedValue({
+      configId: "cfg-1",
+      environment: "habilitacion",
+      cert: {},
+      softwareId: "soft-1",
+      softwarePin: "1234",
+      technicalKey: "clave-tecnica",
+      testSetId: null,
+    });
+    await emit();
+    expect(m.printAcceptedDianInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        qrUrl: "https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=CUFE-DIAN",
+      }),
+    );
+  });
+
+  it("aceptada sin CUFE en la respuesta ⇒ el papel lleva el CUFE calculado (el mismo que quedó guardado)", async () => {
+    m.sendBillSync.mockResolvedValue({ state: "accepted", errors: [] });
+    const r = await emit();
+    const saved = lastUpdateData().cufe as string;
+    expect(saved).toMatch(/^[0-9a-f]{96}$/);
+    expect(r.outcome === "accepted" && r.cufe).toBe(saved);
+    expect(m.printAcceptedDianInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ cufe: saved }),
+    );
+  });
+
+  it("pendiente ⇒ ni correo ni papel: todavía no hay factura electrónica", async () => {
+    m.sendBillSync.mockResolvedValue({ state: "pending", errors: [], zipKey: "zip-1" });
+    const r = await emit();
+    expect(r).toMatchObject({ outcome: "pending", qrUrl: null });
+    expect(lastUpdateData()).toMatchObject({ state: "pending", trackId: "zip-1" });
+    expect(m.sendDianInvoiceEmail).not.toHaveBeenCalled();
+    expect(m.printAcceptedDianInvoice).not.toHaveBeenCalled();
+  });
+
   it("error de canal ⇒ outcome error, backoff exponencial desde los intentos previos, sin correo", async () => {
     m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "error", attempts: 2 });
     m.sendBillSync.mockResolvedValue({ state: "error", errors: ["timeout"] });
@@ -417,6 +474,7 @@ describe("resultado y persistencia", () => {
       nextAttemptAt: new Date(NOW.getTime() + emissionBackoffMs(3)),
     });
     expect(m.sendDianInvoiceEmail).not.toHaveBeenCalled();
+    expect(m.printAcceptedDianInvoice).not.toHaveBeenCalled();
   });
 
   it("rechazada ⇒ queda el motivo pero SIN reintento automático", async () => {
@@ -429,6 +487,10 @@ describe("resultado y persistencia", () => {
       nextAttemptAt: null,
       attempts: { increment: 1 },
     });
+    // Rechazada ⇒ nada de papel: una "factura electrónica" sin CUFE
+    // aceptado no existe.
+    expect(m.sendDianInvoiceEmail).not.toHaveBeenCalled();
+    expect(m.printAcceptedDianInvoice).not.toHaveBeenCalled();
   });
 
   it("si revienta la firma, el documento queda en error con backoff (no reclamado para siempre)", async () => {

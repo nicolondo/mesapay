@@ -14,6 +14,13 @@ import { fmtCOP } from "@/lib/format";
 import { ApplePayButton } from "./ApplePayButton";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
+import {
+  billingDocument,
+  creditAvailableCents,
+  discountBpsToPctText,
+  type BillingCustomerRecord,
+} from "@/components/billingCustomers/types";
 import {
   checkoutTaxLine,
   outstandingSubtotalCents as computeOutstandingSubtotalCents,
@@ -48,7 +55,32 @@ type MethodKind =
   | "kushki_pse"
   | "external_terminal"
   | "demo_cash"
+  | "customer_credit"
   | "representacion";
+
+/** Cliente de facturación asociado a la cuenta en el cobro (staff). */
+export type PayCustomer = Pick<
+  BillingCustomerRecord,
+  | "id"
+  | "customerName"
+  | "docType"
+  | "docNumber"
+  | "verificationDigit"
+  | "creditEnabled"
+  | "creditLimitCents"
+  | "discountEnabled"
+  | "discountBps"
+  | "debtCents"
+>;
+
+type DiscountOutcome = {
+  applied: boolean;
+  changed?: boolean;
+  reason?: string;
+  discountPct: number | null;
+  discountCents: number;
+  subtotalCents: number;
+};
 
 export function PayClient({
   tenantSlug,
@@ -87,6 +119,9 @@ export function PayClient({
   salesTax = null,
   vouchersEnabled = false,
   initialTipPct = null,
+  customerStepEnabled = false,
+  creditEnabled = false,
+  linkedCustomer = null,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -191,6 +226,14 @@ export function PayClient({
   // Módulo `vouchers` activo: se ofrece aplicar un bono empresarial a la
   // cuenta antes de elegir cómo pagar el resto.
   vouchersEnabled?: boolean;
+  // Paso opcional "Cliente" (sólo staff): el comercio tiene clientes de
+  // facturación. Asociar la cuenta aplica el descuento del cliente y deja
+  // preseleccionado el cobro a crédito.
+  customerStepEnabled?: boolean;
+  // Hay clientes con crédito habilitado: se ofrece "Cobrar a crédito".
+  creditEnabled?: boolean;
+  // Cliente ya ligado a la cuenta por la solicitud de factura nominativa.
+  linkedCustomer?: PayCustomer | null;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -215,6 +258,11 @@ export function PayClient({
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
   const [representacionOpen, setRepresentacionOpen] = useState(false);
+  const [creditOpen, setCreditOpen] = useState(false);
+  // Cliente asociado a la cuenta (paso "Cliente" o factura nominativa) y el
+  // aviso del descuento que dejó la última asociación.
+  const [customer, setCustomer] = useState<PayCustomer | null>(linkedCustomer);
+  const [customerNotice, setCustomerNotice] = useState<string | null>(null);
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -637,6 +685,82 @@ export function PayClient({
     }
   }
 
+  /**
+   * Paso "Cliente": asocia la cuenta a un cliente de facturación. El server
+   * aplica su descuento comercial (si lo tiene) con el mecanismo del
+   * descuento por comensal y devuelve la deuda de crédito. Si cambió lo
+   * cobrable, se relee la pantalla (los totales vienen del server).
+   */
+  async function linkCustomer(picked: BillingCustomerRecord) {
+    setErr(null);
+    setCustomerNotice(null);
+    try {
+      const res = await fetch(`/api/operator/orders/${orderId}/customer`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ billingCustomerId: picked.id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.customer) {
+        setErr(apiError(j, t("customerErr_generic")));
+        return;
+      }
+      const linked = j.customer as PayCustomer;
+      const d = j.discount as DiscountOutcome | undefined;
+      setCustomer(linked);
+      if (d?.applied) {
+        setCustomerNotice(
+          t("customerDiscountApplied", {
+            pct: discountBpsToPctText(linked.discountBps),
+            amount: fmtCOP(d.discountCents),
+            total: fmtCOP(Math.max(0, d.subtotalCents - d.discountCents)),
+          }),
+        );
+        if (d.changed) router.refresh();
+      } else if (d?.reason === "existing_greater") {
+        setCustomerNotice(t("customerDiscountKept", { pct: d.discountPct ?? 0 }));
+      } else if (d?.reason === "not_applicable" && linked.discountEnabled) {
+        setCustomerNotice(t("customerDiscountNotApplicable"));
+      }
+    } catch {
+      setErr(t("customerErr_generic"));
+    }
+  }
+
+  /**
+   * Cobro A CRÉDITO: la cuenta queda pagada para la mesa sin que entre
+   * plata; lo pendiente (más la propina) pasa a ser deuda del cliente. Los
+   * errores llegan como códigos (credit_disabled, credit_limit_exceeded…)
+   * y se traducen acá.
+   */
+  async function payWithCredit(billingCustomerId: string) {
+    setBusy("customer_credit");
+    setErr(null);
+    try {
+      const res = await fetch(`/api/operator/orders/${orderId}/settle-credit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ billingCustomerId, tipCents: amountTip }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const key = typeof j.error === "string" ? `creditErr_${j.error}` : "";
+        setErr(
+          key && t.has(key)
+            ? t(key, { available: fmtCOP(j.availableCents ?? 0) })
+            : apiError(j, t("creditErr_generic")),
+        );
+        return;
+      }
+      setCreditOpen(false);
+      router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
+    } catch {
+      setErr(t("creditErr_generic"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Gastos de representación: cerrar la cuenta como cortesía ($0) sin cobrar,
   // con nota de a quién se le dio. La mesa queda cerrada → vuelve a mesas.
   async function payWithRepresentacion(note: string) {
@@ -653,7 +777,9 @@ export function PayClient({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        // Códigos conocidos (p. ej. comp_not_allowed: el rol no puede no
+        // cobrar) se traducen; el resto conserva el mensaje del servidor.
+        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
       setRepresentacionOpen(false);
@@ -1012,6 +1138,18 @@ export function PayClient({
 
       {err && <div className="mt-4 text-danger text-sm">{err}</div>}
 
+      {/* Cliente (staff): asociar la cuenta a un cliente registrado aplica su
+          descuento y deja listo el cobro a crédito. Opcional. */}
+      {operatorMode && customerStepEnabled && !alreadyPaid && (
+        <CustomerCard
+          customer={customer}
+          notice={customerNotice}
+          disabled={busy !== null}
+          currency={currency}
+          onPick={linkCustomer}
+        />
+      )}
+
       {/* Bono empresarial: se aplica ANTES de elegir el medio para el resto.
           El bono paga comida (nunca propina): cubre lo pendiente hasta su
           saldo; lo que falte se paga con cualquier otro medio y el saldo
@@ -1143,6 +1281,22 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
+        {operatorMode && creditEnabled && (
+          <div>
+            <PayButton
+              kind="credit"
+              disabled={busy !== null || outstandingSubtotalCents <= 0}
+              busy={busy === "customer_credit"}
+              onClick={() => {
+                setErr(null);
+                setCreditOpen(true);
+              }}
+              amountCents={outstandingSubtotalCents + amountTip}
+              operatorMode={operatorMode}
+            />
+            <p className="text-[11px] text-muted-2 text-center pt-1">{t("creditNote")}</p>
+          </div>
+        )}
         {operatorMode && compEnabled && (
           <button
             type="button"
@@ -1195,6 +1349,22 @@ export function PayClient({
             setCashTenderOpen(false);
             payWithCash(tenderCents, changeGivenCents);
           }}
+        />
+      )}
+      {creditOpen && (
+        <CreditSheet
+          initialCustomer={customer}
+          subtotalCents={outstandingSubtotalCents}
+          tipCents={amountTip}
+          busy={busy === "customer_credit"}
+          error={err}
+          currency={currency}
+          onClose={() => {
+            setCreditOpen(false);
+            setErr(null);
+          }}
+          onPick={linkCustomer}
+          onConfirm={payWithCredit}
         />
       )}
       {representacionOpen && (
@@ -2617,6 +2787,7 @@ function PayButton({
     | "external_terminal"
     | "pse"
     | "cash"
+    | "credit"
     | "demo_terminal";
   disabled: boolean;
   busy: boolean;
@@ -2651,7 +2822,7 @@ type ButtonMeta = { labelKey: string; icon: string; className: string };
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
 // frame the action correctly.
 const BUTTON_META_DINER: Record<
-  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "credit" | "demo_terminal",
   ButtonMeta
 > = {
   apple: {
@@ -2684,6 +2855,11 @@ const BUTTON_META_DINER: Record<
     icon: "💵",
     className: "mp-pay--outline",
   },
+  credit: {
+    labelKey: "opBtnCredit", // nunca se muestra al comensal; por el tipo
+    icon: "🧾",
+    className: "mp-pay--outline",
+  },
   demo_terminal: {
     labelKey: "btnDemoTerminal",
     icon: "🧪",
@@ -2695,7 +2871,7 @@ const BUTTON_META_DINER: Record<
 // They aren't "calling the mesero" or "asking for the datáfono" —
 // they're recording how the diner is paying right now.
 const BUTTON_META_OP: Record<
-  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "credit" | "demo_terminal",
   ButtonMeta
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
@@ -2718,6 +2894,11 @@ const BUTTON_META_OP: Record<
   cash: {
     labelKey: "opBtnCash",
     icon: "💵",
+    className: "mp-pay--outline",
+  },
+  credit: {
+    labelKey: "opBtnCredit",
+    icon: "🧾",
     className: "mp-pay--outline",
   },
   demo_terminal: {
@@ -2956,6 +3137,215 @@ function VoucherCard({
         </div>
       )}
       {err && <div className="mt-3 text-sm text-danger">{err}</div>}
+    </div>
+  );
+}
+
+/** Línea "Debe hoy · Límite · Disponible" de un cliente con crédito. */
+function CustomerCreditLine({ customer }: { customer: PayCustomer }) {
+  const t = useTranslations("pay");
+  const available = creditAvailableCents(customer);
+  return (
+    <div className="text-xs text-muted mt-1">
+      <span className={(customer.debtCents ?? 0) > 0 ? "text-terracotta" : ""}>
+        {t("customerDebt", { amount: fmtCOP(customer.debtCents ?? 0) })}
+      </span>
+      {customer.creditLimitCents != null && (
+        <span>
+          {" · "}
+          {t("customerCreditLimit", {
+            limit: fmtCOP(customer.creditLimitCents),
+            available: fmtCOP(available ?? 0),
+          })}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Paso opcional "Cliente" del cobro (staff): quién es el cliente de
+ * facturación de esta cuenta. Al elegirlo el server aplica su descuento y
+ * devuelve su deuda; acá se muestra el resultado y se puede cambiar.
+ */
+function CustomerCard({
+  customer,
+  notice,
+  disabled,
+  currency,
+  onPick,
+}: {
+  customer: PayCustomer | null;
+  notice: string | null;
+  disabled: boolean;
+  currency: string;
+  onPick: (customer: BillingCustomerRecord) => void;
+}) {
+  const t = useTranslations("pay");
+  const [picking, setPicking] = useState(customer === null);
+  return (
+    <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
+      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+        {t("customerCardTitleOp")}
+      </div>
+      {customer && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium break-words">{customer.customerName}</div>
+            <div className="text-xs text-muted">
+              {customer.docType} {billingDocument(customer)}
+              {customer.discountEnabled && customer.discountBps > 0
+                ? ` · ${t("customerDiscountBadge", { pct: discountBpsToPctText(customer.discountBps) })}`
+                : ""}
+            </div>
+            {customer.creditEnabled && <CustomerCreditLine customer={customer} />}
+          </div>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setPicking((v) => !v)}
+            className="text-xs underline text-muted shrink-0 disabled:opacity-50"
+          >
+            {picking ? t("customerKeep") : t("customerChange")}
+          </button>
+        </div>
+      )}
+      {!customer && <p className="text-xs text-muted mb-3">{t("customerCardHint")}</p>}
+      {picking && (
+        <div className={customer ? "mt-3" : ""}>
+          <CustomerPicker
+            currency={currency}
+            onSelect={(picked) => {
+              setPicking(false);
+              onPick(picked);
+            }}
+          />
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="mt-3 text-sm text-success">
+          {notice}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Cobrar a crédito": elige (o confirma) el cliente con crédito, muestra lo
+ * que debe hoy, su límite y lo que se le va a cargar, y confirma. El monto
+ * es TODO lo pendiente más la propina: no hay crédito parcial.
+ */
+function CreditSheet({
+  initialCustomer,
+  subtotalCents,
+  tipCents,
+  busy,
+  error,
+  currency,
+  onClose,
+  onPick,
+  onConfirm,
+}: {
+  initialCustomer: PayCustomer | null;
+  subtotalCents: number;
+  tipCents: number;
+  busy: boolean;
+  error: string | null;
+  currency: string;
+  onClose: () => void;
+  onPick: (customer: BillingCustomerRecord) => void;
+  onConfirm: (billingCustomerId: string) => void;
+}) {
+  const t = useTranslations("pay");
+  const [picked, setPicked] = useState<PayCustomer | null>(initialCustomer);
+  const total = subtotalCents + tipCents;
+  const usable = picked?.creditEnabled ? picked : null;
+  const available = usable ? creditAvailableCents(usable) : null;
+  const overLimit = available != null && total > available;
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted">
+              {t("creditKicker", { amount: fmtCOP(total) })}
+            </div>
+            <h2 className="font-display text-2xl mt-1">{t("creditTitle")}</h2>
+            <p className="text-xs text-muted mt-1">{t("creditNote")}</p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted text-sm shrink-0"
+            aria-label={t("close")}
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        {picked && !picked.creditEnabled && (
+          <p className="text-sm text-danger">{t("creditCustomerNoCredit", { name: picked.customerName })}</p>
+        )}
+        {usable ? (
+          <div className="rounded-xl border border-hairline bg-ivory p-3">
+            <div className="text-sm font-medium break-words">{usable.customerName}</div>
+            <div className="text-xs text-muted">
+              {usable.docType} {billingDocument(usable)}
+            </div>
+            <CustomerCreditLine customer={usable} />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setPicked(null)}
+              className="mt-2 text-xs underline text-muted disabled:opacity-50"
+            >
+              {t("customerChange")}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs text-muted mb-2">{t("creditPickHint")}</p>
+            <CustomerPicker
+              creditOnly
+              currency={currency}
+              onSelect={(c) => {
+                setPicked(c);
+                onPick(c);
+              }}
+            />
+          </div>
+        )}
+
+        <div className="rounded-xl border border-hairline bg-paper p-3 text-sm">
+          {t("creditAmountLine", {
+            subtotal: fmtCOP(subtotalCents),
+            tip: fmtCOP(tipCents),
+            total: fmtCOP(total),
+          })}
+        </div>
+        {overLimit && (
+          <p className="text-sm text-danger">
+            {t("creditErr_credit_limit_exceeded", { available: fmtCOP(available ?? 0) })}
+          </p>
+        )}
+        {error && <div className="text-sm text-danger">{error}</div>}
+
+        <button
+          type="button"
+          onClick={() => usable && onConfirm(usable.id)}
+          disabled={!usable || busy || total <= 0 || overLimit}
+          className="w-full min-h-[52px] rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-40"
+        >
+          {busy ? t("creditConfirming") : t("creditConfirm", { amount: fmtCOP(total) })}
+        </button>
+      </div>
     </div>
   );
 }

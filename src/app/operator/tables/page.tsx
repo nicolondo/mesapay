@@ -15,6 +15,12 @@ import {
   type TileData,
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
+import {
+  canCompOrders,
+  resolveCompAllowedRoles,
+  type CompPolicyView,
+} from "@/lib/staffPolicies";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +80,13 @@ export default async function TablesPage({
     session?.user?.role,
     tenant?.adminOnlyCharge ?? false,
   );
+  // Quién puede "No cobrar" un plato: si el rol de quien mira no está en la
+  // lista del comercio, el sheet deshabilita el botón y dice quién sí puede.
+  // El servidor bloquea igual (src/lib/compGuard.ts).
+  const compPolicy: CompPolicyView = {
+    locked: !canCompOrders(session?.user?.role, tenant?.compAllowedRoles),
+    allowedRoles: resolveCompAllowedRoles(tenant?.compAllowedRoles),
+  };
 
   // Mesero scoped: sólo ve sus mesas asignadas — y nunca las facturas
   // manuales, tenga o no sección.
@@ -119,6 +132,20 @@ export default async function TablesPage({
           // su descuento en el detalle de la mesa.
           diner: {
             select: { id: true, name: true, email: true, cedula: true },
+          },
+          // Cliente de la factura (solicitud pendiente): en una factura
+          // manual es lo que el operador identifica desde la ficha.
+          invoiceRequests: {
+            where: { status: "pending" },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              status: true,
+              customerName: true,
+              docType: true,
+              docNumber: true,
+              email: true,
+            },
           },
         },
       },
@@ -214,6 +241,7 @@ export default async function TablesPage({
             cedula: order.diner.cedula,
           }
         : null,
+      invoiceRequest: order.invoiceRequests[0] ?? null,
       outstandingCents,
       needsWaiter: order.needsWaiter,
       rounds: order.rounds.map((r) => ({
@@ -421,9 +449,14 @@ export default async function TablesPage({
         counterMode={counterMode}
         isMeseroView={isMeseroView}
         chargeLocked={chargeLocked}
+        compPolicy={compPolicy}
         freeTables={freeTables}
         allTables={allTablesForMove}
         country={tenant!.country}
+        salesTax={{
+          kind: asSalesTaxKind(tenant!.salesTaxKind),
+          pct: tenant!.salesTaxPct,
+        }}
       />
     </div>
   );

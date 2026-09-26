@@ -15,6 +15,7 @@ import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { canCompOrders } from "@/lib/staffPolicies";
 import { compBlockedResponse } from "@/lib/compGuard";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { assertNoPaymentInFlightHolding, releasePaymentRequests } from "@/lib/payments/staffCharge";
 
 export const dynamic = "force-dynamic";
 
@@ -110,8 +111,12 @@ async function POSTHandler(
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
     if (["paid", "cancelled"].includes(current.status)) return null;
-    const payments = await tx.payment.count({ where: { orderId: order.id, status: { in: ["approved", "pending"] } } });
-    if (payments) return null;
+    // Una cuenta con algo ya cobrado no se regala.
+    const approved = await tx.payment.count({ where: { orderId: order.id, status: "approved" } });
+    if (approved) return null;
+    // Un pago en línea en curso tampoco: quizá ya se cobró. 409
+    // pending_payment_in_flight con cuál es (se revierte la transacción).
+    await assertNoPaymentInFlightHolding(tx, order.id);
     // Ítems vivos = no cancelados y en rounds no cancelados. Valor de venta
     // regalado = Σ precio (para el registro; luego el subtotal queda en 0).
     const items = await tx.orderItem.findMany({
@@ -127,12 +132,10 @@ async function POSTHandler(
       0,
     );
     const now = new Date();
-    // Barrer pendings en vuelo (datáfono/efectivo sin confirmar): la cuenta
-    // se cierra como cortesía, esos intentos quedan obsoletos.
-    await tx.payment.updateMany({
-      where: { orderId: order.id, status: "pending" },
-      data: { status: "declined" },
-    });
+    // Las solicitudes del comensal ("voy a pagar en efectivo", "tráiganme
+    // el datáfono") quedan obsoletas: la cuenta se cierra como cortesía.
+    // Son los únicos pendientes que pueden quedar a esta altura.
+    await releasePaymentRequests(tx, order.id);
     // Marcar los ítems como comp: consumen inventario (se prepararon) pero
     // NO venden — reusa la exclusión de ventas existente en contabilidad.
     if (items.length > 0) {

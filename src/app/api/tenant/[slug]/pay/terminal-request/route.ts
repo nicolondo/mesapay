@@ -11,6 +11,8 @@ import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
+import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -60,33 +62,31 @@ async function POSTHandler(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  // Cap before queuing the datáfono push. Excluímos TODOS los
-  // pendings (excludePending=true) porque vamos a barrerlos dentro
-  // de la transacción al crear el nuevo. Diseño: "última intención
-  // del diner gana" — si tocó efectivo y luego cambió a datáfono,
-  // el cash pending se cancela y el datáfono toma el lugar.
-  //
-  // Trade-off conocido: en escenarios de split-bill simultáneo
-  // (raro), el segundo diner podría cancelar el pending del
-  // primero. Resolverlo correctamente requiere tracking de identidad
-  // por diner (cookie/session), que no tenemos hoy. Para el caso
-  // 99% (single payer cambia de método) este sweep es lo correcto.
+  // Tope antes de encolar el datáfono. Para el comensal cuenta lo aprobado
+  // Y lo pendiente (excludePending=false): sus otros pendientes conservan la
+  // reserva hasta que se confirme su resultado. El staff del comercio (modo
+  // mesero del checkout) no pasa por acá: su tope se verifica DENTRO de la
+  // transacción, donde además reemplaza las solicitudes del comensal (ver
+  // prepareStaffCharge).
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
-  const cap = await validateNewPaymentAmount(order.id, foodPortion, {
-    excludePending: false,
-  });
-  if (!cap.ok) {
-    return NextResponse.json(
-      {
-        error: cap.reason,
-        outstandingCents: cap.outstandingCents,
-        message:
-          cap.reason === "order_already_paid"
-            ? "Esta cuenta ya fue pagada."
-            : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
-      },
-      { status: 409 },
-    );
+  const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+  if (!staff) {
+    const cap = await validateNewPaymentAmount(order.id, foodPortion, {
+      excludePending: false,
+    });
+    if (!cap.ok) {
+      return NextResponse.json(
+        {
+          error: cap.reason,
+          outstandingCents: cap.outstandingCents,
+          message:
+            cap.reason === "order_already_paid"
+              ? "Esta cuenta ya fue pagada."
+              : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   // Quién inicia el cobro vía datáfono. Si lo lanza un mesero/operator
@@ -105,7 +105,11 @@ async function POSTHandler(
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "kushki_card_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });
     if (existing) return existing;
-    // Other pending payments keep their reservation until their outcome is confirmed.
+    // El comensal: sus otros pendientes conservan la reserva hasta que se
+    // confirme su resultado. El staff: reemplaza las solicitudes (efectivo,
+    // datáfono propio) y choca con 409 accionable si un pago en línea en
+    // curso no deja espacio.
+    if (staff) await prepareStaffCharge(tx, order.id, foodPortion);
     const p = await tx.payment.create({
       data: {
         orderId: order.id,

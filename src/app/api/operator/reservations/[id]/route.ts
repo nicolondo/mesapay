@@ -1,4 +1,5 @@
 import { lockOrder } from "@/lib/orderLock";
+import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -198,6 +199,11 @@ async function applyDeposit(
     await lockOrder(tx, order.id);
     const currentOrder = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
     if (["paid", "cancelled"].includes(currentOrder.status)) throw new Error("order_closed");
+    // Acreditar el abono es un cobro del staff: reemplaza las solicitudes
+    // del comensal pendientes (efectivo, datáfono propio), que ya no serían
+    // por el monto correcto, y responde 409 accionable si un pago en línea
+    // en curso no le deja espacio (ver staffCharge.ts).
+    await prepareStaffCharge(tx, order.id, depositCents);
     const pay = await tx.payment.create({
       data: {
         orderId: order.id,

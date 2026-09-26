@@ -17,7 +17,9 @@ const m = vi.hoisted(() => {
   const tx = {
     payment: {
       updateMany: vi.fn(async () => ({ count: 0 })),
-      findMany: vi.fn(async () => [] as { amountCents: number; tipCents: number }[]),
+      findMany: vi.fn(async () => [] as { amountCents: number; tipCents: number; status?: string }[]),
+      // Pago en línea en curso (PSE, tarjeta, Smart POS) — ninguno por defecto.
+      findFirst: vi.fn(async () => null as null | Record<string, unknown>),
       count: vi.fn(async () => 0),
       create: vi.fn(async (args: { data: Record<string, unknown> }) => ({ id: "pay-credit", ...args.data })),
     },
@@ -82,6 +84,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { POST } from "./route";
+import { PendingPaymentInFlightError } from "@/lib/payments/paymentInFlight";
 
 const call = (body: unknown = { billingCustomerId: "cust-1" }) =>
   POST(
@@ -110,6 +113,7 @@ beforeEach(() => {
   m.recompute.mockResolvedValue({ fullyPaid: true, outstandingCents: 0, paidSumCents: 100_000, tipsTotalCents: 0, foodPaidCents: 100_000 });
   // clearAllMocks no borra las implementaciones: la cuenta arranca sin pagos.
   m.tx.payment.findMany.mockResolvedValue([]);
+  m.tx.payment.findFirst.mockResolvedValue(null);
   m.tx.payment.count.mockResolvedValue(0);
   m.chargeBlocked.mockResolvedValue(false);
   m.meseroNeedsShift.mockResolvedValue(false);
@@ -186,21 +190,68 @@ describe("cobro", () => {
     expect(body.discount).toMatchObject({ applied: false, reason: "no_discount" });
   });
 
-  it("barre el efectivo pendiente del comensal y descuenta lo ya aprobado", async () => {
-    m.tx.payment.findMany.mockResolvedValue([{ amountCents: 40_000, tipCents: 0 }]);
+  it("reemplaza las solicitudes del comensal (efectivo, datáfono propio) y descuenta lo ya aprobado", async () => {
+    m.tx.payment.findMany.mockResolvedValue([{ amountCents: 40_000, tipCents: 0, status: "approved" }]);
     await call();
+    // Lo pendiente se mide sin las solicitudes del comensal: sólo aprobados
+    // y pagos en línea en curso.
+    expect(m.tx.payment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        orderId: "order-1",
+        OR: [
+          { status: "approved" },
+          { status: "pending", method: { notIn: ["cash", "demo_cash", "external_terminal"] } },
+        ],
+      },
+    }));
     expect(m.tx.payment.updateMany).toHaveBeenCalledWith({
-      where: { orderId: "order-1", method: { in: ["cash", "demo_cash"] }, status: "pending" },
+      where: { orderId: "order-1", method: { in: ["cash", "demo_cash", "external_terminal"] }, status: "pending" },
       data: { status: "declined" },
     });
     expect(m.tx.payment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amountCents: 60_000 }) });
   });
 
+  it("un cobro a crédito que rebota (tope) no le borra al comensal su solicitud", async () => {
+    m.summary.mockResolvedValue({
+      customer: { id: "cust-1", creditEnabled: true, creditLimitCents: 50_000, creditTermsDays: 30 },
+      charges: [],
+      payments: [],
+      debtCents: 0,
+      fifo: { charges: [], allocations: [], unappliedCents: 0 },
+    });
+    const res = await call();
+    expect(res.status).toBe(409);
+    expect(m.tx.payment.updateMany).not.toHaveBeenCalled();
+  });
+
   it("con nada pendiente responde nothing_outstanding", async () => {
-    m.tx.payment.findMany.mockResolvedValue([{ amountCents: 100_000, tipCents: 0 }]);
+    m.tx.payment.findMany.mockResolvedValue([{ amountCents: 100_000, tipCents: 0, status: "approved" }]);
     const res = await call();
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "nothing_outstanding" });
+    expect(m.tx.payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("si lo que no deja nada es un pago en línea en curso, lanza el error accionable (409 pending_payment_in_flight vía secureApi)", async () => {
+    m.tx.payment.findMany.mockResolvedValue([{ amountCents: 100_000, tipCents: 0, status: "pending" }]);
+    m.tx.payment.findFirst.mockResolvedValue({
+      id: "pse-1",
+      method: "kushki_pse",
+      amountCents: 100_000,
+      tipCents: 0,
+      createdAt: new Date("2026-09-25T19:03:18Z"),
+    });
+    const err = await call().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PendingPaymentInFlightError);
+    expect((err as PendingPaymentInFlightError).pending).toEqual({
+      paymentId: "pse-1",
+      method: "kushki_pse",
+      amountCents: 100_000,
+      tipCents: 0,
+      createdAt: "2026-09-25T19:03:18.000Z",
+    });
+    expect(m.tx.payment.create).not.toHaveBeenCalled();
+    expect(m.tx.payment.updateMany).not.toHaveBeenCalled();
   });
 
   it("cliente con descuento: lo aplica a la cuenta y cobra a crédito el neto", async () => {

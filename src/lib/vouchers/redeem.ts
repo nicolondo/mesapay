@@ -7,6 +7,11 @@ import { isModuleEnabled } from "@/lib/modules";
 import { lockOrder } from "@/lib/orderLock";
 import { computeOrderTotals, recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
+import {
+  assertNoPaymentInFlightHolding,
+  releasePaymentRequests,
+  staffOutstanding,
+} from "@/lib/payments/staffCharge";
 import { formatVoucherCode, looksLikeVoucherCode, normalizeVoucherCode } from "./code";
 import { voucherApplicableCents, voucherRedeemability } from "./validate";
 
@@ -25,6 +30,12 @@ import { voucherApplicableCents, voucherRedeemability } from "./validate";
  * la cuenta (contando pagos aprobados Y pendientes, como el resto de los
  * cobros). Si la cuenta es mayor el comensal paga la diferencia con
  * cualquier otro medio; si es menor, el saldo queda para la próxima.
+ *
+ * Canal `staff`: como en todo cobro del staff (ver
+ * `@/lib/payments/staffCharge`), las SOLICITUDES del comensal pendientes
+ * (efectivo, datáfono propio) no reservan nada —el bono las reemplaza y se
+ * declinan al aplicarlo— y si lo único que no deja aplicar el bono es un
+ * pago en línea en curso, sale el 409 `pending_payment_in_flight`.
  * Sin propina: el bono paga comida; la propina, si la deja, va en el
  * pago del resto.
  *
@@ -140,6 +151,7 @@ export async function previewVoucher(args: {
   restaurantId: string;
   code: string;
   orderId: string;
+  channel?: "diner" | "staff";
 }): Promise<VoucherPreview | { ok: false; error: RedeemError }> {
   const located = await locateVoucher(args.restaurantId, args.code);
   if (!located.ok) return located;
@@ -148,9 +160,13 @@ export async function previewVoucher(args: {
     select: { id: true },
   });
   if (!order) return { ok: false, error: "order_closed" };
-  const outstanding = await outstandingFor(db, args.orderId);
+  const staff = args.channel === "staff";
+  const outstanding = staff ? await staffOutstanding(db, args.orderId) : await outstandingFor(db, args.orderId);
   if (!outstanding || outstanding.closed) return { ok: false, error: "order_closed" };
-  if (outstanding.outstandingCents <= 0) return { ok: false, error: "nothing_outstanding" };
+  if (outstanding.outstandingCents <= 0) {
+    if (staff) await assertNoPaymentInFlightHolding(db, args.orderId);
+    return { ok: false, error: "nothing_outstanding" };
+  }
   return {
     ok: true,
     code: formatVoucherCode(located.voucher.code),
@@ -205,9 +221,14 @@ export async function redeemVoucher(args: {
       };
     }
 
-    const outstanding = await outstandingFor(tx, order.id);
+    const staff = args.channel === "staff";
+    const outstanding = staff ? await staffOutstanding(tx, order.id) : await outstandingFor(tx, order.id);
     if (!outstanding || outstanding.closed) return { error: "order_closed" };
-    if (outstanding.outstandingCents <= 0) return { error: "nothing_outstanding" };
+    if (outstanding.outstandingCents <= 0) {
+      // Staff: si lo que no deja nada es un pago en línea en curso, decirlo.
+      if (staff) await assertNoPaymentInFlightHolding(tx, order.id);
+      return { error: "nothing_outstanding" };
+    }
 
     // Bloqueo del bono y re-lectura del saldo bajo el lock: otra cuenta
     // puede haberlo usado entre el preview y acá.
@@ -234,6 +255,9 @@ export async function redeemVoucher(args: {
       await tx.voucher.update({ where: { id: voucherId }, data: { status: "exhausted" } });
     }
 
+    // El staff aplicó el bono: las solicitudes del comensal quedan
+    // reemplazadas (y su reserva, liberada antes del INSERT).
+    if (staff) await releasePaymentRequests(tx, order.id);
     const payment = await tx.payment.create({
       data: {
         orderId: order.id,

@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { invoiceUrlFor } from "@/lib/simpleInvoice";
+import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
 
 export const dynamic = "force-dynamic";
@@ -106,6 +107,9 @@ export default async function MeseroCobradoPage({
         orderPaid={order.status === "paid"}
         prefillEmail={order.customerEmail}
         operatorMode
+        // "Imprimir factura" sale por el agente (como las comandas); el
+        // navegador, sólo si el local no tiene impresora de facturas.
+        staffPrint={staffPrintAccessFor(role)}
       />
     </div>
   );

@@ -162,11 +162,9 @@ describe("buildThermalInvoice — totales", () => {
 });
 
 describe("buildThermalInvoice — pie legal", () => {
-  it("trae resolución, numeración autorizada, fecha y el agradecimiento", () => {
+  it("trae resolución, numeración autorizada y fecha (en UN párrafo) y el agradecimiento", () => {
     expect(build().footerLines).toEqual([
-      "dianResolution(18764012345678)",
-      "dianNumbering(1|5000)",
-      "dianDate(15/01/26)",
+      "dianResolution(18764012345678) · dianNumbering(1|5000) · dianDate(15/01/26)",
       "tipNoticeTitle",
       "tipNoticeBody",
       "thanks",

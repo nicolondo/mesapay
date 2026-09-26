@@ -21,6 +21,8 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import type { PrebillData } from "@/lib/prebill";
 import {
+  COMPACT_LINE_SPACING_DOTS,
+  DEFAULT_LINE_SPACING,
   INIT,
   LF,
   NORMAL_SIZE,
@@ -30,12 +32,22 @@ import {
   cut,
   feed,
   line,
+  lineSpacing,
   padRow,
+  pairRows,
   selectCodePage,
+  selectFont,
   separator,
+  smallColumnsForWidth,
   textSize,
   wrap,
 } from "./commands";
+import {
+  DETAIL_SEPARATOR,
+  itemChunks,
+  itemDetail,
+  totalRowChunks,
+} from "./compact";
 
 export type ThermalPrebillItem = {
   qty: number;
@@ -52,7 +64,7 @@ export type ThermalPrebillItem = {
 export type ThermalPrebillRow = {
   label: string;
   amount: string;
-  /** Negrita y doble alto: el TOTAL y lo pendiente. */
+  /** Negrita (y doble ancho si entra): el TOTAL y lo pendiente. */
   strong?: boolean;
 };
 
@@ -303,93 +315,95 @@ export function parsePrebillPayload(raw: unknown): ThermalPrebill | null {
   };
 }
 
-/** Sangría de los renglones colgados de un ítem (unitario, modificadores, nota). */
-const INDENT = "   ";
-
 /**
  * Bytes ESC/POS completos de la precuenta, listos para escribir tal cual al
  * socket TCP:9100. El agente NO interpreta nada.
+ *
+ * Mismo formato COMPACTO que la factura (ver `compact.ts`): el comensal
+ * compara una con la otra, así que se leen igual.
  */
 export function renderPrebill(doc: ThermalPrebill): Buffer {
   const cols = columnsForWidth(doc.paperWidthMm);
-  // A doble ancho entra la mitad de texto por renglón.
-  const bigCols = Math.floor(cols / 2);
+  const smallCols = smallColumnsForWidth(doc.paperWidthMm);
   const chunks: Buffer[] = [];
 
-  chunks.push(INIT, selectCodePage());
+  chunks.push(INIT, selectCodePage(), lineSpacing(COMPACT_LINE_SPACING_DOTS));
 
   // ── Identidad del comercio ──────────────────────────────────────────
-  // Doble ALTO y no doble ancho, como en la factura: se lee de un vistazo
-  // y una razón social larga sigue entrando en las 48/32 columnas.
-  chunks.push(align("center"), bold(true), textSize(1, 2));
+  chunks.push(align("center"), bold(true));
   for (const l of wrap(doc.businessName, cols)) chunks.push(line(l));
-  chunks.push(NORMAL_SIZE, bold(false));
-  for (const l of doc.businessLines) {
-    for (const w of wrap(l, cols)) chunks.push(line(w));
+  chunks.push(bold(false));
+  if (doc.businessLines.length > 0) {
+    for (const l of wrap(doc.businessLines.join(DETAIL_SEPARATOR), cols)) {
+      chunks.push(line(l));
+    }
   }
 
   // ── "PRECUENTA" + "no es una factura" ───────────────────────────────
-  // El título va al tamaño del número de factura, y el aviso pegado
+  // El título a doble ANCHO (no alto: un renglón) y el aviso pegado
   // debajo: quien reciba este papel no puede confundirlo con la factura.
   chunks.push(separator(cols));
-  chunks.push(bold(true), textSize(2, 2));
-  for (const l of wrap(doc.title, bigCols)) chunks.push(line(l));
+  chunks.push(bold(true), textSize(2, 1));
+  for (const l of wrap(doc.title, Math.floor(cols / 2))) chunks.push(line(l));
   chunks.push(NORMAL_SIZE, bold(false));
   for (const l of wrap(doc.notInvoiceLine, cols)) chunks.push(line(l));
 
-  // ── Fecha, mesa, código, mesero ─────────────────────────────────────
+  // ── Fecha, mesa, código, mesero — de a dos por renglón ──────────────
   chunks.push(align("left"));
-  for (const row of doc.metaRows) {
-    for (const l of padRow(row.label, row.value, cols)) chunks.push(line(l));
+  for (const l of pairRows(
+    doc.metaRows.map((r) => `${r.label} ${r.value}`.trim()),
+    cols,
+  )) {
+    chunks.push(line(l));
   }
 
   // ── Ítems ───────────────────────────────────────────────────────────
+  // El unitario ("2 x $ 24.500") abre el renglón de detalle, antes de los
+  // modificadores y la nota: es lo que el comensal revisa ("¿me cobraron
+  // bien?"), no lo que tiene que leer de lejos.
   chunks.push(separator(cols));
-  const hung = { first: INDENT, cont: INDENT + "  " };
   for (const item of doc.items) {
-    for (const l of padRow(`${item.qty}x ${item.name}`, item.amount, cols, {
-      cont: INDENT,
-    })) {
-      chunks.push(line(l));
-    }
-    // Los colgados van a tamaño normal y con sangría: es el detalle que el
-    // comensal revisa ("¿me cobraron el término que pedí?"), no lo que
-    // tiene que leer de lejos.
-    if (item.unit) {
-      for (const l of wrap(`${item.qty} x ${item.unit}`, cols, hung)) {
-        chunks.push(line(l));
-      }
-    }
-    for (const mod of item.modifiers) {
-      for (const l of wrap(`- ${mod}`, cols, hung)) chunks.push(line(l));
-    }
-    if (item.notes) {
-      for (const l of wrap(`"${item.notes}"`, cols, hung)) chunks.push(line(l));
-    }
+    chunks.push(
+      ...itemChunks(
+        {
+          qty: item.qty,
+          name: item.name,
+          amount: item.amount,
+          detail: itemDetail(
+            item.modifiers,
+            item.notes,
+            item.unit ? [`${item.qty} x ${item.unit}`] : [],
+          ),
+        },
+        cols,
+        smallCols,
+      ),
+    );
   }
 
   // ── Totales ─────────────────────────────────────────────────────────
   chunks.push(separator(cols));
-  for (const row of doc.totals) {
-    if (row.strong) chunks.push(bold(true), textSize(1, 2));
-    for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
-    if (row.strong) chunks.push(NORMAL_SIZE, bold(false));
-  }
+  for (const row of doc.totals) chunks.push(...totalRowChunks(row, cols));
 
   // ── Propina sugerida ────────────────────────────────────────────────
   // Bloque aparte, separado del TOTAL a propósito: la propina NO está
-  // sumada arriba y el aviso lo dice en letras.
+  // sumada arriba y el aviso lo dice en letras (en fuente B).
   if (doc.tipRows.length > 0) {
     chunks.push(separator(cols));
     for (const row of doc.tipRows) {
       for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
     }
     if (doc.tipNotice) {
-      for (const l of wrap(doc.tipNotice, cols)) chunks.push(line(l));
+      chunks.push(selectFont("B"));
+      for (const l of wrap(doc.tipNotice, smallCols)) chunks.push(line(l));
+      chunks.push(selectFont("A"));
     }
   }
 
   // ── Pie ─────────────────────────────────────────────────────────────
+  // Interlineado de fábrica antes del pie, como en la factura: el avance
+  // antes del corte se mide en renglones y con 24 puntos quedaría corto.
+  chunks.push(DEFAULT_LINE_SPACING);
   if (doc.footerLines.length > 0) {
     chunks.push(separator(cols), align("center"));
     for (const l of doc.footerLines) {

@@ -24,6 +24,9 @@
  *  - marca su contenido con `data-print-document`: así se distingue un
  *    404/500 (Next devuelve una página de error con `load` normal) o un
  *    rebote al login de un documento de verdad;
+ *  - declara el ancho de su papel en `data-print-width-mm`: antes de
+ *    `print()` el helper ajusta la página al alto del documento
+ *    (`fitPageToContent`) para que la térmica la imprima en UNA tira;
  *  - NO se auto-imprime cuando está embebida (`isEmbeddedFrame()`): acá
  *    imprime el helper, y si la página también lo hiciera saldrían dos
  *    diálogos.
@@ -31,6 +34,8 @@
  * El DOM entra por `PrintFrameEnv` (por defecto, el navegador) para poder
  * probar el flujo entero en vitest con entorno `node`, sin jsdom.
  */
+
+import { fitPageToContent } from "@/lib/print/fitPageToContent";
 
 export type PrintInBrowserReason =
   /** La URL no es de este origen: un iframe ajeno no se puede imprimir. */
@@ -94,6 +99,12 @@ export interface PrintFrameEnv {
 
 export interface PrintInHiddenFrameOptions {
   env?: PrintFrameEnv;
+  /**
+   * Se llama con el documento ya cargado, justo antes de `print()`. Por
+   * defecto, `fitPageToContent`: una sola página del alto del documento.
+   * Si tira, se imprime igual.
+   */
+  beforePrint?: (doc: PrintFrameDocument) => void;
   /** Selector que debe existir en el documento cargado. */
   readySelector?: string;
   /** Cuánto esperar el `load` antes de rendirse. */
@@ -172,6 +183,11 @@ export function printUrlInHiddenFrame(
   const loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_LOAD_TIMEOUT_MS;
   const cleanupTimeoutMs =
     options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
+  const beforePrint =
+    options.beforePrint ??
+    ((doc: PrintFrameDocument) => {
+      fitPageToContent(doc as unknown as Document, readySelector);
+    });
 
   return new Promise<void>((resolve, reject) => {
     let target: URL;
@@ -242,6 +258,11 @@ export function printUrlInHiddenFrame(
       // avisa (`afterprint` no es universal), a los 60 s.
       win.addEventListener("afterprint", teardown);
       cleanupTimer = env.setTimeout(teardown, cleanupTimeoutMs);
+      try {
+        beforePrint(doc);
+      } catch {
+        // Sin ajuste se imprime como siempre: peor papel, pero papel.
+      }
       try {
         win.focus();
         win.print();

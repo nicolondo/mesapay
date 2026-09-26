@@ -55,6 +55,33 @@ export function textSize(widthMul: number, heightMul: number): Buffer {
 /** Vuelve al tamaño normal (1×1). */
 export const NORMAL_SIZE = textSize(1, 1);
 
+/**
+ * Interlineado de la tirilla COMPACTA (factura y precuenta), en puntos.
+ *
+ * El de fábrica (`ESC 2`) es ~30 puntos para una fuente A de 24 de alto:
+ * seis puntos de aire por renglón que, en una cuenta de 40 platos, son
+ * varios centímetros de papel. 24 es el alto exacto de la fuente A: los
+ * renglones quedan pegados pero no se pisan. Por debajo de 24 algunas
+ * térmicas genéricas SÍ respetan el valor al pie de la letra y las tildes
+ * de las mayúsculas ("É") tocan el renglón de arriba; las Epson, en
+ * cambio, avanzan igual el alto del carácter. 24 es el punto en que las
+ * dos se comportan igual.
+ */
+export const COMPACT_LINE_SPACING_DOTS = 24;
+
+/**
+ * `ESC 3 n` — interlineado de n puntos (unidad de movimiento vertical de
+ * la impresora). Rige hasta el próximo `ESC 2` o `ESC @`. Una línea con
+ * letra más alta que n (doble alto) avanza igual lo que mide la letra.
+ */
+export function lineSpacing(dots: number): Buffer {
+  const n = Math.min(255, Math.max(0, Math.trunc(dots)));
+  return Buffer.from([ESC, 0x33, n]);
+}
+
+/** `ESC 2` — vuelve al interlineado de fábrica (~30 puntos, 1/6"). */
+export const DEFAULT_LINE_SPACING = Buffer.from([ESC, 0x32]);
+
 /** `ESC d n` — avanza n líneas. */
 export function feed(lines: number): Buffer {
   const n = Math.min(255, Math.max(0, Math.trunc(lines)));
@@ -99,31 +126,36 @@ export function columnsForWidth(paperWidthMm: number): number {
  * colgados. Ambas CUENTAN contra el ancho: por eso van acá y no
  * concatenadas por quien llama — un `"   " + texto` se perdería, porque
  * el corte por espacios se come el espacio inicial.
+ *
+ * `firstWidth` achica SÓLO el primer renglón del texto (el que comparte
+ * el papel con el precio, ver `itemRow`); los siguientes usan `width`.
  */
 export function wrap(
   text: string,
   width: number,
-  opts: { first?: string; cont?: string } = {},
+  opts: { first?: string; cont?: string; firstWidth?: number } = {},
 ): string[] {
   const w = Math.max(1, width);
+  const fw = Math.max(1, Math.min(w, opts.firstWidth ?? w));
   // Una sangría tan ancha como la línea dejaría el corte sin avanzar.
-  const fit = (s: string) => (s.length < w ? s : "");
-  const first = fit(opts.first ?? "");
-  const cont = fit(opts.cont ?? opts.first ?? "");
+  const fit = (s: string, lim: number) => (s.length < lim ? s : "");
+  const first = fit(opts.first ?? "", fw);
+  const cont = fit(opts.cont ?? opts.first ?? "", w);
   const out: string[] = [];
-  for (const paragraph of text.split("\n")) {
+  text.split("\n").forEach((paragraph, pIdx) => {
     const words = paragraph.split(/\s+/).filter(Boolean);
     if (words.length === 0) {
       out.push("");
-      continue;
+      return;
     }
     let current = "";
     let isFirst = true;
     const prefix = () => (isFirst ? first : cont);
+    const limit = () => (isFirst && pIdx === 0 ? fw : w);
     for (const word of words) {
       const candidate =
         current === "" ? prefix() + word : current + " " + word;
-      if (candidate.length <= w) {
+      if (candidate.length <= limit()) {
         current = candidate;
         continue;
       }
@@ -134,15 +166,81 @@ export function wrap(
       }
       // La palabra sola tampoco entra en un renglón: partirla a lo bruto.
       let rest = prefix() + word;
-      while (rest.length > w) {
-        out.push(rest.slice(0, w));
+      while (rest.length > limit()) {
+        const lim = limit();
+        out.push(rest.slice(0, lim));
         isFirst = false;
-        rest = cont + rest.slice(w);
+        rest = cont + rest.slice(lim);
       }
       current = rest;
     }
     if (current !== "") out.push(current);
+  });
+  return out;
+}
+
+/**
+ * Renglón de un ÍTEM en la tirilla compacta: "2x Nombre ....... $ 49.000"
+ * con el precio en el PRIMER renglón, y si el nombre no entra, el resto
+ * sigue abajo usando TODO el ancho (con la sangría `cont`), sin volver a
+ * reservar la columna del precio. Es lo que pidió el dueño: que el precio
+ * no le coma el ancho al nombre en cada renglón.
+ *
+ * Diferencia con `padRow` (que deja el monto en el ÚLTIMO renglón y
+ * reserva su columna en todos): en un nombre largo, `padRow` gasta un
+ * renglón más cada ~39 caracteres; acá los renglones colgados tienen 45.
+ */
+export function itemRow(
+  left: string,
+  right: string,
+  width: number,
+  opts: { cont?: string } = {},
+): string[] {
+  const w = Math.max(1, width);
+  const value = right.length > w ? right.slice(0, w) : right;
+  // Sin lugar para el texto al lado del valor: igual que `padRow`.
+  if (value.length + 2 > w) return padRow(left, right, w, opts);
+  const out = wrap(left, w, { cont: opts.cont, firstWidth: w - value.length - 1 });
+  if (out.length === 0) out.push("");
+  out[0] =
+    out[0] + " ".repeat(Math.max(1, w - out[0].length - value.length)) + value;
+  return out;
+}
+
+/**
+ * Empaqueta datos cortos DE A DOS por renglón: el primero a la izquierda y
+ * el segundo pegado a la derecha ("SM1234 ........ 24/09/26, 21:41"), si
+ * entran con al menos un espacio entre los dos. Si no entran, cada uno va
+ * en su renglón (partido con `wrap` si hace falta). El orden no cambia.
+ */
+export function pairRows(cells: string[], width: number): string[] {
+  const w = Math.max(1, width);
+  const out: string[] = [];
+  let i = 0;
+  while (i < cells.length) {
+    const a = cells[i];
+    const b = cells[i + 1];
+    if (b !== undefined && a.length + 1 + b.length <= w) {
+      out.push(a + " ".repeat(w - a.length - b.length) + b);
+      i += 2;
+      continue;
+    }
+    out.push(...wrap(a, w));
+    i += 1;
   }
+  return out;
+}
+
+/**
+ * Parte un texto en renglones de EXACTAMENTE `width` caracteres (el
+ * último, lo que sobre), sin mirar espacios. Es para el CUFE con su
+ * rótulo ("CUFE: 0123…"): partirlo por espacios dejaría "CUFE:" solo en
+ * un renglón, y el CUFE no tiene espacios donde partir.
+ */
+export function chunk(text: string, width: number): string[] {
+  const w = Math.max(1, width);
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i += w) out.push(text.slice(i, i + w));
   return out;
 }
 

@@ -5,8 +5,9 @@ import { parsePrebillPayload } from "@/lib/escpos";
 /**
  * El encolado de la precuenta. Lo que hay que blindar:
  *
- *   1. sólo alcanza a las impresoras de FACTURA activas (la precuenta no
- *      sale por la de la parrilla);
+ *   1. sale por la MISMA impresora que la factura: la elegida en
+ *      Configuración (aunque sea de comanda) o, sin elección, sólo las de
+ *      FACTURA activas (la precuenta no sale por la de la parrilla);
  *   2. sin impresora, o con el agente muerto, NO encola y lo dice con un
  *      `reason` — es lo que dispara el respaldo del navegador;
  *   3. sin `dedupeKey`: reimprimir a propósito está permitido;
@@ -28,6 +29,7 @@ type PrinterRow = {
 
 const h = vi.hoisted(() => ({
   printers: vi.fn(async (): Promise<PrinterRow[]> => []),
+  invoicePrinterId: null as string | null,
   findManyWhere: null as unknown,
   createMany: vi.fn(async (args: { data: Array<Record<string, unknown>> }) => ({
     count: args.data.length,
@@ -44,6 +46,9 @@ vi.mock("@/lib/db", () => ({
       }),
     },
     printJob: { createMany: h.createMany },
+    restaurant: {
+      findUnique: vi.fn(async () => ({ invoicePrinterId: h.invoicePrinterId })),
+    },
   },
 }));
 vi.mock("./prebillData", () => ({ loadPrebill: h.loadPrebill }));
@@ -103,6 +108,7 @@ let log: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   vi.clearAllMocks();
   h.findManyWhere = null;
+  h.invoicePrinterId = null;
   h.printers.mockResolvedValue([]);
   h.loadPrebill.mockResolvedValue({
     ok: true,
@@ -139,6 +145,22 @@ describe("enqueuePrebillTicket — a quién le llega", () => {
   it("una impresora de comanda que se colara por el where tampoco recibe la precuenta", async () => {
     h.printers.mockResolvedValue([cajaPrinter({ kind: "comanda", label: "Parrilla" })]);
     expect(await enqueuePrebillTicket(args)).toEqual({ queued: false, reason: "no_printer" });
+  });
+
+  it("con impresora ELEGIDA para facturas (aunque sea de comanda, como la 'Caja') sale por ésa y sólo por ésa", async () => {
+    h.invoicePrinterId = "printer-caja";
+    h.printers.mockResolvedValue([cajaPrinter({ kind: "comanda" })]);
+    const r = await enqueuePrebillTicket(args);
+    expect(h.findManyWhere).toEqual({ restaurantId: "rest-1", active: true, id: "printer-caja" });
+    expect(r).toEqual({ queued: true, printerName: "Caja", jobs: 1 });
+    expect(h.createMany.mock.calls[0][0].data[0]).toMatchObject({ printerId: "printer-caja" });
+  });
+
+  it("con impresora elegida, otra que se colara por el where no recibe nada", async () => {
+    h.invoicePrinterId = "printer-caja";
+    h.printers.mockResolvedValue([cajaPrinter({ id: "printer-parrilla", kind: "comanda" })]);
+    expect(await enqueuePrebillTicket(args)).toEqual({ queued: false, reason: "no_printer" });
+    expect(h.createMany).not.toHaveBeenCalled();
   });
 
   it("con el agente muerto (o revocado) no encola: la precuenta saldría cuando la mesa ya se fue", async () => {

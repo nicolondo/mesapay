@@ -82,6 +82,7 @@ import {
   invoicePrintArgs,
   invoicePrintDecision,
   invoicePrinterWhere,
+  printerReachable,
   type InvoiceDianPrintData,
   type InvoicePrintArgs,
   type InvoicePrintTrigger,
@@ -141,10 +142,29 @@ export async function buildInvoiceDocument(args: {
 }
 
 /**
+ * Resultado detallado del encolado: los botones del STAFF necesitan decir
+ * "Enviada a Caja" (o por qué no salió, para caer al navegador).
+ */
+export type InvoicePrintResult =
+  | { queued: true; jobs: number; printerNames: string[] }
+  | {
+      queued: false;
+      reason:
+        /** El comercio no existe (no debería pasar). */
+        | "not_found"
+        /** La regla dijo que este disparo no saca papel. */
+        | "skipped"
+        /** Sin impresora elegida ni de tipo factura activa. */
+        | "no_printer"
+        /** Hay impresora, pero su agente no responde (sólo con `requireReachable`). */
+        | "agent_offline"
+        /** Ya estaba encolada (misma `dedupeKey`): no sale otra copia. */
+        | "duplicate";
+    };
+
+/**
  * Encola la factura en la(s) impresora(s) que corresponde(n) — ver el
- * encabezado y `invoicePrinterWhere`. Devuelve cuántos trabajos creó
- * (0 = el local no tiene impresora para facturas, esta factura ya se
- * había encolado, o la regla dijo que no sale papel).
+ * encabezado y `invoicePrinterWhere` — y dice en cuáles.
  *
  * `trigger` decide si sale papel (`invoicePrintDecision`) y si lleva
  * clave de idempotencia. `reprint: true` es el atajo de `trigger:
@@ -157,10 +177,19 @@ export async function buildInvoiceDocument(args: {
  * para impedir que un humano pida otra copia. Sin esto, reimprimir una
  * factura que ya salió una vez daría 0 trabajos y el operador se quedaría
  * esperando papel.
+ *
+ * `requireReachable` (los botones del staff): sólo las impresoras cuyo
+ * agente responde (`printerReachable`); si ninguna, `agent_offline` y el
+ * que llama imprime desde el navegador. Los disparos automáticos no lo
+ * piden: encolan igual y el papel sale cuando el agente vuelva.
  */
-export async function enqueueInvoicePrint(
-  args: InvoicePrintArgs & { reprint?: boolean; trigger?: InvoicePrintTrigger },
-): Promise<number> {
+export async function enqueueInvoicePrintDetailed(
+  args: InvoicePrintArgs & {
+    reprint?: boolean;
+    trigger?: InvoicePrintTrigger;
+    requireReachable?: boolean;
+  },
+): Promise<InvoicePrintResult> {
   const trigger: InvoicePrintTrigger =
     args.trigger ?? (args.reprint ? "reprint" : "paid");
 
@@ -174,23 +203,34 @@ export async function enqueueInvoicePrint(
       enabledModules: true,
     },
   });
-  if (!restaurant) return 0;
+  if (!restaurant) return { queued: false, reason: "not_found" };
 
   const decision = invoicePrintDecision({
     trigger,
     autoPrint: restaurant.invoiceAutoPrint ?? true,
     einvoicing: isModuleEnabled(restaurant.enabledModules, "einvoicing"),
   });
-  if (decision !== "print") return 0;
+  if (decision !== "print") return { queued: false, reason: "skipped" };
 
-  const printers = await db.printer.findMany({
+  const found = await db.printer.findMany({
     where: invoicePrinterWhere(
       args.restaurantId,
       restaurant.invoicePrinterId ?? null,
     ),
-    select: { id: true, paperWidthMm: true, supportsQr: true },
+    select: {
+      id: true,
+      label: true,
+      paperWidthMm: true,
+      supportsQr: true,
+      agent: { select: { lastSeenAt: true, revokedAt: true, deletedAt: true } },
+    },
   });
-  if (printers.length === 0) return 0;
+  if (found.length === 0) return { queued: false, reason: "no_printer" };
+  const now = new Date();
+  const printers = args.requireReachable
+    ? found.filter((p) => printerReachable(p.agent, now))
+    : found;
+  if (printers.length === 0) return { queued: false, reason: "agent_offline" };
 
   // Cómo se pagó. `approved` nada más: un `pending` de efectivo es plata
   // que el comensal DIJO que iba a entregar, y esta tirilla se imprime
@@ -241,7 +281,27 @@ export async function enqueueInvoicePrint(
     data: rows,
     skipDuplicates: true,
   });
-  return created.count;
+  if (created.count === 0) return { queued: false, reason: "duplicate" };
+  return {
+    queued: true,
+    jobs: created.count,
+    printerNames: printers
+      .map((p) => p.label)
+      .filter((l): l is string => typeof l === "string" && l.length > 0),
+  };
+}
+
+/**
+ * Lo mismo que `enqueueInvoicePrintDetailed`, contado: cuántos trabajos
+ * creó (0 = el local no tiene impresora para facturas, esta factura ya se
+ * había encolado, o la regla dijo que no sale papel). Es el contrato que
+ * usan los disparos automáticos.
+ */
+export async function enqueueInvoicePrint(
+  args: InvoicePrintArgs & { reprint?: boolean; trigger?: InvoicePrintTrigger },
+): Promise<number> {
+  const r = await enqueueInvoicePrintDetailed(args);
+  return r.queued ? r.jobs : 0;
 }
 
 /**

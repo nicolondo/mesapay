@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { roleLabelKey } from "@/lib/orders/placedBy";
+import { fitPageToContent } from "@/lib/print/fitPageToContent";
 
 type Station = "kitchen" | "bar";
 
@@ -166,6 +167,9 @@ export function PrintListener({
     // the srcdoc has rendered.
     iframe.onload = () => {
       try {
+        // Una sola página del alto de la comanda: el driver de la térmica
+        // corta al final de cada página, y una comanda larga salía en dos.
+        if (iframe.contentDocument) fitPageToContent(iframe.contentDocument);
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
       } catch {
@@ -335,9 +339,11 @@ export function PrintListener({
 }
 
 /**
- * Build the printable HTML for a thermal ticket. We use @page sizing
- * so most browsers render at the printer's actual paper width and
- * skip the standard A4 margins.
+ * Build the printable HTML for a thermal ticket. El <body> es el documento
+ * imprimible (`data-print-document`, con el ancho del papel): antes de
+ * imprimir, `fitPageToContent` pide una página de ese ancho y del alto
+ * exacto de la comanda — `size: 80mm auto` no es CSS válido y el navegador
+ * lo ignoraba, así que paginaba al largo del papel del driver.
  */
 function buildTicketHtml(ticket: Ticket, t: Tr, tk: Tr): string {
   const width = ticket.paperWidthMm;
@@ -374,7 +380,7 @@ function buildTicketHtml(ticket: Ticket, t: Tr, tk: Tr): string {
 <html><head><meta charset="utf-8"/>
 <title>${escapeHtml(t("ticketDocTitle"))}</title>
 <style>
-  @page { size: ${width}mm auto; margin: 0; }
+  @page { margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   /* Tamaños pensados para leer de lejos, con las manos ocupadas y bajo
@@ -453,7 +459,7 @@ function buildTicketHtml(ticket: Ticket, t: Tr, tk: Tr): string {
     color: #444;
   }
 </style></head>
-<body>
+<body data-print-document="comanda" data-print-width-mm="${width}">
   <div class="station">${escapeHtml(stationName)}</div>
   <div class="dest">${escapeHtml(dest)}</div>
   <div class="meta">${escapeHtml(displayOrderCode(ticket.order.shortCode))} · R${ticket.roundSeq} · ${time}${ticket.order.servingMode === "together" ? ` · ${escapeHtml(t("ticketMainsTogether"))}` : ""}</div>

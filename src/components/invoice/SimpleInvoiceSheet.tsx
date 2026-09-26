@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { checkOptionalInvoiceEmail } from "@/lib/simpleInvoiceRequest";
+import { StaffPrintButton } from "@/components/print/StaffPrintButton";
+import {
+  invoicePrintHref,
+  type StaffPrintAccess,
+} from "@/lib/print/staffPrint";
 
 /**
  * "Factura genérica" (tirilla a consumidor final): a lo sumo un correo, sin
@@ -28,11 +33,17 @@ export function SimpleInvoiceSheet({
   prefillEmail = null,
   beforePayment = false,
   operatorMode = false,
+  staffPrint = null,
   onClose,
   onSaved,
 }: {
   tenantSlug: string;
   orderId: string;
+  /**
+   * Quien mira es STAFF (verificado por el server): "Imprimir factura" sale
+   * por el agente, como las comandas. null (el comensal): abre la vista.
+   */
+  staffPrint?: StaffPrintAccess | null;
   /** Correo que el comensal ya tipeó al pagar con tarjeta, si lo tenemos. */
   prefillEmail?: string | null;
   /** La orden todavía no está paga (se está pidiendo desde el checkout). */
@@ -162,7 +173,24 @@ export function SimpleInvoiceSheet({
                 <span>{t("invGeneratedReadyBody")}</span>
               )}
             </p>
-            {!done.deferred && done.invoiceUrl && (
+            {!done.deferred && done.invoiceUrl && staffPrint && (
+              <div className="space-y-1">
+                <StaffPrintButton
+                  doc={{
+                    kind: "invoice",
+                    orderId,
+                    href: invoicePrintHref({ invoiceUrl: done.invoiceUrl }),
+                  }}
+                  label={t("invPrintInvoice")}
+                  canConfigurePrinters={staffPrint.canConfigurePrinters}
+                  className="block text-center w-full h-12 rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-60"
+                  statusClassName="block text-xs leading-snug"
+                />
+              </div>
+            )}
+            {/* El comensal: abre la vista para imprimirla en SU equipo.
+                Nunca encola en el local (ver `staffPrint.ts`). */}
+            {!done.deferred && done.invoiceUrl && !staffPrint && (
               <a
                 href={`${done.invoiceUrl}?print=1`}
                 target="_blank"

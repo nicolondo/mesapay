@@ -35,6 +35,12 @@ const h = vi.hoisted(() => {
       active: boolean;
       paperWidthMm: number | null;
       supportsQr?: boolean;
+      label?: string;
+      agent?: {
+        lastSeenAt: Date | null;
+        revokedAt: Date | null;
+        deletedAt: Date | null;
+      } | null;
     }>,
     restaurant: defaultRestaurant(),
     /** La fila de la tirilla que lee `printAcceptedDianInvoice`. */
@@ -61,8 +67,10 @@ const h = vi.hoisted(() => {
             )
             .map((p) => ({
               id: p.id,
+              label: p.label ?? p.id,
               paperWidthMm: p.paperWidthMm,
               supportsQr: p.supportsQr ?? false,
+              agent: p.agent ?? null,
             }));
         },
       ),
@@ -634,5 +642,58 @@ describe("printAcceptedDianInvoice — el hook de la aceptación de la DIAN", ()
     ).resolves.toBeUndefined();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe("enqueueInvoicePrintDetailed — lo que necesitan los botones del staff", () => {
+  const online = { lastSeenAt: new Date(), revokedAt: null, deletedAt: null };
+
+  it("dice por qué impresora salió (\"Enviada a Caja\"), aunque sea la de comanda elegida", async () => {
+    h.state.restaurant = { ...h.defaultRestaurant(), invoicePrinterId: "p-caja" };
+    h.state.printers = [cocina({ id: "p-caja", label: "Caja", agent: online })];
+    const { enqueueInvoicePrintDetailed } = await import("./invoiceQueue");
+    expect(
+      await enqueueInvoicePrintDetailed({ ...args, reprint: true, requireReachable: true }),
+    ).toEqual({ queued: true, jobs: 1, printerNames: ["Caja"] });
+  });
+
+  it("sin impresora ⇒ no_printer (el botón cae al navegador)", async () => {
+    const { enqueueInvoicePrintDetailed } = await import("./invoiceQueue");
+    expect(
+      await enqueueInvoicePrintDetailed({ ...args, reprint: true, requireReachable: true }),
+    ).toEqual({ queued: false, reason: "no_printer" });
+  });
+
+  it("con requireReachable y el agente caído ⇒ agent_offline, sin encolar nada", async () => {
+    const hace1h = new Date(Date.now() - 60 * 60 * 1000);
+    h.state.printers = [caja({ label: "Caja", agent: { ...online, lastSeenAt: hace1h } })];
+    const { enqueueInvoicePrintDetailed } = await import("./invoiceQueue");
+    expect(
+      await enqueueInvoicePrintDetailed({ ...args, reprint: true, requireReachable: true }),
+    ).toEqual({ queued: false, reason: "agent_offline" });
+    expect(h.state.created).toHaveLength(0);
+  });
+
+  it("los disparos automáticos (sin requireReachable) encolan igual con el agente caído", async () => {
+    const hace1h = new Date(Date.now() - 60 * 60 * 1000);
+    h.state.printers = [caja({ agent: { ...online, lastSeenAt: hace1h } })];
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrint(args)).toBe(1);
+  });
+
+  it("una impresora sin agente (creada en soporte) se deja pasar", async () => {
+    h.state.printers = [caja({ label: "Caja", agent: null })];
+    const { enqueueInvoicePrintDetailed } = await import("./invoiceQueue");
+    expect(
+      (await enqueueInvoicePrintDetailed({ ...args, reprint: true, requireReachable: true }))
+        .queued,
+    ).toBe(true);
+  });
+
+  it("el disparo automático con la regla en contra ⇒ skipped", async () => {
+    h.state.restaurant = { ...h.defaultRestaurant(), invoiceAutoPrint: false };
+    h.state.printers = [caja()];
+    const { enqueueInvoicePrintDetailed } = await import("./invoiceQueue");
+    expect(await enqueueInvoicePrintDetailed(args)).toEqual({ queued: false, reason: "skipped" });
   });
 });

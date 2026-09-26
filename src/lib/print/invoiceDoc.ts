@@ -190,7 +190,10 @@ export function buildThermalInvoice(args: {
 
   const paymentRows = paymentRowsFor(args.payments, t, money);
 
-  const footerLines = [
+  // La resolución DIAN (número, rango y fecha) va en UN párrafo, "·" de
+  // por medio: son tres datos cortos que en renglones separados gastaban
+  // tres renglones del pie. Siguen estando los tres, textuales.
+  const resolution = [
     s.dianResolution ? t("dianResolution", { res: s.dianResolution }) : null,
     s.dianResolutionFrom != null && s.dianResolutionTo != null
       ? t("dianNumbering", { from: s.dianResolutionFrom, to: s.dianResolutionTo })
@@ -198,6 +201,9 @@ export function buildThermalInvoice(args: {
     args.dianResolutionDateLabel
       ? t("dianDate", { date: args.dianResolutionDateLabel })
       : null,
+  ].filter((l): l is string => !!l);
+  const footerLines = [
+    resolution.length > 0 ? resolution.join(" · ") : null,
     t("tipNoticeTitle"),
     t("tipNoticeBody"),
     t("thanks"),

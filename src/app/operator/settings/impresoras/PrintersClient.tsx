@@ -791,6 +791,21 @@ function InvoicePrintingCard({
   // Las apagadas no se ofrecen (la API las rechaza), salvo la elegida,
   // para que el selector no muestre otra cosa que la realidad.
   const options = printers.filter((p) => p.active || p.id === printerId);
+  // Sin impresora elegida y sin ninguna de tipo factura activa, las
+  // facturas NO salen por el agente: salen desde el navegador, por el
+  // driver de Windows, que pagina y corta las largas en dos tiras. Es lo
+  // que le pasaba a un local con Barra, Caja y Cocina (todas de comanda).
+  // El aviso lo dice y el selector está justo abajo.
+  const noAgentPrinter =
+    !printerId && !activePrinters.some((p) => p.kind === "factura");
+  // Con facturación electrónica, el QR sale sólo si la impresora lo
+  // declaró (se marca a mano tras ver la factura de prueba).
+  const qrPending =
+    settings.einvoicing &&
+    (noAgentPrinter ||
+      (chosen?.active === true && !chosen.supportsQr) ||
+      (!printerId &&
+        activePrinters.some((p) => p.kind === "factura" && !p.supportsQr)));
 
   async function save(patch: {
     invoicePrinterId?: string | null;
@@ -861,6 +876,15 @@ function InvoicePrintingCard({
           : t("invoiceSettingsIntro")}
       </p>
 
+      {noAgentPrinter && activePrinters.length > 0 && (
+        <div
+          role="alert"
+          className="mb-3 rounded-lg border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-3 text-xs text-[#8F6828] leading-relaxed"
+        >
+          {t("invoiceBrowserWarning")}
+        </div>
+      )}
+
       <label
         htmlFor="invoice-printer"
         className="block text-xs font-medium mb-1"
@@ -904,6 +928,11 @@ function InvoicePrintingCard({
       {activePrinters.length === 0 && (
         <p className="mt-2 text-[11px] text-op-muted">
           {t("invoicePrinterNone")}
+        </p>
+      )}
+      {qrPending && activePrinters.length > 0 && (
+        <p className="mt-2 text-[11px] text-op-muted">
+          {t("invoiceQrReminder")}
         </p>
       )}
 

@@ -13,6 +13,11 @@ import { Field, Select } from "./InvoiceFields";
 import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
 import { billingDocument } from "@/components/billingCustomers/types";
 import type { DocType, InvoiceRequestSummary } from "./types";
+import { StaffPrintButton } from "@/components/print/StaffPrintButton";
+import {
+  invoicePrintHref,
+  type StaffPrintAccess,
+} from "@/lib/print/staffPrint";
 
 /**
  * Factura PERSONALIZADA: nombre o razón social, documento y correo. No se
@@ -40,9 +45,15 @@ export function InvoiceFormSheet({
   prefillEmail = null,
   beforePayment = false,
   operatorMode = false,
+  staffPrint = null,
   onClose,
   onSaved,
 }: {
+  /**
+   * Quien mira es STAFF (verificado por el server): "Imprimir factura" sale
+   * por el agente, como las comandas. null (el comensal): abre la vista.
+   */
+  staffPrint?: StaffPrintAccess | null;
   tenantSlug: string;
   orderId: string;
   /** Solicitud previa de esta misma cuenta, para corregir datos. */
@@ -211,14 +222,32 @@ export function InvoiceFormSheet({
               <p className="text-sm text-ink/80">
                 {t("invPersonalizedReadyBody")}
               </p>
-              <a
-                href={`${done.invoiceUrl}?print=1`}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
-              >
-                {t("invPrintInvoice")}
-              </a>
+              {staffPrint ? (
+                <div className="space-y-1">
+                  <StaffPrintButton
+                    doc={{
+                      kind: "invoice",
+                      orderId,
+                      href: invoicePrintHref({ invoiceUrl: done.invoiceUrl }),
+                    }}
+                    label={t("invPrintInvoice")}
+                    canConfigurePrinters={staffPrint.canConfigurePrinters}
+                    className="block text-center w-full h-12 rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-60"
+                    statusClassName="block text-xs leading-snug"
+                  />
+                </div>
+              ) : (
+                // El comensal: abre la vista para imprimirla en SU equipo.
+                // Nunca encola en el local (ver `staffPrint.ts`).
+                <a
+                  href={`${done.invoiceUrl}?print=1`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-center w-full h-12 leading-[3rem] rounded-2xl bg-ink text-bone text-sm font-medium"
+                >
+                  {t("invPrintInvoice")}
+                </a>
+              )}
             </>
           )}
           <button

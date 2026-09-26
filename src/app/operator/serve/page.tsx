@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { CASH_METHODS } from "@/lib/payments/methods";
 import { ServeBoard } from "./ServeBoard";
+import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 
 export const dynamic = "force-dynamic";
 
@@ -278,6 +279,7 @@ export default async function ServePage() {
         device ? { id: device.kushkiDeviceId, label: device.label } : null
       }
       chargeLocked={chargeLocked}
+      staffPrint={staffPrintAccessFor(session?.user?.role)}
     />
   );
 }

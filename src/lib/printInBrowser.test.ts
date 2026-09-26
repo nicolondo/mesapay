@@ -159,6 +159,44 @@ describe("printUrlInHiddenFrame", () => {
     expect(timers.size).toBe(0);
   });
 
+  it("ajusta la página al documento (beforePrint) ANTES de imprimir, con el documento cargado", async () => {
+    const { env, frames } = makeEnv();
+    const order: string[] = [];
+    const p = printUrlInHiddenFrame("/factura/abc", {
+      env,
+      beforePrint: (doc) => {
+        expect(doc.querySelector("[data-print-document]")).not.toBeNull();
+        order.push(`fit:${frames[0].fakeWin.printed}`);
+      },
+    });
+    frames[0].fire("load");
+    await p;
+    // Se ajustó cuando todavía no había impreso nada, y después imprimió.
+    expect(order).toEqual(["fit:0"]);
+    expect(frames[0].fakeWin.printed).toBe(1);
+  });
+
+  it("si el ajuste de página tira, imprime igual (peor papel, pero papel)", async () => {
+    const { env, frames } = makeEnv();
+    const p = printUrlInHiddenFrame("/factura/abc", {
+      env,
+      beforePrint: () => {
+        throw new Error("sin DOM");
+      },
+    });
+    frames[0].fire("load");
+    await expect(p).resolves.toBeUndefined();
+    expect(frames[0].fakeWin.printed).toBe(1);
+  });
+
+  it("el ajuste por defecto (fitPageToContent) no rompe con un documento que no se puede medir", async () => {
+    const { env, frames } = makeEnv();
+    const p = printUrlInHiddenFrame("/factura/abc", { env });
+    frames[0].fire("load");
+    await expect(p).resolves.toBeUndefined();
+    expect(frames[0].fakeWin.printed).toBe(1);
+  });
+
   it("si afterprint nunca llega, lo retira a los 60 s", async () => {
     const { env, frames, fireTimer, timers } = makeEnv();
     const p = printUrlInHiddenFrame("/factura/abc", { env });

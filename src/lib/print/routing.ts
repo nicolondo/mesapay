@@ -5,6 +5,7 @@
  */
 
 import type { InvoiceSnapshot } from "@/lib/invoice";
+import { agentLiveness } from "./agentStatus";
 
 /** Las dos estaciones que imprimen comanda. `counter` no prepara nada. */
 export type TicketStation = "kitchen" | "bar";
@@ -144,7 +145,8 @@ export function invoicePrintDecision(args: {
 }
 
 /**
- * A qué impresoras va la factura — el `where` del encolado:
+ * A qué impresoras va la factura (y la precuenta, que sale por el mismo
+ * papel) — el `where` del encolado:
  *
  *   · Con `Restaurant.invoicePrinterId`, SÓLO esa impresora, y sólo si
  *     está activa. Aunque sea de tipo `comanda`: un local con una sola
@@ -193,4 +195,34 @@ export function printerMatches(
 /** ¿Esta impresora saca la tirilla del cliente? */
 export function isInvoicePrinter(printer: { kind: string }): boolean {
   return printer.kind === "factura";
+}
+
+/** Lo que hace falta saber del agente de una impresora para juzgarla. */
+export type PrinterAgentState = {
+  lastSeenAt: Date | null;
+  revokedAt: Date | null;
+  deletedAt: Date | null;
+} | null;
+
+/**
+ * ¿Un trabajo encolado AHORA en esta impresora sale en segundos? Es la
+ * pregunta de los botones del staff (imprimir factura, precuenta): si el
+ * agente no responde, mejor imprimir desde el navegador ya que dejar un
+ * trabajo colgado que saldría media hora después, cuando la mesa ya se
+ * fue.
+ *
+ *   · Sin agente (impresora creada a mano en soporte): no se puede
+ *     juzgar, se la deja pasar.
+ *   · Agente revocado o eliminado: no.
+ *   · "late" (perdió un par de latidos) todavía cuenta: el trabajo sale
+ *     apenas vuelva a preguntar.
+ *
+ * Los disparos AUTOMÁTICOS (el cobro, la aceptación de la DIAN) no la
+ * usan: ahí se encola igual y sale cuando el agente vuelva.
+ */
+export function printerReachable(agent: PrinterAgentState | undefined, now: Date): boolean {
+  if (!agent) return true;
+  if (agent.revokedAt || agent.deletedAt) return false;
+  const state = agentLiveness(agent.lastSeenAt, now).state;
+  return state === "online" || state === "late";
 }

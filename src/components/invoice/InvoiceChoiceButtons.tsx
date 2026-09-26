@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 /**
  * Las dos salidas de factura, siempre juntas y con la misma jerarquía:
- * genérica (sólo correo, consumidor final) o personalizada (con datos).
+ * genérica (consumidor final, correo opcional) o personalizada (con datos).
  *
  * Se usa en el checkout (donde ahora se pide la factura) y en el acceso
  * discreto de la pantalla de "listo", para el que cambió de opinión.

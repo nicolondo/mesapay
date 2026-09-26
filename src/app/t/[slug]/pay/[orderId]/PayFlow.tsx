@@ -10,6 +10,10 @@ import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { isModuleEnabled } from "@/lib/modules";
 import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import {
+  isSimpleInvoiceRequested,
+  simpleInvoiceEmailFrom,
+} from "@/lib/simpleInvoiceRequest";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
 import { parseTipPct } from "@/lib/tips";
 import { loadCustomerCreditSummary } from "@/lib/customerCredit";
@@ -128,10 +132,12 @@ export async function PayFlow({
       email: true,
     },
   });
+  // La genérica pudo pedirse SIN correo (`simpleInvoiceEmail === ""`): igual
+  // cuenta como pedida y se muestra el resumen, no la pregunta.
   const invoiceIntent: InvoiceIntent | null = invoiceRequest
     ? { kind: "formal", summary: invoiceRequest }
-    : order.simpleInvoiceEmail
-      ? { kind: "simple", email: order.simpleInvoiceEmail }
+    : isSimpleInvoiceRequested(order.simpleInvoiceEmail)
+      ? { kind: "simple", email: simpleInvoiceEmailFrom(order.simpleInvoiceEmail) }
       : null;
 
   const approved = order.payments.filter((p) => p.status === "approved");

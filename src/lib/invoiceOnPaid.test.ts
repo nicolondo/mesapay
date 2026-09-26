@@ -180,6 +180,39 @@ describe("SIN facturación electrónica — exactamente como antes", () => {
     expect(m.emitDianInvoice).not.toHaveBeenCalled();
   });
 
+  // El dueño: "si no se pone ningún correo en lo de la factura electrónica
+  // genérica que igual se genere la factura para poderla imprimir". Pedida
+  // en el checkout sin correo queda `simpleInvoiceEmail: ""`, y eso cuenta
+  // como pedida: se emite (y `issueSimpleInvoice` la encola en la impresora
+  // de la caja) aunque no haya a quién mandarla.
+  it("emite la genérica pedida SIN correo: sale para imprimir y no se manda a nadie", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      order({ restaurant: off, simpleInvoiceEmail: "" }),
+    );
+    const r = await call();
+    expect(r).toEqual({ status: "issued", invoiceId: "inv-1", alreadyIssued: false, emit: null });
+    expect(m.issueSimpleInvoice).toHaveBeenCalledWith({
+      tenantId: "rest-1",
+      orderId: "order-1",
+      email: null,
+      customer: null,
+    });
+    // Sin correo no sale el comprobante (ni se intenta).
+    expect(m.sendSimpleInvoiceEmail).not.toHaveBeenCalled();
+    expect(m.ensureDianDocument).not.toHaveBeenCalled();
+  });
+
+  it("un correo de puros espacios vale como pedida sin correo", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      order({ restaurant: off, simpleInvoiceEmail: "   " }),
+    );
+    await call();
+    expect(m.issueSimpleInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ email: null, customer: null }),
+    );
+    expect(m.sendSimpleInvoiceEmail).not.toHaveBeenCalled();
+  });
+
   it("emite la genérica cuando sólo quedó el correo del checkout", async () => {
     m.orderFindUnique.mockResolvedValue(
       order({ restaurant: off, simpleInvoiceEmail: "ana@correo.com" }),
@@ -221,6 +254,21 @@ describe("CON facturación electrónica — toda venta se factura", () => {
       alreadyIssued: false,
       emit: { outcome: "accepted", documentId: "doc-1" },
     });
+  });
+
+  it("genérica pedida SIN correo: tirilla a consumidor final + DianDocument, sin correo", async () => {
+    m.orderFindUnique.mockResolvedValue(order({ simpleInvoiceEmail: "" }));
+    const r = await call();
+    expect(m.issueSimpleInvoice).toHaveBeenCalledWith({
+      tenantId: "rest-1",
+      orderId: "order-1",
+      email: null,
+      customer: null,
+    });
+    expect(m.sendSimpleInvoiceEmail).not.toHaveBeenCalled();
+    expect(m.ensureDianDocument).toHaveBeenCalledTimes(1);
+    expect(m.emitDianInvoice).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ status: "issued", invoiceId: "inv-1" });
   });
 
   it("con solicitud: tirilla nominativa + DianDocument, y NUNCA el comprobante por correo", async () => {
@@ -307,6 +355,18 @@ describe("idempotencia — dos rieles, una factura", () => {
 });
 
 describe("lo que NO es una venta facturable", () => {
+  it("una cortesía con la genérica pedida sin correo saca el comprobante para imprimir, no a la DIAN", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      order({ compedAt: new Date(), subtotalCents: 0, simpleInvoiceEmail: "" }),
+    );
+    const r = await call();
+    expect(m.issueSimpleInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ email: null, customer: null }),
+    );
+    expect(m.ensureDianDocument).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ status: "issued", emit: null });
+  });
+
   it("una cortesía ($0, comp) no se factura sola ni va a la DIAN", async () => {
     m.orderFindUnique.mockResolvedValue(order({ compedAt: new Date(), subtotalCents: 0 }));
     expect(await call()).toEqual({ status: "skipped", reason: "not_billable" });

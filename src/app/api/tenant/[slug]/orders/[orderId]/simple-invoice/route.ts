@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { issueSimpleInvoice } from "@/lib/simpleInvoice";
 import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
+import { SIMPLE_INVOICE_WITHOUT_EMAIL } from "@/lib/simpleInvoiceRequest";
 
 const bodySchema = z.object({
   // Correo OPCIONAL: vacío/ausente = solo se genera para imprimir/descargar
@@ -26,12 +27,19 @@ const bodySchema = z.object({
  * No requiere auth — el cliente está pagando (o acaba de pagar) y eligió
  * mandarse la factura. La barrera de que la orden esté paga vive en el helper.
  *
- * Se puede pedir ANTES de pagar (es lo que hace el checkout). En ese caso no
- * hay nada que emitir todavía, así que guardamos la intención en
- * `Order.simpleInvoiceEmail` y respondemos `deferred: true`;
- * `issueInvoiceOnPaid` emite y envía cuando el cobro se confirma.
- * Ojo: sin pago no hay tirilla que imprimir, así que en ese camino el correo
- * deja de ser opcional — sin él no habría nada que hacer después.
+ * Se puede pedir ANTES de pagar (es lo que hace el checkout, del comensal o
+ * del mesero). En ese caso no hay nada que emitir todavía, así que guardamos
+ * la intención en `Order.simpleInvoiceEmail` y respondemos `deferred: true`;
+ * `issueInvoiceOnPaid` la emite (y la imprime, si el local tiene impresora)
+ * cuando el cobro se confirma.
+ *
+ * En los DOS caminos el correo es opcional. El dueño: "si no se pone ningún
+ * correo en lo de la factura electrónica genérica que igual se genere la
+ * factura para poderla imprimir". Antes, sin pago y sin correo, esto
+ * respondía `email_required`: el correo era la única marca de "la pidieron"
+ * y, sin él, un comercio sin facturación electrónica no emitía nada al
+ * cobrar. Ahora "la pidieron sin correo" se guarda como string vacío en la
+ * misma columna (ver `src/lib/simpleInvoiceRequest.ts`), sin migración.
  */
 async function POSTHandler(
   req: Request,
@@ -53,23 +61,23 @@ async function POSTHandler(
     // catálogo i18n (mandarlo desde acá lo dejaba en español para todos).
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
+  const providedEmail = parsed.data.email ?? null;
 
   const result = await issueSimpleInvoice({
     tenantId: tenant.id,
     orderId,
-    email: parsed.data.email ?? null,
+    email: providedEmail,
   });
   if (!result.ok) {
     if (result.error === "order_not_paid") {
-      // Pedida durante el checkout: guardamos a dónde mandarla y salimos.
-      // El `updateMany` va acotado por restaurantId para no escribir sobre la
-      // orden de otro comercio si alguien juega con el slug.
-      if (!parsed.data.email) {
-        return NextResponse.json({ error: "email_required" }, { status: 400 });
-      }
+      // Pedida durante el checkout: guardamos la intención (con el correo,
+      // o vacía si no dejaron correo) y salimos. Pedirla de nuevo la
+      // corrige: el último pedido gana, también si ahora viene sin correo.
+      // El `updateMany` va acotado por restaurantId para no escribir sobre
+      // la orden de otro comercio si alguien juega con el slug.
       const touched = await db.order.updateMany({
         where: { id: orderId, restaurantId: tenant.id },
-        data: { simpleInvoiceEmail: parsed.data.email },
+        data: { simpleInvoiceEmail: providedEmail ?? SIMPLE_INVOICE_WITHOUT_EMAIL },
       });
       if (touched.count === 0) {
         return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -87,7 +95,6 @@ async function POSTHandler(
   // encontraba destinatario. Ahora el correo se persiste (en la tirilla si
   // no tenía, y en la orden, que es lo que lee la factura electrónica) y se
   // decide el envío con la misma regla que al pagar.
-  const providedEmail = parsed.data.email ?? null;
   const emailJustProvided =
     result.alreadyIssued && !!providedEmail && !result.email;
   if (emailJustProvided) {
@@ -101,11 +108,22 @@ async function POSTHandler(
         data: { simpleInvoiceEmail: providedEmail },
       }),
     ]);
+  } else {
+    // Constancia de que pidieron la genérica (con o sin correo), para que
+    // la pantalla de "listo" muestre su estado y el botón de imprimir
+    // después de refrescar, en vez de volver a preguntar. Sólo si nadie la
+    // había pedido: no pisa un correo anterior.
+    await db.order.updateMany({
+      where: { id: orderId, restaurantId: tenant.id, simpleInvoiceEmail: null },
+      data: { simpleInvoiceEmail: providedEmail ?? SIMPLE_INVOICE_WITHOUT_EMAIL },
+    });
   }
 
   // Fire-and-forget del correo — no bloqueamos la respuesta. Qué correo
   // (comprobante vs. factura electrónica) lo decide invoiceDelivery.ts:
-  // con `einvoicing` activo NUNCA sale el comprobante.
+  // con `einvoicing` activo NUNCA sale el comprobante. Sin correo no hace
+  // nada (sale por `no_email` antes de mirar nada más): la factura queda
+  // emitida para imprimir y no hay envío que reintentar.
   void deliverInvoiceEmail({
     tenant: { id: tenant.id, enabledModules: tenant.enabledModules },
     invoice: {

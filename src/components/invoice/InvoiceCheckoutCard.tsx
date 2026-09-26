@@ -54,7 +54,9 @@ export function InvoiceCheckoutCard({
                     name: intent.summary.customerName,
                     doc: `${intent.summary.docType} ${intent.summary.docNumber}`,
                   })
-                : t("invSummaryGeneric", { email: intent.email })}
+                : intent.email
+                  ? t("invSummaryGeneric", { email: intent.email })
+                  : t("invSummaryGenericNoEmail")}
             </p>
           </div>
           <button
@@ -91,7 +93,9 @@ export function InvoiceCheckoutCard({
           orderId={orderId}
           initial={intent?.kind === "formal" ? intent.summary : null}
           prefillEmail={
-            intent?.kind === "simple" ? intent.email : prefillEmail
+            intent?.kind === "simple"
+              ? (intent.email ?? prefillEmail)
+              : prefillEmail
           }
           beforePayment
           operatorMode={operatorMode}
@@ -103,6 +107,8 @@ export function InvoiceCheckoutCard({
         <SimpleInvoiceSheet
           tenantSlug={tenantSlug}
           orderId={orderId}
+          // Si ya la pidió, se respeta lo que eligió: sin correo queda sin
+          // correo (no se cuela el de la tarjeta al corregir).
           prefillEmail={intent?.kind === "simple" ? intent.email : prefillEmail}
           beforePayment
           operatorMode={operatorMode}

@@ -13,6 +13,7 @@ import { getEmailTranslator } from "./emailIntl";
 import { buildThermalInvoice } from "./print/invoiceDoc";
 import { renderInvoice } from "./escpos/invoice";
 import { columnsForWidth } from "./escpos/commands";
+import { readPaper, rowCapacity } from "./escpos/testPaper";
 import { buildInvoiceCommands } from "./payments/kushki/cloudPrint";
 
 const LABELS: TaxRowLabels = {
@@ -208,14 +209,15 @@ describe("advertencia de propina — documento completo", () => {
     });
     expect(doc.footerLines).toContain(tipNoticeTitle);
     expect(doc.footerLines).toContain(tipNoticeBody);
-    // El aviso es ASCII: retiramos únicamente los comandos ESC/POS del papel.
-    const paper = renderInvoice(doc).toString("latin1")
-      .replace(/\x1b@/g, "")
-      .replace(/\x1b[taEd][\s\S]/g, "")
-      .replace(/\x1d![\s\S]/g, "")
-      .replace(/\x1dV[\s\S]{2}/g, "");
-    expect(paper.replace(/\s+/g, " ")).toContain(tipNoticeTitle + " " + tipNoticeBody);
-    for (const line of paper.split("\n")) expect(line.length).toBeLessThanOrEqual(columnsForWidth(paperWidthMm));
+    // El papel tal cual (comandos ESC/POS fuera, CP850 decodificado). El
+    // pie va en fuente B desde el formato compacto: cada renglón se mide
+    // contra el ancho de SU letra (A 48/32, B 64/42).
+    const paper = readPaper(renderInvoice(doc));
+    expect(paper.text.replace(/\s+/g, " ")).toContain(tipNoticeTitle + " " + tipNoticeBody);
+    for (const row of paper.rows) {
+      expect(row.text.length).toBeLessThanOrEqual(rowCapacity(row, paperWidthMm));
+    }
+    expect(columnsForWidth(paperWidthMm)).toBe(paperWidthMm === 80 ? 48 : 32);
   });
 
   it.each([0, 10_000])("el datáfono recibe el aviso completo incluso con propina %i", (tipCents) => {

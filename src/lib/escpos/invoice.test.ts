@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CP850_HIGH } from "./codepage";
+import { readPaper, rowCapacity } from "./testPaper";
 import { columnsForWidth, padRow, qr } from "./commands";
 import {
   INVOICE_PAYLOAD_VERSION,
@@ -23,57 +23,13 @@ function hex(inv: ThermalInvoice): string {
 }
 
 /**
- * Decodifica la tirilla como la vería el papel: saca los comandos ESC/POS
- * conocidos y pasa el resto por CP850. Un comando que este decoder no
- * conoce revienta, así no se cuela uno nuevo sin que alguien lo mire.
+ * Decodifica la tirilla como la vería el papel (`readPaper`): saca los
+ * comandos ESC/POS conocidos y pasa el resto por CP850. Un comando que el
+ * lector no conoce revienta, así no se cuela uno nuevo sin que alguien lo
+ * mire.
  */
-function readable(inv: ThermalInvoice): string {
-  const b = renderInvoice(inv);
-  let out = "";
-  let i = 0;
-  while (i < b.length) {
-    const byte = b[i];
-    if (byte === 0x1b) {
-      const op = b[i + 1];
-      if (op === 0x40) {
-        i += 2;
-        continue;
-      }
-      // ESC t / a / E / d / M: un byte de parámetro.
-      if (op === 0x74 || op === 0x61 || op === 0x45 || op === 0x64 || op === 0x4d) {
-        i += 3;
-        continue;
-      }
-      throw new Error(`comando ESC desconocido: 0x${op.toString(16)}`);
-    }
-    if (byte === 0x1d) {
-      const op = b[i + 1];
-      if (op === 0x21) {
-        i += 3;
-        continue;
-      }
-      if (op === 0x56) {
-        i += 4;
-        continue;
-      }
-      // GS ( k: pL pH dicen cuánto sigue (cn fn + datos). El QR no se
-      // "lee": se salta entero, como haría el papel.
-      if (op === 0x28) {
-        const len = b[i + 3] | (b[i + 4] << 8);
-        i += 5 + len;
-        continue;
-      }
-      throw new Error(`comando GS desconocido: 0x${op.toString(16)}`);
-    }
-    if (byte === 0x0a) {
-      out += "\n";
-      i += 1;
-      continue;
-    }
-    out += byte <= 0x7e ? String.fromCharCode(byte) : CP850_HIGH[byte - 0x80];
-    i += 1;
-  }
-  return out;
+function readable(doc: ThermalInvoice): string {
+  return readPaper(renderInvoice(doc)).text;
 }
 
 const base: ThermalInvoice = {
@@ -124,10 +80,35 @@ describe("renderInvoice — tirilla mínima", () => {
     expect(readable(base)).not.toContain("-".repeat(49));
   });
 
-  it("los montos quedan pegados al borde derecho", () => {
-    for (const l of readable(base).split("\n")) {
-      if (l.includes("$")) expect(l).toHaveLength(48);
+  it("los montos quedan pegados al borde derecho (el TOTAL, a doble ancho, en 24)", () => {
+    for (const row of readPaper(renderInvoice(base)).rows) {
+      if (row.text.includes("$")) expect(row.text).toHaveLength(rowCapacity(row, 80));
     }
+  });
+
+  it("interlineado compacto (ESC 3 24) de entrada, y de fábrica (ESC 2) antes del pie", () => {
+    const bytes = renderInvoice(base);
+    // ESC @ + ESC t 2 + ESC 3 24.
+    expect(bytes.subarray(0, 8).toString("hex")).toBe("1b401b74021b3318");
+    const esc2 = bytes.indexOf(Buffer.from([0x1b, 0x32]));
+    expect(esc2).toBeGreaterThan(bytes.indexOf(Buffer.from("TOTAL")));
+    expect(esc2).toBeLessThan(bytes.indexOf(Buffer.from("Gracias")));
+  });
+
+  it("el TOTAL va a doble ancho, sin doble alto", () => {
+    const total = readPaper(renderInvoice(base)).rows.find((r) => r.text.startsWith("TOTAL"))!;
+    expect(total.widthMul).toBe(2);
+    expect(total.heightMul).toBe(1);
+  });
+
+  it("número y fecha en la misma fila; mesa en la siguiente", () => {
+    const lines = readable(base).split("\n");
+    expect(lines).toContain("FE-0042                     Fecha 8/09/26, 19:41");
+    expect(lines).toContain("Mesa 7 A4F2");
+  });
+
+  it("NIT, dirección y ciudad en un solo párrafo", () => {
+    expect(readable(base)).toContain("NIT 900.123.456-7 · Calle 12 #4-56 · Medellín");
   });
 
   it("sin cliente no imprime el bloque del cliente", () => {
@@ -245,9 +226,10 @@ describe("renderInvoice — 58mm vs 80mm", () => {
     expect(hex({ ...largo, paperWidthMm: 58 })).toMatchSnapshot();
   });
 
-  it("en 58mm nada se pasa de 32 columnas (la térmica trunca, no envuelve)", () => {
-    const paper = readable({ ...largo, paperWidthMm: 58 });
-    for (const l of paper.split("\n")) expect(l.length).toBeLessThanOrEqual(32);
+  it("en 58mm nada se pasa de su ancho: 32 en fuente A, 42 en B (la térmica trunca, no envuelve)", () => {
+    for (const row of readPaper(renderInvoice({ ...largo, paperWidthMm: 58 })).rows) {
+      expect(row.text.length).toBeLessThanOrEqual(rowCapacity(row, 58));
+    }
   });
 
   it("en 80mm un ítem corto entra completo en un renglón, con su monto", () => {
@@ -266,12 +248,17 @@ describe("renderInvoice — 58mm vs 80mm", () => {
     expect(count(80)).toBeLessThan(count(58));
   });
 
-  it("en 58mm el monto queda en el ÚLTIMO renglón del ítem", () => {
+  it("el monto va en el PRIMER renglón del ítem y el resto del nombre usa todo el ancho", () => {
     const lines = readable({ ...largo, paperWidthMm: 58 }).split("\n");
     const first = lines.findIndex((x) => x.includes("Hamburguesa"));
-    expect(lines[first]).not.toContain("$ 45.000");
-    const withAmount = lines.slice(first).find((x) => x.includes("$ 45.000"))!;
-    expect(withAmount.endsWith("$ 45.000")).toBe(true);
+    expect(lines[first].endsWith("$ 45.000")).toBe(true);
+    expect(lines[first]).toHaveLength(32);
+    // Los colgados no reservan la columna del precio: llegan más allá de
+    // donde empieza el monto (col 24) y no lo repiten.
+    const hung = lines.slice(first + 1).filter((l) => l.startsWith("   ") && !l.startsWith("    "));
+    expect(hung.length).toBeGreaterThan(0);
+    expect(Math.max(...hung.map((l) => l.length))).toBeGreaterThan(24);
+    for (const l of hung) expect(l).not.toContain("$");
   });
 });
 
@@ -318,10 +305,11 @@ describe("renderInvoice — factura electrónica (bloque fiscal)", () => {
     expect(hex({ ...conQr, paperWidthMm: 58 })).toMatchSnapshot();
   });
 
-  it("el comprobante de siempre no emite ni ESC M ni GS ( k: sus bytes no cambian", () => {
+  it("el comprobante nunca emite GS ( k (el QR es sólo de la electrónica)", () => {
     const bytes = renderInvoice(base);
     expect(bytes.includes(GS_PAREN_K)).toBe(false);
-    expect(bytes.includes(ESC_M)).toBe(false);
+    // ESC M sí: el pie legal va en fuente B desde el formato compacto.
+    expect(bytes.includes(ESC_M)).toBe(true);
   });
 
   it("con QR emite GS ( k con la URL de consulta, y la URL NO va en texto", () => {
@@ -339,32 +327,32 @@ describe("renderInvoice — factura electrónica (bloque fiscal)", () => {
     expect(paper.replace(/\n/g, "")).toContain(VERIFY);
   });
 
-  /** Los renglones entre el rótulo "CUFE" y el de la URL: el CUFE partido. */
-  function cufeLines(inv: ThermalInvoice): string[] {
-    const lines = readable(inv).split("\n");
-    const start = lines.indexOf("CUFE") + 1;
-    expect(start).toBeGreaterThan(0);
-    const end = lines.findIndex((l, i) => i >= start && l.startsWith("Consulta"));
+  /** Los renglones desde "CUFE: …" hasta el de la URL: el CUFE partido. */
+  function cufeRows(inv: ThermalInvoice) {
+    const rows = readPaper(renderInvoice(inv)).rows;
+    const start = rows.findIndex((r) => r.text.startsWith("CUFE: "));
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = rows.findIndex((r, i) => i > start && r.text.startsWith("Consulta"));
     expect(end).toBeGreaterThan(start);
-    return lines.slice(start, end);
+    return rows.slice(start, end);
   }
 
-  it("el CUFE sale completo, en fuente chica, partido en renglones", () => {
-    const bytes = renderInvoice(electronica);
-    // Entra a fuente B antes del CUFE y vuelve a A antes de la leyenda.
-    expect(bytes.includes(ESC_M)).toBe(true);
-    // Ningún renglón del CUFE es el CUFE entero: en 80mm son 2 (64 col).
-    const lines = cufeLines(electronica);
-    expect(lines).toHaveLength(2);
-    for (const l of lines) expect(l.length).toBeLessThanOrEqual(64);
-    expect(lines.join("")).toBe(CUFE);
+  it("el CUFE sale completo, pegado a su rótulo, en fuente chica, partido en renglones", () => {
+    // "CUFE: " + 96 hex = 102 caracteres: en 80mm son 2 renglones de 64.
+    const rows = cufeRows(electronica);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.font).toBe("B");
+      expect(r.text.length).toBeLessThanOrEqual(64);
+    }
+    expect(rows.map((r) => r.text).join("")).toBe(`CUFE: ${CUFE}`);
   });
 
   it("en 58mm el CUFE va en 3 renglones de a lo sumo 42 columnas", () => {
-    const lines = cufeLines({ ...electronica, paperWidthMm: 58 });
-    expect(lines).toHaveLength(3);
-    for (const l of lines) expect(l.length).toBeLessThanOrEqual(42);
-    expect(lines.join("")).toBe(CUFE);
+    const rows = cufeRows({ ...electronica, paperWidthMm: 58 });
+    expect(rows).toHaveLength(3);
+    for (const r of rows) expect(r.text.length).toBeLessThanOrEqual(42);
+    expect(rows.map((r) => r.text).join("")).toBe(`CUFE: ${CUFE}`);
   });
 
   it("el bloque fiscal va después de la forma de pago y antes del pie legal", () => {
@@ -639,12 +627,12 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
         { ...hamburguesa, modifiers: ["Término: Medio"] },
       ],
     };
+    // Modificador y nota JUNTOS, en un renglón de fuente B con sangría.
     expect(itemLines(paper(snap))).toEqual([
       "2x Hamburguesa                          $ 56.000",
-      "   - Término: Medio",
+      "    Término: Medio",
       "1x Hamburguesa                          $ 28.000",
-      "   - Término: Bien asado",
-      '   "Sin cebolla"',
+      '    Término: Bien asado · "Sin cebolla"',
     ]);
     expect(hex(paper(snap, 58))).toMatchSnapshot();
   });
@@ -660,8 +648,8 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
         },
       ],
     };
-    for (const l of readable(paper(snap, 58)).split("\n")) {
-      expect(l.length).toBeLessThanOrEqual(32);
+    for (const row of readPaper(renderInvoice(paper(snap, 58))).rows) {
+      expect(row.text.length).toBeLessThanOrEqual(rowCapacity(row, 58));
     }
   });
 

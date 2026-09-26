@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readPaper, rowCapacity } from "./testPaper";
 import { buildPrebillData, type PrebillData } from "@/lib/prebill";
-import { CP850_HIGH } from "./codepage";
 import { INVOICE_PAYLOAD_VERSION, type ThermalInvoice } from "./invoice";
 import { renderPrintJobPayload } from "./job";
 import {
@@ -23,44 +23,7 @@ function hex(doc: ThermalPrebill): string {
 }
 
 function readable(doc: ThermalPrebill): string {
-  const b = renderPrebill(doc);
-  let out = "";
-  let i = 0;
-  while (i < b.length) {
-    const byte = b[i];
-    if (byte === 0x1b) {
-      const op = b[i + 1];
-      if (op === 0x40) {
-        i += 2;
-        continue;
-      }
-      if (op === 0x74 || op === 0x61 || op === 0x45 || op === 0x64) {
-        i += 3;
-        continue;
-      }
-      throw new Error(`comando ESC desconocido: 0x${op.toString(16)}`);
-    }
-    if (byte === 0x1d) {
-      const op = b[i + 1];
-      if (op === 0x21) {
-        i += 3;
-        continue;
-      }
-      if (op === 0x56) {
-        i += 4;
-        continue;
-      }
-      throw new Error(`comando GS desconocido: 0x${op.toString(16)}`);
-    }
-    if (byte === 0x0a) {
-      out += "\n";
-      i += 1;
-      continue;
-    }
-    out += byte <= 0x7e ? String.fromCharCode(byte) : CP850_HIGH[byte - 0x80];
-    i += 1;
-  }
-  return out;
+  return readPaper(renderPrebill(doc)).text;
 }
 
 // ── buildPrebillTicket: del dato puro al documento ─────────────────────
@@ -334,14 +297,13 @@ describe("renderPrebill — lo que se lee en el papel", () => {
     expect(paper).not.toContain("Forma de pago");
   });
 
-  it("ítems con importe pegado a la derecha y los colgados con sangría", () => {
+  it("ítems con importe pegado a la derecha y el detalle en un renglón con sangría", () => {
     const lines = readable(base).split("\n");
     const bandeja = lines.find((l) => l.startsWith("2x Bandeja paisa"))!;
     expect(bandeja).toHaveLength(48);
     expect(bandeja.endsWith("$ 49.000")).toBe(true);
-    expect(lines).toContain("   2 x $ 24.500");
-    expect(lines).toContain("   - Término: Medio");
-    expect(lines).toContain('   "sin cebolla"');
+    // Unitario, modificadores y nota JUNTOS en un renglón (fuente B).
+    expect(lines).toContain('    2 x $ 24.500 · Término: Medio · "sin cebolla"');
     // Sin unitario cuando qty = 1.
     expect(lines.some((l) => l.includes("1 x $ 12.000"))).toBe(false);
   });
@@ -360,17 +322,27 @@ describe("renderPrebill — lo que se lee en el papel", () => {
     expect(paper.slice(i, j)).toContain("-".repeat(48));
   });
 
-  it("los montos quedan pegados al borde derecho", () => {
-    for (const l of readable(base).split("\n")) {
-      // Los colgados con sangría (el unitario "2 x $ 24.500") van a la
-      // izquierda a propósito: son detalle, no un monto de la columna.
-      if (l.includes("$") && !l.startsWith("   ")) expect(l).toHaveLength(48);
+  it("los montos quedan pegados al borde derecho (el TOTAL, a doble ancho, en 24)", () => {
+    for (const row of readPaper(renderPrebill(base)).rows) {
+      // El detalle con sangría (el unitario "2 x $ 24.500") va a la
+      // izquierda a propósito: es detalle, no un monto de la columna.
+      if (row.text.includes("$") && !row.text.startsWith("   ")) {
+        expect(row.text).toHaveLength(rowCapacity(row, 80));
+      }
     }
   });
 
-  it("en 58mm nada se pasa de 32 columnas (la térmica trunca, no envuelve)", () => {
-    for (const l of readable({ ...base, paperWidthMm: 58 }).split("\n")) {
-      expect(l.length).toBeLessThanOrEqual(32);
+  it("PRECUENTA a doble ancho (un renglón, no dos) y el interlineado compacto", () => {
+    const paper = readPaper(renderPrebill(base));
+    const title = paper.rows.find((r) => r.text === "PRECUENTA")!;
+    expect(title.widthMul).toBe(2);
+    expect(title.heightMul).toBe(1);
+    expect(renderPrebill(base).subarray(0, 8).toString("hex")).toBe("1b401b74021b3318");
+  });
+
+  it("en 58mm nada se pasa de su ancho: 32 en fuente A, 42 en B (la térmica trunca, no envuelve)", () => {
+    for (const row of readPaper(renderPrebill({ ...base, paperWidthMm: 58 })).rows) {
+      expect(row.text.length).toBeLessThanOrEqual(rowCapacity(row, 58));
     }
   });
 
@@ -509,7 +481,7 @@ describe("precuenta con artículos repetidos — de la cuenta al papel, AGRUPADO
     expect(bretanas).toHaveLength(1);
     expect(bretanas[0]).toMatch(/^2x Bretaña +\$12000$/);
     expect(bretanas[0]).toHaveLength(48);
-    expect(lines).toContain("   2 x $6000");
+    expect(lines).toContain("    2 x $6000");
     expect(hex(doc)).toMatchSnapshot();
   });
 });

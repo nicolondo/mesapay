@@ -33,25 +33,35 @@
  * viaja por correo, que es donde el cliente lo usa.
  */
 
+import { encodeCp850 } from "./codepage";
 import {
+  COMPACT_LINE_SPACING_DOTS,
+  DEFAULT_LINE_SPACING,
   INIT,
   LF,
-  NORMAL_SIZE,
   align,
   bold,
+  chunk,
   columnsForWidth,
   cut,
   feed,
   line,
+  lineSpacing,
   padRow,
+  pairRows,
   qr,
   selectCodePage,
   selectFont,
   separator,
   smallColumnsForWidth,
-  textSize,
   wrap,
 } from "./commands";
+import {
+  DETAIL_SEPARATOR,
+  itemChunks,
+  itemDetail,
+  totalRowChunks,
+} from "./compact";
 
 export type ThermalInvoiceItem = {
   qty: number;
@@ -60,10 +70,12 @@ export type ThermalInvoiceItem = {
   /** Importe de la LÍNEA (qty × unitario), ya formateado con su moneda. */
   amount: string;
   /**
-   * Modificadores legibles ("Término: Medio") y nota del ítem, colgados
-   * debajo de la línea como en la precuenta. Con los repetidos agrupados
-   * (`groupInvoiceLines`) son lo que distingue dos líneas del mismo plato.
-   * Opcionales: los payloads viejos no los traen y se imprimen igual.
+   * Modificadores legibles ("Término: Medio") y nota del ítem. Se
+   * imprimen JUNTOS en un renglón de fuente B debajo del plato
+   * ("Término: Medio · \"sin cebolla\""), como en la precuenta. Con los
+   * repetidos agrupados (`groupInvoiceLines`) son lo que distingue dos
+   * líneas del mismo plato. Opcionales: los payloads viejos no los traen
+   * y se imprimen igual.
    */
   modifiers?: string[];
   notes?: string | null;
@@ -73,7 +85,10 @@ export type ThermalInvoiceItem = {
 export type ThermalInvoiceRow = {
   label: string;
   amount: string;
-  /** El TOTAL: negrita y doble alto. No cambia el ancho de columna. */
+  /**
+   * El TOTAL: negrita, y a doble ANCHO si entra en media línea (se
+   * destaca sin gastar alto). Ver `totalRowChunks` en `compact.ts`.
+   */
   strong?: boolean;
 };
 
@@ -251,90 +266,105 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
   };
 }
 
-/** Sangría de los renglones colgados de un ítem largo. */
-const INDENT = "   ";
-
 /** Lado del módulo del QR de la DIAN, en puntos. Ver `qr()` en commands. */
+// Se revisó al compactar y se deja en 4: con la URL de consulta (QR
+// versión 7, 45 módulos) son ~22 mm de lado. A 3 puntos el módulo mide
+// 0,37 mm y en una térmica gastada los puntos se corren y el celular ya
+// no lo lee. 22 mm es el mínimo que se lee siempre, y el QR es lo único
+// de la factura electrónica que no se puede "achicar" sin perderlo.
 const QR_MODULE_SIZE = 4;
 
 /**
  * Bytes ESC/POS completos de la tirilla, listos para escribir tal cual al
  * socket TCP:9100. El agente NO interpreta nada.
+ *
+ * Formato COMPACTO (ver `compact.ts`): interlineado de 24 puntos, datos
+ * del comercio en un párrafo, número y fecha en la misma fila, detalle de
+ * cada plato en un renglón de fuente B, y los textos legales en fuente B.
+ * El contenido es el mismo de siempre —rótulo, número, fecha, NIT, ítems,
+ * impuesto discriminado, CUFE, QR o URL, resolución, leyendas—: lo que se
+ * ahorra es papel en blanco.
  */
 export function renderInvoice(invoice: ThermalInvoice): Buffer {
   const cols = columnsForWidth(invoice.paperWidthMm);
-  // A doble ancho entra la mitad de texto por renglón.
-  const bigCols = Math.floor(cols / 2);
+  const smallCols = smallColumnsForWidth(invoice.paperWidthMm);
   const chunks: Buffer[] = [];
 
-  chunks.push(INIT, selectCodePage());
+  chunks.push(INIT, selectCodePage(), lineSpacing(COMPACT_LINE_SPACING_DOTS));
 
   // ── Identidad del comercio ──────────────────────────────────────────
-  // Doble ALTO y no doble ancho: el nombre se lee de un vistazo pero
-  // siguen entrando 48/32 columnas, así que una razón social larga
-  // ("Inversiones Gastronómicas del Caribe S.A.S.") no se parte en cinco.
-  chunks.push(align("center"), bold(true), textSize(1, 2));
+  // El nombre en negrita, y NIT · dirección · ciudad · teléfono corridos
+  // en un párrafo: en 80mm son dos renglones en vez de cuatro.
+  chunks.push(align("center"), bold(true));
   for (const l of wrap(invoice.businessName, cols)) chunks.push(line(l));
-  chunks.push(NORMAL_SIZE, bold(false));
-  for (const l of invoice.businessLines) {
-    for (const w of wrap(l, cols)) chunks.push(line(w));
-  }
-
-  // ── Número de factura ───────────────────────────────────────────────
-  // Es lo que se busca cuando alguien vuelve con la tirilla en la mano,
-  // así que va grande y solo. A doble ancho las columnas se parten a la
-  // mitad — de ahí `bigCols`.
-  chunks.push(separator(cols));
-  for (const l of wrap(invoice.documentLabel, cols)) chunks.push(line(l));
-  chunks.push(bold(true), textSize(2, 2));
-  for (const l of wrap(invoice.documentNumber, bigCols)) chunks.push(line(l));
-  chunks.push(NORMAL_SIZE, bold(false));
-
-  // ── Fecha, mesa, código ─────────────────────────────────────────────
-  chunks.push(align("left"));
-  for (const row of invoice.metaRows) {
-    for (const l of padRow(row.label, row.value, cols)) chunks.push(line(l));
-  }
-
-  // ── Cliente (factura nominativa, o "Consumidor final" en la electrónica) ──
-  if (invoice.customerLines.length > 0) {
-    chunks.push(separator(cols));
-    for (const l of invoice.customerLines) {
-      for (const w of wrap(l, cols)) chunks.push(line(w));
-    }
-  }
-
-  // ── Ítems ───────────────────────────────────────────────────────────
-  // Ya vienen AGRUPADOS ("2x Bretaña", ver `groupInvoiceLines`). Los
-  // modificadores y la nota cuelgan debajo con la misma sangría y el mismo
-  // formato que la precuenta: el comensal compara una con la otra.
-  chunks.push(separator(cols));
-  const hung = { first: INDENT, cont: INDENT + "  " };
-  for (const item of invoice.items) {
-    for (const l of padRow(`${item.qty}x ${item.name}`, item.amount, cols, {
-      cont: INDENT,
-    })) {
+  chunks.push(bold(false));
+  if (invoice.businessLines.length > 0) {
+    for (const l of wrap(invoice.businessLines.join(DETAIL_SEPARATOR), cols)) {
       chunks.push(line(l));
     }
-    for (const mod of item.modifiers ?? []) {
-      for (const l of wrap(`- ${mod}`, cols, hung)) chunks.push(line(l));
-    }
-    if (item.notes) {
-      for (const l of wrap(`"${item.notes}"`, cols, hung)) chunks.push(line(l));
-    }
   }
 
-  // ── Totales ─────────────────────────────────────────────────────────
+  // ── Rótulo, número y datos de la factura ────────────────────────────
+  // El rótulo ("FACTURA ELECTRÓNICA DE VENTA") solo y en negrita: es una
+  // leyenda obligatoria. Debajo, de a dos por renglón: número (en
+  // negrita) y fecha; mesa y cliente; documento y dirección del cliente.
   chunks.push(separator(cols));
-  for (const row of invoice.totals) {
-    if (row.strong) chunks.push(bold(true), textSize(1, 2));
-    for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
-    if (row.strong) chunks.push(NORMAL_SIZE, bold(false));
+  chunks.push(bold(true));
+  for (const l of wrap(invoice.documentLabel, cols)) chunks.push(line(l));
+  chunks.push(bold(false), align("left"));
+  const cells = [
+    invoice.documentNumber,
+    ...invoice.metaRows.map((r) => `${r.label} ${r.value}`.trim()),
+    ...invoice.customerLines,
+  ];
+  pairRows(cells, cols).forEach((l, i) => {
+    // El número es lo que se busca cuando alguien vuelve con la tirilla:
+    // va en negrita (sólo él, no la fecha que comparte el renglón).
+    if (i === 0 && l.startsWith(invoice.documentNumber)) {
+      chunks.push(
+        bold(true),
+        encodeCp850(invoice.documentNumber),
+        bold(false),
+        line(l.slice(invoice.documentNumber.length)),
+      );
+    } else {
+      chunks.push(line(l));
+    }
+  });
+
+  // ── Ítems ───────────────────────────────────────────────────────────
+  // Ya vienen AGRUPADOS ("2x Bretaña", ver `groupInvoiceLines`). Precio
+  // en el primer renglón; modificadores y nota juntos, en fuente B.
+  chunks.push(separator(cols));
+  for (const item of invoice.items) {
+    chunks.push(
+      ...itemChunks(
+        {
+          qty: item.qty,
+          name: item.name,
+          amount: item.amount,
+          detail: itemDetail(item.modifiers, item.notes),
+        },
+        cols,
+        smallCols,
+      ),
+    );
   }
 
-  // ── Forma de pago ───────────────────────────────────────────────────
-  if (invoice.paymentRows.length > 0) {
-    chunks.push(separator(cols));
+  // ── Totales y forma de pago ─────────────────────────────────────────
+  // Sin separador entre los dos bloques: la forma de pago cierra la
+  // cuenta. Con un solo pago, el rótulo va en el mismo renglón si entra
+  // ("Forma de pago: Efectivo ..... $ 40.000").
+  chunks.push(separator(cols));
+  for (const row of invoice.totals) chunks.push(...totalRowChunks(row, cols));
+  const single = invoice.paymentRows.length === 1 ? invoice.paymentRows[0] : null;
+  const singleRow =
+    single && invoice.paymentTitle
+      ? padRow(`${invoice.paymentTitle}: ${single.label}`, single.amount, cols)
+      : null;
+  if (singleRow && singleRow.length === 1) {
+    chunks.push(line(singleRow[0]));
+  } else if (invoice.paymentRows.length > 0) {
     if (invoice.paymentTitle) {
       chunks.push(bold(true));
       for (const l of wrap(invoice.paymentTitle, cols)) chunks.push(line(l));
@@ -347,35 +377,41 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
 
   // ── Bloque fiscal (factura electrónica ACEPTADA por la DIAN) ────────
   // El QR SÓLO si la impresora lo declaró (`supportsQr`); si no, la
-  // misma URL en texto. El CUFE va en fuente chica: son 96 hexadecimales
-  // sin un espacio, y a fuente normal en 58mm serían tres renglones de
-  // sopa de letras. Se parte a lo bruto por columna (`wrap` con una sola
-  // "palabra"), que es la única forma de partirlo sin perder nada.
+  // misma URL en texto. Todo en fuente B: el CUFE son 96 hexadecimales
+  // sin un espacio, y va pegado a su rótulo ("CUFE: 0123…") partido a lo
+  // bruto por columna, que es la única forma de partirlo sin perder nada.
   if (invoice.fiscal) {
     const f = invoice.fiscal;
-    const smallCols = smallColumnsForWidth(invoice.paperWidthMm);
     chunks.push(separator(cols), align("center"));
     if (f.qr) {
       chunks.push(qr(f.verifyUrl, { size: QR_MODULE_SIZE, correction: "M" }), LF);
     }
-    chunks.push(bold(true), line(f.cufeLabel), bold(false), selectFont("B"));
-    for (const l of wrap(f.cufe, smallCols)) chunks.push(line(l));
+    chunks.push(selectFont("B"));
+    for (const l of chunk(`${f.cufeLabel}: ${f.cufe}`, smallCols)) {
+      chunks.push(line(l));
+    }
     if (!f.qr) {
       for (const l of wrap(f.verifyLabel, smallCols)) chunks.push(line(l));
       for (const l of wrap(f.verifyUrl, smallCols)) chunks.push(line(l));
     }
-    chunks.push(selectFont("A"));
     for (const l of f.noticeLines) {
-      for (const w of wrap(l, cols)) chunks.push(line(w));
+      for (const w of wrap(l, smallCols)) chunks.push(line(w));
     }
+    chunks.push(selectFont("A"));
   }
 
   // ── Pie legal ───────────────────────────────────────────────────────
+  // Vuelve el interlineado de fábrica (`ESC 2`) antes del pie: la
+  // resolución y la advertencia de propina se leen con aire, y el avance
+  // antes del corte (`ESC d`, que se mide en renglones) vuelve a ser el
+  // de siempre — con 24 puntos el cortador se comería el pie.
+  chunks.push(DEFAULT_LINE_SPACING);
   if (invoice.footerLines.length > 0) {
-    chunks.push(separator(cols), align("center"));
+    chunks.push(separator(cols), align("center"), selectFont("B"));
     for (const l of invoice.footerLines) {
-      for (const w of wrap(l, cols)) chunks.push(line(w));
+      for (const w of wrap(l, smallCols)) chunks.push(line(w));
     }
+    chunks.push(selectFont("A"));
   }
 
   // ── Cierre ──────────────────────────────────────────────────────────

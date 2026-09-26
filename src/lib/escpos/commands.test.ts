@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { columnsForWidth, qr, selectFont, smallColumnsForWidth } from "./commands";
+import {
+  COMPACT_LINE_SPACING_DOTS,
+  DEFAULT_LINE_SPACING,
+  chunk,
+  columnsForWidth,
+  itemRow,
+  lineSpacing,
+  pairRows,
+  qr,
+  selectFont,
+  smallColumnsForWidth,
+  wrap,
+} from "./commands";
 
 /**
  * Los comandos nuevos de la factura electrónica, byte a byte. Igual que
@@ -71,5 +83,95 @@ describe("smallColumnsForWidth — columnas de la fuente B", () => {
     for (const mm of [58, 64, 72, 80]) {
       expect(smallColumnsForWidth(mm)).toBeGreaterThanOrEqual(columnsForWidth(mm));
     }
+  });
+});
+
+describe("interlineado — ESC 3 n / ESC 2", () => {
+  it("ESC 3 n fija n puntos, acotado a 0..255", () => {
+    expect(lineSpacing(24).toString("hex")).toBe("1b3318");
+    expect(lineSpacing(0).toString("hex")).toBe("1b3300");
+    expect(lineSpacing(300).toString("hex")).toBe("1b33ff");
+    expect(lineSpacing(-5).toString("hex")).toBe("1b3300");
+    expect(lineSpacing(22.9).toString("hex")).toBe("1b3316");
+  });
+
+  it("ESC 2 vuelve al de fábrica (sin parámetro)", () => {
+    expect(DEFAULT_LINE_SPACING.toString("hex")).toBe("1b32");
+  });
+
+  it("el compacto es el alto de la fuente A: renglones pegados que no se pisan", () => {
+    expect(COMPACT_LINE_SPACING_DOTS).toBe(24);
+  });
+});
+
+describe("wrap — firstWidth", () => {
+  it("achica sólo el primer renglón; los siguientes usan el ancho completo", () => {
+    expect(
+      wrap("uno dos tres cuatro cinco seis", 12, { firstWidth: 7, cont: "  " }),
+    ).toEqual(["uno dos", "  tres", "  cuatro", "  cinco seis"]);
+  });
+
+  it("sin firstWidth se comporta igual que siempre", () => {
+    expect(wrap("uno dos tres", 7)).toEqual(["uno dos", "tres"]);
+  });
+
+  it("una palabra más larga que el primer renglón se parte a ese ancho", () => {
+    expect(wrap("abcdefghij", 8, { firstWidth: 4 })).toEqual(["abcd", "efghij"]);
+  });
+});
+
+describe("itemRow — precio en el PRIMER renglón", () => {
+  it("un ítem que entra va en un renglón con el precio pegado a la derecha", () => {
+    expect(itemRow("2x Bretaña", "$ 12.000", 24)).toEqual(["2x Bretaña      $ 12.000"]);
+  });
+
+  it("un nombre largo sigue abajo con TODO el ancho, sin repetir la columna del precio", () => {
+    const out = itemRow(
+      "1x Hamburguesa doble con tocineta y queso cheddar",
+      "$ 45.000",
+      32,
+      { cont: "   " },
+    );
+    expect(out[0].endsWith("$ 45.000")).toBe(true);
+    expect(out[0]).toHaveLength(32);
+    for (const l of out.slice(1)) {
+      expect(l.startsWith("   ")).toBe(true);
+      expect(l).not.toContain("$");
+      expect(l.length).toBeLessThanOrEqual(32);
+    }
+    // Con `padRow` (precio en el último, columna reservada) eran 3.
+    expect(out).toHaveLength(2);
+  });
+
+  it("un valor que no deja lugar al texto cae al comportamiento de padRow", () => {
+    expect(itemRow("TOTAL", "$ 1.234.567.890", 16)).toEqual([
+      "TOTAL",
+      " $ 1.234.567.890",
+    ]);
+  });
+});
+
+describe("pairRows — de a dos por renglón", () => {
+  it("empareja cuando entran y deja solo al que no", () => {
+    expect(pairRows(["SM1234", "Fecha 8/09/26", "Mesa 7 A4F2", "Cliente: Consumidor final"], 32)).toEqual([
+      "SM1234             Fecha 8/09/26",
+      "Mesa 7 A4F2",
+      "Cliente: Consumidor final",
+    ]);
+  });
+
+  it("uno que no entra en el renglón se parte con wrap", () => {
+    expect(pairRows(["Carrera 43A #1-50, Medellín"], 12)).toEqual([
+      "Carrera 43A",
+      "#1-50,",
+      "Medellín",
+    ]);
+  });
+});
+
+describe("chunk — partir a lo bruto", () => {
+  it("renglones de exactamente width caracteres, el último con lo que sobra", () => {
+    expect(chunk("CUFE: abcdefghij", 7)).toEqual(["CUFE: a", "bcdefgh", "ij"]);
+    expect(chunk("", 7)).toEqual([]);
   });
 });

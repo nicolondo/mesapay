@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
+import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +35,14 @@ export default async function MeseroCobradoPage({
     where: { id: orderId },
     select: {
       restaurantId: true,
+      status: true,
       totalCents: true,
       subtotalCents: true,
       discountCents: true,
       customerEmail: true,
       simpleInvoiceEmail: true,
+      // La factura ya emitida (si la hay), para ofrecer imprimirla.
+      simpleInvoice: { select: { id: true } },
       restaurant: { select: { slug: true } },
     },
   });
@@ -96,6 +100,10 @@ export default async function MeseroCobradoPage({
         orderId={orderId}
         existing={existing}
         simpleRequestEmail={order.simpleInvoiceEmail}
+        issuedInvoiceUrl={
+          order.simpleInvoice ? invoiceUrlFor(order.simpleInvoice.id) : null
+        }
+        orderPaid={order.status === "paid"}
         prefillEmail={order.customerEmail}
         operatorMode
       />

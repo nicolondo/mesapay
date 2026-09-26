@@ -18,8 +18,9 @@ export type InvoiceRequestSummary = {
 /**
  * Lo que el comensal ya pidió en esta cuenta, si pidió algo:
  *  - `formal`: cargó sus datos (nombre, documento, correo) → InvoiceRequest.
- *  - `simple`: sólo dejó el correo para la tirilla a consumidor final.
+ *  - `simple`: pidió la tirilla a consumidor final. El correo es opcional:
+ *    `null` ⇒ la pidió sin correo, sólo para imprimirla.
  */
 export type InvoiceIntent =
   | { kind: "formal"; summary: InvoiceRequestSummary }
-  | { kind: "simple"; email: string };
+  | { kind: "simple"; email: string | null };

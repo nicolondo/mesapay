@@ -6,6 +6,10 @@ import { emitDianInvoice, type EmitDianInvoiceResult } from "@/lib/dian/emitInvo
 import { isModuleEnabled } from "@/lib/modules";
 import { issueSimpleInvoice } from "@/lib/simpleInvoice";
 import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
+import {
+  isSimpleInvoiceRequested,
+  simpleInvoiceEmailFrom,
+} from "@/lib/simpleInvoiceRequest";
 
 /**
  * Facturación al cerrar la cuenta.
@@ -24,7 +28,10 @@ import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
  *     retoma lo que el intento inmediato no logró.
  *
  *   · Sin facturación electrónica: exactamente como siempre — la tirilla
- *     sale sólo si alguien la pidió, y a la DIAN no va nada.
+ *     sale sólo si alguien la pidió, y a la DIAN no va nada. "La pidieron"
+ *     incluye la genérica SIN correo (`Order.simpleInvoiceEmail === ""`,
+ *     ver `simpleInvoiceRequest.ts`): se emite igual, para imprimirla, y
+ *     no se manda a ningún lado.
  *
  * Contrato:
  *  - NUNCA lanza. Un fallo de correo/emisión no puede tumbar un cobro que ya
@@ -138,8 +145,10 @@ export async function issueInvoiceOnPaid(
       where: { orderId: order.id, status: "pending" },
       orderBy: { createdAt: "desc" },
     });
-    const email = request?.email ?? order.simpleInvoiceEmail ?? null;
-    const requested = !!request || !!email;
+    // La genérica se puede pedir SIN correo (sólo para imprimir): cuenta
+    // como pedida aunque no haya a quién mandarla.
+    const email = request?.email ?? simpleInvoiceEmailFrom(order.simpleInvoiceEmail);
+    const requested = !!request || isSimpleInvoiceRequested(order.simpleInvoiceEmail);
     const einvoicing = isModuleEnabled(order.restaurant.enabledModules, "einvoicing");
     // Con facturación electrónica toda VENTA se factura; sin ella, sólo lo
     // que pidieron. Una cortesía o una cuenta en $0 no es una venta: sale

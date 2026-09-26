@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
+import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 
@@ -77,9 +78,14 @@ export default async function PayDone({
       rounds: { orderBy: { seq: "asc" } },
       items: { orderBy: { id: "asc" } },
       payments: { orderBy: { createdAt: "asc" } },
+      // La factura ya emitida (si la hay), para ofrecer imprimirla.
+      simpleInvoice: { select: { id: true } },
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
+  const issuedInvoiceUrl = order.simpleInvoice
+    ? invoiceUrlFor(order.simpleInvoice.id)
+    : null;
 
   // If the diner already submitted billing info we surface its status
   // instead of the request button. Only show the most recent — they may
@@ -190,6 +196,8 @@ export default async function PayDone({
               orderId={order.id}
               existing={invoiceSummary}
               simpleRequestEmail={order.simpleInvoiceEmail}
+              issuedInvoiceUrl={issuedInvoiceUrl}
+              orderPaid={order.status === "paid"}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
             />
@@ -309,6 +317,8 @@ export default async function PayDone({
               orderId={order.id}
               existing={invoiceSummary}
               simpleRequestEmail={order.simpleInvoiceEmail}
+              issuedInvoiceUrl={issuedInvoiceUrl}
+              orderPaid={order.status === "paid"}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
             />

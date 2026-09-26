@@ -54,6 +54,11 @@ const MIGRATED = [
   // Pantalla de "el cobro lo hace el administrador" del mesero. El resto
   // de /mesero/ sigue sin migrar, por eso el glob es al archivo suelto.
   "src/app/mesero/cobrar/\\[orderId\\]/ChargeLockedByAdmin.tsx",
+  // "Cobro realizado" del mesero y el pedido de factura (genérica con correo
+  // opcional / personalizada) que comparten el checkout y la pantalla de
+  // "listo": migrados enteros, quedan blindados.
+  "src/app/mesero/cobrar/\\[orderId\\]/done/*.{ts,tsx}",
+  "src/components/invoice/**/*.{ts,tsx}",
   "src/app/mesero/yo/MisComisionesClient.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/ApplePayButton.tsx",

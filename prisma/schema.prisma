@@ -1475,9 +1475,11 @@ model Order {
   /// el cobro se confirma (efectivo/datáfono pueden confirmarse minutos
   /// después). Deliberadamente separado de `customerEmail`: ese es el correo
   /// del titular de la tarjeta y lo pisa cada cobro — tenerlo lleno NO
-  /// significa que alguien haya pedido factura. Null ⇒ nadie pidió la
-  /// genérica. La factura personalizada usa `InvoiceRequest`, que sí guarda
-  /// nombre/documento/dirección.
+  /// significa que alguien haya pedido factura. Tres estados (ver
+  /// src/lib/simpleInvoiceRequest.ts): null ⇒ nadie pidió la genérica;
+  /// "" (vacío) ⇒ la pidieron SIN correo, sólo para imprimirla; con correo
+  /// ⇒ además se envía. La factura personalizada usa `InvoiceRequest`, que
+  /// sí guarda nombre/documento/dirección.
   simpleInvoiceEmail String?
 
   needsWaiter    Boolean   @default(false)

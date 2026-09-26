@@ -2,18 +2,22 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { checkOptionalInvoiceEmail } from "@/lib/simpleInvoiceRequest";
 
 /**
- * "Factura genérica" (tirilla a consumidor final): sólo correo, sin datos del
- * comensal. Flujo independiente del formal (`InvoiceFormSheet`).
+ * "Factura genérica" (tirilla a consumidor final): a lo sumo un correo, sin
+ * datos del comensal. Flujo independiente del formal (`InvoiceFormSheet`).
  *
- * Dos momentos, un mismo sheet:
- *  - `beforePayment` (checkout): la orden todavía no está paga. No hay nada
- *    que imprimir, así que el correo es OBLIGATORIO — es lo único que
- *    permite mandarla cuando el cobro se confirme. El backend guarda la
- *    intención y responde `deferred: true`.
- *  - después de pagar (/done): como siempre, el correo es opcional y la
- *    factura se emite en el momento para imprimir o descargar.
+ * Dos momentos, un mismo sheet, y en los dos el correo es OPCIONAL (el
+ * dueño: "si no se pone ningún correo en lo de la factura electrónica
+ * genérica que igual se genere la factura para poderla imprimir"):
+ *  - `beforePayment` (checkout): la orden todavía no está paga. El backend
+ *    guarda la intención —con o sin correo— y responde `deferred: true`; la
+ *    factura se emite al confirmarse el cobro y queda lista para imprimir
+ *    (sola, si el local tiene impresora de facturas; si no, desde la
+ *    pantalla de "listo"). Con correo, además se envía.
+ *  - después de pagar (/done): la factura se emite en el momento para
+ *    imprimir o descargar, y se envía si dejaron correo.
  *
  * Las claves i18n viven en el namespace `done` — nació ahí y renombrarlas
  * costaría tocar los tres catálogos sin ganar nada.
@@ -36,8 +40,11 @@ export function SimpleInvoiceSheet({
   /** El mesero cobra por el cliente: la copia va en tercera persona. */
   operatorMode?: boolean;
   onClose: () => void;
-  /** Se dispara con el correo guardado, para que el caller pinte el resumen. */
-  onSaved?: (email: string) => void;
+  /**
+   * Se dispara con el correo guardado (null = sin correo, sólo para
+   * imprimir), para que el caller pinte el resumen.
+   */
+  onSaved?: (email: string | null) => void;
 }) {
   const t = useTranslations("done");
   // Prellenado con el correo que el diner tipeó al pagar con tarjeta: así no
@@ -46,24 +53,22 @@ export function SimpleInvoiceSheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<
-    | { deferred: true; email: string }
-    | { deferred: false; invoiceUrl: string; email: string }
+    | { deferred: true; email: string | null }
+    | { deferred: false; invoiceUrl: string; email: string | null }
     | null
   >(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const mail = email.trim();
-    if (beforePayment && mail === "") {
-      setErr(t("invErrEmailRequired"));
-      return;
-    }
-    // Después del pago el correo es OPCIONAL: sin él la factura igual se
-    // genera para imprimir/descargar. Sólo se valida si escribió algo.
-    if (mail !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+    // El correo es OPCIONAL antes y después del pago: sin él la factura
+    // igual se genera para imprimir/descargar. Sólo se valida si escribió
+    // algo (misma regla en todos los puntos de entrada).
+    const checked = checkOptionalInvoiceEmail(email);
+    if (!checked.ok) {
       setErr(t("invErrEmail"));
       return;
     }
+    const mail = checked.email;
     setBusy(true);
     setErr(null);
     const r = await fetch(
@@ -71,7 +76,7 @@ export function SimpleInvoiceSheet({
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: mail }),
+        body: JSON.stringify({ email: mail ?? "" }),
       },
     );
     setBusy(false);
@@ -107,7 +112,9 @@ export function SimpleInvoiceSheet({
               {!done
                 ? t("invYourReceipt")
                 : done.deferred
-                  ? t("invDeferredTitle")
+                  ? done.email
+                    ? t("invDeferredTitle")
+                    : t("invDeferredPrintTitle")
                   : done.email
                     ? t("invSentTitle")
                     : t("invGeneratedReady")}
@@ -127,10 +134,25 @@ export function SimpleInvoiceSheet({
           <>
             <p className="text-sm text-ink/80">
               {done.deferred ? (
-                t.rich(operatorMode ? "invDeferredBodyOp" : "invDeferredBody", {
-                  email: done.email,
-                  b: (chunks) => <strong>{chunks}</strong>,
-                })
+                done.email ? (
+                  t.rich(
+                    operatorMode ? "invDeferredBodyOp" : "invDeferredBody",
+                    {
+                      email: done.email,
+                      b: (chunks) => <strong>{chunks}</strong>,
+                    },
+                  )
+                ) : (
+                  // Sin correo: no se envía nada, pero la factura se genera
+                  // al confirmarse el cobro y queda lista para imprimir.
+                  <span>
+                    {t(
+                      operatorMode
+                        ? "invDeferredPrintBodyOp"
+                        : "invDeferredPrintBody",
+                    )}
+                  </span>
+                )
               ) : done.email ? (
                 t.rich("invSentBody", {
                   email: done.email,
@@ -140,7 +162,7 @@ export function SimpleInvoiceSheet({
                 <span>{t("invGeneratedReadyBody")}</span>
               )}
             </p>
-            {!done.deferred && (
+            {!done.deferred && done.invoiceUrl && (
               <a
                 href={`${done.invoiceUrl}?print=1`}
                 target="_blank"
@@ -171,7 +193,7 @@ export function SimpleInvoiceSheet({
             </p>
             <label className="block">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
-                {beforePayment ? t("invEmailField") : t("invEmailFieldOptional")}
+                {t("invEmailFieldOptional")}
               </div>
               <input
                 type="email"
@@ -211,8 +233,6 @@ function simpleInvoiceError(
   switch (code) {
     case "invalid_email":
       return t("invErrEmail");
-    case "email_required":
-      return t("invErrEmailRequired");
     case "not_found":
       return t("invErrNotFound");
     default:

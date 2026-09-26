@@ -256,6 +256,26 @@ export function formatInvoiceNumber(snapshot: InvoiceSnapshot, n: number): strin
  * mismo formato que la precuenta. Con los repetidos agrupados, es lo que
  * distingue dos líneas del mismo plato. Un snapshot viejo no trae nada.
  */
+/**
+ * Modificadores y nota del ítem en UN solo renglón, separados por " · "
+ * ("Término: 1/2 · Guarniciones: Ensalada fresca · \"sin cebolla\""), sin
+ * el guion de `itemDetailLines`. Es el formato COMPACTO de lo que va al
+ * papel —la vista `/factura/[id]`, la precuenta y el ESC/POS—, donde cada
+ * modificador en su renglón era la mitad del largo de una cuenta grande.
+ * Vacío si el ítem no tiene ninguno de los dos.
+ */
+export function itemDetailText(item: {
+  modifiers?: readonly string[] | null;
+  notes?: string | null;
+}): string {
+  const parts = (item.modifiers ?? [])
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0);
+  const note = item.notes?.trim();
+  if (note) parts.push(`"${note}"`);
+  return parts.join(" · ");
+}
+
 export function itemDetailLines(item: {
   modifiers?: readonly string[] | null;
   notes?: string | null;

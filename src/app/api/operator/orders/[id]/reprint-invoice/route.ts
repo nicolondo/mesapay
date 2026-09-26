@@ -3,14 +3,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { OPERATOR_ROLES } from "@/lib/staffAccess";
+import { STAFF_PRINT_ROLES } from "@/lib/print/staffPrint";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { formatInvoiceNumber } from "@/lib/invoice";
 import { displayOrderCode } from "@/lib/orderCode";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianEnvironment } from "@/lib/dian/config";
 import { dianQrUrl } from "@/lib/dian/crypto";
-import { enqueueInvoicePrint } from "@/lib/print/invoiceQueue";
+import { enqueueInvoicePrintDetailed } from "@/lib/print/invoiceQueue";
 import {
   invoicePrintArgs,
   type InvoiceDianPrintData,
@@ -21,11 +21,17 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/operator/orders/{id}/reprint-invoice
  *
- * Vuelve a mandar la factura de una cuenta a la impresora de facturas del
- * comercio (la elegida en Configuración, o todas las de tipo factura). El
- * dueño lo pidió textual: "quiero tener la opción de poder reimprimir una
- * factura desde la lista de pedidos" — el comensal que se fue sin el
- * papel, el rollo que se acabó a mitad de la tirilla, la copia para la caja.
+ * Manda la factura de una cuenta a la impresora de facturas del comercio
+ * (la elegida en Configuración, o todas las de tipo factura), por el
+ * AGENTE, como las comandas. Es la ruta de TODOS los botones "Imprimir
+ * factura" del staff: la lista y el detalle de pedidos ("quiero tener la
+ * opción de poder reimprimir una factura desde la lista de pedidos"), el
+ * "listo" del cobro del mesero, las hojas de factura del salón y la vista
+ * `/factura/[id]` cuando la abre el staff. El dueño: "quisiera que la
+ * impresión de facturas se haga como se hacen las de las comandas en vez
+ * de con el driver de Windows" — el driver pagina el documento y corta
+ * la factura larga en dos tiras; el agente la manda en ESC/POS con un
+ * solo corte.
  *
  * QUÉ sale: con facturación electrónica y la factura ya ACEPTADA por la
  * DIAN, la factura electrónica (CUFE + QR), que es la misma hoja que salió
@@ -40,18 +46,23 @@ export const dynamic = "force-dynamic";
  * veces solos, no para impedir que un humano pida otra copia) y el toggle
  * de impresión automática (apagarlo no apaga la reimpresión).
  *
- * Nunca lanza: sin impresora de facturas responde `queued: false` y la UI
- * abre la versión imprimible del navegador (/factura/[id]) como respaldo.
+ * Nunca lanza: sin impresora de facturas (`no_printer`) o con su agente
+ * sin responder (`agent_offline`) responde `queued: false` y la UI imprime
+ * la versión del navegador (/factura/[id]) como respaldo. Con impresora
+ * responde además `printerName` ("Enviada a Caja").
  *
- * Sólo roles de operador: el panel `/operator` no lo ve el mesero, y la
- * factura es un asunto de caja (mismo criterio que `invoices/[id]/print`).
+ * Quién: el staff que cobra — roles de operador y el MESERO (que cobra la
+ * mesa y entrega la factura desde su pantalla de "listo"), del comercio
+ * activo. El COMENSAL nunca: su sesión (o la falta de ella) da 401 acá,
+ * así que desde su celular no se puede disparar papel en el local.
  */
+const PRINT_ROLES = STAFF_PRINT_ROLES;
 async function POSTHandler(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  if (!session?.user || !OPERATOR_ROLES.includes(session.user.role)) {
+  if (!session?.user || !PRINT_ROLES.includes(session.user.role)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const restaurantId = await getActiveRestaurantId();
@@ -86,9 +97,15 @@ async function POSTHandler(
     ...invoicePrintArgs(invoice, invoice.order),
     ...(dian && { dian }),
   };
-  let printers: number;
+  let result: Awaited<ReturnType<typeof enqueueInvoicePrintDetailed>>;
   try {
-    printers = await enqueueInvoicePrint({ ...args, reprint: true });
+    // `requireReachable`: con el agente caído el trabajo saldría cuando el
+    // cliente ya se fue; mejor que el botón imprima desde el navegador ya.
+    result = await enqueueInvoicePrintDetailed({
+      ...args,
+      reprint: true,
+      requireReachable: true,
+    });
   } catch (err) {
     // La factura existe y su link sigue siendo válido: un fallo de la cola
     // no es un error de la cuenta. Se loguea y se le dice a la UI que no
@@ -101,9 +118,14 @@ async function POSTHandler(
     return NextResponse.json({ error: "print_failed" }, { status: 500 });
   }
 
-  if (printers === 0) {
-    return NextResponse.json({ queued: false, reason: "no_printer" });
+  if (!result.queued) {
+    return NextResponse.json({
+      queued: false,
+      reason: result.reason === "agent_offline" ? "agent_offline" : "no_printer",
+    });
   }
+  const printers = result.jobs;
+  const printerName = result.printerNames.join(" · ");
 
   const document = dian ? "factura_electronica" : "comprobante";
   await recordAuditEvent({
@@ -122,6 +144,7 @@ async function POSTHandler(
   return NextResponse.json({
     queued: true,
     printers,
+    printerName,
     document,
     ...(dianPending && { dianPending: true }),
   });

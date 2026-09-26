@@ -1426,12 +1426,6 @@
     "colInvoice": "Invoice",
     "viewInvoice": "View invoice",
     "reprintInvoice": "Reprint invoice",
-    "reprinting": "Sending…",
-    "reprintSent": "Sent to the printer ✓",
-    "reprintSentEinvoice": "Electronic invoice sent to the printer ✓",
-    "reprintSentDianPending": "The receipt was printed: DIAN hasn't accepted this bill's electronic invoice yet.",
-    "reprintNoPrinter": "No invoice printer is set up: printing from the browser instead.",
-    "reprintError": "Couldn't reprint the invoice.",
     "resendEmail": "Resend by email",
     "resending": "Sending…",
     "resendSent": "Sent to {email} ✓",
@@ -1753,7 +1747,19 @@
     "fallbackTab": "The browser wouldn't print from here; it opened in a separate tab.",
     "fallbackBlocked": "The browser wouldn't print from here or open the tab.",
     "failed": "Couldn't load the document to print.",
-    "openLink": "Open to print"
+    "openLink": "Open to print",
+    "setupLink": "Choose a print-agent printer",
+    "setupAsk": "To print through the agent, an admin has to choose the invoice printer in Settings → Network printers."
+  },
+  "staffPrint": {
+    "sending": "Sending…",
+    "sent": "Sent to the printer ✓",
+    "sentTo": "Sent to {printer} ✓",
+    "sentToEinvoice": "Electronic invoice sent to {printer} ✓",
+    "sentDianPending": "The receipt was printed on {printer}: DIAN hasn't accepted this bill's electronic invoice yet.",
+    "noPrinter": "There's no invoice printer on the print agent: printing from the browser instead.",
+    "agentOffline": "The print agent is not responding: printing from the browser instead.",
+    "failed": "Couldn't print. Try again."
   },
   "opCartera": {
     "hubCategory": "Commercial",
@@ -3757,7 +3763,9 @@
     "supportsQrLabel": "Prints QR codes",
     "supportsQrHint": "Turn it on only if this printer prints the test invoice's QR correctly. Without it, the electronic invoice carries DIAN's lookup address as text.",
     "supportsQrFailed": "Couldn't save the QR setting.",
-    "testEinvoiceFooter": "Test invoice: the CUFE and the QR are not real."
+    "testEinvoiceFooter": "Test invoice: the CUFE and the QR are not real.",
+    "invoiceBrowserWarning": "Invoices are printed from the browser, and the Windows driver can cut them in two. Choose a print-agent printer (the Cashier one, for example) to print them the same way as kitchen tickets.",
+    "invoiceQrReminder": "With electronic invoicing: print the test invoice and, if the QR comes out right, tick “Prints QR codes” on that printer. Otherwise the invoice carries DIAN's lookup URL as text."
   },
   "cashBox": {
     "title": "Cash box",

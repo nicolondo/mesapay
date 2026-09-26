@@ -7,6 +7,11 @@ import { InvoiceChoiceButtons } from "@/components/invoice/InvoiceChoiceButtons"
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
 import { SimpleInvoiceSheet } from "@/components/invoice/SimpleInvoiceSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import { StaffPrintButton } from "@/components/print/StaffPrintButton";
+import {
+  invoicePrintHref,
+  type StaffPrintAccess,
+} from "@/lib/print/staffPrint";
 import {
   isSimpleInvoiceRequested,
   simpleInvoiceEmailFrom,
@@ -25,6 +30,13 @@ import {
  *  - Si no pidió nada → un acceso discreto, para el que cambió de opinión.
  *    No se elimina del todo: sin esa salida, el que se arrepiente queda
  *    colgado y termina pidiéndosela al mesero.
+ *
+ * "Imprimir factura": para el STAFF (`staffPrint`, que el server arma
+ * desde la sesión, no desde `operatorMode`, que es sólo el tono del copy)
+ * sale por el AGENTE, como las comandas, y el navegador queda de
+ * respaldo. Para el COMENSAL abre la vista para imprimir en su propio
+ * equipo, como siempre: desde su celular no se encola nada en el local —
+ * y la ruta del agente exige sesión de staff, así que tampoco podría.
  */
 export function InvoiceRequestPanel({
   tenantSlug,
@@ -35,6 +47,7 @@ export function InvoiceRequestPanel({
   orderPaid = false,
   prefillEmail = null,
   operatorMode = false,
+  staffPrint = null,
 }: {
   tenantSlug: string;
   orderId: string;
@@ -59,6 +72,8 @@ export function InvoiceRequestPanel({
   prefillEmail?: string | null;
   // En modo mesero (cobra por el cliente) la copia va en tercera persona.
   operatorMode?: boolean;
+  /** Quien mira es staff (desde la sesión): imprime por el agente. */
+  staffPrint?: StaffPrintAccess | null;
 }) {
   const router = useRouter();
   const t = useTranslations("done");
@@ -98,6 +113,7 @@ export function InvoiceRequestPanel({
           initial={existing}
           prefillEmail={prefillEmail ?? simpleEmail}
           operatorMode={operatorMode}
+          staffPrint={staffPrint}
           onClose={() => setOpen(false)}
           onSaved={() => router.refresh()}
         />
@@ -108,6 +124,7 @@ export function InvoiceRequestPanel({
           orderId={orderId}
           prefillEmail={prefillEmail ?? simpleEmail}
           operatorMode={operatorMode}
+          staffPrint={staffPrint}
           onClose={() => setSimpleOpen(false)}
           onSaved={() => router.refresh()}
         />
@@ -194,7 +211,22 @@ export function InvoiceRequestPanel({
                     : "invDeferredPrintBody",
                 )}
         </p>
-        {issuedInvoiceUrl && (
+        {issuedInvoiceUrl && staffPrint && (
+          <div className="mt-4 space-y-1">
+            <StaffPrintButton
+              doc={{
+                kind: "invoice",
+                orderId,
+                href: invoicePrintHref({ invoiceUrl: issuedInvoiceUrl }),
+              }}
+              label={t("invPrintInvoice")}
+              canConfigurePrinters={staffPrint.canConfigurePrinters}
+              className="block text-center w-full h-11 rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-60"
+              statusClassName="block text-xs leading-snug"
+            />
+          </div>
+        )}
+        {issuedInvoiceUrl && !staffPrint && (
           <a
             href={`${issuedInvoiceUrl}?print=1`}
             target="_blank"

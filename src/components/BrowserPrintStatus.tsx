@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { BrowserPrintOutcome } from "@/lib/printInBrowser";
 
+/** La pantalla de Configuración donde se elige la impresora de facturas. */
+export const PRINTER_SETTINGS_HREF = "/operator/settings/impresoras";
+
 /**
  * Estado del respaldo "imprimir desde el navegador" (cuando el local no
  * tiene impresora de facturas), tal como se le cuenta al que apretó el
@@ -42,15 +45,24 @@ export function browserPrintStateFrom(
  * `sameTab`: en la PWA del mesero no hay pestañas (un `target="_blank"`
  * saca al mesero a un navegador sin su sesión), así que el link navega
  * in-app, igual que "Ver precuenta" ahí mismo.
+ *
+ * `setup`: cuando se cayó al navegador porque el local NO tiene impresora
+ * de facturas, el aviso dice cómo arreglarlo de fondo — imprimir por el
+ * agente, como las comandas, en vez de por el driver de Windows (que
+ * pagina y corta la factura larga en dos tiras). "link" (quien puede
+ * entrar a Configuración) lleva a Impresoras de red; "ask" (el mesero) le
+ * dice a quién pedírselo.
  */
 export function BrowserPrintStatus({
   state,
   linkClassName = "underline",
   sameTab = false,
+  setup = null,
 }: {
   state: BrowserPrintState;
   linkClassName?: string;
   sameTab?: boolean;
+  setup?: "link" | "ask" | null;
 }) {
   const t = useTranslations("browserPrint");
   const link = (href: string) =>
@@ -63,20 +75,43 @@ export function BrowserPrintStatus({
         {t("openLink")}
       </a>
     );
+  const hint =
+    setup === "link" ? (
+      <>
+        {" "}
+        <Link href={PRINTER_SETTINGS_HREF} className={linkClassName}>
+          {t("setupLink")}
+        </Link>
+      </>
+    ) : setup === "ask" ? (
+      <>
+        {" "}
+        {t("setupAsk")}
+      </>
+    ) : null;
   switch (state.step) {
     case "preparing":
       return <>{t("preparing")}</>;
     case "sent":
-      return <>{t("sent")}</>;
+      return (
+        <>
+          {t("sent")}
+          {hint}
+        </>
+      );
     case "tab":
       return state.href ? (
         <>
           {t("fallbackBlocked")}
           {" "}
           {link(state.href)}
+          {hint}
         </>
       ) : (
-        <>{t("fallbackTab")}</>
+        <>
+          {t("fallbackTab")}
+          {hint}
+        </>
       );
     case "error":
       return (

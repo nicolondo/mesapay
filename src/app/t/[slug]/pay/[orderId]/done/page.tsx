@@ -8,6 +8,7 @@ import { fmtCOP } from "@/lib/format";
 import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
+import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,10 @@ export default async function PayDone({
   const session = operator ? await auth() : null;
   const backHref =
     session?.user?.role === "mesero" ? "/mesero/mesas" : "/operator/tables";
+  // "Imprimir factura" por el agente SÓLO con sesión de staff verificada
+  // acá (no por el `op=1` de la URL, que cualquiera puede escribir). El
+  // comensal abre la vista para imprimir en su equipo, como siempre.
+  const staffPrint = operator ? staffPrintAccessFor(session?.user?.role) : null;
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
 
@@ -200,6 +205,7 @@ export default async function PayDone({
               orderPaid={order.status === "paid"}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
+              staffPrint={staffPrint}
             />
           </div>
 
@@ -321,6 +327,7 @@ export default async function PayDone({
               orderPaid={order.status === "paid"}
               prefillEmail={order.customerEmail}
               operatorMode={operator}
+              staffPrint={staffPrint}
             />
           </div>
         )}

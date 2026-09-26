@@ -1426,12 +1426,6 @@
     "colInvoice": "Fatura",
     "viewInvoice": "Ver fatura",
     "reprintInvoice": "Reimprimir fatura",
-    "reprinting": "Enviando…",
-    "reprintSent": "Enviada para a impressora ✓",
-    "reprintSentEinvoice": "Fatura eletrônica enviada para a impressora ✓",
-    "reprintSentDianPending": "Saiu o comprovante: a DIAN ainda não aceitou a fatura eletrônica desta conta.",
-    "reprintNoPrinter": "Não há impressora de faturas configurada: imprime-se pelo navegador.",
-    "reprintError": "Não foi possível reimprimir a fatura.",
     "resendEmail": "Reenviar por e-mail",
     "resending": "Enviando…",
     "resendSent": "Enviada para {email} ✓",
@@ -1753,7 +1747,19 @@
     "fallbackTab": "O navegador não deixou imprimir aqui; abriu-se em outra aba.",
     "fallbackBlocked": "O navegador não deixou imprimir aqui nem abrir a aba.",
     "failed": "Não foi possível carregar o documento para imprimir.",
-    "openLink": "Abrir para imprimir"
+    "openLink": "Abrir para imprimir",
+    "setupLink": "Escolher impressora do agente",
+    "setupAsk": "Para sair pelo agente, um administrador precisa escolher a impressora de faturas em Configurações → Impressoras de rede."
+  },
+  "staffPrint": {
+    "sending": "Enviando…",
+    "sent": "Enviada para a impressora ✓",
+    "sentTo": "Enviada para {printer} ✓",
+    "sentToEinvoice": "Fatura eletrônica enviada para {printer} ✓",
+    "sentDianPending": "Saiu o comprovante em {printer}: a DIAN ainda não aceitou a fatura eletrônica desta conta.",
+    "noPrinter": "Não há impressora de faturas no agente: imprimindo pelo navegador.",
+    "agentOffline": "O agente de impressão não está respondendo: imprimindo pelo navegador.",
+    "failed": "Não foi possível imprimir. Tente de novo."
   },
   "opCartera": {
     "hubCategory": "Comerciais",
@@ -3757,7 +3763,9 @@
     "supportsQrLabel": "Imprime códigos QR",
     "supportsQrHint": "Ative só se a impressora imprimir bem o QR da fatura de teste. Sem isso, a fatura eletrônica leva o endereço de consulta da DIAN em texto.",
     "supportsQrFailed": "Não foi possível salvar o ajuste do QR.",
-    "testEinvoiceFooter": "Fatura de teste: o CUFE e o QR não são reais."
+    "testEinvoiceFooter": "Fatura de teste: o CUFE e o QR não são reais.",
+    "invoiceBrowserWarning": "As faturas são impressas pelo navegador e o driver do Windows pode cortá-las. Escolha uma impressora do agente (a do Caixa, por exemplo) para imprimi-las como as comandas.",
+    "invoiceQrReminder": "Com faturação eletrônica: imprima a fatura de teste e, se o QR sair bem, marque “Imprime códigos QR” nessa impressora. Sem isso, a fatura sai com a URL de consulta da DIAN em texto."
   },
   "cashBox": {
     "title": "Caixa",

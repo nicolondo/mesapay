@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
+import type { StaffPrintAccess } from "@/lib/print/staffPrint";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { CashSettleModal } from "@/components/payments/CashSettleModal";
 
@@ -117,6 +118,7 @@ export function ServeBoard({
   terminalPending,
   device,
   chargeLocked,
+  staffPrint = null,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
@@ -131,6 +133,8 @@ export function ServeBoard({
   // datáfono). El servidor las bloquea igual — esto evita que el mesero
   // las intente y choque contra un 403.
   chargeLocked: boolean;
+  /** Quien mira es staff: "Imprimir factura" sale por el agente. */
+  staffPrint?: StaffPrintAccess | null;
 }) {
   const tr = useTranslations("serve");
   const router = useRouter();
@@ -490,6 +494,7 @@ export function ServeBoard({
               orderId={invoiceOrderId}
               existing={null}
               operatorMode
+              staffPrint={staffPrint}
             />
           </div>
         </div>

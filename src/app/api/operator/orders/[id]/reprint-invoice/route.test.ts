@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
   auth: vi.fn(),
   activeRestaurantId: vi.fn(),
   invoiceFindUnique: vi.fn(),
-  enqueueInvoicePrint: vi.fn(),
+  enqueueInvoicePrintDetailed: vi.fn(),
   recordAuditEvent: vi.fn(),
   dianEnvironment: vi.fn(),
 }));
@@ -25,7 +25,7 @@ vi.mock("@/lib/db", () => ({
   db: { simpleInvoice: { findUnique: m.invoiceFindUnique } },
 }));
 vi.mock("@/lib/print/invoiceQueue", () => ({
-  enqueueInvoicePrint: m.enqueueInvoicePrint,
+  enqueueInvoicePrintDetailed: m.enqueueInvoicePrintDetailed,
 }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.recordAuditEvent }));
 // Sólo `dianEnvironment`: no descifra nada y acá tampoco hay config.
@@ -62,6 +62,11 @@ function einvoice(state: string, cufe: string | null = "CUFE-1") {
   });
 }
 
+/** Lo que devuelve la cola cuando salió por `n` impresoras. */
+function sent(n: number, names: string[] = ["Caja"]) {
+  return { queued: true, jobs: n, printerNames: names };
+}
+
 const call = () =>
   POST(
     new Request("http://localhost/api/operator/orders/order-1/reprint-invoice", {
@@ -77,25 +82,25 @@ beforeEach(() => {
   });
   m.activeRestaurantId.mockResolvedValue("rest-1");
   m.invoiceFindUnique.mockResolvedValue(invoice());
-  m.enqueueInvoicePrint.mockResolvedValue(1);
+  m.enqueueInvoicePrintDetailed.mockResolvedValue(sent(1));
   m.recordAuditEvent.mockResolvedValue(undefined);
   m.dianEnvironment.mockResolvedValue("produccion");
 });
 
 describe("la puerta", () => {
-  it.each(["mesero", "kitchen", "bar", "terminal", "diner"])(
-    "el rol %s no reimprime (401) y no toca la cola",
+  it.each(["kitchen", "bar", "terminal", "diner"])(
+    "el rol %s no imprime (401) y no toca la cola",
     async (role) => {
       m.auth.mockResolvedValue({ user: { id: "u", role } });
       const res = await call();
       expect(res.status).toBe(401);
       expect(m.invoiceFindUnique).not.toHaveBeenCalled();
-      expect(m.enqueueInvoicePrint).not.toHaveBeenCalled();
+      expect(m.enqueueInvoicePrintDetailed).not.toHaveBeenCalled();
     },
   );
 
-  it.each(["operator", "platform_admin", "group_admin"])(
-    "el rol %s sí puede",
+  it.each(["operator", "platform_admin", "group_admin", "mesero"])(
+    "el rol %s sí puede (el mesero cobra y entrega la factura)",
     async (role) => {
       m.auth.mockResolvedValue({ user: { id: "u", role } });
       const res = await call();
@@ -103,9 +108,10 @@ describe("la puerta", () => {
     },
   );
 
-  it("sin sesión ⇒ 401", async () => {
+  it("sin sesión ⇒ 401: el COMENSAL (sin sesión de staff) nunca encola papel en el local", async () => {
     m.auth.mockResolvedValue(null);
     expect((await call()).status).toBe(401);
+    expect(m.enqueueInvoicePrintDetailed).not.toHaveBeenCalled();
   });
 
   it("sin comercio activo ⇒ 400", async () => {
@@ -135,7 +141,7 @@ describe("qué factura", () => {
     const res = await call();
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "no_invoice" });
-    expect(m.enqueueInvoicePrint).not.toHaveBeenCalled();
+    expect(m.enqueueInvoicePrintDetailed).not.toHaveBeenCalled();
   });
 
   it("la factura de OTRO comercio es indistinguible de la que no existe", async () => {
@@ -143,7 +149,7 @@ describe("qué factura", () => {
     const res = await call();
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "no_invoice" });
-    expect(m.enqueueInvoicePrint).not.toHaveBeenCalled();
+    expect(m.enqueueInvoicePrintDetailed).not.toHaveBeenCalled();
     expect(m.recordAuditEvent).not.toHaveBeenCalled();
   });
 });
@@ -151,7 +157,7 @@ describe("qué factura", () => {
 describe("el encolado", () => {
   it("manda a la cola lo mismo que el cobro, con reprint para saltar la idempotencia", async () => {
     await call();
-    expect(m.enqueueInvoicePrint).toHaveBeenCalledWith({
+    expect(m.enqueueInvoicePrintDetailed).toHaveBeenCalledWith({
       restaurantId: "rest-1",
       orderId: "order-1",
       invoiceId: "inv-1",
@@ -160,22 +166,25 @@ describe("el encolado", () => {
       // El idioma es el de la ORDEN, no el del que aprieta el botón.
       locale: "pt",
       reprint: true,
+      // Botón del staff: sólo si el agente responde (si no, navegador).
+      requireReachable: true,
     });
   });
 
-  it("con impresora ⇒ queued: true, cuántas copias salieron y qué documento", async () => {
-    m.enqueueInvoicePrint.mockResolvedValue(2);
+  it("con impresora ⇒ queued: true, cuántas copias, POR CUÁL impresora y qué documento", async () => {
+    m.enqueueInvoicePrintDetailed.mockResolvedValue(sent(2, ["Caja", "Barra"]));
     const res = await call();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       queued: true,
       printers: 2,
+      printerName: "Caja · Barra",
       document: "comprobante",
     });
   });
 
   it("sin impresora de facturas ⇒ queued: false, no_printer (200, no es un error)", async () => {
-    m.enqueueInvoicePrint.mockResolvedValue(0);
+    m.enqueueInvoicePrintDetailed.mockResolvedValue({ queued: false, reason: "no_printer" });
     const res = await call();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ queued: false, reason: "no_printer" });
@@ -183,8 +192,15 @@ describe("el encolado", () => {
     expect(m.recordAuditEvent).not.toHaveBeenCalled();
   });
 
+  it("con el agente sin responder ⇒ queued: false, agent_offline (la UI imprime en el navegador)", async () => {
+    m.enqueueInvoicePrintDetailed.mockResolvedValue({ queued: false, reason: "agent_offline" });
+    const res = await call();
+    expect(await res.json()).toEqual({ queued: false, reason: "agent_offline" });
+    expect(m.recordAuditEvent).not.toHaveBeenCalled();
+  });
+
   it("si la cola revienta responde 500 print_failed sin lanzar", async () => {
-    m.enqueueInvoicePrint.mockRejectedValue(new Error("db caída"));
+    m.enqueueInvoicePrintDetailed.mockRejectedValue(new Error("db caída"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await call();
     expect(res.status).toBe(500);
@@ -199,7 +215,7 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
     m.invoiceFindUnique.mockResolvedValue(einvoice("accepted"));
     const res = await call();
     expect(m.dianEnvironment).toHaveBeenCalledWith("rest-1");
-    expect(m.enqueueInvoicePrint).toHaveBeenCalledWith(
+    expect(m.enqueueInvoicePrintDetailed).toHaveBeenCalledWith(
       expect.objectContaining({
         reprint: true,
         dian: {
@@ -211,6 +227,7 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
     expect(await res.json()).toEqual({
       queued: true,
       printers: 1,
+      printerName: "Caja",
       document: "factura_electronica",
     });
   });
@@ -219,7 +236,7 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
     m.invoiceFindUnique.mockResolvedValue(einvoice("accepted"));
     m.dianEnvironment.mockResolvedValue("habilitacion");
     await call();
-    expect(m.enqueueInvoicePrint.mock.calls[0][0].dian.qrUrl).toMatch(
+    expect(m.enqueueInvoicePrintDetailed.mock.calls[0][0].dian.qrUrl).toMatch(
       /^https:\/\/catalogo-vpfe-hab\.dian\.gov\.co\//,
     );
   });
@@ -229,12 +246,13 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
     async (state) => {
       m.invoiceFindUnique.mockResolvedValue(einvoice(state));
       const res = await call();
-      expect(m.enqueueInvoicePrint.mock.calls[0][0]).not.toHaveProperty("dian");
+      expect(m.enqueueInvoicePrintDetailed.mock.calls[0][0]).not.toHaveProperty("dian");
       expect(m.dianEnvironment).not.toHaveBeenCalled();
       // Y lo avisa: la UI dice que salió el comprobante, no la electrónica.
       expect(await res.json()).toEqual({
         queued: true,
         printers: 1,
+        printerName: "Caja",
         document: "comprobante",
         dianPending: true,
       });
@@ -244,7 +262,7 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
   it("aceptada pero sin CUFE guardado ⇒ comprobante (no se inventa un QR)", async () => {
     m.invoiceFindUnique.mockResolvedValue(einvoice("accepted", null));
     await call();
-    expect(m.enqueueInvoicePrint.mock.calls[0][0]).not.toHaveProperty("dian");
+    expect(m.enqueueInvoicePrintDetailed.mock.calls[0][0]).not.toHaveProperty("dian");
   });
 
   it("sin el módulo einvoicing un documento aceptado no cuenta", async () => {
@@ -252,7 +270,7 @@ describe("qué documento sale — la factura electrónica sólo si la DIAN la ac
       invoice({ dianDocument: { state: "accepted", cufe: "CUFE-1" } }),
     );
     const res = await call();
-    expect(m.enqueueInvoicePrint.mock.calls[0][0]).not.toHaveProperty("dian");
+    expect(m.enqueueInvoicePrintDetailed.mock.calls[0][0]).not.toHaveProperty("dian");
     expect(m.dianEnvironment).not.toHaveBeenCalled();
     // Sin facturación electrónica no hay nada "pendiente" que avisar.
     expect(await res.json()).not.toHaveProperty("dianPending");

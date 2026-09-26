@@ -31,6 +31,9 @@ const MIGRATED = [
   "src/app/operator/orders/**/*.{ts,tsx}",
   "src/components/LocaleSwitcher.tsx",
   "src/components/BrowserPrintStatus.tsx",
+  // Botón "Imprimir" del staff (por el agente, el navegador de respaldo).
+  // Nació trilingüe, queda blindado.
+  "src/components/print/**/*.{ts,tsx}",
   "src/components/SalesTaxConfigEditor.tsx",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",

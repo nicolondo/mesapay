@@ -1,5 +1,6 @@
 /**
- * ENCOLADO de la PRECUENTA hacia las impresoras de FACTURA del local.
+ * ENCOLADO de la PRECUENTA hacia la impresora de FACTURAS del local (la
+ * elegida en Configuración, o las de tipo factura).
  *
  * Se dispara a pedido, desde el detalle de la mesa ("Imprimir
  * precuenta"): el mesero la lleva al comensal para que revise el consumo
@@ -36,9 +37,8 @@ import {
   type PrebillPrintJobPayload,
   type ThermalPrebill,
 } from "@/lib/escpos";
-import { agentLiveness } from "./agentStatus";
 import { loadPrebill } from "./prebillData";
-import { isInvoicePrinter } from "./routing";
+import { invoicePrinterWhere, isInvoicePrinter, printerReachable } from "./routing";
 
 export type EnqueuePrebillResult =
   | { queued: true; printerName: string; jobs: number }
@@ -82,7 +82,7 @@ export async function buildPrebillDocument(args: {
 }
 
 /**
- * Encola la precuenta en cada impresora de factura activa cuyo agente
+ * Encola la precuenta en la impresora de facturas (ver arriba) cuyo agente
  * responde. Devuelve si quedó encolada y en qué impresora(s); si no, por
  * qué — nunca lanza por "no hay impresora".
  */
@@ -94,10 +94,19 @@ export async function enqueuePrebillTicket(args: {
 }): Promise<EnqueuePrebillResult> {
   const { restaurantId, orderId } = args;
 
-  // `kind: factura` en el where Y en `isInvoicePrinter`: la precuenta no
-  // sale por la impresora de la parrilla ni por accidente.
+  // Por la MISMA impresora que la factura: la elegida en Configuración
+  // (`Restaurant.invoicePrinterId`, aunque sea de comanda — un local con
+  // una sola térmica en la caja la usa para todo) o, sin elección, todas
+  // las activas de tipo `factura`. Antes miraba sólo el tipo, y un local
+  // que eligió su impresora "Caja" (de comanda) para las facturas veía
+  // salir la factura por el agente y la precuenta por el navegador.
+  const restaurant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { invoicePrinterId: true },
+  });
+  const chosenId = restaurant?.invoicePrinterId ?? null;
   const printers = await db.printer.findMany({
-    where: { restaurantId, kind: "factura", active: true },
+    where: invoicePrinterWhere(restaurantId, chosenId),
     select: {
       id: true,
       kind: true,
@@ -106,7 +115,12 @@ export async function enqueuePrebillTicket(args: {
       agent: { select: { lastSeenAt: true, revokedAt: true, deletedAt: true } },
     },
   });
-  const targets = printers.filter(isInvoicePrinter);
+  // Cinturón y tirantes: sin elección, `isInvoicePrinter` además del
+  // where — la precuenta no sale por la impresora de la parrilla ni por
+  // accidente. Con elección, sólo la elegida.
+  const targets = printers.filter((p) =>
+    chosenId ? p.id === chosenId : isInvoicePrinter(p),
+  );
   if (targets.length === 0) {
     console.warn("[print-queue] precuenta sin impresora de facturas", {
       restaurantId,
@@ -115,17 +129,8 @@ export async function enqueuePrebillTicket(args: {
     return { queued: false, reason: "no_printer" };
   }
 
-  // Una impresora sin agente (creada a mano en soporte) no se puede
-  // juzgar: se la deja pasar. Con agente, tiene que estar vivo — "late"
-  // (perdió un par de latidos) todavía cuenta: el trabajo sale apenas
-  // vuelva a preguntar.
   const now = new Date();
-  const reachable = targets.filter((p) => {
-    if (!p.agent) return true;
-    if (p.agent.revokedAt || p.agent.deletedAt) return false;
-    const state = agentLiveness(p.agent.lastSeenAt, now).state;
-    return state === "online" || state === "late";
-  });
+  const reachable = targets.filter((p) => printerReachable(p.agent, now));
   if (reachable.length === 0) {
     console.warn("[print-queue] precuenta: el agente de impresión no responde", {
       restaurantId,

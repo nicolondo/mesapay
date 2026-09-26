@@ -22,6 +22,7 @@
  *   · textos legales en fuente B.
  */
 
+import { itemDetailText } from "@/lib/invoice";
 import {
   NORMAL_SIZE,
   bold,
@@ -47,22 +48,18 @@ export const SMALL_INDENT = "    ";
 export const DETAIL_SEPARATOR = " · ";
 
 /**
- * Modificadores + nota del ítem en UN solo texto. La nota va entre
- * comillas, como siempre, para que no se confunda con un modificador.
- * Vacío si el ítem no tiene ninguno de los dos.
+ * Modificadores + nota del ítem en UN solo texto (`itemDetailText`, el
+ * mismo formato que la vista HTML), con `extra` adelante (el unitario de
+ * la precuenta). Vacío si no hay nada que decir.
  */
 export function itemDetail(
   modifiers: readonly string[] | undefined,
   notes: string | null | undefined,
   extra: readonly string[] = [],
 ): string {
-  const parts = [
-    ...extra,
-    ...(modifiers ?? []).map((m) => m.trim()).filter((m) => m.length > 0),
-  ];
-  const note = notes?.trim();
-  if (note) parts.push(`"${note}"`);
-  return parts.join(DETAIL_SEPARATOR);
+  return [...extra, itemDetailText({ modifiers, notes })]
+    .filter((p) => p.length > 0)
+    .join(DETAIL_SEPARATOR);
 }
 
 /**

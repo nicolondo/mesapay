@@ -21,7 +21,7 @@ import {
   browserPrintStateFrom,
   type BrowserPrintState,
 } from "@/components/BrowserPrintStatus";
-import { printInBrowserOrOpenTab } from "@/lib/printInBrowser";
+import { printAsStaff } from "@/lib/print/staffPrint";
 import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
@@ -343,6 +343,9 @@ export function TableDetailSheet({
   const [prebillNote, setPrebillNote] = useState<string | null>(null);
   const [prebillBrowser, setPrebillBrowser] =
     useState<BrowserPrintState | null>(null);
+  // Se cayó al navegador porque el local NO tiene impresora de facturas:
+  // el aviso dice cómo imprimir por el agente (ver BrowserPrintStatus).
+  const [prebillNoPrinter, setPrebillNoPrinter] = useState(false);
   const router = useRouter();
   const [, startTx] = useTransition();
 
@@ -369,62 +372,60 @@ export function TableDetailSheet({
     : `/operator/orders/${orderId}/precuenta`;
 
   /**
-   * Manda la precuenta a la impresora de facturas del local. Si el local
-   * no tiene (o su agente no responde), la imprime desde el navegador sin
-   * salir de acá: la vista imprimible se carga en un iframe oculto y el
-   * diálogo de impresión sale sobre esta misma pantalla. La precuenta
-   * sale igual, sólo que por otro camino.
+   * Manda la precuenta a la impresora de facturas del local (la elegida en
+   * Configuración, por el agente, como las comandas). Si el local no tiene
+   * (o su agente no responde), la imprime desde el navegador sin salir de
+   * acá: la vista imprimible se carga en un iframe oculto, en una sola
+   * página del alto de la precuenta, y el diálogo sale sobre esta misma
+   * pantalla. Toda la lógica es la de `printAsStaff` (staffPrint.ts).
    */
   async function printPrebill() {
     if (prebillBusy) return;
     setPrebillBusy(true);
     setPrebillNote(null);
     setPrebillBrowser(null);
+    setPrebillNoPrinter(false);
     try {
-      const res = await fetch(`/api/operator/orders/${orderId}/prebill`, {
-        method: "POST",
-      });
-      const body = (await res.json().catch(() => null)) as {
-        queued?: boolean;
-        reason?: string;
-        printerName?: string;
-      } | null;
-      if (!res.ok || !body) {
+      const result = await printAsStaff(
+        { kind: "prebill", orderId, href: prebillHref },
+        {
+          // Si el navegador no deja imprimir embebido se cae a lo de antes:
+          // en la PWA del mesero no hay pestañas, así que se navega in-app
+          // a la vista imprimible (scope /mesero/); en el panel, la pestaña.
+          openTab: isMeseroView
+            ? () => {
+                router.push(prebillHref);
+                return true;
+              }
+            : undefined,
+          onBrowserFallback: (reason) => {
+            setPrebillNote(
+              reason === "agent_offline"
+                ? tr("prebillPrinterOffline")
+                : tr("prebillNoPrinter"),
+            );
+            setPrebillNoPrinter(reason === "no_printer");
+            setPrebillBrowser({ step: "preparing" });
+          },
+        },
+      );
+      if (result.via === "agent") {
+        setPrebillNote(tr("prebillSent", { printer: result.printerName }));
+        return;
+      }
+      if (result.via === "error") {
+        setPrebillBrowser(null);
         setPrebillNote(tr("prebillFailed"));
         return;
       }
-      if (body.queued) {
-        setPrebillNote(tr("prebillSent", { printer: body.printerName ?? "" }));
-        return;
-      }
-      setPrebillNote(
-        body.reason === "agent_offline"
-          ? tr("prebillPrinterOffline")
-          : tr("prebillNoPrinter"),
-      );
-      setPrebillBrowser({ step: "preparing" });
-      // `?print=1` sólo para la pestaña de respaldo: en el iframe imprime el
-      // helper y la página no se auto-imprime (isEmbeddedFrame).
-      const tabUrl = `${prebillHref}?print=1`;
-      const outcome = await printInBrowserOrOpenTab(prebillHref, {
-        tabUrl,
-        // Si el navegador no deja imprimir embebido se cae a lo de antes:
-        // en la PWA del mesero no hay pestañas, así que se navega in-app a
-        // la vista imprimible (scope /mesero/); en el panel, la pestaña.
-        openTab: isMeseroView
-          ? () => {
-              router.push(prebillHref);
-              return true;
-            }
-          : undefined,
-      });
-      if (outcome.kind === "tab" && isMeseroView) {
+      if (result.outcome.kind === "tab" && isMeseroView) {
         // Ya navegamos a la precuenta: no hay nada más que contar acá.
         setPrebillBrowser(null);
         return;
       }
-      setPrebillBrowser(browserPrintStateFrom(outcome, tabUrl));
+      setPrebillBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
     } catch {
+      setPrebillBrowser(null);
       setPrebillNote(tr("prebillFailed"));
     } finally {
       setPrebillBusy(false);
@@ -1107,6 +1108,13 @@ export function TableDetailSheet({
                                 state={prebillBrowser}
                                 linkClassName="underline text-op-text"
                                 sameTab={isMeseroView}
+                                setup={
+                                  prebillNoPrinter
+                                    ? isMeseroView
+                                      ? "ask"
+                                      : "link"
+                                    : null
+                                }
                               />
                             </>
                           )}

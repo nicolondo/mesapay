@@ -6946,7 +6946,39 @@
     "method_disabled": "Este método de pagamento não está habilitado.",
     "credentials_missing": "O pagamento está indisponível no momento.",
     "comp_not_allowed": "Seu perfil não tem permissão para deixar de cobrar. Peça ao administrador.",
-    "generic": "Não foi possível concluir a operação. Atualize e tente novamente."
+    "generic": "Não foi possível concluir a operação. Atualize e tente novamente.",
+    "pending_payment_in_flight": "Há um pagamento com {method} de {amount} aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma.",
+    "pending_payment_in_flight_generic": "Há um pagamento online aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma."
+  },
+  "pendingPayment": {
+    "requestKicker": "O cliente pediu para pagar com",
+    "includesTip": "Inclui gorjeta de {amount}",
+    "cashTender": "Diz que vai pagar com {amount}",
+    "confirm": "Confirmar pagamento recebido",
+    "confirming": "Confirmando…",
+    "replaceHint": "Se você cobrar de outra forma, esta solicitação é substituída automaticamente.",
+    "adminOnly": "Somente o administrador pode confirmar este pagamento.",
+    "confirmError": "Não foi possível confirmar o pagamento. Atualize e tente novamente.",
+    "inFlightKicker": "Pagamento online em andamento",
+    "inFlightBody": "Aguarde até que o provedor o aprove ou recuse antes de cobrar de outra forma. Você pode vê-lo em Salão ou em Cobranças.",
+    "methods": {
+      "cash": "Dinheiro",
+      "demo_cash": "Dinheiro",
+      "external_terminal": "Maquininha do estabelecimento",
+      "kushki_card_terminal": "Maquininha Kushki",
+      "kushki_card": "Cartão online",
+      "kushki_apple_pay": "Apple Pay",
+      "kushki_google_pay": "Google Pay",
+      "kushki_pse": "PSE",
+      "wompi_card": "Cartão (Wompi)",
+      "wompi_pse": "PSE (Wompi)",
+      "wompi_nequi": "Nequi",
+      "demo_card": "Cartão (demo)",
+      "reservation_deposit": "Sinal da reserva",
+      "voucher": "Vale",
+      "customer_credit": "Crédito",
+      "other": "Outro meio de pagamento"
+    }
   },
   "paymentReconciliation": {
     "title": "Conciliar pagamento",

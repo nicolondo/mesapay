@@ -16,6 +16,10 @@ import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
 import {
+  PendingPaymentNotice,
+  type PendingPaymentView,
+} from "@/components/payments/PendingPaymentNotice";
+import {
   billingDocument,
   creditAvailableCents,
   discountBpsToPctText,
@@ -122,6 +126,8 @@ export function PayClient({
   customerStepEnabled = false,
   creditEnabled = false,
   linkedCustomer = null,
+  pendingPayments = [],
+  tableNumber = 0,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -234,6 +240,12 @@ export function PayClient({
   creditEnabled?: boolean;
   // Cliente ya ligado a la cuenta por la solicitud de factura nominativa.
   linkedCustomer?: PayCustomer | null;
+  // Pagos `pending` de la cuenta (sólo staff): la solicitud del comensal
+  // ("pidió pagar con datáfono/efectivo por $X") va arriba con "Confirmar
+  // pago recibido"; un pago en línea en curso, sin acción.
+  pendingPayments?: PendingPaymentView[];
+  // Número de la mesa, para el título del cobro en efectivo del aviso.
+  tableNumber?: number;
 }) {
   // Counter-mode is prepay for a single diner's order — splitting the
   // cuenta makes no sense and would let someone walk off with the food
@@ -477,7 +489,10 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
-        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        // Códigos conocidos (p. ej. pending_payment_in_flight: un pago en
+        // línea en curso no deja cobrar) se traducen; el resto cae al
+        // mensaje del servidor o al genérico.
+        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
 
@@ -552,7 +567,7 @@ export function PayClient({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
-        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
       // Mismo destino que el flujo de terminal de Kushki: el cliente
@@ -666,7 +681,9 @@ export function PayClient({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(j.message ?? j.error ?? t("errNotifyWaiter"));
+        // Los códigos conocidos se traducen —pending_payment_in_flight nombra
+        // el pago en línea que no deja cobrar—; nunca el código crudo.
+        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
       cashRequestKey.current = null;
@@ -857,6 +874,22 @@ export function PayClient({
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
         {operatorMode ? t("charge") : t("pay")}
       </h1>
+
+      {/* Lo que el comensal ya pidió para pagar, antes que cualquier método:
+          confirmarlo cierra el cobro; cobrar de otra forma lo reemplaza. */}
+      {operatorMode && pendingPayments.length > 0 && (
+        <div className="mt-5">
+          <PendingPaymentNotice
+            pendings={pendingPayments}
+            order={{ shortCode, tableNumber }}
+            serviceMode={serviceMode}
+            onConfirmed={({ paid }) => {
+              if (paid) router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
+              else router.refresh();
+            }}
+          />
+        </div>
+      )}
 
       {/* Resumen del pedido — solo en modo mesero. El mesero le pasa
           el celular al cliente para que confirme que todo lo que

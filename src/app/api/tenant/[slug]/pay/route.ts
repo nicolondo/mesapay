@@ -19,7 +19,8 @@ import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { welcomeIfFirstTime } from "@/lib/mailer";
-import { CASH_METHOD, CASH_METHODS, isCashMethod } from "@/lib/payments/methods";
+import { CASH_METHOD, isCashMethod } from "@/lib/payments/methods";
+import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -72,8 +73,11 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
       }
     }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
-    // Only a collector can replace cash requests. Financial attempts stay reserved.
-    if (staff) await tx.payment.updateMany({ where: { orderId: order.id, method: { in: [...CASH_METHODS] }, status: "pending" }, data: { status: "declined" } });
+    // El staff que cobra reemplaza las SOLICITUDES del comensal (efectivo o
+    // datáfono propio pendientes: no hay plata en vuelo). Los pagos en línea
+    // en curso siguen reservados; si son lo único que impide este cobro, sale
+    // un 409 `pending_payment_in_flight` que dice cuál es (staffCharge.ts).
+    if (staff) await prepareStaffCharge(tx, order.id, amountCents - tipCents);
     const payment = await tx.payment.create({ data: {
       requestKey, orderId: order.id, method: isCash ? CASH_METHOD : input.method === "demo_nequi" ? "wompi_nequi" : input.method,
       status: approved ? "approved" : "pending", amountCents, tipCents,

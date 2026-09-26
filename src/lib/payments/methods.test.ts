@@ -3,7 +3,14 @@
 // pasa por acá.
 import { describe, expect, it } from "vitest";
 import { PaymentMethod } from "@prisma/client";
-import { CASH_METHOD, CASH_METHODS, isCashMethod, reportingPaymentMethod } from "./methods";
+import {
+  CASH_METHOD,
+  CASH_METHODS,
+  REPLACEABLE_PENDING_METHODS,
+  isCashMethod,
+  isReplaceablePendingMethod,
+  reportingPaymentMethod,
+} from "./methods";
 
 describe("isCashMethod", () => {
   it("cash y el histórico demo_cash son efectivo", () => {
@@ -47,3 +54,49 @@ describe("reportingPaymentMethod", () => {
     expect(reportingPaymentMethod("customer_credit")).toBe("customer_credit");
   });
 });
+
+// Qué pendientes son sólo una SOLICITUD del comensal (sin plata en vuelo en
+// un proveedor) y el staff reemplaza al cobrar. Ver el `Record` en methods.ts
+// con el porqué de cada método.
+describe("isReplaceablePendingMethod / REPLACEABLE_PENDING_METHODS", () => {
+  it("efectivo (también el histórico) y el datáfono propio del comercio son solicitudes", () => {
+    expect([...REPLACEABLE_PENDING_METHODS].sort()).toEqual(["cash", "demo_cash", "external_terminal"]);
+    for (const m of REPLACEABLE_PENDING_METHODS) expect(isReplaceablePendingMethod(m), m).toBe(true);
+  });
+
+  it("los pagos con proveedor externo en curso NUNCA se reemplazan", () => {
+    for (const m of [
+      "kushki_card_terminal",
+      "kushki_card",
+      "kushki_apple_pay",
+      "kushki_google_pay",
+      "kushki_pse",
+      "wompi_card",
+      "wompi_pse",
+      "wompi_nequi",
+    ]) {
+      expect(isReplaceablePendingMethod(m), m).toBe(false);
+    }
+  });
+
+  it("lo que nace aprobado (abono, bono, crédito, tarjeta demo) tampoco", () => {
+    for (const m of ["reservation_deposit", "voucher", "customer_credit", "demo_card"]) {
+      expect(isReplaceablePendingMethod(m), m).toBe(false);
+    }
+  });
+
+  it("cubre el enum entero: todo método del schema está clasificado y existe", () => {
+    const enumValues: string[] = Object.values(PaymentMethod);
+    for (const m of REPLACEABLE_PENDING_METHODS) expect(enumValues).toContain(m);
+    // Cada valor del enum responde algo definido (el Record obliga a
+    // clasificar los nuevos en compilación; esto lo confirma en runtime).
+    for (const m of enumValues) expect(typeof isReplaceablePendingMethod(m)).toBe("boolean");
+  });
+
+  it("lo desconocido o vacío se respeta (no se reemplaza)", () => {
+    for (const m of [null, undefined, "", "toString", "__proto__", "bitcoin"]) {
+      expect(isReplaceablePendingMethod(m), String(m)).toBe(false);
+    }
+  });
+});
+

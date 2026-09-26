@@ -14,6 +14,8 @@ const m = vi.hoisted(() => ({
   orderFindUnique: vi.fn(),
   orderFindFirst: vi.fn(),
   paymentFindMany: vi.fn(),
+  paymentFindFirst: vi.fn(),
+  paymentUpdateMany: vi.fn(),
   paymentCreate: vi.fn(),
   redemptionFindUnique: vi.fn(),
   redemptionCreate: vi.fn(),
@@ -28,7 +30,12 @@ const m = vi.hoisted(() => ({
 const tx = {
   $queryRaw: m.queryRaw,
   order: { findUnique: m.orderFindUnique, findFirst: m.orderFindFirst },
-  payment: { findMany: m.paymentFindMany, create: m.paymentCreate },
+  payment: {
+    findMany: m.paymentFindMany,
+    findFirst: m.paymentFindFirst,
+    updateMany: m.paymentUpdateMany,
+    create: m.paymentCreate,
+  },
   voucher: { findUnique: m.voucherFindUnique, updateMany: m.voucherUpdateMany, update: m.voucherUpdate },
   voucherRedemption: { findUnique: m.redemptionFindUnique, create: m.redemptionCreate },
 };
@@ -39,7 +46,7 @@ vi.mock("@/lib/db", () => ({
     restaurant: { findUnique: m.restaurantFindUnique },
     voucher: { findUnique: m.voucherFindUnique },
     order: { findUnique: m.orderFindUnique, findFirst: m.orderFindFirst },
-    payment: { findMany: m.paymentFindMany },
+    payment: { findMany: m.paymentFindMany, findFirst: m.paymentFindFirst },
   },
 }));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: vi.fn() }));
@@ -53,6 +60,7 @@ vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: m.invoice }));
 vi.mock("@/lib/kds/autoFireTickets", () => ({ notifyAutoFiredTickets: m.notify }));
 
 import { previewVoucher, redeemVoucher } from "./redeem";
+import { PendingPaymentInFlightError } from "@/lib/payments/paymentInFlight";
 
 const VOUCHER = {
   id: "v-1",
@@ -88,6 +96,8 @@ beforeEach(() => {
   m.redemptionCreate.mockResolvedValue({ id: "red-1" });
   m.activateRounds.mockResolvedValue([]);
   m.queryRaw.mockResolvedValue([]);
+  m.paymentFindFirst.mockResolvedValue(null);
+  m.paymentUpdateMany.mockResolvedValue({ count: 0 });
   order(450_000_00);
   m.recompute.mockResolvedValue({ fullyPaid: false, outstandingCents: 150_000_00 });
 });
@@ -226,5 +236,57 @@ describe("idempotencia", () => {
     expect(m.paymentCreate).not.toHaveBeenCalled();
     expect(m.voucherUpdateMany).not.toHaveBeenCalled();
     expect(m.publish).not.toHaveBeenCalled();
+  });
+});
+
+describe("canal staff: solicitudes del comensal y pagos en línea en curso", () => {
+  // La cuenta de 120.000 ya tiene un pendiente del comensal por el total.
+  // findMany responde según el where: el staff pregunta por aprobados + en
+  // vuelo (OR), el comensal por aprobados + pendientes (status in).
+  function withPending(method: string) {
+    order(120_000_00);
+    const pending = { amountCents: 132_000_00, tipCents: 12_000_00, status: "pending", method };
+    const inFlight = !["cash", "demo_cash", "external_terminal"].includes(method);
+    m.paymentFindMany.mockImplementation(async ({ where }: { where: { OR?: unknown } }) =>
+      where.OR ? (inFlight ? [pending] : []) : [pending],
+    );
+    m.paymentFindFirst.mockResolvedValue(
+      inFlight ? { id: "p-1", method, amountCents: 132_000_00, tipCents: 12_000_00, createdAt: new Date("2026-09-25T19:03:18Z") } : null,
+    );
+  }
+
+  it("el comensal pidió datáfono del comercio: el bono aplicado por el staff la reemplaza", async () => {
+    withPending("external_terminal");
+    m.recompute.mockResolvedValue({ fullyPaid: true, outstandingCents: 0 });
+    const r = await redeem({ channel: "staff", userId: "user-9" });
+    expect(r).toMatchObject({ ok: true, amountCents: 120_000_00, fullyPaid: true });
+    expect(m.paymentUpdateMany).toHaveBeenCalledWith({
+      where: { orderId: "order-1", method: { in: ["cash", "demo_cash", "external_terminal"] }, status: "pending" },
+      data: { status: "declined" },
+    });
+    // Declinada ANTES del INSERT (si no, el trigger lo rechazaría).
+    expect(m.paymentUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(m.paymentCreate.mock.invocationCallOrder[0]);
+  });
+
+  it("el comensal redimiendo no reemplaza nada: su solicitud sigue reservando", async () => {
+    withPending("external_terminal");
+    expect(await redeem()).toEqual({ ok: false, error: "nothing_outstanding" });
+    expect(m.paymentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("un PSE en curso por el total: 409 accionable, sin debitar el bono", async () => {
+    withPending("kushki_pse");
+    const err = await redeem({ channel: "staff", userId: "user-9" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PendingPaymentInFlightError);
+    expect((err as PendingPaymentInFlightError).pending).toMatchObject({ paymentId: "p-1", method: "kushki_pse" });
+    expect(m.voucherUpdateMany).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("el preview del staff tampoco cuenta la solicitud del comensal", async () => {
+    withPending("cash");
+    const p = await previewVoucher({ restaurantId: "rest-1", code: "SM-7K3Q-9X2A", orderId: "order-1", channel: "staff" });
+    expect(p).toMatchObject({ ok: true, applicableCents: 120_000_00, outstandingCents: 120_000_00 });
+    expect(m.paymentUpdateMany).not.toHaveBeenCalled();
   });
 });

@@ -27,9 +27,20 @@ const h = vi.hoisted(() => {
   const tx = {
     payment: {
       create: record("payment.create"),
-      updateMany: record("payment.updateMany"),
+      updateMany: vi.fn(async () => {
+        writes.push("payment.updateMany");
+        return { count: 0 };
+      }),
+      // Cuenta sin pagos previos: lo que usa prepareStaffCharge para saber
+      // si el cobro entra.
+      findMany: vi.fn(async () => []),
+      findFirst: vi.fn(async () => null),
     },
-    order: { update: record("order.update"), findUniqueOrThrow: vi.fn(async () => ({ id: "order-1", status: "open" })) },
+    order: {
+      update: record("order.update"),
+      findUniqueOrThrow: vi.fn(async () => ({ id: "order-1", status: "open" })),
+      findUnique: vi.fn(async () => ({ id: "order-1", status: "open", subtotalCents: 4300000, taxCents: 0, discountCents: 0 })),
+    },
   };
   const db = {
     restaurant: {
@@ -61,7 +72,9 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/db", () => ({ db: h.db }));
 vi.mock("@/auth", () => ({ auth: h.auth }));
-vi.mock("@/lib/orderTotals", () => ({
+vi.mock("@/lib/orderTotals", async (importOriginal) => ({
+  // La aritmética real (la usa prepareStaffCharge); lo que escribe, mockeado.
+  computeOrderTotals: (await importOriginal<typeof import("@/lib/orderTotals")>()).computeOrderTotals,
   validateNewPaymentAmount: h.validateNewPaymentAmount,
   recomputeOrderTotalsInTx: h.recomputeOrderTotalsInTx,
 }));
@@ -238,10 +251,11 @@ describe("POST /api/tenant/[slug]/pay — el efectivo NO se rompe", () => {
         }),
       }),
     );
-    // Antes de grabar, el mesero barre los "voy a pagar en efectivo"
-    // pendientes, sean cash o del nombre viejo demo_cash.
+    // Antes de grabar, el mesero reemplaza las solicitudes del comensal: los
+    // "voy a pagar en efectivo" (cash o el nombre viejo demo_cash) y el
+    // "tráiganme el datáfono del comercio" (external_terminal).
     expect(h.tx.payment.updateMany).toHaveBeenCalledWith({
-      where: { orderId: "order-1", method: { in: ["cash", "demo_cash"] }, status: "pending" },
+      where: { orderId: "order-1", method: { in: ["cash", "demo_cash", "external_terminal"] }, status: "pending" },
       data: { status: "declined" },
     });
   });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
+import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { previewVoucher } from "@/lib/vouchers/redeem";
 
 /**
@@ -30,10 +31,14 @@ async function POSTHandler(
   if (!(await rateLimit(`vouchers:lookup:${tenant.id}:${parsed.data.orderId}`, 20, 300))) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "300" } });
   }
+  // Canal como en la redención: al staff las solicitudes del comensal
+  // pendientes no le restan (el bono las reemplaza al aplicarse).
+  const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
   const result = await previewVoucher({
     restaurantId: tenant.id,
     code: parsed.data.code,
     orderId: parsed.data.orderId,
+    channel: staff ? "staff" : "diner",
   });
   if (!result.ok) {
     const status = result.error === "module_disabled" ? 403 : result.error === "not_found" ? 404 : 409;

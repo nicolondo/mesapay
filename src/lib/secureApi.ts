@@ -1,5 +1,6 @@
 import { resolveEnabledPaymentMethods, type PaymentMethodSlug } from "./paymentMethods";
 import { isCashMethod } from "./payments/methods";
+import { PENDING_PAYMENT_IN_FLIGHT, PendingPaymentInFlightError } from "./payments/paymentInFlight";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "./db";
@@ -82,6 +83,13 @@ export function secureApi<R extends Request, Args extends unknown[]>(handler: (r
       if (response.status >= 500 || Date.now() - started > 2000) console.warn("api_request", { requestId, path: new URL(req.url).pathname, status: response.status, durationMs: Date.now() - started });
       return response;
     } catch (error) {
+      // Un pago en línea en curso no deja cobrar: no es un conflicto genérico
+      // sino uno que quien cobra puede resolver, así que va con su código y
+      // con qué pago es (método, monto) para que la pantalla lo diga.
+      if (error instanceof PendingPaymentInFlightError) {
+        console.warn("api_payment_in_flight", { requestId, path: new URL(req.url).pathname, method: error.pending.method });
+        return NextResponse.json({ error: PENDING_PAYMENT_IN_FLIGHT, pending: error.pending, requestId }, { status: 409, headers: { "X-Request-Id": requestId } });
+      }
       const message = error instanceof Error ? error.message : "";
       const conflict = /operation_conflict|amount_exceeds_outstanding|order_closed|payment_amounts_valid|Unique constraint|deadlock|write conflict/.test(message);
       console.error("api_failed", { requestId, path: new URL(req.url).pathname, error: error instanceof Error ? error.name : "unknown" });

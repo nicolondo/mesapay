@@ -244,6 +244,18 @@ export default async function TablesPage({
       invoiceRequest: order.invoiceRequests[0] ?? null,
       outstandingCents,
       needsWaiter: order.needsWaiter,
+      // Lo que el comensal pidió para pagar (efectivo, datáfono del
+      // comercio) o un pago en línea en curso: la ficha lo muestra arriba.
+      pendingPayments: order.payments
+        .filter((p) => p.status === "pending")
+        .map((p) => ({
+          id: p.id,
+          method: p.method,
+          amountCents: p.amountCents,
+          tipCents: p.tipCents,
+          cashTenderCents: p.cashTenderCents,
+          createdAt: p.createdAt.toISOString(),
+        })),
       rounds: order.rounds.map((r) => ({
         id: r.id,
         seq: r.seq,

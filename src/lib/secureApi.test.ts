@@ -8,6 +8,7 @@ vi.mock("./activeRestaurant", () => ({ getActiveContext: h.context }));
 vi.mock("./guestAccess", () => ({ canAccessOrder: h.access, canAccessTable: h.tableAccess }));
 vi.mock("./rateLimit", () => ({ rateLimit: h.rate }));
 import { secureApi } from "./secureApi";
+import { PendingPaymentInFlightError } from "./payments/paymentInFlight";
 import { staffForRestaurant, COLLECTOR_ROLES } from "./staffAccess";
 beforeEach(() => {
   vi.clearAllMocks(); h.rate.mockResolvedValue(true); h.context.mockResolvedValue(null);
@@ -66,3 +67,24 @@ describe("HTTP authorization boundaries", () => {
     expect(response.status).toBe(429); expect(response.headers.get("Retry-After")).toBe("60"); expect(handler).not.toHaveBeenCalled();
   });
 });
+describe("errores de cobro", () => {
+  beforeEach(() => {
+    h.context.mockResolvedValue({ restaurantId: "rest-a", session: { user: { id: "admin", role: "operator" } } });
+  });
+  it("un pago en línea en curso sale como 409 pending_payment_in_flight con qué pago es (no operation_conflict)", async () => {
+    const pending = { paymentId: "pse-1", method: "kushki_pse" as const, amountCents: 69_817_000, tipCents: 6_347_000, createdAt: "2026-09-25T19:03:18.000Z" };
+    const handler = vi.fn(async () => { throw new PendingPaymentInFlightError(pending); });
+    const response = await secureApi(handler)(new Request("http://localhost/api/operator/orders/o/settle-credit", { method: "GET" }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body).toMatchObject({ error: "pending_payment_in_flight", pending });
+    expect(response.headers.get("X-Request-Id")).toBe(body.requestId);
+  });
+  it("el trigger de reserva sigue siendo un operation_conflict genérico", async () => {
+    const handler = vi.fn(async () => { throw new Error("ERROR: amount_exceeds_outstanding"); });
+    const response = await secureApi(handler)(new Request("http://localhost/api/operator/orders/o/settle-credit", { method: "GET" }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("operation_conflict");
+  });
+});
+

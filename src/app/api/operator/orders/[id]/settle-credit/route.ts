@@ -9,11 +9,15 @@ import { publishOrderEvent } from "@/lib/events";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
-import { computeOrderTotals, recomputeOrderTotalsInTx } from "@/lib/orderTotals";
+import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
-import { CASH_METHODS } from "@/lib/payments/methods";
+import {
+  assertNoPaymentInFlightHolding,
+  releasePaymentRequests,
+  staffOutstanding,
+} from "@/lib/payments/staffCharge";
 import { canChargeOnCredit, loadCustomerCreditSummary } from "@/lib/customerCredit";
 import { applyCustomerDiscount, type ApplyCustomerDiscountResult } from "@/lib/customerDiscount";
 
@@ -91,36 +95,29 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
 
   const result = await db.$transaction(async (tx): Promise<TxResult> => {
     await lockOrder(tx, order.id);
-    // Un "voy a pagar en efectivo" pendiente del comensal ya no aplica: el
-    // staff está cerrando la cuenta a crédito (mismo barrido que el cobro
-    // en efectivo con settleNow). Los pendientes de datáfono/PSE en vuelo
-    // sí siguen reclamando su parte.
-    await tx.payment.updateMany({
-      where: { orderId: order.id, method: { in: [...CASH_METHODS] }, status: "pending" },
-      data: { status: "declined" },
-    });
     // Descuento comercial del cliente (si lo tiene) ANTES de calcular lo
     // pendiente: lo que se cobra a crédito es el neto. Idempotente y no pisa
     // un descuento mayor que ya tuviera la cuenta.
     const discount = await applyCustomerDiscount(tx, order.id, order.restaurantId, customer);
     const current = await tx.order.findUnique({
       where: { id: order.id },
-      select: { status: true, subtotalCents: true, taxCents: true, discountCents: true },
+      select: { status: true },
     });
     if (!current || current.status === "paid" || current.status === "cancelled") {
       return { error: "order_closed" };
     }
-    const claims = await tx.payment.findMany({
-      where: { orderId: order.id, status: { in: ["approved", "pending"] } },
-      select: { amountCents: true, tipCents: true },
-    });
-    const outstandingCents = computeOrderTotals(
-      current.subtotalCents,
-      claims,
-      current.taxCents,
-      current.discountCents,
-    ).outstandingCents;
-    if (outstandingCents <= 0) return { error: "nothing_outstanding" };
+    // Lo pendiente para el staff: la cuenta menos lo aprobado y lo que
+    // reservan los pagos EN VUELO (PSE, tarjeta en línea, Smart POS). Las
+    // solicitudes del comensal ("voy a pagar en efectivo", "tráiganme el
+    // datáfono") no cuentan: este cobro las reemplaza más abajo.
+    const { outstandingCents } = await staffOutstanding(tx, order.id);
+    if (outstandingCents <= 0) {
+      // Si lo que "no deja nada" es un pago en línea en curso, decirlo (409
+      // pending_payment_in_flight) en vez de un "nada pendiente" que no se
+      // entiende con la cuenta abierta.
+      await assertNoPaymentInFlightHolding(tx, order.id);
+      return { error: "nothing_outstanding" };
+    }
 
     // Deuda bajo el lock del cliente: dos mesas a la vez no pueden pasar
     // el tope entre las dos.
@@ -136,6 +133,11 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
       return { error: check.error };
     }
 
+    // Recién ahora, con el cobro a crédito aprobado por todas las guardias,
+    // se declinan las solicitudes del comensal: un intento que rebota (tope
+    // de crédito, cliente sin crédito) no le borra al comensal su pedido de
+    // datáfono o efectivo.
+    await releasePaymentRequests(tx, order.id);
     const now = new Date();
     const payment = await tx.payment.create({
       data: {

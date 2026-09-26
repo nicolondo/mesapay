@@ -106,11 +106,16 @@ describe("lookup", () => {
     const res = await call(LOOKUP);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, applicableCents: 100 });
-    expect(m.preview).toHaveBeenCalledWith({ restaurantId: "rest-1", code: "SM-7K3Q-9X2A", orderId: "order-1" });
+    expect(m.preview).toHaveBeenCalledWith({ restaurantId: "rest-1", code: "SM-7K3Q-9X2A", orderId: "order-1", channel: "diner" });
     expect(m.redeem).not.toHaveBeenCalled();
   });
   it("módulo apagado: 403", async () => {
     m.preview.mockResolvedValue({ ok: false, error: "module_disabled" });
     expect((await call(LOOKUP)).status).toBe(403);
+  });
+  it("con sesión de staff el preview va por el canal staff (sin contar las solicitudes del comensal)", async () => {
+    m.staff.mockResolvedValue({ user: { id: "user-9", role: "operator" } });
+    await call(LOOKUP);
+    expect(m.preview).toHaveBeenCalledWith(expect.objectContaining({ channel: "staff" }));
   });
 });

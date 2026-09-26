@@ -10,6 +10,10 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import {
+  PendingPaymentNotice,
+  type PendingPaymentView,
+} from "@/components/payments/PendingPaymentNotice";
 import { roleLabelKey } from "@/lib/orders/placedBy";
 import type { CompPolicyView } from "@/lib/staffPolicies";
 import {
@@ -133,6 +137,8 @@ export function TableDetailSheet({
   compPolicy,
   manual = false,
   invoiceRequest = null,
+  pendingPayments = [],
+  counterMode = false,
 }: {
   orderId: string;
   shortCode: string;
@@ -214,6 +220,12 @@ export function TableDetailSheet({
   // "quitar un plato" como cancelación (no como cortesía) y deja
   // descartar la factura entera aunque los ítems figuren "ready".
   manual?: boolean;
+  // Pagos `pending` de la cuenta. Si el comensal pidió pagar (datáfono del
+  // comercio, efectivo) la ficha lo muestra ARRIBA con "Confirmar pago
+  // recibido"; un pago en línea en curso se muestra sin acción.
+  pendingPayments?: PendingPaymentView[];
+  // Modo mostrador: el cobro en efectivo titula "Orden X" en vez de "Mesa N".
+  counterMode?: boolean;
 }) {
   const tr = useTranslations("opTables");
   // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
@@ -333,6 +345,22 @@ export function TableDetailSheet({
     useState<BrowserPrintState | null>(null);
   const router = useRouter();
   const [, startTx] = useTransition();
+
+  // "Confirmar pago recibido" sobre la solicitud del comensal. Si cerró la
+  // cuenta, a la misma pantalla de "listo" a la que llega el cobro normal
+  // (con la factura), dentro del scope de quien cobra; si fue parcial, sólo
+  // se refresca la ficha.
+  function onPendingConfirmed({ paid }: { paid: boolean }) {
+    if (paid && (isMeseroView || tenantSlug)) {
+      router.push(
+        isMeseroView
+          ? `/mesero/cobrar/${orderId}/done`
+          : `/t/${tenantSlug}/pay/${orderId}/done?op=1`,
+      );
+      return;
+    }
+    startTx(() => router.refresh());
+  }
 
   // Vista imprimible de la precuenta. En la PWA del mesero navegamos
   // in-app (scope /mesero/), igual que "Cobrar la cuenta".
@@ -753,6 +781,20 @@ export function TableDetailSheet({
                 {"✕"}
               </button>
             </div>
+
+            {/* Lo que el comensal ya pidió para pagar va primero: es lo
+                que hay que resolver antes de cobrar de otra forma. */}
+            {pendingPayments.length > 0 &&
+              orderStatus !== "paid" &&
+              orderStatus !== "cancelled" && (
+                <PendingPaymentNotice
+                  pendings={pendingPayments}
+                  order={{ shortCode, tableNumber }}
+                  serviceMode={counterMode ? "counter" : "table"}
+                  chargeLocked={chargeLocked}
+                  onConfirmed={onPendingConfirmed}
+                />
+              )}
 
             {/* Resumen del cobro + acciones principales. "Agregar
                 platos" siempre visible (acción frecuente); "Cobrar

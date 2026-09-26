@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fuzzyNormalize,
   matchesQuery,
+  rankMenuItems,
   searchMenuItems,
   searchTokens,
 } from "./menuSearch";
@@ -147,8 +148,9 @@ describe("searchMenuItems — recorre toda la carta", () => {
     expect(ids).toEqual(expect.arrayContaining(["i-1", "i-2", "i-6"]));
   });
 
-  it("agrupa por categoría en el orden de la carta (pestaña → categoría → subcategoría → plato)", () => {
-    const groups = searchMenuItems(items, "a", { categories, menus });
+  it("agrupa por categoría en el orden de la carta cuando la relevancia es igual", () => {
+    const shared = items.map((item) => ({ ...item, description: "Selección de la casa" }));
+    const groups = searchMenuItems(shared, "seleccion", { categories, menus });
     expect(groups.map((g) => g.category.slug)).toEqual([
       "entradas",
       "fuertes",
@@ -162,7 +164,8 @@ describe("searchMenuItems — recorre toda la carta", () => {
   });
 
   it("sin pestañas, ordena por jerarquía de categorías y menu queda null", () => {
-    const groups = searchMenuItems(items, "a", { categories });
+    const shared = items.map((item) => ({ ...item, description: "Selección de la casa" }));
+    const groups = searchMenuItems(shared, "seleccion", { categories });
     // "Tintos" no tiene platos directos (viven en Malbec), así que no sale.
     expect(groups.map((g) => g.category.slug)).toEqual([
       "entradas",
@@ -193,5 +196,103 @@ describe("searchMenuItems — recorre toda la carta", () => {
     const orphan = { id: "i-x", categoryId: "c-nope", name: "Fantasma", description: "" };
     const groups = searchMenuItems([...items, orphan], "fantasma", { categories, menus });
     expect(groups).toEqual([]);
+  });
+});
+
+
+describe("rankMenuItems — relevancia sin coincidencias accidentales", () => {
+  const catalog = [
+    { id: "soup", categoryId: "c-fuertes", name: "Sopa de arroz", description: "Con aguacate y carne de res" },
+    { id: "salmon", categoryId: "c-fuertes", name: "Salmón en causa", description: "Camarones, aguacate y papa criolla" },
+    { id: "avocado", categoryId: "c-entradas", name: "Aguacate", description: "Porción fresca" },
+    { id: "water", categoryId: "c-blancos", name: "Agua mineral", description: "Sin gas" },
+    { id: "sparkling", categoryId: "c-blancos", name: "Agua con gas", description: "Botella individual" },
+    { id: "infusion", categoryId: "c-entradas", name: "Infusión de limón", description: "Preparada con agua caliente" },
+    { id: "strawberry", categoryId: "c-postres", name: "Fresa", description: "Fruta fresca" },
+    { id: "beef", categoryId: "c-fuertes", name: "Carpaccio de res", description: "Con parmesano" },
+  ];
+  const ids = (query: string, pool = catalog) => rankMenuItems(pool, query).map((item) => item.id);
+
+  it("agua encuentra bebidas y la palabra completa en descripción, sin aguacate", () => {
+    expect(ids("agua")).toEqual(["water", "sparkling", "infusion"]);
+  });
+
+  it("res no encuentra fresa ni siquiera cuando no hay res en el catálogo", () => {
+    expect(ids("res")).toEqual(["beef", "soup"]);
+    expect(ids("res", catalog.filter((item) => item.id === "strawberry"))).toEqual([]);
+  });
+
+  it("las descripciones nunca completan palabras parciales", () => {
+    expect(ids("agu", catalog.filter((item) => item.id === "soup"))).toEqual([]);
+    expect(ids("calien", catalog.filter((item) => item.id === "infusion"))).toEqual([]);
+  });
+
+  it("autocompleta por prefijo de nombre cuando aún no hay una palabra completa", () => {
+    expect(ids("agu")).toEqual(["avocado", "water", "sparkling"]);
+    expect(ids("salm")).toEqual(["salmon"]);
+  });
+
+  it("prefijos de una o dos letras no se desvían hacia preposiciones", () => {
+    const pool = [
+      { id: "steak", categoryId: "c-fuertes", name: "Res a la parrilla", description: "Con arroz" },
+      { id: "rice", categoryId: "c-fuertes", name: "Arroz", description: "" },
+      { id: "water", categoryId: "c-blancos", name: "Agua", description: "" },
+    ];
+    expect(ids("a", pool)).toEqual(expect.arrayContaining(["rice", "water"]));
+    expect(ids("ar", pool)).toEqual(["rice"]);
+  });
+
+  it("mantiene palabras de nombre y descripción en cualquier orden", () => {
+    expect(ids("limon caliente")).toEqual(["infusion"]);
+    expect(ids("caliente limon")).toEqual(["infusion"]);
+    expect(ids("limon frio")).toEqual([]);
+  });
+
+  it("mantiene tildes, puntuación y equivalencias ortográficas", () => {
+    expect(ids("salmon")).toEqual(["salmon"]);
+    const fish = [{ id: "fish", categoryId: "c-fuertes", name: "Pescado, al ajillo", description: "" }];
+    expect(ids("pezcado ajillo", fish)).toEqual(["fish"]);
+  });
+
+  it("conserva fragmentos largos de nombres como burguesa, sin infijos cortos", () => {
+    const burger = [{ id: "burger", categoryId: "c-fuertes", name: "Hamburguesa doble", description: "" }];
+    expect(ids("burguesa", burger)).toEqual(["burger"]);
+    expect(ids("gues", burger)).toEqual([]);
+  });
+
+  it("prioriza más palabras coincidentes en el nombre sobre la descripción", () => {
+    const pool = [
+      { id: "description", categoryId: "c-fuertes", name: "Bebida", description: "Agua mineral" },
+      { id: "mixed", categoryId: "c-fuertes", name: "Agua", description: "Mineral" },
+      { id: "name", categoryId: "c-blancos", name: "Agua mineral", description: "" },
+    ];
+    expect(ids("agua mineral", pool)).toEqual(["name", "mixed", "description"]);
+  });
+
+  it("no modifica el catálogo y mantiene el orden en empates", () => {
+    const before = JSON.stringify(catalog);
+    expect(ids("agua").slice(0, 2)).toEqual(["water", "sparkling"]);
+    expect(JSON.stringify(catalog)).toBe(before);
+  });
+
+  it("sin consulta devuelve todos los ítems, y sin coincidencias devuelve vacío", () => {
+    expect(rankMenuItems(catalog, "")).toEqual(catalog);
+    expect(rankMenuItems(catalog, "!!!")).toEqual(catalog);
+    expect(ids("inexistente")).toEqual([]);
+  });
+
+  it("ordena grupos por relevancia y conserva el orden de la carta en empates", () => {
+    const result = searchMenuItems(catalog, "agua", { categories, menus });
+    expect(result.map((group) => group.category.id)).toEqual(["c-blancos", "c-entradas"]);
+    expect(result.flatMap((group) => group.items.map((item) => item.id))).toEqual(["water", "sparkling", "infusion"]);
+  });
+
+  it("un exacto huérfano no oculta los prefijos que sí se pueden mostrar", () => {
+    const pool = [
+      { id: "orphan", categoryId: "missing", name: "Agua", description: "" },
+      { id: "visible", categoryId: "c-entradas", name: "Aguacate", description: "" },
+    ];
+    const result = searchMenuItems(pool, "agua", { categories, menus });
+    expect(result.flatMap((group) => group.items.map((item) => item.id))).toEqual(["visible"]);
   });
 });

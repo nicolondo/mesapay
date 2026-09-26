@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
-import { matchesQuery, searchTokens } from "@/lib/menuSearch";
+import { rankMenuItems } from "@/lib/menuSearch";
 import {
   isMenuItemOrder,
   moveToSlot,
@@ -276,9 +276,8 @@ export function MenuEditor({
   // Mover platos a mano sólo tiene sentido en orden manual y con la carta
   // completa a la vista (no sobre resultados de búsqueda).
   const canReorderItems = itemOrder === "manual" && !searching;
-  const tokens = searchTokens(query);
-  const matchesItem = (it: Item) =>
-    matchesQuery(`${it.name} ${it.description ?? ""}`, tokens);
+  const matchingIds = new Set(rankMenuItems(visibleItems, query).map((item) => item.id));
+  const matchesItem = (it: Item) => matchingIds.has(it.id);
   const searchHasResults = searching && visibleItems.some(matchesItem);
   const allVisibleSelected =
     visibleItemIds.length > 0 &&

@@ -1,21 +1,7 @@
 /**
- * Búsqueda de platos — la misma en la carta del comensal y en el editor
- * del operador.
- *
- * Vivía duplicada: el comensal tenía una normalización fonética buena y
- * el editor una versión pobre (sólo minúsculas y acentos) con un
- * comentario que decía ser "equivalente". No lo era. Acá queda una sola.
- *
- * Dos piezas:
- *
- *  1. `fuzzyNormalize` — aplana el texto para que las variantes de
- *     escritura no importen (ver abajo).
- *  2. `matchesQuery` — exige que estén TODAS las palabras buscadas, en
- *     cualquier orden y sin necesidad de que sean contiguas. Antes se
- *     comparaba la consulta entera como una sola cadena, así que
- *     "solomito res" NO encontraba "Solomito de res": el "de" del medio
- *     rompía la coincidencia. Buscar dos palabras sueltas y que el
- *     buscador falle es exactamente lo que nadie espera.
+ * Shared menu search: prefer complete words, then autocomplete names.
+ * Descriptions match complete words only, so agua does not match aguacate.
+ * Accent/Spanish spelling normalization remains shared with legacy callers.
  */
 
 /**
@@ -73,14 +59,9 @@ export function searchTokens(query: string): string[] {
 }
 
 /**
- * ¿El texto del plato contiene TODAS las palabras buscadas?
- *
- * Cada palabra se busca como subcadena y no como palabra completa, para
- * no perder lo que ya funcionaba: "burguesa" tiene que seguir
- * encontrando "Hamburguesa". El costo es que una palabra muy corta
- * pesca de más ("res" aparece dentro de "fresa"), que es el mismo
- * comportamiento que había antes y se corrige solo apenas se escribe
- * una segunda palabra.
+ * Legacy substring matcher retained for compatibility and regression fixtures.
+ * @deprecated Use rankMenuItems/searchMenuItems for menu results: this primitive
+ * cannot distinguish a product name from an incidental description substring.
  */
 export function matchesQuery(haystack: string, tokens: string[]): boolean {
   if (tokens.length === 0) return true;
@@ -120,6 +101,38 @@ export type SearchableItem = {
   name: string;
   description?: string | null;
 };
+
+type RankedItem<I> = { item: I; score: number };
+
+function rankedMatches<I extends SearchableItem>(items: I[], query: string): RankedItem<I>[] {
+  const tokens = searchTokens(query);
+  if (!tokens.length) return items.map((item) => ({ item, score: 0 }));
+  const shortQuery = tokens.every((token) => token.length < 3);
+  const prepared = items.map((item) => ({
+    item,
+    name: searchTokens(item.name),
+    description: new Set(searchTokens(item.description ?? "")),
+  }));
+  const collect = (partial: boolean): RankedItem<I>[] => prepared.flatMap(({ item, name, description }) => {
+    let score = 0;
+    for (const token of tokens) {
+      const inName = name.some((word) => word === token || (partial &&
+        (word.startsWith(token) || (token.length >= 5 && word.includes(token)))));
+      if (inName) score++;
+      else if (shortQuery || !description.has(token)) return [];
+    }
+    return [{ item, score }];
+  });
+  // Whole-word results suppress incidental partial names. For one/two
+  // letters keep autocomplete rather than selecting a preposition alone.
+  const exact = shortQuery ? [] : collect(false);
+  return (exact.length ? exact : collect(true)).sort((a, b) => b.score - a.score);
+}
+
+/** Rank names ahead of description-only matches without changing the input. */
+export function rankMenuItems<I extends SearchableItem>(items: I[], query: string): I[] {
+  return rankedMatches(items, query).map(({ item }) => item);
+}
 
 /** Un grupo de resultados: la categoría, de dónde viene y sus platos. */
 export type MenuSearchGroup<
@@ -174,8 +187,8 @@ function categoriesInMenuOrder<C extends SearchableCategory>(
 
 /**
  * Busca `query` en toda la carta y devuelve los resultados agrupados por
- * categoría, en el orden de la carta (no hay puntaje de relevancia: la
- * coincidencia es todo-o-nada por palabras, ver `matchesQuery`).
+ * categoría. Nombre antes que descripción; a igual relevancia se conserva
+ * el orden de la carta y de sus platos.
  *
  * - Se busca en nombre y descripción, con TODAS las palabras.
  * - Consulta vacía o sin letras/números ⇒ `[]` (no hay búsqueda activa).
@@ -193,15 +206,20 @@ export function searchMenuItems<
   const tokens = searchTokens(query);
   if (tokens.length === 0) return [];
   const menus = ctx.menus ?? [];
+  const catById = new Map(ctx.categories.map((c) => [c.id, c] as const));
+  // An invisible/orphaned exact match must not suppress visible prefixes.
+  const ranked = rankedMatches(allItems.filter((item) => catById.has(item.categoryId)), query);
   const byCat = new Map<string, I[]>();
-  for (const it of allItems) {
-    if (!matchesQuery(`${it.name} ${it.description ?? ""}`, tokens)) continue;
-    const bucket = byCat.get(it.categoryId);
-    if (bucket) bucket.push(it);
-    else byCat.set(it.categoryId, [it]);
+  const relevance = new Map<string, number>();
+  for (const { item, score } of ranked) {
+    const bucket = byCat.get(item.categoryId);
+    if (bucket) bucket.push(item);
+    else {
+      byCat.set(item.categoryId, [item]);
+      relevance.set(item.categoryId, score);
+    }
   }
   if (byCat.size === 0) return [];
-  const catById = new Map(ctx.categories.map((c) => [c.id, c] as const));
   const menuById = new Map(menus.map((m) => [m.id, m] as const));
   const groups: MenuSearchGroup<I, C>[] = [];
   for (const category of categoriesInMenuOrder(ctx.categories, menus)) {
@@ -216,5 +234,5 @@ export function searchMenuItems<
       items,
     });
   }
-  return groups;
+  return groups.sort((a, b) => relevance.get(b.category.id)! - relevance.get(a.category.id)!);
 }

@@ -153,6 +153,9 @@ const MIGRATED = [
   // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació
   // trilingüe cuando se extrajo de done/InvoiceRequestPanel.
   "src/components/invoice/**/*.{ts,tsx}",
+  // Avisos de pagos pendientes y confirmación de efectivo (ficha de la
+  // mesa, cobro del staff y Salón): nacieron trilingües.
+  "src/components/payments/**/*.{ts,tsx}",
   // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
   "src/components/MunicipioAutocomplete.tsx",
   "src/components/AddressAutocomplete.tsx",

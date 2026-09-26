@@ -16,6 +16,7 @@ import {
 import { sortTablesForSalon } from "@/lib/tables/sortTables";
 import { TableDetailSheet } from "./TableDetailSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
 import type { RestaurantTax } from "@/lib/salesTax";
 
 /**
@@ -98,6 +99,8 @@ export type ActiveOrder = {
   outstandingCents: number;
   needsWaiter: boolean;
   rounds: Round[];
+  /** Pagos `pending` (solicitudes del comensal y pagos en línea en curso). */
+  pendingPayments: PendingPaymentView[];
 };
 
 type Round = {
@@ -849,6 +852,7 @@ function ManualInvoiceTile({
           discountPct={tile.order.discountPct}
           customer={tile.order.customer}
           invoiceRequest={tile.order.invoiceRequest}
+          pendingPayments={tile.order.pendingPayments}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={false}
@@ -996,6 +1000,8 @@ function ActiveTile({
           discountCents={tile.order.discountCents}
           discountPct={tile.order.discountPct}
           customer={tile.order.customer}
+          pendingPayments={tile.order.pendingPayments}
+          counterMode={counterMode}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={isMeseroView}

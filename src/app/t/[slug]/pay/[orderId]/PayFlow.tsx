@@ -141,6 +141,21 @@ export async function PayFlow({
       : null;
 
   const approved = order.payments.filter((p) => p.status === "approved");
+  // Pagos pendientes (sólo staff): la solicitud del comensal (datáfono del
+  // comercio, efectivo) sale arriba del cobro con "Confirmar pago recibido";
+  // un pago en línea en curso, sin acción.
+  const pendingPayments = operatorMode
+    ? order.payments
+        .filter((p) => p.status === "pending")
+        .map((p) => ({
+          id: p.id,
+          method: p.method,
+          amountCents: p.amountCents,
+          tipCents: p.tipCents,
+          cashTenderCents: p.cashTenderCents,
+          createdAt: p.createdAt.toISOString(),
+        }))
+    : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
   const paidTipCents = approved.reduce((s, p) => s + p.tipCents, 0);
   const kushkiReady =
@@ -273,6 +288,8 @@ export async function PayFlow({
         pct: tenant.salesTaxPct,
       }}
       initialTipPct={parseTipPct(tip)}
+      pendingPayments={pendingPayments}
+      tableNumber={order.table.number}
     />
   );
 }

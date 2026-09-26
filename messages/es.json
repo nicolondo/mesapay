@@ -6946,7 +6946,39 @@
     "method_disabled": "Este método de pago no está habilitado.",
     "credentials_missing": "El cobro no está disponible en este momento.",
     "comp_not_allowed": "Tu rol no tiene permiso para no cobrar. Pídeselo al administrador.",
-    "generic": "No se pudo completar la operación. Actualiza e intenta de nuevo."
+    "generic": "No se pudo completar la operación. Actualiza e intenta de nuevo.",
+    "pending_payment_in_flight": "Hay un pago con {method} por {amount} esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma.",
+    "pending_payment_in_flight_generic": "Hay un pago en línea esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma."
+  },
+  "pendingPayment": {
+    "requestKicker": "El comensal pidió pagar con",
+    "includesTip": "Incluye propina de {amount}",
+    "cashTender": "Dice que paga con {amount}",
+    "confirm": "Confirmar pago recibido",
+    "confirming": "Confirmando…",
+    "replaceHint": "Si cobras de otra forma, esta solicitud se reemplaza sola.",
+    "adminOnly": "Solo el administrador puede confirmar este pago.",
+    "confirmError": "No se pudo confirmar el pago. Actualiza e intenta de nuevo.",
+    "inFlightKicker": "Pago en línea en curso",
+    "inFlightBody": "Espera a que el proveedor lo apruebe o lo rechace antes de cobrar de otra forma. Lo ves en Salón o en Cobros.",
+    "methods": {
+      "cash": "Efectivo",
+      "demo_cash": "Efectivo",
+      "external_terminal": "Datáfono del comercio",
+      "kushki_card_terminal": "Datáfono Kushki",
+      "kushki_card": "Tarjeta en línea",
+      "kushki_apple_pay": "Apple Pay",
+      "kushki_google_pay": "Google Pay",
+      "kushki_pse": "PSE",
+      "wompi_card": "Tarjeta (Wompi)",
+      "wompi_pse": "PSE (Wompi)",
+      "wompi_nequi": "Nequi",
+      "demo_card": "Tarjeta (demo)",
+      "reservation_deposit": "Abono de reserva",
+      "voucher": "Bono",
+      "customer_credit": "Crédito",
+      "other": "Otro medio de pago"
+    }
   },
   "paymentReconciliation": {
     "title": "Conciliar pago",

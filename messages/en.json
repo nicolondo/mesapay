@@ -6946,7 +6946,39 @@
     "method_disabled": "This payment method is not enabled.",
     "credentials_missing": "Payment is currently unavailable.",
     "comp_not_allowed": "Your role isn't allowed to comp. Ask the administrator.",
-    "generic": "The operation could not be completed. Refresh and try again."
+    "generic": "The operation could not be completed. Refresh and try again.",
+    "pending_payment_in_flight": "A {method} payment of {amount} is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way.",
+    "pending_payment_in_flight_generic": "An online payment is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way."
+  },
+  "pendingPayment": {
+    "requestKicker": "The guest asked to pay with",
+    "includesTip": "Includes a {amount} tip",
+    "cashTender": "Says they will pay with {amount}",
+    "confirm": "Confirm payment received",
+    "confirming": "Confirming…",
+    "replaceHint": "If you charge another way, this request is replaced automatically.",
+    "adminOnly": "Only the administrator can confirm this payment.",
+    "confirmError": "The payment could not be confirmed. Refresh and try again.",
+    "inFlightKicker": "Online payment in progress",
+    "inFlightBody": "Wait until the provider approves or declines it before charging another way. You can see it in Floor or Payments.",
+    "methods": {
+      "cash": "Cash",
+      "demo_cash": "Cash",
+      "external_terminal": "Merchant's card terminal",
+      "kushki_card_terminal": "Kushki card terminal",
+      "kushki_card": "Online card",
+      "kushki_apple_pay": "Apple Pay",
+      "kushki_google_pay": "Google Pay",
+      "kushki_pse": "PSE",
+      "wompi_card": "Card (Wompi)",
+      "wompi_pse": "PSE (Wompi)",
+      "wompi_nequi": "Nequi",
+      "demo_card": "Card (demo)",
+      "reservation_deposit": "Reservation deposit",
+      "voucher": "Voucher",
+      "customer_credit": "Credit",
+      "other": "Other payment method"
+    }
   },
   "paymentReconciliation": {
     "title": "Reconcile payment",

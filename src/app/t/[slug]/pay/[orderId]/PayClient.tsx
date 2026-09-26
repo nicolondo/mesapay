@@ -490,7 +490,8 @@ export function PayClient({
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.paymentId) {
         // Códigos conocidos (p. ej. pending_payment_in_flight: un pago en
-        // línea en curso no deja cobrar) se traducen; el resto, como antes.
+        // línea en curso no deja cobrar) se traducen; el resto cae al
+        // mensaje del servidor o al genérico.
         setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }

@@ -1,7 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { auth } from "@/auth";
+import { redirectTo } from "@/lib/http/redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
  *   GET /api/operator/shell-flag?to=classic  → fuerza el shell anterior
  *   GET /api/operator/shell-flag?to=cockpit  → vuelve al default (cockpit)
  * Setea/borra la cookie mp_shell y redirige a /operator. Requiere sesión staff.
+ * Las redirecciones van con `Location` relativo: `new URL(path, req.url)`
+ * llevaba el host interno de `next start` (localhost) detrás de nginx.
  */
 async function GETHandler(req: Request) {
   const session = await auth();
@@ -21,7 +23,7 @@ async function GETHandler(req: Request) {
       role !== "platform_admin" &&
       role !== "group_admin")
   ) {
-    return NextResponse.redirect(new URL("/signin", req.url));
+    return redirectTo("/signin");
   }
   const to = new URL(req.url).searchParams.get("to");
   const jar = await cookies();
@@ -36,7 +38,7 @@ async function GETHandler(req: Request) {
     // Default = cockpit: borrar la cookie de opt-out.
     jar.delete("mp_shell");
   }
-  return NextResponse.redirect(new URL("/operator", req.url));
+  return redirectTo("/operator");
 }
 
 export const GET = secureApi(GETHandler);

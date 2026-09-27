@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
+import { appOrigin } from "@/lib/http/publicOrigin";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -209,11 +209,10 @@ async function POSTHandler(
       : null;
 
   // Origin para construir el callbackUrl absoluto que Kushki necesita.
-  // Detrás de nginx/proxy, req.url es la URL interna (localhost:3300),
-  // no la que ve el cliente. Preferimos APP_PUBLIC_BASE_URL (canónica)
-  // → headers x-forwarded-host/proto que nginx forwardea → fallback a
-  // req.url para dev local sin proxy.
-  const origin = env.APP_PUBLIC_BASE_URL ?? new URL(req.url).origin;
+  // Detrás de nginx/proxy, req.url es la URL interna (localhost:3301),
+  // no la que ve el cliente. APP_PUBLIC_BASE_URL (canónica) → headers
+  // host/x-forwarded-* del request; nunca req.url.
+  const origin = appOrigin(req);
   // Reserve before network I/O; retries reuse the token's request key.
   const intent = await reservePayment({ orderId: order.id, method: "kushki_pse", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId }, parsed.data.token ?? req.headers.get("Idempotency-Key") ?? undefined);
   const payment = intent.payment;

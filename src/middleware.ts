@@ -37,6 +37,11 @@ export function middleware(req: NextRequest) {
   const hostNoPort = host.split(":")[0];
   if (hostNoPort.endsWith("." + baseHost)) {
     const sub = hostNoPort.slice(0, -("." + baseHost).length);
+    // `new URL(..., req.url)` acá es seguro aunque req.url traiga el host
+    // interno de `next start`: un rewrite se resuelve dentro del servidor
+    // (header x-middleware-rewrite) y el navegador nunca ve esa URL. Las
+    // redirecciones hacia el usuario van con Location relativo
+    // (`@/lib/http/redirect`).
     if (sub === "admin") {
       const res = NextResponse.rewrite(new URL("/admin" + url.pathname + url.search, req.url));
       return res;

@@ -202,10 +202,12 @@ export async function buildTestInvoice(args: {
     invoiceNumber: 0,
     paperWidthMm: args.paperWidthMm,
     currency: args.currency,
+    // Un pago en efectivo por la cuenta entera: `amountCents` lleva la
+    // propina adentro, como un `Payment` de verdad.
     payments: [
       {
         method: "cash",
-        amountCents: totalCents - tipCents,
+        amountCents: totalCents,
         tipCents,
       },
     ],

@@ -1,5 +1,7 @@
 import { requestTime } from "@/lib/requestTime";
 import { getTranslations } from "next-intl/server";
+import { headers } from "next/headers";
+import { appOrigin } from "@/lib/http/publicOrigin";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -394,7 +396,10 @@ export default async function TablesPage({
     order: summarizeOrder(t.orders[0]).activeOrder,
   }));
 
-  const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
+  // APP_PUBLIC_BASE_URL manda; si falta, el origen público del request
+  // (headers del proxy). Antes caía a http://localhost:3300 y el QR/link
+  // impreso quedaba apuntando a localhost.
+  const base = appOrigin(await headers());
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
   return (

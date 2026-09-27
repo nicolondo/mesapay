@@ -44,8 +44,14 @@ import type {
 /** Lo mínimo que necesita el documento de cada pago cobrado. */
 export type InvoicePaymentLine = {
   method: string;
-  /** Porción de comida/impuesto: `Payment.amountCents` NO incluye propina. */
+  /**
+   * `Payment.amountCents`: lo que se cobró en ESE pago, propina INCLUIDA.
+   * Es el contrato de toda la app: el trigger `mesapay_reserve_payment`
+   * cuenta el consumo como `amountCents - tipCents`, y así lo leen el
+   * cierre de turno, los reportes y el asiento contable.
+   */
   amountCents: number;
+  /** La propina que va DENTRO de `amountCents`. Informativa: no se suma. */
   tipCents: number;
 };
 
@@ -97,9 +103,12 @@ export type InvoiceDianDocData = {
  * entre tres tarjetas no gasta tres renglones: dice "Tarjeta $90.000",
  * que es lo que el cliente puede verificar contra su bolsillo.
  *
- * El importe de cada pago es `amountCents + tipCents`: la propina viaja
- * aparte en la fila del pago pero salió del mismo bolsillo, y sin sumarla
- * los pagos no cerrarían contra el TOTAL de la tirilla.
+ * El importe de cada pago es `amountCents`, que YA incluye la propina
+ * (`tipCents` es la parte de él que fue propina). Sumarle `tipCents` la
+ * contaba dos veces: en la factura FESM6723 de Son y Melona (subtotal
+ * $159.600 + propina $15.960 = TOTAL $175.560, un pago en efectivo) la
+ * tirilla decía "Forma de pago: Efectivo $ 191.520". Con los pagos
+ * aprobados de una cuenta saldada, la suma de las filas es el TOTAL.
  */
 export function paymentRowsFor(
   payments: InvoicePaymentLine[],
@@ -111,7 +120,7 @@ export function paymentRowsFor(
   for (const p of payments) {
     const key = PAYMENT_METHOD_KEY[p.method] ?? "methodOther";
     if (!byKey.has(key)) order.push(key);
-    byKey.set(key, (byKey.get(key) ?? 0) + p.amountCents + p.tipCents);
+    byKey.set(key, (byKey.get(key) ?? 0) + p.amountCents);
   }
   return order.map((key) => ({
     label: t(key),

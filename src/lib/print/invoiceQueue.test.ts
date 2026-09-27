@@ -83,7 +83,9 @@ const h = vi.hoisted(() => {
     },
     payment: {
       findMany: vi.fn(async () => [
-        { method: "cash", amountCents: 6_100_000, tipCents: 600_000 },
+        // Un pago de verdad: amountCents es el total cobrado, propina
+        // incluida ($49.000 + $6.000 = $55.000, el TOTAL del snapshot).
+        { method: "cash", amountCents: 5_500_000, tipCents: 600_000 },
       ]),
     },
     printJob: {
@@ -339,8 +341,10 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     );
     const doc = parseInvoicePayload(h.state.created[0].payload)!;
     expect(doc.paymentRows).toHaveLength(1);
-    // efectivo + propina = el total de la cuenta
-    expect(doc.paymentRows[0].amount).toContain("67.000");
+    // Un solo pago: la fila es el TOTAL de la cuenta, con la propina
+    // contada una sola vez (antes la sumaba otra vez encima).
+    expect(doc.paymentRows[0].amount).toContain("55.000");
+    expect(doc.paymentRows[0].amount).toBe(doc.totals.find((r) => r.strong)!.amount);
   });
 });
 

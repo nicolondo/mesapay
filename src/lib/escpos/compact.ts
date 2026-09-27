@@ -17,18 +17,33 @@
  *     renglón y el nombre usando todo el ancho (`itemRow`);
  *   · modificadores y nota JUNTOS en un renglón en fuente B (la chica,
  *     1/3 más de columnas), separados por " · " y con sangría;
- *   · filas de totales de a una, y la FUERTE (TOTAL, pendiente) a doble
- *     ANCHO —que no gasta alto— cuando entra; si no, negrita normal;
- *   · textos legales en fuente B.
+ *   · filas de totales de a una, y la FUERTE (TOTAL, pendiente) en
+ *     negrita a doble ALTO con el ancho normal (`totalRowChunks`);
+ *   · textos legales en fuente B;
+ *   · un margen superior después del reset (`compactStart`).
+ *
+ * Y dos reglas de TAMAÑO, para cualquier renglón agrandado (`GS !`):
+ *
+ *   · se rellena contra las columnas EFECTIVAS de su tamaño: a doble ancho
+ *     entra la mitad (`colsForSize`, `padRowForSize`);
+ *   · se imprime con un interlineado ≥ el alto de su letra, y después se
+ *     vuelve al compacto (`withLineSpacingFor`).
  */
 
 import { itemDetailText } from "@/lib/invoice";
 import {
+  COMPACT_LINE_SPACING_DOTS,
+  FONT_A_HEIGHT_DOTS,
+  INIT,
   NORMAL_SIZE,
+  TOP_MARGIN_DOTS,
   bold,
+  feedDots,
   itemRow,
   line,
+  lineSpacing,
   padRow,
+  selectCodePage,
   selectFont,
   textSize,
   wrap,
@@ -91,25 +106,90 @@ export function itemChunks(
 }
 
 /**
+ * Apertura de la tirilla compacta: reset, code page CP850, interlineado
+ * compacto y el margen superior (`TOP_MARGIN_DOTS`), para que el primer
+ * renglón —el nombre del comercio— no quede pegado al borde del corte.
+ */
+export function compactStart(): Buffer[] {
+  return [
+    INIT,
+    selectCodePage(),
+    lineSpacing(COMPACT_LINE_SPACING_DOTS),
+    feedDots(TOP_MARGIN_DOTS),
+  ];
+}
+
+/** Multiplicadores de `GS !` de un renglón agrandado. */
+export type TextSize = { width: number; height: number };
+
+/**
+ * El TOTAL (y lo pendiente de la precuenta): doble ALTO, ancho normal.
+ *
+ * Antes iba a doble ANCHO relleno a media línea (24 columnas en 80 mm):
+ * un renglón que llena el papel hasta el último punto, y en la térmica
+ * de Son y Melona "TOTAL" y "$ 175.560" salieron encimados con las filas
+ * de al lado (FESM6723). A doble alto el renglón mide lo mismo de ancho
+ * que todos los demás —48/32 columnas, las que se sabe que entran—, el
+ * monto se lee de lejos igual, nunca se parte y un total largo en 58 mm
+ * no tiene que bajar a tamaño normal. Cuesta 24 puntos de alto (~3 mm)
+ * por fila fuerte, que es lo que se paga por no desbordar.
+ */
+export const TOTAL_SIZE: TextSize = { width: 1, height: 2 };
+
+/** Columnas EFECTIVAS a ese tamaño: a doble ancho entra la mitad. */
+export function colsForSize(cols: number, size: TextSize): number {
+  return Math.max(1, Math.floor(cols / Math.max(1, size.width)));
+}
+
+/** `padRow` contra las columnas efectivas del tamaño (`colsForSize`). */
+export function padRowForSize(
+  left: string,
+  right: string,
+  cols: number,
+  size: TextSize,
+): string[] {
+  return padRow(left, right, colsForSize(cols, size));
+}
+
+/**
+ * Envuelve renglones YA armados (con su LF) en un tamaño agrandado: si la
+ * letra es más alta que el interlineado compacto, lo sube al alto de la
+ * letra mientras duran (`ESC 3 48` a doble alto) y lo devuelve al
+ * compacto después; el tamaño vuelve siempre a 1×1. Así ningún renglón
+ * se imprime con un interlineado menor que su letra, que es lo que
+ * algunas térmicas recortan (ver `lineSpacing`).
+ *
+ * Supone la fuente A (la única que se agranda) y que afuera rige el
+ * interlineado compacto, que es el caso de la factura y la precuenta.
+ */
+export function withLineSpacingFor(size: TextSize, body: Buffer[]): Buffer[] {
+  const charHeight = FONT_A_HEIGHT_DOTS * Math.max(1, size.height);
+  const tall = charHeight > COMPACT_LINE_SPACING_DOTS;
+  return [
+    ...(tall ? [lineSpacing(charHeight)] : []),
+    textSize(size.width, size.height),
+    ...body,
+    NORMAL_SIZE,
+    ...(tall ? [lineSpacing(COMPACT_LINE_SPACING_DOTS)] : []),
+  ];
+}
+
+/**
  * Una fila de totales. La fuerte (TOTAL, "pendiente por pagar") va en
- * negrita y a doble ANCHO si entra en media línea: se destaca sin gastar
- * el renglón extra del doble alto. Si no entra (un total largo en 58mm)
- * va en negrita al tamaño normal, que nunca parte el monto.
+ * negrita a `TOTAL_SIZE` —doble alto, ancho normal— rellena contra las
+ * columnas efectivas de ese tamaño y con el interlineado de su letra.
  */
 export function totalRowChunks(
   row: { label: string; amount: string; strong?: boolean },
   cols: number,
 ): Buffer[] {
   if (!row.strong) return padRow(row.label, row.amount, cols).map(line);
-  const half = Math.floor(cols / 2);
-  if (row.label.length + 1 + row.amount.length <= half) {
-    return [
-      bold(true),
-      textSize(2, 1),
-      ...padRow(row.label, row.amount, half).map(line),
-      NORMAL_SIZE,
-      bold(false),
-    ];
-  }
-  return [bold(true), ...padRow(row.label, row.amount, cols).map(line), bold(false)];
+  return [
+    bold(true),
+    ...withLineSpacingFor(
+      TOTAL_SIZE,
+      padRowForSize(row.label, row.amount, cols, TOTAL_SIZE).map(line),
+    ),
+    bold(false),
+  ];
 }

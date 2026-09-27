@@ -21,32 +21,30 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import type { PrebillData } from "@/lib/prebill";
 import {
-  COMPACT_LINE_SPACING_DOTS,
   DEFAULT_LINE_SPACING,
-  INIT,
   LF,
-  NORMAL_SIZE,
   align,
   bold,
   columnsForWidth,
   cut,
   feed,
   line,
-  lineSpacing,
   padRow,
   pairRows,
-  selectCodePage,
   selectFont,
   separator,
   smallColumnsForWidth,
-  textSize,
   wrap,
 } from "./commands";
 import {
   DETAIL_SEPARATOR,
+  colsForSize,
+  compactStart,
   itemChunks,
   itemDetail,
   totalRowChunks,
+  withLineSpacingFor,
+  type TextSize,
 } from "./compact";
 
 export type ThermalPrebillItem = {
@@ -64,7 +62,7 @@ export type ThermalPrebillItem = {
 export type ThermalPrebillRow = {
   label: string;
   amount: string;
-  /** Negrita (y doble ancho si entra): el TOTAL y lo pendiente. */
+  /** Negrita a doble alto (`TOTAL_SIZE`): el TOTAL y lo pendiente. */
   strong?: boolean;
 };
 
@@ -315,6 +313,9 @@ export function parsePrebillPayload(raw: unknown): ThermalPrebill | null {
   };
 }
 
+/** "PRECUENTA": doble ancho, alto normal (un solo renglón compacto). */
+const TITLE_SIZE: TextSize = { width: 2, height: 1 };
+
 /**
  * Bytes ESC/POS completos de la precuenta, listos para escribir tal cual al
  * socket TCP:9100. El agente NO interpreta nada.
@@ -327,7 +328,7 @@ export function renderPrebill(doc: ThermalPrebill): Buffer {
   const smallCols = smallColumnsForWidth(doc.paperWidthMm);
   const chunks: Buffer[] = [];
 
-  chunks.push(INIT, selectCodePage(), lineSpacing(COMPACT_LINE_SPACING_DOTS));
+  chunks.push(...compactStart());
 
   // ── Identidad del comercio ──────────────────────────────────────────
   chunks.push(align("center"), bold(true));
@@ -340,12 +341,18 @@ export function renderPrebill(doc: ThermalPrebill): Buffer {
   }
 
   // ── "PRECUENTA" + "no es una factura" ───────────────────────────────
-  // El título a doble ANCHO (no alto: un renglón) y el aviso pegado
-  // debajo: quien reciba este papel no puede confundirlo con la factura.
+  // El título a doble ANCHO (no alto: un renglón), partido contra las
+  // columnas efectivas de ese tamaño, y el aviso pegado debajo: quien
+  // reciba este papel no puede confundirlo con la factura.
   chunks.push(separator(cols));
-  chunks.push(bold(true), textSize(2, 1));
-  for (const l of wrap(doc.title, Math.floor(cols / 2))) chunks.push(line(l));
-  chunks.push(NORMAL_SIZE, bold(false));
+  chunks.push(
+    bold(true),
+    ...withLineSpacingFor(
+      TITLE_SIZE,
+      wrap(doc.title, colsForSize(cols, TITLE_SIZE)).map(line),
+    ),
+    bold(false),
+  );
   for (const l of wrap(doc.notInvoiceLine, cols)) chunks.push(line(l));
 
   // ── Fecha, mesa, código, mesero — de a dos por renglón ──────────────

@@ -29,27 +29,12 @@ export function paymentLinkPath(slug: string, token: string): string {
 }
 
 /**
- * Origen público de la app para armar URLs en correos. Mismo criterio
- * que las rutas del depósito de reserva: APP_PUBLIC_BASE_URL manda; si
- * hay request, los headers del proxy; si no, NEXTAUTH_URL o mesapay.co.
+ * Origen público de la app para armar URLs en correos y callbacks.
+ * El criterio (APP_PUBLIC_BASE_URL manda; si no, los headers del proxy vía
+ * `publicOrigin`; nunca `req.url`) vive en `@/lib/http/publicOrigin`; se
+ * re-exporta acá porque los bonos y los links de pago ya lo importan de acá.
  */
-export function appOrigin(req?: Request): string {
-  const fromEnv = process.env.APP_PUBLIC_BASE_URL;
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-  if (req) {
-    const xfHost = req.headers.get("x-forwarded-host");
-    const xfProto = req.headers.get("x-forwarded-proto") ?? "https";
-    if (xfHost) return `${xfProto}://${xfHost}`;
-    const host = req.headers.get("host");
-    if (host) return `${host.includes("localhost") ? "http" : "https"}://${host}`;
-    try {
-      return new URL(req.url).origin;
-    } catch {
-      /* fall through */
-    }
-  }
-  return (process.env.NEXTAUTH_URL ?? "https://mesapay.co").replace(/\/$/, "");
-}
+export { appOrigin } from "@/lib/http/publicOrigin";
 
 export type CreatePaymentLinkInput = {
   restaurantId: string;

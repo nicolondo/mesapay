@@ -25,11 +25,8 @@ import {
   invoiceIssueInstant,
 } from "@/lib/dian/attachedDocument";
 import { renderDianInvoiceEmail, resolveDianRecipient } from "@/lib/dian/invoiceEmail";
-import {
-  bogotaIssueTime,
-  customerPartyFor,
-  type InvoiceRequestParty,
-} from "@/lib/dian/emit";
+import { customerPartyFor, type InvoiceRequestParty } from "@/lib/dian/emit";
+import { dianIssueDateTime } from "@/lib/dian/dianDateTime";
 import { emisorToSupplierParty, resolveEmisor } from "@/lib/dian/config";
 import {
   extractApplicationResponse,
@@ -191,13 +188,16 @@ export async function sendDianInvoiceEmail(opts: {
     const invoiceXml = doc.xmlZip ? await unzipFirstXml(doc.xmlZip) : null;
     const issued = invoiceXml ? invoiceIssueInstant(invoiceXml) : null;
     const issuedAt = issued?.at ?? inv.order.paidAt ?? new Date(snap.paidAtIso);
+    // Si el XML no trae la fecha, la del cobro en hora Colombia — con el
+    // mismo helper que la emisión, no el día UTC.
+    const fallback = dianIssueDateTime(issuedAt);
 
     const attachment = await buildAttachment({
       restaurantId: doc.restaurantId,
       environment: envCode,
       invoiceNumber,
-      issueDate: issued?.date ?? issuedAt.toISOString().slice(0, 10),
-      issueTime: issued?.time ?? bogotaIssueTime(issuedAt),
+      issueDate: issued?.date ?? fallback.date,
+      issueTime: issued?.time ?? fallback.time,
       cufe: doc.cufe,
       invoiceXml,
       responseXml: doc.responseXml,

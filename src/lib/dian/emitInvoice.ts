@@ -32,12 +32,12 @@ import { signXmlDian } from "@/lib/dian/xades";
 import { sendBillSync, sendTestSetAsync, zipInvoice } from "@/lib/dian/soap";
 import { transitionAfterSend } from "@/lib/dian/documentState";
 import {
-  bogotaIssueTime,
   claimDianDocument,
   creditPaymentMeans,
   customerPartyFor,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
+import { dianIssueDateTime, dianSigningTime } from "@/lib/dian/dianDateTime";
 import {
   BLOCKED_RETRY_MS,
   emissionBackoffMs,
@@ -272,7 +272,11 @@ export async function emitDianInvoice(opts: {
   }
   const snap = inv.snapshot as unknown as InvoiceSnapshot;
   const invoiceNumber = formatInvoiceNumber(snap, inv.invoiceNumber);
-  const issueDate = now.toISOString().slice(0, 10);
+  // Fecha y hora FISCALES (Colombia) de este intento: IssueDate, IssueTime,
+  // el CUFE, el vencimiento del crédito y el SigningTime salen de este
+  // mismo `now`. Antes la fecha era el día UTC y de 7 p. m. a medianoche
+  // la factura declaraba el día siguiente — ver dianDateTime.ts.
+  const issued = dianIssueDateTime(now);
   const env: "1" | "2" = config.environment === "produccion" ? "1" : "2";
 
   // Impuesto real: para los platos del menú, la tarifa CONGELADA en la
@@ -290,14 +294,14 @@ export async function emitDianInvoice(opts: {
     technicalKey: config.technicalKey,
     resolution,
     invoiceNumber,
-    issueDate,
-    issueTime: bogotaIssueTime(now),
+    issueDate: issued.date,
+    issueTime: issued.time,
     supplier: emisorToSupplierParty(emisor),
     // Nominativa si el comensal cargó sus datos; consumidor final si no.
     // El CUFE sale de este mismo objeto (NumAdq = companyId).
     customer: customerPartyFor(inv.order.invoiceRequests[0] ?? null),
     lines,
-    ...creditPaymentMeans(inv.order.payments ?? [], issueDate),
+    ...creditPaymentMeans(inv.order.payments ?? [], issued.date),
   };
 
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,
@@ -309,7 +313,12 @@ export async function emitDianInvoice(opts: {
   let result: Awaited<ReturnType<typeof sendBillSync>>;
   try {
     built = buildDianInvoiceXml(input);
-    const signed = signXmlDian(built.xml, config.cert);
+    // La firma declara el MISMO instante que el IssueDate: si el envío
+    // cruzara la medianoche, firma y factura no pueden quedar en días
+    // distintos.
+    const signed = signXmlDian(built.xml, config.cert, {
+      signingTime: dianSigningTime(now),
+    });
     zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
 
     // Habilitación usa test set; producción usa SendBillSync síncrono.

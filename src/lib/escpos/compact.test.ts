@@ -50,7 +50,8 @@ async function invoice(paperWidthMm: number, withQr: boolean): Promise<ThermalIn
     paperWidthMm,
     paidAtLabel: "24/09/26, 9:41 p. m.",
     dianResolutionDateLabel: "15/01/26",
-    payments: [{ method: "cash", amountCents: S.subtotalCents, tipCents: S.tipCents }],
+    // Un pago por la cuenta entera: amountCents lleva la propina adentro.
+    payments: [{ method: "cash", amountCents: S.totalCents, tipCents: S.tipCents }],
     money,
     t: (k, v) => t(k, v) as string,
     dian: { cufe: CUFE, verifyUrl: VERIFY, qr: withQr },

@@ -35,9 +35,7 @@
 
 import { encodeCp850 } from "./codepage";
 import {
-  COMPACT_LINE_SPACING_DOTS,
   DEFAULT_LINE_SPACING,
-  INIT,
   LF,
   align,
   bold,
@@ -46,11 +44,9 @@ import {
   cut,
   feed,
   line,
-  lineSpacing,
   padRow,
   pairRows,
   qr,
-  selectCodePage,
   selectFont,
   separator,
   smallColumnsForWidth,
@@ -58,6 +54,7 @@ import {
 } from "./commands";
 import {
   DETAIL_SEPARATOR,
+  compactStart,
   itemChunks,
   itemDetail,
   totalRowChunks,
@@ -86,8 +83,8 @@ export type ThermalInvoiceRow = {
   label: string;
   amount: string;
   /**
-   * El TOTAL: negrita, y a doble ANCHO si entra en media línea (se
-   * destaca sin gastar alto). Ver `totalRowChunks` en `compact.ts`.
+   * El TOTAL: negrita a doble ALTO con el ancho normal, así nunca se
+   * desborda. Ver `totalRowChunks` y `TOTAL_SIZE` en `compact.ts`.
    */
   strong?: boolean;
 };
@@ -278,9 +275,11 @@ const QR_MODULE_SIZE = 4;
  * Bytes ESC/POS completos de la tirilla, listos para escribir tal cual al
  * socket TCP:9100. El agente NO interpreta nada.
  *
- * Formato COMPACTO (ver `compact.ts`): interlineado de 24 puntos, datos
- * del comercio en un párrafo, número y fecha en la misma fila, detalle de
- * cada plato en un renglón de fuente B, y los textos legales en fuente B.
+ * Formato COMPACTO (ver `compact.ts`): interlineado de 24 puntos (y el de
+ * la letra en los renglones agrandados), un margen superior para que el
+ * nombre no quede pegado al corte, datos del comercio en un párrafo,
+ * número y fecha en la misma fila, detalle de cada plato en un renglón de
+ * fuente B, y los textos legales en fuente B.
  * El contenido es el mismo de siempre —rótulo, número, fecha, NIT, ítems,
  * impuesto discriminado, CUFE, QR o URL, resolución, leyendas—: lo que se
  * ahorra es papel en blanco.
@@ -290,7 +289,7 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
   const smallCols = smallColumnsForWidth(invoice.paperWidthMm);
   const chunks: Buffer[] = [];
 
-  chunks.push(INIT, selectCodePage(), lineSpacing(COMPACT_LINE_SPACING_DOTS));
+  chunks.push(...compactStart());
 
   // ── Identidad del comercio ──────────────────────────────────────────
   // El nombre en negrita, y NIT · dirección · ciudad · teléfono corridos

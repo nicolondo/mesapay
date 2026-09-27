@@ -80,7 +80,7 @@ describe("renderInvoice — tirilla mínima", () => {
     expect(readable(base)).not.toContain("-".repeat(49));
   });
 
-  it("los montos quedan pegados al borde derecho (el TOTAL, a doble ancho, en 24)", () => {
+  it("los montos quedan pegados al borde derecho (el TOTAL también: a doble alto son las mismas 48)", () => {
     for (const row of readPaper(renderInvoice(base)).rows) {
       if (row.text.includes("$")) expect(row.text).toHaveLength(rowCapacity(row, 80));
     }
@@ -95,10 +95,21 @@ describe("renderInvoice — tirilla mínima", () => {
     expect(esc2).toBeLessThan(bytes.indexOf(Buffer.from("Gracias")));
   });
 
-  it("el TOTAL va a doble ancho, sin doble alto", () => {
+  it("el TOTAL va a doble ALTO con el ancho normal, y con el interlineado de su letra", () => {
     const total = readPaper(renderInvoice(base)).rows.find((r) => r.text.startsWith("TOTAL"))!;
-    expect(total.widthMul).toBe(2);
-    expect(total.heightMul).toBe(1);
+    expect(total.widthMul).toBe(1);
+    expect(total.heightMul).toBe(2);
+    expect(total.text).toHaveLength(48);
+    expect(total.spacingDots).toBe(48);
+  });
+
+  it("margen superior (ESC J 24) antes del nombre: el primer renglón no queda pegado al corte", () => {
+    const bytes = renderInvoice(base);
+    // ESC @ · ESC t 2 · ESC 3 24 · ESC J 24 · y recién ahí el encabezado.
+    expect(bytes.subarray(0, 11).toString("hex")).toBe("1b401b74021b33181b4a18");
+    expect(bytes.indexOf(Buffer.from([0x1b, 0x4a, 24]))).toBeLessThan(
+      bytes.indexOf(Buffer.from("DONDE CHUCHO")),
+    );
   });
 
   it("número y fecha en la misma fila; mesa en la siguiente", () => {

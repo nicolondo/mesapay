@@ -5,7 +5,16 @@ import { groupInvoiceLines } from "@/lib/invoiceLines";
 import { buildThermalInvoice } from "@/lib/print/invoiceDoc";
 import type { PrebillData } from "@/lib/prebill";
 import { qr } from "./commands";
-import { itemChunks, itemDetail, totalRowChunks } from "./compact";
+import {
+  TOTAL_SIZE,
+  colsForSize,
+  compactStart,
+  itemChunks,
+  itemDetail,
+  padRowForSize,
+  totalRowChunks,
+  withLineSpacingFor,
+} from "./compact";
 import { renderInvoice, type ThermalInvoice } from "./invoice";
 import { buildPrebillTicket, renderPrebill } from "./prebill";
 import { readPaper } from "./testPaper";
@@ -50,7 +59,8 @@ async function invoice(paperWidthMm: number, withQr: boolean): Promise<ThermalIn
     paperWidthMm,
     paidAtLabel: "24/09/26, 9:41 p. m.",
     dianResolutionDateLabel: "15/01/26",
-    payments: [{ method: "cash", amountCents: S.subtotalCents, tipCents: S.tipCents }],
+    // Un pago por la cuenta entera: amountCents lleva la propina adentro.
+    payments: [{ method: "cash", amountCents: S.totalCents, tipCents: S.tipCents }],
     money,
     t: (k, v) => t(k, v) as string,
     dian: { cufe: CUFE, verifyUrl: VERIFY, qr: withQr },
@@ -238,18 +248,70 @@ describe("piezas del formato compacto", () => {
     );
   });
 
-  it("el TOTAL va a doble ANCHO (GS ! 0x10, sin doble alto) cuando entra en media línea", () => {
-    const b = Buffer.concat(totalRowChunks({ label: "TOTAL", amount: "$ 61.000", strong: true }, 48));
-    expect(b.toString("hex")).toContain("1d2110");
-    expect(b.toString("hex")).not.toContain("1d2111");
-    expect(readPaper(b).text).toBe("TOTAL           $ 61.000\n");
+  it("el TOTAL va en negrita a doble ALTO (GS ! 0x01) con el ancho normal, relleno a 48", () => {
+    const b = Buffer.concat(totalRowChunks({ label: "TOTAL", amount: "$ 175.560", strong: true }, 48));
+    expect(b.toString("hex")).toContain("1d2101");
+    expect(b.toString("hex")).not.toContain("1d2110");
+    const [row] = readPaper(b).rows;
+    expect(row.text).toBe("TOTAL" + " ".repeat(34) + "$ 175.560");
+    expect(row.text).toHaveLength(48);
+    expect(row.widthMul).toBe(1);
+    expect(row.heightMul).toBe(2);
   });
 
-  it("un TOTAL que no entra a doble ancho va en negrita a tamaño normal, en un renglón", () => {
+  it("el renglón del TOTAL sube el interlineado a 48 (ESC 3 48) y vuelve al compacto", () => {
+    const b = Buffer.concat(totalRowChunks({ label: "TOTAL", amount: "$ 61.000", strong: true }, 48));
+    // ESC E 1 · ESC 3 48 · GS ! 0x01 · texto LF · GS ! 0x00 · ESC 3 24 · ESC E 0
+    expect(b.subarray(0, 9).toString("hex")).toBe("1b45011b33301d2101");
+    expect(b.subarray(-9).toString("hex")).toBe("1d21001b33181b4500");
+    const [row] = readPaper(b).rows;
+    expect(row.spacingDots).toBeGreaterThanOrEqual(row.charHeightDots);
+  });
+
+  it("un TOTAL largo en 58mm no cambia de tamaño: sigue a doble alto y en 32 columnas", () => {
     const b = Buffer.concat(
       totalRowChunks({ label: "TOTAL", amount: "$ 12.345.678", strong: true }, 32),
     );
-    expect(b.toString("hex")).not.toContain("1d21");
-    expect(readPaper(b).lines).toBe(1);
+    const rows = readPaper(b).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text).toHaveLength(32);
+    expect(rows[0].heightMul).toBe(2);
+  });
+
+  it("las filas que no son fuertes no cambian de tamaño ni de interlineado", () => {
+    const b = Buffer.concat(totalRowChunks({ label: "Subtotal", amount: "$ 61.000" }, 48));
+    expect(b.includes(Buffer.from([0x1d, 0x21]))).toBe(false);
+    expect(b.includes(Buffer.from([0x1b, 0x33]))).toBe(false);
+  });
+});
+
+describe("tamaños agrandados — columnas efectivas e interlineado", () => {
+  it("colsForSize: a doble ancho entra la mitad; a doble alto, las mismas", () => {
+    expect(colsForSize(48, { width: 2, height: 1 })).toBe(24);
+    expect(colsForSize(32, { width: 2, height: 2 })).toBe(16);
+    expect(colsForSize(48, TOTAL_SIZE)).toBe(48);
+    expect(colsForSize(48, { width: 1, height: 1 })).toBe(48);
+  });
+
+  it("padRowForSize rellena contra las columnas efectivas, nunca contra las del papel", () => {
+    expect(padRowForSize("TOTAL", "$ 175.560", 48, { width: 2, height: 1 })).toEqual([
+      "TOTAL          $ 175.560",
+    ]);
+    for (const l of padRowForSize("Total con propina", "$ 1.234.567", 32, { width: 2, height: 1 })) {
+      expect(l.length).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it("withLineSpacingFor: a doble alto sube el interlineado al alto de la letra y lo devuelve", () => {
+    const body = [Buffer.from("X\n")];
+    const tall = Buffer.concat(withLineSpacingFor({ width: 1, height: 2 }, body));
+    expect(tall.toString("hex")).toBe("1b33301d2101580a1d21001b3318");
+    // A doble ancho la letra mide lo mismo: no hace falta tocar el interlineado.
+    const wide = Buffer.concat(withLineSpacingFor({ width: 2, height: 1 }, body));
+    expect(wide.toString("hex")).toBe("1d2110580a1d2100");
+  });
+
+  it("compactStart: reset, CP850, interlineado compacto y el margen superior (ESC J 24)", () => {
+    expect(Buffer.concat(compactStart()).toString("hex")).toBe("1b401b74021b33181b4a18");
   });
 });

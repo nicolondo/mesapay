@@ -192,14 +192,66 @@ describe("buildThermalInvoice — pie legal", () => {
 });
 
 describe("paymentRowsFor", () => {
-  it("suma la propina al pago: si no, los pagos no cerrarían contra el total", () => {
+  it("el importe del pago es amountCents: la propina ya va adentro, no se suma dos veces", () => {
+    // $61.000 de consumo + $6.000 de propina = un pago de $67.000.
     expect(
       paymentRowsFor(
-        [{ method: "cash", amountCents: 6_100_000, tipCents: 600_000 }],
+        [{ method: "cash", amountCents: 6_700_000, tipCents: 600_000 }],
         t,
         money,
       ),
     ).toEqual([{ label: "methodCash", amount: "$67000" }]);
+  });
+
+  it("FESM6723 (Son y Melona): con un único pago, la fila de pago es igual al TOTAL", () => {
+    // Datos reales de producción (orden cmuj1w9c60069g2jhjox90kjc):
+    // subtotal $159.600 con impoconsumo 8% incluido, propina $15.960,
+    // total $175.560, y UN pago en efectivo con amountCents 17556000,
+    // tipCents 1596000 (y cashTenderCents 17556000). La tirilla decía
+    // "Forma de pago: Efectivo $ 191.520": la propina contada dos veces.
+    const doc = buildThermalInvoice({
+      snapshot: {
+        ...snapshot,
+        items: [{ qty: 1, name: "Consumo", priceCents: 15_960_000 }],
+        subtotalCents: 15_960_000,
+        taxCents: 0,
+        salesTaxKind: "inc",
+        salesTaxPct: 8,
+        embeddedTaxCents: 1_182_222,
+        embeddedBaseCents: 14_777_778,
+        tipCents: 1_596_000,
+        totalCents: 17_556_000,
+      },
+      invoiceNumber: 6723,
+      paperWidthMm: 80,
+      paidAtLabel: "26/09/26, 21:10",
+      dianResolutionDateLabel: null,
+      payments: [{ method: "cash", amountCents: 17_556_000, tipCents: 1_596_000 }],
+      money,
+      t,
+    });
+    const total = doc.totals.find((r) => r.strong)!;
+    expect(total.amount).toBe("$175560");
+    expect(doc.paymentRows).toEqual([{ label: "methodCash", amount: "$175560" }]);
+    expect(doc.paymentRows[0].amount).toBe(total.amount);
+    expect(doc.paymentRows[0].amount).not.toBe("$191520");
+  });
+
+  it("una cuenta partida en varios pagos con propina suma exactamente el TOTAL", () => {
+    // $100.000 de consumo + $10.000 de propina, en dos pagos: cada uno
+    // trae su propina ADENTRO de amountCents.
+    const rows = paymentRowsFor(
+      [
+        { method: "kushki_card", amountCents: 6_600_000, tipCents: 600_000 },
+        { method: "cash", amountCents: 4_400_000, tipCents: 400_000 },
+      ],
+      t,
+      money,
+    );
+    expect(rows).toEqual([
+      { label: "methodCard", amount: "$66000" },
+      { label: "methodCash", amount: "$44000" },
+    ]);
   });
 
   it("el efectivo de hoy (cash) y el histórico (demo_cash) son un solo renglón «Efectivo»", () => {

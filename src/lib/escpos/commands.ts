@@ -56,6 +56,14 @@ export function textSize(widthMul: number, heightMul: number): Buffer {
 export const NORMAL_SIZE = textSize(1, 1);
 
 /**
+ * Alto de la letra en puntos, a tamaño normal: fuente A 12×24, fuente B
+ * 9×17. A doble alto (`GS !`) se multiplica. Es la vara con la que se
+ * mide el interlineado mínimo de cada renglón (ver `lineSpacing`).
+ */
+export const FONT_A_HEIGHT_DOTS = 24;
+export const FONT_B_HEIGHT_DOTS = 17;
+
+/**
  * Interlineado de la tirilla COMPACTA (factura y precuenta), en puntos.
  *
  * El de fábrica (`ESC 2`) es ~30 puntos para una fuente A de 24 de alto:
@@ -65,14 +73,21 @@ export const NORMAL_SIZE = textSize(1, 1);
  * térmicas genéricas SÍ respetan el valor al pie de la letra y las tildes
  * de las mayúsculas ("É") tocan el renglón de arriba; las Epson, en
  * cambio, avanzan igual el alto del carácter. 24 es el punto en que las
- * dos se comportan igual.
+ * dos se comportan igual — para la letra de tamaño normal: un renglón a
+ * doble alto necesita 48 mientras dura (ver `lineSpacing`).
  */
-export const COMPACT_LINE_SPACING_DOTS = 24;
+export const COMPACT_LINE_SPACING_DOTS = FONT_A_HEIGHT_DOTS;
 
 /**
  * `ESC 3 n` — interlineado de n puntos (unidad de movimiento vertical de
- * la impresora). Rige hasta el próximo `ESC 2` o `ESC @`. Una línea con
- * letra más alta que n (doble alto) avanza igual lo que mide la letra.
+ * la impresora). Rige hasta el próximo `ESC 2` o `ESC @`.
+ *
+ * REGLA: n nunca menor que el alto de la letra más alta del renglón. Las
+ * Epson avanzan igual lo que mide la letra, pero muchas térmicas
+ * genéricas imprimen el renglón en una franja de n puntos y RECORTAN lo
+ * que no entra — un renglón a doble alto (48 puntos) con el interlineado
+ * compacto (24) sale con media letra. Quien agranda un renglón sube el
+ * interlineado mientras dura (ver `withLineSpacingFor` en `compact.ts`).
  */
 export function lineSpacing(dots: number): Buffer {
   const n = Math.min(255, Math.max(0, Math.trunc(dots)));
@@ -81,6 +96,26 @@ export function lineSpacing(dots: number): Buffer {
 
 /** `ESC 2` — vuelve al interlineado de fábrica (~30 puntos, 1/6"). */
 export const DEFAULT_LINE_SPACING = Buffer.from([ESC, 0x32]);
+
+/**
+ * `ESC J n` — imprime lo que haya en el buffer y avanza n puntos. Con el
+ * buffer vacío es un avance fino, que no depende del interlineado vigente
+ * (a diferencia de `LF` o `ESC d`, que avanzan renglones).
+ */
+export function feedDots(dots: number): Buffer {
+  const n = Math.min(255, Math.max(0, Math.trunc(dots)));
+  return Buffer.from([ESC, 0x4a, n]);
+}
+
+/**
+ * Margen superior de la tirilla, en puntos (~3 mm a 203 dpi), justo
+ * después del reset. Varias térmicas retroceden el papel después del
+ * corte para no desperdiciar el tramo entre el cortador y el cabezal, y
+ * el primer renglón queda pegado al borde: en la factura FESM6723 de Son
+ * y Melona el nombre del comercio salió con sólo la mitad de abajo. Un
+ * renglón compacto de aire lo aleja del borde sin gastar papel de más.
+ */
+export const TOP_MARGIN_DOTS = 24;
 
 /** `ESC d n` — avanza n líneas. */
 export function feed(lines: number): Buffer {

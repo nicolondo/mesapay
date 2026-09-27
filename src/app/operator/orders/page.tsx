@@ -8,11 +8,12 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
 import { LiveRefresh } from "../LiveRefresh";
 import { InvoiceActions } from "./InvoiceActions";
+import { orderPeriodStart, type OrderPeriod } from "@/lib/orders/periodStart";
 
 export const dynamic = "force-dynamic";
 
 type StatusFilter = "all" | "open" | "paid" | "cancelled";
-type PeriodFilter = "today" | "7d" | "30d" | "all";
+type PeriodFilter = OrderPeriod;
 
 const STATUS_OPTS: { id: StatusFilter; labelKey: string }[] = [
   { id: "all", labelKey: "statusAll" },
@@ -42,7 +43,7 @@ export default async function OrdersPage({
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { slug: true, serviceMode: true, enabledModules: true },
+    select: { slug: true, serviceMode: true, enabledModules: true, businessDayCutoffHour: true },
   });
   const counterMode = tenant?.serviceMode === "counter";
   // Con facturación electrónica, la factura ACEPTADA por la DIAN también
@@ -70,13 +71,10 @@ export default async function OrdersPage({
     where.status = "cancelled";
   }
 
-  if (period !== "all") {
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
-    if (period === "7d") since.setDate(since.getDate() - 6);
-    if (period === "30d") since.setDate(since.getDate() - 29);
-    where.createdAt = { gte: since };
-  }
+  // Días operativos del comercio (corte configurable, p. ej. 05:00): lo que
+  // se vende después de medianoche cuenta para la jornada anterior.
+  const since = orderPeriodStart(period, tenant?.businessDayCutoffHour ?? 0);
+  if (since) where.createdAt = { gte: since };
 
   if (q) {
     where.shortCode = { contains: q, mode: "insensitive" };

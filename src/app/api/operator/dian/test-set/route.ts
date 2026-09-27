@@ -18,6 +18,7 @@ import {
   type DianInvoiceInput,
 } from "@/lib/dian/ubl";
 import { signXmlDian } from "@/lib/dian/xades";
+import { dianIssueDateTime, dianSigningTime } from "@/lib/dian/dianDateTime";
 import { sendTestSetAsync, zipInvoice } from "@/lib/dian/soap";
 import { transitionAfterSend } from "@/lib/dian/documentState";
 import type { ModuleSlug } from "@/lib/modules";
@@ -105,10 +106,8 @@ async function POSTHandler() {
   const num = resolution.from;
   const invoiceNumber = `${resolution.prefix}${num}`;
   const now = new Date();
-  const issueDate = now.toISOString().slice(0, 10);
-  const issueTime =
-    now.toLocaleTimeString("en-GB", { hour12: false, timeZone: "America/Bogota" }) +
-    "-05:00";
+  // Misma fecha fiscal (Colombia) que la emisión real — ver dianDateTime.ts.
+  const { date: issueDate, time: issueTime } = dianIssueDateTime(now);
 
   const input: DianInvoiceInput = {
     environment: "2",
@@ -147,7 +146,9 @@ async function POSTHandler() {
   };
 
   const built = buildDianInvoiceXml(input);
-  const signed = signXmlDian(built.xml, config.cert);
+  const signed = signXmlDian(built.xml, config.cert, {
+    signingTime: dianSigningTime(now),
+  });
   const zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
 
   const result = await sendTestSetAsync(zip, config.testSetId, {

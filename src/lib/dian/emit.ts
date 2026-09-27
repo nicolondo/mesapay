@@ -8,6 +8,7 @@
 // desde la UI (B1.6b).
 import { db } from "@/lib/db";
 import { suggestMunicipioFromText, type DaneMunicipio } from "@/lib/dane/municipios";
+import { dianDueDate, dianIssueDateTime } from "@/lib/dian/dianDateTime";
 import { BLOCKED_RETRY_MS, claimWhere } from "@/lib/dian/retry";
 import { splitTaxIncludedCents, type DianInvoiceInput, type DianLine, type DianParty } from "@/lib/dian/ubl";
 import { computeNitDv } from "@/lib/erp/exogena";
@@ -329,6 +330,9 @@ export function embeddedMenuTax(
  * definido — la plata llega después por el abono) y vencimiento = emisión
  * + plazo del cliente. `payments` es lo que trae la orden filtrado a
  * customer_credit aprobados (vacío en una venta normal).
+ *
+ * `issueDate` es la fecha que DECLARA la factura (`dianIssueDateTime`, día
+ * colombiano): el vencimiento se cuenta desde ahí, nunca desde el día UTC.
  */
 export function creditPaymentMeans(
   payments: readonly { billingCustomer: { creditTermsDays: number } | null }[],
@@ -336,21 +340,21 @@ export function creditPaymentMeans(
 ): Pick<DianInvoiceInput, "paymentMeansCode" | "paymentMeansId" | "paymentDueDate"> {
   const credit = payments.find((p) => p.billingCustomer);
   if (!credit?.billingCustomer) return { paymentMeansCode: "10" };
-  const due = new Date(`${issueDate}T00:00:00Z`);
-  due.setUTCDate(due.getUTCDate() + Math.max(0, credit.billingCustomer.creditTermsDays));
   return {
     paymentMeansCode: "1",
     paymentMeansId: "2",
-    paymentDueDate: due.toISOString().slice(0, 10),
+    paymentDueDate: dianDueDate(issueDate, credit.billingCustomer.creditTermsDays),
   };
 }
 
-/** Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. */
+/**
+ * Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. Para documentos nuevos
+ * usar `dianIssueDateTime(at)`, que da la fecha Y la hora del mismo
+ * instante; esto queda como atajo compatible (lo importa la rama de notas
+ * crédito) y sale del mismo helper.
+ */
 export function bogotaIssueTime(now: Date): string {
-  return (
-    now.toLocaleTimeString("en-GB", { hour12: false, timeZone: "America/Bogota" }) +
-    "-05:00"
-  );
+  return dianIssueDateTime(now).time;
 }
 
 export type DianDocumentRef = {

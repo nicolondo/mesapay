@@ -13,6 +13,8 @@ const m = vi.hoisted(() => ({
   requestFindFirst: vi.fn(),
   sendEmail: vi.fn(),
   renderEmail: vi.fn(),
+  invoiceIssueInstant: vi.fn(),
+  buildAttachedDocumentXml: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -37,15 +39,10 @@ vi.mock("@/lib/invoice", () => ({
 vi.mock("@/lib/dian/crypto", () => ({ dianQrUrl: () => "https://dian/qr" }));
 vi.mock("@/lib/dian/attachedDocument", () => ({
   attachedDocumentFileName: () => "adFESM6484.xml",
-  buildAttachedDocumentXml: () => "<AttachedDocument/>",
-  invoiceIssueInstant: () => ({
-    at: new Date("2026-09-01T15:00:00.000Z"),
-    date: "2026-09-01",
-    time: "10:00:00-05:00",
-  }),
+  buildAttachedDocumentXml: m.buildAttachedDocumentXml,
+  invoiceIssueInstant: m.invoiceIssueInstant,
 }));
 vi.mock("@/lib/dian/emit", () => ({
-  bogotaIssueTime: () => "10:00:00-05:00",
   customerPartyFor: () => ({}),
 }));
 vi.mock("@/lib/dian/config", () => ({
@@ -137,6 +134,12 @@ beforeEach(() => {
   m.requestFindFirst.mockResolvedValue(null);
   m.sendEmail.mockResolvedValue(true);
   m.renderEmail.mockResolvedValue({ subject: "s", html: "h", text: "t" });
+  m.buildAttachedDocumentXml.mockReturnValue("<AttachedDocument/>");
+  m.invoiceIssueInstant.mockReturnValue({
+    at: new Date("2026-09-01T15:00:00.000Z"),
+    date: "2026-09-01",
+    time: "10:00:00-05:00",
+  });
 });
 
 describe("camino automático — sigue siendo idempotente", () => {
@@ -268,5 +271,32 @@ describe("guardarraíles — lo que NO se manda", () => {
       reason: "incomplete_document",
     });
     expect(m.sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("fecha del sobre y del correo", () => {
+  it("repite la fecha que DECLARA el XML firmado, tal cual", async () => {
+    await send();
+    expect(m.buildAttachedDocumentXml).toHaveBeenCalledWith(
+      expect.objectContaining({ issueDate: "2026-09-01", issueTime: "10:00:00-05:00" }),
+    );
+  });
+
+  it("XML sin fecha legible: cae al cobro en hora Colombia, no al día UTC", async () => {
+    // Cobro del 30/09 a las 8 p. m. en Bogotá = 01:00 del 1/10 en UTC.
+    const paidAt = new Date("2026-10-01T01:00:00.000Z");
+    const doc = await m.docFindUnique();
+    m.docFindUnique.mockResolvedValueOnce({
+      ...doc,
+      simpleInvoice: { ...doc.simpleInvoice, order: { ...doc.simpleInvoice.order, paidAt } },
+    });
+    m.invoiceIssueInstant.mockReturnValueOnce(null);
+
+    await send();
+
+    expect(m.buildAttachedDocumentXml).toHaveBeenCalledWith(
+      expect.objectContaining({ issueDate: "2026-09-30", issueTime: "20:00:00-05:00" }),
+    );
+    expect(m.renderEmail).toHaveBeenCalledWith(expect.objectContaining({ issuedAt: paidAt }));
   });
 });

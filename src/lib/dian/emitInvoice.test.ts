@@ -4,6 +4,7 @@
 // automática. Los mocks sustituyen sólo lo que tocaría DB, certificados
 // o la red; el builder UBL, el CUFE, los guards y las reglas de reintento
 // corren de verdad.
+import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
@@ -670,5 +671,104 @@ describe("medio de pago (PaymentMeans)", () => {
     const xml = sentXml();
     expect(tag(xml, "cbc:PaymentMeansCode")).toBe("10");
     expect(xml).toContain("<cac:PaymentMeans><cbc:ID>1</cbc:ID>");
+  });
+});
+
+describe("fecha fiscal — hora de Colombia, no el día UTC", () => {
+  // 9 p. m. del 15/09 en Bogotá = 02:00 UTC del 16/09. Antes la factura
+  // declaraba IssueDate 2026-09-16 con IssueTime 21:00:00-05:00.
+  const NIGHT = new Date("2026-09-16T02:00:00.000Z");
+  const emitAt = (now: Date) =>
+    emitDianInvoice({ simpleInvoiceId: "inv-1", restaurantId: "rest-1", now });
+
+  /** CUFE a mano: SHA-384 de la concatenación EXACTA del Anexo 1.9. */
+  const manualCufe = (fecFac: string, horFac: string) =>
+    createHash("sha384")
+      .update(
+        "FESM6482" + // NumFac
+          fecFac + // FecFac
+          horFac + // HorFac
+          "30000.00" + // ValFac (una bandeja de $30.000; tirilla sin tarifa congelada)
+          "01" + "0.00" + // IVA
+          "04" + "0.00" + // INC
+          "03" + "0.00" + // ICA
+          "30000.00" + // ValTot
+          "901944469" + // NitOFE
+          "222222222222" + // NumAdq (consumidor final)
+          "clave-tecnica" + // ClTec
+          "1", // TipoAmbiente (producción)
+        "utf8",
+      )
+      .digest("hex");
+
+  it("a las 9 p. m. declara el MISMO día de Bogotá, y el CUFE cuadra con la cadena hecha a mano", async () => {
+    expect((await emitAt(NIGHT)).outcome).toBe("accepted");
+    const xml = sentXml();
+    expect(tag(xml, "cbc:IssueDate")).toBe("2026-09-15");
+    expect(tag(xml, "cbc:IssueTime")).toBe("21:00:00-05:00");
+    // Contado: el vencimiento es la fecha de emisión, también la de Bogotá.
+    expect(tag(xml, "cbc:PaymentDueDate")).toBe("2026-09-15");
+
+    const cufe = tag(xml, "cbc:UUID");
+    expect(cufe).toBe(manualCufe("2026-09-15", "21:00:00-05:00"));
+    // El CUFE depende de la fecha: con el día UTC (lo de antes) era otro.
+    expect(cufe).not.toBe(manualCufe("2026-09-16", "21:00:00-05:00"));
+  });
+
+  it("el 30/09 a las 8 p. m. la factura es de septiembre", async () => {
+    await emitAt(new Date("2026-10-01T01:00:00.000Z"));
+    const xml = sentXml();
+    expect(tag(xml, "cbc:IssueDate")).toBe("2026-09-30");
+    expect(tag(xml, "cbc:IssueTime")).toBe("20:00:00-05:00");
+    expect(tag(xml, "cbc:UUID")).toBe(manualCufe("2026-09-30", "20:00:00-05:00"));
+  });
+
+  it("la firma declara el mismo instante (y el mismo día) que el IssueDate", async () => {
+    await emitAt(NIGHT);
+    expect(m.signXmlDian).toHaveBeenCalledWith(expect.any(String), expect.anything(), {
+      signingTime: "2026-09-15T21:00:00-05:00",
+    });
+  });
+
+  it("crédito: el vencimiento se cuenta desde la fecha de Bogotá", async () => {
+    const inv = invoice();
+    m.invoiceFindUnique.mockResolvedValue({
+      ...inv,
+      order: { ...inv.order, payments: [{ billingCustomer: { creditTermsDays: 30 } }] },
+    });
+    await emitAt(NIGHT);
+    const xml = sentXml();
+    expect(tag(xml, "cbc:IssueDate")).toBe("2026-09-15");
+    // 15/09 + 30 = 15/10. Desde el día UTC (16/09) habría dado 16/10.
+    expect(tag(xml, "cbc:PaymentDueDate")).toBe("2026-10-15");
+    expect(xml).toContain("<cac:PaymentMeans><cbc:ID>2</cbc:ID>");
+  });
+
+  it("el CUFE guardado es el que se calculó con la fecha de Bogotá", async () => {
+    m.sendBillSync.mockResolvedValue({ state: "accepted", errors: [] });
+    await emitAt(NIGHT);
+    expect(lastUpdateData().cufe).toBe(manualCufe("2026-09-15", "21:00:00-05:00"));
+  });
+
+  it("un reintento RECONSTRUYE el XML con la fecha del reintento (no reusa el zip del intento fallido)", async () => {
+    // Primer intento a las 9 p. m.: error de canal.
+    m.sendBillSync.mockResolvedValueOnce({ state: "error", errors: ["timeout"] });
+    await emitAt(NIGHT);
+    expect(tag(sentXml(), "cbc:IssueDate")).toBe("2026-09-15");
+
+    // El barrido lo retoma pasada la medianoche de Bogotá: XML nuevo,
+    // fecha y CUFE nuevos, y es ESE zip el que queda guardado.
+    m.docFindUnique.mockResolvedValue({ id: "doc-1", state: "error", attempts: 1 });
+    m.zipInvoice.mockResolvedValueOnce(Buffer.from("zip-reintento"));
+    const retryAt = new Date("2026-09-16T05:30:00.000Z"); // 00:30 del 16/09 en Bogotá
+    await emitAt(retryAt);
+    const retried = m.signXmlDian.mock.calls.at(-1)?.[0] as string;
+    expect(tag(retried, "cbc:IssueDate")).toBe("2026-09-16");
+    expect(tag(retried, "cbc:IssueTime")).toBe("00:30:00-05:00");
+    expect(tag(retried, "cbc:UUID")).toBe(manualCufe("2026-09-16", "00:30:00-05:00"));
+    expect(lastUpdateData()).toMatchObject({
+      state: "accepted",
+      xmlZip: new Uint8Array(Buffer.from("zip-reintento")),
+    });
   });
 });

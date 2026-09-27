@@ -13,6 +13,7 @@ import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { C14nCanonicalization } from "xml-crypto";
 import forge from "node-forge";
 import type { LoadedCert } from "@/lib/dian/crypto";
+import { dianSigningTime } from "@/lib/dian/dianDateTime";
 
 const DS = "http://www.w3.org/2000/09/xmldsig#";
 
@@ -180,7 +181,11 @@ export function signXmlDian(
 
   const forgeCert = forge.pki.certificateFromPem(cert.certPem);
   const sigId = "xmldsig-" + randomUUID();
-  const signingTime = opts.signingTime ?? new Date().toISOString().replace(/\.\d{3}Z$/, "-05:00");
+  // Hora legal colombiana con su desfase. Antes era el reloj UTC con un
+  // "-05:00" pegado: una firma que decía haberse hecho cinco horas en el
+  // futuro (y, de 7 p. m. en adelante, al día siguiente). El emisor pasa
+  // el instante de la emisión para que coincida con el IssueDate.
+  const signingTime = opts.signingTime ?? dianSigningTime(new Date());
   const certDer = Buffer.from(forge.util.decode64(cert.certDerBase64), "binary");
 
   const sigDoc = new DOMParser().parseFromString(

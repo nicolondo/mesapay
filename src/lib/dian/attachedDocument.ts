@@ -192,11 +192,13 @@ export type InvoiceIssueInstant = {
  * y la factura que lleva adentro tienen que declarar la MISMA fecha, y esas
  * dos no siempre coinciden con el cobro. El `issueDate` de la factura se
  * fija en el momento del envío a la DIAN —que puede ser horas después de
- * que se cerró la cuenta, o de un reintento al día siguiente— y además se
- * calcula en UTC, así que un cobro de las 9 p. m. en Bogotá ya cayó al día
- * siguiente. Derivarla otra vez acá es garantizar que tarde o temprano no
- * cuadren. Se lee la primera ocurrencia: en la factura las de la resolución
- * son StartDate/EndDate, y las líneas no llevan fecha.
+ * que se cerró la cuenta, o de un reintento al día siguiente—. Y las
+ * facturas firmadas antes de `dianDateTime.ts` declaran el día UTC (de
+ * 7 p. m. a medianoche, el día siguiente): el sobre de esas tiene que
+ * repetir lo que ya quedó firmado y aceptado, no "corregirlo". Derivarla
+ * otra vez acá es garantizar que tarde o temprano no cuadren. Se lee la
+ * primera ocurrencia: en la factura las de la resolución son
+ * StartDate/EndDate, y las líneas no llevan fecha.
  *
  * null si el XML no las trae (el caller cae a la fecha del cobro).
  */

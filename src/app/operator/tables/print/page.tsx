@@ -1,4 +1,6 @@
 import { getTranslations } from "next-intl/server";
+import { headers } from "next/headers";
+import { appOrigin } from "@/lib/http/publicOrigin";
 import { db } from "@/lib/db";
 import QRCode from "qrcode";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
@@ -65,7 +67,10 @@ export default async function PrintTablesPage({
       ? allTables.slice(0, 1)
       : allTables;
 
-  const base = process.env.APP_PUBLIC_BASE_URL ?? "http://localhost:3300";
+  // APP_PUBLIC_BASE_URL manda; si falta, el origen público del request
+  // (headers del proxy). Antes caía a http://localhost:3300 y el QR/link
+  // impreso quedaba apuntando a localhost.
+  const base = appOrigin(await headers());
 
   // SVG QR — generamos con margin=1 (1 módulo de quiet zone, mínimo
   // legible) y width grande para que el escalado a 22mm via CSS

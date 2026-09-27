@@ -11,6 +11,7 @@ import {
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
+import { appOrigin } from "@/lib/http/publicOrigin";
 
 /**
  * Cobra el DEPÓSITO de una reserva con un token de tarjeta (Kushki).
@@ -205,7 +206,8 @@ async function POSTHandler(
     confirmationCode: reservation.confirmationCode,
     autoConfirmed: true,
     locale: reservation.locale,
-    manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
+    // Origen público, no req.url: detrás de nginx sería https://localhost:3301.
+    manageUrl: `${appOrigin(req)}/r/${slug}/reserva/${reservation.confirmationCode}`,
     depositPaidCents: depositCents,
   }).catch((err) =>
     console.error("[reservation-deposit] email failed", err),

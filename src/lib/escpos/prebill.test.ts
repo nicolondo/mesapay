@@ -322,7 +322,7 @@ describe("renderPrebill — lo que se lee en el papel", () => {
     expect(paper.slice(i, j)).toContain("-".repeat(48));
   });
 
-  it("los montos quedan pegados al borde derecho (el TOTAL, a doble ancho, en 24)", () => {
+  it("los montos quedan pegados al borde derecho (el TOTAL también: a doble alto son las mismas 48)", () => {
     for (const row of readPaper(renderPrebill(base)).rows) {
       // El detalle con sangría (el unitario "2 x $ 24.500") va a la
       // izquierda a propósito: es detalle, no un monto de la columna.
@@ -337,7 +337,8 @@ describe("renderPrebill — lo que se lee en el papel", () => {
     const title = paper.rows.find((r) => r.text === "PRECUENTA")!;
     expect(title.widthMul).toBe(2);
     expect(title.heightMul).toBe(1);
-    expect(renderPrebill(base).subarray(0, 8).toString("hex")).toBe("1b401b74021b3318");
+    // + el margen superior (ESC J 24), igual que la factura.
+    expect(renderPrebill(base).subarray(0, 11).toString("hex")).toBe("1b401b74021b33181b4a18");
   });
 
   it("en 58mm nada se pasa de su ancho: 32 en fuente A, 42 en B (la térmica trunca, no envuelve)", () => {

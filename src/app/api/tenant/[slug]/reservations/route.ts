@@ -11,6 +11,7 @@ import {
   resolveDepositMethods,
 } from "@/lib/paymentMethods";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
+import { appOrigin } from "@/lib/http/publicOrigin";
 import { publishOrderEvent } from "@/lib/events";
 import { getLocale } from "next-intl/server";
 
@@ -243,7 +244,8 @@ async function POSTHandler(
       confirmationCode: reservation.confirmationCode,
       autoConfirmed: config.autoConfirm,
       locale: reservation.locale,
-      manageUrl: `${new URL(req.url).origin}/r/${slug}/reserva/${reservation.confirmationCode}`,
+      // Origen público, no req.url: detrás de nginx sería https://localhost:3301.
+      manageUrl: `${appOrigin(req)}/r/${slug}/reserva/${reservation.confirmationCode}`,
     }).catch((err) => console.error("[reservation] email failed", err));
   }
 

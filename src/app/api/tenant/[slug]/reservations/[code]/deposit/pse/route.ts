@@ -2,7 +2,6 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import {
   getPaymentProvider,
   getRestaurantPrivateKey,
@@ -11,6 +10,7 @@ import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { publishOrderEvent } from "@/lib/events";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
+import { appOrigin } from "@/lib/http/publicOrigin";
 
 /**
  * Inicia el cobro del DEPÓSITO de una reserva con PSE.
@@ -37,16 +37,6 @@ const schema = z.object({
     personType: z.enum(["natural", "juridica"]).default("natural"),
   }),
 });
-
-function appOrigin(req: Request): string {
-  if (env.APP_PUBLIC_BASE_URL) return env.APP_PUBLIC_BASE_URL.replace(/\/$/, "");
-  const xfHost = req.headers.get("x-forwarded-host");
-  const xfProto = req.headers.get("x-forwarded-proto") ?? "https";
-  if (xfHost) return `${xfProto}://${xfHost}`;
-  const host = req.headers.get("host");
-  if (host) return `${host.includes("localhost") ? "http" : "https"}://${host}`;
-  return new URL(req.url).origin;
-}
 
 async function POSTHandler(
   req: Request,

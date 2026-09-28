@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { shiftCashToNumbers } from "@/lib/shiftCash";
 import { resolveMeseroShiftWithoutLocal } from "@/lib/staffPolicies";
 import { effectiveShiftPolicy } from "@/lib/chargeControl";
 import {
@@ -102,7 +103,7 @@ async function POSTHandler(req: Request) {
         { status: 409 },
       );
     }
-    localShift = await db.shift.create({
+    localShift = shiftCashToNumbers(await db.shift.create({
       data: {
         restaurantId,
         openedById: userId,
@@ -110,7 +111,7 @@ async function POSTHandler(req: Request) {
         status: "open",
         autoOpened: true,
       },
-    });
+    }));
     localAutoOpened = true;
   }
 

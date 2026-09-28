@@ -11,6 +11,7 @@
 
 import type { PaymentMethod } from "@prisma/client";
 import { db } from "./db";
+import { cashCentsToNumber } from "./shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type ShiftReport = {
@@ -227,10 +228,10 @@ export async function buildShiftReport(
         : null,
       openedAt: shift.openedAt,
       closedAt: shift.closedAt,
-      openingCashCents: shift.openingCashCents,
-      declaredCashCents: shift.declaredCashCents,
-      expectedCashCents: shift.expectedCashCents,
-      cashDiffCents: shift.cashDiffCents,
+      openingCashCents: cashCentsToNumber(shift.openingCashCents),
+      declaredCashCents: cashCentsToNumber(shift.declaredCashCents),
+      expectedCashCents: cashCentsToNumber(shift.expectedCashCents),
+      cashDiffCents: cashCentsToNumber(shift.cashDiffCents),
       notes: shift.notes,
     },
     totals: {
@@ -369,10 +370,10 @@ export async function listShiftsWithSummary(
           : null,
         openedAt: s.openedAt,
         closedAt: s.closedAt,
-        openingCashCents: s.openingCashCents,
-        declaredCashCents: s.declaredCashCents,
-        expectedCashCents: s.expectedCashCents,
-        cashDiffCents: s.cashDiffCents,
+        openingCashCents: cashCentsToNumber(s.openingCashCents),
+        declaredCashCents: cashCentsToNumber(s.declaredCashCents),
+        expectedCashCents: cashCentsToNumber(s.expectedCashCents),
+        cashDiffCents: cashCentsToNumber(s.cashDiffCents),
         grossCents: a?.grossCents ?? 0,
         tipCents: a?.tipCents ?? 0,
         paymentCount: a?.paymentCount ?? 0,

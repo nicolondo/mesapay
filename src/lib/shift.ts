@@ -10,8 +10,9 @@
 // via a unique partial index in code (Prisma doesn't model partial
 // uniques) — see openShift().
 
-import type { Payment, PaymentMethod, Shift } from "@prisma/client";
+import type { Payment, PaymentMethod } from "@prisma/client";
 import { db } from "@/lib/db";
+import { shiftCashToNumbers, type CashShift } from "@/lib/shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 
 export type ShiftMethodBreakdown = {
@@ -29,7 +30,7 @@ export type ShiftMetrics = {
   byMethod: ShiftMethodBreakdown[];
 };
 
-export async function getCurrentShift(restaurantId: string): Promise<Shift | null> {
+export async function getCurrentShift(restaurantId: string): Promise<CashShift | null> {
   // `userId: null` = SOLO el turno global del restaurante (el que abre/
   // cierra el operador). Sin este filtro, findFirst podía devolver el
   // turno PERSONAL de un mesero (Shift.userId != null, abierto desde su
@@ -38,13 +39,14 @@ export async function getCurrentShift(restaurantId: string): Promise<Shift | nul
   // personal, dejando un Z-report rotulado "Turno de Mesero X" pero con
   // cobros de todos los meseros. Los turnos personales se consultan
   // aparte con getCurrentMeseroShift(userId).
-  return db.shift.findFirst({
+  const shift = await db.shift.findFirst({
     where: { restaurantId, status: "open", userId: null },
     orderBy: { openedAt: "desc" },
   });
+  return shift ? shiftCashToNumbers(shift) : null;
 }
 
-export type RecentShift = Shift & {
+export type RecentShift = CashShift & {
   user: { name: string | null; email: string } | null;
 };
 
@@ -56,12 +58,13 @@ export async function getRecentShifts(
   // de mesero. Desde que el cierre de mesero hace arqueo (base/esperado/
   // contado/diferencia), ambos tienen datos que mostrar; `user` distingue
   // de quién es cada cierre (null = turno global del local).
-  return db.shift.findMany({
+  const shifts = await db.shift.findMany({
     where: { restaurantId, status: "closed" },
     orderBy: { closedAt: "desc" },
     take: limit,
     include: { user: { select: { name: true, email: true } } },
   });
+  return shifts.map(shiftCashToNumbers);
 }
 
 /**
@@ -70,7 +73,7 @@ export async function getRecentShifts(
  */
 export async function computeOpenShiftMetrics(
   restaurantId: string,
-  shift: Shift,
+  shift: Pick<CashShift, "openedAt">,
 ): Promise<ShiftMetrics> {
   const payments = await db.payment.findMany({
     where: {

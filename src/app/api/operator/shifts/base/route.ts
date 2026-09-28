@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { cashCentsToNumber } from "@/lib/shiftCash";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrentShift } from "@/lib/shift";
 import { publishOrderEvent } from "@/lib/events";
@@ -65,7 +66,7 @@ async function PATCHHandler(req: Request) {
         { status: 409 },
       );
     }
-    const before = target.openingCashCents;
+    const before = cashCentsToNumber(target.openingCashCents);
     await db.shift.update({
       where: { id: target.id },
       data: { openingCashCents },
@@ -96,7 +97,7 @@ async function PATCHHandler(req: Request) {
     return NextResponse.json(
       {
         error: "base_below_mesero",
-        minCents: top.openingCashCents,
+        minCents: cashCentsToNumber(top.openingCashCents),
         meseroName: top.user?.name ?? top.user?.email ?? null,
       },
       { status: 409 },

@@ -16,6 +16,7 @@
 // Ver docs/superpowers/specs/2026-06-18-caja-management-design.md.
 
 import { db } from "@/lib/db";
+import { cashCentsToNumber } from "@/lib/shiftCash";
 import { isCashMethod } from "@/lib/payments/methods";
 import type { ShiftPolicy } from "@/lib/staffPolicies";
 import { publishOrderEvent } from "@/lib/events";
@@ -205,14 +206,14 @@ export async function buildCashSnapshot(
       )
       .reduce((s, p) => s + p.amountCents, 0);
     if (sh.status === "open") {
-      basesOutCents += sh.openingCashCents;
-      const inHand = sh.openingCashCents + collected;
+      basesOutCents += cashCentsToNumber(sh.openingCashCents);
+      const inHand = cashCentsToNumber(sh.openingCashCents) + collected;
       meseros.push({
         userId: sh.userId!,
         shiftId: sh.id,
         name: sh.user?.name ?? sh.user?.email ?? "Mesero",
         openedAtIso: sh.openedAt.toISOString(),
-        baseCents: sh.openingCashCents,
+        baseCents: cashCentsToNumber(sh.openingCashCents),
         collectedCashCents: collected,
         inHandCents: inHand,
         mustReturnCents: inHand,
@@ -225,7 +226,7 @@ export async function buildCashSnapshot(
   }
 
   const balanceCents =
-    generalShift.openingCashCents +
+    cashCentsToNumber(generalShift.openingCashCents) +
     collectedCashCents -
     egresoCents +
     ingresoCents -
@@ -240,7 +241,7 @@ export async function buildCashSnapshot(
     open: true,
     general: {
       openedAtIso: since.toISOString(),
-      openingCents: generalShift.openingCashCents,
+      openingCents: cashCentsToNumber(generalShift.openingCashCents),
       collectedCashCents,
       egresoCents,
       ingresoCents,

@@ -74,6 +74,23 @@ describe("métricas del turno (arqueo)", () => {
 });
 
 describe("Z-report del turno", () => {
+  it("normalizes large persisted cash amounts before JSON and historical reports", async () => {
+    m.shiftFindUnique.mockResolvedValue({
+      id: "shift-large", restaurantId: "r1", userId: null, user: null,
+      openedAt: new Date("2026-09-23T12:00:00Z"), closedAt: new Date("2026-09-24T02:00:00Z"),
+      openingCashCents: BigInt(40_000_000), declaredCashCents: BigInt(2_771_025_000),
+      expectedCashCents: BigInt(3_433_623_000), cashDiffCents: BigInt(-662_598_000), notes: null,
+    });
+    const report = await buildShiftReport("shift-large");
+    expect(report!.shift).toMatchObject({
+      openingCashCents: 40_000_000, declaredCashCents: 2_771_025_000,
+      expectedCashCents: 3_433_623_000, cashDiffCents: -662_598_000,
+    });
+    expect(JSON.parse(JSON.stringify(report)).shift).toMatchObject({
+      declaredCashCents: 2_771_025_000, cashDiffCents: -662_598_000,
+    });
+  });
+
   it("el efectivo recibido, el vuelto y la caja del mesero cuentan los dos nombres", async () => {
     const report = await buildShiftReport("shift-1");
     expect(report).not.toBeNull();

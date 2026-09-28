@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { shiftCashToNumbers } from "@/lib/shiftCash";
 import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 import { effectiveShiftPolicy } from "@/lib/chargeControl";
 
@@ -19,10 +20,11 @@ import { effectiveShiftPolicy } from "@/lib/chargeControl";
  * scope-ar las queries al rango del turno actual.
  */
 export async function getCurrentMeseroShift(userId: string) {
-  return db.shift.findFirst({
+  const shift = await db.shift.findFirst({
     where: { userId, status: "open" },
     orderBy: { openedAt: "desc" },
   });
+  return shift ? shiftCashToNumbers(shift) : null;
 }
 
 /**

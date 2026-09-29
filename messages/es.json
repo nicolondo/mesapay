@@ -39,6 +39,13 @@
     "taxIncludedIva": "Incluye IVA {pct}%"
   },
   "menu": {
+    "browseOnlyLabel": "Solo ver la carta",
+    "startOrder": "Hacer un pedido",
+    "scanToOrder": "Para pedir, escanea el QR de tu mesa.",
+    "cartAddedHint": "Agregado al carrito. Toca «Ver y enviar pedido» para revisar y enviarlo a cocina.",
+    "cartAddedPayHint": "Agregado al carrito. Toca «Ver y pagar pedido» para revisar y confirmar.",
+    "reviewAndSend": "Ver y enviar pedido",
+    "reviewAndPay": "Ver y pagar pedido",
     "title": "La carta",
     "counter": "Mostrador",
     "tableLabel": "Mesa {number}",
@@ -139,6 +146,8 @@
     "haveAccount": "¿Tienes cuenta MESAPAY? Entra para usar tu descuento"
   },
   "landing": {
+    "viewMenu": "Solo ver la carta",
+    "startOrder": "Hacer un pedido",
     "welcomeTo": "Bienvenido a",
     "chooseTable": "Elige tu mesa",
     "devTableHint": "En la vida real este paso no existe: tu mesa tiene un QR que te lleva directo al menú.",

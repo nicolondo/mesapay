@@ -3,7 +3,7 @@
 // para garantizar que ambos vean exactamente la misma versión.
 
 import { displayOrderCode } from "@/lib/orderCode";
-import { fmtCOP, localeTag } from "./format";
+import { fmtCOP, formatDate, localeTag } from "./format";
 import { getEmailTranslator } from "./emailIntl";
 import { groupInvoiceLines } from "./invoiceLines";
 
@@ -332,16 +332,17 @@ export async function renderInvoiceEmail(args: {
   // Formato compacto sin "p. m." — los locales con am/pm meten espacios
   // dentro del time que rompen línea en viewports angostos del
   // correo. 24h + middle-dot queda limpio y MESAPAY-style.
-  const fechaStr = paidAt
-    .toLocaleString(tag, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
-    .replace(", ", " · ");
+  const fechaStr = formatDate(paidAt, {
+    locale,
+    dateStyle: undefined,
+    timeStyle: undefined,
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(", ", " · ");
   const dianDateStr = dianDate
     ? dianDate.toLocaleDateString(tag)
     : null;

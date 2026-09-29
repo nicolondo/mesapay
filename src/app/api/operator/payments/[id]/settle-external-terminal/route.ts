@@ -151,17 +151,20 @@ async function POSTHandler(
 
   // Factura pedida en el checkout: se emite recién ahora, con el cobro
   // confirmado.
+  let invoiceId: string | null = null;
   if (result.fullyPaid) {
-    await issueInvoiceOnPaid({
+    const invoice = await issueInvoiceOnPaid({
       tenantId: payment.order.restaurantId,
       orderId: payment.orderId,
     });
+    if (invoice.status === "issued") invoiceId = invoice.invoiceId;
   }
 
   return NextResponse.json({
     ok: true,
     status: "approved",
     paid: result.fullyPaid,
+    invoiceId,
   });
 }
 

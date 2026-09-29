@@ -235,3 +235,13 @@ describe("issueSimpleInvoice — lo que distingue a dos líneas al agruparlas", 
     expect(q.include.items.include.menuItem.select.modifiers).toBe(true);
   });
 });
+
+
+describe("invoice sale timestamp", () => {
+  it("freezes final payment time even when the table was opened the previous day", async () => {
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "none", salesTaxPct: 0 }));
+    m.orderFindUnique.mockResolvedValue({ ...order(), createdAt: new Date("2026-09-13T13:00:00Z") });
+    const snapshot = await issuedSnapshot();
+    expect(snapshot.paidAtIso).toBe("2026-09-14T20:00:00.000Z");
+  });
+});

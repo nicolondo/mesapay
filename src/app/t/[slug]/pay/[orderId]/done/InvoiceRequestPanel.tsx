@@ -84,7 +84,7 @@ export function InvoiceRequestPanel({
   const [showChoices, setShowChoices] = useState(false);
   const simpleEmail = simpleInvoiceEmailFrom(simpleRequestEmail);
 
-  // Pidieron la genérica, la cuenta ya está paga y la factura todavía no
+  // La cuenta ya está paga y la factura todavía no
   // aparece: el aviso de "pagada" (SSE) sale un instante ANTES de que
   // termine la emisión, así que el refresco que dispara puede llegar
   // temprano. Se reintenta unas pocas veces hasta que exista y aparezca el
@@ -92,7 +92,6 @@ export function InvoiceRequestPanel({
   // de numeración agotado) no se refresca para siempre.
   const [refreshTries, setRefreshTries] = useState(0);
   const waitingInvoice =
-    isSimpleInvoiceRequested(simpleRequestEmail) &&
     orderPaid &&
     !issuedInvoiceUrl;
   useEffect(() => {
@@ -132,6 +131,36 @@ export function InvoiceRequestPanel({
     </>
   );
 
+  const invoiceActions = (
+    <>
+      {issuedInvoiceUrl && staffPrint && (
+        <div className="mt-4 space-y-1">
+          <StaffPrintButton
+            doc={{
+              kind: "invoice",
+              orderId,
+              href: invoicePrintHref({ invoiceUrl: issuedInvoiceUrl }),
+            }}
+            label={t("invPrintInvoice")}
+            canConfigurePrinters={staffPrint.canConfigurePrinters}
+            className="block text-center w-full h-11 rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-60"
+            statusClassName="block text-xs leading-snug"
+          />
+        </div>
+      )}
+      {issuedInvoiceUrl && !staffPrint && (
+        <a
+          href={`${issuedInvoiceUrl}?print=1`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 block text-center w-full h-11 leading-[2.75rem] rounded-2xl bg-ink text-bone text-sm font-medium"
+        >
+          {t("invPrintInvoice")}
+        </a>
+      )}
+    </>
+  );
+
   if (existing?.status === "generated") {
     return (
       <div className="rounded-2xl border border-ok/30 bg-ok/10 p-5">
@@ -144,6 +173,7 @@ export function InvoiceRequestPanel({
             b: (chunks) => <strong>{chunks}</strong>,
           })}
         </p>
+        {invoiceActions}
       </div>
     );
   }
@@ -177,6 +207,7 @@ export function InvoiceRequestPanel({
             {t("invCorrectData")}
           </button>
         </div>
+        {invoiceActions}
         {sheets}
       </div>
     );
@@ -211,31 +242,7 @@ export function InvoiceRequestPanel({
                     : "invDeferredPrintBody",
                 )}
         </p>
-        {issuedInvoiceUrl && staffPrint && (
-          <div className="mt-4 space-y-1">
-            <StaffPrintButton
-              doc={{
-                kind: "invoice",
-                orderId,
-                href: invoicePrintHref({ invoiceUrl: issuedInvoiceUrl }),
-              }}
-              label={t("invPrintInvoice")}
-              canConfigurePrinters={staffPrint.canConfigurePrinters}
-              className="block text-center w-full h-11 rounded-2xl bg-ink text-bone text-sm font-medium disabled:opacity-60"
-              statusClassName="block text-xs leading-snug"
-            />
-          </div>
-        )}
-        {issuedInvoiceUrl && !staffPrint && (
-          <a
-            href={`${issuedInvoiceUrl}?print=1`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 block text-center w-full h-11 leading-[2.75rem] rounded-2xl bg-ink text-bone text-sm font-medium"
-          >
-            {t("invPrintInvoice")}
-          </a>
-        )}
+        {invoiceActions}
         {/* Si la pidió recién desde acá, el sheet sigue abierto con su
             propio "listo" hasta que lo cierre (el refresh no lo tumba). */}
         {sheets}
@@ -268,6 +275,7 @@ export function InvoiceRequestPanel({
           {t(operatorMode ? "invLaterOp" : "invLater")}
         </button>
       )}
+      {invoiceActions}
       {sheets}
     </>
   );

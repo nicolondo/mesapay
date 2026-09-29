@@ -3,9 +3,9 @@ import { staffForRestaurant, OPERATOR_ROLES } from "@/lib/staffAccess";
 import { ReconcilePayment } from "./ReconcilePayment";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { formatItemSelections } from "@/lib/modifiers";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
@@ -13,6 +13,9 @@ import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { TableActions } from "../../tables/TableActions";
 import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
+
+import type { Locale } from "@/i18n/config";
+import { historyDate } from "@/lib/orders/history";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +33,9 @@ export default async function OperatorOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const t = await getTranslations("opOrders");
+  const locale = (await getLocale()) as Locale;
+  const fmtDateTime = (date: Date) => formatDate(date, { locale });
+  const fmtTime = (date: Date) => formatDate(date, { locale, dateStyle: undefined, timeStyle: "short" });
   const { id } = await params;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
@@ -137,7 +143,7 @@ export default async function OperatorOrderDetail({
                   : counterMode
                     ? t("channelCounter")
                     : t("tableNumber", { number: order.table.number }),
-              datetime: fmtDateTime(order.createdAt),
+              datetime: fmtDateTime(historyDate(order)),
             })}
           </div>
           <div className="font-display text-3xl tracking-[-0.015em] mt-1">
@@ -541,19 +547,4 @@ function methodLabel(m: string, t: (key: string) => string) {
     default:
       return m;
   }
-}
-
-function fmtDateTime(d: Date) {
-  return new Date(d).toLocaleString("es-CO", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-function fmtTime(d: Date) {
-  return new Date(d).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

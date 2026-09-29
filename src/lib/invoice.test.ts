@@ -446,3 +446,11 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
     ]);
   });
 });
+
+describe("invoice payment time", () => {
+  it("shows the Colombian payment date and time rather than the server timezone", async () => {
+    const result = await renderInvoiceEmail({ snapshot: snap({ paidAtIso: "2026-09-29T01:30:00.000Z" }), invoiceNumber: 1, invoiceUrl: "https://mesapay.co/factura/test", locale: "es" });
+    expect(result.text).toContain("28/09/26 · 20:30");
+    expect(result.html).toContain("28/09/26 · 20:30");
+  });
+});

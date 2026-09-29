@@ -39,6 +39,13 @@
     "taxIncludedIva": "Includes {pct}% VAT"
   },
   "menu": {
+    "browseOnlyLabel": "Just browse the menu",
+    "startOrder": "Place an order",
+    "scanToOrder": "To order, scan the QR code at your table.",
+    "cartAddedHint": "Added to your cart. Tap “Review and send order” to review it and send it to the kitchen.",
+    "cartAddedPayHint": "Added to your cart. Tap “Review and pay” to review and confirm.",
+    "reviewAndSend": "Review and send order",
+    "reviewAndPay": "Review and pay",
     "title": "Menu",
     "counter": "Counter",
     "tableLabel": "Table {number}",
@@ -139,6 +146,8 @@
     "haveAccount": "Have a MESAPAY account? Sign in to use your discount"
   },
   "landing": {
+    "viewMenu": "Just browse the menu",
+    "startOrder": "Place an order",
     "welcomeTo": "Welcome to",
     "chooseTable": "Choose your table",
     "devTableHint": "In real life this step doesn't exist: your table has a QR that takes you straight to the menu.",

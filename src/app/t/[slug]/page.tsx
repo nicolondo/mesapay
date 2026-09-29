@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 export default async function TenantLanding({
@@ -15,12 +15,7 @@ export default async function TenantLanding({
   });
   if (!tenant) return notFound();
 
-  if (tenant.serviceMode === "counter") {
-    const counter = tenant.tables[0];
-    if (counter) {
-      redirect(`/t/${slug}/menu?table=${counter.qrToken}`);
-    }
-  }
+  const counter = tenant.serviceMode === "counter" ? tenant.tables[0] : null;
 
   const t = await getTranslations("landing");
 
@@ -37,7 +32,24 @@ export default async function TenantLanding({
           <p className="mt-2 text-muted">{tenant.tagline}</p>
         )}
 
-        <div className="mt-10">
+        <div className="mt-8 flex flex-col gap-3">
+          <Link
+            href={`/t/${slug}/menu?browse=1`}
+            className="rounded-full bg-ink px-6 py-3 font-medium text-bone"
+          >
+            {t("viewMenu")}
+          </Link>
+          {counter && (
+            <Link
+              href={`/t/${slug}/menu?table=${counter.qrToken}`}
+              className="rounded-full border border-hairline px-6 py-3 font-medium"
+            >
+              {t("startOrder")}
+            </Link>
+          )}
+        </div>
+
+        {!counter && <div className="mt-10">
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-3">
             {t(process.env.NODE_ENV === "production" ? "scanTable" : "chooseTable")}
           </div>
@@ -53,7 +65,7 @@ export default async function TenantLanding({
             ))}
           </div>
           {process.env.NODE_ENV !== "production" && <p className="mt-4 text-xs text-muted-2">{t("devTableHint")}</p>}
-        </div>
+        </div>}
 
         <div className="mt-10 pt-6 border-t border-hairline">
           <Link

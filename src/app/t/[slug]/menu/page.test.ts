@@ -11,6 +11,11 @@ const h = vi.hoisted(() => ({
   menuItemOrder: "alphabetical" as string,
   restaurantFindUnique: vi.fn(),
   translations: new Map<string, string>(),
+  tableRead: vi.fn(),
+  orderRead: vi.fn(),
+  guestAccess: vi.fn(),
+  dinerRead: vi.fn(),
+  authRead: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -23,17 +28,9 @@ vi.mock("@/lib/db", () => ({
     },
     dishRating: { groupBy: async () => [] },
     table: {
-      findUnique: async () => ({
-        id: "t1",
-        restaurantId: "r1",
-        qrToken: "tok",
-        number: 4,
-        kind: "table",
-        waiterCalledAt: null,
-        waiterAckedAt: null,
-      }),
+      findUnique: h.tableRead,
     },
-    order: { findFirst: async () => null },
+    order: { findFirst: h.orderRead },
   },
 }));
 vi.mock("next/navigation", () => ({
@@ -48,9 +45,9 @@ vi.mock("next-intl/server", () => ({
   getLocale: async () => h.locale,
   getTranslations: async () => (key: string) => key,
 }));
-vi.mock("@/auth", () => ({ auth: async () => null }));
-vi.mock("@/lib/guestAccess", () => ({ canAccessTable: async () => true }));
-vi.mock("@/lib/dinerSession", () => ({ getDiner: async () => null }));
+vi.mock("@/auth", () => ({ auth: h.authRead }));
+vi.mock("@/lib/guestAccess", () => ({ canAccessTable: h.guestAccess }));
+vi.mock("@/lib/dinerSession", () => ({ getDiner: h.dinerRead }));
 vi.mock("@/lib/menus", () => ({ ensureDefaultMenu: async () => undefined }));
 vi.mock("@/lib/menuTags", () => ({ getRestaurantMenuTags: async () => [] }));
 vi.mock("@/lib/translateContent", () => ({
@@ -101,12 +98,19 @@ const dbCategories = [
 type ClientProps = {
   items: { id: string; name: string; categoryId: string }[];
   categories: { id: string }[];
+  readOnly: boolean;
+  tableId: string;
+  tableQrToken?: string;
+  activeOrder: unknown;
+  diner: unknown;
+  operatorMode: boolean;
+  locationLabel: string;
 };
 
-async function render(): Promise<ClientProps> {
+async function render(query: { table?: string; browse?: string; order?: string; op?: string } = { table: "tok" }): Promise<ClientProps> {
   const el = (await MenuPage({
     params: Promise.resolve({ slug: "demo" }),
-    searchParams: Promise.resolve({ table: "tok" }),
+    searchParams: Promise.resolve(query),
   })) as { props: ClientProps };
   return el.props;
 }
@@ -116,6 +120,12 @@ const inCat = (props: ClientProps, cat: string) =>
   props.items.filter((i) => i.categoryId === cat).map((i) => i.id);
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  h.tableRead.mockResolvedValue({ id: "t1", restaurantId: "r1", qrToken: "tok", number: 4, kind: "table", waiterCalledAt: null, waiterAckedAt: null });
+  h.orderRead.mockResolvedValue(null);
+  h.guestAccess.mockResolvedValue(true);
+  h.dinerRead.mockResolvedValue(null);
+  h.authRead.mockResolvedValue(null);
   h.locale = "es";
   h.menuItemOrder = "alphabetical";
   h.translations = new Map();
@@ -187,5 +197,37 @@ describe("carta del comensal — orden de los platos", () => {
       { createdAt: "asc" },
       { id: "asc" },
     ]);
+  });
+});
+
+
+describe("carta pública sin pedidos", () => {
+  it.each([{}, { browse: "1", table: "tok", order: "private-order", op: "1" }])(
+    "muestra solo catálogo sin consultar cuentas ni acceso a mesas: %j", async (query) => {
+      const props = await render(query);
+      expect(props.readOnly).toBe(true);
+      expect(props.tableId).toBe("");
+      expect(props.activeOrder).toBeNull();
+      expect(props.diner).toBeNull();
+      expect(props.operatorMode).toBe(false);
+      expect(props.locationLabel).toBe("browseOnlyLabel");
+      expect(props.items.length).toBeGreaterThan(0);
+      for (const read of [h.tableRead, h.orderRead, h.guestAccess, h.dinerRead, h.authRead]) expect(read).not.toHaveBeenCalled();
+    },
+  );
+
+  it("una mesa escaneada conserva los controles de acceso", async () => {
+    h.guestAccess.mockResolvedValue(false);
+    await expect(render({ table: "tok" })).rejects.toThrow("redirect:/api/tenant/demo/guest?table=tok");
+    expect(h.tableRead).toHaveBeenCalled();
+    expect(h.guestAccess).toHaveBeenCalledWith("r1", "t1");
+    expect(h.orderRead).not.toHaveBeenCalled();
+  });
+
+  it("el QR normal mantiene la mesa y habilita pedidos", async () => {
+    const props = await render();
+    expect(props.readOnly).toBe(false);
+    expect(props.tableId).toBe("t1");
+    expect(h.orderRead).toHaveBeenCalled();
   });
 });

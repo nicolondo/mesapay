@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import QRCode from "qrcode";
 import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
-import { fmtCOP, localeTag } from "@/lib/format";
+import { fmtCOP, formatDate, localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
@@ -44,12 +44,12 @@ export async function generateMetadata({
   });
   if (!inv) {
     const t = await getTranslations("emailInvoice");
-    return { title: t("metaTitleFallback") };
+    return { title: t("metaTitleFallback"), manifest: null, appleWebApp: false };
   }
   const snap = inv.snapshot as unknown as InvoiceSnapshot;
   const num = formatInvoiceNumber(snap, inv.invoiceNumber);
   const name = snap.legalName ?? snap.restaurantName;
-  return { title: `${num} · ${name}`, robots: { index: false, follow: false } };
+  return { title: `${num} · ${name}`, robots: { index: false, follow: false }, manifest: null, appleWebApp: false };
 }
 
 /**
@@ -88,7 +88,8 @@ export default async function FacturaPage({
   const { id } = await params;
   const { print } = await searchParams;
   const t = await getTranslations("emailInvoice");
-  const tag = localeTag((await getLocale()) as Locale);
+  const locale = (await getLocale()) as Locale;
+  const tag = localeTag(locale);
   const inv = await db.simpleInvoice.findUnique({
     where: { id },
     include: {
@@ -232,7 +233,8 @@ export default async function FacturaPage({
               <strong>{invNumber}</strong>
             </span>
             <span className="right">
-              {paidAt.toLocaleString(tag, {
+              {formatDate(paidAt, {
+                locale,
                 dateStyle: "short",
                 timeStyle: "short",
               })}

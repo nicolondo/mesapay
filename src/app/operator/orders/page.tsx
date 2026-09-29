@@ -1,14 +1,17 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import type { Prisma } from "@prisma/client";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
 import { LiveRefresh } from "../LiveRefresh";
 import { InvoiceActions } from "./InvoiceActions";
 import { orderPeriodStart, type OrderPeriod } from "@/lib/orders/periodStart";
+
+import type { Locale } from "@/i18n/config";
+import { historyDate, historyQueries, mergeHistory } from "@/lib/orders/history";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +41,9 @@ export default async function OrdersPage({
   }>;
 }) {
   const t = await getTranslations("opOrders");
+  const locale = (await getLocale()) as Locale;
+  const fmtDate = (date: Date) => formatDate(date, { locale, dateStyle: "medium", timeStyle: undefined });
+  const fmtTime = (date: Date) => formatDate(date, { locale, dateStyle: undefined, timeStyle: "short" });
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -74,33 +80,33 @@ export default async function OrdersPage({
   // Días operativos del comercio (corte configurable, p. ej. 05:00): lo que
   // se vende después de medianoche cuenta para la jornada anterior.
   const since = orderPeriodStart(period, tenant?.businessDayCutoffHour ?? 0);
-  if (since) where.createdAt = { gte: since };
 
   if (q) {
     where.shortCode = { contains: q, mode: "insensitive" };
   }
 
-  const orders = await db.order.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: {
-      table: true,
-      items: { select: { qty: true } },
-      payments: {
-        where: { status: "approved" },
-        select: { amountCents: true, refundedCents: true },
-      },
-      // Sólo lo que hace falta para las acciones: el snapshot (JSON) no se
-      // carga acá — son hasta 100 filas.
-      simpleInvoice: {
-        select: {
-          id: true,
-          dianDocument: { select: { id: true, state: true } },
+  const streams = await Promise.all(
+    historyQueries(where, since).map((query) => db.order.findMany({
+      ...query,
+      include: {
+        table: true,
+        items: { select: { qty: true } },
+        payments: {
+          where: { status: "approved" },
+          select: { amountCents: true, refundedCents: true },
+        },
+        // Sólo lo que hace falta para las acciones: el snapshot (JSON) no se
+        // carga acá — son hasta 100 filas.
+        simpleInvoice: {
+          select: {
+            id: true,
+            dianDocument: { select: { id: true, state: true } },
+          },
         },
       },
-    },
-  });
+    })),
+  );
+  const orders = mergeHistory(streams.flat());
 
   const totals = orders.reduce(
     (acc, o) => {
@@ -120,7 +126,7 @@ export default async function OrdersPage({
     id: o.id,
     shortCode: o.shortCode,
     status: o.status,
-    createdAt: o.createdAt,
+    occurredAt: historyDate(o),
     items: o.items.reduce((s, i) => s + i.qty, 0),
     // Neto del descuento del comensal identificado: es lo que se cobra.
     subtotalCents: Math.max(0, o.subtotalCents - o.discountCents),
@@ -218,9 +224,9 @@ export default async function OrdersPage({
                 className="border-t border-op-border hover:bg-op-bg/40"
               >
                 <Td>
-                  <div>{fmtDate(r.createdAt)}</div>
+                  <div>{fmtDate(r.occurredAt)}</div>
                   <div className="text-[10px] text-op-muted">
-                    {fmtTime(r.createdAt)}
+                    {fmtTime(r.occurredAt)}
                   </div>
                 </Td>
                 <Td className="font-mono"><span title={r.shortCode}>{displayOrderCode(r.shortCode)}</span></Td>
@@ -292,7 +298,7 @@ export default async function OrdersPage({
               <div className="mt-1 flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{r.place}</span>
                 <span className="text-[11px] text-op-muted shrink-0">
-                  {fmtDate(r.createdAt)} · {fmtTime(r.createdAt)}
+                  {fmtDate(r.occurredAt)} · {fmtTime(r.occurredAt)}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 border-t border-op-border pt-3">
@@ -467,17 +473,4 @@ function statusMeta(s: string, t: (key: string) => string) {
     default:
       return { label: s, tint: "bg-paper text-op-muted" };
   }
-}
-
-function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("es-CO", {
-    day: "2-digit",
-    month: "short",
-  });
-}
-function fmtTime(d: Date) {
-  return new Date(d).toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

@@ -39,6 +39,13 @@
     "taxIncludedIva": "Inclui {pct}% de IVA"
   },
   "menu": {
+    "browseOnlyLabel": "Só ver o cardápio",
+    "startOrder": "Fazer um pedido",
+    "scanToOrder": "Para pedir, escaneie o QR code da sua mesa.",
+    "cartAddedHint": "Adicionado ao carrinho. Toque em “Revisar e enviar pedido” para conferir e enviar à cozinha.",
+    "cartAddedPayHint": "Adicionado ao carrinho. Toque em “Revisar e pagar” para conferir e confirmar.",
+    "reviewAndSend": "Revisar e enviar pedido",
+    "reviewAndPay": "Revisar e pagar",
     "title": "Cardápio",
     "counter": "Balcão",
     "tableLabel": "Mesa {number}",
@@ -139,6 +146,8 @@
     "haveAccount": "Tem conta MESAPAY? Entre para usar seu desconto"
   },
   "landing": {
+    "viewMenu": "Só ver o cardápio",
+    "startOrder": "Fazer um pedido",
     "welcomeTo": "Bem-vindo a",
     "chooseTable": "Escolha sua mesa",
     "devTableHint": "Na vida real esta etapa não existe: sua mesa tem um QR que leva direto ao cardápio.",

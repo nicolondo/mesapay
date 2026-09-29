@@ -17,12 +17,12 @@ export default async function MenuPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ table?: string; order?: string; op?: string }>;
+  searchParams: Promise<{ table?: string; order?: string; op?: string; browse?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
   const tableToken = sp.table;
-  if (!tableToken) redirect(`/t/${slug}`);
+  const readOnly = !tableToken || sp.browse === "1";
 
   // Waiter mode: el staff (operator/admin/mesero) abrió esta página
   // para tomar pedido por un comensal que no tiene celular. Solo
@@ -30,7 +30,7 @@ export default async function MenuPage({
   // en el query param solo. Cuando está activo: skip del sheet
   // "Yo soy …", copy de mesero, y al enviar redirige al home del
   // staff (Salón).
-  const session = sp.op === "1" ? await auth() : null;
+  const session = !readOnly && sp.op === "1" ? await auth() : null;
   const isStaff =
     !!session?.user &&
     (session.user.role === "operator" ||
@@ -91,21 +91,21 @@ export default async function MenuPage({
   // nombre": si ya tiene cuenta acá, se le ofrece identificarse en la mesa
   // — que es lo que aplica su descuento. Antes esto caía al JWT de NextAuth
   // y le ofrecía identificarse al mesero que estuviera con sesión abierta.
-  const viewer = await getDiner(tenant.id);
+  const viewer = readOnly ? null : await getDiner(tenant.id);
   const diner = viewer ? { name: viewer.name, email: viewer.email } : null;
 
-  const table = await db.table.findUnique({ where: { qrToken: tableToken } });
-  if (!table || table.restaurantId !== tenant.id) {
+  const table = readOnly ? null : await db.table.findUnique({ where: { qrToken: tableToken } });
+  if (!readOnly && (!table || table.restaurantId !== tenant.id)) {
     return notFound();
   }
-  const isManualInvoice = table.kind === "manual";
+  const isManualInvoice = table?.kind === "manual";
   const postSendHref =
     isManualInvoice && session?.user?.role !== "mesero"
-      ? `/operator/tables?open=${table.id}`
+      ? `/operator/tables?open=${table?.id}`
       : staffHomeHref;
 
-  if (!await canAccessTable(tenant.id, table.id)) {
-    const query = new URLSearchParams({ table: tableToken });
+  if (table && !await canAccessTable(tenant.id, table.id)) {
+    const query = new URLSearchParams({ table: table.qrToken });
     if (sp.order) query.set("order", sp.order);
     if (sp.op) query.set("op", sp.op);
     redirect(`/api/tenant/${slug}/guest?${query}`);
@@ -116,7 +116,7 @@ export default async function MenuPage({
   // the QR sees the current shared bill. In counter mode we skip the shared
   // resume: each scan starts a fresh order unless ?order= is explicit.
   const activeOrder =
-    tenant.serviceMode === "counter" && !sp.order
+    !table || (tenant.serviceMode === "counter" && !sp.order)
       ? null
       : await db.order.findFirst({
           where: {
@@ -205,6 +205,8 @@ export default async function MenuPage({
 
   return (
     <MenuClient
+      key={`${tenant.id}:${readOnly ? "browse" : table?.id}:${operatorMode ? "staff" : "diner"}`}
+      readOnly={readOnly}
       diner={diner}
       operatorMode={operatorMode}
       postSendHref={postSendHref}
@@ -215,24 +217,27 @@ export default async function MenuPage({
         serviceMode: tenant.serviceMode,
         logoUrl: tenant.logoUrl,
       }}
-      tableId={table.id}
-      tableQrToken={table.qrToken}
+      tableId={table?.id ?? ""}
+      tableQrToken={table?.qrToken ?? tableToken}
+      resumeOrderId={sp.order}
       // Llamada al mesero "ya pendiente" para hidratar el FAB:
       // (a) si hay orden activa con needsWaiter, o
       // (b) si la mesa misma tiene waiterCalledAt > waiterAckedAt.
       initialWaiterCalled={
         (activeOrder?.needsWaiter ?? false) ||
-        (table.waiterCalledAt != null &&
+        (table?.waiterCalledAt != null &&
           (!table.waiterAckedAt ||
             table.waiterAckedAt.getTime() <
               table.waiterCalledAt.getTime()))
       }
       locationLabel={
-        isManualInvoice
+        readOnly
+          ? tMenu("browseOnlyLabel")
+          : isManualInvoice
           ? tMenu("manualInvoice")
           : tenant.serviceMode === "counter"
             ? tMenu("counter")
-            : tMenu("tableLabel", { number: table.number })
+            : tMenu("tableLabel", { number: table?.number ?? "" })
       }
       menus={localizedMenus}
       menuTags={localizedMenuTags}

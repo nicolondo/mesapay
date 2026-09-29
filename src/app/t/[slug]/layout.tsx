@@ -1,6 +1,13 @@
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+
+// Public diners use the browser; remove the install metadata inherited from
+// the root layout without affecting any staff section or its service worker.
+export const metadata: Metadata = {
+  manifest: null,
+  appleWebApp: { capable: false },
+};
 
 // El menú del comensal SIEMPRE se abre en el navegador (se escanea el QR),
 // nunca como PWA standalone. Por eso acá NO usamos viewport-fit=cover (que sí

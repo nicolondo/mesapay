@@ -193,6 +193,7 @@ export function MenuClient({
   tenant,
   tableId,
   tableQrToken,
+  resumeOrderId,
   initialWaiterCalled = false,
   locationLabel,
   menus = [],
@@ -202,6 +203,7 @@ export function MenuClient({
   activeOrder,
   pickup,
   operatorMode = false,
+  readOnly = false,
   postSendHref = "/operator/serve",
   dockBottomClass = "bottom-4",
   modalBottomReserveRem = 0,
@@ -218,6 +220,7 @@ export function MenuClient({
   // pickup, mesero/pedir cuando todavía no se ha resuelto la mesa);
   // si falta, el FAB no se renderea.
   tableQrToken?: string;
+  resumeOrderId?: string;
   // Estado inicial del FAB — true si ya hay llamada pendiente (sea
   // a nivel de orden o de mesa) cuando se cargó la página.
   initialWaiterCalled?: boolean;
@@ -250,6 +253,8 @@ export function MenuClient({
   // bottom-dock copy, and after sending bounces back to staff land
   // instead of the diner-side order-tracking page.
   operatorMode?: boolean;
+  /** Public catalog: no table data, cart, guest identity or order actions. */
+  readOnly?: boolean;
   // Destino post-envío en operatorMode. Operator/admin → /operator/serve
   // (default). Mesero → /mesero/salon (el operator layout está gated
   // y un mesero rebotaría a /). Puede ser cualquier URL absoluta.
@@ -444,51 +449,36 @@ export function MenuClient({
 
   useEffect(() => {
     startTransition(() => {
-    const savedLayout = localStorage.getItem("mesapay.menuLayout");
-    if (
-      savedLayout === "list" ||
-      savedLayout === "grid" ||
-      savedLayout === "editorial"
-    ) {
-      setLayout(savedLayout);
-    }
-    const savedName = localStorage.getItem(nameKey);
-    if (savedName) setGuestName(savedName);
-    else if (operatorMode) {
-      // El mesero/operator está tomando el pedido por el cliente. En
-      // vez de pedirle un nombre (no es relevante para reportes y
-      // genera un sheet extra), atamos los items a un guest "Mesero"
-      // por defecto. Sirve también de marcador en la cuenta de quién
-      // ingresó cada ronda. No tocamos localStorage para no
-      // contaminar futuras sesiones del mismo dispositivo si lo
-      // usara un comensal.
-      setGuestName("Mesero");
-    }
-    // A visitor can browse first; submission still requests a guest name.
-    try {
-      const raw = localStorage.getItem(cartKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { t?: number; cart?: CartLine[] };
-        if (
-          parsed &&
-          Array.isArray(parsed.cart) &&
-          typeof parsed.t === "number" &&
-          Date.now() - parsed.t < CART_TTL_MS
-        ) {
-          setCart(parsed.cart);
-        } else {
-          localStorage.removeItem(cartKey);
+      let savedName = "";
+      try {
+        const savedLayout = localStorage.getItem("mesapay.menuLayout");
+        if (savedLayout === "list" || savedLayout === "grid" || savedLayout === "editorial") {
+          setLayout(savedLayout);
         }
+        if (!readOnly && !operatorMode) savedName = (localStorage.getItem(nameKey) ?? "").trim().slice(0, 40);
+        if (!readOnly) {
+          const raw = localStorage.getItem(cartKey);
+          if (raw) {
+            const parsed = JSON.parse(raw) as { t?: number; cart?: CartLine[] };
+            if (Array.isArray(parsed.cart) && typeof parsed.t === "number" && Date.now() - parsed.t < CART_TTL_MS) {
+              setCart(parsed.cart);
+            } else {
+              localStorage.removeItem(cartKey);
+            }
+          }
+        }
+      } catch {
+        // Private browsing/storage restrictions must not prevent ordering.
       }
-    } catch {
-      localStorage.removeItem(cartKey);
-    }
-    setHydrated(true);
+      setGuestName(operatorMode ? "Mesero" : savedName);
+      setShowNameSheet(!readOnly && !operatorMode && !isPickup && !savedName);
+      if (readOnly) setCart([]);
+      setHydrated(true);
     });
-  }, [nameKey, cartKey, CART_TTL_MS]);
+  }, [nameKey, cartKey, CART_TTL_MS, readOnly, operatorMode, isPickup]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || readOnly) return;
     try {
       if (cart.length === 0) {
         localStorage.removeItem(cartKey);
@@ -496,7 +486,7 @@ export function MenuClient({
         localStorage.setItem(cartKey, JSON.stringify({ t: Date.now(), cart }));
       }
     } catch {}
-  }, [cart, cartKey, hydrated]);
+  }, [cart, cartKey, hydrated, readOnly]);
 
   function changeLayout(next: MenuLayout) {
     setLayout(next);
@@ -533,6 +523,7 @@ export function MenuClient({
     `/api/tenant/${tenant.slug}/events`,
     (es) => es.addEventListener("message", () => router.refresh()),
     () => router.refresh(),
+    { enabled: !readOnly },
   );
 
   // Scroll-spy: as the user scrolls through the menu, highlight the chip
@@ -896,6 +887,7 @@ export function MenuClient({
     qty = 1,
     notes?: string,
   ) {
+    if (readOnly) return;
     // Snapshot the price the diner is seeing — includes whatever
     // modifier deltas they picked. The server still recomputes from
     // the live menu at send time as a guardrail.
@@ -974,7 +966,12 @@ export function MenuClient({
    * descuento pactado, queda aplicado a la cuenta.
    */
   async function identifyDiner() {
-    if (!activeOrder) return;
+    if (readOnly || !diner) return;
+    if (!activeOrder) {
+      // The order endpoint links the authenticated diner on its first round.
+      saveGuestName(diner.name ?? diner.email);
+      return;
+    }
     try {
       const res = await fetch(
         `/api/tenant/${tenant.slug}/orders/${activeOrder.id}/identify`,
@@ -982,7 +979,9 @@ export function MenuClient({
       );
       if (!res.ok) return;
       const j = await res.json().catch(() => ({}));
-      setIdentifiedName(j.name ?? diner?.name ?? diner?.email ?? null);
+      const name = j.name ?? diner.name ?? diner.email;
+      setIdentifiedName(name);
+      saveGuestName(name);
       router.refresh();
     } catch {
       // Identificarse es una mejora, no un requisito para pedir: si falla,
@@ -991,7 +990,7 @@ export function MenuClient({
   }
 
   async function sendToKitchen() {
-    if (!cart.length) return;
+    if (readOnly || !cart.length) return;
     if (isPickup) {
       setShowPickupSheet(true);
       return;
@@ -1068,7 +1067,7 @@ export function MenuClient({
         // que el último plato no quede tapado. Sin dock ese padding es puro
         // vacío al final de la carta — en móvil se sentía como "sigue bajando
         // y queda en blanco". Lo dejamos chico cuando no hay dock.
-        (cart.length > 0 || activeOrder ? "pb-36" : "pb-12")
+        (!readOnly && cart.length > 0 ? "pb-60" : !readOnly && activeOrder ? "pb-36" : "pb-12")
       }
       style={
         // CSS var consumida por los modales del menú (cart sheet,
@@ -1160,14 +1159,14 @@ export function MenuClient({
                   ambos casos: si hay orden activa marca needsWaiter
                   ahí; si no, marca Table.waiterCalledAt. FAB compact
                   (w-9 h-9) para no robar espacio al header. */}
-              {!isPickup && tableQrToken && (
+              {!readOnly && !isPickup && tableQrToken && (
                 <CallWaiterFab
                   tenantSlug={tenant.slug}
                   qrToken={tableQrToken}
                   initialCalled={initialWaiterCalled}
                 />
               )}
-              {activeOrder && (
+              {!readOnly && activeOrder && (
                 <Link
                   href={`/t/${tenant.slug}/order/${activeOrder.id}`}
                   className="h-9 px-3 shrink-0 whitespace-nowrap rounded-full bg-ink text-bone font-mono text-[10px] tracking-[0.14em] uppercase inline-flex items-center"
@@ -1179,7 +1178,7 @@ export function MenuClient({
             </div>
           </div>
           <div className="mt-2.5 flex items-center gap-2">
-            {hydrated && !isPickup && (
+            {hydrated && !readOnly && !operatorMode && !isPickup && (
               <button
                 onClick={() => setShowNameSheet(true)}
                 aria-label={guestName ? `${tMenu("iAm")} ${guestName}` : tMenu("tellUsName")}
@@ -1427,6 +1426,17 @@ export function MenuClient({
         </div>
       )}
 
+      {readOnly && (
+        <div className="max-w-2xl w-full mx-auto px-5 mt-4 flex items-center justify-between gap-3 text-sm">
+          <p className="text-muted">{tMenu("browseOnlyLabel")}</p>
+          {tableQrToken ? (
+            <Link className="text-terracotta underline underline-offset-4 font-medium" href={`/t/${tenant.slug}/menu?${new URLSearchParams({ table: tableQrToken, ...(resumeOrderId ? { order: resumeOrderId } : {}) })}`}>
+              {tMenu("startOrder")}
+            </Link>
+          ) : <p className="text-muted text-xs">{tMenu("scanToOrder")}</p>}
+        </div>
+      )}
+
       {/* Menu by category */}
       <div className="max-w-2xl w-full mx-auto px-5 mt-4">
         {searching && visibleCount === 0 && (
@@ -1506,7 +1516,7 @@ export function MenuClient({
                       item={it}
                       menuTags={menuTags}
                       onOpen={() => setOpenItem(it)}
-                      onQuickAdd={() => quickAdd(it)}
+                      onQuickAdd={readOnly ? undefined : () => quickAdd(it)}
                     />
                   ))}
                 </ul>
@@ -1518,7 +1528,7 @@ export function MenuClient({
                       key={it.id}
                       item={it}
                       onOpen={() => setOpenItem(it)}
-                      onQuickAdd={() => quickAdd(it)}
+                      onQuickAdd={readOnly ? undefined : () => quickAdd(it)}
                     />
                   ))}
                 </div>
@@ -1532,7 +1542,7 @@ export function MenuClient({
                       index={i}
                       menuTags={menuTags}
                       onOpen={() => setOpenItem(it)}
-                      onQuickAdd={() => quickAdd(it)}
+                      onQuickAdd={readOnly ? undefined : () => quickAdd(it)}
                     />
                   ))}
                 </div>
@@ -1552,6 +1562,7 @@ export function MenuClient({
           // `item` (ver el useEffect de reset adentro); la imagen se intercambia
           // in situ, sin recarga visible → transición smooth.
           item={openItem}
+          readOnly={readOnly}
           hasPrev={!!prevItem}
           hasNext={!!nextItem}
           onPrev={() => prevItem && setOpenItem(prevItem)}
@@ -1569,13 +1580,17 @@ export function MenuClient({
           ancestor becomes the containing block for any descendant
           position:fixed, which would trap the cart modal inside this dock
           instead of the viewport. Use auto margins to center instead. */}
-      {!openItem && (cart.length > 0 || activeOrder) && (
+      {!readOnly && !openItem && (cart.length > 0 || activeOrder) && (
         <div
           className={
-            "fixed inset-x-0 mx-auto z-30 w-[calc(100%-2rem)] max-w-xl flex gap-2 items-stretch " +
+            "fixed inset-x-0 mx-auto z-30 w-[calc(100%-2rem)] max-w-xl flex flex-col gap-2 " +
             dockBottomClass
           }
         >
+          {cart.length > 0 && <p role="status" className="rounded-xl border border-terracotta/25 bg-paper px-3 py-2 text-xs text-ink leading-relaxed shadow-sm">
+            {tMenu(isCounter ? "cartAddedPayHint" : "cartAddedHint")}
+          </p>}
+          <div className="flex gap-2 items-stretch">
           {activeOrder && (
             <button
               type="button"
@@ -1614,11 +1629,12 @@ export function MenuClient({
               prepay={isCounter}
             />
           )}
+          </div>
         </div>
       )}
 
       {/* Active-order detail sheet */}
-      {activeOrder && showActiveSheet && (
+      {!readOnly && activeOrder && showActiveSheet && (
         <ActiveOrderSheet
           order={activeOrder}
           tenantSlug={tenant.slug}
@@ -1627,10 +1643,11 @@ export function MenuClient({
       )}
 
       {/* Guest-name bottom sheet */}
-      {showNameSheet && !isPickup && (
+      {!readOnly && showNameSheet && !isPickup && (
         <GuestNameSheet
           initial={guestName}
           canCancel={true}
+          browseInstead={!guestName}
           loginHref={`/t/${tenant.slug}/cuenta/entrar`}
           diner={diner}
           identified={identifiedName}
@@ -1638,6 +1655,13 @@ export function MenuClient({
           onSave={saveGuestName}
           onClose={() => {
             setShowNameSheet(false);
+            if (!guestName) {
+              const query = new URLSearchParams({ browse: "1" });
+              if (tableQrToken) query.set("table", tableQrToken);
+              const orderId = activeOrder?.id ?? resumeOrderId;
+              if (orderId) query.set("order", orderId);
+              router.push(`/t/${tenant.slug}/menu?${query}`);
+            }
           }}
         />
       )}
@@ -1718,26 +1742,26 @@ function CartBar({
   }, [menuItems]);
   const [open, setOpen] = useState(false);
   return (
-    <>
+    <div className={split ? "flex-1 min-w-0 basis-0" : "w-full"}>
       <button
         type="button"
         onClick={() => setOpen(true)}
         className={
-          (split ? "flex-1 min-w-0 basis-0 px-4 py-3" : "w-full px-5 py-4") +
+          (split ? "w-full px-4 py-3" : "w-full px-5 py-4") +
           " bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 slide-up text-left"
         }
       >
         <div className="flex-1 min-w-0">
-          <div className="font-mono text-[9px] tracking-[0.16em] uppercase opacity-60 truncate">
-            {appendingTo ? t("addToCode", { code: appendingTo }) : t("yourOrder")}
+          <div className="text-sm font-medium leading-snug">
+            {t(prepay ? "reviewAndPay" : "reviewAndSend")}
           </div>
-          <div className={(split ? "text-sm font-medium" : "font-display text-xl") + " truncate mt-0.5"}>
+          <div className="text-xs opacity-80 truncate mt-1">
             {t("itemsCount", { count: totalQty })} · {fmtCOP(subtotal)}
           </div>
         </div>
         {!split && (
           <span className="shrink-0 font-medium underline underline-offset-4">
-            {t("viewOrder")}
+            ↓
           </span>
         )}
       </button>
@@ -1918,7 +1942,7 @@ function CartBar({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -2180,7 +2204,7 @@ function ItemRowList({
   item: MenuItem;
   menuTags: MenuTag[];
   onOpen: () => void;
-  onQuickAdd: () => void;
+  onQuickAdd?: () => void;
 }) {
   const t = useTranslations("menu");
   // id used by the sheet's close handler to scroll back to this exact
@@ -2225,7 +2249,7 @@ function ItemRowList({
           )}
         </button>
         <div className="shrink-0">
-          <QuickAddButton onAdd={onQuickAdd} size="sm" />
+          {onQuickAdd && <QuickAddButton onAdd={onQuickAdd} size="sm" />}
         </div>
       </div>
     </li>
@@ -2239,7 +2263,7 @@ function ItemCardGrid({
 }: {
   item: MenuItem;
   onOpen: () => void;
-  onQuickAdd: () => void;
+  onQuickAdd?: () => void;
 }) {
   const t = useTranslations("menu");
   return (
@@ -2273,7 +2297,7 @@ function ItemCardGrid({
             </div>
           )}
         </button>
-        <QuickAddButton onAdd={onQuickAdd} size="sm" />
+        {onQuickAdd && <QuickAddButton onAdd={onQuickAdd} size="sm" />}
       </div>
     </div>
   );
@@ -2290,7 +2314,7 @@ function ItemCardEditorial({
   index: number;
   menuTags: MenuTag[];
   onOpen: () => void;
-  onQuickAdd: () => void;
+  onQuickAdd?: () => void;
 }) {
   // Every 3rd card is a big hero; the rest are list rows.
   const isHero = index % 3 === 0;
@@ -2340,7 +2364,7 @@ function ItemCardEditorial({
             </div>
           )}
         </button>
-        <QuickAddButton onAdd={onQuickAdd} size="sm" />
+        {onQuickAdd && <QuickAddButton onAdd={onQuickAdd} size="sm" />}
       </div>
     </div>
   );
@@ -2348,6 +2372,7 @@ function ItemCardEditorial({
 
 function ItemSheet({
   item,
+  readOnly = false,
   hasPrev,
   hasNext,
   onPrev,
@@ -2355,6 +2380,7 @@ function ItemSheet({
   onClose,
   onAdd,
 }: {
+  readOnly?: boolean;
   item: MenuItem;
   hasPrev: boolean;
   hasNext: boolean;
@@ -2708,7 +2734,19 @@ function ItemSheet({
           </div>
           <p className="text-ink-3 mt-3 leading-relaxed">{item.description}</p>
 
-          {mods.map((m, mi) => (
+          {readOnly ? mods.map((mod, index) => (
+            <section key={index} className="mt-6">
+              <h3 className="font-medium text-sm">{mod.label}</h3>
+              <ul className="mt-2 space-y-2 text-sm text-muted">
+                {mod.opts.map((option, optionIndex) => (
+                  <li key={optionIndex} className="flex justify-between gap-3">
+                    <span>{option.label}{option.description && <span className="block text-xs">{option.description}</span>}</span>
+                    {!!option.priceDeltaCents && <span className="shrink-0 font-mono">{option.priceDeltaCents > 0 ? "+" : "−"}{fmtCOP(Math.abs(option.priceDeltaCents))}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )) : mods.map((m, mi) => (
             <div key={mi} id={`mg-${mi}`} className="mt-6 scroll-mt-4">
               <div className="flex items-baseline justify-between mb-2 gap-2">
                 <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted flex items-baseline gap-2 min-w-0">
@@ -2821,6 +2859,7 @@ function ItemSheet({
             </div>
           ))}
 
+          {!readOnly && <>
           <div className="mt-6">
             <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
               {t("kitchenNotes")}
@@ -2857,6 +2896,7 @@ function ItemSheet({
               {t("addWithPrice", { price: fmtCOP(unitPrice * qty) })}
             </button>
           </div>
+          </>}
         </div>
         </div>
       </div>
@@ -2866,6 +2906,7 @@ function ItemSheet({
 
 function GuestNameSheet({
   initial,
+  browseInstead = false,
   canCancel,
   loginHref,
   diner,
@@ -2876,6 +2917,7 @@ function GuestNameSheet({
 }: {
   initial: string;
   canCancel: boolean;
+  browseInstead?: boolean;
   // Ingreso del comensal EN ESTE comercio: la cuenta es del restaurante,
   // así que el enlace lleva su slug. No hay login "de MESAPAY" a secas.
   loginHref: string;
@@ -2961,7 +3003,7 @@ function GuestNameSheet({
                 onClick={onClose}
                 className="h-11 px-5 rounded-full border border-hairline font-medium text-ink-3"
               >
-                {t("cancel")}
+                {t(browseInstead ? "browseOnlyLabel" : "cancel")}
               </button>
             )}
             <button

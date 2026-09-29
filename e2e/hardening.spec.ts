@@ -375,7 +375,7 @@ test("payments can be paginated, filtered and opened for review", async ({
   await expect(page).toHaveURL(new RegExp(`/operator/orders/${order.id}$`));
 });
 
-test("diner can browse first, then supply a name before sending the cart", async ({
+test("diner supplies a name on QR arrival and sees how to send the cart", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -384,15 +384,6 @@ test("diner can browse first, then supply a name before sending the cart", async
   await expect(
     page.getByText("Plato de prueba", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Añadir al pedido", exact: true })
-    .first()
-    .click();
-  await page.getByRole("button", { name: /Ver pedido/ }).click();
-  await page
-    .getByRole("button", { name: "Marchar orden", exact: true })
-    .click();
   const dialog = page.getByRole("dialog", { name: "¿Cómo te llamamos?" });
   await expect(dialog).toBeVisible();
   await expect(
@@ -400,6 +391,13 @@ test("diner can browse first, then supply a name before sending the cart", async
   ).toBeDisabled();
   await dialog.getByLabel("Tu nombre o apodo").fill("Cliente de prueba");
   await dialog.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Añadir al pedido", exact: true })
+    .first()
+    .click();
+  await expect(page.getByRole("status")).toContainText("Agregado al carrito");
+  await page.getByRole("button", { name: /Ver y enviar pedido/ }).click();
   await expect(dialog).toHaveCount(0);
   await page
     .getByRole("button", { name: "Marchar orden", exact: true })

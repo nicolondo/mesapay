@@ -77,3 +77,25 @@ describe("pantalla de 'listo' — quién imprime por el agente", () => {
     });
   });
 });
+
+describe("personalized and automatic invoice copy", () => {
+  const personalized = { status: "generated", customerName: "Cliente", docType: "CC", docNumber: "123", email: "cliente@example.com" };
+  it.each(["generated", "pending"])("offers the staff a copy for a %s personalized request when invoice exists", (status) => {
+    const html = render({ existing: { ...personalized, status }, simpleRequestEmail: null, staffPrint: { canConfigurePrinters: true } });
+    expect(html).toContain("data-staff-print");
+    expect(staffButton.props).toMatchObject({ doc: { kind: "invoice", orderId: "order-1", href: "/factura/inv-1" } });
+  });
+  it("offers a local copy to the diner after a personalized invoice without enqueuing", () => {
+    const html = render({ existing: personalized, simpleRequestEmail: null });
+    expect(html).toContain('href="https://mesapay.co/factura/inv-1?print=1"');
+    expect(staffButton.props).toBeNull();
+  });
+  it("offers the copy for an automatically generated invoice even without an explicit request", () => {
+    expect(render({ existing: null, simpleRequestEmail: null, staffPrint: { canConfigurePrinters: false } })).toContain("data-staff-print");
+  });
+  it("does not offer printing before the invoice exists", () => {
+    const html = render({ existing: personalized, simpleRequestEmail: null, issuedInvoiceUrl: null, staffPrint: { canConfigurePrinters: true } });
+    expect(html).not.toContain("data-staff-print");
+    expect(html).not.toContain("?print=1");
+  });
+});

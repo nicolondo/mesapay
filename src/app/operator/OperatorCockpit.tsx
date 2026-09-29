@@ -99,14 +99,14 @@ export function OperatorCockpit({
       {/* Riel desktop. print:hidden — el chrome del panel no va al papel
           (páginas como los QRs de mesa se imprimen desde acá). */}
       <aside
-        className="hidden md:flex print:hidden sticky top-0 h-[100dvh]"
+        className="hidden md:flex print:hidden sticky top-0 h-full min-h-0"
         style={RAIL_VARS}
       >
         {rail}
       </aside>
 
       {/* Columna de contenido */}
-      <div className="flex min-w-0 flex-col h-[100dvh] overflow-hidden">
+      <div className="flex min-w-0 min-h-0 flex-col h-full overflow-hidden">
         {/* Topbar móvil (hamburguesa) */}
         <div className="md:hidden print:hidden shrink-0 flex items-center gap-3 px-4 h-14 border-b border-op-border bg-op-surface">
           <button

@@ -108,7 +108,11 @@ export function OperatorMobileMenu({
           <div
             className="absolute top-0 right-0 bottom-0 w-[min(20rem,85vw)] bg-op-surface border-l border-op-border shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
-            style={{ paddingTop: "env(safe-area-inset-top)" }}
+            style={{
+              paddingTop: "env(safe-area-inset-top, 0px)",
+              paddingRight: "env(safe-area-inset-right, 0px)",
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            }}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-op-border">
               <div className="min-w-0">

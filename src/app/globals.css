@@ -356,8 +356,15 @@ input[type="time"] {
  * Misma lógica dvh/standalone que .crm-app-shell. En impresión (tickets,
  * reportes) deshacemos la altura fija y el overflow para que fluya y se
  * imprima TODO el contenido, no solo lo visible. */
+/* Reserve the device's real safe area once, around the complete operator
+ * shell. env() is zero on ordinary screens, so there is no artificial gap.
+ * This also protects the rail in landscape and the classic-shell header. */
 .op-app-shell {
   height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 @media all and (display-mode: standalone) {
   .op-app-shell {
@@ -376,6 +383,9 @@ input[type="time"] {
      rebana el contenido a la altura de página, que es por qué la última
      fila de QRs salía cortada al medio. Por eso el reset ahora alcanza
      también a los hijos directos y a cualquier <main> del shell. */
+  .op-app-shell {
+    padding: 0;
+  }
   .op-app-shell,
   .op-app-shell > *,
   .op-app-shell main {

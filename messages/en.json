@@ -5554,6 +5554,8 @@
     "bulkClear": "Clear",
     "bulkSkippedMeasure": "{count, plural, one {# supply didn't change dimension because it has a linked supplier} other {# supplies didn't change dimension because they have a linked supplier}}",
     "editIngredient": "Edit ingredient",
+    "editIngredientAction": "Edit",
+    "editIngredientNamed": "Edit {name}",
     "fieldName": "Name",
     "namePlaceholder": "Beef tenderloin, olive oil…",
     "fieldCategory": "Category",

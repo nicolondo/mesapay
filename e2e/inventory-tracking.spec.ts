@@ -50,13 +50,13 @@ for (const width of [390, 1440]) {
       const ingredient = await db.ingredient.findFirstOrThrow({ where: { restaurantId: restaurant.id } });
       await page.reload();
       await expect(page.getByText(/No inventariable/)).toBeVisible();
-      await page.getByRole("button", { name: /Servicio de limpieza/ }).click();
+      await page.getByRole("button", { name: "Editar Servicio de limpieza", exact: true }).click();
       await expect(tracking).not.toBeChecked();
       await tracking.check();
       await page.getByRole("button", { name: "Guardar", exact: true }).click();
       await expect.poll(async () => (await db.ingredient.findUniqueOrThrow({ where: { id: ingredient.id } })).trackInventory).toBe(true);
       await page.reload();
-      await page.getByRole("button", { name: /Servicio de limpieza/ }).click();
+      await page.getByRole("button", { name: "Editar Servicio de limpieza", exact: true }).click();
       await expect(tracking).toBeChecked();
       await page.getByRole("button", { name: "Cancelar", exact: true }).last().click();
 

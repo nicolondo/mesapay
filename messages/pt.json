@@ -5554,6 +5554,8 @@
     "bulkClear": "Desmarcar",
     "bulkSkippedMeasure": "{count, plural, one {# insumo não mudou de dimensão porque tem fornecedor associado} other {# insumos não mudaram de dimensão porque têm fornecedor associado}}",
     "editIngredient": "Editar insumo",
+    "editIngredientAction": "Editar",
+    "editIngredientNamed": "Editar {name}",
     "fieldName": "Nome",
     "namePlaceholder": "Filé bovino, azeite de oliva…",
     "fieldCategory": "Categoria",

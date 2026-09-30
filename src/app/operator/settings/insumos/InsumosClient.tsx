@@ -592,6 +592,14 @@ export function InsumosClient({
               </button>
               <button
                 type="button"
+                onClick={() => setSheet({ mode: "edit", item: i })}
+                aria-label={t("editIngredientNamed", { name: i.name })}
+                className="min-h-[44px] px-2 rounded-full text-xs font-medium shrink-0 text-op-text hover:bg-op-bg focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {t("editIngredientAction")}
+              </button>
+              <button
+                type="button"
                 onClick={() => toggleActive(i)}
                 disabled={togglingId === i.id}
                 className={
@@ -695,6 +703,7 @@ function IngredientSheet({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setErr(null);
 
     const reorderPointBase = trackInventory ? parseOptionalQty(point, measureKind) : null;
@@ -723,58 +732,65 @@ function IngredientSheet({
       payload.reorderQtyBase = reorderQtyBase;
     }
 
-    const r = await fetch(
-      current
-        ? `/api/operator/ingredients/${current.id}`
-        : "/api/operator/ingredients",
-      {
-        method: current ? "PATCH" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
-    if (!r.ok) {
-      setBusy(false);
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        j.error === "inventory_balance_remaining"
-          ? t("errInventoryBalance")
-          : j.error === "name_taken"
-          ? t("errNameTaken")
-          : j.error === "barcode_taken"
-            ? t("errBarcodeTaken")
-            : j.error === "measure_locked"
-              ? t("errMeasureLocked")
-              : t("errSaveFailed"),
+    try {
+      const r = await fetch(
+        current
+          ? `/api/operator/ingredients/${current.id}`
+          : "/api/operator/ingredients",
+        {
+          method: current ? "PATCH" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        },
       );
-      return;
-    }
-    const j = await r.json();
-    let saved = j.ingredient as Ingredient;
-
-    // Crear con reorden: PATCH encadenado solo con esos campos.
-    if (!current && (reorderPointBase != null || reorderQtyBase != null)) {
-      setCreated({ ...saved, _count: { supplierItems: 0 } });
-      const r2 = await fetch(`/api/operator/ingredients/${saved.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reorderPointBase, reorderQtyBase }),
-      });
-      if (!r2.ok) {
-        setBusy(false);
-        setErr(t("errSaveFailed"));
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setErr(
+          j.error === "inventory_balance_remaining"
+            ? t("errInventoryBalance")
+            : j.error === "name_taken"
+            ? t("errNameTaken")
+            : j.error === "barcode_taken"
+              ? t("errBarcodeTaken")
+              : j.error === "measure_locked"
+                ? t("errMeasureLocked")
+                : t("errSaveFailed"),
+        );
         return;
       }
-      const j2 = await r2.json();
-      saved = j2.ingredient as Ingredient;
-    }
+      const j = await r.json();
+      let saved = j.ingredient as Ingredient;
+      if (!saved?.id) throw new Error("invalid_ingredient_response");
 
-    setBusy(false);
-    // POST/PATCH no incluyen _count — nuevo insumo arranca sin proveedores.
-    onSaved({
-      ...saved,
-      _count: { supplierItems: editing?._count.supplierItems ?? 0 },
-    });
+      // Crear con reorden: PATCH encadenado solo con esos campos.
+      if (!current && (reorderPointBase != null || reorderQtyBase != null)) {
+        setCreated({ ...saved, _count: { supplierItems: 0 } });
+        const r2 = await fetch(`/api/operator/ingredients/${saved.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reorderPointBase, reorderQtyBase }),
+        });
+        if (!r2.ok) {
+          setErr(t("errSaveFailed"));
+          return;
+        }
+        const j2 = await r2.json();
+        saved = j2.ingredient as Ingredient;
+        if (!saved?.id) throw new Error("invalid_ingredient_response");
+      }
+
+      // POST/PATCH no incluyen _count — nuevo insumo arranca sin proveedores.
+      onSaved({
+        ...saved,
+        _count: { supplierItems: editing?._count.supplierItems ?? 0 },
+      });
+    } catch {
+      // Keep all fields, and the ID of a successfully created ingredient,
+      // so a connection failure can be retried without losing the edit.
+      setErr(t("errSaveFailed"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -783,6 +799,9 @@ function IngredientSheet({
       {...useBackdropClose(onClose)}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? t("editIngredient") : t("newIngredient")}
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -935,7 +954,7 @@ function IngredientSheet({
             />
           </Field>
 
-          {err && <div className="text-xs text-danger">{err}</div>}
+          {err && <div role="alert" className="text-xs text-danger">{err}</div>}
 
           <div className="flex items-center justify-end gap-3 pt-1">
             <button

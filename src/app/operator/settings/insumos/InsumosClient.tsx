@@ -16,6 +16,8 @@ import {
 import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
+import { StockResetConfirmation } from "./StockResetConfirmation";
+import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
 
 type Ingredient = {
   id: string;
@@ -619,6 +621,7 @@ export function InsumosClient({
       {sheet && (
         <IngredientSheet
           editing={sheet.mode === "edit" ? sheet.item : null}
+          currency={currency}
           categories={categories}
           onClose={() => setSheet(null)}
           onSaved={(saved) => {
@@ -647,11 +650,13 @@ export function InsumosClient({
 
 function IngredientSheet({
   editing,
+  currency,
   categories,
   onClose,
   onSaved,
 }: {
   editing: Ingredient | null;
+  currency: string;
   categories: string[];
   onClose: () => void;
   onSaved: (i: Ingredient) => void;
@@ -687,6 +692,8 @@ function IngredientSheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [stockReset, setStockReset] = useState<StockResetSnapshot | null>(null);
+
   const current = editing ?? created;
 
   // Con referencias (lista de precios hoy; movimientos/recetas mañana) la
@@ -701,8 +708,14 @@ function IngredientSheet({
     setOrderQty((p) => ({ ...p, unit: DEFAULT_INPUT_UNIT[k] }));
   }
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
+    // A second explicit action is required to clear stock. Pressing Enter
+    // or submitting the edit form must never implicitly confirm it.
+    if (!stockReset) void save();
+  }
+
+  async function save(resetStock?: StockResetSnapshot) {
     if (busy) return;
     setErr(null);
 
@@ -730,6 +743,7 @@ function IngredientSheet({
     if (current) {
       payload.reorderPointBase = reorderPointBase;
       payload.reorderQtyBase = reorderQtyBase;
+      if (resetStock && !trackInventory) payload.resetStock = resetStock;
     }
 
     try {
@@ -745,6 +759,14 @@ function IngredientSheet({
       );
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
+        if (
+          (j.error === "inventory_balance_remaining" || j.error === "stock_reset_conflict") &&
+          j.stockReset
+        ) {
+          setStockReset(j.stockReset as StockResetSnapshot);
+          setErr(j.error === "stock_reset_conflict" ? t("stockResetChanged") : null);
+          return;
+        }
         setErr(
           j.error === "inventory_balance_remaining"
             ? t("errInventoryBalance")
@@ -820,6 +842,7 @@ function IngredientSheet({
         </div>
 
         <form onSubmit={submit} className="space-y-3">
+          <fieldset disabled={busy || !!stockReset} hidden={!!stockReset} className="space-y-3 min-w-0">
           <Field label={t("fieldName")} required>
             <input
               type="text"
@@ -954,7 +977,20 @@ function IngredientSheet({
             />
           </Field>
 
+          </fieldset>
+
           {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+
+          {stockReset ? (
+            <StockResetConfirmation
+              snapshot={stockReset}
+              name={name.trim()}
+              currency={currency}
+              busy={busy}
+              onCancel={() => { setStockReset(null); setErr(null); }}
+              onConfirm={() => { void save(stockReset); }}
+            />
+          ) : (
 
           <div className="flex items-center justify-end gap-3 pt-1">
             <button
@@ -972,6 +1008,7 @@ function IngredientSheet({
               {busy ? t("saving") : t("save")}
             </button>
           </div>
+          )}
         </form>
       </div>
     </div>

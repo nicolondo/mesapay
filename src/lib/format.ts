@@ -54,10 +54,13 @@ export function localeTag(locale: Locale = defaultLocale): string {
 
 export function formatMoney(
   cents: number,
-  opts?: { currency?: string; locale?: Locale },
+  opts?: { currency?: string; locale?: Locale; fractionDigits?: 0 | 2 },
 ): string {
   const currency = (opts?.currency ?? "COP").toUpperCase();
-  const zeroDecimal = ZERO_DECIMAL.has(currency);
+  // Explicit precision is used when reviewing an exact inventory value.
+  // Existing callers retain the currency's usual rounding.
+  const fractionDigits = opts?.fractionDigits ?? (ZERO_DECIMAL.has(currency) ? 0 : 2);
+  const zeroDecimal = fractionDigits === 0;
   const amount = zeroDecimal ? Math.round(cents / 100) : cents / 100;
   return new Intl.NumberFormat(localeTag(opts?.locale), {
     style: "currency",
@@ -67,8 +70,8 @@ export function formatMoney(
     // narrowSymbol unifica con fmtCOP ("$X") en toda la app. No hay
     // ambigüedad COP/MXN: cada comercio ve una sola moneda (su país).
     currencyDisplay: "narrowSymbol",
-    minimumFractionDigits: zeroDecimal ? 0 : 2,
-    maximumFractionDigits: zeroDecimal ? 0 : 2,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   }).format(amount);
 }
 

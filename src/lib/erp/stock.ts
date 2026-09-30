@@ -3,11 +3,13 @@ import type { Prisma, StockLevel, StockMovement, StockMovementKind, WasteReason 
 
 // Lógica central de inventario (ERP Fase A1).
 //
-// applyStockMovement es el ÚNICO camino para tocar inventario — A2
+// applyStockMovement es el camino normal para tocar inventario — A2
 // (recepción de OC), A4 (consumo por venta) y A5 (traslados/producción) lo
 // reutilizan. Siempre dentro de una transacción: actualiza StockLevel y
 // APPENDEA el movimiento (el libro nunca se edita; una equivocación se
-// corrige con un movimiento contrario).
+// corrige con un movimiento contrario). La única operación especializada es
+// disableInventoryTracking (stockTracking.ts): cancela exactamente cantidad y
+// valor al desactivar el seguimiento después de una confirmación explícita.
 //
 // Valorización (spec D3): costo promedio ponderado con enteros exactos.
 // StockLevel guarda qtyBase + totalValueCents; el promedio es derivado.

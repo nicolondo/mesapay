@@ -797,7 +797,7 @@ export function InventarioClient({
                       </div>
                       {m.note && (
                         <div className="text-[11px] text-op-muted mt-1">
-                          {m.note}
+                          {m.note === "inventory_tracking_disabled" ? t("stockResetMovementNote") : m.note}
                         </div>
                       )}
                     </div>

@@ -5,11 +5,21 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
+import { disableInventoryTracking } from "@/lib/erp/stockTracking";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
+
+const resetStockSchema = z.object({
+  qtyBase: z.number().int().min(-2_147_483_648).max(2_147_483_647),
+  totalValueCents: z.number().int().min(-2_147_483_648).max(2_147_483_647),
+  updatedAt: z.string().datetime().nullable(),
+  ingredientUpdatedAt: z.string().datetime(),
+  movementCount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  measureKind: z.enum(["mass", "volume", "count"]),
+}).strict();
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -23,10 +33,13 @@ const patchSchema = z.object({
   notes: z.string().trim().max(1000).nullable().optional(),
   active: z.boolean().optional(),
   trackInventory: z.boolean().optional(),
+  resetStock: resetStockSchema.optional(),
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
   // aviso / pedir hasta cubrir el punto).
   reorderPointBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
   reorderQtyBase: z.number().int().min(1).max(2_000_000_000).nullable().optional(),
+}).refine((body) => body.resetStock === undefined || body.trackInventory === false, {
+  path: ["resetStock"], message: "reset_requires_inventory_disable",
 });
 
 async function loadOwned(id: string, restaurantId: string) {
@@ -95,14 +108,27 @@ async function PATCHHandler(
 
   const updated = await db.$transaction(async (tx) => {
     await lockStock(tx, ctx.restaurantId);
-    const latest = await tx.ingredient.findUnique({ where: { id } });
-    if (!latest || latest.restaurantId !== ctx.restaurantId) return "not_found" as const;
+    const latest = await tx.ingredient.findUnique({ where: { id }, include: { _count: { select: { supplierItems: true } } } });
+    if (!latest || latest.restaurantId !== ctx.restaurantId) return { error: "not_found" as const };
+    // Check dimensions again under the stock lock: a purchase/adjustment may
+    // have arrived after loadOwned, and historical quantities cannot change units.
+    if (b.measureKind !== undefined && b.measureKind !== latest.measureKind) {
+      const [level, movementCount] = await Promise.all([
+        tx.stockLevel.findUnique({ where: { ingredientId: id } }),
+        tx.stockMovement.count({ where: { restaurantId: ctx.restaurantId, ingredientId: id } }),
+      ]);
+      if (b.resetStock || latest._count.supplierItems > 0 || movementCount > 0 ||
+          (level && (level.qtyBase !== 0 || level.totalValueCents !== 0))) {
+        return { error: "measure_locked" as const };
+      }
+    }
     const tracked = b.trackInventory ?? latest.trackInventory;
     if (!tracked) {
-      const level = await tx.stockLevel.findUnique({ where: { ingredientId: id } });
-      if (level && (level.qtyBase !== 0 || level.totalValueCents !== 0)) {
-        return "inventory_balance_remaining" as const;
-      }
+      const result = await disableInventoryTracking(tx, {
+        restaurantId: ctx.restaurantId, ingredientId: id,
+        createdById: ctx.userId, resetStock: b.resetStock,
+      });
+      if ("error" in result) return result;
     }
     return tx.ingredient.update({
       where: { id, restaurantId: ctx.restaurantId },
@@ -125,8 +151,8 @@ async function PATCHHandler(
       },
     });
   });
-  if (typeof updated === "string") {
-    return NextResponse.json({ error: updated }, { status: updated === "not_found" ? 404 : 409 });
+  if ("error" in updated) {
+    return NextResponse.json(updated, { status: updated.error === "not_found" ? 404 : 409 });
   }
   return NextResponse.json({ ingredient: updated });
 }

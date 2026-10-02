@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { dianEnvironment } from "@/lib/dian/config";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
+import { sendDianCreditNoteEmail } from "@/lib/dian/sendCreditNoteEmail";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ async function POSTHandler(
 
   const doc = await db.dianDocument.findUnique({
     where: { id },
-    select: { id: true, restaurantId: true, state: true },
+    select: { id: true, restaurantId: true, state: true, kind: true, creditNoteId: true },
   });
   // 404 y no 403 para el documento de otro comercio: la existencia de un
   // id ajeno no es información que este comercio tenga por qué recibir.
@@ -47,6 +48,12 @@ async function POSTHandler(
     // Sin aceptación no hay documento fiscal: lo que se mandaría no sería
     // una factura electrónica sino un papel sin valor.
     return NextResponse.json({ error: "not_accepted" }, { status: 400 });
+  }
+  if (doc.kind === "credit_note") {
+    if (!doc.creditNoteId) return NextResponse.json({error:"not_found"},{status:404});
+    const result = await sendDianCreditNoteEmail(doc.creditNoteId,ctx.restaurantId,{force:true});
+    return result.ok ? NextResponse.json({sentTo:result.to,emailedAt:result.emailedAt,attachment:true})
+      : NextResponse.json({error:result.reason},{status:400});
   }
 
   const environment = await dianEnvironment(ctx.restaurantId);

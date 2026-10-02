@@ -1,0 +1,18 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const m=vi.hoisted(()=>({gate:vi.fn(),emit:vi.fn(),email:vi.fn()}));
+vi.mock("@/lib/secureApi",()=>({secureApi:(h:unknown)=>h}));
+vi.mock("@/lib/erp/access",()=>({getErpContext:m.gate,isDenied:(c:object)=>"error" in c}));
+vi.mock("@/lib/dian/emitCreditNote",()=>({emitDianCreditNote:m.emit}));
+vi.mock("@/lib/dian/sendCreditNoteEmail",()=>({sendDianCreditNoteEmail:m.email}));
+import {POST as emit} from "./[id]/emit/route";
+import {POST as status} from "./[id]/status/route";
+import {POST as resend} from "./[id]/resend-email/route";
+const req=()=>new Request("http://localhost/api/operator/credit-notes/n1/emit",{method:"POST"});
+const ctx=()=>({params:Promise.resolve({id:"n1"})});
+beforeEach(()=>{vi.resetAllMocks();m.gate.mockResolvedValue({restaurantId:"mine"});m.emit.mockResolvedValue({outcome:"pending"});m.email.mockResolvedValue({ok:true,to:"customer@example.test",emailedAt:"2026-10-02T15:00:00Z"});});
+it.each([emit,status,resend])("gates every action for enabled einvoicing and staff",async route=>{m.gate.mockResolvedValue({error:"module_disabled",status:403});expect((await route(req(),ctx())).status).toBe(403);expect(m.emit).not.toHaveBeenCalled();expect(m.email).not.toHaveBeenCalled();expect(m.gate).toHaveBeenCalledWith(["einvoicing"]);});
+it("never accepts restaurant from a caller's body",async()=>{await emit(new Request(req(),{body:JSON.stringify({restaurantId:"other"})}),ctx());expect(m.emit).toHaveBeenCalledWith({creditNoteId:"n1",restaurantId:"mine"});});
+it("status is read/lookup only, even if the note has not been sent",async()=>{await status(req(),ctx());expect(m.emit).toHaveBeenCalledWith({creditNoteId:"n1",restaurantId:"mine",mode:"status"});});
+it("returns a neutral404 for a missing or other-tenant note",async()=>{m.emit.mockResolvedValue({outcome:"not_found"});expect((await emit(req(),ctx())).status).toBe(404);});
+it("keeps useful safe configuration errors",async()=>{m.emit.mockResolvedValue({outcome:"blocked",reason:"certificate_expired"});expect(await (await emit(req(),ctx())).json()).toEqual({error:"certificate_expired"});});
+it("forces only an explicitly requested email resend",async()=>{expect((await resend(req(),ctx())).status).toBe(200);expect(m.email).toHaveBeenCalledWith("n1","mine",{force:true});});

@@ -62,6 +62,8 @@ export function BackupsClient({ initial }: { initial: BackupDto[] }) {
         return t("errorConfirm");
       case "backup_missing_tables":
         return t("errorMissingTables", { tables: (extra?.missing ?? []).join(", ") });
+      case "backup_fiscal_history_protected":
+        return t("errorFiscalHistoryProtected");
       case "not_found":
       case "backup_not_found":
         return t("errorNotFound");

@@ -151,10 +151,10 @@ export type CufeInputs = {
 
 /** Concatenación EXACTA del anexo — expuesta para el sanity. */
 export function cufePlainText(i: CufeInputs, kind: "cufe" | "cude" = "cufe"): string {
-  const taxes =
-    kind === "cufe"
-      ? `01${i.taxIva}04${i.taxInc}03${i.taxIca}`
-      : ""; // CUDE omite los bloques de impuestos por código
+  // Anexo DIAN 1.9 §§11.4.3–11.4.4: BOTH hashes include all three tax blocks.
+  // Only the supplied key differs (technical key versus software PIN).
+  void kind;
+  const taxes = `01${i.taxIva}04${i.taxInc}03${i.taxIca}`;
   return (
     i.invoiceNumber +
     i.issueDate +

@@ -405,6 +405,8 @@ export const fetchTransport: SoapTransport = async (url, action, envelope) => {
 };
 
 export type SendArgs = {
+  /** Optional immutable DIAN archive name; existing invoice callers keep their default. */
+  fileName?: string;
   environment: "habilitacion" | "produccion";
   cert: LoadedCert;
   transport?: SoapTransport;
@@ -440,7 +442,7 @@ export async function sendBillSync(
   zip: Buffer,
   args: SendArgs,
 ): Promise<DianResult> {
-  return call("SendBillSync", sendBillSyncBody("invoice.zip", zip.toString("base64")), args);
+  return call("SendBillSync", sendBillSyncBody(args.fileName ?? "invoice.zip", zip.toString("base64")), args);
 }
 export async function sendTestSetAsync(
   zip: Buffer,
@@ -449,7 +451,7 @@ export async function sendTestSetAsync(
 ): Promise<DianResult> {
   return call(
     "SendTestSetAsync",
-    sendTestSetAsyncBody("invoice.zip", zip.toString("base64"), testSetId),
+    sendTestSetAsyncBody(args.fileName ?? "invoice.zip", zip.toString("base64"), testSetId),
     args,
   );
 }

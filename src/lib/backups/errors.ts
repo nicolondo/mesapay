@@ -1,4 +1,5 @@
 export type BackupErrorCode =
+  | "backup_fiscal_history_protected"
   | "restaurant_not_found"
   | "backup_not_found"
   | "backup_version_unsupported"

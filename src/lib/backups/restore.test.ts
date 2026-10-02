@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
   const restaurantFind = vi.fn();
   const restaurantUpdate = vi.fn();
   const backupFind = vi.fn();
+  const creditCount = vi.fn().mockResolvedValue(0);
   const createBackup = vi.fn();
   const delegates = new Map<string, { deleteMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> }>();
   const delegateFor = (name: string) => {
@@ -40,6 +41,7 @@ const mocks = vi.hoisted(() => {
       get(_t, prop: string) {
         if (prop === "$executeRaw") return raw;
         if (prop === "$queryRaw") return query;
+        if (prop === "creditNote") return { ...delegateFor(prop), count: creditCount };
         if (prop === "restaurant") return { findUniqueOrThrow: restaurantFind, update: restaurantUpdate };
         return delegateFor(prop);
       },
@@ -47,9 +49,10 @@ const mocks = vi.hoisted(() => {
   );
   const db = {
     restaurantBackup: { findUnique: backupFind },
+    creditNote: { count: creditCount },
     $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run(tx)),
   };
-  return { log, raw, query, restaurantFind, restaurantUpdate, backupFind, createBackup, delegates, db };
+  return { log, raw, query, restaurantFind, restaurantUpdate, backupFind, createBackup, delegates, db, creditCount };
 });
 vi.mock("@/lib/db", () => ({ db: mocks.db }));
 vi.mock("./service", () => ({ createBackup: mocks.createBackup }));
@@ -77,6 +80,7 @@ function snapshot(overrides: Partial<Record<string, Record<string, unknown>[]>> 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.creditCount.mockResolvedValue(0);
   mocks.log.length = 0;
   mocks.raw.mockImplementation(async (...args: unknown[]) => {
     mocks.log.push(`raw:${sqlOf(args).sql.replace(/\s+/g, " ").trim().slice(0, 60)}`);
@@ -165,3 +169,22 @@ describe("restoreSnapshot", () => {
     ]);
   });
 });
+
+ describe('credit note fiscal history restore protection',()=>{
+ it('rejects a restore before backup/deletes when notes exist',async()=>{
+ mocks.backupFind.mockResolvedValue({restaurantId:'r1',data:snapshot()});
+ mocks.creditCount.mockResolvedValue(1);
+ await expect(restoreSnapshot({restaurantId:'r1',backupId:'b'})).rejects.toThrow('backup_fiscal_history_protected');
+ expect(mocks.createBackup).not.toHaveBeenCalled();
+ });
+ it('rejects a snapshot containing credit notes even if live notes absent',async()=>{
+ mocks.backupFind.mockResolvedValue({restaurantId:'r1',data:snapshot({CreditNote:[{id:'note'}]})});
+ await expect(restoreSnapshot({restaurantId:'r1',backupId:'b'})).rejects.toThrow('backup_fiscal_history_protected');
+ });
+ });
+
+ it('restores older complete backups without the newly introduced empty credit-note table',async()=>{
+  const data=snapshot();delete data.tables.CreditNote;
+  mocks.backupFind.mockResolvedValue({restaurantId:'r1',data});
+  await expect(restoreSnapshot({restaurantId:'r1',backupId:'old'})).resolves.toBeDefined();
+ });

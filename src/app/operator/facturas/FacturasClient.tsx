@@ -114,6 +114,7 @@ export function FacturasClient({
   generated: GeneratedReq[];
 }) {
   const t = useTranslations("opFacturas");
+  const tCredit = useTranslations("opCreditNotes");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -140,6 +141,8 @@ export function FacturasClient({
     <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
+
+      {einvoicingOn && <Link href="/operator/facturas/notas-credito" className="mp-btn mp-btn--secondary mb-5">{tCredit("title")}</Link>}
 
       {einvoicingOn && emission && <EmissionBanner emission={emission} />}
 

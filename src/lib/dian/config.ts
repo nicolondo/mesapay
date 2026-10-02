@@ -405,7 +405,7 @@ export async function lastTestSetDocument(
   const doc = await db.dianDocument.findFirst({
     // Sin tirilla NI orden: el placeholder de `numbering_exhausted` tampoco
     // tiene tirilla, pero cuelga de una orden y no es del set de pruebas.
-    where: { restaurantId, simpleInvoiceId: null, orderId: null },
+    where: { restaurantId, kind: "invoice", simpleInvoiceId: null, orderId: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -536,6 +536,7 @@ export async function dianEnvironment(
  */
 export async function loadDianConfig(
   restaurantId: string,
+  options: { requireTechnicalKey?: boolean } = {},
 ): Promise<LoadedDianConfig> {
   const emisor = await resolveEmisor(restaurantId);
   if (!emisor) throw new DianConfigError("no_config");
@@ -544,7 +545,8 @@ export async function loadDianConfig(
   if (!config.certP12Enc || !config.certPasswordEnc) {
     throw new DianConfigError("no_certificate");
   }
-  if (!config.softwareId || !config.softwarePinEnc || !config.technicalKey) {
+  if (!config.softwareId || !config.softwarePinEnc ||
+      (options.requireTechnicalKey !== false && !config.technicalKey)) {
     throw new DianConfigError("missing_credentials");
   }
   if (!/^[0-9a-fA-F]{64}$/.test(process.env.DIAN_MASTER_KEY ?? "")) {
@@ -566,7 +568,7 @@ export async function loadDianConfig(
     cert,
     softwareId: config.softwareId,
     softwarePin,
-    technicalKey: config.technicalKey,
+    technicalKey: config.technicalKey ?? "",
     testSetId: config.testSetId,
   };
 }

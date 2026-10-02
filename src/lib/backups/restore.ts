@@ -135,6 +135,15 @@ export async function restoreSnapshot(args: {
     throw new BackupError("backup_version_unsupported");
   }
 
+  // Fiscal credit reservations and their global sequence cannot be rolled back.
+  if (data.tables.CreditNote?.length || await db.creditNote.count({ where: { restaurantId: args.restaurantId } })) {
+    throw new BackupError("backup_fiscal_history_protected");
+  }
+
+  // This table did not exist in older backups. An empty legacy snapshot is
+  // safe only after the live-history guard above (rechecked under lock below).
+  if (!("CreditNote" in data.tables)) data.tables.CreditNote = [];
+
   const missing = backupModelNames().filter((name) => !Array.isArray(data.tables[name]));
   if (!data.restaurant || typeof data.restaurant !== "object") missing.unshift(RESTAURANT_MODEL);
   if (missing.length) throw new BackupError("backup_missing_tables", { missing });
@@ -160,6 +169,10 @@ async function restoreInTransaction(
   // Una restauración por comercio a la vez; el 947 sólo separa este lock de
   // los otros advisory locks del proyecto (731 stock, 733 facturas, 917 bonos).
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${restaurantId}), 947)`;
+
+  // Recheck under the same lock used by credit-note creation, closing the
+  // gap between pre-restore backup and destructive writes.
+  if (await tx.creditNote.count({ where: { restaurantId } })) throw new BackupError("backup_fiscal_history_protected");
 
   // Bypass de los triggers de negocio sólo dentro de esta transacción.
   await tx.$executeRaw`SET LOCAL app.restoring = '1'`;

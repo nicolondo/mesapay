@@ -91,6 +91,9 @@ function attachmentXml(xml: string): string {
 // ── Entrada ─────────────────────────────────────────────────────────────────
 
 export type AttachedDocumentInput = {
+  documentKind?: "invoice" | "credit_note";
+  /** Trusted DianExtensions extracted from the contained signed NC. */
+  dianExtensionsXml?: string;
   /** "1" producción · "2" habilitación — el mismo del XML de la factura. */
   environment: "1" | "2";
   /** Número COMPLETO del documento contenido (prefijo + consecutivo). */
@@ -120,11 +123,12 @@ export type AttachedDocumentInput = {
  * Arma el AttachedDocument. Devuelve el XML listo para zipear y adjuntar
  * al correo del adquiriente.
  *
- * Este sobre NO se firma ni se le manda a la DIAN: es entrega al cliente.
- * Por eso no lleva ext:UBLExtensions ni CUFE propio — el que vale es el de
- * la factura de adentro, que sí viaja firmada.
+ * No se manda a la DIAN: es entrega al cliente. Las notas crédito generan
+ * las extensiones requeridas por §6.4 FAC01/FAC03; el caller firma el slot.
+ * El modo factura conserva su salida histórica para no alterar ese flujo.
  */
 export function buildAttachedDocumentXml(i: AttachedDocumentInput): string {
+  if (i.documentKind === "credit_note" && !i.dianExtensionsXml) throw new Error("missing_dian_extensions");
   const validationDate = i.validationDate ?? i.issueDate;
   const validationTime = i.validationTime ?? i.issueTime;
 
@@ -135,12 +139,15 @@ export function buildAttachedDocumentXml(i: AttachedDocumentInput): string {
     `xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" ` +
     `xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" ` +
     `xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
+    (i.documentKind === "credit_note"
+      ? `<ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>${i.dianExtensionsXml}</ext:ExtensionContent></ext:UBLExtension><ext:UBLExtension><ext:ExtensionContent></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>`
+      : "") +
     `<cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>` +
     // "humano" es el literal que el Anexo Técnico le asigna al contenedor
     // legible por personas (que es lo que es esto), no un código de
     // operación como el "10" de la factura.
-    `<cbc:CustomizationID>humano</cbc:CustomizationID>` +
-    `<cbc:ProfileID>DIAN 2.1</cbc:ProfileID>` +
+    `<cbc:CustomizationID>${i.documentKind === "credit_note" ? "Documentos adjuntos" : "humano"}</cbc:CustomizationID>` +
+    `<cbc:ProfileID>${i.documentKind === "credit_note" ? "Factura Electrónica de Venta" : "DIAN 2.1"}</cbc:ProfileID>` +
     `<cbc:ProfileExecutionID>${i.environment}</cbc:ProfileExecutionID>` +
     // El sobre se identifica con el MISMO número de la factura que lleva
     // adentro: para el adquiriente son el mismo documento.
@@ -160,8 +167,8 @@ export function buildAttachedDocumentXml(i: AttachedDocumentInput): string {
     `<cbc:LineID>1</cbc:LineID>` +
     `<cac:DocumentReference>` +
     `<cbc:ID>${esc(i.invoiceNumber)}</cbc:ID>` +
-    `<cbc:UUID schemeName="CUFE-SHA384">${esc(i.cufe)}</cbc:UUID>` +
-    `<cbc:IssueDate>${i.issueDate}</cbc:IssueDate>` +
+    `<cbc:UUID schemeName="${i.documentKind === "credit_note" ? "CUDE-SHA384" : "CUFE-SHA384"}">${esc(i.cufe)}</cbc:UUID>` +
+    `<cbc:IssueDate>${i.documentKind === "credit_note" ? validationDate : i.issueDate}</cbc:IssueDate>` +
     `<cbc:DocumentType>ApplicationResponse</cbc:DocumentType>` +
     attachmentXml(i.applicationResponseXml) +
     `<cac:ResultOfVerification>` +

@@ -12,6 +12,7 @@ import { transitionAfterPoll } from "@/lib/dian/documentState";
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
+import { emitDianCreditNote } from "@/lib/dian/emitCreditNote";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -51,10 +52,17 @@ async function POSTHandler(
       trackId: true,
       errors: true,
       simpleInvoiceId: true,
+      kind: true,
+      creditNoteId: true,
     },
   });
   if (!doc || doc.restaurantId !== ctx.restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (doc.kind === "credit_note") {
+    if (!doc.creditNoteId) return NextResponse.json({error:"not_found"},{status:404});
+    const result = await emitDianCreditNote({creditNoteId:doc.creditNoteId,restaurantId:ctx.restaurantId,mode:"status"});
+    return NextResponse.json(result);
   }
   if (!doc.trackId) {
     // Sin ZipKey no hay nada que consultar: el envío nunca llegó.

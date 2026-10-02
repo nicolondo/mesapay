@@ -57,7 +57,7 @@ export function formatMoney(
   opts?: { currency?: string; locale?: Locale; fractionDigits?: 0 | 2 },
 ): string {
   const currency = (opts?.currency ?? "COP").toUpperCase();
-  // Explicit precision is used when reviewing an exact inventory value.
+  // Explicit precision is used for exact inventory values and credit notes.
   // Existing callers retain the currency's usual rounding.
   const fractionDigits = opts?.fractionDigits ?? (ZERO_DECIMAL.has(currency) ? 0 : 2);
   const zeroDecimal = fractionDigits === 0;

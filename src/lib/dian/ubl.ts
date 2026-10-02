@@ -181,7 +181,7 @@ export function softwareSecurityCode(
 
 const TAX_NAME: Record<string, string> = { "01": "IVA", "04": "INC" };
 
-function partyXml(
+export function partyXml(
   kind: "supplier" | "customer",
   p: DianParty,
   /** Prefijo de la resolución — sólo para el emisor (ver abajo). */
@@ -258,7 +258,7 @@ function partyXml(
   );
 }
 
-type TaxSubtotal = { taxCents: number; taxableCents: number; pct: string };
+export type TaxSubtotal = { taxCents: number; taxableCents: number; pct: string };
 
 /**
  * cac:TaxTotal con un cac:TaxSubtotal POR TARIFA. Antes se emitía un
@@ -266,7 +266,7 @@ type TaxSubtotal = { taxCents: number; taxableCents: number; pct: string };
  * tarifas del mismo impuesto (IVA 19% y 5%) la base declarada no
  * coincidía con la de las líneas.
  */
-function taxTotalXml(schemeId: "01" | "04", subtotals: TaxSubtotal[]): string {
+export function taxTotalXml(schemeId: "01" | "04", subtotals: TaxSubtotal[]): string {
   const taxCents = subtotals.reduce((a, s) => a + s.taxCents, 0);
   return (
     `<cac:TaxTotal>` +

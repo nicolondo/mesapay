@@ -36,6 +36,8 @@ type SendArgs = {
    * la clave `attachments` ni siquiera se serializa.
    */
   attachments?: EmailAttachment[];
+  /** Optional provider deduplication; existing callers remain unchanged. */
+  idempotencyKey?: string;
 };
 
 export async function sendEmail(args: SendArgs): Promise<boolean> {
@@ -52,6 +54,7 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${key}`,
+        ...(args.idempotencyKey ? { "Idempotency-Key": args.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from,

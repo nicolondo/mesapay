@@ -1,0 +1,10 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const m=vi.hoisted(()=>({find:vi.fn(),emit:vi.fn()}));
+vi.mock("@/lib/db",()=>({db:{dianDocument:{findMany:m.find}}}));
+vi.mock("./emitCreditNote",()=>({emitDianCreditNote:m.emit}));
+import {sweepCreditNotes} from "./sweepCreditNotes";
+beforeEach(()=>{vi.resetAllMocks();m.find.mockResolvedValue([{creditNoteId:"n1",restaurantId:"r1"},{creditNoteId:"n2",restaurantId:"r2"}]);m.emit.mockResolvedValue({outcome:"pending"});});
+it("recovers each note in its own restaurant without invoice emission",async()=>{expect(await sweepCreditNotes()).toMatchObject({scanned:2,pending:2});expect(m.emit.mock.calls.map(c=>c[0])).toEqual([{creditNoteId:"n1",restaurantId:"r1"},{creditNoteId:"n2",restaurantId:"r2"}]);const where=m.find.mock.calls[0][0].where;expect(where.kind).toBe("credit_note");expect(where.creditNote).toEqual({is:{abandonedAt:null}});expect(JSON.stringify(where)).not.toContain("rejected");});
+it("continues after an individual failure",async()=>{m.emit.mockRejectedValueOnce(new Error("offline"));expect(await sweepCreditNotes()).toMatchObject({scanned:2,error:1,pending:1});});
+it("respects a depleted time budget without contacting DIAN",async()=>{expect(await sweepCreditNotes({budgetMs:0})).toMatchObject({scanned:0,truncated:true});expect(m.emit).not.toHaveBeenCalled();});
+it("keeps reconciling exhausted uncertain sends without retransmitting",async()=>{m.find.mockResolvedValue([{creditNoteId:"n1",restaurantId:"r1",attempts:8}]);await sweepCreditNotes();expect(m.emit).toHaveBeenCalledWith({creditNoteId:"n1",restaurantId:"r1",mode:"status"});});

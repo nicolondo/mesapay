@@ -1,6 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { sweepDianEmissions } from "@/lib/dian/sweep";
+import { sweepCreditNotes } from "@/lib/dian/sweepCreditNotes";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,9 @@ async function POSTHandler(req: Request) {
   if (!expected || secret !== expected) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const summary = await sweepDianEmissions();
-  return NextResponse.json({ ok: true, ...summary });
+  const summary = await sweepDianEmissions({ budgetMs: 25_000 });
+  const creditNotes = await sweepCreditNotes({ budgetMs: 25_000 });
+  return NextResponse.json({ ok: true, ...summary, creditNotes });
 }
 
 export const POST = secureApi(POSTHandler);

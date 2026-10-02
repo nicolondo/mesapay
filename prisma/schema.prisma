@@ -8,6 +8,8 @@ datasource db {
 }
 
 model Restaurant {
+  creditNotes CreditNote[]
+
   id        String   @id @default(cuid())
   slug      String   @unique
   name      String
@@ -794,6 +796,8 @@ enum CommissionStatus {
 /// siendo correcto — y es exactamente lo que NO se puede pedirle al
 /// comensal ahora que se registra por comercio.
 model User {
+  createdCreditNotes CreditNote[]
+
   sessionVersion Int @default(0)
   id           String      @id @default(cuid())
   email        String      @unique
@@ -2571,6 +2575,8 @@ model PurchaseInvoiceUpload {
 // van ENCRIPTADOS at rest (AES-256-GCM con DIAN_MASTER_KEY del server).
 
 model DianConfig {
+  creditNotePrefix String @default("NC")
+
   id String @id @default(cuid())
 
   legalEntityId String?      @unique
@@ -2603,6 +2609,14 @@ model DianConfig {
 /// XML firmado viven acá; SimpleInvoice sigue siendo la representación
 /// gráfica y enlaza 1:1.
 model DianDocument {
+  creditNoteId   String?     @unique
+  creditNote     CreditNote? @relation(fields: [creditNoteId], references: [id], onDelete: Restrict)
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  issuedAt       DateTime?
+  deliveryXml    String?
+  submissionFileName String?
+
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -2972,6 +2986,8 @@ enum InvoiceRequestStatus {
 // email falla quedamos con la row + emailedAt=null para reintento
 // manual.
 model SimpleInvoice {
+  creditNotes CreditNote[]
+
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -4328,4 +4344,57 @@ model RestaurantBackup {
 
   @@index([restaurantId, createdAt])
   @@index([expiresAt])
+}
+
+model CreditNoteSeries {
+  id          String       @id @default(cuid())
+  issuerNit   String
+  environment String
+  prefix      String       @default("NC")
+  nextNumber  Int          @default(1)
+  notes       CreditNote[]
+
+  @@unique([issuerNit, environment, prefix])
+}
+
+model CreditNote {
+  fiscalKey String @unique
+  publicToken       String           @unique @default(cuid())
+  id                String           @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  originalInvoiceId String
+  originalInvoice   SimpleInvoice    @relation(fields: [originalInvoiceId], references: [id], onDelete: Restrict)
+  seriesId          String
+  series            CreditNoteSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  number            Int
+  documentNumber    String
+  requestId         String
+  requestHash       String
+  reasonCode        String
+  reasonText        String
+  snapshot          Json
+  subtotalCents     Int
+  taxCents          Int
+  totalCents        Int
+  createdById       String?
+  createdBy         User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  abandonedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  dianDocument      DianDocument?
+
+  @@unique([restaurantId, requestId])
+  @@unique([seriesId, number])
+  @@index([restaurantId, createdAt])
+  @@index([originalInvoiceId, abandonedAt])
+}
+
+/// Global annual transport counter, independent of fiscal prefixes and restaurant backups.
+model CreditNoteFileSeries {
+  issuerNit String
+  environment String
+  year Int
+  lastNumber Int @default(0)
+
+  @@id([issuerNit, environment, year])
 }

@@ -19,6 +19,9 @@ const m = vi.hoisted(() => ({
   audit: vi.fn(),
   event: vi.fn(),
   sync: vi.fn(),
+  lock: vi.fn(),
+  mutable: vi.fn(),
+  advisory: vi.fn(),
 }));
 
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
@@ -30,6 +33,9 @@ vi.mock("@/lib/activeRestaurant", () => ({
 vi.mock("@/lib/events", () => ({ publishOrderEvent: m.event }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
 vi.mock("@/lib/orderTotals", () => ({ syncOrderSubtotalFromLiveItems: m.sync }));
+vi.mock("next-intl/server", () => ({ getLocale: async () => "es" }));
+vi.mock("@/lib/orderLock", () => ({ lockOrder: m.lock }));
+vi.mock("@/lib/orders", () => ({ requireMutableOrderInTx: m.mutable, recomputeOrderLinesInTx: m.sync }));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.tenant },
@@ -117,11 +123,17 @@ beforeEach(() => {
   m.roundFind.mockResolvedValue(null);
   m.roundCreate.mockResolvedValue({ id: "round" });
   m.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn({
+    $executeRaw: m.advisory,
+    restaurant: { findUnique: m.tenant },
+    user: { findUnique: m.user },
+    table: { findUnique: m.table },
     order: {
+      findUnique: m.order,
+      findFirst: m.liveOrder,
       create: async () => ({ id: "target-order", status: "placed" }),
       update: m.updateOrder,
     },
-    orderItem: { update: m.updateItem, count: m.countItem },
+    orderItem: { findUnique: m.item, update: m.updateItem, count: m.countItem },
     round: { findFirst: m.roundFind, create: m.roundCreate },
   }));
 });
@@ -236,5 +248,54 @@ describe.each([
     setRole("kitchen");
     expect((await handler(request(), params)).status).toBe(403);
     expectNoMovement();
+  });
+});
+
+
+describe("whole account transfer rereads after taking the shared movement lock", () => {
+  function expectNoWrites() {
+    expect(m.updateOrder).not.toHaveBeenCalled();
+    expect(m.updateItem).not.toHaveBeenCalled();
+    expect(m.event).not.toHaveBeenCalled();
+  }
+  it("rejects a source moved outside the waiter section while waiting", async () => {
+    m.order.mockResolvedValueOnce(order).mockResolvedValue({ ...order, tableId: "other", table: { kind: "standard", number: 4 } });
+    const response = await moveOrder(request(), params);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "source_out_of_scope" });
+    expectNoWrites();
+  });
+  it("rechecks administrator-only policy after the lock", async () => {
+    m.tenant.mockResolvedValueOnce({ adminOnlyTableMove: false }).mockResolvedValue({ adminOnlyTableMove: true });
+    const response = await moveOrder(request(), params);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "table_move_admin_only" });
+    expectNoWrites();
+  });
+  it("rechecks the current waiter role and table assignments", async () => {
+    m.user.mockResolvedValueOnce({ restaurantId: "r", role: "mesero", assignedTableNumbers: [2, 3] }).mockResolvedValue({ restaurantId: "r", role: "kitchen", assignedTableNumbers: [] });
+    expect((await moveOrder(request(), params)).status).toBe(403);
+    expectNoWrites();
+  });
+  it("does not transfer a paid account using its old placed snapshot", async () => {
+    m.order.mockResolvedValueOnce(order).mockResolvedValue({ ...order, status: "paid" });
+    expect((await moveOrder(request(), params)).status).toBe(409);
+    expectNoWrites();
+  });
+  it("rechecks target occupancy before committing the transfer", async () => {
+    m.liveOrder.mockResolvedValueOnce(null).mockResolvedValue({ id: "now-occupied" });
+    const response = await moveOrder(request(), params);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "target_busy" });
+    expectNoWrites();
+  });
+  it("takes the same restaurant advisory lock as dish transfers and locks the account before rereading", async () => {
+    expect((await moveOrder(request(), params)).status).toBe(200);
+    expect(m.advisory).toHaveBeenCalledOnce();
+    expect(m.advisory.mock.calls[0][1]).toBe("order-item-move:r");
+    expect(m.lock).toHaveBeenCalledWith(expect.anything(), "o");
+    expect(m.lock.mock.invocationCallOrder[0]).toBeLessThan(m.order.mock.invocationCallOrder[1]);
+    expect(m.mutable).toHaveBeenCalledWith(expect.anything(), "o");
+    expect(m.updateOrder).toHaveBeenCalledWith({ where: { id: "o" }, data: { tableId: "target" } });
   });
 });

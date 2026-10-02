@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   log: [] as string[],
   payments: new Set<string>(),
   role: "mesero",
+  assignedTables: [1, 2] as number[],
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>) => async (request: Request, context: { params: Promise<{ id: string }> }) => {
   try { return await handler(request, context); } catch (error) {
@@ -32,7 +33,8 @@ vi.mock("@/lib/orders", () => ({
 vi.mock("@/lib/db", () => ({ db: {
   orderItem: { findUnique: async () => h.outer, count: async () => 1 },
   table: { findUnique: async () => ({ id: "target-table", number: 2, kind: "standard", restaurantId: "restaurant" }) },
-  user: { findUnique: async () => ({ assignedTableNumbers: [] }) },
+  restaurant: { findUnique: async () => ({ adminOnlyTableMove: false }) },
+  user: { findUnique: async () => ({ restaurantId: "restaurant", role: "mesero", assignedTableNumbers: h.assignedTables }) },
   order: { findFirst: async () => ({ id: "a-dest", status: "placed" }) },
   $transaction: async (fn: (tx: unknown) => unknown) => { const result = await fn(h.tx); h.log.push("commit"); return result; },
 } }));
@@ -50,6 +52,9 @@ function createTx() {
   const dest = { id: "a-dest", status: "placed", restaurantId: "restaurant", tableId: "target-table" };
   return {
     $executeRaw: vi.fn(async () => 1),
+    restaurant: { findUnique: vi.fn(async () => ({ adminOnlyTableMove: false })) },
+    user: { findUnique: vi.fn(async () => ({ restaurantId: "restaurant", role: "mesero", assignedTableNumbers: h.assignedTables })) },
+    table: { findUnique: vi.fn(async () => ({ id: "target-table", number: 2, kind: "standard", restaurantId: "restaurant" })) },
     orderItem: {
       findUnique: vi.fn(async () => { h.log.push("read:item"); return h.live; }),
       update: vi.fn(async () => { h.log.push("move"); return {}; }),
@@ -60,7 +65,7 @@ function createTx() {
   };
 }
 beforeEach(() => {
-  vi.clearAllMocks(); h.log = []; h.payments.clear(); h.role = "mesero";
+  vi.clearAllMocks(); h.log = []; h.payments.clear(); h.role = "mesero"; h.assignedTables = [1, 2];
   h.outer = createItem(); h.live = structuredClone(h.outer); h.tx = createTx();
 });
 const move = () => POST(new Request("http://localhost/api/operator/order-items/item/move", {
@@ -122,9 +127,37 @@ describe("moving dishes serializes with preparation, cancellation and payment", 
     expect(h.log).toContain("totals:new-dest");
     expect(h.log.indexOf("totals:new-dest")).toBeLessThan(h.log.indexOf("commit"));
   });
-  it("preserves the existing restriction on group_admin move requests", async () => {
-    h.role = "group_admin";
-    expect((await move()).status).toBe(403);
+  it("rejects a source moved outside the waiter section while waiting", async () => {
+    h.live.order.table.number = 4;
+    const response = await move();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "source_out_of_scope" });
     expect(h.tx.orderItem.update).not.toHaveBeenCalled();
+  });
+  it("rechecks the target number after locks, not the stale initial table", async () => {
+    h.tx.table.findUnique.mockResolvedValue({ id: "target-table", number: 4, kind: "standard", restaurantId: "restaurant" });
+    const response = await move();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "target_out_of_scope" });
+    expect(h.tx.orderItem.update).not.toHaveBeenCalled();
+  });
+  it("respects a policy changed to administrator-only while waiting", async () => {
+    h.tx.restaurant.findUnique.mockResolvedValue({ adminOnlyTableMove: true });
+    const response = await move();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "table_move_admin_only" });
+    expect(h.tx.orderItem.update).not.toHaveBeenCalled();
+  });
+  it("rejects a waiter whose role changed while waiting", async () => {
+    h.tx.user.findUnique.mockResolvedValue({ restaurantId: "restaurant", role: "kitchen", assignedTableNumbers: [1, 2] });
+    const response = await move();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "forbidden" });
+    expect(h.tx.orderItem.update).not.toHaveBeenCalled();
+  });
+  it("permits group_admin in the active tenant under the integrated permission policy", async () => {
+    h.role = "group_admin";
+    expect((await move()).status).toBe(200);
+    expect(h.tx.orderItem.update).toHaveBeenCalledOnce();
   });
 });

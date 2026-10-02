@@ -7,6 +7,8 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
+import { lockOrder } from "@/lib/orderLock";
+import { requireMutableOrderInTx } from "@/lib/orders";
 
 const bodySchema = z.object({
   targetTableId: z.string().min(1),
@@ -128,10 +130,40 @@ async function POSTHandler(
     );
   }
 
-  await db.order.update({
-    where: { id: order.id },
-    data: { tableId: target.id },
+  const result = await db.$transaction(async (tx) => {
+    // Share the movement mutex with item transfers: two requests cannot
+    // both claim the same empty destination using an old occupancy read.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`order-item-move:${restaurantId}`}, 0))`;
+    await lockOrder(tx, order.id);
+    const current = await tx.order.findUnique({
+      where: { id: order.id },
+      select: { id: true, restaurantId: true, tableId: true, status: true, table: { select: { kind: true, number: true } } },
+    });
+    if (!current || current.restaurantId !== restaurantId) return { error: "not_found", status: 404 } as const;
+    if (["paid", "paying", "cancelled"].includes(current.status)) return { error: "order_closed", status: 409 } as const;
+    if (current.tableId === target.id) return { error: "same_table", status: 400 } as const;
+    const currentTarget = await tx.table.findUnique({
+      where: { id: target.id },
+      select: { id: true, number: true, restaurantId: true, kind: true },
+    });
+    if (!currentTarget || currentTarget.restaurantId !== restaurantId) return { error: "not_found", status: 404 } as const;
+    if (current.table.kind === "manual" || currentTarget.kind === "manual") return { error: "manual_invoice", status: 409 } as const;
+    if (await isTableMoveBlocked(role, restaurantId, tx)) return { error: TABLE_MOVE_ADMIN_ONLY_ERROR, status: 403 } as const;
+    const currentScopeError = await tableMoveScopeError({
+      role, userId: session.user.id, restaurantId,
+      sourceNumber: current.table.number, targetNumber: currentTarget.number,
+    }, tx);
+    if (currentScopeError) return { error: currentScopeError, status: 403 } as const;
+    const occupied = await tx.order.findFirst({
+      where: { restaurantId, tableId: currentTarget.id, status: { notIn: ["paid", "cancelled"] } },
+      select: { id: true },
+    });
+    if (occupied) return { error: "target_busy", status: 409 } as const;
+    await requireMutableOrderInTx(tx, current.id);
+    await tx.order.update({ where: { id: current.id }, data: { tableId: currentTarget.id } });
+    return { targetTableNumber: currentTarget.number } as const;
   });
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
 
   // Refresh las dos tarjetas (origen y destino) en la grid de Mesas
   // + cualquier otra vista del flujo (Salón, kitchen) que dependa
@@ -144,7 +176,7 @@ async function POSTHandler(
 
   return NextResponse.json({
     ok: true,
-    targetTableNumber: target.number,
+    targetTableNumber: result.targetTableNumber,
   });
 }
 

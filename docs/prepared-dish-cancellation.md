@@ -36,9 +36,13 @@ existentes a partir de sus sellos y estados; no cancela ningún plato.
 Las fechas inferidas para registros antiguos son evidencia de preparación,
 no una nueva medición exacta del tiempo de cocina.
 
-Esta entrega se preparó desde `063ba471` en una rama aislada. No incluye las
-notas crédito ni el ajuste configurable de permisos para mover mesas que
-siguen en entregas separadas. No se ha publicado en producción.
+La entrega conjunta `release/approved-improvements-20261002` integra esta
+protección con las notas crédito, los permisos configurables de traslados,
+los ajustes de insumos y las mejoras del comensal y la navegación móvil.
+El permiso de trasladar platos es independiente del permiso de cancelarlos:
+habilitar traslados para meseros nunca permite cancelar platos preparados.
+Los traslados revalidan los permisos y la sección actual dentro de la
+transacción, después de adquirir el bloqueo de la orden.
 
 ## Verificación
 

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 
@@ -5,8 +6,9 @@ import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 export async function isTableMoveBlocked(
   role: string | null | undefined,
   restaurantId: string,
+  client: Pick<Prisma.TransactionClient, "restaurant"> = db,
 ): Promise<boolean> {
-  const tenant = await db.restaurant.findUnique({
+  const tenant = await client.restaurant.findUnique({
     where: { id: restaurantId },
     select: { adminOnlyTableMove: true },
   });
@@ -20,9 +22,9 @@ export async function tableMoveScopeError(args: {
   restaurantId: string;
   sourceNumber: number;
   targetNumber: number;
-}): Promise<"forbidden" | "source_out_of_scope" | "target_out_of_scope" | null> {
+}, client: Pick<Prisma.TransactionClient, "user"> = db): Promise<"forbidden" | "source_out_of_scope" | "target_out_of_scope" | null> {
   if (args.role !== "mesero") return null;
-  const user = await db.user.findUnique({
+  const user = await client.user.findUnique({
     where: { id: args.userId },
     select: { restaurantId: true, role: true, assignedTableNumbers: true },
   });

@@ -28,10 +28,17 @@ async function start(base = 40_000_000) {
   return shiftId as string;
 }
 async function payments(total: number, collector: string | null = null) {
-  const order = await db.order.create({ data: { restaurantId: scope.restaurantId, tableId, status: "paid", shortCode: randomUUID() } });
   for (let remaining = total; remaining > 0;) {
     const amountCents = Math.min(remaining, 1_000_000_000);
+    // A shift accumulates several paid bills. Each fixture must have an
+    // outstanding balance before payment, just like the production trigger
+    // requires; the aggregate shift total can exceed an individual bill's Int.
+    const order = await db.order.create({ data: {
+      restaurantId: scope.restaurantId, tableId, status: "placed", shortCode: randomUUID(),
+      subtotalCents: amountCents, totalCents: amountCents,
+    } });
     await db.payment.create({ data: { orderId: order.id, method: "cash", status: "approved", amountCents, settledAt: new Date(), collectedByUserId: collector } });
+    await db.order.update({ where: { id: order.id }, data: { status: "paid" } });
     remaining -= amountCents;
   }
 }

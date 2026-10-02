@@ -32,6 +32,7 @@ import { PATCH as orderPatch } from "../src/app/api/operator/orders/[id]/route";
 import { DELETE as dinerDelete } from "../src/app/api/tenant/[slug]/order-items/[id]/route";
 import { POST as compPost } from "../src/app/api/tenant/[slug]/orders/[orderId]/comp/route";
 import { POST as movePost } from "../src/app/api/operator/order-items/[id]/move/route";
+import { POST as moveOrderPost } from "../src/app/api/operator/orders/[id]/move/route";
 
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 if (!["localhost", "127.0.0.1"].includes(url.hostname) || !/^\/mesapay_.*(?:test|validation)$/.test(url.pathname)) {
@@ -49,6 +50,7 @@ const patchOrder = (id: string, status: string) => orderPatch(request(`/api/oper
 const deleteItem = (id: string) => dinerDelete(request(`/api/tenant/${slug}/order-items/${id}`, null, "DELETE"), { params: Promise.resolve({ slug, id }) });
 const compOrder = (orderId: string) => compPost(request(`/api/tenant/${slug}/orders/${orderId}/comp`, { note: "Isolated test courtesy" }, "POST"), { params: Promise.resolve({ slug, orderId }) });
 const moveItem = (id: string, targetTableId: string) => movePost(request(`/api/operator/order-items/${id}/move`, { targetTableId }, "POST"), { params: Promise.resolve({ id }) });
+const moveOrder = (id: string, targetTableId: string) => moveOrderPost(request(`/api/operator/orders/${id}/move`, { targetTableId }, "POST"), { params: Promise.resolve({ id }) });
 const cancel = { cancel: { reason: "Isolated test cancellation", markUnavailable: true } };
 const comp = { cancel: { reason: "Isolated test complaint", kind: "comp" } };
 async function fixture(states: KitchenState[] = ["placed"], options: { manual?: boolean; free?: boolean; served?: boolean } = {}) {
@@ -313,4 +315,60 @@ describe("prepared dish cancellation permissions on PostgreSQL", () => {
       expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).totalCents).toBe(10000);
     }
   });
+  it.each(["item", "whole order"] as const)("rejects %s transfer after the locked source moves outside the waiter's section", async (path) => {
+    const f = await fixture();
+    const baseNumber = path === "item" ? 701 : 703;
+    const destination = await db.table.create({ data: { restaurantId: tenantId, number: baseNumber, qrToken: randomUUID() } });
+    const displaced = await db.table.create({ data: { restaurantId: tenantId, number: baseNumber + 1, qrToken: randomUUID() } });
+    await db.user.update({ where: { id: h.staffId }, data: { assignedTableNumbers: [1, destination.number] } });
+    const itemBefore = await db.orderItem.findUniqueOrThrow({ where: { id: f.items[0].id } });
+    const roundBefore = await db.round.findUniqueOrThrow({ where: { id: f.round.id } });
+    let unlock!: () => void, hasLock!: () => void;
+    let blockerPid = 0;
+    const locked = new Promise<void>((resolve) => { hasLock = resolve; });
+    const gate = new Promise<void>((resolve) => { unlock = resolve; });
+    const relocating = db.$transaction(async (tx) => {
+      const [connection] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+      blockerPid = connection.pid;
+      await lockOrder(tx, f.order.id);
+      hasLock();
+      await gate;
+      // Simulate an administrator's committed relocation after the waiter
+      // read the old source. Only this relocation is allowed to persist.
+      return tx.order.update({ where: { id: f.order.id }, data: { tableId: displaced.id } });
+    }, { timeout: 10000 });
+    await locked;
+    const pending = path === "item" ? moveItem(f.items[0].id, destination.id) : moveOrder(f.order.id, destination.id);
+    let waiting = false;
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const rows = await db.$queryRaw<{ waiting: boolean }[]>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%FOR UPDATE%'
+              AND ${blockerPid} = ANY(pg_blocking_pids(pid))
+          ) AS waiting`;
+        if (rows[0].waiting) { waiting = true; break; }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    } finally { unlock(); }
+    try {
+      const relocatedOrder = await relocating;
+      const response = await pending;
+      expect(waiting).toBe(true);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: "source_out_of_scope" });
+      expect(await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).toEqual(relocatedOrder);
+      expect(await db.orderItem.findUniqueOrThrow({ where: { id: f.items[0].id } })).toEqual(itemBefore);
+      expect(await db.round.findUniqueOrThrow({ where: { id: f.round.id } })).toEqual(roundBefore);
+      expect(await db.order.count({ where: { tableId: destination.id } })).toBe(0);
+      expect(h.audit).not.toHaveBeenCalled();
+      expect(h.event).not.toHaveBeenCalled();
+      expect(h.print).not.toHaveBeenCalled();
+    } finally {
+      await db.user.update({ where: { id: h.staffId }, data: { assignedTableNumbers: [] } });
+    }
+  });
+
 });

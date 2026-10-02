@@ -171,6 +171,31 @@ async function POSTHandler(
     if (!current || current.orderId !== sourceOrderId || current.order.restaurantId !== restaurantId) {
       return { error: "operation_conflict", status: 409 } as const;
     }
+    // A whole-account transfer or permission change may have committed
+    // while these locks were pending. Authorize the live source and target,
+    // using this transaction rather than the initial request snapshots.
+    const currentTargetTable = await tx.table.findUnique({
+      where: { id: target.id },
+      select: { id: true, number: true, restaurantId: true, kind: true },
+    });
+    if (!currentTargetTable || currentTargetTable.restaurantId !== restaurantId) {
+      return { error: "not_found", status: 404 } as const;
+    }
+    if (current.order.table.kind === "manual" || currentTargetTable.kind === "manual") {
+      return { error: "manual_invoice", status: 409 } as const;
+    }
+    if (await isTableMoveBlocked(role, restaurantId, tx)) {
+      return { error: TABLE_MOVE_ADMIN_ONLY_ERROR, status: 403 } as const;
+    }
+    const currentScopeError = await tableMoveScopeError({
+      role,
+      userId: session.user.id,
+      restaurantId,
+      sourceNumber: current.order.table.number,
+      targetNumber: currentTargetTable.number,
+    }, tx);
+    if (currentScopeError) return { error: currentScopeError, status: 403 } as const;
+
     const currentTarget = await tx.order.findFirst({
       where: { restaurantId, tableId: target.id, status: { notIn: ["paid", "cancelled"] } },
       orderBy: { createdAt: "desc" },
@@ -180,9 +205,6 @@ async function POSTHandler(
       // No adquirir una tercera cuenta fuera de orden: reintentar con el
       // destino actual evita tanto un deadlock como mover hacia otra cuenta.
       return { error: "operation_conflict", status: 409 } as const;
-    }
-    if (current.order.table.kind === "manual") {
-      return { error: "manual_invoice", status: 409 } as const;
     }
     const currentGate = checkMoveAllowed({
       itemCancelled: !!current.cancelledAt || current.round?.status === "cancelled",
@@ -279,12 +301,12 @@ async function POSTHandler(
     if (liveLeft === 0) {
       await tx.order.update({ where: { id: sourceOrderId }, data: { status: "cancelled" } });
     }
-    return { destOrderId: dest.id, sourceTableNumber: current.order.table.number } as const;
+    return { destOrderId: dest.id, sourceTableNumber: current.order.table.number, targetTableNumber: currentTargetTable.number } as const;
   });
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  const { destOrderId, sourceTableNumber } = result;
+  const { destOrderId, sourceTableNumber, targetTableNumber } = result;
 
   // Mover plata entre cuentas es sensible: queda en la bitácora igual que el
   // cancel / comp de platos.
@@ -292,10 +314,10 @@ async function POSTHandler(
     kind: "order_item.move",
     restaurantId,
     target: { type: "order_item", id: item.id },
-    summary: `Movió ${item.qty}× ${item.nameSnapshot} de Mesa ${sourceTableNumber} a Mesa ${target.number}`,
+    summary: `Movió ${item.qty}× ${item.nameSnapshot} de Mesa ${sourceTableNumber} a Mesa ${targetTableNumber}`,
     diff: {
       before: { orderId: sourceOrderId, tableNumber: sourceTableNumber },
-      after: { orderId: destOrderId, tableNumber: target.number },
+      after: { orderId: destOrderId, tableNumber: targetTableNumber },
     },
   });
 
@@ -311,7 +333,7 @@ async function POSTHandler(
     orderId: destOrderId,
   });
 
-  return NextResponse.json({ ok: true, targetTableNumber: target.number });
+  return NextResponse.json({ ok: true, targetTableNumber });
 }
 
 export const POST = secureApi(POSTHandler);

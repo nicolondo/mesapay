@@ -17,6 +17,7 @@ import {
   type TileData,
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
 import {
   canCompOrders,
@@ -81,6 +82,10 @@ export default async function TablesPage({
   const chargeLocked = isChargeBlockedForRole(
     session?.user?.role,
     tenant?.adminOnlyCharge ?? false,
+  );
+  const moveLocked = !tenant || !canMoveBetweenTables(
+    session?.user?.role,
+    tenant.adminOnlyTableMove,
   );
   // Quién puede "No cobrar" un plato: si el rol de quien mira no está en la
   // lista del comercio, el sheet deshabilita el botón y dice quién sí puede.
@@ -466,6 +471,7 @@ export default async function TablesPage({
         counterMode={counterMode}
         isMeseroView={isMeseroView}
         chargeLocked={chargeLocked}
+        moveLocked={moveLocked}
         compPolicy={compPolicy}
         freeTables={freeTables}
         allTables={allTablesForMove}

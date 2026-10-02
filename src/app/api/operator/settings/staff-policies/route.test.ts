@@ -114,3 +114,31 @@ describe("PUT /settings/staff-policies — compAllowedRoles", () => {
     expect(m.restaurantUpdate).not.toHaveBeenCalled();
   });
 });
+
+describe("PUT /settings/staff-policies — adminOnlyTableMove", () => {
+  it.each([true, false])("persists an explicit %s and audits the previous policy", async (adminOnlyTableMove) => {
+    m.restaurantFindUnique.mockResolvedValue({ adminOnlyCharge: false, adminOnlyTableMove: !adminOnlyTableMove });
+    expect((await put({ adminOnlyTableMove })).status).toBe(200);
+    expect(m.restaurantUpdate).toHaveBeenCalledWith({ where: { id: "r1" }, data: { adminOnlyTableMove } });
+    expect(m.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ diff: { before: { adminOnlyCharge: false, adminOnlyTableMove: !adminOnlyTableMove }, after: { adminOnlyTableMove } } }));
+    expect(m.restaurantFindUnique).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ adminOnlyTableMove: true }) }));
+  });
+  it("does not overwrite the movement policy when updating other settings", async () => {
+    expect((await put({ tipPolicy: "shared" })).status).toBe(200);
+    expect(m.restaurantUpdate.mock.calls[0][0].data).not.toHaveProperty("adminOnlyTableMove");
+  });
+  it.each(["true", "false", 0, 1, null])("rejects non-boolean input %j", async (adminOnlyTableMove) => {
+    expect((await put({ adminOnlyTableMove })).status).toBe(400);
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+  });
+  it("does not allow a waiter to grant themself permission", async () => {
+    m.auth.mockResolvedValue({ user: { id: "u", role: "mesero" } });
+    expect((await put({ adminOnlyTableMove: false })).status).toBe(403);
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+  });
+  it.each(["operator", "platform_admin", "group_admin"])("allows a scoped %s to change the policy", async (role) => {
+    m.auth.mockResolvedValue({ user: { id: "u", role } });
+    expect((await put({ adminOnlyTableMove: true })).status).toBe(200);
+    expect(m.restaurantUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "r1" }, data: { adminOnlyTableMove: true } }));
+  });
+});

@@ -401,6 +401,8 @@ model Restaurant {
   // políticas fuerza "global" al encender y bloquea el cambio a "by_waiter"
   // mientras siga activo. Ver src/lib/chargeControl.ts.
   adminOnlyCharge             Boolean  @default(false)
+  // Restringe mover pedidos/platos entre mesas a administradores.
+  adminOnlyTableMove          Boolean  @default(false)
 
   users                  User[]
   tables                 Table[]

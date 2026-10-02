@@ -1748,7 +1748,10 @@
     "prebillBack": "Voltar para Mesas",
     "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.",
     "prebillQty": "{qty}x",
-    "prebillQtyUnit": "{qty} x {unit}"
+    "prebillQtyUnit": "{qty} x {unit}",
+    "moveAdminOnly": "Somente o administrador pode mover pratos ou pedidos entre mesas.",
+    "moveOrderSameTable": "A conta já está nessa mesa.",
+    "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido."
   },
   "browserPrint": {
     "preparing": "Preparando a impressão…",
@@ -2053,8 +2056,8 @@
     "badgeTranslate": "Traduzir",
     "cardDevicesTitle": "Maquininhas",
     "cardDevicesSubtitle": "Atribua cada Smart POS ao garçom que a carrega",
-    "cardPoliciesTitle": "Gorjetas e turnos",
-    "cardPoliciesSubtitle": "Compartilhadas ou por garçom. Turno único do local ou por garçom.",
+    "cardPoliciesTitle": "Permissões, gorjetas e turnos",
+    "cardPoliciesSubtitle": "Defina quem cobra e move pedidos, como as gorjetas são divididas e como funcionam os turnos.",
     "cardMeserosTitle": "Mesas por garçom",
     "cardMeserosSubtitle": "Atribua a cada garçom sua seção do salão",
     "cardStationsTitle": "Estações de preparo",
@@ -2173,7 +2176,7 @@
     "datafonosSaveFailed": "Não conseguimos salvar.",
     "datafonosSaved": "Salvo.",
     "policiesTitle": "Políticas operacionais",
-    "policiesIntro": "Defina como as gorjetas são divididas, como os turnos são contados e quando o sistema considera que uma mesa está em risco de sair sem pagar.",
+    "policiesIntro": "Configure as permissões da equipe, a divisão de gorjetas, os turnos e os alertas de mesas com pagamento pendente.",
     "policiesTipsKicker": "Gorjetas",
     "policiesTipsQuestion": "Como as gorjetas são divididas?",
     "policiesTipsSharedTitle": "Compartilhadas",
@@ -2298,7 +2301,14 @@
     "badgePrintersEmpty": "Configurar",
     "badgePrintersOffline": "Sem responder",
     "badgePrintersOk": "{count, plural, one {# impressora} other {# impressoras}}",
-    "badgePrintersMissing": "Impressão ativa sem impressora"
+    "badgePrintersMissing": "Impressão ativa sem impressora",
+    "policiesTableMoveKicker": "Permissões de mesas",
+    "policiesTableMoveQuestion": "Quem pode mover pratos e pedidos entre mesas?",
+    "policiesTableMoveIntro": "Esta opção se aplica tanto a pratos individuais quanto a pedidos completos.",
+    "policiesTableMoveAdminTitle": "Somente administradores",
+    "policiesTableMoveAdminSubtitle": "Os garçons devem solicitar a transferência a um administrador.",
+    "policiesTableMoveWaitersTitle": "Administradores e garçons",
+    "policiesTableMoveWaitersSubtitle": "Os garçons podem mover pratos e pedidos entre as mesas de sua seção."
   },
   "opTranslations": {
     "noRestaurant": "Sem restaurante.",

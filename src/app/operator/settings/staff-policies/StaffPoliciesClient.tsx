@@ -19,6 +19,7 @@ export function StaffPoliciesClient({
   initialCompEnabled,
   initialCompLabel,
   initialAdminOnlyCharge,
+  initialAdminOnlyTableMove,
   initialCompAllowedRoles,
 }: {
   initialTipPolicy: TipPolicy;
@@ -29,6 +30,7 @@ export function StaffPoliciesClient({
   initialCompEnabled: boolean;
   initialCompLabel: string;
   initialAdminOnlyCharge: boolean;
+  initialAdminOnlyTableMove: boolean;
   // Quién puede NO COBRAR un plato o la cuenta (ya normalizado por el server).
   initialCompAllowedRoles: CompRole[];
 }) {
@@ -48,6 +50,9 @@ export function StaffPoliciesClient({
   // Control de caja: solo el administrador inicia el cobro.
   const [adminOnlyCharge, setAdminOnlyCharge] = useState<boolean>(
     initialAdminOnlyCharge,
+  );
+  const [adminOnlyTableMove, setAdminOnlyTableMove] = useState(
+    initialAdminOnlyTableMove,
   );
   // Quién puede no cobrar: casillas por rol. Se guarda como lista; el
   // orden no importa (se compara como conjunto).
@@ -74,20 +79,22 @@ export function StaffPoliciesClient({
         return t("policiesCompRoleTerminal");
     }
   }
-  const compRolesDirty =
-    [...compAllowedRoles].sort().join(",") !==
-    [...initialCompAllowedRoles].sort().join(",");
-
-  const dirty =
-    tipPolicy !== initialTipPolicy ||
-    shiftPolicy !== initialShiftPolicy ||
-    walkoutDanger !== initialWalkoutDangerMinutes ||
-    cutoffHour !== initialBusinessDayCutoffHour ||
-    meseroWithoutLocal !== initialMeseroShiftWithoutLocal ||
-    compEnabled !== initialCompEnabled ||
-    adminOnlyCharge !== initialAdminOnlyCharge ||
-    compRolesDirty ||
-    compLabel.trim() !== initialCompLabel.trim();
+  const formValues = {
+    tipPolicy,
+    shiftPolicy,
+    walkoutDangerMinutes: walkoutDanger,
+    businessDayCutoffHour: cutoffHour,
+    meseroShiftWithoutLocal: meseroWithoutLocal,
+    compEnabled,
+    compLabel: compLabel.trim(),
+    adminOnlyCharge,
+    adminOnlyTableMove,
+    compAllowedRoles: [...compAllowedRoles].sort(),
+  };
+  // Compare with the last successful save, so a policy can be changed back
+  // without reloading. Edits made while a request runs remain unsaved.
+  const [savedValues, setSavedValues] = useState(formValues);
+  const dirty = JSON.stringify(formValues) !== JSON.stringify(savedValues);
 
   async function save() {
     if (
@@ -103,47 +110,43 @@ export function StaffPoliciesClient({
     }
     setBusy(true);
     setMsg(null);
-    const r = await fetch("/api/operator/settings/staff-policies", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        tipPolicy,
-        shiftPolicy,
-        walkoutDangerMinutes: walkoutDanger,
-        businessDayCutoffHour: cutoffHour,
-        meseroShiftWithoutLocal: meseroWithoutLocal,
-        compEnabled,
-        compLabel: compLabel.trim(),
-        adminOnlyCharge,
-        compAllowedRoles,
-      }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      // Errores esperables del control de caja — cada uno tiene su
-      // explicación, porque "no se pudo guardar" a secas no le dice al
-      // dueño qué hacer.
-      const j = await r.json().catch(() => ({}));
-      if (j?.error === "open_mesero_shifts") {
-        setMsg({
-          kind: "error",
-          text: t("policiesAdminChargeOpenShifts", {
-            count: Number(j.count ?? 0),
-          }),
-        });
-        // Devolvemos el switch a su estado real: no se guardó.
-        setAdminOnlyCharge(initialAdminOnlyCharge);
+    try {
+      const r = await fetch("/api/operator/settings/staff-policies", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(formValues),
+      });
+      if (!r.ok) {
+        // Errores esperables del control de caja — cada uno tiene su
+        // explicación, porque "no se pudo guardar" a secas no le dice al
+        // dueño qué hacer.
+        const j = await r.json().catch(() => ({}));
+        if (j?.error === "open_mesero_shifts") {
+          setMsg({
+            kind: "error",
+            text: t("policiesAdminChargeOpenShifts", {
+              count: Number(j.count ?? 0),
+            }),
+          });
+          // Devolvemos el switch a su estado real: no se guardó.
+          setAdminOnlyCharge(savedValues.adminOnlyCharge);
+          return;
+        }
+        if (j?.error === "shift_policy_locked_by_admin_charge") {
+          setMsg({ kind: "error", text: t("policiesAdminChargeShiftLocked") });
+          setShiftPolicy("global");
+          return;
+        }
+        setMsg({ kind: "error", text: t("policiesSaveFailed") });
         return;
       }
-      if (j?.error === "shift_policy_locked_by_admin_charge") {
-        setMsg({ kind: "error", text: t("policiesAdminChargeShiftLocked") });
-        setShiftPolicy("global");
-        return;
-      }
+      setSavedValues(formValues);
+      setMsg({ kind: "ok", text: t("policiesSaved") });
+    } catch {
       setMsg({ kind: "error", text: t("policiesSaveFailed") });
-      return;
+    } finally {
+      setBusy(false);
     }
-    setMsg({ kind: "ok", text: t("policiesSaved") });
   }
 
   return (
@@ -209,6 +212,39 @@ export function StaffPoliciesClient({
         <p className="text-[10px] text-op-muted mt-3">
           {t("policiesAdminChargeFootnote")}
         </p>
+      </section>
+
+      <section
+        className="rounded-2xl border border-op-border bg-op-surface p-5"
+        aria-labelledby="table-move-policy-title"
+      >
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {t("policiesTableMoveKicker")}
+        </div>
+        <h2 id="table-move-policy-title" className="font-display text-lg mb-1">
+          {t("policiesTableMoveQuestion")}
+        </h2>
+        <p className="text-xs text-op-muted mb-3">
+          {t("policiesTableMoveIntro")}
+        </p>
+        <RadioCard
+          name="adminOnlyTableMove"
+          value="admin_only"
+          active={adminOnlyTableMove}
+          onChange={() => setAdminOnlyTableMove(true)}
+          title={t("policiesTableMoveAdminTitle")}
+          subtitle={t("policiesTableMoveAdminSubtitle")}
+          disabled={busy}
+        />
+        <RadioCard
+          name="adminOnlyTableMove"
+          value="admin_and_waiters"
+          active={!adminOnlyTableMove}
+          onChange={() => setAdminOnlyTableMove(false)}
+          title={t("policiesTableMoveWaitersTitle")}
+          subtitle={t("policiesTableMoveWaitersSubtitle")}
+          disabled={busy}
+        />
       </section>
 
       {/* Turnos */}
@@ -447,6 +483,7 @@ export function StaffPoliciesClient({
       <div className="flex items-center justify-end gap-3 pt-1">
         {msg && (
           <span
+            role="status"
             className={
               "text-xs " + (msg.kind === "ok" ? "text-ok" : "text-danger")
             }

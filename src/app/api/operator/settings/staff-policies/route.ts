@@ -37,6 +37,7 @@ const putBody = z.object({
   // Control de caja: sólo el administrador inicia el cobro. Implica
   // shiftPolicy = "global" (ver abajo).
   adminOnlyCharge: z.boolean().optional(),
+  adminOnlyTableMove: z.boolean().optional(),
 });
 
 /**
@@ -82,6 +83,7 @@ async function PUTHandler(req: Request) {
       compEnabled: true,
       compLabel: true,
       adminOnlyCharge: true,
+      adminOnlyTableMove: true,
       compAllowedRoles: true,
     },
   });
@@ -161,6 +163,9 @@ async function PUTHandler(req: Request) {
       }),
       ...(parsed.data.adminOnlyCharge !== undefined && {
         adminOnlyCharge: parsed.data.adminOnlyCharge,
+      }),
+      ...(parsed.data.adminOnlyTableMove !== undefined && {
+        adminOnlyTableMove: parsed.data.adminOnlyTableMove,
       }),
       ...(parsed.data.compAllowedRoles !== undefined && {
         compAllowedRoles: resolveCompAllowedRoles(parsed.data.compAllowedRoles),

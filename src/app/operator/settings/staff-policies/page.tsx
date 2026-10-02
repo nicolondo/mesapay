@@ -28,6 +28,7 @@ export default async function StaffPoliciesPage() {
       compEnabled: true,
       compLabel: true,
       adminOnlyCharge: true,
+      adminOnlyTableMove: true,
       compAllowedRoles: true,
     },
   });
@@ -57,6 +58,7 @@ export default async function StaffPoliciesPage() {
         initialCompEnabled={tenant.compEnabled}
         initialCompLabel={tenant.compLabel ?? ""}
         initialAdminOnlyCharge={tenant.adminOnlyCharge}
+        initialAdminOnlyTableMove={tenant.adminOnlyTableMove}
         initialCompAllowedRoles={resolveCompAllowedRoles(
           tenant.compAllowedRoles,
         )}

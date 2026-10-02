@@ -1,3 +1,5 @@
+import { TABLE_MOVE_ADMIN_ONLY_ERROR } from "@/lib/tableMoveControl";
+import { isTableMoveBlocked, tableMoveScopeError } from "@/lib/tableMoveGuard";
 import { secureApi } from "@/lib/secureApi";
 import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
@@ -43,7 +45,10 @@ async function POSTHandler(
   const role = session?.user?.role;
   if (
     !session?.user ||
-    (role !== "operator" && role !== "platform_admin" && role !== "mesero")
+    (role !== "operator" &&
+      role !== "platform_admin" &&
+      role !== "group_admin" &&
+      role !== "mesero")
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
@@ -51,6 +56,9 @@ async function POSTHandler(
   const restaurantId = ctx?.restaurantId ?? null;
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
+  }
+  if (await isTableMoveBlocked(role, restaurantId)) {
+    return NextResponse.json({ error: TABLE_MOVE_ADMIN_ONLY_ERROR }, { status: 403 });
   }
   // La ronda nueva de la mesa destino la monta quien mueve el plato.
   const placedBy = resolvePlacedBy(ctx, restaurantId);
@@ -102,16 +110,15 @@ async function POSTHandler(
   if (item.order.table.kind === "manual" || target.kind === "manual") {
     return NextResponse.json({ error: "manual_invoice" }, { status: 409 });
   }
-  // Scope de mesa para meseros con asignación (empty = todas).
-  if (role === "mesero") {
-    const me = await db.user.findUnique({
-      where: { id: session.user.id },
-      select: { assignedTableNumbers: true },
-    });
-    const nums = me?.assignedTableNumbers ?? [];
-    if (nums.length > 0 && !nums.includes(target.number)) {
-      return NextResponse.json({ error: "target_out_of_scope" }, { status: 403 });
-    }
+  const scopeError = await tableMoveScopeError({
+    role,
+    userId: session.user.id,
+    restaurantId,
+    sourceNumber: item.order.table.number,
+    targetNumber: target.number,
+  });
+  if (scopeError) {
+    return NextResponse.json({ error: scopeError }, { status: 403 });
   }
 
   // Cuenta viva de la mesa destino. El filtro deja pasar a propósito las que

@@ -1748,7 +1748,10 @@
     "prebillBack": "Volver a Mesas",
     "prebillUnavailable": "La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.",
     "prebillQty": "{qty}x",
-    "prebillQtyUnit": "{qty} x {unit}"
+    "prebillQtyUnit": "{qty} x {unit}",
+    "moveAdminOnly": "Solo el administrador puede mover platos o pedidos entre mesas.",
+    "moveOrderSameTable": "La cuenta ya está en esa mesa.",
+    "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido."
   },
   "browserPrint": {
     "preparing": "Preparando impresión…",
@@ -2053,8 +2056,8 @@
     "badgeTranslate": "Traducir",
     "cardDevicesTitle": "Datáfonos",
     "cardDevicesSubtitle": "Asigna cada Smart POS al mesero que lo carga",
-    "cardPoliciesTitle": "Propinas y turnos",
-    "cardPoliciesSubtitle": "Compartidas o por mesero. Turno único del local o por mesero.",
+    "cardPoliciesTitle": "Permisos, propinas y turnos",
+    "cardPoliciesSubtitle": "Define quién cobra y mueve pedidos, cómo se reparten propinas y cómo funcionan los turnos.",
     "cardMeserosTitle": "Mesas por mesero",
     "cardMeserosSubtitle": "Asigna a cada mesero su sección del salón",
     "cardStationsTitle": "Estaciones de preparación",
@@ -2173,7 +2176,7 @@
     "datafonosSaveFailed": "No pudimos guardar.",
     "datafonosSaved": "Guardado.",
     "policiesTitle": "Políticas operativas",
-    "policiesIntro": "Define cómo se reparten las propinas, cómo se cuentan los turnos y cuándo el sistema considera que una mesa está en riesgo de irse sin pagar.",
+    "policiesIntro": "Configura los permisos del equipo, el reparto de propinas, los turnos y las alertas de mesas pendientes de pago.",
     "policiesTipsKicker": "Propinas",
     "policiesTipsQuestion": "¿Cómo se reparten las propinas?",
     "policiesTipsSharedTitle": "Compartidas",
@@ -2298,7 +2301,14 @@
     "badgePrintersEmpty": "Configurar",
     "badgePrintersOffline": "Sin responder",
     "badgePrintersOk": "{count, plural, one {# impresora} other {# impresoras}}",
-    "badgePrintersMissing": "Impresión activa sin impresora"
+    "badgePrintersMissing": "Impresión activa sin impresora",
+    "policiesTableMoveKicker": "Permisos de mesas",
+    "policiesTableMoveQuestion": "¿Quién puede mover platos y pedidos entre mesas?",
+    "policiesTableMoveIntro": "Esta opción se aplica tanto a platos individuales como a pedidos completos.",
+    "policiesTableMoveAdminTitle": "Solo administradores",
+    "policiesTableMoveAdminSubtitle": "Los meseros deben solicitar el traslado a un administrador.",
+    "policiesTableMoveWaitersTitle": "Administradores y meseros",
+    "policiesTableMoveWaitersSubtitle": "Los meseros pueden mover platos y pedidos entre las mesas de su sección."
   },
   "opTranslations": {
     "noRestaurant": "Sin restaurante.",

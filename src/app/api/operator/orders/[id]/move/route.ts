@@ -1,4 +1,5 @@
-import { displayOrderCode } from "@/lib/orderCode";
+import { TABLE_MOVE_ADMIN_ONLY_ERROR } from "@/lib/tableMoveControl";
+import { isTableMoveBlocked, tableMoveScopeError } from "@/lib/tableMoveGuard";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -38,6 +39,7 @@ async function POSTHandler(
     !session?.user ||
     (role !== "operator" &&
       role !== "platform_admin" &&
+      role !== "group_admin" &&
       role !== "mesero")
   ) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -46,6 +48,9 @@ async function POSTHandler(
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
     return NextResponse.json({ error: "no_restaurant" }, { status: 400 });
+  }
+  if (await isTableMoveBlocked(role, restaurantId)) {
+    return NextResponse.json({ error: TABLE_MOVE_ADMIN_ONLY_ERROR }, { status: 403 });
   }
 
   const { id } = await params;
@@ -62,7 +67,7 @@ async function POSTHandler(
       restaurantId: true,
       tableId: true,
       status: true,
-      table: { select: { kind: true } },
+      table: { select: { kind: true, number: true } },
     },
   });
   if (!order || order.restaurantId !== restaurantId) {
@@ -70,16 +75,13 @@ async function POSTHandler(
   }
   if (order.status === "paid" || order.status === "cancelled") {
     return NextResponse.json(
-      { error: "order_closed", message: "La cuenta ya está cerrada." },
+      { error: "order_closed" },
       { status: 409 },
     );
   }
   if (order.tableId === parsed.data.targetTableId) {
     return NextResponse.json(
-      {
-        error: "same_table",
-        message: "Esa ya es la mesa actual.",
-      },
+      { error: "same_table" },
       { status: 400 },
     );
   }
@@ -98,23 +100,15 @@ async function POSTHandler(
     return NextResponse.json({ error: "manual_invoice" }, { status: 409 });
   }
 
-  // Scope mesa por número para meseros con asignación. Empty array
-  // = atiende todas (sin restricción).
-  if (role === "mesero") {
-    const me = await db.user.findUnique({
-      where: { id: session.user.id },
-      select: { assignedTableNumbers: true },
-    });
-    const nums = me?.assignedTableNumbers ?? [];
-    if (nums.length > 0 && !nums.includes(target.number)) {
-      return NextResponse.json(
-        {
-          error: "target_out_of_scope",
-          message: "Esa mesa no está en tu sección asignada.",
-        },
-        { status: 403 },
-      );
-    }
+  const scopeError = await tableMoveScopeError({
+    role,
+    userId: session.user.id,
+    restaurantId,
+    sourceNumber: order.table.number,
+    targetNumber: target.number,
+  });
+  if (scopeError) {
+    return NextResponse.json({ error: scopeError }, { status: 403 });
   }
 
   // ¿Mesa destino ya tiene cuenta abierta? Si la juntáramos sería
@@ -125,14 +119,11 @@ async function POSTHandler(
       tableId: target.id,
       status: { notIn: ["paid", "cancelled"] },
     },
-    select: { id: true, shortCode: true },
+    select: { id: true },
   });
   if (targetOpen) {
     return NextResponse.json(
-      {
-        error: "target_busy",
-        message: `La mesa ${target.number} ya tiene una cuenta abierta (${displayOrderCode(targetOpen.shortCode)}). Ciérrala antes de mover.`,
-      },
+      { error: "target_busy" },
       { status: 409 },
     );
   }

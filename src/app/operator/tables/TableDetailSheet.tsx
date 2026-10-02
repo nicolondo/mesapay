@@ -16,6 +16,7 @@ import {
 } from "@/components/payments/PendingPaymentNotice";
 import { roleLabelKey } from "@/lib/orders/placedBy";
 import type { CompPolicyView } from "@/lib/staffPolicies";
+import { TABLE_MOVE_ADMIN_ONLY_ERROR } from "@/lib/tableMoveControl";
 import {
   BrowserPrintStatus,
   browserPrintStateFrom,
@@ -134,6 +135,7 @@ export function TableDetailSheet({
   country,
   salesTax = null,
   chargeLocked,
+  moveLocked,
   compPolicy,
   manual = false,
   invoiceRequest = null,
@@ -205,6 +207,8 @@ export function TableDetailSheet({
   // Cambiamos "Cobrar la cuenta" por "Pedir la cuenta": el mesero avisa
   // a caja en vez de chocar contra un 403 del servidor.
   chargeLocked?: boolean;
+  // Server-derived capability; every move also checks the current DB policy.
+  moveLocked: boolean;
   // FACTURA MANUAL: el cliente al que va la factura (solicitud pendiente de
   // esta cuenta). Es lo que el operador identifica en la ficha —nombre,
   // documento sin DV y correo— y lo que la caja ya ve cargado al cobrar.
@@ -501,30 +505,40 @@ export function TableDetailSheet({
   }, [open, orderId]);
 
   async function moveOrderToTable(targetTableId: string) {
-    setMoveErr(null);
-    const r = await fetch(`/api/operator/orders/${orderId}/move`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ targetTableId }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setMoveErr(j.message ?? j.error ?? tr("moveFailed"));
+    if (moveLocked) {
+      setMoveErr(tr("moveAdminOnly"));
       return;
     }
-    // Cerramos todo y forzamos el refresh de la grid: el SSE solo no
-    // alcanza (la mesa ORIGEN queda libre y no siempre revalida), así que
-    // pedimos el re-render del server como en los demás handlers.
-    setShowMoveSheet(false);
-    setOpen(false);
-    startTx(() => router.refresh());
+    setMoveErr(null);
+    try {
+      const r = await fetch(`/api/operator/orders/${orderId}/move`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetTableId }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setMoveErr(moveErrorMessage(j.error, false));
+        return;
+      }
+      // Cerramos todo y forzamos el refresh de la grid: el SSE solo no
+      // alcanza (la mesa ORIGEN queda libre y no siempre revalida), así que
+      // pedimos el re-render del server como en los demás handlers.
+      setShowMoveSheet(false);
+      setOpen(false);
+      startTx(() => router.refresh());
+    } catch {
+      setMoveErr(tr("moveFailed"));
+    }
   }
 
   // Mapa de códigos de error del endpoint de mover-plato a copy i18n. El
   // endpoint devuelve SOLO códigos (nunca texto): la copy vive acá para que
   // el mesero la lea en su idioma.
-  function moveItemErrorMessage(code: string | undefined): string {
+  function moveErrorMessage(code: string | undefined, item = true): string {
     switch (code) {
+      case TABLE_MOVE_ADMIN_ONLY_ERROR:
+        return tr("moveAdminOnly");
       case "item_cancelled":
         return tr("moveItemCancelled");
       case "order_closed":
@@ -536,32 +550,43 @@ export function TableDetailSheet({
       case "target_order_paying":
         return tr("moveItemTargetPaying");
       case "same_table":
-        return tr("moveItemSameTable");
+        return tr(item ? "moveItemSameTable" : "moveOrderSameTable");
+      case "target_busy":
+        return tr("moveOrderTargetBusy");
+      case "source_out_of_scope":
       case "target_out_of_scope":
         return tr("moveItemOutOfScope");
       default:
-        return tr("moveItemFailed");
+        return tr(item ? "moveItemFailed" : "moveFailed");
     }
   }
 
   async function moveItemToTable(itemId: string, targetTableId: string) {
-    setMoveItemErr(null);
-    const r = await fetch(`/api/operator/order-items/${itemId}/move`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ targetTableId }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setMoveItemErr(moveItemErrorMessage(j.error));
+    if (moveLocked) {
+      setMoveItemErr(tr("moveAdminOnly"));
       return;
     }
-    // El plato se fue a otra mesa; cerramos picker + sheet y forzamos
-    // el re-render del server (misma razón que moveOrderToTable: la
-    // grid de ambas mesas debe reflejar el cambio).
-    setMoveItemTarget(null);
-    setOpen(false);
-    startTx(() => router.refresh());
+    setMoveItemErr(null);
+    try {
+      const r = await fetch(`/api/operator/order-items/${itemId}/move`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetTableId }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setMoveItemErr(moveErrorMessage(j.error));
+        return;
+      }
+      // El plato se fue a otra mesa; cerramos picker + sheet y forzamos
+      // el re-render del server (misma razón que moveOrderToTable: la
+      // grid de ambas mesas debe reflejar el cambio).
+      setMoveItemTarget(null);
+      setOpen(false);
+      startTx(() => router.refresh());
+    } catch {
+      setMoveItemErr(tr("moveItemFailed"));
+    }
   }
 
   async function cancelItem(
@@ -993,7 +1018,7 @@ export function TableDetailSheet({
                   orderStatus !== "cancelled";
               const canAdd =
                 isMeseroView || (tenantSlug && qrToken);
-              const canMove = !manual && freeTables.length > 0;
+              const canMove = !manual && !moveLocked && freeTables.length > 0;
               // Línea libre: mientras la cuenta siga abierta. En cobro no —
               // el comensal ya está viendo un total que dejaría de ser cierto
               // (el backend también lo rechaza).
@@ -1151,6 +1176,11 @@ export function TableDetailSheet({
                       {tr("moveToTable")}
                     </button>
                   )}
+                  {!manual && isMeseroView && moveLocked && (
+                    <p className="text-xs text-op-muted leading-relaxed">
+                      {tr("moveAdminOnly")}
+                    </p>
+                  )}
                   {canCancelOrder && (
                     <button
                       type="button"
@@ -1300,7 +1330,7 @@ export function TableDetailSheet({
                                 el plato conserva su estado y no vuelve
                                 a entrar a cocina. El plato puede
                                 unirse a una mesa ocupada. */}
-                            {!manual && allTables.length > 0 && (
+                            {!manual && !moveLocked && allTables.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1530,7 +1560,7 @@ export function TableDetailSheet({
         />
       )}
 
-      {showMoveSheet && (
+      {showMoveSheet && !moveLocked && (
         <MoveTableSheet
           sourceTableNumber={tableNumber}
           freeTables={freeTables}
@@ -1567,7 +1597,7 @@ export function TableDetailSheet({
         />
       )}
 
-      {moveItemTarget && (
+      {moveItemTarget && !moveLocked && (
         <MoveItemSheet
           itemName={moveItemTarget.name}
           allTables={allTables}

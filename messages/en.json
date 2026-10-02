@@ -1748,7 +1748,10 @@
     "prebillBack": "Back to Tables",
     "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items.",
     "prebillQty": "{qty}x",
-    "prebillQtyUnit": "{qty} x {unit}"
+    "prebillQtyUnit": "{qty} x {unit}",
+    "moveAdminOnly": "Only an administrator can move dishes or orders between tables.",
+    "moveOrderSameTable": "The bill is already at that table.",
+    "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order."
   },
   "browserPrint": {
     "preparing": "Preparing to print…",
@@ -2053,8 +2056,8 @@
     "badgeTranslate": "Translate",
     "cardDevicesTitle": "Card readers",
     "cardDevicesSubtitle": "Assign each Smart POS to the waiter who carries it",
-    "cardPoliciesTitle": "Tips and shifts",
-    "cardPoliciesSubtitle": "Shared or per waiter. Single venue shift or per waiter.",
+    "cardPoliciesTitle": "Permissions, tips and shifts",
+    "cardPoliciesSubtitle": "Choose who takes payments and moves orders, how tips are shared and how shifts work.",
     "cardMeserosTitle": "Tables by waiter",
     "cardMeserosSubtitle": "Assign each waiter their section of the floor",
     "cardStationsTitle": "Prep stations",
@@ -2173,7 +2176,7 @@
     "datafonosSaveFailed": "We couldn't save.",
     "datafonosSaved": "Saved.",
     "policiesTitle": "Operating policies",
-    "policiesIntro": "Define how tips are split, how shifts are counted, and when the system considers a table at risk of leaving without paying.",
+    "policiesIntro": "Set team permissions, tip distribution, shifts and alerts for tables awaiting payment.",
     "policiesTipsKicker": "Tips",
     "policiesTipsQuestion": "How are tips split?",
     "policiesTipsSharedTitle": "Shared",
@@ -2298,7 +2301,14 @@
     "badgePrintersEmpty": "Set up",
     "badgePrintersOffline": "Not responding",
     "badgePrintersOk": "{count, plural, one {# printer} other {# printers}}",
-    "badgePrintersMissing": "Printing on, no printer"
+    "badgePrintersMissing": "Printing on, no printer",
+    "policiesTableMoveKicker": "Table permissions",
+    "policiesTableMoveQuestion": "Who can move dishes and orders between tables?",
+    "policiesTableMoveIntro": "This setting applies to both individual dishes and entire orders.",
+    "policiesTableMoveAdminTitle": "Administrators only",
+    "policiesTableMoveAdminSubtitle": "Waiters must ask an administrator to make the move.",
+    "policiesTableMoveWaitersTitle": "Administrators and waiters",
+    "policiesTableMoveWaitersSubtitle": "Waiters can move dishes and orders between tables in their section."
   },
   "opTranslations": {
     "noRestaurant": "No restaurant.",

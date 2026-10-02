@@ -243,7 +243,8 @@
     "tipPreviewTip": "Propina {pct} %",
     "tipPreviewTotal": "Total con propina",
     "tipPreviewHint": "La propina es voluntaria; podés cambiarla al pagar.",
-    "tipPreviewSlider": "Ajustar propina"
+    "tipPreviewSlider": "Ajustar propina",
+    "preparedCancellationAdminOnly": "La preparación ya empezó. Pide ayuda al administrador para cancelar este plato."
   },
   "pay": {
     "pay": "Pagar",
@@ -445,7 +446,8 @@
     "creditErr_customer_not_found": "No encontramos ese cliente.",
     "creditErr_mesero_no_shift": "No tienes turno abierto. Abre tu turno para cobrar.",
     "creditErr_charge_admin_only": "Solo el administrador puede cobrar en este comercio.",
-    "creditErr_generic": "No pudimos registrar el cobro a crédito."
+    "creditErr_generic": "No pudimos registrar el cobro a crédito.",
+    "preparedCancellationAdminOnly": "Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía."
   },
   "done": {
     "methodCard": "Tarjeta",
@@ -1197,7 +1199,8 @@
     "soundToggleHint": "Pitido cuando entra un pedido nuevo",
     "soundTest": "Probar sonido",
     "soundUnlock": "Tocá la pantalla para activar el sonido de pedidos nuevos",
-    "soundUnsupported": "Este navegador no puede reproducir el sonido de pedidos nuevos"
+    "soundUnsupported": "Este navegador no puede reproducir el sonido de pedidos nuevos",
+    "preparedCancellationAdminOnly": "La preparación ya empezó. Solo el administrador puede cancelar este plato."
   },
   "serve": {
     "noRestaurant": "Sin restaurante.",
@@ -1751,7 +1754,8 @@
     "prebillQtyUnit": "{qty} x {unit}",
     "moveAdminOnly": "Solo el administrador puede mover platos o pedidos entre mesas.",
     "moveOrderSameTable": "La cuenta ya está en esa mesa.",
-    "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido."
+    "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido.",
+    "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato."
   },
   "browserPrint": {
     "preparing": "Preparando impresión…",
@@ -6987,7 +6991,8 @@
     "comp_not_allowed": "Tu rol no tiene permiso para no cobrar. Pídeselo al administrador.",
     "generic": "No se pudo completar la operación. Actualiza e intenta de nuevo.",
     "pending_payment_in_flight": "Hay un pago con {method} por {amount} esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma.",
-    "pending_payment_in_flight_generic": "Hay un pago en línea esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma."
+    "pending_payment_in_flight_generic": "Hay un pago en línea esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma.",
+    "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó."
   },
   "pendingPayment": {
     "requestKicker": "El comensal pidió pagar con",

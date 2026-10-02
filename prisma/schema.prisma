@@ -1632,6 +1632,9 @@ model OrderItem {
   // (remaining = prepMinutesSnapshot - (now - preparationStartedAt)).
   // Survives page reloads so the countdown picks up where it left off.
   preparationStartedAt DateTime?
+  // Irreversible history for cancellation permissions, independent of the
+  // restartable KDS timer. Preserved when a dish moves to another table.
+  preparationFirstStartedAt DateTime?
   servedAt             DateTime?
 
   // "Apurar" — el mesero / operador marca un plato como urgente

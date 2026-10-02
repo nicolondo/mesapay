@@ -28,7 +28,10 @@ export function CancelItemButton({
     );
     setBusy(false);
     if (!res.ok) {
-      if (res.status === 409) {
+      const body = await res.json().catch(() => null);
+      if (body?.error === "cancellation_admin_required") {
+        setErr(t("preparedCancellationAdminOnly"));
+      } else if (res.status === 409) {
         setErr(t("errCancelTaken"));
       } else {
         setErr(t("errCancelGeneric"));
@@ -61,6 +64,7 @@ export function CancelItemButton({
         >
           {t("no")}
         </button>
+        {err && <span role="alert" className="text-[11px] text-danger">{err}</span>}
       </div>
     );
   }

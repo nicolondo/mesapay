@@ -12,6 +12,7 @@ import { computeRoundEtas, type EtaRoundInput } from "@/lib/eta";
 import { EtaBadge, OrderEta } from "./EtaBadge";
 import { RatingInline } from "./RatingInline";
 import { CancelItemButton } from "./CancelItemButton";
+import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { CallWaiterButton } from "./CallWaiterButton";
 import { TipPreview } from "./TipPreview";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
@@ -308,7 +309,7 @@ export default async function OrderView({
                           {fmtCOP(li.priceCentsSnapshot * li.qty)}
                         </div>
                       </div>
-                      {li.kitchenStatus === "placed" && !li.servedAt && (
+                      {!isCancelled && li.kitchenStatus === "placed" && !hasPreparationStarted(li, order.table.kind) && (
                         <div className="mt-1.5">
                           <CancelItemButton
                             orderItemId={li.id}

@@ -54,6 +54,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { PATCH } from "./route";
+import { CancellationPermissionError } from "@/lib/orders/cancellationPolicy";
 
 const patch = (body: Record<string, unknown>) =>
   PATCH(
@@ -143,16 +144,14 @@ describe("PATCH /order-items/[id] — no cobrar (kind=comp) por rol", () => {
     });
   });
 
-  it("deja pasar al mesero cuando el comercio lo puso en la lista", async () => {
+  it("la lista de cortesías no permite al mesero anular un plato servido", async () => {
     asRole("mesero");
     m.restaurantFindUnique.mockResolvedValue({
       compAllowedRoles: ["operator", "mesero"],
     });
-    const res = await patch(comp);
-    expect(res.status).toBe(200);
-    expect(m.txItemUpdate.mock.calls[0][0].data).toMatchObject({
-      cancellationKind: "comp",
-    });
+    await expect(patch(comp)).rejects.toThrow(CancellationPermissionError);
+    expect(m.txItemUpdate).not.toHaveBeenCalled();
+    expect(m.recordAuditEvent).not.toHaveBeenCalled();
   });
 
   it("con la lista vacía ni el administrador puede", async () => {

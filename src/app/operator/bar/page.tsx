@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { getTranslations } from "next-intl/server";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -30,6 +31,7 @@ export default async function BarPage({
   searchParams: Promise<{ sub?: string }>;
 }) {
   const t = await getTranslations("kitchen");
+  const session = await auth();
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -93,6 +95,7 @@ export default async function BarPage({
         />
       )}
       <KitchenBoard
+        viewerRole={session?.user?.role ?? null}
         mode="bar"
         serverNow={serverNowMs}
         soundScope={activeSub ?? ""}
@@ -110,6 +113,7 @@ export default async function BarPage({
           id: r.order.id,
           shortCode: r.order.shortCode,
           tableNumber: r.order.table.number,
+          tableKind: r.order.table.kind,
           servingMode: r.order.servingMode,
           orderType: r.order.orderType as "dineIn" | "pickup",
           pickupName: r.order.pickupName,
@@ -118,6 +122,7 @@ export default async function BarPage({
         },
         items: r.items.map((i) => ({
           id: i.id,
+          menuItemId: i.menuItemId,
           qty: i.qty,
           name: i.nameSnapshot,
           modifiers: formatItemSelections(
@@ -132,6 +137,7 @@ export default async function BarPage({
           preparationStartedAt: i.preparationStartedAt
             ? i.preparationStartedAt.toISOString()
             : null,
+          preparationFirstStartedAt: i.preparationFirstStartedAt?.toISOString() ?? null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
           expediteRequestedAt: i.expediteRequestedAt
             ? i.expediteRequestedAt.toISOString()

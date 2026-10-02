@@ -9,7 +9,8 @@ import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
 import { resolvePlacedBy, roundPlacedByData } from "@/lib/orders/placedBy";
 import { getLocale } from "next-intl/server";
-import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
+import { lockOrder } from "@/lib/orderLock";
+import { recomputeOrderLinesInTx, requireMutableOrderInTx } from "@/lib/orders";
 import { publishOrderEvent } from "@/lib/events";
 import { recordAuditEvent } from "@/lib/auditLog";
 import {
@@ -146,30 +147,69 @@ async function POSTHandler(
   }
 
   const sourceOrderId = item.orderId;
-  const sourceRoundId = item.roundId;
-  const locale = item.order.locale ?? (await getLocale());
-  const now = new Date();
-  // El plato conserva kitchenStatus / preparationStartedAt / servedAt: mover
-  // no es re-pedir. La ronda destino se crea espejando ese estado para que la
-  // comanda no se vuelva a disparar en la mesa nueva.
-  const roundState = destinationRoundState(item, now);
+  const fallbackLocale = await getLocale();
 
-  const destOrderId = await db.$transaction(async (tx) => {
-    const dest =
-      liveTargetOrder ??
-      (await tx.order.create({
-        data: {
-          restaurantId,
-          tableId: target.id,
-          // La cuenta nueva arranca en el estado del plato que la abre: si
-          // llega un plato ya servido no tiene sentido nacer en "placed".
-          status: roundState.status,
-          shortCode: shortCode(),
-          servingMode: item.order.servingMode,
-          locale,
-        },
-        select: { id: true, status: true },
-      }));
+  const result = await db.$transaction(async (tx) => {
+    // Serializar los movimientos del comercio también cubre dos solicitudes
+    // hacia una mesa sin cuenta. Los bloqueos de Order son los mismos que
+    // utilizan cocina, cancelaciones y pagos; siempre se toman ordenados.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`order-item-move:${restaurantId}`}, 0))`;
+    const candidate = await tx.order.findFirst({
+      where: { restaurantId, tableId: target.id, status: { notIn: ["paid", "cancelled"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    const orderIds = [...new Set([sourceOrderId, ...(candidate ? [candidate.id] : [])])].sort();
+    for (const orderId of orderIds) await lockOrder(tx, orderId);
+
+    // El snapshot de fuera de la transacción sólo sirve para localizar los
+    // bloqueos: otro request pudo preparar, cancelar o mover este plato.
+    const current = await tx.orderItem.findUnique({
+      where: { id },
+      include: { order: { include: { table: true } }, round: true },
+    });
+    if (!current || current.orderId !== sourceOrderId || current.order.restaurantId !== restaurantId) {
+      return { error: "operation_conflict", status: 409 } as const;
+    }
+    const currentTarget = await tx.order.findFirst({
+      where: { restaurantId, tableId: target.id, status: { notIn: ["paid", "cancelled"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true },
+    });
+    if (currentTarget?.id !== candidate?.id) {
+      // No adquirir una tercera cuenta fuera de orden: reintentar con el
+      // destino actual evita tanto un deadlock como mover hacia otra cuenta.
+      return { error: "operation_conflict", status: 409 } as const;
+    }
+    if (current.order.table.kind === "manual") {
+      return { error: "manual_invoice", status: 409 } as const;
+    }
+    const currentGate = checkMoveAllowed({
+      itemCancelled: !!current.cancelledAt || current.round?.status === "cancelled",
+      sourceStatus: current.order.status,
+      sourceTableId: current.order.tableId,
+      targetTableId: target.id,
+      targetStatus: currentTarget?.status ?? null,
+    });
+    if (!currentGate.ok) {
+      return { error: currentGate.reason, status: currentGate.reason === "same_table" ? 400 : 409 } as const;
+    }
+    await requireMutableOrderInTx(tx, sourceOrderId);
+    if (currentTarget) await requireMutableOrderInTx(tx, currentTarget.id);
+
+    const sourceRoundId = current.roundId;
+    const roundState = destinationRoundState(current, new Date());
+    const dest = currentTarget ?? await tx.order.create({
+      data: {
+        restaurantId,
+        tableId: target.id,
+        status: roundState.status,
+        shortCode: shortCode(),
+        servingMode: current.order.servingMode,
+        locale: current.order.locale ?? fallbackLocale,
+      },
+      select: { id: true, status: true },
+    });
 
     // seq = max + 1, no count + 1: las rondas se pueden borrar (ver el
     // DELETE de tenant order-items y la limpieza de abajo), y con count
@@ -225,33 +265,26 @@ async function POSTHandler(
         },
       });
     }
-    return dest.id;
-  });
-
-  // Recomputar subtotales de AMBAS cuentas (idempotente). Sin esto la cuenta
-  // origen sigue cobrando un plato que ya no tiene y la destino regala el que
-  // recibió. Los gates de arriba garantizan que ninguna esté en cobro, que es
-  // justo el caso en que esta función se niega a escribir.
-  await syncOrderSubtotalFromLiveItems(sourceOrderId);
-  await syncOrderSubtotalFromLiveItems(destOrderId);
-
-  // Si la cuenta origen quedó sin platos vivos, se cierra y libera la mesa.
-  const liveLeft = await db.orderItem.count({
-    where: {
-      orderId: sourceOrderId,
-      cancelledAt: null,
-      OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
-    },
-  });
-  if (liveLeft === 0) {
-    await db.order.updateMany({
+    // Los importes y el cierre de origen forman parte del movimiento. Un
+    // pago no puede observar el plato ya movido con el total anterior.
+    await recomputeOrderLinesInTx(tx, sourceOrderId);
+    await recomputeOrderLinesInTx(tx, dest.id);
+    const liveLeft = await tx.orderItem.count({
       where: {
-        id: sourceOrderId,
-        status: { notIn: ["paid", "paying", "cancelled"] },
+        orderId: sourceOrderId,
+        cancelledAt: null,
+        OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
       },
-      data: { status: "cancelled" },
     });
+    if (liveLeft === 0) {
+      await tx.order.update({ where: { id: sourceOrderId }, data: { status: "cancelled" } });
+    }
+    return { destOrderId: dest.id, sourceTableNumber: current.order.table.number } as const;
+  });
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
+  const { destOrderId, sourceTableNumber } = result;
 
   // Mover plata entre cuentas es sensible: queda en la bitácora igual que el
   // cancel / comp de platos.
@@ -259,9 +292,9 @@ async function POSTHandler(
     kind: "order_item.move",
     restaurantId,
     target: { type: "order_item", id: item.id },
-    summary: `Movió ${item.qty}× ${item.nameSnapshot} de Mesa ${item.order.table.number} a Mesa ${target.number}`,
+    summary: `Movió ${item.qty}× ${item.nameSnapshot} de Mesa ${sourceTableNumber} a Mesa ${target.number}`,
     diff: {
-      before: { orderId: sourceOrderId, tableNumber: item.order.table.number },
+      before: { orderId: sourceOrderId, tableNumber: sourceTableNumber },
       after: { orderId: destOrderId, tableNumber: target.number },
     },
   });

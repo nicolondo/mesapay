@@ -1,6 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { staffForRestaurant, COLLECTOR_ROLES } from "@/lib/staffAccess";
 import { lockOrder } from "@/lib/orderLock";
+import { assertCancellationAllowed } from "@/lib/orders/cancellationPolicy";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -62,7 +63,7 @@ async function POSTHandler(
   const role = session?.user?.role;
   const staff =
     !!session?.user &&
-    (role === "operator" || role === "mesero" || role === "platform_admin");
+    (role === "operator" || role === "mesero" || role === "platform_admin" || role === "group_admin");
   if (!staff) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
@@ -109,7 +110,7 @@ async function POSTHandler(
 
   const result = await db.$transaction(async (tx) => {
     await lockOrder(tx, order.id);
-    const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    const current = await tx.order.findUniqueOrThrow({ where: { id: order.id }, include: { table: { select: { kind: true } } } });
     if (["paid", "cancelled"].includes(current.status)) return null;
     // Una cuenta con algo ya cobrado no se regala.
     const approved = await tx.payment.count({ where: { orderId: order.id, status: "approved" } });
@@ -125,8 +126,13 @@ async function POSTHandler(
         cancelledAt: null,
         OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
       },
-      select: { id: true, qty: true, priceCentsSnapshot: true },
+      select: {
+        id: true, qty: true, priceCentsSnapshot: true,
+        menuItemId: true, kitchenStatus: true, servedAt: true,
+        preparationStartedAt: true, preparationFirstStartedAt: true,
+      },
     });
+    assertCancellationAllowed(role, items, current.table.kind);
     const compAmountCents = items.reduce(
       (s, i) => s + i.priceCentsSnapshot * i.qty,
       0,

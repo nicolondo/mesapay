@@ -18,6 +18,10 @@ import { roleLabelKey } from "@/lib/orders/placedBy";
 import type { CompPolicyView } from "@/lib/staffPolicies";
 import { TABLE_MOVE_ADMIN_ONLY_ERROR } from "@/lib/tableMoveControl";
 import {
+  cancellationRequiresAdmin,
+  hasPreparationStarted,
+} from "@/lib/orders/cancellationPolicy";
+import {
   BrowserPrintStatus,
   browserPrintStateFrom,
   type BrowserPrintState,
@@ -43,11 +47,13 @@ type FreeLineTaxChoice = "none" | "inc" | "iva" | "included";
 
 type ItemDetail = {
   id: string;
+  menuItemId: string | null;
   name: string;
   qty: number;
   priceCents: number;
   kitchenStatus: "placed" | "in_kitchen" | "ready";
   preparationStartedAt: string | null;
+  preparationFirstStartedAt: string | null;
   servedAt: string | null;
   expediteRequestedAt: string | null;
   guestName: string | null;
@@ -137,6 +143,7 @@ export function TableDetailSheet({
   chargeLocked,
   moveLocked,
   compPolicy,
+  viewerRole = null,
   manual = false,
   invoiceRequest = null,
   pendingPayments = [],
@@ -218,6 +225,7 @@ export function TableDetailSheet({
   // sí puede. El servidor lo rebota igual (src/lib/compGuard.ts). Sin prop
   // ⇒ no se bloquea nada en la UI (back-compat).
   compPolicy?: CompPolicyView;
+  viewerRole?: string | null;
   // FACTURA MANUAL: la cuenta vive en una mesa oculta (`kind = manual`) y
   // nada pasa por cocina — los platos nacen servidos como sello técnico.
   // La ficha entonces no ofrece mover (ni la cuenta ni un plato), trata
@@ -470,11 +478,11 @@ export function TableDetailSheet({
       // El backend rechaza si cocina ya empezó — surface el motivo
       // específico en vez de un alert genérico.
       const body = await res.json().catch(() => null);
-      const msg =
-        body?.message ??
-        (body?.error === "kitchen_started"
+      const msg = body?.error === "cancellation_admin_required"
+        ? tr("preparedCancellationAdminOnly")
+        : body?.error === "kitchen_started"
           ? tr("cancelOrderKitchenStarted")
-          : tr("cancelOrderFailed"));
+          : tr("cancelOrderFailed");
       window.alert(msg);
       return;
     }
@@ -604,12 +612,13 @@ export function TableDetailSheet({
       // 403 comp_not_allowed: el rol no está entre los que pueden no cobrar
       // (la política cambió con el sheet abierto, o alguien forzó el botón).
       const msg =
-        body?.error === "comp_not_allowed"
-          ? `${tr("compNotAllowedError")} ${compOnlyNote}`
-          : (body?.message ??
-            (kind === "comp"
+        body?.error === "cancellation_admin_required"
+          ? tr("preparedCancellationAdminOnly")
+          : body?.error === "comp_not_allowed"
+            ? `${tr("compNotAllowedError")} ${compOnlyNote}`
+            : kind === "comp"
               ? tr("compItemFailed")
-              : tr("cancelItemFailed")));
+              : tr("cancelItemFailed");
       alert(msg);
       return;
     }
@@ -1001,7 +1010,8 @@ export function TableDetailSheet({
               const allItemsStillPlaced = rounds
                 .filter((r) => r.status !== "cancelled")
                 .flatMap((r) => r.items)
-                .every((i) => i.kitchenStatus === "placed");
+                .every((i) => i.kitchenStatus === "placed" &&
+                  !hasPreparationStarted(i, manual ? "manual" : undefined));
               const hasAnyLiveItem = rounds
                 .filter((r) => r.status !== "cancelled")
                 .some((r) => r.items.length > 0);
@@ -1015,7 +1025,8 @@ export function TableDetailSheet({
                 : hasAnyLiveItem &&
                   allItemsStillPlaced &&
                   orderStatus !== "paid" &&
-                  orderStatus !== "cancelled";
+                  orderStatus !== "cancelled" &&
+                  orderStatus !== "paying";
               const canAdd =
                 isMeseroView || (tenantSlug && qrToken);
               const canMove = !manual && !moveLocked && freeTables.length > 0;
@@ -1345,14 +1356,9 @@ export function TableDetailSheet({
                                 {tr("moveItem")}
                               </button>
                             )}
-                            {/* Cancelar — solo si el item está en
-                                "placed" (todavía no entró a cocina).
-                                Una vez que cocina lo empieza, la
-                                cancelación tiene que pasar por la
-                                cocina (rinde cuenta de insumos /
-                                tiempo) — no desde la app del mesero.
-                                Ready / servido tampoco se cancelan
-                                desde acá. */}
+                            {/* Después de empezar, sólo el administrador puede
+                                cancelar o dejar de cobrar; conservar el historial
+                                también protege los platos devueltos a "placed". */}
                             {/* Cancelar vs No cobrar — el botón
                                 depende del estado del plato:
                                   - !servedAt → "Cancelar" (kind=cancel).
@@ -1368,7 +1374,21 @@ export function TableDetailSheet({
                                 cocina): quitarlo es cancelarlo, no una
                                 cortesía. El servidor aplica el mismo
                                 criterio. */}
-                            {manual || !it.servedAt ? (
+                            {cancellationRequiresAdmin(viewerRole, it, manual ? "manual" : undefined) ? (
+                              <div className="max-w-[210px] text-right">
+                                <button
+                                  type="button"
+                                  disabled
+                                  title={tr("preparedCancellationAdminOnly")}
+                                  className="font-mono text-[10px] tracking-wider uppercase text-op-muted/60 px-2 py-1 rounded-full cursor-not-allowed"
+                                >
+                                  {manual || !it.servedAt ? tr("cancelItem") : tr("compItem")}
+                                </button>
+                                <p className="text-[11px] leading-snug text-op-muted">
+                                  {tr("preparedCancellationAdminOnly")}
+                                </p>
+                              </div>
+                            ) : manual || !it.servedAt ? (
                               <button
                                 type="button"
                                 onClick={() =>

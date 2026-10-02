@@ -6,6 +6,9 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { lockOrder } from "@/lib/orderLock";
+import { requireMutableOrderInTx } from "@/lib/orders";
+import { assertCancellationAllowed, hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 
 const schema = z.object({
   status: z.enum(["served", "cancelled"]),
@@ -60,38 +63,30 @@ async function PATCHHandler(
   //      order → status cancelled. Todo en una transacción.
   //   3. Graba audit event.
   if (parsed.data.status === "cancelled") {
-    const liveItems = await db.orderItem.findMany({
-      where: { orderId: order.id, cancelledAt: null },
-      select: { id: true, kitchenStatus: true, nameSnapshot: true, qty: true },
-    });
-    // En una FACTURA MANUAL (mesa `manual`) nada pasa por cocina: los
-    // ítems nacen "ready" como sello técnico, así que el gate no aplica y
-    // la factura se descarta entera, tenga o no ítems.
-    const kitchenStarted =
-      order.table.kind !== "manual" &&
-      liveItems.some((i) => i.kitchenStatus !== "placed");
-    if (kitchenStarted) {
-      return NextResponse.json(
-        {
-          error: "kitchen_started",
-          message:
-            "Cocina ya empezó algún plato. Cancelá / no cobres plato por plato con motivo.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const reason = "Orden completa cancelada";
-    await db.$transaction([
-      db.orderItem.updateMany({
+    const result = await db.$transaction(async (tx) => {
+      // Kitchen, payments and cancellations serialize on the same order.
+      const current = await requireMutableOrderInTx(tx, order.id);
+      const table = await tx.table.findUniqueOrThrow({ where: { id: current.tableId }, select: { kind: true } });
+      const liveItems = await tx.orderItem.findMany({
+        where: { orderId: order.id, cancelledAt: null, OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }] },
+      });
+      assertCancellationAllowed(session.user.role, liveItems, table.kind);
+      // Administrators still resolve prepared dishes individually, with
+      // a reason and comp/cancel accounting, rather than erase the bill.
+      if (liveItems.some((item) => hasPreparationStarted(item, table.kind))) {
+        return { kitchenStarted: true as const };
+      }
+      const reason = "Orden completa cancelada";
+      await tx.orderItem.updateMany({
         where: { orderId: order.id, cancelledAt: null },
         data: {
           cancelledAt: now,
           cancellationReason: reason,
           cancelledByEmail: session.user.email,
+          cancellationKind: "cancel",
         },
-      }),
-      db.round.updateMany({
+      });
+      await tx.round.updateMany({
         where: { orderId: order.id, status: { not: "cancelled" } },
         data: {
           status: "cancelled",
@@ -103,24 +98,27 @@ async function PATCHHandler(
           cancellationAckedAt: now,
           cancellationAckedByEmail: session.user.email,
         },
-      }),
-      db.order.update({
+      });
+      await tx.order.update({
         where: { id: order.id },
         data: {
           status: "cancelled",
           subtotalCents: 0,
+          taxCents: 0,
           totalCents: 0,
         },
-      }),
-    ]);
+      });
+      return { kitchenStarted: false as const, itemsCount: liveItems.length, previousStatus: current.status };
+    });
+    if (result.kitchenStarted) return NextResponse.json({ error: "kitchen_started" }, { status: 409 });
 
     await recordAuditEvent({
       kind: "order.cancel",
       restaurantId: order.restaurantId,
       target: { type: "order", id: order.id },
-      summary: `Canceló orden ${order.shortCode} (${liveItems.length} ${liveItems.length === 1 ? "ítem" : "ítems"})`,
+      summary: `Canceló orden ${order.shortCode} (${result.itemsCount} ${result.itemsCount === 1 ? "ítem" : "ítems"})`,
       diff: {
-        before: { itemsCount: liveItems.length, status: order.status },
+        before: { itemsCount: result.itemsCount, status: result.previousStatus },
         after: { status: "cancelled" },
       },
     });
@@ -136,12 +134,20 @@ async function PATCHHandler(
   // status === "served" — marca la orden entera como servida. Sin
   // cascadear porque ese flow lo maneja Salón ítem-por-ítem; este
   // path es legacy y casi no se usa.
-  await db.order.update({
-    where: { id: order.id },
-    data: {
-      status: "served",
-      servedAt: now,
-    },
+  await db.$transaction(async (tx) => {
+    await lockOrder(tx, order.id);
+    const current = await tx.order.findUniqueOrThrow({ where: { id: order.id }, include: { table: { select: { kind: true } } } });
+    if (["paid", "paying", "cancelled"].includes(current.status)) throw new Error("order_closed");
+    if (current.table.kind !== "manual") {
+      // Legacy whole-order service also counts as delivery. A later status
+      // reset must not let staff remove the dishes from the bill.
+      await tx.orderItem.updateMany({
+        where: { orderId: order.id, cancelledAt: null, menuItemId: { not: null }, preparationFirstStartedAt: null,
+          OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }] },
+        data: { preparationFirstStartedAt: now },
+      });
+    }
+    await tx.order.update({ where: { id: order.id }, data: { status: "served", servedAt: now } });
   });
 
   publishOrderEvent(order.restaurantId, {

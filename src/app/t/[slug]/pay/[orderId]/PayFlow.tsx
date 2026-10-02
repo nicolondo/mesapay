@@ -20,6 +20,7 @@ import { loadCustomerCreditSummary } from "@/lib/customerCredit";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
 import type { PayCustomer } from "./PayClient";
 import { canCompOrders } from "@/lib/staffPolicies";
+import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -97,6 +98,7 @@ export async function PayFlow({
     !!session?.user &&
     (session.user.role === "operator" ||
       session.user.role === "platform_admin" ||
+      session.user.role === "group_admin" ||
       session.user.role === "mesero");
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
@@ -113,7 +115,13 @@ export async function PayFlow({
       // El resumen del cobro (y el OrderItem.guestName aggregator)
       // solo deben ver items vivos — un plato cancelado no aporta a
       // lo que el cliente paga.
-      items: { where: { cancelledAt: null }, orderBy: { id: "asc" } },
+      items: {
+        where: {
+          cancelledAt: null,
+          OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+        },
+        orderBy: { id: "asc" },
+      },
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
@@ -204,6 +212,10 @@ export async function PayFlow({
       ])
     : [0, 0, null];
 
+  const compAdminRequired = operatorMode && tenant.compEnabled &&
+    canCompOrders(session?.user?.role, tenant.compAllowedRoles) &&
+    order.items.some((item) => cancellationRequiresAdmin(session?.user?.role, item, order.table.kind));
+
   // Una factura manual no tiene mesa que nombrar en el encabezado del cobro.
   const tMenu = await getTranslations("menu");
 
@@ -222,8 +234,10 @@ export async function PayFlow({
       compEnabled={
         operatorMode &&
         tenant.compEnabled &&
-        canCompOrders(session?.user?.role, tenant.compAllowedRoles)
+        canCompOrders(session?.user?.role, tenant.compAllowedRoles) &&
+        !compAdminRequired
       }
+      compAdminRequired={compAdminRequired}
       compLabel={tenant.compLabel}
       tenantSlug={slug}
       tenantName={tenant.name}

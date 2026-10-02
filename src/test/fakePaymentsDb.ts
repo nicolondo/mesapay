@@ -25,6 +25,7 @@ export type FakeOrder = {
   totalCents: number;
   paidAt: Date | null;
   tableId: string | null;
+  table?: { kind: string };
   dinerId: string | null;
   locale: string;
 };

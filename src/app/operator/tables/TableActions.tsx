@@ -22,6 +22,7 @@ export function TableActions({
   tenantSlug,
   status,
   outstandingCents,
+  canCancelOrder = false,
 }: {
   orderId: string;
   tenantSlug: string;
@@ -29,6 +30,8 @@ export function TableActions({
   // What's left to pay (subtotal - approved food paid). When zero,
   // there's nothing to charge — hide the Cobrar CTA.
   outstandingCents: number;
+  /** Derived from live items, including preparation history, by the server. */
+  canCancelOrder?: boolean;
 }) {
   const t = useTranslations("opTables");
   const router = useRouter();
@@ -46,7 +49,12 @@ export function TableActions({
     });
     setBusy(false);
     if (!res.ok) {
-      alert(t("actionsCancelFailed"));
+      const body = await res.json().catch(() => null);
+      alert(body?.error === "cancellation_admin_required"
+        ? t("preparedCancellationAdminOnly")
+        : body?.error === "kitchen_started"
+          ? t("cancelOrderKitchenStarted")
+          : t("actionsCancelFailed"));
       return;
     }
     startTx(() => router.refresh());
@@ -56,7 +64,7 @@ export function TableActions({
   // Once the kitchen has plated it (ready) or the waiter dropped it
   // off (served), the cost is sunk and cancellation would just create
   // accounting noise.
-  const canCancel = status === "placed" || status === "in_kitchen";
+  const canCancel = canCancelOrder && !["paid", "paying", "cancelled"].includes(status);
   // Charging makes sense any time there's still something to collect
   // — typically when the table is served, but a waiter may want to
   // pre-charge or settle mid-meal too.

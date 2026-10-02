@@ -69,6 +69,8 @@ async function GETHandler(
       placedByRole: r.placedByRole,
       items: r.items.map((i) => ({
         id: i.id,
+        menuItemId: i.menuItemId,
+        preparationFirstStartedAt: i.preparationFirstStartedAt?.toISOString() ?? null,
         name: i.nameSnapshot,
         qty: i.qty,
         priceCents: i.priceCentsSnapshot,

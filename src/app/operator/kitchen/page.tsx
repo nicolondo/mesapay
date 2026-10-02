@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function KitchenPage() {
   const t = await getTranslations("kitchen");
+  const session = await auth();
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -47,6 +49,7 @@ export default async function KitchenPage() {
 
   return (
     <KitchenBoard
+      viewerRole={session?.user?.role ?? null}
       tenantSlug={tenant!.slug}
       serverNow={serverNowMs}
       serviceMode={tenant!.serviceMode}
@@ -62,6 +65,7 @@ export default async function KitchenPage() {
           id: r.order.id,
           shortCode: r.order.shortCode,
           tableNumber: r.order.table.number,
+          tableKind: r.order.table.kind,
           servingMode: r.order.servingMode,
           orderType: r.order.orderType as "dineIn" | "pickup",
           pickupName: r.order.pickupName,
@@ -70,6 +74,7 @@ export default async function KitchenPage() {
         },
         items: r.items.map((i) => ({
           id: i.id,
+          menuItemId: i.menuItemId,
           qty: i.qty,
           name: i.nameSnapshot,
           modifiers: formatItemSelections(
@@ -84,6 +89,7 @@ export default async function KitchenPage() {
           preparationStartedAt: i.preparationStartedAt
             ? i.preparationStartedAt.toISOString()
             : null,
+          preparationFirstStartedAt: i.preparationFirstStartedAt?.toISOString() ?? null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
           // Marca de "apurar" del mesero — el board la pinta como
           // badge urgente. Stringificada para serializarla al cliente.

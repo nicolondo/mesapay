@@ -44,6 +44,7 @@ const h = vi.hoisted(() => {
     restaurantId: "merchant",
     status: "placed",
     tableId: null,
+    table: { kind: "standard" },
     locale: "es",
   });
   const matches = (item: Item, where: Record<string, unknown>) =>

@@ -8,12 +8,14 @@ import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { NewOrderChime } from "./NewOrderChime";
+import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
 
 type Item = {
   id: string;
+  menuItemId: string | null;
   qty: number;
   name: string;
   modifiers: string[];
@@ -27,6 +29,7 @@ type Item = {
   // kitchen board ignores them — cooks mark ready manually.
   prepMinutesSnapshot: number;
   preparationStartedAt: string | null;
+  preparationFirstStartedAt: string | null;
   servedAt: string | null;
   // Apurar: el mesero pulsó "🔥 Apurar" desde Mesas. El kitchen
   // board pinta un badge urgente para que el cocinero priorice.
@@ -47,6 +50,7 @@ type Round = {
     id: string;
     shortCode: string;
     tableNumber: number;
+    tableKind?: string;
     servingMode: "asReady" | "together";
     orderType: "dineIn" | "pickup";
     pickupName: string | null;
@@ -90,6 +94,7 @@ export function KitchenBoard({
   mode: boardMode = "kitchen",
   serverNow,
   soundScope,
+  viewerRole = null,
 }: {
   tenantSlug: string;
   serviceMode: "table" | "counter";
@@ -102,6 +107,7 @@ export function KitchenBoard({
   // Vista actual del tablero (sub-estación del bar). Al cambiarla aparecen
   // rondas que ya existían: el pitido de pedido nuevo no debe sonar por eso.
   soundScope?: string;
+  viewerRole?: string | null;
 }) {
   const tr = useTranslations("kitchen");
   const COLUMNS = boardMode === "bar" ? COLUMNS_BAR : COLUMNS_KITCHEN;
@@ -259,7 +265,9 @@ export function KitchenBoard({
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      throw new Error(j.error ?? "cancel_failed");
+      throw new Error(j.error === "cancellation_admin_required"
+        ? tr("preparedCancellationAdminOnly")
+        : tr("cancelError"));
     }
     setCancellingKey(null);
     startTx(() => router.refresh());
@@ -421,6 +429,11 @@ export function KitchenBoard({
                                 status === "in_kitchen"
                               }
                               nowMs={nowMs}
+                              cancelLocked={cancellationRequiresAdmin(viewerRole, {
+                                ...i,
+                                kitchenStatus: status,
+                                servedAt: served ? i.servedAt ?? new Date(nowMs).toISOString() : null,
+                              }, r.order.tableKind)}
                               cancelOpen={cancellingKey === i.id}
                               onCancelOpen={() => setCancellingKey(i.id)}
                               onCancelClose={() => setCancellingKey(null)}
@@ -517,6 +530,7 @@ function ItemRow({
   showCountdown,
   nowMs,
   cancelOpen,
+  cancelLocked,
   onCancelOpen,
   onCancelClose,
   onCancelConfirm,
@@ -531,6 +545,7 @@ function ItemRow({
   showCountdown: boolean;
   nowMs: number;
   cancelOpen: boolean;
+  cancelLocked: boolean;
   onCancelOpen: () => void;
   onCancelClose: () => void;
   onCancelConfirm: (reason: string, markUnavailable: boolean) => Promise<void>;
@@ -627,7 +642,12 @@ function ItemRow({
     </div>
     {/* Cancelar POR PRODUCTO: cada plato tiene su propio control (presets +
         motivo + "no disponible"). Los ya servidos no se cancelan acá. */}
-    {!served && (
+    {!served && cancelLocked && (
+      <p className="mt-1 text-[11px] leading-snug text-op-muted">
+        {tr("preparedCancellationAdminOnly")}
+      </p>
+    )}
+    {!served && !cancelLocked && (
       <CancelControl
         cardKey={item.id}
         open={cancelOpen}

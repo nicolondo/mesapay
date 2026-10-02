@@ -1,6 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { lockOrder } from "@/lib/orderLock";
-import { recomputeOrderLinesInTx } from "@/lib/orders";
+import { recomputeOrderLinesInTx, requireMutableOrderInTx } from "@/lib/orders";
+import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
@@ -23,7 +24,7 @@ async function DELETEHandler(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
   // Diners can only cancel items the kitchen hasn't touched yet.
-  if (item.kitchenStatus !== "placed") {
+  if (hasPreparationStarted(item)) {
     return NextResponse.json(
       { error: "already_in_kitchen" },
       { status: 409 },
@@ -33,28 +34,31 @@ async function DELETEHandler(
     return NextResponse.json({ error: "order_closed" }, { status: 409 });
   }
 
-  const changed = await db.$transaction(async (tx) => {
+  const outcome = await db.$transaction(async (tx) => {
     await lockOrder(tx, item.orderId);
-    const current = await tx.orderItem.findUnique({ where: { id }, include: { order: true } });
-    if (!current || current.kitchenStatus !== "placed" || ["paid", "cancelled", "paying"].includes(current.order.status)) return false;
+    const current = await tx.orderItem.findUnique({ where: { id }, include: { round: true } });
+    if (!current || current.cancelledAt || current.round?.status === "cancelled") return "order_closed";
+    if (current.orderId !== item.orderId) throw new Error("operation_conflict");
+    if (hasPreparationStarted(current)) return "already_in_kitchen";
+    await requireMutableOrderInTx(tx, current.orderId);
     await tx.orderItem.delete({ where: { id: item.id } });
 
-    if (item.roundId) {
+    if (current.roundId) {
       const remaining = await tx.orderItem.count({
-        where: { roundId: item.roundId },
+        where: { roundId: current.roundId },
       });
       if (remaining === 0) {
-        await tx.round.delete({ where: { id: item.roundId } });
+        await tx.round.delete({ where: { id: current.roundId } });
       }
     }
 
     await recomputeOrderLinesInTx(tx, item.orderId);
     const live = await tx.orderItem.count({ where: { orderId: item.orderId, cancelledAt: null } });
     if (!live) await tx.order.update({ where: { id: item.orderId }, data: { status: "cancelled" } });
-    return true;
+    return null;
   });
 
-  if (!changed) return NextResponse.json({ error: "order_closed" }, { status: 409 });
+  if (outcome) return NextResponse.json({ error: outcome }, { status: 409 });
 
   publishOrderEvent(tenant.id, {
     type: "order.updated",

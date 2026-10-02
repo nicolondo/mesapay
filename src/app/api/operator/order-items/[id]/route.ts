@@ -1,4 +1,5 @@
 import { lockOrder } from "@/lib/orderLock";
+import { assertCancellationAllowed, preparationHistoryData } from "@/lib/orders/cancellationPolicy";
 import { requireMutableOrderInTx, recomputeOrderLinesInTx } from "@/lib/orders";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
@@ -117,9 +118,13 @@ async function PATCHHandler(
       include: { order: { include: { table: { select: { kind: true } } } } },
     });
     const now = new Date();
+    // A concurrent table transfer can move this item after the first read.
+    // Retry against its new order rather than mutate under the old lock.
+    if (currentItem.orderId !== item.orderId) throw new Error("operation_conflict");
 
     if (parsed.data.cancel) {
       await requireMutableOrderInTx(tx, currentItem.orderId);
+      assertCancellationAllowed(session.user.role, [currentItem], currentItem.order.table.kind);
       const kind = parsed.data.cancel.kind ?? "cancel";
       // Gate: kind="cancel" sólo si NO ha sido servido. Para items
       // ya servidos hay que usar kind="comp" (semánticamente
@@ -215,11 +220,10 @@ async function PATCHHandler(
       // regresiva del bar.
       await tx.orderItem.update({
         where: { id: currentItem.id },
-        data: itemKitchenStatusData(
-          currentItem,
-          parsed.data.kitchenStatus,
-          now,
-        ),
+        data: {
+          ...itemKitchenStatusData(currentItem, parsed.data.kitchenStatus, now),
+          ...preparationHistoryData(currentItem, { kitchenStatus: parsed.data.kitchenStatus }, now, currentItem.order.table.kind),
+        },
       });
     }
 
@@ -228,6 +232,7 @@ async function PATCHHandler(
         where: { id: currentItem.id },
         data: {
           servedAt: parsed.data.served ? now : null,
+          ...preparationHistoryData(currentItem, { servedAt: parsed.data.served ? now : null }, now, currentItem.order.table.kind),
           // Serving implies the kitchen finished this one.
           kitchenStatus: parsed.data.served ? "ready" : currentItem.kitchenStatus,
         },

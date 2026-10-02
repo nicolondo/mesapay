@@ -8,6 +8,8 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { publishOrderEvent } from "@/lib/events";
 import { sendPushToMeserosForTable } from "@/lib/push";
+import { assertCancellationAllowed, preparationHistoryData } from "@/lib/orders/cancellationPolicy";
+import { itemKitchenStatusData } from "@/lib/kds/roundStatus";
 
 const schema = z.discriminatedUnion("status", [
   z.object({
@@ -61,7 +63,7 @@ async function PATCHHandler(
 
   await db.$transaction(async (tx) => {
     await lockOrder(tx, round.orderId);
-    const current = await tx.round.findUniqueOrThrow({ where: { id: round.id }, include: { order: true } });
+    const current = await tx.round.findUniqueOrThrow({ where: { id: round.id }, include: { order: { include: { table: { select: { kind: true } } } } } });
     if (current.status === "cancelled") {
       if (parsed.data.status === "cancelled") return;
       throw new Error("order_closed");
@@ -78,6 +80,7 @@ async function PATCHHandler(
       const items = await tx.orderItem.findMany({
         where: { roundId: round.id },
       });
+      assertCancellationAllowed(session.user.role, items.filter((item) => !item.cancelledAt), current.order.table.kind);
       await tx.round.update({
         where: { id: round.id },
         data: {
@@ -148,7 +151,7 @@ async function PATCHHandler(
     };
     // First time moving into the kitchen: stamp the start so ETAs can subtract
     // elapsed cook time. Re-entering from "ready" keeps the original stamp.
-    if (parsed.data.status === "in_kitchen" && !round.kitchenStartedAt) {
+    if (parsed.data.status === "in_kitchen" && !current.kitchenStartedAt) {
       data.kitchenStartedAt = now;
     }
     await tx.round.update({
@@ -158,10 +161,16 @@ async function PATCHHandler(
     // Cascade to all items in the round. The per-item state is the source of
     // truth for the kitchen board; this keeps the bulk "Empezar todo" /
     // "Marcar todo listo" buttons working.
-    await tx.orderItem.updateMany({
-      where: { roundId: round.id },
-      data: { kitchenStatus: parsed.data.status },
-    });
+    const liveItems = await tx.orderItem.findMany({ where: { roundId: round.id, cancelledAt: null } });
+    for (const item of liveItems) {
+      await tx.orderItem.update({
+        where: { id: item.id },
+        data: {
+          ...itemKitchenStatusData(item, parsed.data.status, now),
+          ...preparationHistoryData(item, { kitchenStatus: parsed.data.status }, now, current.order.table.kind),
+        },
+      });
+    }
     // Bubble aggregate status to order: if any round is in_kitchen, order = in_kitchen.
     // If all rounds are ready, order = ready. Don't clobber an already-paid
     // order — counter-mode is prepay so the order hits "paid" before the

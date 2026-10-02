@@ -55,7 +55,7 @@ const ORDER_ID = "order-3";
 
 function seed(payments: Parameters<typeof createFakePaymentsDb>[0]["payments"]) {
   h.fake = createFakePaymentsDb({
-    order: { id: ORDER_ID, status: "paying", subtotalCents: 63_470_000 },
+    order: { id: ORDER_ID, status: "paying", subtotalCents: 63_470_000, table: { kind: "standard" } },
     payments,
     extraTx: {
       orderItem: {

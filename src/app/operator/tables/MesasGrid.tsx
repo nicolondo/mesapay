@@ -115,11 +115,13 @@ type Round = {
 
 type ItemDetail = {
   id: string;
+  menuItemId: string | null;
   name: string;
   qty: number;
   priceCents: number;
   kitchenStatus: "placed" | "in_kitchen" | "ready";
   preparationStartedAt: string | null;
+  preparationFirstStartedAt: string | null;
   servedAt: string | null;
   expediteRequestedAt: string | null;
   guestName: string | null;
@@ -158,6 +160,7 @@ export function MesasGrid({
   chargeLocked,
   moveLocked,
   compPolicy,
+  viewerRole,
   freeTables,
   allTables,
   country,
@@ -184,6 +187,7 @@ export function MesasGrid({
   // Quién puede "No cobrar" un plato: si quien mira está bloqueado y qué
   // roles sí pueden (para el aviso). Ver src/lib/staffPolicies.ts.
   compPolicy: CompPolicyView;
+  viewerRole: string | null;
   freeTables: FreeTable[];
   allTables: AllTable[];
   // País del comercio (ISO-2). Decide qué tarifas de impuesto se le ofrecen a
@@ -356,6 +360,7 @@ export function MesasGrid({
                 chargeLocked={chargeLocked}
                 moveLocked={moveLocked}
                 compPolicy={compPolicy}
+                viewerRole={viewerRole}
               />
             ))}
           </div>
@@ -429,6 +434,7 @@ export function MesasGrid({
               chargeLocked={chargeLocked}
               moveLocked={moveLocked}
               compPolicy={compPolicy}
+              viewerRole={viewerRole}
             />
           );
         })}
@@ -793,6 +799,7 @@ function ManualInvoiceTile({
   chargeLocked,
   moveLocked,
   compPolicy,
+  viewerRole,
 }: {
   tile: ManualTile;
   open: boolean;
@@ -803,6 +810,7 @@ function ManualInvoiceTile({
   chargeLocked: boolean;
   moveLocked: boolean;
   compPolicy: CompPolicyView;
+  viewerRole: string | null;
 }) {
   const tr = useTranslations("opTables");
   // El cliente de la factura (si ya se identificó) es lo que distingue una
@@ -867,6 +875,7 @@ function ManualInvoiceTile({
           chargeLocked={chargeLocked}
           moveLocked={moveLocked}
           compPolicy={compPolicy}
+          viewerRole={viewerRole}
         />
       )}
     </>
@@ -891,6 +900,7 @@ function ActiveTile({
   chargeLocked,
   moveLocked,
   compPolicy,
+  viewerRole,
 }: {
   tile: Extract<TileData, { state: "active" }>;
   counterMode: boolean;
@@ -905,6 +915,7 @@ function ActiveTile({
   chargeLocked: boolean;
   moveLocked: boolean;
   compPolicy: CompPolicyView;
+  viewerRole: string | null;
 }) {
   const tr = useTranslations("opTables");
   const tokens = tileTokensForState(tile.visualState);
@@ -1019,6 +1030,7 @@ function ActiveTile({
           chargeLocked={chargeLocked}
           moveLocked={moveLocked}
           compPolicy={compPolicy}
+          viewerRole={viewerRole}
         />
       )}
     </>

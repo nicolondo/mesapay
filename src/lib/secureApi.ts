@@ -7,6 +7,7 @@ import { db } from "./db";
 import { getActiveContext } from "./activeRestaurant";
 import { canAccessOrder, canAccessTable } from "./guestAccess";
 import { rateLimit } from "./rateLimit";
+import { CancellationPermissionError } from "./orders/cancellationPolicy";
 
 const deny = (error: string, status = 403) => NextResponse.json({ error }, { status });
 
@@ -83,6 +84,9 @@ export function secureApi<R extends Request, Args extends unknown[]>(handler: (r
       if (response.status >= 500 || Date.now() - started > 2000) console.warn("api_request", { requestId, path: new URL(req.url).pathname, status: response.status, durationMs: Date.now() - started });
       return response;
     } catch (error) {
+      if (error instanceof CancellationPermissionError) {
+        return NextResponse.json({ error: error.message, requestId }, { status: 403, headers: { "X-Request-Id": requestId } });
+      }
       // Un pago en línea en curso no deja cobrar: no es un conflicto genérico
       // sino uno que quien cobra puede resolver, así que va con su código y
       // con qué pago es (método, monto) para que la pantalla lo diga.

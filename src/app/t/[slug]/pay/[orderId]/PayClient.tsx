@@ -117,6 +117,7 @@ export function PayClient({
   staffServeHref = "/operator/serve",
   doneHref = "",
   compEnabled = false,
+  compAdminRequired = false,
   compLabel = null,
   invoiceIntent = null,
   invoicePrefillEmail = null,
@@ -219,6 +220,7 @@ export function PayClient({
   // Gastos de representación (cortesía $0): solo en operatorMode y si el
   // comercio lo habilitó. compLabel = nombre configurable (null ⇒ default i18n).
   compEnabled?: boolean;
+  compAdminRequired?: boolean;
   compLabel?: string | null;
   // Factura que el comensal ya pidió en esta cuenta (si pidió). Se muestra
   // como resumen corto en vez de volver a abrirle el formulario.
@@ -1331,6 +1333,11 @@ export function PayClient({
             />
             <p className="text-[11px] text-muted-2 text-center pt-1">{t("creditNote")}</p>
           </div>
+        )}
+        {operatorMode && compAdminRequired && (
+          <p className="text-xs leading-relaxed text-muted text-center">
+            {t("preparedCancellationAdminOnly")}
+          </p>
         )}
         {operatorMode && compEnabled && (
           <button

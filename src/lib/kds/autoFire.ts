@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { itemKitchenStatusData } from "./roundStatus";
 import { recomputeRoundStatusInTx } from "./transition";
+import { preparationHistoryData } from "@/lib/orders/cancellationPolicy";
 
 /**
  * MARCHADO AUTOMÁTICO ("marchar" = empezar a preparar / mandar a la
@@ -75,6 +76,10 @@ export async function autoFireRoundInTx(
       station: true,
       barSubStation: true,
       preparationStartedAt: true,
+      preparationFirstStartedAt: true,
+      menuItemId: true,
+      kitchenStatus: true,
+      servedAt: true,
     },
   });
   if (items.length === 0) return [];
@@ -82,7 +87,10 @@ export async function autoFireRoundInTx(
   for (const item of items) {
     await tx.orderItem.update({
       where: { id: item.id },
-      data: itemKitchenStatusData(item, "in_kitchen", args.now),
+      data: {
+        ...itemKitchenStatusData(item, "in_kitchen", args.now),
+        ...preparationHistoryData(item, { kitchenStatus: "in_kitchen" }, args.now),
+      },
     });
   }
   await recomputeRoundStatusInTx(tx, args.roundId, args.now);

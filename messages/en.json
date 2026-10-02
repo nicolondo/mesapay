@@ -243,7 +243,8 @@
     "tipPreviewTip": "Tip {pct}%",
     "tipPreviewTotal": "Total with tip",
     "tipPreviewHint": "Tipping is voluntary; you can change it when you pay.",
-    "tipPreviewSlider": "Adjust tip"
+    "tipPreviewSlider": "Adjust tip",
+    "preparedCancellationAdminOnly": "Preparation has started. Ask an administrator to help cancel this dish."
   },
   "pay": {
     "pay": "Pay",
@@ -445,7 +446,8 @@
     "creditErr_customer_not_found": "We couldn't find that customer.",
     "creditErr_mesero_no_shift": "You have no open shift. Open your shift to charge.",
     "creditErr_charge_admin_only": "Only the administrator can charge at this business.",
-    "creditErr_generic": "We couldn't record the credit charge."
+    "creditErr_generic": "We couldn't record the credit charge.",
+    "preparedCancellationAdminOnly": "This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary."
   },
   "done": {
     "methodCard": "Card",
@@ -1197,7 +1199,8 @@
     "soundToggleHint": "Beep when a new order comes in",
     "soundTest": "Test sound",
     "soundUnlock": "Tap the screen to turn on the new-order sound",
-    "soundUnsupported": "This browser can't play the new-order sound"
+    "soundUnsupported": "This browser can't play the new-order sound",
+    "preparedCancellationAdminOnly": "Preparation has started. Only an administrator can cancel this dish."
   },
   "serve": {
     "noRestaurant": "No restaurant.",
@@ -1751,7 +1754,8 @@
     "prebillQtyUnit": "{qty} x {unit}",
     "moveAdminOnly": "Only an administrator can move dishes or orders between tables.",
     "moveOrderSameTable": "The bill is already at that table.",
-    "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order."
+    "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
+    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish."
   },
   "browserPrint": {
     "preparing": "Preparing to print…",
@@ -6987,7 +6991,8 @@
     "comp_not_allowed": "Your role isn't allowed to comp. Ask the administrator.",
     "generic": "The operation could not be completed. Refresh and try again.",
     "pending_payment_in_flight": "A {method} payment of {amount} is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way.",
-    "pending_payment_in_flight_generic": "An online payment is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way."
+    "pending_payment_in_flight_generic": "An online payment is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way.",
+    "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started."
   },
   "pendingPayment": {
     "requestKicker": "The guest asked to pay with",

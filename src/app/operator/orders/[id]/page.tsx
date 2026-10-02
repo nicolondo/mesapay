@@ -11,6 +11,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { TableActions } from "../../tables/TableActions";
+import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
 
@@ -184,6 +185,9 @@ export default async function OperatorOrderDetail({
             tenantSlug={tenant!.slug}
             status={order.status}
             outstandingCents={outstandingCents}
+            canCancelOrder={order.table.kind === "manual" || order.items
+              .filter((item) => !item.cancelledAt && (!item.roundId || order.rounds.some((round) => round.id === item.roundId && round.status !== "cancelled")))
+              .every((item) => !hasPreparationStarted(item, order.table.kind))}
           />
         </div>
       )}

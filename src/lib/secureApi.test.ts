@@ -9,6 +9,7 @@ vi.mock("./guestAccess", () => ({ canAccessOrder: h.access, canAccessTable: h.ta
 vi.mock("./rateLimit", () => ({ rateLimit: h.rate }));
 import { secureApi } from "./secureApi";
 import { PendingPaymentInFlightError } from "./payments/paymentInFlight";
+import { CancellationPermissionError } from "./orders/cancellationPolicy";
 import { staffForRestaurant, COLLECTOR_ROLES } from "./staffAccess";
 beforeEach(() => {
   vi.clearAllMocks(); h.rate.mockResolvedValue(true); h.context.mockResolvedValue(null);
@@ -71,6 +72,15 @@ describe("errores de cobro", () => {
   beforeEach(() => {
     h.context.mockResolvedValue({ restaurantId: "rest-a", session: { user: { id: "admin", role: "operator" } } });
   });
+  it("denied prepared-dish cancellations return a translatable 403, not an internal error", async () => {
+    const response = await secureApi(async () => { throw new CancellationPermissionError(); })(
+      new Request("http://localhost/api/operator/order-items/dish", { method: "GET" }),
+    );
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error).toBe("cancellation_admin_required");
+    expect(response.headers.get("X-Request-Id")).toBe(body.requestId);
+  });
   it("un pago en línea en curso sale como 409 pending_payment_in_flight con qué pago es (no operation_conflict)", async () => {
     const pending = { paymentId: "pse-1", method: "kushki_pse" as const, amountCents: 69_817_000, tipCents: 6_347_000, createdAt: "2026-09-25T19:03:18.000Z" };
     const handler = vi.fn(async () => { throw new PendingPaymentInFlightError(pending); });
@@ -87,4 +97,3 @@ describe("errores de cobro", () => {
     expect((await response.json()).error).toBe("operation_conflict");
   });
 });
-

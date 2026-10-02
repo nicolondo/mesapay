@@ -243,7 +243,8 @@
     "tipPreviewTip": "Gorjeta {pct}%",
     "tipPreviewTotal": "Total com gorjeta",
     "tipPreviewHint": "A gorjeta é voluntária; você pode mudá-la na hora de pagar.",
-    "tipPreviewSlider": "Ajustar gorjeta"
+    "tipPreviewSlider": "Ajustar gorjeta",
+    "preparedCancellationAdminOnly": "O preparo já começou. Peça ajuda ao administrador para cancelar este prato."
   },
   "pay": {
     "pay": "Pagar",
@@ -445,7 +446,8 @@
     "creditErr_customer_not_found": "Não encontramos esse cliente.",
     "creditErr_mesero_no_shift": "Você não tem turno aberto. Abra seu turno para cobrar.",
     "creditErr_charge_admin_only": "Só o administrador pode cobrar neste estabelecimento.",
-    "creditErr_generic": "Não conseguimos registrar a cobrança a crédito."
+    "creditErr_generic": "Não conseguimos registrar a cobrança a crédito.",
+    "preparedCancellationAdminOnly": "Esta conta inclui pratos cujo preparo já começou. Somente o administrador pode encerrá-la como cortesia."
   },
   "done": {
     "methodCard": "Cartão",
@@ -1197,7 +1199,8 @@
     "soundToggleHint": "Bipe quando entra um pedido novo",
     "soundTest": "Testar som",
     "soundUnlock": "Toque na tela para ativar o som de pedidos novos",
-    "soundUnsupported": "Este navegador não consegue reproduzir o som de pedidos novos"
+    "soundUnsupported": "Este navegador não consegue reproduzir o som de pedidos novos",
+    "preparedCancellationAdminOnly": "O preparo já começou. Somente o administrador pode cancelar este prato."
   },
   "serve": {
     "noRestaurant": "Sem restaurante.",
@@ -1751,7 +1754,8 @@
     "prebillQtyUnit": "{qty} x {unit}",
     "moveAdminOnly": "Somente o administrador pode mover pratos ou pedidos entre mesas.",
     "moveOrderSameTable": "A conta já está nessa mesa.",
-    "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido."
+    "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido.",
+    "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato."
   },
   "browserPrint": {
     "preparing": "Preparando a impressão…",
@@ -6987,7 +6991,8 @@
     "comp_not_allowed": "Seu perfil não tem permissão para deixar de cobrar. Peça ao administrador.",
     "generic": "Não foi possível concluir a operação. Atualize e tente novamente.",
     "pending_payment_in_flight": "Há um pagamento com {method} de {amount} aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma.",
-    "pending_payment_in_flight_generic": "Há um pagamento online aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma."
+    "pending_payment_in_flight_generic": "Há um pagamento online aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma.",
+    "cancellation_admin_required": "Somente o administrador pode cancelar ou deixar de cobrar pratos cujo preparo já começou."
   },
   "pendingPayment": {
     "requestKicker": "O cliente pediu para pagar com",

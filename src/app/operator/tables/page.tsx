@@ -272,6 +272,7 @@ export default async function TablesPage({
         placedByRole: r.placedByRole,
         items: r.items.map((i) => ({
           id: i.id,
+          menuItemId: i.menuItemId,
           name: i.nameSnapshot,
           qty: i.qty,
           priceCents: i.priceCentsSnapshot,
@@ -279,6 +280,7 @@ export default async function TablesPage({
           preparationStartedAt: i.preparationStartedAt
             ? i.preparationStartedAt.toISOString()
             : null,
+          preparationFirstStartedAt: i.preparationFirstStartedAt?.toISOString() ?? null,
           servedAt: i.servedAt ? i.servedAt.toISOString() : null,
           expediteRequestedAt: i.expediteRequestedAt
             ? i.expediteRequestedAt.toISOString()
@@ -473,6 +475,7 @@ export default async function TablesPage({
         chargeLocked={chargeLocked}
         moveLocked={moveLocked}
         compPolicy={compPolicy}
+        viewerRole={session?.user?.role ?? null}
         freeTables={freeTables}
         allTables={allTablesForMove}
         country={tenant!.country}

@@ -33,6 +33,16 @@ Publicación aprobada expresamente por el propietario. El procedimiento
 blue/green compila, comprueba y aplica las migraciones antes de activar el
 nuevo servicio, comprueba salud y luego cambia el tráfico.
 
+La instalación inicial detectó un peer opcional ausente en el lock con
+Node 22.22.1/npm 10.9.4 del servidor. Se regeneró el archivo con esas mismas
+versiones en un directorio aislado: se añadió `@swc/helpers@0.5.23` para
+`next-intl/@swc/core`, conservando `0.5.15` requerido por Next y todas las
+versiones existentes. La versión activa siguió atendiendo durante el fallo,
+anterior a las migraciones y al cambio de tráfico.
+La instalación limpia aislada posterior aprobó los 670 paquetes con
+`npm ci --ignore-scripts`; el despliegue conserva sus scripts y comprobaciones
+normales, incluida la generación de Prisma y la compilación completa.
+
 Migraciones aditivas:
 
 - `20261002150000_admin_only_table_move`

@@ -32,6 +32,7 @@ errores nuevos. Los módulos de estado y sonido tienen 97,52% de cobertura
 de líneas y 91,93% de ramas. El navegador usa audio simulado para verificar
 la programación de pitidos; API, eventos y base de datos son reales locales.
 
-Esta corrección se prepara sobre la versión conjunta `9d3a2aa0`, cuya
-publicación permanece pendiente de confirmación concreta de alcance.
-No se hicieron traslados ni cambios de pedidos reales para verificarla.
+Esta corrección forma parte de la versión conjunta `9d3a2aa0`. El propietario
+confirmó expresamente el alcance completo para su publicación, incluidas
+las mejoras anteriores y este arreglo. No se hicieron traslados ni cambios
+de pedidos reales para verificarla.

@@ -3,7 +3,7 @@
  *
  * Todo lo de este módulo es independiente del DOM para poder testearlo en
  * el entorno `node` de vitest:
- *   - detección de rondas nuevas (qué ids nunca se vieron en esta página);
+ *   - detección de productos nuevos (qué ids nunca se vieron en esta página);
  *   - síntesis del pitido sobre un AudioContext (real o falso);
  *   - preferencia por dispositivo (activado/silenciado) sobre un Storage
  *     inyectado;
@@ -17,17 +17,17 @@
 // ── Detección ────────────────────────────────────────────────────────────
 
 /**
- * Ids de `roundIds` que no están en `seenIds`, en el orden en que llegan y
- * sin repetidos. Sólo cuenta la IDENTIDAD de la ronda: un cambio de estado
- * de un pedido existente no produce ids nuevos.
+ * Ids de `itemIds` que no están en `seenIds`, en el orden en que llegan y
+ * sin repetidos. Cuenta la identidad de OrderItem: trasladar un producto
+ * crea otra ronda, pero conserva el producto y no debe anunciar un pedido.
  */
-export function detectNewRounds(
+export function detectNewItems(
   seenIds: ReadonlySet<string>,
-  roundIds: readonly string[],
+  itemIds: readonly string[],
 ): string[] {
   const fresh: string[] = [];
   const added = new Set<string>();
-  for (const id of roundIds) {
+  for (const id of itemIds) {
     if (seenIds.has(id) || added.has(id)) continue;
     added.add(id);
     fresh.push(id);
@@ -36,37 +36,37 @@ export function detectNewRounds(
 }
 
 /**
- * Rondas ya vistas en esta sesión de página. `scope` identifica la vista
- * (p. ej. la sub-estación del bar): al cambiar de vista aparecen rondas que
- * ya existían y que no son pedidos nuevos.
+ * Productos ya vistos en esta sesión de página. `scope` identifica la vista
+ * (p. ej. la sub-estación del bar): al cambiar de vista aparecen productos
+ * que ya existían y que no son pedidos nuevos.
  */
-export type SeenRounds = {
+export type SeenItems = {
   readonly scope: string;
   readonly ids: ReadonlySet<string>;
 };
 
 /**
- * Paso de la detección, llamado cada vez que cambian las rondas del tablero.
+ * Paso de la detección, llamado cada vez que cambian los productos del tablero.
  *
  *   - Primera observación (`prev === null`, al abrir o recargar la página):
  *     todo lo que ya estaba cuenta como visto y NO suena.
  *   - Cambio de `scope` (otra pestaña de sub-estación): lo que aparece se
  *     da por visto y NO suena.
  *   - Si no: suenan sólo ids nunca vistos. Varios juntos = UNA señal. Una
- *     ronda que sale del tablero sigue en el conjunto, así que si reaparece
- *     (p. ej. le agregaron algo) no vuelve a sonar.
+ *     línea que sale del tablero sigue en el conjunto, así que si reaparece
+ *     o cambia de ronda/mesa no vuelve a sonar.
  */
-export function observeRounds(
-  prev: SeenRounds | null,
+export function observeItems(
+  prev: SeenItems | null,
   scope: string,
-  roundIds: readonly string[],
-): { seen: SeenRounds; newIds: string[]; chime: boolean } {
+  itemIds: readonly string[],
+): { seen: SeenItems; newIds: string[]; chime: boolean } {
   if (prev === null || prev.scope !== scope) {
     const ids = new Set(prev?.ids ?? []);
-    for (const id of roundIds) ids.add(id);
+    for (const id of itemIds) ids.add(id);
     return { seen: { scope, ids }, newIds: [], chime: false };
   }
-  const newIds = detectNewRounds(prev.ids, roundIds);
+  const newIds = detectNewItems(prev.ids, itemIds);
   if (newIds.length === 0) return { seen: prev, newIds, chime: false };
   const ids = new Set(prev.ids);
   for (const id of newIds) ids.add(id);

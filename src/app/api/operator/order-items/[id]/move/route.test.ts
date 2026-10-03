@@ -44,7 +44,8 @@ function createItem() {
   return {
     id: "item", orderId: "z-source", roundId: "source-round", qty: 1, nameSnapshot: "Dish", cancelledAt: null as Date | null,
     servedAt: null as Date | null, kitchenStatus: "placed", preparationStartedAt: null as Date | null, preparationFirstStartedAt: null as Date | null,
-    round: { status: "placed" },
+    round: { status: "placed", placedAt: new Date("2026-10-02T14:00:00Z"), kitchenStartedAt: null as Date | null, readyAt: null as Date | null,
+      placedByUserId: "original-waiter", placedByName: "Original", placedByRole: "mesero" },
     order: { restaurantId: "restaurant", tableId: "source-table", status: "placed", locale: "es", servingMode: "a_la_carte", table: { number: 1, kind: "standard" } },
   };
 }
@@ -104,6 +105,18 @@ describe("moving dishes serializes with preparation, cancellation and payment", 
     h.live.kitchenStatus = "in_kitchen"; h.live.preparationStartedAt = startedAt; h.live.preparationFirstStartedAt = startedAt;
     expect((await move()).status).toBe(200);
     expect(h.tx.round.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "in_kitchen", kitchenStartedAt: startedAt }) }));
+    expect(h.tx.orderItem.update).toHaveBeenCalledWith({ where: { id: "item" }, data: { orderId: "a-dest", roundId: "new-round" } });
+  });
+  it("preserves the original dispatch time and author rather than remarching a moved dish", async () => {
+    h.live.kitchenStatus = "ready";
+    h.live.preparationStartedAt = new Date("2026-10-02T14:05:00Z");
+    h.live.round.readyAt = new Date("2026-10-02T14:15:00Z");
+    expect((await move()).status).toBe(200);
+    expect(h.tx.round.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      placedAt: h.live.round.placedAt, status: "ready", readyAt: h.live.round.readyAt,
+      kitchenStartedAt: h.live.preparationStartedAt,
+      placedByUserId: "original-waiter", placedByName: "Original", placedByRole: "mesero",
+    }) }));
     expect(h.tx.orderItem.update).toHaveBeenCalledWith({ where: { id: "item" }, data: { orderId: "a-dest", roundId: "new-round" } });
   });
   it("rejects a source that entered payment while waiting for its lock", async () => {

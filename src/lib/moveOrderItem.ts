@@ -78,9 +78,9 @@ export type DestinationRoundState = {
  * una ronda `ready` (no `placed`), y uno ya entregado en una ronda `served`,
  * que ni siquiera aparece en el tablero de cocina.
  *
- * `readyAt` en el caso `ready` se sella con `now` a propósito: el "listo hace
- * X min" que ve el mesero cuenta desde que el plato quedó listo PARA LA MESA
- * NUEVA, que es el reloj que le importa para ir a entregarlo.
+ * Conserva los tiempos conocidos de la ronda original. El traslado no
+ * vuelve a preparar el plato ni reinicia su tiempo de espera en el pase.
+ * Si un registro antiguo no tiene un sello, se mantiene desconocido.
  */
 export function destinationRoundState(
   item: {
@@ -88,28 +88,29 @@ export function destinationRoundState(
     servedAt: Date | null;
     preparationStartedAt: Date | null;
   },
-  now: Date,
+  sourceRound: { kitchenStartedAt: Date | null; readyAt: Date | null } | null = null,
 ): DestinationRoundState {
+  const kitchenStartedAt = item.preparationStartedAt ?? sourceRound?.kitchenStartedAt ?? null;
   if (item.servedAt) {
     return {
       status: "served",
-      kitchenStartedAt: item.preparationStartedAt,
-      readyAt: item.servedAt,
+      kitchenStartedAt,
+      readyAt: sourceRound?.readyAt ?? null,
     };
   }
   switch (item.kitchenStatus) {
     case "ready":
       return {
         status: "ready",
-        kitchenStartedAt: item.preparationStartedAt,
-        readyAt: now,
+        kitchenStartedAt,
+        readyAt: sourceRound?.readyAt ?? null,
       };
     case "in_kitchen":
       return {
         status: "in_kitchen",
         // Preservamos el arranque real para que el countdown del bar no se
         // reinicie: el plato lleva cocinándose desde antes del traslado.
-        kitchenStartedAt: item.preparationStartedAt ?? now,
+        kitchenStartedAt,
         readyAt: null,
       };
     default:

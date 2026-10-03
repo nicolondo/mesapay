@@ -11,12 +11,12 @@ import {
   CHIME_STORAGE_PREFIX,
   NewOrderChimeController,
   chimeDefaultEnabled,
-  observeRounds,
+  observeItems,
   readChimePref,
   writeChimePref,
   type ChimeBoard,
   type ChimeContext,
-  type SeenRounds,
+  type SeenItems,
 } from "./newOrderChime";
 
 /*
@@ -111,12 +111,12 @@ const GESTURE_EVENTS = [
 
 export function useNewOrderChime({
   board,
-  roundIds,
+  itemIds,
   scope = "",
 }: {
   board: ChimeBoard;
-  /** Ids de las rondas que muestra el tablero ahora. */
-  roundIds: readonly string[];
+  /** Ids estables de OrderItem; moverlos de ronda o mesa no es un pedido nuevo. */
+  itemIds: readonly string[];
   /** Vista actual (p. ej. sub-estación del bar); cambiarla no suena. */
   scope?: string;
 }) {
@@ -160,11 +160,11 @@ export function useNewOrderChime({
   // Detección: la primera pasada toma lo que ya estaba como visto (no suena
   // al abrir o recargar); después, sólo ids nunca vistos. Clave en string
   // para no re-ejecutar en cada render del reloj del tablero.
-  const seenRef = useRef<SeenRounds | null>(null);
-  const idsKey = roundIds.join("\n");
+  const seenRef = useRef<SeenItems | null>(null);
+  const idsKey = itemIds.join("\n");
   useEffect(() => {
     const ids = idsKey === "" ? [] : idsKey.split("\n");
-    const { seen, chime } = observeRounds(seenRef.current, scope, ids);
+    const { seen, chime } = observeItems(seenRef.current, scope, ids);
     seenRef.current = seen;
     if (chime && enabled) controller.announce();
   }, [idsKey, scope, enabled, controller]);

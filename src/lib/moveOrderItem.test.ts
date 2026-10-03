@@ -84,15 +84,16 @@ describe("checkMoveAllowed", () => {
 });
 
 describe("destinationRoundState", () => {
-  const now = new Date("2026-09-08T20:00:00.000Z");
   const started = new Date("2026-09-08T19:30:00.000Z");
+  const ready = new Date("2026-09-08T19:45:00.000Z");
   const served = new Date("2026-09-08T19:50:00.000Z");
+  const sourceRound = { kitchenStartedAt: started, readyAt: ready };
 
   it("un plato sin mandar aterriza en una ronda placed", () => {
     expect(
       destinationRoundState(
         { kitchenStatus: "placed", servedAt: null, preparationStartedAt: null },
-        now,
+        sourceRound,
       ),
     ).toEqual({ status: "placed", kitchenStartedAt: null, readyAt: null });
   });
@@ -105,7 +106,7 @@ describe("destinationRoundState", () => {
           servedAt: null,
           preparationStartedAt: started,
         },
-        now,
+        sourceRound,
       ),
     ).toEqual({
       status: "in_kitchen",
@@ -123,10 +124,10 @@ describe("destinationRoundState", () => {
         servedAt: null,
         preparationStartedAt: started,
       },
-      now,
+      sourceRound,
     );
     expect(r.status).toBe("ready");
-    expect(r.readyAt).toEqual(now);
+    expect(r.readyAt).toEqual(ready);
     expect(r.kitchenStartedAt).toEqual(started);
   });
 
@@ -138,12 +139,12 @@ describe("destinationRoundState", () => {
           servedAt: served,
           preparationStartedAt: started,
         },
-        now,
+        sourceRound,
       ),
     ).toEqual({
       status: "served",
       kitchenStartedAt: started,
-      readyAt: served,
+      readyAt: ready,
     });
   });
 
@@ -157,9 +158,26 @@ describe("destinationRoundState", () => {
           servedAt: served,
           preparationStartedAt: null,
         },
-        now,
+        sourceRound,
       ).status,
     ).toBe("served");
+  });
+
+  it("conserva el inicio conocido de la ronda si falta el sello del ítem", () => {
+    expect(destinationRoundState({ kitchenStatus: "in_kitchen", servedAt: null, preparationStartedAt: null }, sourceRound))
+      .toEqual({ status: "in_kitchen", kitchenStartedAt: started, readyAt: null });
+  });
+
+  it("no inventa horas de preparación o listo al trasladar registros antiguos", () => {
+    for (const kitchenStatus of ["in_kitchen", "ready"] as const) {
+      expect(destinationRoundState({ kitchenStatus, servedAt: null, preparationStartedAt: null }))
+        .toEqual({ status: kitchenStatus, kitchenStartedAt: null, readyAt: null });
+    }
+  });
+
+  it("un plato listo de ronda mixta no reinicia el pase si no se conoce readyAt", () => {
+    expect(destinationRoundState({ kitchenStatus: "ready", servedAt: null, preparationStartedAt: started }, { kitchenStartedAt: started, readyAt: null }))
+      .toEqual({ status: "ready", kitchenStartedAt: started, readyAt: null });
   });
 });
 

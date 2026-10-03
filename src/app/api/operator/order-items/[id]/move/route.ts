@@ -61,7 +61,8 @@ async function POSTHandler(
   if (await isTableMoveBlocked(role, restaurantId)) {
     return NextResponse.json({ error: TABLE_MOVE_ADMIN_ONLY_ERROR }, { status: 403 });
   }
-  // La ronda nueva de la mesa destino la monta quien mueve el plato.
+  // Sólo líneas antiguas sin ronda usan este fallback de autoría.
+  // En un traslado normal se conserva quién marchó originalmente el plato.
   const placedBy = resolvePlacedBy(ctx, restaurantId);
   const { id } = await params;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
@@ -220,7 +221,7 @@ async function POSTHandler(
     if (currentTarget) await requireMutableOrderInTx(tx, currentTarget.id);
 
     const sourceRoundId = current.roundId;
-    const roundState = destinationRoundState(current, new Date());
+    const roundState = destinationRoundState(current, current.round);
     const dest = currentTarget ?? await tx.order.create({
       data: {
         restaurantId,
@@ -247,9 +248,14 @@ async function POSTHandler(
         orderId: dest.id,
         seq: (last?.seq ?? 0) + 1,
         status: roundState.status,
+        placedAt: current.round?.placedAt ?? current.order.placedAt ?? current.order.createdAt,
         kitchenStartedAt: roundState.kitchenStartedAt,
         readyAt: roundState.readyAt,
-        ...roundPlacedByData(placedBy),
+        ...(current.round ? {
+          placedByUserId: current.round.placedByUserId,
+          placedByName: current.round.placedByName,
+          placedByRole: current.round.placedByRole,
+        } : roundPlacedByData(placedBy)),
       },
       select: { id: true },
     });

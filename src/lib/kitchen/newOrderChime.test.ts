@@ -9,14 +9,14 @@ import {
   NewOrderChimeController,
   chimeDefaultEnabled,
   chimeStorageKey,
-  detectNewRounds,
-  observeRounds,
+  detectNewItems,
+  observeItems,
   playNewOrderChime,
   readChimePref,
   writeChimePref,
   type ChimeAudioNode,
   type ChimeContext,
-  type SeenRounds,
+  type SeenItems,
 } from "./newOrderChime";
 
 /*
@@ -114,9 +114,9 @@ class FakeAudioContext implements ChimeContext {
 
 // ── Detección ────────────────────────────────────────────────────────────
 
-describe("detectNewRounds", () => {
+describe("detectNewItems", () => {
   it("devuelve sólo los ids nunca vistos, sin repetidos", () => {
-    expect(detectNewRounds(new Set(["a", "b"]), ["a", "b", "c", "c", "d"])).toEqual([
+    expect(detectNewItems(new Set(["a", "b"]), ["a", "b", "c", "c", "d"])).toEqual([
       "c",
       "d",
     ]);
@@ -124,71 +124,71 @@ describe("detectNewRounds", () => {
 
   it("sin ids nuevos devuelve vacío (cambios de estado o salidas)", () => {
     const seen = new Set(["a", "b", "c"]);
-    expect(detectNewRounds(seen, ["a", "b", "c"])).toEqual([]);
-    expect(detectNewRounds(seen, ["b"])).toEqual([]);
-    expect(detectNewRounds(seen, [])).toEqual([]);
+    expect(detectNewItems(seen, ["a", "b", "c"])).toEqual([]);
+    expect(detectNewItems(seen, ["b"])).toEqual([]);
+    expect(detectNewItems(seen, [])).toEqual([]);
   });
 });
 
-describe("observeRounds", () => {
+describe("observeItems", () => {
   it("primer render: lo que ya estaba NO suena", () => {
-    const r = observeRounds(null, "", ["a", "b", "c"]);
+    const r = observeItems(null, "", ["a", "b", "c"]);
     expect(r.chime).toBe(false);
     expect(r.newIds).toEqual([]);
     expect([...r.seen.ids].sort()).toEqual(["a", "b", "c"]);
   });
 
   it("primer render con el tablero vacío tampoco suena", () => {
-    expect(observeRounds(null, "", []).chime).toBe(false);
+    expect(observeItems(null, "", []).chime).toBe(false);
   });
 
   it("un id nuevo suena", () => {
-    const first = observeRounds(null, "", ["a", "b"]).seen;
-    const r = observeRounds(first, "", ["a", "b", "c"]);
+    const first = observeItems(null, "", ["a", "b"]).seen;
+    const r = observeItems(first, "", ["a", "b", "c"]);
     expect(r.chime).toBe(true);
     expect(r.newIds).toEqual(["c"]);
     expect(r.seen.ids.has("c")).toBe(true);
   });
 
   it("varios nuevos juntos = UNA sola señal", () => {
-    const first = observeRounds(null, "", ["a"]).seen;
-    const r = observeRounds(first, "", ["a", "b", "c", "d"]);
+    const first = observeItems(null, "", ["a"]).seen;
+    const r = observeItems(first, "", ["a", "b", "c", "d"]);
     expect(r.chime).toBe(true);
     expect(r.newIds).toEqual(["b", "c", "d"]);
   });
 
   it("después de sonar, el mismo conjunto ya no vuelve a sonar", () => {
-    let seen: SeenRounds = observeRounds(null, "", ["a"]).seen;
-    seen = observeRounds(seen, "", ["a", "b"]).seen;
-    expect(observeRounds(seen, "", ["a", "b"]).chime).toBe(false);
+    let seen: SeenItems = observeItems(null, "", ["a"]).seen;
+    seen = observeItems(seen, "", ["a", "b"]).seen;
+    expect(observeItems(seen, "", ["a", "b"]).chime).toBe(false);
   });
 
   it("cambios de estado de un pedido existente no suenan (mismos ids, otro orden)", () => {
     // El tablero pasa un pedido de "Por preparar" a "En cocina": las props
-    // traen las mismas rondas (quizá en otro orden). La actualización
+    // traen los mismos productos (quizá en otro orden). La actualización
     // optimista de los botones ni siquiera cambia las props.
-    const first = observeRounds(null, "", ["a", "b", "c"]).seen;
-    const r = observeRounds(first, "", ["c", "a", "b"]);
+    const first = observeItems(null, "", ["a", "b", "c"]).seen;
+    const r = observeItems(first, "", ["c", "a", "b"]);
     expect(r.chime).toBe(false);
     expect(r.seen).toBe(first);
   });
 
   it("un pedido que sale del tablero no suena, y si reaparece tampoco", () => {
-    let seen: SeenRounds = observeRounds(null, "", ["a", "b"]).seen;
-    const out = observeRounds(seen, "", ["a"]);
+    let seen: SeenItems = observeItems(null, "", ["a", "b"]).seen;
+    const out = observeItems(seen, "", ["a"]);
     expect(out.chime).toBe(false);
     seen = out.seen;
     // "b" vuelve (p. ej. le agregaron un plato): ya se vio en esta página.
-    const back = observeRounds(seen, "", ["a", "b"]);
+    const back = observeItems(seen, "", ["a", "b"]);
     expect(back.chime).toBe(false);
   });
 
   it("cambiar de vista (sub-estación del bar) no suena por lo que ya existía", () => {
-    const cocteles = observeRounds(null, "Cocteles", ["a"]).seen;
-    const todo = observeRounds(cocteles, "", ["a", "b", "c"]);
+    const cocteles = observeItems(null, "Cocteles", ["a"]).seen;
+    const todo = observeItems(cocteles, "", ["a", "b", "c"]);
     expect(todo.chime).toBe(false);
     // Y en la vista nueva, un pedido realmente nuevo sí suena.
-    expect(observeRounds(todo.seen, "", ["a", "b", "c", "d"]).chime).toBe(true);
+    expect(observeItems(todo.seen, "", ["a", "b", "c", "d"]).chime).toBe(true);
   });
 });
 

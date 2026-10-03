@@ -513,7 +513,7 @@ export function KitchenBoard({
           esta página) + control para activarlo/silenciarlo y probarlo. */}
       <NewOrderChime
         board={boardMode}
-        roundIds={rounds.map((r) => r.id)}
+        itemIds={rounds.flatMap((r) => r.items.map((i) => i.id))}
         scope={soundScope}
       />
       {board}

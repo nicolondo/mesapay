@@ -12,15 +12,15 @@ import { useNewOrderChime } from "@/lib/kitchen/useNewOrderChime";
  */
 export function NewOrderChime({
   board,
-  roundIds,
+  itemIds,
   scope,
 }: {
   board: ChimeBoard;
-  roundIds: readonly string[];
+  itemIds: readonly string[];
   scope?: string;
 }) {
   const tr = useTranslations("kitchen");
-  const chime = useNewOrderChime({ board, roundIds, scope });
+  const chime = useNewOrderChime({ board, itemIds, scope });
 
   return (
     <>

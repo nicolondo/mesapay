@@ -25,5 +25,10 @@ describe('accepted credit note delivery', () => {
     expect((await PDFDocument.load(pdf)).getPageCount()).toBe(1);
     const large = { ...note, snapshot: { ...note.snapshot, lines: Array.from({ length: 70 }, () => note.snapshot.lines[0]) } };
     expect((await PDFDocument.load(await renderCreditNotePdf(large))).getPageCount()).toBeGreaterThan(2);
-  });
+    // Tope explícito y holgado: este caso genera tres PDFs completos (embebe y
+    // subsetea las dos fuentes Noto Sans en cada uno, mide cada renglón con
+    // fontkit y el último ocupa varias páginas). En los runners de CI, con el
+    // resto de la suite corriendo en paralelo, llegó a tardar 5,05–5,3 s y
+    // vencía el tope por defecto de 5 s de vitest.
+  }, 30_000);
 });

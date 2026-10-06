@@ -1794,6 +1794,14 @@ model Payment {
   refundedCents Int       @default(0)
   refundedAt    DateTime?
 
+  /// Sólo en method=customer_credit: parte de este cargo que cancelaron
+  /// notas crédito ACEPTADAS por la DIAN sobre la factura de la cuenta.
+  /// Pesa como `refundedCents` en la deuda del cliente
+  /// (`customerCredit.chargeDebtCents`). Lo fija una sola vez la
+  /// contabilización de la nota (`erp/creditNoteAccounting.ts`), en la
+  /// misma transacción que `CreditNote.receivableCents`.
+  creditNoteCents Int @default(0)
+
   // Set when this payment is rolled into a shift close (arqueo de caja).
   // Stays null while the shift is open or if there was no open shift.
   shiftId String?
@@ -4385,6 +4393,19 @@ model CreditNote {
   abandonedAt       DateTime?
   createdAt         DateTime         @default(now())
   dianDocument      DianDocument?
+
+  // ── Contabilidad (erp/creditNoteAccounting.ts) ──────────────────────
+  // Se fijan UNA vez, después de que la DIAN acepta la nota, para que el
+  // asiento mensual regenerable salga siempre igual.
+  /// Parte de la nota que cancela cartera de crédito de cliente (crédito a
+  /// Clientes 130505). El resto va al pasivo «reintegros por pagar».
+  /// null = todavía no contabilizada.
+  receivableCents     Int?
+  /// Cuándo se fijaron los datos contables de la nota.
+  accountingStampedAt DateTime?
+  /// Mes (YYYY-MM) del asiento «Notas crédito del mes» que la incluyó.
+  /// null = pendiente de contabilizar.
+  postedMonth         String?
 
   @@unique([restaurantId, requestId])
   @@unique([seriesId, number])

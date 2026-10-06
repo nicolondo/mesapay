@@ -12,8 +12,13 @@
  *    guardó, del `InvoiceRequest` generado de la cuenta.
  *  · COMPRAS: `PurchaseOrder` recibidas en el rango (`receivedAt`), con
  *    líneas (IVA por `taxPct`) y retenciones de cabecera.
+ *  · NOTAS CRÉDITO: `CreditNote` ACEPTADAS por la DIAN (no descartadas)
+ *    con fecha fiscal (día colombiano de `DianDocument.issuedAt`) en el
+ *    período; base e impuesto por tarifa de su `snapshot.lines`. El
+ *    tercero es el de la factura original, con la misma regla que las
+ *    ventas. Una nota que no cuadra al centavo se excluye (y se loguea).
  *  · DEVOLUCIONES: reembolsos de la pasarela (`KushkiTransaction` kind
- *    refund), como `posting.ts`.
+ *    refund) SIN nota crédito ligada, como `posting.ts`.
  *  · LIBRO: líneas de `JournalLine` del rango sobre las cuentas de las
  *    familias (por prefijo PUC + cuentas de los conceptos de retención),
  *    con los datos del comprobante. Sin filtro por `status`: el anulado
@@ -29,7 +34,23 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatInvoiceNumber, frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
-import type { CurrentSalesTax, PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
+import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
+import {
+  acceptedCreditNoteWhere,
+  creditNoteInstant,
+  inFiscalRange,
+  issuedAtWindow,
+  loadUnlinkedRefundsCents,
+  logInvalidCreditNote,
+  storedNoteSlices,
+} from "../creditNoteAccounting";
+import { creditNoteFiscalDate } from "../creditNoteLedger";
+import type {
+  CreditNoteTaxInput,
+  CurrentSalesTax,
+  PurchaseTaxInput,
+  SaleTaxInput,
+} from "./taxesDocuments";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
 
@@ -41,6 +62,30 @@ export function purchaseDocumentLabel(
   const trimmed = supplierInvoiceNumber?.trim();
   return trimmed ? trimmed : `OC-${String(number).padStart(4, "0")}`;
 }
+
+type SaleCustomer = SaleTaxInput["customer"];
+
+/**
+ * Adquiriente de una factura: el que congeló el snapshot o, si no lo
+ * guardó, la última solicitud de factura generada de la cuenta.
+ */
+function saleCustomer(
+  snap: InvoiceSnapshot,
+  request: { customerName: string; docType: string; docNumber: string } | undefined,
+): SaleCustomer {
+  return snap.customer
+    ? { name: snap.customer.name, docType: snap.customer.docType, docNumber: snap.customer.docNumber }
+    : request
+      ? { name: request.customerName, docType: request.docType, docNumber: request.docNumber }
+      : null;
+}
+
+const GENERATED_REQUEST = {
+  where: { status: "generated" as const },
+  orderBy: { createdAt: "desc" as const },
+  take: 1,
+  select: { customerName: true, docType: true, docNumber: true },
+};
 
 export async function loadSaleTaxDocs(
   restaurantId: string,
@@ -56,12 +101,7 @@ export async function loadSaleTaxDocs(
       order: {
         select: {
           paidAt: true,
-          invoiceRequests: {
-            where: { status: "generated" },
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            select: { customerName: true, docType: true, docNumber: true },
-          },
+          invoiceRequests: GENERATED_REQUEST,
         },
       },
     },
@@ -75,12 +115,7 @@ export async function loadSaleTaxDocs(
     // snapshots viejos el subtotal entero menos el impuesto.
     const baseCents =
       snap.embeddedBaseCents != null ? snap.embeddedBaseCents : snap.subtotalCents - taxCents;
-    const request = r.order.invoiceRequests[0];
-    const customer = snap.customer
-      ? { name: snap.customer.name, docType: snap.customer.docType, docNumber: snap.customer.docNumber }
-      : request
-        ? { name: request.customerName, docType: request.docType, docNumber: request.docNumber }
-        : null;
+    const customer = saleCustomer(snap, r.order.invoiceRequests[0]);
     return {
       invoiceId: r.id,
       document: formatInvoiceNumber(snap, r.invoiceNumber),
@@ -139,13 +174,72 @@ export async function loadPurchaseTaxDocs(
   }));
 }
 
-/** Σ reembolsos de la pasarela del rango (misma lectura que `posting.sumRefunds`). */
-export async function loadRefundsCents(restaurantId: string, from: Date, to: Date): Promise<number> {
-  const r = await db.kushkiTransaction.aggregate({
-    where: { restaurantId, kind: "refund", createdAt: { gte: from, lt: to } },
-    _sum: { amountCents: true },
+/**
+ * Notas crédito aceptadas con fecha fiscal en [desde, hasta]. Montos
+ * POSITIVOS (las funciones puras los restan); referencia = número de la
+ * factura original como lo declaró su XML.
+ */
+export async function loadCreditNoteTaxDocs(
+  restaurantId: string,
+  desde: string,
+  hasta: string,
+): Promise<CreditNoteTaxInput[]> {
+  const rows = await db.creditNote.findMany({
+    where: { ...acceptedCreditNoteWhere(restaurantId), dianDocument: { is: { state: "accepted", issuedAt: issuedAtWindow(desde, hasta) } } },
+    select: {
+      id: true,
+      documentNumber: true,
+      subtotalCents: true,
+      taxCents: true,
+      totalCents: true,
+      snapshot: true,
+      createdAt: true,
+      dianDocument: { select: { issuedAt: true } },
+      originalInvoice: {
+        select: {
+          invoiceNumber: true,
+          snapshot: true,
+          order: { select: { invoiceRequests: GENERATED_REQUEST } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
   });
-  return r._sum.amountCents ?? 0;
+  const out: CreditNoteTaxInput[] = [];
+  for (const r of rows) {
+    const instant = creditNoteInstant(r);
+    if (!inFiscalRange(instant, desde, hasta)) continue;
+    const slices = storedNoteSlices(r);
+    if (!slices.ok) {
+      logInvalidCreditNote(r.id, r.documentNumber, slices.reason);
+      continue;
+    }
+    const invoiceSnap = r.originalInvoice.snapshot as unknown as InvoiceSnapshot;
+    const noteSnap = r.snapshot as unknown as CreditNoteSnapshot;
+    out.push({
+      creditNoteId: r.id,
+      document: r.documentNumber,
+      reference: noteSnap?.original?.invoiceNumber || formatInvoiceNumber(invoiceSnap, r.originalInvoice.invoiceNumber),
+      dateIso: `${creditNoteFiscalDate(instant)}T12:00:00.000Z`,
+      customer: saleCustomer(invoiceSnap, r.originalInvoice.order.invoiceRequests[0]),
+      slices: slices.slices.map((sl) => ({
+        kind: sl.kind,
+        pct: sl.pct,
+        baseCents: sl.baseCents,
+        taxCents: sl.taxCents,
+      })),
+    });
+  }
+  return out;
+}
+
+/**
+ * Σ reembolsos de la pasarela del rango SIN nota crédito ligada (la parte
+ * ligada a una nota la resta la nota con su impuesto exacto). Misma regla
+ * cronológica que el asiento `refund` de `posting.ts`.
+ */
+export async function loadRefundsCents(restaurantId: string, from: Date, to: Date): Promise<number> {
+  return loadUnlinkedRefundsCents(restaurantId, from, to);
 }
 
 /** Tarifa vigente del comercio (para devoluciones de un período sin ventas). */

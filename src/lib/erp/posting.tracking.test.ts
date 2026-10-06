@@ -14,6 +14,10 @@ vi.mock("./accountingData", () => ({
 vi.mock("./ledger", () => ({ ensureChartOfAccounts: vi.fn(), loadAccountIndex: async () => new Map(["143505", "519505", "24081001", "220505", "236505", "236705", "236805"].map((code) => [code, { id: code, postable: true, active: true }])) }));
 vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
+vi.mock("./creditNoteAccounting", () => ({
+  loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
+  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+}));
 import { generateJournalForMonth } from "./posting";
 
 beforeEach(() => vi.clearAllMocks());

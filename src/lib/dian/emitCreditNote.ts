@@ -13,6 +13,7 @@ import { prepareCreditNotePayload } from "./creditNotePayload";
 import { CreditNoteError } from "./creditNotes/domain";
 import { sendDianCreditNoteEmail } from "./sendCreditNoteEmail";
 import { BLOCKED_RETRY_MS, emissionBackoffMs } from "./retry";
+import { stampCreditNoteAccounting } from "@/lib/erp/creditNoteAccounting";
 
 export type EmitCreditNoteResult = {
   outcome: "not_found" | "already_emitted" | "blocked" | "accepted" | "pending" | "rejected" | "error";
@@ -155,6 +156,15 @@ export async function emitDianCreditNote(opts: {
     });
     if (updated.count !== 1) return { outcome: "already_emitted" };
     if (result.state === "accepted") {
+      // Contabilidad: fija la parte que cancela cartera de cliente y baja esa
+      // deuda (erp/creditNoteAccounting). Un fallo acá no deshace la
+      // aceptación fiscal: el motor contable reintenta al generar el diario.
+      await stampCreditNoteAccounting(opts.restaurantId, note.id).catch((error) =>
+        console.error("[creditNotes] contabilización pendiente tras la aceptación", {
+          creditNoteId: note.id,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
       // Delivery errors cannot roll back fiscal acceptance.
       await sendDianCreditNoteEmail(note.id, opts.restaurantId).catch(() => undefined);
     }

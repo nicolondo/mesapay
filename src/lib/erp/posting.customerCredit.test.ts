@@ -44,6 +44,10 @@ vi.mock("./ledger", () => ({
 }));
 vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
+vi.mock("./creditNoteAccounting", () => ({
+  loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
+  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+}));
 
 import { generateJournalForMonth } from "./posting";
 

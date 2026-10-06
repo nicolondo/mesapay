@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/** Libros del mes (spec B2 · D5): ventas (órdenes pagadas) o compras (OCs recibidas). */
+/**
+ * Libros del mes (spec B2 · D5): ventas (órdenes pagadas + notas crédito
+ * aceptadas del mes, que restan) o compras (OCs recibidas).
+ */
 async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
@@ -23,8 +26,8 @@ async function GETHandler(req: Request) {
   }
 
   if (book === "sales") {
-    const { orders, totals } = await loadSalesBook(ctx.restaurantId, range);
-    return NextResponse.json({ book, orders, totals });
+    const { orders, totals, creditNotes, creditNoteTotals } = await loadSalesBook(ctx.restaurantId, range);
+    return NextResponse.json({ book, orders, totals, creditNotes, creditNoteTotals });
   }
   const { rows, totals } = await loadPurchasesBook(ctx.restaurantId, range);
   return NextResponse.json({ book, rows, totals });

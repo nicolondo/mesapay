@@ -152,6 +152,19 @@ type SalesBookOrder = {
   simpleInvoice: { invoiceNumber: number } | null;
 };
 
+/** Nota crédito aceptada del mes (montos positivos: restan de las ventas). */
+type SalesBookCreditNote = {
+  id: string;
+  documentNumber: string;
+  /** Fecha fiscal YYYY-MM-DD. */
+  date: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  subtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+};
+
 type SalesBookPayload = {
   book: "sales";
   orders: SalesBookOrder[];
@@ -164,6 +177,9 @@ type SalesBookPayload = {
     /** Desc por monto. */
     byMethod: Array<{ method: string; amountCents: number }>;
   };
+  /** Opcional: respuestas cacheadas antes de las notas crédito no lo traen. */
+  creditNotes?: SalesBookCreditNote[];
+  creditNoteTotals?: { count: number; subtotalCents: number; taxCents: number; totalCents: number };
 };
 
 type PurchasesBookRow = {
@@ -1302,6 +1318,8 @@ function SalesBookView({
     const key = PAY_METHOD_KEYS[method];
     return key ? t(key) : method;
   };
+  const creditNotes = data.creditNotes ?? [];
+  const creditNoteTotal = creditNotes.reduce((s, n) => s + n.totalCents, 0);
 
   return (
     <>
@@ -1327,6 +1345,18 @@ function SalesBookView({
             label={t("csvTax")}
             value={money(data.totals.taxCents)}
           />
+          {creditNotes.length > 0 && (
+            <>
+              <SummaryLine
+                label={t("bookCreditNotes", { count: creditNotes.length })}
+                value={money(-creditNoteTotal)}
+              />
+              <SummaryLine
+                label={t("bookNetOfCreditNotes")}
+                value={money(data.totals.totalCents - creditNoteTotal)}
+              />
+            </>
+          )}
         </div>
         {data.totals.byMethod.length > 0 && (
           <div className="px-4 py-2.5 border-t border-op-border space-y-1">
@@ -1392,6 +1422,36 @@ function SalesBookView({
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {creditNotes.length > 0 && (
+        <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-op-border">
+            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+              {t("bookCreditNotesTitle")}
+            </div>
+            <p className="text-[11px] text-op-muted mt-0.5">{t("bookCreditNotesHint")}</p>
+          </div>
+          {creditNotes.map((n) => (
+            <div
+              key={n.id}
+              className="px-4 py-2.5 border-b border-op-border last:border-b-0 flex items-center gap-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">
+                  {t("bookCreditNoteLine", { number: n.documentNumber, invoice: n.invoiceNumber })}
+                </div>
+                <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                  {formatDate(`${n.date}T12:00:00Z`, { locale, dateStyle: "short", timeStyle: undefined, timeZone: "UTC" })}
+                  {n.customerName ? ` · ${n.customerName}` : ""}
+                </div>
+              </div>
+              <div className="text-sm font-medium tabular-nums shrink-0">
+                {money(-n.totalCents)}
               </div>
             </div>
           ))}

@@ -178,7 +178,11 @@ export default async function ExogenaPage({ searchParams }: { searchParams: Sear
         <Tbl
           cols={[...txtCols([t("colDoc"), t("colTercero")]), ...numCols([t("colIva"), t("colIvaDev")])]}
           rows={f["1005"].map((r) => [...tercero(r.tercero), money(r.vimpCents), money(r.ivadeCents)])}
-          foot={totalRow(t("total"), ["", money(report.totals["1005"]), ""])}
+          foot={totalRow(t("total"), [
+            "",
+            money(report.totals["1005"]),
+            money(sum(f["1005"].map((r) => r.ivadeCents))),
+          ])}
           empty={t("empty")}
         />
       </FormatCard>
@@ -217,7 +221,12 @@ export default async function ExogenaPage({ searchParams }: { searchParams: Sear
             money(r.ibruCents),
             money(r.dredCents),
           ])}
-          foot={totalRow(t("total"), ["", "", money(report.totals["1007"]), ""])}
+          foot={totalRow(t("total"), [
+            "",
+            "",
+            money(report.totals["1007"]),
+            money(sum(f["1007"].map((r) => r.dredCents))),
+          ])}
           empty={t("empty")}
         />
       </FormatCard>

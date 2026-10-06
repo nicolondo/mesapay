@@ -10,6 +10,10 @@
  *  · Adquiriente: la solicitud de factura (`InvoiceRequest`) de la orden
  *    facturada (docType + docNumber) o el `BillingCustomer` de los bonos.
  *    Las facturas sin solicitud son "consumidor final" (222222222222 / 43).
+ *    Una nota crédito aceptada usa el adquiriente de su factura original
+ *    (misma regla, consumidor final incluido) y le resta: base en el 1007
+ *    (devoluciones), IVA en el 1005 (IVA de devoluciones en ventas) e INC
+ *    en el 1006 (neto; el formato no tiene casilla de INC devuelto).
  *  · Empleado (`Employee`): NO tiene documento; el 2276 se calcula por
  *    empleado y se marca la incidencia (sin XML, como en zenith).
  */
@@ -272,6 +276,16 @@ export type SaleInput = {
   incCents: number;
 };
 
+/** Nota crédito aceptada en el año (montos POSITIVOS; restan). */
+export type CreditNoteExogenaInput = {
+  /** Adquiriente de la factura original; null ⇒ consumidor final. */
+  customer: Tercero | null;
+  /** Base (sin impuesto) que la nota devolvió. */
+  baseCents: number;
+  ivaCents: number;
+  incCents: number;
+};
+
 export type ReceivableInput = { customer: Tercero; saldoCents: number };
 
 export type PayableInput = {
@@ -410,8 +424,15 @@ export function aggregate1001(i: { purchases: PurchaseInput[]; expenses: Expense
 
 /* ──────────────────────────────── 1005 ────────────────────────────────── */
 
-/** IVA descontable por proveedor (Σ IVA de las compras con taxPct > 0). */
-export function aggregate1005(purchases: PurchaseInput[]): Row1005[] {
+/**
+ * IVA descontable por proveedor (Σ IVA de las compras con taxPct > 0) e
+ * «IVA resultante por devoluciones en ventas anuladas, rescindidas o
+ * resueltas» (`ivade`) por adquiriente: el IVA de sus notas crédito.
+ */
+export function aggregate1005(
+  purchases: PurchaseInput[],
+  creditNotes: readonly CreditNoteExogenaInput[] = [],
+): Row1005[] {
   const rows = new Map<string, Row1005>();
   for (const p of purchases) {
     const deductible = p.ivaCents - Math.max(0, Math.min(p.ivaCents, p.indedCents));
@@ -421,13 +442,29 @@ export function aggregate1005(purchases: PurchaseInput[]): Row1005[] {
     cur.vimpCents += deductible;
     rows.set(tercero.key, cur);
   }
-  return [...rows.values()].sort(byTotalDesc((r) => r.vimpCents));
+  for (const n of creditNotes) {
+    if (n.ivaCents <= 0) continue;
+    const tercero = n.customer ?? consumidorFinalTercero();
+    const cur = rows.get(tercero.key) ?? { tercero, vimpCents: 0, ivadeCents: 0 };
+    cur.ivadeCents += n.ivaCents;
+    rows.set(tercero.key, cur);
+  }
+  return [...rows.values()].sort(byTotalDesc((r) => r.vimpCents + r.ivadeCents));
 }
 
 /* ──────────────────────────────── 1006 ────────────────────────────────── */
 
-/** IVA generado e INC por adquiriente; las ventas sin solicitud, en consumidor final. */
-export function aggregate1006(sales: SaleInput[]): Row1006[] {
+/**
+ * IVA generado e INC por adquiriente; las ventas sin solicitud, en
+ * consumidor final. El IVA de las notas crédito NO se resta acá (va al
+ * 1005 como IVA de devoluciones en ventas); el INC sí, porque el formato
+ * no tiene otra casilla para él — sin bajar de cero (una nota del año
+ * sobre una venta de un año anterior no deja INC negativo).
+ */
+export function aggregate1006(
+  sales: SaleInput[],
+  creditNotes: readonly CreditNoteExogenaInput[] = [],
+): Row1006[] {
   const rows = new Map<string, Row1006>();
   for (const s of sales) {
     if (s.ivaCents <= 0 && s.incCents <= 0) continue;
@@ -437,25 +474,47 @@ export function aggregate1006(sales: SaleInput[]): Row1006[] {
     cur.incCents += s.incCents;
     rows.set(tercero.key, cur);
   }
-  return [...rows.values()].sort(byTotalDesc((r) => r.ivaCents + r.incCents));
+  for (const n of creditNotes) {
+    if (n.incCents <= 0) continue;
+    const tercero = n.customer ?? consumidorFinalTercero();
+    const cur = rows.get(tercero.key);
+    if (!cur) continue;
+    cur.incCents = Math.max(0, cur.incCents - n.incCents);
+  }
+  return [...rows.values()]
+    .filter((r) => r.ivaCents > 0 || r.incCents > 0)
+    .sort(byTotalDesc((r) => r.ivaCents + r.incCents));
 }
 
 /* ──────────────────────────────── 1007 ────────────────────────────────── */
 
-/** Ingresos brutos (sin impuesto ni propina) por adquiriente, concepto 4001. */
-export function aggregate1007(sales: SaleInput[]): Row1007[] {
+/**
+ * Ingresos brutos (sin impuesto ni propina) por adquiriente, concepto 4001,
+ * y «devoluciones, rebajas y descuentos» (`dred`): la base de sus notas
+ * crédito del año.
+ */
+export function aggregate1007(
+  sales: SaleInput[],
+  creditNotes: readonly CreditNoteExogenaInput[] = [],
+): Row1007[] {
   const rows = new Map<string, Row1007>();
-  for (const s of sales) {
-    if (s.baseCents <= 0) continue;
-    const tercero = s.customer ?? consumidorFinalTercero();
+  const rowFor = (tercero: Tercero): Row1007 => {
     const cur = rows.get(tercero.key) ?? {
       tercero,
       concept: CONCEPTO_1007_OPERACIONALES,
       ibruCents: 0,
       dredCents: 0,
     };
-    cur.ibruCents += s.baseCents;
     rows.set(tercero.key, cur);
+    return cur;
+  };
+  for (const s of sales) {
+    if (s.baseCents <= 0) continue;
+    rowFor(s.customer ?? consumidorFinalTercero()).ibruCents += s.baseCents;
+  }
+  for (const n of creditNotes) {
+    if (n.baseCents <= 0) continue;
+    rowFor(n.customer ?? consumidorFinalTercero()).dredCents += n.baseCents;
   }
   return [...rows.values()].sort(byTotalDesc((r) => r.ibruCents));
 }
@@ -640,6 +699,8 @@ export type ExogenaInputs = {
   purchases: PurchaseInput[];
   expenses: ExpenseInput[];
   sales: SaleInput[];
+  /** Notas crédito aceptadas del año (fecha fiscal). */
+  creditNotes?: CreditNoteExogenaInput[];
   receivables: ReceivableInput[];
   payables: PayableInput[];
   filings: FilingInput[];
@@ -658,9 +719,9 @@ export type ExogenaReport = {
 export function buildExogenaReport(i: ExogenaInputs): ExogenaReport {
   const formats: ExogenaFormats = {
     "1001": aggregate1001({ purchases: i.purchases, expenses: i.expenses }),
-    "1005": aggregate1005(i.purchases),
-    "1006": aggregate1006(i.sales),
-    "1007": aggregate1007(i.sales),
+    "1005": aggregate1005(i.purchases, i.creditNotes),
+    "1006": aggregate1006(i.sales, i.creditNotes),
+    "1007": aggregate1007(i.sales, i.creditNotes),
     "1008": aggregate1008(i.receivables),
     "1009": aggregate1009(i.payables),
     "1010": rows1010(i.shareholders),
@@ -684,7 +745,7 @@ export function buildExogenaReport(i: ExogenaInputs): ExogenaReport {
 
   const issues: ExogenaIssue[] = [
     ...terceroIssues("1001", formats["1001"].map((r) => ({ tercero: r.tercero, amountCents: r.pagoCents }))),
-    ...terceroIssues("1005", formats["1005"].map((r) => ({ tercero: r.tercero, amountCents: r.vimpCents }))),
+    ...terceroIssues("1005", formats["1005"].map((r) => ({ tercero: r.tercero, amountCents: r.vimpCents + r.ivadeCents }))),
     ...terceroIssues("1006", formats["1006"].map((r) => ({ tercero: r.tercero, amountCents: r.ivaCents + r.incCents }))),
     ...terceroIssues("1007", formats["1007"].map((r) => ({ tercero: r.tercero, amountCents: r.ibruCents }))),
     ...terceroIssues("1008", formats["1008"].map((r) => ({ tercero: r.tercero, amountCents: r.saldoCents }))),

@@ -11,7 +11,12 @@ import { db } from "@/lib/db";
  * cobro puntual: se aplican FIFO al cargo más viejo (`allocateFifo`) para
  * las edades de cartera.
  *
- *   deuda = Σ cargos (monto con propina − reembolsado) − Σ abonos
+ *   deuda = Σ cargos (monto con propina − reembolsado − notas crédito) − Σ abonos
+ *
+ * Una nota crédito aceptada por la DIAN sobre la factura de una cuenta a
+ * crédito baja el cargo (`Payment.creditNoteCents`) hasta su saldo
+ * pendiente: lo fija la contabilización de la nota
+ * (`erp/creditNoteAccounting.stampCreditNoteAccounting`).
  *
  * Lo puro va arriba (tests sin DB); lo que toca Prisma, abajo.
  */
@@ -25,6 +30,8 @@ export type CreditCharge = {
   amountCents: number;
   tipCents: number;
   refundedCents: number;
+  /** Parte cancelada por notas crédito aceptadas (0 si no hay). */
+  creditNoteCents?: number;
 };
 
 /** Un abono del cliente a su deuda. */
@@ -49,14 +56,19 @@ export type CreditCheck =
       availableCents?: number;
     };
 
-/** Lo que un cargo todavía pesa en la deuda: monto (con propina) menos lo devuelto. */
-export function chargeDebtCents(c: Pick<CreditCharge, "amountCents" | "refundedCents">): number {
-  return Math.max(0, c.amountCents - c.refundedCents);
+/**
+ * Lo que un cargo todavía pesa en la deuda: monto (con propina) menos lo
+ * devuelto y lo cancelado por notas crédito.
+ */
+export function chargeDebtCents(
+  c: Pick<CreditCharge, "amountCents" | "refundedCents" | "creditNoteCents">,
+): number {
+  return Math.max(0, c.amountCents - c.refundedCents - (c.creditNoteCents ?? 0));
 }
 
 /** Deuda del cliente: Σ cargos vigentes − Σ abonos. Negativo = pagó de más. */
 export function customerDebt(
-  charges: readonly Pick<CreditCharge, "amountCents" | "refundedCents">[],
+  charges: readonly Pick<CreditCharge, "amountCents" | "refundedCents" | "creditNoteCents">[],
   payments: readonly Pick<CreditAbono, "amountCents">[],
 ): number {
   const charged = charges.reduce((s, c) => s + chargeDebtCents(c), 0);
@@ -208,6 +220,7 @@ export async function loadCustomerCreditSummary(
         amountCents: true,
         tipCents: true,
         refundedCents: true,
+        creditNoteCents: true,
         orderId: true,
         order: { select: { shortCode: true, table: { select: { label: true, number: true } } } },
       },
@@ -232,6 +245,7 @@ export async function loadCustomerCreditSummary(
     amountCents: p.amountCents,
     tipCents: p.tipCents,
     refundedCents: p.refundedCents,
+    creditNoteCents: p.creditNoteCents,
     orderId: p.orderId,
     orderShortCode: p.order.shortCode,
     tableLabel: p.order.table ? p.order.table.label || String(p.order.table.number) : null,
@@ -268,7 +282,7 @@ export async function loadCustomersDebt(restaurantId: string): Promise<Map<strin
         status: { in: [...CHARGE_STATUSES] },
         order: { restaurantId },
       },
-      _sum: { amountCents: true, refundedCents: true },
+      _sum: { amountCents: true, refundedCents: true, creditNoteCents: true },
     }),
     db.customerCreditPayment.groupBy({
       by: ["billingCustomerId"],
@@ -279,7 +293,10 @@ export async function loadCustomersDebt(restaurantId: string): Promise<Map<strin
   const debt = new Map<string, number>();
   for (const g of charged) {
     if (!g.billingCustomerId) continue;
-    const cents = Math.max(0, (g._sum.amountCents ?? 0) - (g._sum.refundedCents ?? 0));
+    const cents = Math.max(
+      0,
+      (g._sum.amountCents ?? 0) - (g._sum.refundedCents ?? 0) - (g._sum.creditNoteCents ?? 0),
+    );
     debt.set(g.billingCustomerId, cents);
   }
   for (const g of paid) {

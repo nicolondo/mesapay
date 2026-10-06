@@ -282,6 +282,7 @@ type CreditChargeRow = {
   amountCents: number;
   tipCents: number;
   refundedCents: number;
+  creditNoteCents: number;
   order: { shortCode: string };
   billingCustomer: CreditCustomerRow | null;
 };
@@ -302,6 +303,7 @@ const CREDIT_CHARGE_SELECT = {
   amountCents: true,
   tipCents: true,
   refundedCents: true,
+  creditNoteCents: true,
   order: { select: { shortCode: true } },
   billingCustomer: {
     select: {
@@ -332,8 +334,9 @@ const CREDIT_CHARGE_STATUSES = ["approved", "refunded"] as const;
  * documentos con saldo FIFO y abonos. Cada cargo es una cuenta cobrada a
  * crédito: vence a la fecha del cobro + el plazo del cliente. El saldo por
  * cargo sale de `allocateFifo`; cada abono se muestra bajo el primer cargo
- * que cubrió (o el último cargo, si pagó de más). Lo devuelto (refunds) se
- * descuenta con el valor de hoy, no al corte: aceptado.
+ * que cubrió (o el último cargo, si pagó de más). Lo devuelto (refunds) y
+ * lo cancelado por notas crédito se descuentan con el valor de hoy, no al
+ * corte: aceptado.
  */
 export function creditMovementsFor(
   customer: CreditCustomerRow,
@@ -346,6 +349,7 @@ export function creditMovementsFor(
     amountCents: c.amountCents,
     tipCents: c.tipCents,
     refundedCents: c.refundedCents,
+    creditNoteCents: c.creditNoteCents,
   }));
   const creditAbonos: CreditAbono[] = abonos.map((a) => ({
     id: a.id,

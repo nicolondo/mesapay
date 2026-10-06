@@ -21,6 +21,17 @@ import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
 import { isModuleEnabled } from "@/lib/modules";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
+import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
+import {
+  acceptedCreditNoteWhere,
+  creditNoteInstant,
+  inFiscalRange,
+  issuedAtWindow,
+  logInvalidCreditNote,
+  storedNoteSlices,
+} from "@/lib/erp/creditNoteAccounting";
+import { creditNoteFiscalDate } from "@/lib/erp/creditNoteLedger";
+import { isoDateUtc } from "@/lib/erp/reports/period";
 
 export type MonthRange = { from: Date; to: Date };
 
@@ -451,27 +462,97 @@ export async function computeTaxSummary(
 
 // ── Libros (D5): filas para la vista JSON y el export CSV ──────────────────
 
-export async function loadSalesBook(restaurantId: string, range: MonthRange) {
-  const orders = await db.order.findMany({
-    where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
-    orderBy: { paidAt: "asc" },
+/** Una nota crédito aceptada en el libro de ventas (montos POSITIVOS; restan). */
+export type SalesBookCreditNote = {
+  id: string;
+  documentNumber: string;
+  /** Fecha fiscal "YYYY-MM-DD" (día colombiano de emisión). */
+  date: string;
+  /** Factura que ajusta, como la declaró su XML. */
+  invoiceNumber: string;
+  customerName: string | null;
+  subtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+};
+
+/**
+ * Notas crédito ACEPTADAS por la DIAN con fecha fiscal dentro del mes del
+ * libro. El libro de ventas las lista como documentos en negativo; una nota
+ * que no cuadra al centavo se excluye (igual que en contabilidad e
+ * impuestos) y queda en el log.
+ */
+export async function loadSalesBookCreditNotes(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<SalesBookCreditNote[]> {
+  const desde = isoDateUtc(range.from);
+  const hasta = isoDateUtc(new Date(range.to.getTime() - 1));
+  const rows = await db.creditNote.findMany({
+    where: {
+      ...acceptedCreditNoteWhere(restaurantId),
+      dianDocument: { is: { state: "accepted", issuedAt: issuedAtWindow(desde, hasta) } },
+    },
     select: {
       id: true,
-      shortCode: true,
-      paidAt: true,
-      orderType: true,
+      documentNumber: true,
       subtotalCents: true,
-      tipCents: true,
       taxCents: true,
       totalCents: true,
-      table: { select: { number: true, label: true } },
-      payments: {
-        where: { status: "approved" },
-        select: { method: true, amountCents: true },
-      },
-      simpleInvoice: { select: { invoiceNumber: true } },
+      snapshot: true,
+      createdAt: true,
+      dianDocument: { select: { issuedAt: true } },
     },
+    orderBy: { createdAt: "asc" },
   });
+  const out: SalesBookCreditNote[] = [];
+  for (const r of rows) {
+    const instant = creditNoteInstant(r);
+    if (!inFiscalRange(instant, desde, hasta)) continue;
+    const slices = storedNoteSlices(r);
+    if (!slices.ok) {
+      logInvalidCreditNote(r.id, r.documentNumber, slices.reason);
+      continue;
+    }
+    const snap = r.snapshot as unknown as CreditNoteSnapshot;
+    out.push({
+      id: r.id,
+      documentNumber: r.documentNumber,
+      date: creditNoteFiscalDate(instant),
+      invoiceNumber: snap?.original?.invoiceNumber ?? "",
+      customerName: snap?.original?.customer?.name ?? null,
+      subtotalCents: r.subtotalCents,
+      taxCents: r.taxCents,
+      totalCents: r.totalCents,
+    });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.documentNumber.localeCompare(b.documentNumber));
+}
+
+export async function loadSalesBook(restaurantId: string, range: MonthRange) {
+  const [creditNotes, orders] = await Promise.all([
+    loadSalesBookCreditNotes(restaurantId, range),
+    db.order.findMany({
+      where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
+      orderBy: { paidAt: "asc" },
+      select: {
+        id: true,
+        shortCode: true,
+        paidAt: true,
+        orderType: true,
+        subtotalCents: true,
+        tipCents: true,
+        taxCents: true,
+        totalCents: true,
+        table: { select: { number: true, label: true } },
+        payments: {
+          where: { status: "approved" },
+          select: { method: true, amountCents: true },
+        },
+        simpleInvoice: { select: { invoiceNumber: true } },
+      },
+    }),
+  ]);
 
   const byMethod = new Map<string, number>();
   for (const o of orders) {
@@ -491,7 +572,15 @@ export async function loadSalesBook(restaurantId: string, range: MonthRange) {
       .map(([method, amountCents]) => ({ method, amountCents }))
       .sort((a, b) => b.amountCents - a.amountCents),
   };
-  return { orders, totals };
+  // Notas crédito del mes: documentos que restan de las ventas (no tocan
+  // los totales de las cuentas cobradas, que siguen siendo lo que entró).
+  const creditNoteTotals = {
+    count: creditNotes.length,
+    subtotalCents: creditNotes.reduce((s, n) => s + n.subtotalCents, 0),
+    taxCents: creditNotes.reduce((s, n) => s + n.taxCents, 0),
+    totalCents: creditNotes.reduce((s, n) => s + n.totalCents, 0),
+  };
+  return { orders, totals, creditNotes, creditNoteTotals };
 }
 
 export async function loadPurchasesBook(

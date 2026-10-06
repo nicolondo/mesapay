@@ -8,7 +8,7 @@ import {
   taxesDetailCsvRows,
   type RetentionLedgerLine,
 } from "./taxesDetail";
-import type { PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
+import type { CreditNoteTaxInput, PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
 import type { TaxAccount } from "./taxesModel";
 
 const sales: SaleTaxInput[] = [
@@ -160,6 +160,54 @@ describe("retenciones desde el libro", () => {
   });
 });
 
+describe("notas crédito en el detalle", () => {
+  const note: CreditNoteTaxInput = {
+    creditNoteId: "n1",
+    document: "NC4",
+    reference: "FESM2",
+    dateIso: "2026-08-20T12:00:00.000Z",
+    customer: { name: "ACME S.A.S.", docType: "NIT", docNumber: "900123456" },
+    slices: [
+      { kind: "iva", pct: 19, baseCents: 50_000, taxCents: 9_500 },
+      { kind: "none", pct: 0, baseCents: 1_000, taxCents: 0 }, // sin impuesto: no sale
+    ],
+  };
+
+  it("documento NEGATIVO con su número NC, fecha fiscal, tercero de la factura y referencia", () => {
+    const rows = salesDetailRows(sales, [note]);
+    expect(rows.map((r) => r.document)).toEqual(["FESM1", "FESM2", "NC4"]);
+    expect(rows[2]).toEqual({
+      key: "n1:iva:19",
+      dateIso: "2026-08-20T12:00:00.000Z",
+      document: "NC4",
+      nit: "900123456",
+      party: "ACME S.A.S.",
+      kind: "iva",
+      pct: 19,
+      baseCents: -50_000,
+      valorCents: -9_500,
+      reference: "FESM2",
+    });
+  });
+
+  it("los stats quedan netos y el CSV rotula la nota con la factura que ajusta", () => {
+    const detail = buildTaxesDetail({ sales, purchases: [], ledgerLines: [], accounts, creditNotes: [note] });
+    expect(detail.stats.ivaGeneradoCents).toBe(38_000 - 9_500);
+    const rows = taxesDetailCsvRows(detail, {
+      sections: { sales: "V", purchases: "C", practicadas: "RP", aFavor: "RF" },
+      taxLabel: (k) => (k === "iva" ? "IVA" : "INC"),
+      finalConsumer: "Consumidor final",
+      unnumbered: "sin numerar",
+      voided: "Anulado",
+      sourceLabel: (s) => s,
+      creditNoteDocument: (doc, ref) => `${doc} (nota crédito de ${ref})`,
+    });
+    expect(rows[2]).toEqual([
+      "V", "2026-08-20", "NC4 (nota crédito de FESM2)", "900123456", "ACME S.A.S.", "IVA", "19 %", -50_000, -9_500,
+    ]);
+  });
+});
+
 describe("reporte completo y CSV", () => {
   const detail = buildTaxesDetail({
     sales,
@@ -187,6 +235,7 @@ describe("reporte completo y CSV", () => {
       unnumbered: "sin numerar",
       voided: "Anulado",
       sourceLabel: (s) => `[${s}]`,
+      creditNoteDocument: (doc, ref) => `${doc} (NC de ${ref})`,
     });
     expect(rows).toEqual([
       ["V", "2026-08-10", "FESM1", "", "Consumidor final", "INC", "8 %", 100_000, 8_000],

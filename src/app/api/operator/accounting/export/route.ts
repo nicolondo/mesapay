@@ -21,7 +21,9 @@ function isoDate(d: Date | null): string {
 }
 
 /**
- * Export CSV del mes (spec B2 · D5): ventas | compras | gastos. UTF-8
+ * Export CSV del mes (spec B2 · D5): ventas | compras | gastos. En ventas,
+ * las notas crédito aceptadas del mes van al final como documentos en
+ * NEGATIVO (código = número de la nota, factura = la que ajusta). UTF-8
  * con BOM (Excel muestra bien los acentos), montos en unidades de moneda
  * con punto decimal, encabezados en el idioma del usuario. Columnas
  * genéricas mapeables a Siigo/Alegra/Contpaqi.
@@ -42,7 +44,7 @@ async function GETHandler(req: Request) {
 
   let csv: string;
   if (book === "sales") {
-    const { orders } = await loadSalesBook(ctx.restaurantId, range);
+    const { orders, creditNotes } = await loadSalesBook(ctx.restaurantId, range);
     csv = toCsv(
       [
         t("csvDate"),
@@ -55,18 +57,33 @@ async function GETHandler(req: Request) {
         t("csvPaymentMethods"),
         t("csvInvoiceNumber"),
       ],
-      orders.map((o) => [
-        isoDate(o.paidAt),
-        o.shortCode,
-        o.table ? (o.table.label ?? String(o.table.number)) : "",
-        centsToCsvAmount(o.subtotalCents),
-        centsToCsvAmount(o.tipCents),
-        centsToCsvAmount(o.taxCents),
-        centsToCsvAmount(o.totalCents),
-        // El efectivo histórico (demo_cash) sale como "cash", como el de hoy.
-        [...new Set(o.payments.map((p) => reportingPaymentMethod(p.method)))].join(" | "),
-        o.simpleInvoice ? String(o.simpleInvoice.invoiceNumber) : "",
-      ]),
+      [
+        ...orders.map((o) => [
+          isoDate(o.paidAt),
+          o.shortCode,
+          o.table ? (o.table.label ?? String(o.table.number)) : "",
+          centsToCsvAmount(o.subtotalCents),
+          centsToCsvAmount(o.tipCents),
+          centsToCsvAmount(o.taxCents),
+          centsToCsvAmount(o.totalCents),
+          // El efectivo histórico (demo_cash) sale como "cash", como el de hoy.
+          [...new Set(o.payments.map((p) => reportingPaymentMethod(p.method)))].join(" | "),
+          o.simpleInvoice ? String(o.simpleInvoice.invoiceNumber) : "",
+        ]),
+        // Notas crédito: el subtotal (como el de las cuentas) lleva el
+        // impuesto embebido, así que va el total de la nota en negativo.
+        ...creditNotes.map((n) => [
+          n.date,
+          n.documentNumber,
+          t("csvCreditNote"),
+          centsToCsvAmount(-n.totalCents),
+          centsToCsvAmount(0),
+          centsToCsvAmount(0),
+          centsToCsvAmount(-n.totalCents),
+          "",
+          n.invoiceNumber,
+        ]),
+      ],
     );
   } else if (book === "purchases") {
     const { rows } = await loadPurchasesBook(ctx.restaurantId, range);

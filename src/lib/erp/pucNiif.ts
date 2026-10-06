@@ -125,6 +125,10 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("2370", "Retenciones y aportes de nómina", "pasivo", "credito"),
   P("237005", "Aportes y retenciones de nómina", "pasivo", "credito"),
   P("2380", "Acreedores varios", "pasivo", "credito"),
+  // Notas crédito electrónicas cuya devolución de dinero está pendiente
+  // (ENGINE.DEVOLUCIONES_POR_PAGAR). La siembra incremental la agrega a los
+  // comercios ya sembrados la próxima vez que se abre la contabilidad.
+  P("238020", "Reintegros por pagar (devoluciones a clientes)", "pasivo", "credito"),
   P("238030", "Propinas por pagar", "pasivo", "credito"),
   P("238095", "Otros acreedores", "pasivo", "credito"),
   P("24", "Impuestos, gravámenes y tasas", "pasivo", "credito"),

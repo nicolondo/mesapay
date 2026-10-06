@@ -17,13 +17,19 @@ const customer = {
   verificationDigit: "1",
   creditTermsDays: 30,
 };
-const charge = (id: string, date: string, amountCents: number, over: Partial<{ tipCents: number; refundedCents: number }> = {}) => ({
+const charge = (
+  id: string,
+  date: string,
+  amountCents: number,
+  over: Partial<{ tipCents: number; refundedCents: number; creditNoteCents: number }> = {},
+) => ({
   id,
   settledAt: new Date(`${date}T20:00:00Z`),
   createdAt: new Date(`${date}T20:00:00Z`),
   amountCents,
   tipCents: 0,
   refundedCents: 0,
+  creditNoteCents: 0,
   order: { shortCode: id.toUpperCase() },
   billingCustomer: customer,
   ...over,
@@ -71,6 +77,19 @@ describe("creditMovementsFor", () => {
     expect(docs.map((d) => d.id)).toEqual(["c2"]);
     expect(docs[0].outstandingCents).toBe(0);
     expect(payments).toEqual([expect.objectContaining({ id: "a1", docId: "c2" })]);
+  });
+
+  it("una nota crédito aceptada baja el documento como un reembolso y el FIFO usa el saldo neto", () => {
+    const { docs } = creditMovementsFor(
+      customer,
+      [charge("c1", "2026-09-01", 100_000, { creditNoteCents: 30_000 }), charge("c2", "2026-09-02", 50_000)],
+      [abono("a1", "2026-09-05", 80_000)],
+    );
+    // c1 pesa 70.000 (100.000 − nota de 30.000): el abono lo salda y deja 10.000 en c2.
+    expect(docs.map((d) => [d.id, d.totalCents, d.outstandingCents])).toEqual([
+      ["c1", 70_000, 0],
+      ["c2", 50_000, 40_000],
+    ]);
   });
 
   it("sin cargos, los abonos no se pueden colgar de nada", () => {

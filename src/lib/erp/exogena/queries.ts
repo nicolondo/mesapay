@@ -10,6 +10,9 @@
  *  · 1006 / 1007: tirillas emitidas (`SimpleInvoice`, snapshot congelado
  *    del impuesto) de órdenes pagadas en el año; el adquiriente es la
  *    solicitud de factura de la orden (`InvoiceRequest`), si la hay.
+ *  · 1005 / 1006 / 1007 (devoluciones): notas crédito ACEPTADAS por la
+ *    DIAN con fecha fiscal en el año; el adquiriente es el de su factura
+ *    original con la misma regla de arriba.
  *  · 1008: cortes de bonos a crédito (`VoucherStatement`) abiertos al 31/12.
  *  · 1011: declaraciones registradas (`TaxFiling`) del año.
  *  · 2276: conceptos liquidados (`PayrollItem`) de las corridas del año.
@@ -19,6 +22,14 @@
 
 import { db } from "@/lib/db";
 import { frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
+import {
+  acceptedCreditNoteWhere,
+  creditNoteInstant,
+  inFiscalRange,
+  issuedAtWindow,
+  logInvalidCreditNote,
+  storedNoteSlices,
+} from "../creditNoteAccounting";
 import { lineTaxCents, poTotals } from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
 import { uvtDelAno } from "./normativa";
@@ -26,6 +37,7 @@ import {
   billingCustomerTercero,
   buildExogenaReport,
   requestTercero,
+  type CreditNoteExogenaInput,
   type ExogenaInputs,
   type ExogenaReport,
   type SaleInput,
@@ -60,6 +72,69 @@ export function saleFromSnapshot(snap: InvoiceSnapshot, customer: Tercero | null
   };
 }
 
+/** Solicitud de factura de la orden que define al adquiriente (ventas y notas). */
+const SALE_REQUEST_SELECT = {
+  where: { status: { not: "rejected" as const } },
+  orderBy: { createdAt: "asc" as const },
+  take: 1,
+  select: {
+    customerName: true,
+    docType: true,
+    docNumber: true,
+    address: true,
+    city: true,
+    department: true,
+  },
+};
+
+/**
+ * Notas crédito aceptadas con fecha fiscal en el año, con el adquiriente de
+ * su factura original. Las que no cuadran al centavo se excluyen (log).
+ */
+export async function loadCreditNoteExogenaInputs(
+  restaurantId: string,
+  year: number,
+): Promise<CreditNoteExogenaInput[]> {
+  const desde = `${year}-01-01`;
+  const hasta = `${year}-12-31`;
+  const rows = await db.creditNote.findMany({
+    where: {
+      ...acceptedCreditNoteWhere(restaurantId),
+      dianDocument: { is: { state: "accepted", issuedAt: issuedAtWindow(desde, hasta) } },
+    },
+    select: {
+      id: true,
+      documentNumber: true,
+      subtotalCents: true,
+      taxCents: true,
+      totalCents: true,
+      snapshot: true,
+      createdAt: true,
+      dianDocument: { select: { issuedAt: true } },
+      originalInvoice: { select: { order: { select: { invoiceRequests: SALE_REQUEST_SELECT } } } },
+    },
+  });
+  const out: CreditNoteExogenaInput[] = [];
+  for (const r of rows) {
+    if (!inFiscalRange(creditNoteInstant(r), desde, hasta)) continue;
+    const slices = storedNoteSlices(r);
+    if (!slices.ok) {
+      logInvalidCreditNote(r.id, r.documentNumber, slices.reason);
+      continue;
+    }
+    const req = r.originalInvoice.order.invoiceRequests[0];
+    const sum = (kind: string) =>
+      slices.slices.filter((sl) => sl.kind === kind).reduce((acc, sl) => acc + sl.taxCents, 0);
+    out.push({
+      customer: req ? requestTercero(req) : null,
+      baseCents: slices.slices.reduce((acc, sl) => acc + sl.baseCents, 0),
+      ivaCents: sum("iva"),
+      incCents: sum("inc"),
+    });
+  }
+  return out;
+}
+
 /** UVT del año gravable en pesos (tabla, o el valor que mantiene el contador). */
 export async function loadUvtPesos(restaurantId: string, year: number): Promise<number> {
   const cfg = await db.accountingConfig.findUnique({
@@ -74,7 +149,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
   const { from, to } = yearRange(year);
   const yearPrefix = `${year}-`;
 
-  const [orders, expenses, invoices, statements, payableOrders, payableExpenses, filings, payroll, shareholders, holdings] =
+  const [orders, expenses, invoices, statements, payableOrders, payableExpenses, filings, payroll, shareholders, holdings, creditNotes] =
     await Promise.all([
       // Compras recibidas en el año (recepción completa, como el libro de compras).
       db.purchaseOrder.findMany({
@@ -107,23 +182,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         where: { restaurantId, order: { status: "paid", paidAt: { gte: from, lt: to } } },
         select: {
           snapshot: true,
-          order: {
-            select: {
-              invoiceRequests: {
-                where: { status: { not: "rejected" } },
-                orderBy: { createdAt: "asc" },
-                take: 1,
-                select: {
-                  customerName: true,
-                  docType: true,
-                  docNumber: true,
-                  address: true,
-                  city: true,
-                  department: true,
-                },
-              },
-            },
-          },
+          order: { select: { invoiceRequests: SALE_REQUEST_SELECT } },
         },
       }),
       // CxC: cortes a crédito emitidos hasta el 31/12 y aún abiertos a esa fecha.
@@ -211,6 +270,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
           valueCents: true,
         },
       }),
+      loadCreditNoteExogenaInputs(restaurantId, year),
     ]);
 
   const sum = (ns: number[]) => ns.reduce((s, n) => s + n, 0);
@@ -234,6 +294,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         req ? requestTercero(req) : null,
       );
     }),
+    creditNotes,
     receivables: statements.map((s) => ({
       customer: billingCustomerTercero(s.billingCustomer),
       saldoCents: s.creditCents,

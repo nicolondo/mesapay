@@ -40,6 +40,13 @@ describe("customerDebt", () => {
     expect(chargeDebtCents({ amountCents: 100_000, refundedCents: 100_000 })).toBe(0);
     expect(customerDebt([charge("c1", "2026-09-01", 100_000, { refundedCents: 100_000 })], [])).toBe(0);
   });
+  it("una nota crédito aceptada baja el cargo igual que un reembolso (y se suma a él)", () => {
+    expect(chargeDebtCents({ amountCents: 100_000, refundedCents: 0, creditNoteCents: 40_000 })).toBe(60_000);
+    expect(chargeDebtCents({ amountCents: 100_000, refundedCents: 30_000, creditNoteCents: 70_000 })).toBe(0);
+    const charges = [charge("c1", "2026-09-01", 100_000, { creditNoteCents: 25_000 })];
+    expect(customerDebt(charges, [abono("a1", "2026-09-02", 50_000)])).toBe(25_000);
+    expect(allocateFifo(charges, []).charges[0]).toMatchObject({ totalCents: 75_000, outstandingCents: 75_000 });
+  });
   it("sin cargos ni abonos la deuda es 0; pagar de más da negativo", () => {
     expect(customerDebt([], [])).toBe(0);
     expect(customerDebt([charge("c1", "2026-09-01", 10_000)], [abono("a1", "2026-09-02", 15_000)])).toBe(-5_000);

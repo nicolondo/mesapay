@@ -12,10 +12,16 @@
  *    `computeTaxSummary`), agrupado por tarifa; INC de cabecera sin
  *    tarifa; retenciones practicadas de cabecera por concepto
  *    (retefuente / reteIVA / reteICA).
- *  · DEVOLUCIONES: los reembolsos de la pasarela no tienen factura que
- *    los congele; el motor les calcula el impuesto embebido con el tramo
- *    dominante del período (`posting.ts`, asiento `refund`). Acá se hace
- *    lo mismo y se restan del tramo, como zenith resta las notas crédito.
+ *  · NOTAS CRÉDITO: las notas electrónicas ACEPTADAS por la DIAN con
+ *    fecha fiscal en el período restan del tramo de cada línea lo que
+ *    declararon (base e impuesto por tarifa, de su snapshot). El tramo
+ *    guarda aparte cuánto restaron, así el contador ve bruto, notas y neto.
+ *  · DEVOLUCIONES: los reembolsos de la pasarela SIN nota crédito no
+ *    tienen documento que los congele; el motor les calcula el impuesto
+ *    embebido con el tramo dominante del período (`posting.ts`, asiento
+ *    `refund`). Acá se hace lo mismo y se restan del tramo. Un reembolso
+ *    ligado a una nota (antes o después de ella) ya lo resta la nota: no
+ *    entra en `refundsCents` (ver `creditNoteAccounting.loadUnlinkedRefundsCents`).
  *
  * Todo en centavos enteros: no hay redondeo intermedio.
  */
@@ -62,6 +68,21 @@ export type PurchaseTaxInput = {
 
 export type CurrentSalesTax = { kind: SalesTaxKind; pct: number };
 
+/** Una nota crédito aceptada, con fecha fiscal en el período. */
+export type CreditNoteTaxInput = {
+  creditNoteId: string;
+  /** Número de la nota (prefijo + consecutivo, «NC12»). */
+  document: string;
+  /** Número de la factura que ajusta («FE345»). */
+  reference: string;
+  /** Fecha fiscal (día colombiano) como ISO al mediodía UTC: su día UTC es el fiscal. */
+  dateIso: string;
+  /** Adquiriente de la factura original; null = consumidor final. */
+  customer: { name: string; docType: string; docNumber: string } | null;
+  /** Tramos de la nota (base e impuesto por tarifa, POSITIVOS). */
+  slices: { kind: SalesTaxKind; pct: number; baseCents: number; taxCents: number }[];
+};
+
 export type DocTaxKind = "iva" | "inc" | "retefuente" | "reteiva" | "reteica";
 
 export type TaxBucket = {
@@ -70,12 +91,15 @@ export type TaxBucket = {
   kind: DocTaxKind;
   /** null = el documento no discrimina tarifa (INC de cabecera, retenciones). */
   pct: number | null;
-  /** Base NETA de devoluciones. */
+  /** Base NETA de devoluciones y notas crédito. */
   baseCents: number;
-  /** Impuesto NETO de devoluciones. */
+  /** Impuesto NETO de devoluciones y notas crédito. */
   taxCents: number;
   refundBaseCents: number;
   refundTaxCents: number;
+  /** Lo que restaron las notas crédito del período (positivo). */
+  creditNoteBaseCents: number;
+  creditNoteTaxCents: number;
 };
 
 export type DocumentTaxTotals = {
@@ -95,6 +119,10 @@ export type DocumentTaxTotals = {
   reteIcaCents: number;
   refundsCents: number;
   refundTaxCents: number;
+  /** Σ total (base + impuesto) de las notas crédito del período. */
+  creditNotesCents: number;
+  /** Σ impuesto (IVA + INC) que restaron las notas crédito. */
+  creditNoteTaxCents: number;
 };
 
 export type DocumentTaxes = {
@@ -133,7 +161,14 @@ function newBucket(kind: DocTaxKind, pct: number | null): TaxBucket {
     taxCents: 0,
     refundBaseCents: 0,
     refundTaxCents: 0,
+    creditNoteBaseCents: 0,
+    creditNoteTaxCents: 0,
   };
+}
+
+/** Impuesto BRUTO de un tramo: el neto más lo que restaron devoluciones y notas. */
+export function grossBucketTax(b: TaxBucket): number {
+  return b.taxCents + b.refundTaxCents + b.creditNoteTaxCents;
 }
 
 function sortBuckets(buckets: Iterable<TaxBucket>): TaxBucket[] {
@@ -170,13 +205,16 @@ export function aggregateDocumentTaxes({
   purchases,
   refundsCents = 0,
   currentTax = { kind: "none", pct: 0 },
+  creditNotes = [],
 }: {
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
-  /** Σ reembolsos de la pasarela del período (sin factura propia). */
+  /** Σ reembolsos de la pasarela del período SIN nota crédito ligada. */
   refundsCents?: number;
   /** Tarifa vigente del comercio (para devoluciones sin ventas en el período). */
   currentTax?: CurrentSalesTax;
+  /** Notas crédito aceptadas con fecha fiscal en el período. */
+  creditNotes?: readonly CreditNoteTaxInput[];
 }): DocumentTaxes {
   // ── Ventas por `kind:tarifa` (lo que cada factura congeló) ──────────────
   const salesBuckets = new Map<string, TaxBucket>();
@@ -190,7 +228,25 @@ export function aggregateDocumentTaxes({
     salesBuckets.set(key, b);
   }
 
-  // ── Devoluciones: restan del tramo dominante, como una nota crédito ─────
+  // ── Notas crédito: restan del tramo de cada línea lo que declararon ─────
+  let creditNotesCents = 0;
+  let creditNoteTaxCents = 0;
+  for (const n of creditNotes) {
+    for (const sl of n.slices) {
+      creditNotesCents += sl.baseCents + sl.taxCents;
+      if (sl.kind === "none") continue;
+      const key = bucketKey(sl.kind, sl.pct);
+      const b = salesBuckets.get(key) ?? newBucket(sl.kind, sl.pct);
+      b.creditNoteBaseCents += sl.baseCents;
+      b.creditNoteTaxCents += sl.taxCents;
+      b.baseCents -= sl.baseCents;
+      b.taxCents -= sl.taxCents;
+      creditNoteTaxCents += sl.taxCents;
+      salesBuckets.set(key, b);
+    }
+  }
+
+  // ── Devoluciones sin nota: restan del tramo dominante ──────────────────
   const dominant = dominantSalesTax(sales, currentTax);
   let refundTaxCents = 0;
   if (refundsCents > 0 && dominant.kind !== "none") {
@@ -268,6 +324,8 @@ export function aggregateDocumentTaxes({
     reteIcaCents: sumKind(retentionRows, "reteica"),
     refundsCents: refundsCents > 0 ? refundsCents : 0,
     refundTaxCents,
+    creditNotesCents,
+    creditNoteTaxCents,
   };
 
   return {

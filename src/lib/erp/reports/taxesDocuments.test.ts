@@ -3,6 +3,8 @@ import {
   aggregateDocumentTaxes,
   documentFamilies,
   dominantSalesTax,
+  grossBucketTax,
+  type CreditNoteTaxInput,
   type PurchaseTaxInput,
   type SaleTaxInput,
 } from "./taxesDocuments";
@@ -101,6 +103,42 @@ describe("aggregateDocumentTaxes — ventas por kind:tarifa", () => {
     const none = aggregateDocumentTaxes({ sales: [], purchases: [], refundsCents: 119_000 });
     expect(none.sales).toEqual([]);
     expect(none.totals.refundTaxCents).toBe(0);
+  });
+
+  it("notas crédito aceptadas: restan base e impuesto de la tarifa de cada línea; bruto, notas y neto", () => {
+    const nc = (id: string, slices: CreditNoteTaxInput["slices"]): CreditNoteTaxInput => ({
+      creditNoteId: id,
+      document: `NC${id}`,
+      reference: "FESM1",
+      dateIso: "2026-08-20T12:00:00.000Z",
+      customer: null,
+      slices,
+    });
+    const docs = aggregateDocumentTaxes({
+      sales: [sale("1", "iva", 19, 200_000, 38_000), sale("2", "inc", 8, 100_000, 8_000)],
+      purchases: [],
+      creditNotes: [
+        // Total de una factura con IVA y parcial de otra con INC + línea excluida.
+        nc("1", [{ kind: "iva", pct: 19, baseCents: 100_000, taxCents: 19_000 }]),
+        nc("2", [
+          { kind: "inc", pct: 8, baseCents: 25_000, taxCents: 2_000 },
+          { kind: "none", pct: 0, baseCents: 5_000, taxCents: 0 },
+        ]),
+      ],
+    });
+    const iva = docs.sales.find((b) => b.key === "iva:19")!;
+    const inc = docs.sales.find((b) => b.key === "inc:8")!;
+    expect(iva).toMatchObject({ baseCents: 100_000, taxCents: 19_000, creditNoteBaseCents: 100_000, creditNoteTaxCents: 19_000 });
+    expect(grossBucketTax(iva)).toBe(38_000);
+    expect(inc).toMatchObject({ baseCents: 75_000, taxCents: 6_000, creditNoteBaseCents: 25_000, creditNoteTaxCents: 2_000 });
+    expect(grossBucketTax(inc)).toBe(8_000);
+    expect(docs.totals).toMatchObject({
+      ivaGeneradoCents: 19_000,
+      incGeneradoCents: 6_000,
+      generadosCents: 25_000,
+      creditNotesCents: 119_000 + 27_000 + 5_000,
+      creditNoteTaxCents: 21_000,
+    });
   });
 
   it("dominantSalesTax: el tramo que más impuesto causó, o la configuración actual", () => {

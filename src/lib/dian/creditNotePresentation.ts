@@ -115,14 +115,27 @@ export async function creditNoteDeliveryZip(note: AcceptedCreditNote): Promise<B
   return zipInvoice(creditNoteFileName(note, 'xml'), await creditNoteAttachedXml(note));
 }
 
+// Parte el texto en renglones que caben en `width`. Medir es lo caro: cada
+// llamada a widthOfTextAtSize hace el layout de fontkit de todo el renglón.
+// Antes se medía carácter por carácter (cientos de mediciones por párrafo y
+// segundos por PDF en CI); ahora se mide una vez por palabra y sólo se cae al
+// corte carácter por carácter cuando la palabra sola no cabe en un renglón.
+// Como el ancho de un texto no baja al agregarle caracteres, los cortes (y el
+// PDF) salen idénticos a los del algoritmo anterior. Única excepción medida
+// con Noto Sans: «ffi» seguido de un acento combinante (texto NFD) rompe la
+// ligadura y mide 1/1000 em menos; si justo ahí cae el borde del renglón, el
+// algoritmo anterior dejaba el acento suelto en el renglón siguiente y este no.
 function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
+  const fits = (value: string) => font.widthOfTextAtSize(value, size) <= width;
   const output: string[] = [];
   for (const paragraph of text.replace(/[\r\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').split('\n')) {
     let line = '';
     for (const word of paragraph.split(/\s+/)) {
-      if (line && font.widthOfTextAtSize(line + ' ' + word, size) > width) { output.push(line); line = ''; }
-      for (const char of (line ? ' ' : '') + word) {
-        if (font.widthOfTextAtSize(line + char, size) > width) { output.push(line); line = ''; }
+      if (line && fits(line + ' ' + word)) { line += ' ' + word; continue; }
+      if (line) { output.push(line); line = ''; }
+      if (fits(word)) { line = word; continue; }
+      for (const char of word) {
+        if (!fits(line + char)) { output.push(line); line = ''; }
         line += char;
       }
     }

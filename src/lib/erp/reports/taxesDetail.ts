@@ -5,7 +5,10 @@
  * homónimo de Siigo / World Office):
  *
  *  · IVA / INC generado (ventas): una fila por factura con impuesto, con la
- *    tarifa que la factura congeló y el adquiriente si es nominativa.
+ *    tarifa que la factura congeló y el adquiriente si es nominativa. Las
+ *    notas crédito aceptadas del período entran como documentos NEGATIVOS
+ *    (una fila por tarifa), con su número NC…, su fecha fiscal, el tercero
+ *    de la factura original y la referencia a esa factura.
  *  · IVA descontable (compras): una fila por compra recibida y tarifa.
  *  · Retenciones practicadas y a favor: desde los ASIENTOS contra las
  *    cuentas de retención (2365/2367/2368 practicadas; 135515/17/18 a
@@ -17,6 +20,7 @@
 import { formatVoucherNumber, isAnnulled } from "./generalLedger";
 import {
   purchaseLineTaxCents,
+  type CreditNoteTaxInput,
   type PurchaseTaxInput,
   type SaleTaxInput,
 } from "./taxesDocuments";
@@ -40,6 +44,8 @@ export type TaxDocRow = {
   pct: number;
   baseCents: number;
   valorCents: number;
+  /** Sólo notas crédito: número de la factura que ajusta (los montos van en negativo). */
+  reference?: string | null;
 };
 
 /** Línea del libro con los datos del comprobante que el detalle muestra. */
@@ -96,9 +102,32 @@ export type TaxesDetail = {
 const byDateThenDoc = (a: { dateIso: string; document: string }, b: { dateIso: string; document: string }) =>
   a.dateIso.localeCompare(b.dateIso) || a.document.localeCompare(b.document);
 
-/** Facturas con impuesto: una fila por documento (tarifa congelada). */
-export function salesDetailRows(sales: readonly SaleTaxInput[]): TaxDocRow[] {
+/**
+ * Facturas con impuesto: una fila por documento (tarifa congelada). Las
+ * notas crédito, una fila NEGATIVA por nota y tarifa con impuesto.
+ */
+export function salesDetailRows(
+  sales: readonly SaleTaxInput[],
+  creditNotes: readonly CreditNoteTaxInput[] = [],
+): TaxDocRow[] {
   const rows: TaxDocRow[] = [];
+  for (const n of creditNotes) {
+    for (const sl of n.slices) {
+      if (sl.kind === "none" || sl.taxCents === 0) continue;
+      rows.push({
+        key: `${n.creditNoteId}:${sl.kind}:${sl.pct}`,
+        dateIso: n.dateIso,
+        document: n.document,
+        nit: n.customer?.docNumber ?? null,
+        party: n.customer?.name ?? null,
+        kind: sl.kind,
+        pct: sl.pct,
+        baseCents: -sl.baseCents,
+        valorCents: -sl.taxCents,
+        reference: n.reference,
+      });
+    }
+  }
   for (const s of sales) {
     if (s.taxKind === "none" || s.taxCents === 0) continue;
     rows.push({
@@ -208,14 +237,17 @@ export function buildTaxesDetail({
   ledgerLines,
   accounts,
   conceptsByCode,
+  creditNotes = [],
 }: {
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
+  /** Notas crédito aceptadas del período: restan como documentos negativos. */
+  creditNotes?: readonly CreditNoteTaxInput[];
   ledgerLines: readonly RetentionLedgerLine[];
   accounts: readonly TaxAccount[];
   conceptsByCode?: ReadonlyMap<string, { kind: string; name: string }>;
 }): TaxesDetail {
-  const salesRows = salesDetailRows(sales);
+  const salesRows = salesDetailRows(sales, creditNotes);
   const purchaseRows = purchaseDetailRows(purchases);
   const { practicadas, aFavor } = retentionDetailRows(ledgerLines, accounts, { conceptsByCode });
   return {
@@ -241,6 +273,8 @@ export type TaxesDetailCsvLabels = {
   unnumbered: string;
   voided: string;
   sourceLabel: (source: string) => string;
+  /** Documento de una nota crédito en el CSV: «NC12 (nota crédito de FE345)». */
+  creditNoteDocument: (document: string, reference: string) => string;
 };
 
 /** Concepto de una fila de retención: «Nombre del concepto (236505)» o «Nombre de cuenta (236505)». */
@@ -267,7 +301,7 @@ export function taxesDetailCsvRows(
   const doc = (section: string, r: TaxDocRow): (string | number | null)[] => [
     section,
     isoDay(r.dateIso),
-    r.document,
+    r.reference ? labels.creditNoteDocument(r.document, r.reference) : r.document,
     r.nit ?? "",
     r.party ?? labels.finalConsumer,
     labels.taxLabel(r.kind),

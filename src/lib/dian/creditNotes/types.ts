@@ -1,4 +1,5 @@
 import type { DianLine } from "../ubl";
+import type { CreditNoteAccountingStatus } from "@/lib/erp/creditNoteLedger";
 export type CreditReason = "1" | "2" | "3" | "4" | "5" | "6";
 export type OriginalCreditLine = DianLine & {
     lineId: string;
@@ -45,6 +46,11 @@ export type CreditNoteProposal = {
     totalCents: number;
 };
 export type CreditNoteDto = {
+    /**
+     * Contabilización de la nota aceptada («Contabilizada en …» / pendiente).
+     * null = la nota no está aceptada o el comercio no lleva contabilidad.
+     */
+    accounting: CreditNoteAccountingStatus | null;
     id: string;
     publicToken: string;
     canAbandon: boolean;

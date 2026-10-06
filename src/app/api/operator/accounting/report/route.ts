@@ -31,6 +31,9 @@ function isoDate(d: Date | null): string {
  * Reporte para el contador en un solo archivo Excel (.xls SpreadsheetML, sin
  * dependencias) con hojas: Ventas, Retenciones, Costos de ventas (CMV) e
  * Inventarios. Montos como número para que el contador los sume/filtre.
+ * En Ventas, las notas crédito aceptadas del mes van como documentos en
+ * negativo y el total es NETO de ellas; una fila aparte muestra la base y
+ * el impuesto que restaron.
  */
 async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
@@ -78,14 +81,27 @@ async function GETHandler(req: Request) {
         [...new Set(o.payments.map((p) => reportingPaymentMethod(p.method)))].join(" | "),
         o.simpleInvoice ? String(o.simpleInvoice.invoiceNumber) : "",
       ]),
+      // Notas crédito: el subtotal de las cuentas lleva el impuesto
+      // embebido, así que la nota va por su total en negativo.
+      ...sales.creditNotes.map((n) => [
+        n.date,
+        n.documentNumber,
+        t("csvCreditNote"),
+        centsToAmount(-n.totalCents),
+        centsToAmount(0),
+        centsToAmount(0),
+        centsToAmount(-n.totalCents),
+        "",
+        n.invoiceNumber,
+      ]),
       [
         t("repTotal"),
         "",
         "",
-        centsToAmount(sales.totals.subtotalCents),
+        centsToAmount(sales.totals.subtotalCents - sales.creditNoteTotals.totalCents),
         centsToAmount(sales.totals.tipCents),
         centsToAmount(sales.totals.taxCents),
-        centsToAmount(sales.totals.totalCents),
+        centsToAmount(sales.totals.totalCents - sales.creditNoteTotals.totalCents),
         "",
         "",
       ],
@@ -101,6 +117,23 @@ async function GETHandler(req: Request) {
         "",
         "",
       ],
+      // Lo que restaron las notas crédito del mes (base e impuesto exactos
+      // de cada nota, por eso va aparte del impuesto causado).
+      ...(sales.creditNoteTotals.count > 0
+        ? [
+            [
+              t("repCreditNoteTax"),
+              "",
+              "",
+              centsToAmount(-sales.creditNoteTotals.subtotalCents),
+              "",
+              centsToAmount(-sales.creditNoteTotals.taxCents),
+              "",
+              "",
+              "",
+            ],
+          ]
+        : []),
     ],
   };
 

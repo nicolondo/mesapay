@@ -17,7 +17,8 @@ const GATE: ModuleSlug[] = ["accounting"];
 /**
  * Impuestos detallados: `?desde&hasta[&format=csv]` (sin fechas: el mes
  * en curso). JSON `{ period, sales, purchases, practicadas, aFavor, stats }`
- * (una fila por documento y tarifa; retenciones por comprobante) o CSV
+ * (una fila por documento y tarifa —las notas crédito aceptadas, en
+ * negativo y con la factura que ajustan—; retenciones por comprobante) o CSV
  * `impuestos-detallados-<desde>-a-<hasta>.csv` con las columnas Sección,
  * Fecha, Documento, NIT, Tercero, Impuesto/Concepto, Tarifa, Base, Valor.
  */
@@ -68,6 +69,7 @@ async function GETHandler(req: Request) {
         unnumbered: tRep("unnumbered"),
         voided: tRep("voided"),
         sourceLabel: makeSourceLabel(tErp),
+        creditNoteDocument: (document, invoice) => t("csvCreditNoteDocument", { document, invoice }),
       }),
     });
     return csvResponse(`impuestos-detallados-${period.desde}-a-${period.hasta}.csv`, csv);

@@ -219,6 +219,45 @@ describe("1006 / 1007 — ventas", () => {
   });
 });
 
+describe("1005 / 1006 / 1007 — notas crédito aceptadas", () => {
+  const sales = [
+    { customer: null, baseCents: 100_000, ivaCents: 19_000, incCents: 0 },
+    { customer: null, baseCents: 50_000, ivaCents: 0, incCents: 4_000 },
+    { customer: cliente, baseCents: 200_000, ivaCents: 38_000, incCents: 0 },
+  ];
+  const creditNotes = [
+    // Nota total de la factura nominativa (IVA) y parcial de una de consumidor final (INC).
+    { customer: cliente, baseCents: 200_000, ivaCents: 38_000, incCents: 0 },
+    { customer: null, baseCents: 25_000, ivaCents: 0, incCents: 2_000 },
+  ];
+
+  it("1007: la base de la nota va a «devoluciones» del tercero de la factura original (consumidor final incluido)", () => {
+    const rows = aggregate1007(sales, creditNotes);
+    expect(rows.map((r) => [r.tercero.key, r.ibruCents, r.dredCents])).toEqual([
+      ["cli:NIT:800111222", 200_000, 200_000],
+      ["cf", 150_000, 25_000],
+    ]);
+  });
+
+  it("1005: el IVA de la nota es «IVA resultante por devoluciones en ventas» del adquiriente", () => {
+    const rows = aggregate1005([], creditNotes);
+    expect(rows.map((r) => [r.tercero.key, r.vimpCents, r.ivadeCents])).toEqual([["cli:NIT:800111222", 0, 38_000]]);
+  });
+
+  it("1006: el IVA generado no se toca (va al 1005); el INC se netea sin bajar de cero", () => {
+    const rows = aggregate1006(sales, [
+      ...creditNotes,
+      // INC de una nota sobre una venta de otro año: no deja INC negativo.
+      { customer: null, baseCents: 1_000_000, ivaCents: 0, incCents: 80_000 },
+    ]);
+    expect(rows.map((r) => [r.tercero.key, r.ivaCents, r.incCents])).toEqual([
+      ["cli:NIT:800111222", 38_000, 0],
+      ["cf", 19_000, 0],
+    ]);
+    expect(aggregate1006(sales, creditNotes).find((r) => r.tercero.key === "cf")!.incCents).toBe(2_000);
+  });
+});
+
 describe("1008 / 1009 — saldos al 31/12", () => {
   it("1009: saldo = total bruto − abonos hasta el corte; el pagado no sale", () => {
     const rows = aggregate1009([

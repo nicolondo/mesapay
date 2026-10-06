@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RetentionLedgerLine } from "@/lib/erp/reports/taxesDetail";
-import type { PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
+import type { CreditNoteTaxInput, PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
 import type { TaxAccount } from "@/lib/erp/reports/taxesModel";
 
 /**
@@ -10,7 +10,8 @@ import type { TaxAccount } from "@/lib/erp/reports/taxesModel";
  *   3. sin fechas el período es el MES EN CURSO;
  *   4. el JSON trae las cuatro secciones y los stats;
  *   5. `format=csv` descarga con BOM, `;`, coma decimal, encabezados
- *      traducidos y una fila por documento/comprobante.
+ *      traducidos y una fila por documento/comprobante (las notas crédito
+ *      aceptadas, en negativo y con la factura que ajustan).
  *
  * La capa de consultas (`taxesQueries`) está mockeada: aquí se prueba la
  * ruta y la composición, no Prisma.
@@ -22,6 +23,8 @@ const h = vi.hoisted(() => {
       | { error: string; status: number },
     sales: [] as SaleTaxInput[],
     purchases: [] as PurchaseTaxInput[],
+    creditNotes: [] as CreditNoteTaxInput[],
+    creditNoteCalls: [] as { desde: string; hasta: string }[],
     accounts: [] as TaxAccount[],
     lines: [] as RetentionLedgerLine[],
     calls: [] as { fn: string; from: string; to: string }[],
@@ -39,6 +42,10 @@ const h = vi.hoisted(() => {
     loadPurchaseTaxDocs: vi.fn(async (r: string, from: Date, to: Date) => {
       track("purchases")(r, from, to);
       return state.purchases;
+    }),
+    loadCreditNoteTaxDocs: vi.fn(async (_r: string, desde: string, hasta: string) => {
+      state.creditNoteCalls.push({ desde, hasta });
+      return state.creditNotes;
     }),
     loadTaxAccounts: vi.fn(async () => state.accounts),
     loadTaxLedgerLines: vi.fn(async (r: string, from: Date, to: Date) => {
@@ -61,6 +68,7 @@ vi.mock("@/lib/erp/access", () => ({
 vi.mock("@/lib/erp/reports/taxesQueries", () => ({
   loadSaleTaxDocs: h.loadSaleTaxDocs,
   loadPurchaseTaxDocs: h.loadPurchaseTaxDocs,
+  loadCreditNoteTaxDocs: h.loadCreditNoteTaxDocs,
   loadTaxAccounts: h.loadTaxAccounts,
   loadTaxLedgerLines: h.loadTaxLedgerLines,
   loadRetentionConceptRows: h.loadRetentionConceptRows,
@@ -69,7 +77,8 @@ vi.mock("@/lib/erp/reports/taxesQueries", () => ({
 }));
 vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(async (ns: string) => {
-    const t = (key: string) => `[${ns}.${key}]`;
+    const t = (key: string, params?: Record<string, unknown>) =>
+      params ? `[${ns}.${key} ${Object.values(params).join("|")}]` : `[${ns}.${key}]`;
     t.has = () => true;
     return t;
   }),
@@ -85,6 +94,8 @@ function get(query: string): Promise<Response> {
 beforeEach(() => {
   h.state.ctx = { restaurantId: "r1", country: "CO", userId: "u1" };
   h.state.calls = [];
+  h.state.creditNoteCalls = [];
+  h.state.creditNotes = [];
   h.loadSaleTaxDocs.mockClear();
   h.state.sales = [
     {
@@ -216,6 +227,31 @@ describe("JSON", () => {
 });
 
 describe("CSV", () => {
+  it("la nota crédito aceptada sale como documento NEGATIVO con la factura que ajusta y neta el IVA", async () => {
+    h.state.creditNotes = [
+      {
+        creditNoteId: "n1",
+        document: "NC7",
+        reference: "FESM2",
+        dateIso: "2026-08-20T12:00:00.000Z",
+        customer: { name: "ACME S.A.S.", docType: "NIT", docNumber: "900123456" },
+        slices: [{ kind: "iva", pct: 19, baseCents: 100_000, taxCents: 19_000 }],
+      },
+    ];
+    const json = await (await get("?desde=2026-08-01&hasta=2026-08-31")).json();
+    expect(h.state.creditNoteCalls).toEqual([{ desde: "2026-08-01", hasta: "2026-08-31" }]);
+    expect(json.sales.map((r: { document: string }) => r.document)).toEqual(["FESM1", "FESM2", "NC7"]);
+    expect(json.sales[2]).toMatchObject({ reference: "FESM2", baseCents: -100_000, valorCents: -19_000, party: "ACME S.A.S." });
+    expect(json.stats.ivaGeneradoCents).toBe(38_000 - 19_000);
+
+    const csv = new TextDecoder().decode(
+      new Uint8Array(await (await get("?desde=2026-08-01&hasta=2026-08-31&format=csv")).arrayBuffer()),
+    );
+    expect(csv.split("\r\n")[3]).toBe(
+      "[opImpuestosRep.secSales];2026-08-20;[opImpuestosRep.csvCreditNoteDocument NC7|FESM2];900123456;ACME S.A.S.;[opImpuestosRep.famIva];19 %;-1000,00;-190,00",
+    );
+  });
+
   it("descarga con BOM, ;, coma decimal, encabezados traducidos y una fila por documento", async () => {
     const res = await get("?desde=2026-08-01&hasta=2026-08-31&format=csv");
     expect(res.status).toBe(200);

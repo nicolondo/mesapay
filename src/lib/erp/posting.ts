@@ -22,6 +22,8 @@ import { deferredAmortizationLinesForMonth } from "./deferred";
 import { resolvePostableCode } from "./chart";
 import { ENGINE } from "./engineCodes";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
+import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNoteAccounting";
+import { sumSlices } from "./creditNoteLedger";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 import { isCashMethod } from "@/lib/payments/methods";
@@ -34,7 +36,16 @@ type Line = {
   /** Centro de costos de la línea (hoy sólo lo traen los diferidos). */
   costCenterId?: string | null;
 };
-type DraftEntry = { source: string; memo: string; lines: Line[] };
+type DraftEntry = {
+  source: string;
+  memo: string;
+  lines: Line[];
+  /**
+   * Sólo el asiento «Notas crédito del mes»: notas que incluye. Al
+   * persistirlo quedan marcadas con `postedMonth` (en la misma transacción).
+   */
+  creditNoteIds?: string[];
+};
 
 export type GenResult = { source: string; totalCents: number };
 
@@ -72,21 +83,6 @@ export function expenseAccountFor(category: string): string {
   return ENGINE.GASTOS_DIVERSOS; // Gastos diversos
 }
 
-async function sumRefunds(
-  restaurantId: string,
-  range: MonthRange,
-): Promise<number> {
-  const r = await db.kushkiTransaction.aggregate({
-    where: {
-      restaurantId,
-      kind: "refund",
-      createdAt: { gte: range.from, lt: range.to },
-    },
-    _sum: { amountCents: true },
-  });
-  return r._sum.amountCents ?? 0;
-}
-
 /**
  * Arma (sin persistir) los asientos-resumen del mes. Cada uno cuadra por
  * construcción: la cuenta "plug" (ingreso 4135 en ventas, proveedores 2205 en
@@ -97,13 +93,16 @@ async function buildMonthEntries(
   month: string,
   range: MonthRange,
 ): Promise<DraftEntry[]> {
+  // Primero las notas crédito: además de leerlas, fija las aceptadas que
+  // quedaron sin fijar, y el cruce de los reembolsos de abajo las necesita.
+  const creditNotes = await loadCreditNoteMonthPosting(restaurantId, month);
   const [salesBook, purchasesBook, tax, pnl, refunds, grossPays] =
     await Promise.all([
       loadSalesBook(restaurantId, range),
       loadPurchasesBook(restaurantId, range),
       computeTaxSummary(restaurantId, range),
       computeMonthPnl(restaurantId, range),
-      sumRefunds(restaurantId, range),
+      loadRefundMonthPosting(restaurantId, range),
       // Cobros BRUTOS por método (approved + refunded): el asiento de ventas
       // debita lo cobrado originalmente; las devoluciones tienen su propio
       // asiento que acredita la pasarela. Si filtráramos sólo approved, un
@@ -439,14 +438,57 @@ async function buildMonthEntries(
   }
 
   // 7) DEVOLUCIONES — D devoluciones + impuesto · C pasarela.
-  if (refunds > 0) {
+  // Un reembolso POSTERIOR a una nota crédito del mismo pedido no es una
+  // devolución nueva: la nota ya debitó devoluciones e impuesto y dejó el
+  // pasivo «reintegros por pagar». Esa parte (hasta lo que la nota dejó
+  // pendiente) cancela el pasivo; sólo el resto se estima como antes, con
+  // el impuesto embebido del régimen del mes.
+  if (refunds.totalCents > 0) {
+    const withNote = Math.min(Math.max(0, refunds.liabilityCents), refunds.totalCents);
+    const withoutNote = refunds.totalCents - withNote;
     const rtax =
-      tax.sales.kind === "none" ? 0 : embeddedTaxCents(refunds, tax.sales.pct);
-    const lines: Line[] = [{ code: ENGINE.DEVOLUCIONES, debit: refunds - rtax }];
+      tax.sales.kind === "none" ? 0 : embeddedTaxCents(withoutNote, tax.sales.pct);
+    const lines: Line[] = [];
+    if (withoutNote > 0) lines.push({ code: ENGINE.DEVOLUCIONES, debit: withoutNote - rtax });
     if (rtax > 0 && salesTaxCode)
       lines.push({ code: salesTaxCode, debit: rtax });
-    lines.push({ code: ENGINE.PASARELA, credit: refunds });
-    entries.push({ source: "refund", memo: "Devoluciones del mes", lines });
+    if (withNote > 0) lines.push({ code: ENGINE.DEVOLUCIONES_POR_PAGAR, debit: withNote });
+    lines.push({ code: ENGINE.PASARELA, credit: refunds.totalCents });
+    entries.push({
+      source: "refund",
+      memo: "Devoluciones del mes",
+      lines: lines.filter((l) => (l.debit ?? 0) > 0 || (l.credit ?? 0) > 0),
+    });
+  }
+
+  // 8) NOTAS CRÉDITO — D devoluciones en ventas (base) + IVA/INC generado
+  // por tarifa (lo que declaró cada nota, no la tarifa de hoy) · C Clientes
+  // por lo que canceló cartera de crédito y C «reintegros por pagar» por lo
+  // que el comercio le debe devolver al cliente. Lo que ya cubrió un
+  // reembolso ANTERIOR a la nota no se repite (ver creditNoteLedger).
+  // Mes: el fiscal de la nota, o el primer mes abierto si estaba cerrado.
+  if (creditNotes.noteIds.length > 0) {
+    const slices = sumSlices(creditNotes.notes.map((n) => n.slices));
+    const lines: Line[] = [];
+    const base = slices.reduce((s, x) => s + x.baseCents, 0);
+    if (base > 0) lines.push({ code: ENGINE.DEVOLUCIONES, debit: base });
+    const taxByCode = new Map<string, number>();
+    for (const slice of slices) {
+      const code = salesTaxCodeFor(slice.kind, slice.pct);
+      if (!code || slice.taxCents <= 0) continue;
+      taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
+    }
+    for (const [code, debit] of taxByCode) lines.push({ code, debit });
+    const receivable = creditNotes.notes.reduce((s, n) => s + n.receivableCents, 0);
+    const liability = creditNotes.notes.reduce((s, n) => s + n.liabilityCents, 0);
+    if (receivable > 0) lines.push({ code: ENGINE.CLIENTES, credit: receivable });
+    if (liability > 0) lines.push({ code: ENGINE.DEVOLUCIONES_POR_PAGAR, credit: liability });
+    entries.push({
+      source: "credit_note",
+      memo: "Notas crédito del mes",
+      lines,
+      creditNoteIds: creditNotes.noteIds,
+    });
   }
 
   return entries;
@@ -479,6 +521,19 @@ export async function generateJournalForMonth(
           month,
           debit,
           credit,
+        });
+      } else if (e.creditNoteIds?.length) {
+        // Notas del mes que ya cubrieron por completo reembolsos anteriores:
+        // no hay nada que asentar, pero quedan contabilizadas en este mes.
+        const ids = e.creditNoteIds;
+        await db.$transaction(async (tx) => {
+          await tx.journalEntry.deleteMany({
+            where: { restaurantId, source: e.source, sourceRef: month },
+          });
+          await tx.creditNote.updateMany({
+            where: { restaurantId, id: { in: ids }, OR: [{ postedMonth: null }, { postedMonth: month }] },
+            data: { postedMonth: month },
+          });
         });
       }
       continue;
@@ -532,6 +587,18 @@ export async function generateJournalForMonth(
           },
         },
       });
+      // Las notas crédito del asiento quedan contabilizadas en este mes:
+      // desde acá no se mueven aunque después se cierre o reabra otro mes.
+      if (e.creditNoteIds?.length) {
+        await tx.creditNote.updateMany({
+          where: {
+            restaurantId,
+            id: { in: e.creditNoteIds },
+            OR: [{ postedMonth: null }, { postedMonth: month }],
+          },
+          data: { postedMonth: month },
+        });
+      }
     });
     results.push({ source: e.source, totalCents: debit });
   }

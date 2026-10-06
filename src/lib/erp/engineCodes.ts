@@ -27,6 +27,22 @@ export const ENGINE = {
   RETEIVA: "236705",
   RETEICA: "236805",
   PROPINAS_POR_PAGAR: "238030",
+  /**
+   * Reintegros por pagar: lo que el comercio le debe al cliente por una
+   * nota crédito aceptada cuya venta NO quedó en cartera (se cobró con
+   * efectivo, datáfono, pasarela…). Nace con el asiento «Notas crédito del
+   * mes» y se cancela cuando el reembolso sale por la pasarela (asiento
+   * «Devoluciones del mes»).
+   *
+   * Por qué 2380 (acreedores varios) y no 2805 (anticipos y avances
+   * recibidos): 2805 es plata que el cliente entregó ANTES de recibir el
+   * bien o servicio (un anticipo, pasivo contractual); acá la venta ya se
+   * hizo y se reversó con la nota — es una obligación de devolver dinero,
+   * un acreedor más. Se usa la subcuenta 238020 «Reintegros por pagar» del
+   * PUC (Decreto 2650 de 1993), que es justamente ese concepto. Lo valida
+   * el contador.
+   */
+  DEVOLUCIONES_POR_PAGAR: "238020",
   INC_GENERADO: "241205",
   ICA_POR_PAGAR: "241605",
   INGRESOS: "413505",

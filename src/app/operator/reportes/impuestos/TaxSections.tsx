@@ -6,6 +6,7 @@ import type { CrossRow } from "@/lib/erp/reports/taxesCross";
 import {
   documentFamilies,
   familyTax,
+  grossBucketTax,
   type DocumentTaxes,
   type TaxBucket,
 } from "@/lib/erp/reports/taxesDocuments";
@@ -110,7 +111,12 @@ function bucketLabelKey(kind: TaxBucket["kind"]): string {
   }
 }
 
-/** Tabla Impuesto · Tarifa · Base · Devoluciones · Impuesto registrado + total. */
+/**
+ * Tabla Impuesto · Tarifa · Base · [Bruto · Devoluciones · Notas crédito] ·
+ * Impuesto registrado + total. Bruto, devoluciones y notas crédito sólo
+ * aparecen si el período tiene alguna, para que el contador vea de dónde
+ * sale el neto.
+ */
 export async function TaxDocumentTable({
   title,
   note,
@@ -125,7 +131,10 @@ export async function TaxDocumentTable({
   const t = await getTranslations("opImpuestosRep");
   const { money } = await fmt(currency);
   const hasRefunds = rows.some((r) => r.refundTaxCents !== 0);
-  const total = rows.reduce((s, r) => s + r.taxCents, 0);
+  const hasCreditNotes = rows.some((r) => r.creditNoteTaxCents !== 0 || r.creditNoteBaseCents !== 0);
+  const showGross = hasRefunds || hasCreditNotes;
+  const sum = (f: (r: TaxBucket) => number) => rows.reduce((s, r) => s + f(r), 0);
+  const total = sum((r) => r.taxCents);
   return (
     <Card title={title} note={note}>
       {rows.length === 0 ? (
@@ -138,7 +147,9 @@ export async function TaxDocumentTable({
                 <th className={`${TH} text-left`}>{t("colTax")}</th>
                 <th className={`${TH} text-right`}>{t("colRate")}</th>
                 <th className={`${TH} text-right`}>{t("colBase")}</th>
+                {showGross && <th className={`${TH} text-right`}>{t("colGrossTax")}</th>}
                 {hasRefunds && <th className={`${TH} text-right`}>{t("colRefunds")}</th>}
+                {hasCreditNotes && <th className={`${TH} text-right`}>{t("colCreditNotes")}</th>}
                 <th className={`${TH} text-right`}>{t("colTaxAmount")}</th>
               </tr>
             </thead>
@@ -148,21 +159,29 @@ export async function TaxDocumentTable({
                   <td className={CELL}>{t(bucketLabelKey(r.kind))}</td>
                   <td className={NUM}>{r.pct == null ? t("noRate") : t("ratePct", { pct: r.pct })}</td>
                   <td className={NUM}>{money(r.baseCents)}</td>
+                  {showGross && <td className={NUM}>{money(grossBucketTax(r))}</td>}
                   {hasRefunds && <td className={NUM}>{money(-r.refundTaxCents)}</td>}
+                  {hasCreditNotes && <td className={NUM}>{money(-r.creditNoteTaxCents)}</td>}
                   <td className={`${NUM} font-medium`}>{money(r.taxCents)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-op-border font-semibold bg-op-bg">
-                <td className="px-3 py-2" colSpan={hasRefunds ? 4 : 3}>
+                <td className="px-3 py-2" colSpan={3}>
                   {t("totalTax")}
                 </td>
+                {showGross && <td className={NUM}>{money(sum(grossBucketTax))}</td>}
+                {hasRefunds && <td className={NUM}>{money(-sum((r) => r.refundTaxCents))}</td>}
+                {hasCreditNotes && <td className={NUM}>{money(-sum((r) => r.creditNoteTaxCents))}</td>}
                 <td className={NUM}>{money(total)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
+      )}
+      {hasCreditNotes && (
+        <p className="px-4 py-3 text-xs leading-relaxed text-op-muted">{t("creditNotesFootnote")}</p>
       )}
     </Card>
   );
@@ -334,7 +353,14 @@ export async function TaxDocDetailTable({
                   <td className={`${CELL} font-mono text-xs text-op-muted whitespace-nowrap`}>
                     {fmtIsoDate(r.dateIso, locale)}
                   </td>
-                  <td className={`${CELL} font-mono text-xs whitespace-nowrap`}>{r.document}</td>
+                  <td className={`${CELL} font-mono text-xs whitespace-nowrap`}>
+                    {r.document}
+                    {r.reference && (
+                      <span className="block font-sans text-[10px] text-op-muted">
+                        {t("creditNoteOf", { invoice: r.reference })}
+                      </span>
+                    )}
+                  </td>
                   <td className={`${CELL} font-mono text-xs text-op-muted`}>{r.nit ?? "—"}</td>
                   <td className={`${CELL} max-w-[14rem] truncate`}>{r.party ?? t("finalConsumer")}</td>
                   <td className={CELL}>{r.kind === "iva" ? t("famIva") : t("famInc")}</td>

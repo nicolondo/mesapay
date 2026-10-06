@@ -8,6 +8,10 @@ import { documentErrors } from '../config';
 import { formatInvoiceNumber, type InvoiceSnapshot } from '@/lib/invoice';
 import { buildProposal, canAbandon, CreditNoteError, remainingLines, requestHash, sourceVersion } from './domain';
 import type { CreditNoteDto, CreditNoteInput, CreditNotePreviewInput, CreditNoteSnapshot, CreditNoteSource, OriginalInvoiceSnapshot } from './types';
+import { isModuleEnabled } from '@/lib/modules';
+import { getAccountingConfig } from '@/lib/erp/cierre';
+import { creditNoteInstant, ensureCreditNoteStamps } from '@/lib/erp/creditNoteAccounting';
+import { creditNoteAccountingStatus, creditNoteFiscalDate, monthOfIsoDate } from '@/lib/erp/creditNoteLedger';
 type Client = Prisma.TransactionClient;
 const noteInclude = { dianDocument: true, series: true } satisfies Prisma.CreditNoteInclude;
 type Note = Prisma.CreditNoteGetPayload<{
@@ -15,7 +19,7 @@ type Note = Prisma.CreditNoteGetPayload<{
 }>;
 export function creditNoteDto(note: Note): CreditNoteDto {
     const d = note.dianDocument;
-    return { id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), canRetry: !note.abandonedAt && !!d && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
+    return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), canRetry: !note.abandonedAt && !!d && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
 }
 async function sourceData(client: Client, restaurantId: string, invoiceId: string) {
     const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });
@@ -98,13 +102,38 @@ export async function createCreditNote(restaurantId: string, userId: string | nu
         throw error;
     });
 }
+/**
+ * Contexto contable de la pantalla de notas. Antes fija las notas aceptadas
+ * que quedaron sin fijar (la cartera de cliente depende de eso, con o sin
+ * módulo de contabilidad). El estado «Contabilizada en …» sólo aplica con
+ * el módulo de contabilidad: sin él no hay diario que la asiente.
+ */
+async function accountingContext(restaurantId: string): Promise<{ closedThrough: string | null } | null> {
+    await ensureCreditNoteStamps(restaurantId);
+    const restaurant = await db.restaurant.findUnique({ where: { id: restaurantId }, select: { enabledModules: true } });
+    if (!restaurant || !isModuleEnabled(restaurant.enabledModules, 'accounting'))
+        return null;
+    return { closedThrough: (await getAccountingConfig(restaurantId)).closedThrough };
+}
+/** DTO + «Contabilizada en <mes>» / «Pendiente de contabilizar» de una nota aceptada. */
+function accountedDto(note: Note, ctx: { closedThrough: string | null } | null): CreditNoteDto {
+    const dto = creditNoteDto(note);
+    if (!ctx || note.abandonedAt || note.dianDocument?.state !== 'accepted')
+        return dto;
+    const fiscalMonth = monthOfIsoDate(creditNoteFiscalDate(creditNoteInstant(note)));
+    return { ...dto, accounting: creditNoteAccountingStatus({ postedMonth: note.postedMonth, fiscalMonth, closedThrough: ctx.closedThrough }) };
+}
 export async function getCreditNote(restaurantId: string, id: string) {
+    const ctx = await accountingContext(restaurantId);
     const note = await db.creditNote.findFirst({ where: { id, restaurantId }, include: noteInclude });
     if (!note)
         throw new CreditNoteError('not_found', 404);
-    return creditNoteDto(note);
+    return accountedDto(note, ctx);
 }
-export async function listCreditNotes(restaurantId: string) { return (await db.creditNote.findMany({ where: { restaurantId }, include: noteInclude, orderBy: { createdAt: 'desc' }, take: 100 })).map(creditNoteDto); }
+export async function listCreditNotes(restaurantId: string) {
+    const ctx = await accountingContext(restaurantId);
+    return (await db.creditNote.findMany({ where: { restaurantId }, include: noteInclude, orderBy: { createdAt: 'desc' }, take: 100 })).map(note => accountedDto(note, ctx));
+}
 export async function abandonCreditNote(restaurantId: string, id: string, userId: string | null) {
     return db.$transaction(async (tx) => {
         const initial = await tx.creditNote.findFirst({ where: { id, restaurantId }, select: { originalInvoiceId: true } });

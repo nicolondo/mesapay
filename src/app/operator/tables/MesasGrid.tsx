@@ -679,7 +679,8 @@ function Chip({
 /**
  * Tile libre — link directo a "Tomar pedido". No abre sheet (no hay
  * orden que ver). En operator/admin abre tab nueva; en mesero
- * navega interno.
+ * navega interno. Sin prefetch: cada refresh de la grilla volvería a
+ * descargar la carta completa por cada mesa libre o recién pagada.
  */
 function FreeTile({
   tile,
@@ -702,6 +703,7 @@ function FreeTile({
   return (
     <Link
       href={href}
+      prefetch={false}
       {...targetProps}
       className="aspect-[4/3] rounded-xl border border-op-border bg-op-surface hover:bg-op-bg flex flex-col items-center justify-center p-2 text-center transition-colors"
     >
@@ -758,6 +760,7 @@ function RecentlyPaidTile({
   return (
     <Link
       href={href}
+      prefetch={false}
       {...targetProps}
       className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 hover:bg-ok/15 p-2 flex flex-col items-center justify-center text-center relative transition-colors"
     >

@@ -13,6 +13,8 @@ import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 
 export const dynamic = "force-dynamic";
 
+// LiveRefresh invalida el prefetch de Next: los accesos del resumen y de
+// cada pedido cargan al navegar, no después de cada actualización de caja.
 export default async function OperatorHome() {
   const tr = await getTranslations("opDashboard");
   const ux = await getTranslations("workspaceUi");
@@ -141,7 +143,7 @@ export default async function OperatorHome() {
           <h1 className="mp-page-title">{ux("overviewTitle")}</h1>
           <p className="mp-page-description">{ux("overviewDescription")}</p>
         </div>
-        <Link href="/operator/tables" className="mp-btn mp-btn--primary">
+        <Link href="/operator/tables" prefetch={false} className="mp-btn mp-btn--primary">
           <Icon name="tables" />
           {ux("viewService")}
           <Icon name="arrow" width="16" />
@@ -228,7 +230,7 @@ export default async function OperatorHome() {
         <section className="mp-panel" aria-labelledby="top-dishes-title">
           <div className="mp-panel-heading">
             <h2 id="top-dishes-title">{tr("topDishesToday")}</h2>
-            <Link href="/operator/menu" className="mp-text-link">
+            <Link href="/operator/menu" prefetch={false} className="mp-text-link">
               {tr("viewMenu")}
             </Link>
           </div>
@@ -251,7 +253,7 @@ export default async function OperatorHome() {
             <div className="mp-empty-state">
               <Icon name="menu" />
               <p>{tr("noPaidYet")}</p>
-              <Link href="/operator/menu" className="mp-text-link">
+              <Link href="/operator/menu" prefetch={false} className="mp-text-link">
                 {tr("viewMenu")}
               </Link>
             </div>
@@ -267,14 +269,14 @@ export default async function OperatorHome() {
             {counterMode ? tr("activeOrders") : tr("activeTables")}
             <span className="mp-count">{openOrdersCount}</span>
           </h2>
-          <Link href="/operator/kitchen" className="mp-text-link">
+          <Link href="/operator/kitchen" prefetch={false} className="mp-text-link">
             {tr("goToKitchen")}
           </Link>
         </div>
         <ul>
           {openOrders.map((o) => (
             <li key={o.id}>
-              <Link href={`/operator/orders/${o.id}`} className="mp-order-row">
+              <Link href={`/operator/orders/${o.id}`} prefetch={false} className="mp-order-row">
                 <span className="mp-table-number">
                   {counterMode ? <Icon name="orders" /> : o.table.number}
                 </span>
@@ -309,13 +311,13 @@ export default async function OperatorHome() {
           <div className="mp-empty-state">
             <Icon name="tables" />
             <p>{counterMode ? tr("noActiveOrders") : tr("noActiveTables")}</p>
-            <Link href="/operator/tables" className="mp-btn mp-btn--secondary">
+            <Link href="/operator/tables" prefetch={false} className="mp-btn mp-btn--secondary">
               {ux("viewService")}
             </Link>
           </div>
         )}
         {openOrdersCount > openOrders.length && (
-          <Link href="/operator/tables" className="mp-panel-footer">
+          <Link href="/operator/tables" prefetch={false} className="mp-panel-footer">
             {ux("viewAllActive", { count: openOrdersCount })}
             <Icon name="arrow" width="16" />
           </Link>
@@ -341,6 +343,7 @@ function Kpi({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`mp-kpi${primary ? " mp-kpi--primary" : ""}${accent ? " mp-kpi--accent" : ""}`}
     >
       <span className="mp-kpi-label">

@@ -335,6 +335,7 @@ export default async function OperatorLayout({
                   {session.user.role === "platform_admin" && (
                     <Link
                       href="/admin"
+                      prefetch={false}
                       className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
                     >
                       {t("adminLink")}
@@ -375,6 +376,7 @@ function NavLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className="px-3 h-8 inline-flex items-center rounded-lg text-sm text-op-muted hover:text-op-text hover:bg-op-bg"
     >
       <span className="relative">

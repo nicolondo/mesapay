@@ -141,6 +141,7 @@ function TabLink({
     <li>
       <Link
         href={href}
+        prefetch={false}
         className="flex flex-col items-center justify-center py-2.5 px-2 text-[11px] font-medium text-op-muted hover:text-ink active:scale-95 transition-all"
       >
         <span aria-hidden className="text-xl leading-none mb-0.5">

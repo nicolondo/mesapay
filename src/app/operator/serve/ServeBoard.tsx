@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
+import { isRefreshMessage } from "@/lib/liveRefresh";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
 import type { StaffPrintAccess } from "@/lib/print/staffPrint";
 import { PlacedByLine } from "@/components/PlacedByLine";
@@ -148,15 +150,18 @@ export function ServeBoard({
   const [invoiceAfterSettle, setInvoiceAfterSettle] = useState<InvoiceAfterSettle | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
 
-  const refreshBoard = () =>
-    startTx(() => {
+  const refreshBoard = useBatchedRefresh(
+    () => startTx(() => {
       setPendingServed(new Set());
       router.refresh();
-    });
+    }),
+    tenantSlug,
+  );
   useVisibleEventSource(
     `/api/tenant/${tenantSlug}/events`,
     (es) =>
       es.addEventListener("message", (ev) => {
+        if (!isRefreshMessage(ev.data)) return;
         try {
           const data = JSON.parse(ev.data);
           if (data.type === "order.ready") {

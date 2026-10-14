@@ -1057,6 +1057,7 @@ export function TableDetailSheet({
                 <div className="space-y-2">
                   {canAdd && (
                     <Link
+                      prefetch={false}
                       href={
                         isMeseroView
                           ? `/mesero/pedir/${tableId}`
@@ -1110,6 +1111,7 @@ export function TableDetailSheet({
                       // "Agregar platos" → /mesero/pedir/[tableId].
                       <Link
                         href={`/mesero/cobrar/${orderId}`}
+                        prefetch={false}
                         className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
                       >
                         {tr("chargeBill")}
@@ -1158,6 +1160,7 @@ export function TableDetailSheet({
                         {isMeseroView ? (
                           <Link
                             href={prebillHref}
+                            prefetch={false}
                             className="shrink-0 underline hover:text-op-text"
                           >
                             {tr("prebillView")}

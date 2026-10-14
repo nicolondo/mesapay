@@ -47,6 +47,7 @@ function Tab({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={
         "shrink-0 px-4 h-9 inline-flex items-center rounded-full text-sm font-medium border transition-colors " +
         (active

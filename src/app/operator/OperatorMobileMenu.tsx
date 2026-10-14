@@ -210,6 +210,7 @@ function DrawerLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={
         "px-4 h-11 inline-flex items-center gap-2 rounded-xl text-sm transition-colors " +
         (active

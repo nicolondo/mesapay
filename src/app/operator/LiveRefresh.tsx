@@ -1,31 +1,27 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
+import { isRefreshMessage } from "@/lib/liveRefresh";
 
 /**
  * SSE live-refresh para las pantallas del operador.
  *
- * La conexión es visibility-aware (ver useVisibleEventSource): sólo
- * está abierta con la pestaña visible, así no agotamos el cupo de ~6
- * conexiones HTTP/1.1 con pestañas en segundo plano.
+ * Agrupa los eventos de una misma ráfaga y sólo trabaja con la pestaña
+ * visible. Cada reconexión recupera el estado actual una vez.
  */
 export function LiveRefresh({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
   const [, startTx] = useTransition();
-  const lastRef = useRef(0);
-
-  const refresh = () => startTx(() => router.refresh());
+  const refresh = useBatchedRefresh(() => startTx(() => router.refresh()), tenantSlug);
 
   useVisibleEventSource(
     `/api/tenant/${tenantSlug}/events`,
     (es) =>
-      es.addEventListener("message", () => {
-        const now = Date.now();
-        if (now - lastRef.current < 800) return;
-        lastRef.current = now;
-        refresh();
+      es.addEventListener("message", (event) => {
+        if (isRefreshMessage(event.data)) refresh();
       }),
     refresh,
   );

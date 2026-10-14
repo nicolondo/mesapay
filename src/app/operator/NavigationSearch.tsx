@@ -90,6 +90,7 @@ export function NavigationSearch({ items }: { items: NavEntry[] }) {
               <Link
                 key={i.href}
                 href={i.href}
+                prefetch={false}
                 onClick={() => setOpen(false)}
                 className="mp-command-result"
               >

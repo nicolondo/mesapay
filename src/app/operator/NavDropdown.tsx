@@ -96,6 +96,7 @@ export function NavDropdown({
               <Link
                 key={it.href}
                 href={it.href}
+                prefetch={false}
                 role="menuitem"
                 className={
                   "block px-4 py-2 text-sm " +

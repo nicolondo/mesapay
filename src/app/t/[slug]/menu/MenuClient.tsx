@@ -12,6 +12,8 @@ import { searchMenuItems, searchTokens } from "@/lib/menuSearch";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
+import { isRefreshMessage } from "@/lib/liveRefresh";
 import {
   COUNTRIES,
   DEFAULT_COUNTRY_CODE,
@@ -516,13 +518,15 @@ export function MenuClient({
   }
 
   // Live-refresh the "pedido abierto en esta mesa" banner when another
-  // diner at the same table sends or updates a round. Visibility-aware:
-  // los diners dejan la carta abierta en segundo plano por largos ratos;
-  // cerrar el SSE mientras está oculta libera el socket (HTTP/1.1 cap).
+  // diner at the same table sends or updates a round. Batch bursts and
+  // stop both the connection and queued work while the menu is hidden.
+  const refreshMenu = useBatchedRefresh(() => router.refresh(), tenant.slug, !readOnly);
   useVisibleEventSource(
     `/api/tenant/${tenant.slug}/events`,
-    (es) => es.addEventListener("message", () => router.refresh()),
-    () => router.refresh(),
+    (es) => es.addEventListener("message", (event) => {
+      if (isRefreshMessage(event.data)) refreshMenu();
+    }),
+    refreshMenu,
     { enabled: !readOnly },
   );
 

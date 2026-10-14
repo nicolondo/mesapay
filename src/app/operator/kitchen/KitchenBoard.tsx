@@ -6,6 +6,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
+import { isRefreshMessage } from "@/lib/liveRefresh";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { NewOrderChime } from "./NewOrderChime";
 import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
@@ -124,15 +126,19 @@ export function KitchenBoard({
   // the open state.
   const [cancellingKey, setCancellingKey] = useState<string | null>(null);
 
-  const refreshBoard = () =>
-    startTx(() => {
+  const refreshBoard = useBatchedRefresh(
+    () => startTx(() => {
       setPendingServed(new Set());
       setPendingKitchen(new Map());
       router.refresh();
-    });
+    }),
+    tenantSlug,
+  );
   useVisibleEventSource(
     `/api/tenant/${tenantSlug}/events`,
-    (es) => es.addEventListener("message", refreshBoard),
+    (es) => es.addEventListener("message", (event) => {
+      if (isRefreshMessage(event.data)) refreshBoard();
+    }),
     refreshBoard,
   );
 

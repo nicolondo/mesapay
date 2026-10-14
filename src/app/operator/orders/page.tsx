@@ -255,6 +255,7 @@ export default async function OrdersPage({
                 <Td align="right">
                   <Link
                     href={`/operator/orders/${r.id}`}
+                    prefetch={false}
                     className="text-terracotta hover:underline"
                   >
                     {t("view")} <span aria-hidden>{"→"}</span>
@@ -287,6 +288,7 @@ export default async function OrdersPage({
           >
             <Link
               href={`/operator/orders/${r.id}`}
+              prefetch={false}
               className="block rounded-2xl p-4 active:bg-op-bg/40"
             >
               <div className="flex items-center justify-between gap-2">
@@ -382,6 +384,7 @@ function FilterGroup<T extends string>({
             <Link
               key={o.id}
               href={href}
+              prefetch={false}
               className={
                 "px-3 h-7 rounded-full text-xs inline-flex items-center " +
                 (active ? "bg-ink text-bone" : "text-op-text/80")

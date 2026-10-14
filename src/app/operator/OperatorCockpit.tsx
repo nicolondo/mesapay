@@ -20,6 +20,8 @@ import { useActiveNav } from "./useActiveNav";
  *
  * La paleta del riel es oscura SIEMPRE (independiente del tema del contenido),
  * como en el mockup aprobado. Se define local para no ensuciar los tokens.
+ * Los enlaces no precargan: cada refresh en vivo invalida el prefetch de
+ * Next y volvería a solicitar todas las pantallas visibles del riel.
  */
 
 const RAIL_VARS = {
@@ -372,6 +374,7 @@ function RailLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       aria-current={active ? "page" : undefined}
       className="mp-rail-link flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-sm font-medium transition-colors relative"
       style={{
@@ -462,6 +465,7 @@ function RailGroup({
               <Link
                 key={i.href}
                 href={i.href}
+                prefetch={false}
                 aria-current={on ? "page" : undefined}
                 className="mp-rail-link px-3 py-2.5 rounded-[8px] text-[13px] transition-colors"
                 style={{
@@ -565,6 +569,7 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
       </form>
       <Link
         href="/operator/reports"
+        prefetch={false}
         aria-label={t("shiftClose")}
         className="mp-shift-close mp-btn mp-btn--secondary mp-btn--sm ml-auto shrink-0"
       >
@@ -631,6 +636,7 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
             <div className="mt-4 space-y-2">
               <Link
                 href="/operator/tables"
+                prefetch={false}
                 onClick={() => setChooserOpen(false)}
                 className="block w-full rounded-2xl border border-op-border bg-op-surface px-4 py-3 text-left hover:bg-op-bg"
               >

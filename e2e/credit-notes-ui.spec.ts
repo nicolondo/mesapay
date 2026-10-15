@@ -51,6 +51,7 @@ for (const width of [390, 1440]) {
       await page.goto(`${base}/operator/facturas/notas-credito`);
       await expect(page.getByRole("heading", { name: t.title, exact: true })).toBeVisible();
       await page.getByRole("button", { name: t.seriesOpen, exact: true }).click();
+      await expect(page.getByText(t.seriesHelp, { exact: true })).toBeVisible();
       await page.getByLabel(t.seriesPrefix, { exact: true }).fill("NCA");
       await page.getByLabel(t.seriesNext, { exact: true }).fill("2");
       await page.getByRole("button", { name: t.seriesSave, exact: true }).click();
@@ -83,6 +84,62 @@ for (const width of [390, 1440]) {
       expect(createBodies[0].mode).toBe(partial ? "partial" : "total");
       if (partial) expect(createBodies[0].lines).toEqual([{ lineId: "1", grossCents: 54001 }]);
       expect(createBodies[0].requestId).toMatch(/^[0-9a-f-]{36}$/);
+    } finally {
+      await db.user.delete({ where: { id: user.id } });
+      await db.restaurant.delete({ where: { id: restaurant.id } });
+    }
+  });
+
+  test(`credit note numbering conflict keeps its explanation and safe actions at ${width}px`, async ({ page }) => {
+    const key = randomUUID(); const password = `Credit-${key}`;
+    const restaurant = await db.restaurant.create({ data: { name: "Credit note conflict UI", slug: `credit-conflict-${key}`, enabledModules: ["einvoicing"] } });
+    const user = await db.user.create({ data: { email: `credit-conflict-${key}@example.test`, role: "operator", restaurantId: restaurant.id, passwordHash: await bcrypt.hash(password, 4) } });
+    const dianRule = "Regla: 90, Rechazo: Documento procesado anteriormente.";
+    const note = {
+      id: "conflict-note", documentNumber: "NC2", number: 2, canRetry: false, canAbandon: false,
+      abandonedAt: null, originalInvoiceId: "invoice1", reasonCode: "2", reasonText: "Ajuste solicitado por cliente",
+      createdAt: "2026-10-15T21:09:58Z", environment: "1", subtotalCents: 100001, taxCents: 8000, totalCents: 108001,
+      snapshot: { original: source.original, lines: proposal.lines, recipientEmail: null },
+      document: { state: "error", errors: ["dian_numbering_conflict", dianRule, "dian_numbering_conflict", dianRule], lastError: "dian_numbering_conflict" },
+    };
+    let statusChecks = 0;
+    const otherWrites: string[] = [];
+    try {
+      await page.setViewportSize({ width, height: 900 });
+      await page.route(/^https?:\/\//, route => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+      await page.goto(`${base}/signin`);
+      await page.getByLabel("Correo", { exact: true }).fill(user.email);
+      await page.getByLabel("Contraseña", { exact: true }).fill(password);
+      await page.locator('button[type="submit"]').click();
+      await page.waitForURL(url => !url.pathname.startsWith("/signin"));
+      await page.route("**/api/operator/credit-notes**", async route => {
+        const request = route.request(); const path = new URL(request.url()).pathname;
+        if (request.method() === "POST") {
+          if (path.endsWith("/status")) { statusChecks++; return route.fulfill({ json: { outcome: "error" } }); }
+          otherWrites.push(path);
+          return route.fulfill({ status: 409, json: { error: "unexpected_write" } });
+        }
+        return route.fulfill({ json: path.endsWith("/conflict-note") ? { creditNote: note } : { notes: [note] } });
+      });
+      await page.goto(`${base}/operator/facturas/notas-credito`);
+      await page.getByRole("button", { name: t.detailNote.replace("{number}", note.documentNumber), exact: true }).click();
+      const detail = page.locator('section[aria-labelledby="credit-detail-title"]');
+      const explanation = detail.getByText(t.error_dian_numbering_conflict, { exact: true });
+      await expect(explanation).toBeVisible();
+      await expect(explanation).toHaveCount(1);
+      await expect(detail.getByText(dianRule, { exact: true })).toHaveCount(1);
+      await expect(detail).not.toContainText("dian_numbering_conflict");
+      await expect(detail.getByRole("button", { name: t.retry, exact: true })).toHaveCount(0);
+      await expect(detail.getByRole("button", { name: t.abandon, exact: true })).toHaveCount(0);
+      await expect(detail.getByRole("button", { name: t.checkStatus, exact: true })).toBeEnabled();
+      await detail.getByRole("button", { name: t.checkStatus, exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: t.updated })).toBeVisible();
+      expect(statusChecks).toBe(1);
+      expect(otherWrites).toEqual([]);
+      await expect(explanation).toHaveCount(1);
+      await expect(detail.getByText(dianRule, { exact: true })).toHaveCount(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: test.info().outputPath(`credit-note-conflict-${width}.png`), animations: "disabled", fullPage: true });
     } finally {
       await db.user.delete({ where: { id: user.id } });
       await db.restaurant.delete({ where: { id: restaurant.id } });

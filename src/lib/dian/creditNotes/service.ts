@@ -12,6 +12,7 @@ import { isModuleEnabled } from '@/lib/modules';
 import { getAccountingConfig } from '@/lib/erp/cierre';
 import { creditNoteInstant, ensureCreditNoteStamps } from '@/lib/erp/creditNoteAccounting';
 import { creditNoteAccountingStatus, creditNoteFiscalDate, monthOfIsoDate } from '@/lib/erp/creditNoteLedger';
+import { isCreditNoteIdentityError } from '../creditNoteDeliveryState';
 type Client = Prisma.TransactionClient;
 const noteInclude = { dianDocument: true, series: true } satisfies Prisma.CreditNoteInclude;
 type Note = Prisma.CreditNoteGetPayload<{
@@ -19,7 +20,7 @@ type Note = Prisma.CreditNoteGetPayload<{
 }>;
 export function creditNoteDto(note: Note): CreditNoteDto {
     const d = note.dianDocument;
-    return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), canRetry: !note.abandonedAt && !!d && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
+    return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), canRetry: !note.abandonedAt && !!d && !isCreditNoteIdentityError(d.lastError) && !documentErrors(d.errors).some(isCreditNoteIdentityError) && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
 }
 async function sourceData(client: Client, restaurantId: string, invoiceId: string) {
     const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });

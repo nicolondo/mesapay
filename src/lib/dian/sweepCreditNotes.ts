@@ -10,6 +10,8 @@ export async function sweepCreditNotes(opts:{now?:Date;limit?:number;budgetMs?:n
   const docs=await db.dianDocument.findMany({
     where:{kind:"credit_note",creditNote:{is:{abandonedAt:null}},AND:[
       {OR:[{state:{in:["to_send","sent","pending"]}},{state:"error",OR:[{attempts:{lt:MAX_ATTEMPTS}},{xmlZip:{not:null}}]}]},
+      // null nextAttemptAt means due, so a confirmed collision needs an explicit exclusion.
+      {OR:[{lastError:null},{lastError:{not:"dian_numbering_conflict"}}]},
       {OR:[{nextAttemptAt:null},{nextAttemptAt:{lte:now}}]},
       {OR:[{leaseExpiresAt:null},{leaseExpiresAt:{lte:now}}]},
     ]},

@@ -2,6 +2,10 @@
 export const CREDIT_NOTE_LEASE_MS = 15 * 60_000;
 export const CREDIT_NOTE_POLL_MS = 60_000;
 
+export function isCreditNoteIdentityError(code: string | null | undefined): code is 'dian_numbering_conflict' | 'response_identifier_mismatch' {
+  return code === 'dian_numbering_conflict' || code === 'response_identifier_mismatch';
+}
+
 export function creditNoteDeliveryDecision(
   note: {
     state: string;

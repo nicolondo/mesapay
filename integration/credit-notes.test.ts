@@ -11,6 +11,8 @@ import { originalInvoiceInput } from '../src/lib/dian/__fixtures__/creditNote';
 import { buildDianInvoiceXml } from '../src/lib/dian/ubl';
 import { createCreditNote, getCreditNoteSource, abandonCreditNote, getCreditNote, listCreditNoteInvoices, previewCreditNote, configureCreditNoteSeries, getCreditNoteSeries } from '../src/lib/dian/creditNotes/service';
 import type { CreditNoteInput } from '../src/lib/dian/creditNotes/types';
+import { emitDianCreditNote } from '../src/lib/dian/emitCreditNote';
+import { historicalCreditNoteResponse, duplicateCreditNoteRule } from '../src/lib/dian/__fixtures__/creditNoteResponse';
 const url = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost/invalid');
 if (!['127.0.0.1', 'localhost'].includes(url.hostname) || !/^\/mesapay_.*(?:test|validation)$/.test(url.pathname))
     throw new Error('Isolated local database required');
@@ -109,6 +111,24 @@ describe('credit-note fiscal reservations in PostgreSQL', () => {
         await expect(abandonCreditNote(tenants[0], note.id, null)).rejects.toThrow('cannot_abandon');
         const invoice = await db.simpleInvoice.findUniqueOrThrow({ where: { id: invoiceIds[3] }, include: { order: true } });
         expect(invoice.order.status).toBe('paid');
+    });
+    it('pauses a legacy historical collision without changing fiscal bytes, numbering, reservation or accounting', async () => {
+        const original = await db.creditNote.findFirstOrThrow({ where: { originalInvoiceId: invoiceIds[3] }, include: { dianDocument: true, series: true } });
+        const response = historicalCreditNoteResponse({ documentNumber: original.documentNumber, issuerNit: original.series.issuerNit, environment: original.series.environment });
+        const cude = 'b'.repeat(96), xmlZip = Buffer.from('immutable signed fixture');
+        await db.dianDocument.update({ where: { id: original.dianDocument!.id }, data: { state: 'error', lastError: 'response_identifier_mismatch', errors: ['response_identifier_mismatch'], responseXml: response.raw, cufe: cude, xmlZip, issuedAt: new Date(), attempts: 2 } });
+        expect((await getCreditNote(tenants[0], original.id)).canRetry).toBe(false);
+        const before = await getCreditNoteSource(tenants[0], invoiceIds[3]);
+        expect(await emitDianCreditNote({ restaurantId: tenants[0], creditNoteId: original.id })).toMatchObject({ outcome: 'blocked', reason: 'dian_numbering_conflict' });
+        const after = await db.creditNote.findUniqueOrThrow({ where: { id: original.id }, include: { dianDocument: true, series: true } });
+        expect(after).toMatchObject({ documentNumber: original.documentNumber, abandonedAt: null, receivableCents: null, accountingStampedAt: null });
+        expect(after.dianDocument).toMatchObject({ state: 'error', cufe: cude, attempts: 2, responseXml: response.raw, lastError: 'dian_numbering_conflict', errors: ['dian_numbering_conflict', duplicateCreditNoteRule], nextAttemptAt: null, leaseToken: null, emailedAt: null });
+        expect(Buffer.from(after.dianDocument!.xmlZip!)).toEqual(xmlZip);
+        expect(after.series.nextNumber).toBe(original.series.nextNumber);
+        expect((await getCreditNoteSource(tenants[0], invoiceIds[3])).remainingTotalCents).toBe(before.remainingTotalCents);
+        expect(await getCreditNote(tenants[0], original.id)).toMatchObject({ canRetry: false, canAbandon: false });
+        await expect(abandonCreditNote(tenants[0], original.id, null)).rejects.toThrow('cannot_abandon');
+        await expect(getCreditNote(tenants[1], original.id)).rejects.toMatchObject({ status: 404 });
     });
     it('configures a first number and never rewinds a global fiscal series', async () => {
         const current = await getCreditNoteSeries(tenants[0]);

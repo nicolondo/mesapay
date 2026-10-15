@@ -8,3 +8,7 @@ it("recovers each note in its own restaurant without invoice emission",async()=>
 it("continues after an individual failure",async()=>{m.emit.mockRejectedValueOnce(new Error("offline"));expect(await sweepCreditNotes()).toMatchObject({scanned:2,error:1,pending:1});});
 it("respects a depleted time budget without contacting DIAN",async()=>{expect(await sweepCreditNotes({budgetMs:0})).toMatchObject({scanned:0,truncated:true});expect(m.emit).not.toHaveBeenCalled();});
 it("keeps reconciling exhausted uncertain sends without retransmitting",async()=>{m.find.mockResolvedValue([{creditNoteId:"n1",restaurantId:"r1",attempts:8}]);await sweepCreditNotes();expect(m.emit).toHaveBeenCalledWith({creditNoteId:"n1",restaurantId:"r1",mode:"status"});});
+it('excludes numbering conflicts even when nextAttemptAt is null, while including ordinary null errors', async () => {
+ await sweepCreditNotes();
+ expect(m.find.mock.calls[0][0].where.AND).toContainEqual({ OR: [{ lastError: null }, { lastError: { not: 'dian_numbering_conflict' } }] });
+});

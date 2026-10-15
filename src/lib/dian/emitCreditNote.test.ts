@@ -3,11 +3,12 @@ const m = vi.hoisted(() => ({ find:vi.fn(),update:vi.fn(),restaurant:vi.fn(),con
 vi.mock("@/lib/db",()=>({db:{creditNote:{findFirst:m.find},dianDocument:{updateMany:m.update},restaurant:{findUnique:m.restaurant}}}));
 vi.mock("./config",async original=>({...await original<typeof import('./config')>(),loadDianConfig:m.config,resolveEmisor:m.emisor}));
 vi.mock("./xades",()=>({signXmlDian:m.sign}));
-vi.mock("./soap",()=>({zipInvoice:m.zip,getStatus:m.status,getStatusZip:m.statusZip,sendBillSync:m.send,sendTestSetAsync:m.testSend}));
+vi.mock("./soap",async original=>({...await original<typeof import('./soap')>(),zipInvoice:m.zip,getStatus:m.status,getStatusZip:m.statusZip,sendBillSync:m.send,sendTestSetAsync:m.testSend}));
 vi.mock("./sendCreditNoteEmail",()=>({sendDianCreditNoteEmail:m.email}));
 vi.mock("./creditNotePayload",()=>({prepareCreditNotePayload:m.prepare}));
 vi.mock("@/lib/erp/creditNoteAccounting",()=>({stampCreditNoteAccounting:m.stamp}));
 import { emitDianCreditNote } from "./emitCreditNote";
+import { duplicateCreditNoteRule, historicalCreditNoteResponse } from "./__fixtures__/creditNoteResponse";
 const now=new Date("2026-10-02T15:00:00Z");
 const party={name:"Empresa prueba",companyId:"900373076",dv:"4",idSchemeName:"31",taxLevelCode:"R-99-PN",taxRegimeCode:"49",personType:"1"};
 const line={description:"Plato",quantity:1,unitPriceCents:10000,lineTotalCents:10000,taxCents:800,taxPct:"8.00",taxSchemeId:"04",originalLineId:"7",grossCents:10800};
@@ -36,4 +37,65 @@ describe("credit-note immutable delivery",()=>{
  it.each([["module_disabled",()=>m.restaurant.mockResolvedValue({enabledModules:[]})],["issuer_changed",()=>m.emisor.mockResolvedValue({taxId:"123456789"})],["environment_changed",()=>m.config.mockResolvedValue({environment:"habilitacion"})],["certificate_expired",()=>m.config.mockResolvedValue({environment:"produccion",cert:{notBefore:new Date(0),notAfter:new Date(1)}})]])("blocks %s before signing",async(reason,setup)=>{(setup as ()=>void)();expect(await emit()).toMatchObject({outcome:"blocked",reason});expect(m.sign).not.toHaveBeenCalled();expect(m.send).not.toHaveBeenCalled();});
  it("rejects acceptance of a different CUDE",async()=>{m.find.mockResolvedValue(note("error",true));m.status.mockResolvedValue({state:"accepted",cufe:"c".repeat(96),errors:[]});expect((await emit()).outcome).toBe("error");expect(m.email).not.toHaveBeenCalled();});
  it("does not reinterpret unavailable lookup as a fiscal rejection",async()=>{m.find.mockResolvedValue(note("error",true));m.status.mockResolvedValue({state:"error",errors:["timeout"]});expect((await emit()).outcome).toBe("error");expect(m.send).not.toHaveBeenCalled();});
+});
+
+describe('historical credit-note numbering collision', () => {
+ const collisionNote = () => { const n = note('error', true); return { ...n, dianDocument: { ...n.dianDocument, lastError: 'dian_numbering_conflict', errors: ['dian_numbering_conflict', duplicateCreditNoteRule], responseXml: historicalCreditNoteResponse().raw } }; };
+ const finalWrite = () => m.update.mock.calls.at(-1)?.[0].data;
+ it('keeps the original rejection and pauses a newly detected foreign NC1 without mail or accounting', async () => {
+   m.find.mockResolvedValue(note('error', true)); m.send.mockResolvedValue(historicalCreditNoteResponse());
+   expect(await emit()).toMatchObject({ outcome: 'error', errors: ['dian_numbering_conflict', duplicateCreditNoteRule] });
+   expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_numbering_conflict', nextAttemptAt: null, responseXml: historicalCreditNoteResponse().raw });
+   expect(finalWrite()).not.toHaveProperty('cufe'); expect(finalWrite()).not.toHaveProperty('xmlZip');
+   expect(m.email).not.toHaveBeenCalled(); expect(m.stamp).not.toHaveBeenCalled();
+ });
+ it.each(['dian_numbering_conflict', 'response_identifier_mismatch'])('does not query or resend a stored collision on automatic/manual emit: %s', async lastError => {
+   const n = collisionNote(); m.find.mockResolvedValue({ ...n, dianDocument: { ...n.dianDocument, lastError } });
+   expect(await emit()).toMatchObject({ outcome: 'blocked', reason: 'dian_numbering_conflict' });
+   expect(m.status).not.toHaveBeenCalled(); expect(m.send).not.toHaveBeenCalled(); expect(m.sign).not.toHaveBeenCalled();
+   expect(finalWrite()).toMatchObject({ lastError: 'dian_numbering_conflict', nextAttemptAt: null });
+ });
+ it.each([
+   { state: 'rejected', statusCode: '66', errors: [] },
+   { state: 'rejected', statusCode: '90', errors: ['TrackId not found'] },
+   { state: 'pending', errors: [] },
+   { state: 'accepted', errors: [] },
+   { state: 'accepted', cufe: 'c'.repeat(96), errors: [] },
+   { state: 'error', errors: ['timeout'] },
+ ])('status-only uncertainty retains collision evidence and reservation: %j', async result => {
+   m.find.mockResolvedValue(collisionNote()); m.status.mockResolvedValue(result);
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'blocked', reason: 'dian_numbering_conflict' });
+   expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_numbering_conflict', errors: ['dian_numbering_conflict', duplicateCreditNoteRule] });
+   expect(finalWrite().responseXml).toBeUndefined(); expect(m.send).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled(); expect(m.stamp).not.toHaveBeenCalled();
+ });
+ it('does not erase collision evidence after a thrown transport error', async () => {
+   m.find.mockResolvedValue(collisionNote()); m.status.mockRejectedValue(new Error('SECRET'));
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'blocked', reason: 'dian_numbering_conflict' });
+   expect(finalWrite()).toMatchObject({ lastError: 'dian_numbering_conflict' }); expect(finalWrite().responseXml).toBeUndefined();
+   expect(JSON.stringify(finalWrite())).not.toContain('SECRET');
+ });
+ it('allows reconciliation only after explicit status returns acceptance of the exact stored CUDE', async () => {
+   m.find.mockResolvedValue(collisionNote()); m.status.mockResolvedValue({ state: 'accepted', cufe: 'b'.repeat(96), errors: [], raw: '<matching-response/>' });
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'accepted' });
+   expect(finalWrite()).toMatchObject({ state: 'accepted', lastError: null, responseXml: '<matching-response/>' });
+   expect(m.send).not.toHaveBeenCalled(); expect(m.email).toHaveBeenCalledOnce();
+ });
+ it('allows a definitive rejection only when it belongs to the exact stored CUDE', async () => {
+   m.find.mockResolvedValue(collisionNote()); m.status.mockResolvedValue({ state: 'rejected', statusCode: '99', cufe: 'b'.repeat(96), errors: ['Regla: CAV01, detalle inválido'], raw: '<matching-rejection/>' });
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'rejected' });
+   expect(finalWrite()).toMatchObject({ state: 'rejected', lastError: null, responseXml: '<matching-rejection/>' });
+   expect(m.send).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled(); expect(m.stamp).not.toHaveBeenCalled();
+ });
+ it('cannot overwrite a newer result if its lease is lost while preserving the collision', async () => {
+   m.find.mockResolvedValue(collisionNote()); m.update.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+   expect(await emit()).toEqual({ outcome: 'already_emitted' });
+   expect(m.update.mock.calls[1][0].where.leaseToken).toBe(m.update.mock.calls[0][0].data.leaseToken);
+   expect(m.status).not.toHaveBeenCalled(); expect(m.send).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled();
+ });
+ it('a configuration problem cannot overwrite the original collision evidence', async () => {
+   m.find.mockResolvedValue(collisionNote()); m.restaurant.mockResolvedValue({ enabledModules: [] });
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'blocked', reason: 'dian_numbering_conflict' });
+   expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_numbering_conflict' });
+   expect(finalWrite().responseXml).toBeUndefined(); expect(m.status).not.toHaveBeenCalled();
+ });
 });

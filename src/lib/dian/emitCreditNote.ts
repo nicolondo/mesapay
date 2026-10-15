@@ -5,7 +5,8 @@ import { isModuleEnabled } from "@/lib/modules";
 import { DianConfigError, loadDianConfig, resolveEmisor } from "./config";
 import { buildDianCreditNoteXml, type CreditNoteReasonCode } from "./creditNote";
 import type { CreditNoteSnapshot } from "./creditNotes/types";
-import { creditNoteDeliveryDecision, creditNoteLeaseWhere, CREDIT_NOTE_LEASE_MS, CREDIT_NOTE_POLL_MS } from "./creditNoteDeliveryState";
+import { creditNoteDeliveryDecision, creditNoteLeaseWhere, CREDIT_NOTE_LEASE_MS, CREDIT_NOTE_POLL_MS, isCreditNoteIdentityError } from "./creditNoteDeliveryState";
+import { creditNoteHash, diagnoseCreditNoteResponse, isDuplicateCreditNoteResponse, storedCreditNoteIdentityFailure } from "./creditNoteResponse";
 import { dianIssueDateTime, dianSigningTime } from "./dianDateTime";
 import { signXmlDian } from "./xades";
 import { getStatus, getStatusZip, sendBillSync, sendTestSetAsync, type DianResult } from "./soap";
@@ -22,8 +23,6 @@ export type EmitCreditNoteResult = {
   errors?: string[];
 };
 const notFound = (r: DianResult) => r.statusCode?.trim() === "66" || r.statusCode?.trim() === "90";
-// ErrorMessage rule 90 is a duplicate, NOT StatusCode 90 (missing TrackId).
-const duplicate = (r: DianResult) => r.errors.some(e => /(?:regla\s*:?\s*90\b|procesad[oa].*anterior|already\s+process)/i.test(e));
 
 /** Persist once, transmit those exact bytes, and recover uncertain sends by CUDE.
  * Every write after the claim compares its lease token; an expired worker can
@@ -62,12 +61,23 @@ export async function emitDianCreditNote(opts: {
   const owned = { id: doc.id, restaurantId: opts.restaurantId, kind: "credit_note", leaseToken, creditNote: { is: { abandonedAt: null } } };
   const persist = (data: Prisma.DianDocumentUpdateManyMutationInput) => db.dianDocument.updateMany({ where: owned, data });
   const release = (data: Prisma.DianDocumentUpdateManyMutationInput) => persist({ ...data, leaseToken: null, leaseExpiresAt: null });
+  const identity = { documentNumber: note.documentNumber, issuerNit: note.series.issuerNit, environment: note.series.environment, cude: doc.cufe };
+  const identityFailure = doc.xmlZip ? await storedCreditNoteIdentityFailure(doc, identity) : null;
+  const preserveIdentityFailure = async (): Promise<EmitCreditNoteResult> => {
+    const reason = identityFailure!.errors[0];
+    const saved = await release({ state: 'error', lastError: reason, errors: identityFailure!.errors, nextAttemptAt: reason === 'dian_numbering_conflict' ? null : new Date(now.getTime() + BLOCKED_RETRY_MS) });
+    return saved.count === 1 ? { outcome: 'blocked', reason, documentId: doc.id, errors: identityFailure!.errors } : { outcome: 'already_emitted' };
+  };
   const blocked = async (reason: string): Promise<EmitCreditNoteResult> => {
+    if (identityFailure) return preserveIdentityFailure();
     const saved = await release({ state: doc.xmlZip ? "error" : "to_send", lastError: reason, errors: [reason], nextAttemptAt: new Date(now.getTime() + BLOCKED_RETRY_MS) });
     return saved.count === 1 ? { outcome: "blocked", reason, documentId: doc.id } : { outcome: "already_emitted" };
   };
   let attempts = doc.attempts;
   try {
+    // A retry cannot fix a number belonging to another document. Preserve the
+    // original response; only an explicit CUDE status query may reconcile it.
+    if (identityFailure && opts.mode !== 'status') return preserveIdentityFailure();
     const restaurant = await db.restaurant.findUnique({ where: { id: opts.restaurantId }, select: { enabledModules: true } });
     if (!restaurant || !isModuleEnabled(restaurant.enabledModules, "einvoicing")) return blocked("module_disabled");
     const snapshot = note.snapshot as unknown as CreditNoteSnapshot;
@@ -92,6 +102,7 @@ export async function emitDianCreditNote(opts: {
       zip = Buffer.from(doc.xmlZip);
       result = await getStatus(cude, args);
       if (notFound(result) && doc.trackId) result = await getStatusZip(doc.trackId, args);
+      if (identityFailure && !(creditNoteHash(result.cufe) === creditNoteHash(cude) && (result.state === 'accepted' || (result.state === 'rejected' && result.statusCode?.trim() === '99' && !isDuplicateCreditNoteResponse(result))))) return preserveIdentityFailure();
       if (notFound(result)) {
         result = opts.mode === "status" ? { ...result, state: "pending", errors: [] } : null;
       }
@@ -137,9 +148,11 @@ export async function emitDianCreditNote(opts: {
         ? await sendTestSetAsync(zip, config.testSetId!, { ...args, fileName: zipFileName })
         : await sendBillSync(zip, { ...args, fileName: zipFileName });
     }
-    if (result.cufe && result.cufe.toLowerCase() !== cude?.toLowerCase()) {
-      result = { ...result, state: "error", errors: ["response_identifier_mismatch"] };
-    } else if (duplicate(result) || (result.state === "rejected" && notFound(result))) {
+    result = await diagnoseCreditNoteResponse(result, { ...identity, cude });
+    if (isCreditNoteIdentityError(result.errors[0])) {
+      // Keep state=error even when the foreign response includes duplicate90.
+      // It must never make this signed note accepted or abandonable.
+    } else if (isDuplicateCreditNoteResponse(result) || (result.state === "rejected" && notFound(result))) {
       result = { ...result, state: "pending" };
     } else if (result.state === "rejected" && result.statusCode?.trim() !== "99") {
       // Unknown transport/service status must never make a note abandonable.
@@ -151,8 +164,8 @@ export async function emitDianCreditNote(opts: {
       errors: result.errors,
       lastError: result.state === "error" ? result.errors[0] ?? "transport_error" : null,
       responseXml: result.raw ?? undefined,
-      trackId: result.zipKey ?? doc.trackId,
-      nextAttemptAt: result.state === "accepted" || result.state === "rejected" ? null : new Date(now.getTime() + delay),
+      trackId: isCreditNoteIdentityError(result.errors[0]) ? doc.trackId : result.zipKey ?? doc.trackId,
+      nextAttemptAt: result.state === "accepted" || result.state === "rejected" || result.errors[0] === 'dian_numbering_conflict' ? null : new Date(now.getTime() + delay),
     });
     if (updated.count !== 1) return { outcome: "already_emitted" };
     if (result.state === "accepted") {
@@ -170,6 +183,7 @@ export async function emitDianCreditNote(opts: {
     }
     return { outcome: result.state, documentId: doc.id, errors: result.errors };
   } catch (error) {
+    if (identityFailure) return preserveIdentityFailure();
     if (error instanceof DianConfigError) return blocked(error.code);
     if (error instanceof CreditNoteError) return blocked(error.code);
     const saved = await release({ state: "error", lastError: "transport_error", errors: ["transport_error"], nextAttemptAt: new Date(now.getTime() + emissionBackoffMs(attempts)) });

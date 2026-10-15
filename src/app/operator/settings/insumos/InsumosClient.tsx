@@ -1,7 +1,7 @@
 "use client";
 
 import { InventoryTrackingField } from "@/components/InventoryTrackingField";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -111,11 +111,13 @@ export function InsumosClient({
   const [items, setItems] = useState<Ingredient[]>(initial);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [importing, setImporting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const toggling = useRef(false);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [archiveNotice, setArchiveNotice] = useState<string | null>(null);
   // Selección múltiple + acciones masivas (cambiar categoría / dimensión).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState<"category" | "measureKind" | null>(
@@ -168,21 +170,34 @@ export function InsumosClient({
   }
 
   async function toggleActive(item: Ingredient) {
+    if (toggling.current || bulkBusy) return;
+    toggling.current = true;
     setTogglingId(item.id);
     setRowError(null);
-    const r = await fetch(`/api/operator/ingredients/${item.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ active: !item.active }),
-    });
-    setTogglingId(null);
-    if (!r.ok) {
+    setArchiveNotice(null);
+    try {
+      const r = await fetch(`/api/operator/ingredients/${item.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: !item.active }),
+      });
+      if (!r.ok) throw new Error("archive_failed");
+      const j = await r.json();
+      if (j.ingredient?.id !== item.id || j.ingredient.active !== !item.active) {
+        throw new Error("invalid_archive_response");
+      }
+      // El PATCH no incluye _count — se preserva el del row local.
+      upsert({ ...item, ...j.ingredient, _count: item._count });
+      setSelected((prev) => new Set([...prev].filter((id) => id !== item.id)));
+      setBulkMode(null);
+      setBulkNote(null);
+      setArchiveNotice(t(item.active ? "ingredientArchivedNotice" : "ingredientRestoredNotice", { name: item.name }));
+    } catch {
       setRowError(t("errSaveFailed"));
-      return;
+    } finally {
+      toggling.current = false;
+      setTogglingId(null);
     }
-    const j = await r.json();
-    // El PATCH no incluye _count — se preserva el del row local.
-    upsert({ ...(j.ingredient as Ingredient), _count: item._count });
   }
 
   // ── Selección múltiple ──
@@ -320,9 +335,9 @@ export function InsumosClient({
           <div className="mp-seg" role="tablist">
             {(
               [
-                ["all", t("filterAll")],
                 ["active", t("filterActive")],
-                ["inactive", t("filterInactive")],
+                ["inactive", t("filterArchivedIngredients")],
+                ["all", t("filterAll")],
               ] as [ActiveFilter, string][]
             ).map(([value, label]) => (
               <button
@@ -330,7 +345,10 @@ export function InsumosClient({
                 type="button"
                 role="tab"
                 aria-selected={activeFilter === value}
-                onClick={() => setActiveFilter(value)}
+                onClick={() => {
+                  setActiveFilter(value);
+                  clearSelection();
+                }}
                 className="mp-seg__i"
               >
                 {label}
@@ -338,9 +356,11 @@ export function InsumosClient({
             ))}
           </div>
         </div>
+        <p className="text-xs text-op-muted">{t("ingredientArchiveHint")}</p>
       </div>
 
-      {rowError && <div className="text-xs text-danger">{rowError}</div>}
+      {rowError && <div role="alert" className="text-xs text-danger">{rowError}</div>}
+      {archiveNotice && <div role="status" className="text-xs text-ok">{archiveNotice}</div>}
 
       {/* Barra de acciones masivas (aparece al seleccionar) */}
       {selected.size > 0 && (
@@ -552,7 +572,7 @@ export function InsumosClient({
             <div
               key={i.id}
               className={
-                "flex items-center gap-3 px-4 py-2 border-b border-op-border last:border-b-0 " +
+                "grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2 border-b border-op-border last:border-b-0 sm:flex " +
                 (selected.has(i.id) ? "bg-terracotta/5" : "")
               }
             >
@@ -566,7 +586,7 @@ export function InsumosClient({
               <button
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}
-                className="flex-1 min-w-0 min-h-[44px] py-1.5 text-left"
+                className="col-span-2 flex-1 min-w-0 min-h-[44px] py-1.5 text-left"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
@@ -579,7 +599,7 @@ export function InsumosClient({
                   </span>
                   {!i.active && (
                     <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                      {t("inactiveBadge")}
+                      {t("ingredientArchivedBadge")}
                     </span>
                   )}
                 </div>
@@ -596,14 +616,16 @@ export function InsumosClient({
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}
                 aria-label={t("editIngredientNamed", { name: i.name })}
-                className="min-h-[44px] px-2 rounded-full text-xs font-medium shrink-0 text-op-text hover:bg-op-bg focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="col-start-2 justify-self-end min-h-[44px] px-2 rounded-full text-xs font-medium shrink-0 text-op-text hover:bg-op-bg focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 {t("editIngredientAction")}
               </button>
               <button
                 type="button"
                 onClick={() => toggleActive(i)}
-                disabled={togglingId === i.id}
+                disabled={togglingId !== null || bulkBusy}
+                aria-label={t(i.active ? "archiveIngredientNamed" : "restoreIngredientNamed", { name: i.name })}
+                aria-busy={togglingId === i.id}
                 className={
                   "min-h-[44px] px-3 rounded-full text-[11px] font-medium shrink-0 disabled:opacity-40 " +
                   (i.active
@@ -611,7 +633,7 @@ export function InsumosClient({
                     : "text-ok hover:bg-ok/10")
                 }
               >
-                {i.active ? t("deactivate") : t("reactivate")}
+                {togglingId === i.id ? t("saving") : t(i.active ? "archiveIngredient" : "restoreIngredient")}
               </button>
             </div>
           ))}

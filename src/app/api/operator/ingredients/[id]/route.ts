@@ -168,10 +168,16 @@ async function DELETEHandler(
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   const { id } = await params;
-  const ing = await loadOwned(id, ctx.restaurantId);
-  if (!ing) return NextResponse.json({ error: "not_found" }, { status: 404 });
-
-  await db.ingredient.update({ where: { id }, data: { active: false } });
+  const result = await db.$transaction(async (tx) => {
+    // DELETE is the same archive operation as PATCH active:false, including
+    // its serialization with production, receipts and other stock writers.
+    await lockStock(tx, ctx.restaurantId);
+    return tx.ingredient.updateMany({
+      where: { id, restaurantId: ctx.restaurantId },
+      data: { active: false },
+    });
+  });
+  if (result.count === 0) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
 

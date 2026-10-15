@@ -2,6 +2,7 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { lockStock } from "@/lib/orderLock";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -45,26 +46,29 @@ async function POSTHandler(
   }
   const b = parsed.data;
 
-  // El insumo debe ser del mismo comercio.
-  const ingredient = await db.ingredient.findUnique({
-    where: { id: b.ingredientId },
-    select: { restaurantId: true },
-  });
-  if (!ingredient || ingredient.restaurantId !== ctx.restaurantId) {
-    return NextResponse.json({ error: "ingredient_not_found" }, { status: 400 });
-  }
+  const result = await db.$transaction(async (tx) => {
+    // Check the current archive state under the same lock as ingredient PATCH.
+    // Existing supplier presentations remain available for historical records.
+    await lockStock(tx, ctx.restaurantId);
+    const ingredient = await tx.ingredient.findUnique({
+      where: { id: b.ingredientId },
+      select: { restaurantId: true, active: true },
+    });
+    if (!ingredient || ingredient.restaurantId !== ctx.restaurantId) {
+      return { error: "ingredient_not_found" as const, status: 400 };
+    }
+    if (!ingredient.active) {
+      return { error: "ingredient_inactive" as const, status: 400 };
+    }
 
-  const dup = await db.supplierIngredient.findUnique({
-    where: {
-      supplierId_ingredientId: { supplierId, ingredientId: b.ingredientId },
-    },
-    select: { id: true },
-  });
-  if (dup) {
-    return NextResponse.json({ error: "already_listed" }, { status: 409 });
-  }
+    const dup = await tx.supplierIngredient.findUnique({
+      where: {
+        supplierId_ingredientId: { supplierId, ingredientId: b.ingredientId },
+      },
+      select: { id: true },
+    });
+    if (dup) return { error: "already_listed" as const, status: 409 };
 
-  const item = await db.$transaction(async (tx) => {
     // Máx. 1 proveedor preferido por insumo: marcar este desmarca el resto.
     if (b.preferred) {
       await tx.supplierIngredient.updateMany({
@@ -72,7 +76,7 @@ async function POSTHandler(
         data: { preferred: false },
       });
     }
-    return tx.supplierIngredient.create({
+    const item = await tx.supplierIngredient.create({
       data: {
         supplierId,
         ingredientId: b.ingredientId,
@@ -88,9 +92,13 @@ async function POSTHandler(
         },
       },
     });
+    return { item };
   });
 
-  return NextResponse.json({ item }, { status: 201 });
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  return NextResponse.json(result, { status: 201 });
 }
 
 export const POST = secureApi(POSTHandler);

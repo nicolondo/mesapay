@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
-const movement = vi.hoisted(() => vi.fn());
+const { movement, lock } = vi.hoisted(() => ({ movement: vi.fn(), lock: vi.fn() }));
 vi.mock("@/lib/erp/stock", () => ({ applyStockMovement: movement }));
+vi.mock("@/lib/orderLock", () => ({ lockStock: lock }));
 import { runProduction } from "./production";
 
 function fixture() {
   const tx = {
+    ingredient: { findUnique: vi.fn().mockResolvedValue({ restaurantId: "r", active: true }) },
     recipe: { findFirst: vi.fn().mockResolvedValue({ outputQtyBase: 10, items: [{ ingredientId: "tracked", qtyBase: 3, wastePct: 0 }, { ingredientId: "untracked", qtyBase: 4, wastePct: 0 }] }) },
     productionBatch: { create: vi.fn().mockResolvedValue({ id: "batch" }), update: vi.fn().mockImplementation(({ data }) => ({ id: "batch", ...data })) },
   };

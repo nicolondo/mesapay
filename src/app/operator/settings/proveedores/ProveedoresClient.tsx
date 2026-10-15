@@ -963,7 +963,9 @@ function ItemForm({
       setErr(
         j.error === "already_listed"
           ? t("errAlreadyListed")
-          : t("errSaveFailed"),
+          : j.error === "ingredient_inactive"
+            ? t("errIngredientInactive")
+            : t("errSaveFailed"),
       );
       return;
     }

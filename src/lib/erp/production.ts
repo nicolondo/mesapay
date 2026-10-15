@@ -8,11 +8,12 @@
 // línea sin costo deja el batch con costo parcial (flag derivado, nunca
 // se inventa un costo).
 import type { Prisma } from "@prisma/client";
+import { lockStock } from "@/lib/orderLock";
 import { applyStockMovement } from "@/lib/erp/stock";
 import { grossQty } from "@/lib/erp/recipes";
 
 export class ProductionError extends Error {
-  constructor(public code: "no_subrecipe" | "qty_invalid") {
+  constructor(public code: "no_subrecipe" | "qty_invalid" | "ingredient_not_found" | "ingredient_inactive") {
     super(code);
   }
 }
@@ -65,6 +66,18 @@ export async function runProduction(
   ) {
     throw new ProductionError("qty_invalid");
   }
+
+  // Archive and stock writers share this lock. A stale browser must not
+  // produce a newly archived output, while existing recipe inputs remain valid.
+  await lockStock(tx, args.restaurantId);
+  const output = await tx.ingredient.findUnique({
+    where: { id: args.outputIngredientId },
+    select: { restaurantId: true, active: true },
+  });
+  if (!output || output.restaurantId !== args.restaurantId) {
+    throw new ProductionError("ingredient_not_found");
+  }
+  if (!output.active) throw new ProductionError("ingredient_inactive");
 
   const recipe = await tx.recipe.findFirst({
     where: {

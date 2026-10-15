@@ -190,6 +190,7 @@ export function InventarioClient({
   // orden se controla clickeando los encabezados de la tabla (toggle
   // asc/desc); en móvil, con el select.
   const [stockedOnly, setStockedOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<StockSort>("name");
   const [sheet, setSheet] = useState<SheetMode | null>(null);
 
@@ -216,6 +217,7 @@ export function InventarioClient({
   const filtered = useMemo(() => {
     const needle = fold(q.trim());
     const out = rows.filter((r) => {
+      if (!showArchived && !r.active) return false;
       if (lowOnly && !isLowStock(r)) return false;
       if (stockedOnly && (r.stockLevel?.qtyBase ?? 0) === 0) return false;
       if (cat !== "all" && r.category !== cat) return false;
@@ -243,7 +245,9 @@ export function InventarioClient({
     return [...out].sort(
       (a, b) => cmp[sort](a, b) || a.name.localeCompare(b.name),
     );
-  }, [rows, q, cat, lowOnly, stockedOnly, sort]);
+  }, [rows, q, cat, lowOnly, stockedOnly, sort, showArchived]);
+
+  const hasArchivedStock = rows.some((r) => !r.active);
 
   const lowCount = useMemo(() => rows.filter(isLowStock).length, [rows]);
 
@@ -482,7 +486,20 @@ export function InventarioClient({
               >
                 {t("stockedOnly")}
               </button>
+              {hasArchivedStock && (
+                <button
+                  type="button"
+                  onClick={() => setShowArchived((v) => !v)}
+                  aria-pressed={showArchived}
+                  className="mp-chip"
+                >
+                  {t("showArchivedIngredients")}
+                </button>
+              )}
             </div>
+            {hasArchivedStock && (
+              <p className="text-xs text-op-muted">{t("archivedStockHint")}</p>
+            )}
           </div>
 
           {/* Existencias */}
@@ -527,7 +544,7 @@ export function InventarioClient({
                           </span>
                           {!r.active && (
                             <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                              {t("inactiveBadge")}
+                              {t("ingredientArchivedBadge")}
                             </span>
                           )}
                           {low && (
@@ -676,7 +693,7 @@ export function InventarioClient({
                               </span>
                               {!r.active && (
                                 <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                                  {t("inactiveBadge")}
+                                  {t("ingredientArchivedBadge")}
                                 </span>
                               )}
                               {low && (

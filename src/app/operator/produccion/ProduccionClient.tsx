@@ -45,6 +45,7 @@ type SubRecipeDto = {
   ingredientId: string;
   ingredientName: string;
   measureKind: MeasureKind;
+  active: boolean;
   /** Rendimiento del batch en unidad base ("rinde 2000 ml"). */
   outputQtyBase: number | null;
   items: Array<{
@@ -100,6 +101,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   no_subrecipe: "productionErrNoSubRecipe",
   ingredient_not_tracked: "errIngredientNotTracked",
   ingredient_not_found: "errIngredientNotFound",
+  ingredient_inactive: "errIngredientInactive",
 };
 
 /* ───────────────────────────── Lista ───────────────────────────────── */
@@ -189,6 +191,7 @@ export function ProduccionClient({ currency }: { currency: string }) {
     () =>
       subs.filter(
         (s) =>
+          s.active &&
           s.outputQtyBase != null &&
           s.outputQtyBase > 0 &&
           s.items.length > 0,

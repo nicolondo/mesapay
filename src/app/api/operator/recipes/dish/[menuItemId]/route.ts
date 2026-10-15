@@ -6,6 +6,7 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import { costRecipeItems, MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import { loadCostContext } from "@/lib/erp/recipeData";
 import { normalizeModifiers } from "@/lib/modifiers";
+import { lockStock } from "@/lib/orderLock";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -79,8 +80,11 @@ async function PUTHandler(
 
   if (b.items.length === 0) {
     // Sin receta base no hay dónde colgar los deltas: se borra todo (cascade).
-    await db.recipe.deleteMany({
-      where: { menuItemId, restaurantId: ctx.restaurantId },
+    await db.$transaction(async (tx) => {
+      await lockStock(tx, ctx.restaurantId);
+      await tx.recipe.deleteMany({
+        where: { menuItemId, restaurantId: ctx.restaurantId },
+      });
     });
     return NextResponse.json({ recipe: null });
   }
@@ -100,18 +104,34 @@ async function PUTHandler(
     }
   }
 
-  // Todos los insumos (base + deltas) deben ser del comercio y estar activos.
   const allIds = [...new Set([...ids, ...b.modifierItems.map((m) => m.ingredientId)])];
-  const ingredients = await db.ingredient.findMany({
-    where: { id: { in: allIds }, restaurantId: ctx.restaurantId, active: true },
-    select: { id: true },
-  });
-  if (ingredients.length !== allIds.length) {
-    return NextResponse.json({ error: "ingredient_not_found" }, { status: 400 });
-  }
 
   // Reemplazo completo (spec D6): borrar líneas y recrear dentro de la tx.
   const recipe = await db.$transaction(async (tx) => {
+    // Comparte el bloqueo con archivar insumos y con las otras escrituras de
+    // recetas: sólo se pueden conservar referencias archivadas aún presentes.
+    await lockStock(tx, ctx.restaurantId);
+    const existing = await tx.recipe.findUnique({
+      where: { menuItemId, restaurantId: ctx.restaurantId },
+      select: {
+        items: { select: { ingredientId: true } },
+        modifierItems: { select: { ingredientId: true } },
+      },
+    });
+    const retainedIds = [...new Set([
+      ...(existing?.items.map((item) => item.ingredientId) ?? []),
+      ...(existing?.modifierItems.map((item) => item.ingredientId) ?? []),
+    ])];
+    const ingredients = await tx.ingredient.findMany({
+      where: {
+        id: { in: allIds },
+        restaurantId: ctx.restaurantId,
+        OR: [{ active: true }, { id: { in: retainedIds } }],
+      },
+      select: { id: true },
+    });
+    if (ingredients.length !== allIds.length) return null;
+
     const r = await tx.recipe.upsert({
       where: { menuItemId },
       create: {
@@ -150,6 +170,10 @@ async function PUTHandler(
       },
     });
   });
+
+  if (!recipe) {
+    return NextResponse.json({ error: "ingredient_not_found" }, { status: 400 });
+  }
 
   const { ctx: costCtx } = await loadCostContext(ctx.restaurantId);
   const cost = costRecipeItems(costCtx, recipe.items);

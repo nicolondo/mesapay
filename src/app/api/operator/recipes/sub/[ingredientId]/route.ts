@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { costRecipeItems, MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import { loadCostContext, wouldCreateCycle } from "@/lib/erp/recipeData";
+import { lockStock } from "@/lib/orderLock";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -59,16 +60,28 @@ async function PUTHandler(
     return NextResponse.json({ error: "ingredient_not_found" }, { status: 404 });
   }
 
-  const ingredients = await db.ingredient.findMany({
-    where: { id: { in: ids }, restaurantId: ctx.restaurantId, active: true },
-    select: { id: true },
-  });
-  if (ingredients.length !== ids.length) {
-    return NextResponse.json({ error: "ingredient_not_found" }, { status: 400 });
-  }
-
   try {
     const recipe = await db.$transaction(async (tx) => {
+      // Se permiten insumos archivados sólo si esta receta ya los contiene.
+      // El bloqueo también serializa el archivado y la detección de ciclos.
+      await lockStock(tx, ctx.restaurantId);
+      const existing = await tx.recipe.findUnique({
+        where: { outputIngredientId: ingredientId, restaurantId: ctx.restaurantId },
+        select: { items: { select: { ingredientId: true } } },
+      });
+      const ingredients = await tx.ingredient.findMany({
+        where: {
+          id: { in: ids },
+          restaurantId: ctx.restaurantId,
+          OR: [
+            { active: true },
+            { id: { in: existing?.items.map((item) => item.ingredientId) ?? [] } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (ingredients.length !== ids.length) return null;
+
       // Ciclo indirecto (A usa B, B usa A) — chequeado dentro de la tx
       // para que dos PUT simultáneos no se cuelen mutuamente.
       if (await wouldCreateCycle(tx, ctx.restaurantId, ingredientId, b.items)) {
@@ -102,6 +115,10 @@ async function PUTHandler(
       });
     });
 
+    if (!recipe) {
+      return NextResponse.json({ error: "ingredient_not_found" }, { status: 400 });
+    }
+
     const { ctx: costCtx } = await loadCostContext(ctx.restaurantId);
     const cost = costRecipeItems(costCtx, recipe.items, new Set([ingredientId]), 1);
     return NextResponse.json({ recipe, cost });
@@ -123,8 +140,11 @@ async function DELETEHandler(
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   const { ingredientId } = await params;
-  const { count } = await db.recipe.deleteMany({
-    where: { outputIngredientId: ingredientId, restaurantId: ctx.restaurantId },
+  const { count } = await db.$transaction(async (tx) => {
+    await lockStock(tx, ctx.restaurantId);
+    return tx.recipe.deleteMany({
+      where: { outputIngredientId: ingredientId, restaurantId: ctx.restaurantId },
+    });
   });
   if (count === 0) {
     return NextResponse.json({ error: "recipe_not_found" }, { status: 404 });

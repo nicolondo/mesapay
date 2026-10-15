@@ -5897,6 +5897,7 @@
     "invReviewCreateIngredient": "Crear insumo «{name}»",
     "invReviewUseExistingIngredient": "Usar insumo existente",
     "invReviewChangeIngredient": "Cambiar insumo",
+    "invReviewCreateNewIngredient": "Crear insumo nuevo",
     "invReviewNewIngredientName": "Nombre del insumo",
     "invReviewMeasureKind": "Se mide en",
     "invReviewMeasureMass": "Peso (g, kg)",

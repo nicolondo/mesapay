@@ -55,10 +55,13 @@ async function DELETEHandler(
   if (upload.status === "confirmed") {
     return NextResponse.json({ error: "already_confirmed" }, { status: 409 });
   }
-  await db.purchaseInvoiceUpload.update({
-    where: { id },
+  const discarded = await db.purchaseInvoiceUpload.updateMany({
+    where: { id, restaurantId: ctx.restaurantId, status: "pending" },
     data: { status: "discarded" },
   });
+  if (discarded.count !== 1 && upload.status !== "discarded") {
+    return NextResponse.json({ error: "already_confirmed" }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }
 

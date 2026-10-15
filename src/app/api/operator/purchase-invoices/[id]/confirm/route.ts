@@ -82,6 +82,14 @@ async function POSTHandler(
 
   try {
     const order = await db.$transaction(async (tx) => {
+      // Claim inside the transaction: concurrent retries must not create another
+      // order or receive the same invoice twice. Failed validation rolls this back.
+      const claimed = await tx.purchaseInvoiceUpload.updateMany({
+        where: { id, restaurantId: ctx.restaurantId, status: "pending" },
+        data: { status: "confirming" },
+      });
+      if (claimed.count !== 1) throw new PurchasingError("not_pending");
+
       // 1. Proveedor (existente o nuevo).
       let supplierId = b.supplierId;
       if (!supplierId) {
@@ -211,7 +219,7 @@ async function POSTHandler(
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
     if (err instanceof PurchasingError) {
-      return NextResponse.json({ error: err.code }, { status: 400 });
+      return NextResponse.json({ error: err.code }, { status: err.code === "not_pending" ? 409 : 400 });
     }
     throw err;
   }

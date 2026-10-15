@@ -18,6 +18,7 @@ export class PurchasingError extends Error {
       | "ingredient_not_found"
       | "supplier_item_mismatch"
       | "no_lines"
+      | "not_pending"
       | "line_invalid"
       | "po_not_found"
       | "wrong_status"

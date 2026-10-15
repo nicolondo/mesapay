@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 import { useLocale, useTranslations } from "next-intl";
@@ -2174,37 +2175,7 @@ function InvoiceUploadButton({
 /* ───────────────── Revisar factura (sheet, D4/D5) ──────────────────── */
 
 /** Estado editable de una línea de la revisión. */
-type InvoiceReviewLine = {
-  key: number;
-  // Insumo: existente (id) o nuevo (id null + nombre + measureKind).
-  ingredientId: string | null;
-  ingredientName: string;
-  measureKind: MeasureKind;
-  // Presentación sugerida (para el modo "por presentación").
-  suggestedPresentation: SuggestedPresentation | null;
-  qtyMode: "presentation" | "direct";
-  presentations: string; // modo presentación
-  qty: string; // modo directo
-  unit: string; // modo directo
-  cost: string; // costo NETO total de la línea, en pesos
-  taxPct: number; // IVA de la línea (0–100)
-  lowConfidence: boolean;
-  readUnit: string | null; // unidad leída (pista)
-  readQty: number; // cantidad leída (pista)
-};
-
 let invLineKeySeq = 0;
-
-/** Cantidad en unidad base de una línea, o null si es inválida. */
-function reviewLineQtyBase(l: InvoiceReviewLine): number | null {
-  if (l.qtyMode === "presentation" && l.suggestedPresentation) {
-    const n = Number(l.presentations);
-    if (!Number.isInteger(n) || n < 1) return null;
-    const base = n * l.suggestedPresentation.contentQty;
-    return base >= 1 ? base : null;
-  }
-  return toBaseQty(Number(l.qty.replace(",", ".")), l.measureKind, l.unit);
-}
 
 /** Costo total de la línea en centavos, o null si es inválido. */
 function reviewLineCostCents(l: InvoiceReviewLine): number | null {
@@ -2434,6 +2405,7 @@ function InvoiceReviewSheet({
   }
 
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
 
   const supMatches = useMemo(() => {
@@ -2567,16 +2539,48 @@ function InvoiceReviewSheet({
   }
 
   async function discard() {
-    if (!window.confirm(t("invReviewConfirmDiscard"))) return;
+    if (busyRef.current || !window.confirm(t("invReviewConfirmDiscard"))) return;
+    busyRef.current = true;
     setBusy(true);
-    await fetch(`/api/operator/purchase-invoices/${uploadId}`, {
-      method: "DELETE",
-    }).catch(() => {});
-    setBusy(false);
-    onClose();
+    setErr(null);
+    try {
+      const response = await fetch(`/api/operator/purchase-invoices/${uploadId}`, { method: "DELETE" });
+      if (!response.ok) {
+        if (response.status === 409 && await recoverConfirmedOrder()) return;
+        setErr(t("errSaveFailed"));
+        return;
+      }
+      onClose();
+    } catch {
+      setErr(t("errSaveFailed"));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  function closeReview() {
+    if (!busyRef.current) onClose();
+  }
+
+  // A lost response may hide a committed order. Recover that order before retrying.
+  async function recoverConfirmedOrder(): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/operator/purchase-invoices/${uploadId}`, { cache: "no-store" });
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (data.upload?.status === "confirmed" && typeof data.upload.purchaseOrderId === "string" && data.upload.purchaseOrderId) {
+        onConfirmed(data.upload.purchaseOrderId);
+        return true;
+      }
+    } catch {
+      // Keep the edited form available; the confirmation endpoint guards retries.
+    }
+    return false;
   }
 
   async function confirm() {
+    if (busyRef.current) return;
     setErr(null);
     // Proveedor: existente o nombre nuevo.
     if (!supplier && !newSupplierName.trim()) {
@@ -2633,53 +2637,65 @@ function InvoiceReviewSheet({
       );
     }
 
+    busyRef.current = true;
     setBusy(true);
-    const r = await fetch(
-      `/api/operator/purchase-invoices/${uploadId}/confirm`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          supplierId: supplier ? supplier.id : null,
-          newSupplierName: supplier ? undefined : newSupplierName.trim(),
-          newSupplierNit: supplier ? undefined : newSupplierNit.trim() || null,
-          lines: payloadLines,
-          mode,
-          supplierInvoiceNumber: invoiceNumber.trim() || null,
-          invoiceDueAt:
-            mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
-          incCents: extras.incCents,
-          retefuenteCents: extras.retefuenteCents,
-          reteIvaCents: extras.reteIvaCents,
-          reteIcaCents: extras.reteIcaCents,
-        }),
-      },
-    );
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_CONFIRM_ERROR_KEYS[j.error as string];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
+    try {
+      const r = await fetch(
+        `/api/operator/purchase-invoices/${uploadId}/confirm`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            supplierId: supplier ? supplier.id : null,
+            newSupplierName: supplier ? undefined : newSupplierName.trim(),
+            newSupplierNit: supplier ? undefined : newSupplierNit.trim() || null,
+            lines: payloadLines,
+            mode,
+            supplierInvoiceNumber: invoiceNumber.trim() || null,
+            invoiceDueAt:
+              mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
+            incCents: extras.incCents,
+            retefuenteCents: extras.retefuenteCents,
+            reteIvaCents: extras.reteIvaCents,
+            reteIcaCents: extras.reteIcaCents,
+          }),
+        },
+      );
+      const j = await r.json().catch(() => null);
+      if (!r.ok) {
+        if (j?.error === "not_pending" && await recoverConfirmedOrder()) return;
+        const key = API_CONFIRM_ERROR_KEYS[j?.error as string];
+        setErr(key ? t(key) : t("errSaveFailed"));
+        return;
+      }
+      if (typeof j?.order?.id !== "string" || !j.order.id) throw new Error("invalid_confirmation_response");
+      onConfirmed(j.order.id);
+    } catch {
+      if (!await recoverConfirmedOrder()) setErr(t("errSaveFailed"));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    const j = await r.json();
-    onConfirmed((j.order as { id: string }).id);
   }
 
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
+      onClick={closeReview}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("invReviewTitle")}
         className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
+        <fieldset disabled={busy} className="min-w-0">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h2 className="font-display text-2xl">{t("invReviewTitle")}</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeReview}
             className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
             aria-label={t("cancel")}
           >
@@ -3062,7 +3078,7 @@ function InvoiceReviewSheet({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeReview}
               className="mp-btn mp-btn--secondary"
             >
               {t("cancel")}
@@ -3077,6 +3093,7 @@ function InvoiceReviewSheet({
             </button>
           </div>
         </div>
+        </fieldset>
       </div>
     </div>
   );
@@ -3183,13 +3200,7 @@ function InvoiceReviewLineCard({
                   key={i.id}
                   type="button"
                   onClick={() => {
-                    onChange({
-                      ingredientId: i.id,
-                      ingredientName: i.name,
-                      measureKind: i.measureKind,
-                      // Al cambiar de insumo la unidad directa se re-basea.
-                      unit: DEFAULT_INPUT_UNIT[i.measureKind],
-                    });
+                    onChange(selectReviewIngredient(l, i));
                     setPicking(false);
                     setIngQ("");
                   }}
@@ -3215,13 +3226,22 @@ function InvoiceReviewLineCard({
           </button>
         </div>
       ) : l.ingredientId ? (
-        <button
-          type="button"
-          onClick={() => setPicking(true)}
-          className="text-[11px] font-medium text-op-muted hover:text-ink"
-        >
-          {t("invReviewChangeIngredient")}
-        </button>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="text-[11px] font-medium text-op-muted hover:text-ink"
+          >
+            {t("invReviewChangeIngredient")}
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(selectReviewIngredient(l, { id: null, name: "", measureKind: l.measureKind }))}
+            className="text-[11px] font-medium text-op-muted hover:text-ink"
+          >
+            {t("invReviewCreateNewIngredient")}
+          </button>
+        </div>
       ) : (
         <>
           <Field label={t("invReviewNewIngredientName")} required>
@@ -3238,10 +3258,7 @@ function InvoiceReviewLineCard({
               value={l.measureKind}
               onChange={(e) => {
                 const kind = e.target.value as MeasureKind;
-                onChange({
-                  measureKind: kind,
-                  unit: DEFAULT_INPUT_UNIT[kind],
-                });
+                onChange(selectReviewIngredient(l, { id: null, name: l.ingredientName, measureKind: kind }));
               }}
               className={inputCls}
             >

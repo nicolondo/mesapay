@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import { disableInventoryTracking } from "@/lib/erp/stockTracking";
+import { recordAuditEvent } from "@/lib/auditLog";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ const patchSchema = z.object({
   // Crudo del lector; se normaliza abajo (ver POST /ingredients).
   barcode: z.string().max(BARCODE_MAX_LENGTH).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  referencePriceCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
   active: z.boolean().optional(),
   trackInventory: z.boolean().optional(),
   resetStock: resetStockSchema.optional(),
@@ -130,7 +132,8 @@ async function PATCHHandler(
       });
       if ("error" in result) return result;
     }
-    return tx.ingredient.update({
+    const dimensionChanged = b.measureKind !== undefined && b.measureKind !== latest.measureKind;
+    const ingredient = await tx.ingredient.update({
       where: { id, restaurantId: ctx.restaurantId },
       data: {
         ...(b.name !== undefined ? { name: b.name } : {}),
@@ -139,6 +142,9 @@ async function PATCHHandler(
         ...(b.sku !== undefined ? { sku: b.sku || null } : {}),
         ...(barcode !== undefined ? { barcode } : {}),
         ...(b.notes !== undefined ? { notes: b.notes || null } : {}),
+        ...(b.referencePriceCents !== undefined
+          ? { referencePriceCents: b.referencePriceCents }
+          : dimensionChanged ? { referencePriceCents: null } : {}),
         ...(b.active !== undefined ? { active: b.active } : {}),
         ...(b.trackInventory !== undefined ? { trackInventory: b.trackInventory } : {}),
         ...(b.reorderPointBase !== undefined
@@ -150,11 +156,26 @@ async function PATCHHandler(
         ...(!tracked ? { reorderPointBase: null, reorderQtyBase: null } : {}),
       },
     });
+    return { ingredient, previousPrice: latest.referencePriceCents ?? null, previousMeasureKind: latest.measureKind };
   });
   if ("error" in updated) {
     return NextResponse.json(updated, { status: updated.error === "not_found" ? 404 : 409 });
   }
-  return NextResponse.json({ ingredient: updated });
+  const { ingredient, previousPrice, previousMeasureKind } = updated;
+  if (previousPrice !== (ingredient.referencePriceCents ?? null) ||
+      (previousPrice != null && previousMeasureKind !== ingredient.measureKind)) {
+    await recordAuditEvent({
+      kind: "ingredient.reference_price.update",
+      restaurantId: ctx.restaurantId,
+      target: { type: "ingredient", id: ingredient.id },
+      summary: ingredient.name,
+      diff: {
+        before: { referencePriceCents: previousPrice, measureKind: previousMeasureKind },
+        after: { referencePriceCents: ingredient.referencePriceCents ?? null, measureKind: ingredient.measureKind },
+      },
+    });
+  }
+  return NextResponse.json({ ingredient });
 }
 
 /** DELETE = soft-delete (active:false). Las fases A1-A4 referencian

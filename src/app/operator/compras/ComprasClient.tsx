@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { referenceLineCost } from "@/lib/erp/ingredientPrice";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
@@ -67,7 +68,15 @@ type IngredientRef = {
   name: string;
   measureKind: MeasureKind;
   active: boolean;
+  referencePriceCents?: number | null;
 };
+
+function suggestedFreeLineCost(ingredient: IngredientRef | null, quantity: string, unit: string): string {
+  if (!ingredient) return "";
+  const baseQty = toBaseQty(Number(quantity.replace(",", ".")), ingredient.measureKind, unit);
+  const cents = baseQty == null ? null : referenceLineCost(ingredient.referencePriceCents, baseQty);
+  return cents == null ? "" : String(cents / 100);
+}
 
 /** Fila de la lista de precios del proveedor (A0). */
 type PriceListItem = {
@@ -880,7 +889,21 @@ function NewOrderSheet({
   // Elegir insumo (línea libre): fija la unidad base como la del picker.
   function pickIngredient(ing: IngredientRef) {
     setPickedIng(ing);
-    setUnit(DEFAULT_INPUT_UNIT[ing.measureKind]);
+    const nextUnit = DEFAULT_INPUT_UNIT[ing.measureKind];
+    setUnit(nextUnit);
+    setCostDirty(false);
+    setCost(suggestedFreeLineCost(ing, qty, nextUnit));
+  }
+
+  function changeFreeQuantity(value: string) {
+    const nextQty = sanitizeDecimalInput(value);
+    setQty(nextQty);
+    if (!costDirty) setCost(suggestedFreeLineCost(pickedIng, nextQty, unit));
+  }
+
+  function changeFreeUnit(nextUnit: string) {
+    setUnit(nextUnit);
+    if (!costDirty) setCost(suggestedFreeLineCost(pickedIng, qty, nextUnit));
   }
 
   function changePresentations(v: string) {
@@ -1049,7 +1072,7 @@ function NewOrderSheet({
         </div>
 
         <div className="space-y-3">
-          <Field label={t("fieldSupplier")} required>
+          <Field label={t("fieldSupplier")} required group>
             {supplier ? (
               <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
                 <span className="truncate">{supplier.name}</span>
@@ -1073,6 +1096,7 @@ function NewOrderSheet({
                   value={supQ}
                   onChange={(e) => setSupQ(e.target.value)}
                   placeholder={t("supplierSearchPlaceholder")}
+                  aria-label={t("fieldSupplier")}
                   className={inputCls}
                 />
                 <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
@@ -1302,7 +1326,7 @@ function NewOrderSheet({
 
                     {effectiveMode === "list" ? (
                       <>
-                        <Field label={t("fieldPriceListItem")} required>
+                        <Field label={t("fieldPriceListItem")} required group>
                           {pickedItem ? (
                             <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
                               <span className="truncate">
@@ -1339,6 +1363,7 @@ function NewOrderSheet({
                                 value={itemQ}
                                 onChange={(e) => setItemQ(e.target.value)}
                                 placeholder={t("priceListSearchPlaceholder")}
+                                aria-label={t("fieldPriceListItem")}
                                 className={inputCls}
                               />
                               <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
@@ -1393,7 +1418,7 @@ function NewOrderSheet({
                       </>
                     ) : (
                       <>
-                        <Field label={t("fieldIngredient")} required>
+                        <Field label={t("fieldIngredient")} required group>
                           {pickedIng ? (
                             <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
                               <span className="truncate">
@@ -1406,6 +1431,8 @@ function NewOrderSheet({
                                   setIngQ("");
                                   setQty("");
                                   setUnit("");
+                                  setCost("");
+                                  setCostDirty(false);
                                 }}
                                 className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
                               >
@@ -1419,6 +1446,7 @@ function NewOrderSheet({
                                 value={ingQ}
                                 onChange={(e) => setIngQ(e.target.value)}
                                 placeholder={t("ingredientSearchPlaceholder")}
+                                aria-label={t("fieldIngredient")}
                                 className={inputCls}
                               />
                               <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
@@ -1474,13 +1502,13 @@ function NewOrderSheet({
                               type="text"
                               inputMode="decimal"
                               value={qty}
-                              onChange={(e) => setQty(sanitizeDecimalInput(e.target.value))}
+                              onChange={(e) => changeFreeQuantity(e.target.value)}
                               disabled={!pickedIng}
                               className={inputCls + " flex-1 disabled:opacity-40"}
                             />
                             <select
                               value={unit}
-                              onChange={(e) => setUnit(e.target.value)}
+                              onChange={(e) => changeFreeUnit(e.target.value)}
                               disabled={
                                 !pickedIng ||
                                 DISPLAY_UNITS[pickedIng.measureKind].length < 2
@@ -1509,11 +1537,14 @@ function NewOrderSheet({
                           hint={
                             effectiveMode === "list"
                               ? t("expectedCostHint")
-                              : undefined
+                              : pickedIng?.referencePriceCents != null
+                                ? t("purchaseReferenceHint")
+                                : undefined
                           }
                         >
                           <MoneyInput
                             value={cost}
+                            fractionDigits={2}
                             onChange={(d) => {
                               setCost(d);
                               setCostDirty(true);
@@ -5101,22 +5132,29 @@ function Field({
   label,
   required,
   hint,
+  group = false,
   children,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
+  group?: boolean;
   children: React.ReactNode;
 }) {
+  // Pickers contain several buttons and change their children on selection.
+  // A wrapping label can forward the click to the newly rendered "change"
+  // button in Safari and immediately undo the selection.
+  const labelId = useId();
+  const Container = group ? "div" : "label";
   return (
-    <label className="block">
-      <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+    <Container className="block" role={group ? "group" : undefined} aria-labelledby={group ? labelId : undefined}>
+      <div id={labelId} className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
         {label}
         {required && <span className="text-danger ml-1">{"*"}</span>}
       </div>
       {children}
       {hint && <div className="text-[10px] text-op-muted mt-1">{hint}</div>}
-    </label>
+    </Container>
   );
 }
 

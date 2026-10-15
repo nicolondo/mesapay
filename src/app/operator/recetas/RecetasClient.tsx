@@ -21,7 +21,7 @@ import { useBackdropClose } from "@/lib/useBackdropClose";
 // Espejo de GET /api/operator/recipes (dishes + subRecipes + ingredients)
 // y de GET /api/operator/menu-engineering (tab Ingeniería).
 
-type CostSource = "stock" | "subrecipe" | "supplier" | null;
+type CostSource = "stock" | "subrecipe" | "reference" | "supplier" | null;
 
 type RecipeItemDto = {
   ingredientId: string;

@@ -1,9 +1,13 @@
 "use client";
 
 import { InventoryTrackingField } from "@/components/InventoryTrackingField";
+import { MoneyInput } from "@/components/MoneyInput";
+import { formatMoney } from "@/lib/format";
+import type { Locale } from "@/i18n/config";
+import { parseReferencePriceInput, referencePriceUnit, REFERENCE_PRICE_QTY_BASE } from "@/lib/erp/ingredientPrice";
 import { useMemo, useRef, useState } from "react";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   BASE_UNIT_SYMBOL,
@@ -29,6 +33,8 @@ type Ingredient = {
   notes: string | null;
   active: boolean;
   trackInventory: boolean;
+  referencePriceCents: number | null;
+  stockLevel?: { qtyBase: number; totalValueCents: number } | null;
   // A4 — punto de reorden y cantidad sugerida, en unidad base (null = sin
   // aviso / pedir hasta cubrir el punto).
   reorderPointBase: number | null;
@@ -107,6 +113,7 @@ export function InsumosClient({
   canImport: boolean;
 }) {
   const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [items, setItems] = useState<Ingredient[]>(initial);
   const [q, setQ] = useState("");
@@ -273,7 +280,7 @@ export function InsumosClient({
         if (isRename) return { ...it, category: newTo };
         return bulkMode === "category"
           ? { ...it, category: bulkCategory.trim() || null }
-          : { ...it, measureKind: bulkMeasure };
+          : { ...it, measureKind: bulkMeasure, referencePriceCents: it.measureKind === bulkMeasure ? it.referencePriceCents : null };
       }),
     );
     setSelected(new Set());
@@ -611,6 +618,14 @@ export function InsumosClient({
                     t("supplierCount", { count: i._count.supplierItems }),
                   ].join(" · ")}
                 </div>
+                <div className="text-xs text-op-muted mt-1">
+                  {i.referencePriceCents != null
+                    ? t("ingredientReferenceSummary", {
+                        price: formatMoney(i.referencePriceCents, { currency, locale, fractionDigits: 2 }),
+                        unit: referencePriceUnit(i.measureKind),
+                      })
+                    : t("ingredientReferenceUnset")}
+                </div>
               </button>
               <button
                 type="button"
@@ -684,6 +699,10 @@ function IngredientSheet({
   onSaved: (i: Ingredient) => void;
 }) {
   const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const [referencePriceRaw, setReferencePriceRaw] = useState(
+    editing?.referencePriceCents != null ? String(editing.referencePriceCents / 100) : "",
+  );
   const [name, setName] = useState(editing?.name ?? "");
   const [category, setCategory] = useState(editing?.category ?? "");
   const [measureKind, setMeasureKind] = useState<MeasureKind>(
@@ -725,7 +744,9 @@ function IngredientSheet({
   // Al cambiar la dimensión, las unidades digitadas dejan de existir
   // (kg no es unidad de volumen): se resetean a la base de la nueva.
   function changeMeasureKind(k: MeasureKind) {
+    if (k === measureKind) return;
     setMeasureKind(k);
+    setReferencePriceRaw("");
     setPoint((p) => ({ ...p, unit: DEFAULT_INPUT_UNIT[k] }));
     setOrderQty((p) => ({ ...p, unit: DEFAULT_INPUT_UNIT[k] }));
   }
@@ -740,6 +761,12 @@ function IngredientSheet({
   async function save(resetStock?: StockResetSnapshot) {
     if (busy) return;
     setErr(null);
+
+    const referencePriceCents = parseReferencePriceInput(referencePriceRaw);
+    if (referencePriceCents === "invalid") {
+      setErr(t("errCostInvalid"));
+      return;
+    }
 
     const reorderPointBase = trackInventory ? parseOptionalQty(point, measureKind) : null;
     const reorderQtyBase = trackInventory ? parseOptionalQty(orderQty, measureKind) : null;
@@ -758,6 +785,9 @@ function IngredientSheet({
       // limpieza para el formulario y para cualquier import futuro).
       barcode: barcode || null,
       notes: notes.trim() || null,
+      ...(!current || referencePriceCents !== (current.referencePriceCents ?? null) || measureKind !== current.measureKind
+        ? { referencePriceCents }
+        : {}),
     };
     // Con la dimensión bloqueada ni siquiera se manda el campo.
     if (!measureLocked) payload.measureKind = measureKind;
@@ -826,6 +856,7 @@ function IngredientSheet({
       // POST/PATCH no incluyen _count — nuevo insumo arranca sin proveedores.
       onSaved({
         ...saved,
+        stockLevel: resetStock && !trackInventory ? { qtyBase: 0, totalValueCents: 0 } : current?.stockLevel,
         _count: { supplierItems: editing?._count.supplierItems ?? 0 },
       });
     } catch {
@@ -940,6 +971,28 @@ function IngredientSheet({
           </Field>
 
           <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="ingredient" disabled={busy} />
+
+          <Field
+            label={t("ingredientReferenceLabel", { currency, unit: referencePriceUnit(measureKind) })}
+            hint={t("ingredientReferenceHint")}
+          >
+            <MoneyInput
+              value={referencePriceRaw}
+              onChange={setReferencePriceRaw}
+              fractionDigits={2}
+              ariaLabel={t("ingredientReferenceLabel", { currency, unit: referencePriceUnit(measureKind) })}
+              placeholder={t("ingredientReferenceUnset")}
+              className={inputCls}
+            />
+          </Field>
+          {editing?.stockLevel && editing.stockLevel.qtyBase > 0 && (
+            <p className="text-xs text-op-muted">
+              {t("ingredientAverageCost", {
+                price: formatMoney(Math.round(editing.stockLevel.totalValueCents * REFERENCE_PRICE_QTY_BASE / editing.stockLevel.qtyBase), { currency, locale, fractionDigits: 2 }),
+                unit: referencePriceUnit(editing.measureKind),
+              })}
+            </p>
+          )}
 
           {trackInventory && <>
           <Field label={t("reorderPointLabel")} hint={t("reorderPointHint")}>

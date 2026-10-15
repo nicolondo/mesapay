@@ -8,6 +8,7 @@ import { POST as addSupplierIngredient } from "../src/app/api/operator/suppliers
 
 const scope = vi.hoisted(() => ({ restaurantId: "" }));
 vi.mock("../src/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
+vi.mock("../src/lib/auditLog", () => ({ recordAuditEvent: vi.fn() }));
 vi.mock("../src/lib/erp/access", () => ({
   getErpContext: async () => ({ restaurantId: scope.restaurantId }),
   isDenied: () => false,

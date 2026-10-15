@@ -54,6 +54,8 @@ export default async function InsumosSettingsPage() {
       notes: true,
       active: true,
       trackInventory: true,
+      referencePriceCents: true,
+      stockLevel: { select: { qtyBase: true, totalValueCents: true } },
       // A4 — punto de reorden editable en el sheet.
       reorderPointBase: true,
       reorderQtyBase: true,

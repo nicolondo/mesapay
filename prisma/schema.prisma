@@ -1962,6 +1962,9 @@ model Ingredient {
   notes            String?
   active           Boolean     @default(true)
   trackInventory   Boolean     @default(true)
+  // Precio manual de referencia por 1000 unidades base: 1 kg, 1 L o 1 un.
+  // Null = sin referencia; 0 = gratuito explícito. Nunca revaloriza stock.
+  referencePriceCents Int?
   // A4 — punto de reorden en unidad base (null = sin aviso) y cantidad
   // sugerida de compra (null = pedir hasta cubrir el punto).
   reorderPointBase Int?
@@ -2320,7 +2323,7 @@ model SupplierPriceHistory {
 // Receta 1:1 por plato (menuItemId) O sub-receta 1:1 por insumo elaborado
 // (outputIngredientId + rendimiento). El costo NUNCA se persiste — se
 // deriva en vivo con la cascada de src/lib/erp/recipes.ts (inventario →
-// sub-receta → proveedor preferido → "incompleto").
+// sub-receta → referencia manual → proveedor preferido → "incompleto").
 
 model Recipe {
   id           String     @id @default(cuid())

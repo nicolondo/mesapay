@@ -8,18 +8,23 @@
 // Cascada por insumo (spec D3):
 //   1. Costo promedio del inventario (StockLevel con qty > 0) — el real.
 //   2. Sub-receta del insumo: costo recursivo / rendimiento.
-//   3. Precio del proveedor preferido: lastPriceCents / contentQty.
-//   4. null → "costo incompleto" (nunca $0 mentiroso).
+//   3. Referencia manual por kg/L/un: referencePriceCents / 1000.
+//   4. Precio del proveedor preferido: lastPriceCents / contentQty.
+//   5. null → "costo incompleto" (nunca $0 implícito).
 //
 // Recursión con tope de profundidad 3 y detección de ciclos.
+
+import { REFERENCE_PRICE_QTY_BASE } from "@/lib/erp/ingredientPrice";
 
 export const MAX_RECIPE_DEPTH = 3;
 export const MAX_WASTE_PCT = 90;
 
-export type CostSource = "stock" | "subrecipe" | "supplier" | null;
+export type CostSource = "stock" | "subrecipe" | "reference" | "supplier" | null;
 
 export type CtxIngredient = {
   stock?: { qtyBase: number; totalValueCents: number } | null;
+  /** Manual cents per 1000 base units (1 kg, 1 L or 1 whole unit). */
+  referencePriceCents?: number | null;
   /** Proveedor preferido de la lista de precios (A0). */
   preferred?: { lastPriceCents: number | null; contentQty: number } | null;
   /** Sub-receta del insumo (si es un elaborado). */
@@ -82,7 +87,9 @@ export function resolveIngredientCost(
     const nextSeen = new Set(seen);
     nextSeen.add(ingredientId);
     const sub = costRecipeItems(ctx, ing.recipe.items, nextSeen, depth + 1);
-    if (sub.complete && sub.costCents > 0) {
+    // An explicit zero reference stays known through prepared ingredients;
+    // an empty recipe still has no usable cost and must try other sources.
+    if (ing.recipe.items.length > 0 && sub.complete && sub.costCents >= 0) {
       return {
         costPerBase: sub.costCents / ing.recipe.outputQtyBase,
         source: "subrecipe",
@@ -90,7 +97,15 @@ export function resolveIngredientCost(
     }
   }
 
-  // 3. Proveedor preferido.
+  // 3. Manual reference. Explicit zero is a known free cost, unlike null.
+  if (ing.referencePriceCents != null && ing.referencePriceCents >= 0) {
+    return {
+      costPerBase: ing.referencePriceCents / REFERENCE_PRICE_QTY_BASE,
+      source: "reference",
+    };
+  }
+
+  // 4. Proveedor preferido.
   if (
     ing.preferred &&
     ing.preferred.lastPriceCents != null &&

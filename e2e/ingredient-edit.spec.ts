@@ -7,18 +7,23 @@ import es from "../messages/es.json";
 const databaseUrl = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 test.skip(!["localhost", "127.0.0.1"].includes(databaseUrl.hostname) || !/^\/mesapay_.*validation$/.test(databaseUrl.pathname) || !/^http:\/\/localhost:/.test(process.env.PLAYWRIGHT_BASE_URL ?? ""), "Isolated local app and validation database required");
 const db = new PrismaClient();
+const labelStartingWith = (label: string) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+test.use({ actionTimeout: 10_000 });
 
 async function setup(page: Page, width = 390) {
   const token = randomUUID(), password = `Ingredient-${token}`;
+  const clientHeaders = { "x-real-ip": `127.3.${parseInt(token.slice(0, 2), 16)}.${parseInt(token.slice(2, 4), 16)}` };
+  await page.setExtraHTTPHeaders(clientHeaders);
   const restaurant = await db.restaurant.create({ data: { name: "Edición de prueba", slug: `ingredient-edit-${token}`, enabledModules: ["inventory", "purchasing", "recipes"] } });
   const user = await db.user.create({ data: { email: `ingredient-edit-${token}@example.test`, passwordHash: await bcrypt.hash(password, 4), role: "platform_admin" } });
   await page.setViewportSize({ width, height: 1000 });
   await page.route(/^https?:\/\//, (route) => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
-  await page.goto("/signin");
-  await page.getByLabel("Correo", { exact: true }).fill(user.email);
-  await page.getByLabel("Contraseña", { exact: true }).fill(password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/signin"));
+  const csrf = await (await page.request.get("/api/auth/csrf")).json();
+  await page.request.post("/api/auth/callback/credentials", {
+    headers: { ...clientHeaders, "X-Auth-Return-Redirect": "1" },
+    form: { csrfToken: csrf.csrfToken, email: user.email, password, callbackUrl: `${process.env.PLAYWRIGHT_BASE_URL}/operator/settings/insumos` },
+  });
+  expect((await (await page.request.get("/api/auth/session")).json()).user.id).toBe(user.id);
   await page.context().addCookies([{ name: "mesapay_act_as", value: restaurant.id, domain: "localhost", path: "/" }]);
   return { restaurant, cleanup: async () => { await db.restaurant.delete({ where: { id: restaurant.id } }); await db.user.delete({ where: { id: user.id } }); } };
 }
@@ -43,9 +48,8 @@ for (const width of [390, 1440]) {
       await page.getByPlaceholder(es.opErp.namePlaceholder, { exact: true }).fill("Arroz editado");
       await page.getByPlaceholder(es.opErp.categoryPlaceholder, { exact: true }).fill("Granos");
       await page.getByPlaceholder(es.opErp.skuPlaceholder, { exact: true }).fill("ARROZ-EDITADO");
-      const quantities = page.locator('input[inputmode="decimal"]');
-      await quantities.nth(0).fill("2.5");
-      await quantities.nth(1).fill("4");
+      await page.getByRole("textbox", { name: labelStartingWith(es.opErp.reorderPointLabel) }).fill("2.5");
+      await page.getByRole("textbox", { name: labelStartingWith(es.opErp.reorderQtyLabel) }).fill("4");
       await page.screenshot({ animations: "disabled", path: test.info().outputPath(`ingredient-edit-${width}.png`) });
       await page.getByRole("button", { name: es.opErp.save, exact: true }).click();
       await expect.poll(async () => (await db.ingredient.findUniqueOrThrow({ where: { id: tracked.id } })).name).toBe("Arroz editado");
@@ -92,9 +96,8 @@ test("creation retries the failed reorder PATCH without creating a duplicate", a
     await page.goto("/operator/settings/insumos");
     await page.getByRole("button", { name: es.opErp.newIngredient, exact: true }).click();
     await page.getByPlaceholder(es.opErp.namePlaceholder, { exact: true }).fill("Creación recuperable");
-    const quantities = page.locator('input[inputmode="decimal"]');
-    await quantities.nth(0).fill("2.5");
-    await quantities.nth(1).fill("4");
+    await page.getByRole("textbox", { name: labelStartingWith(es.opErp.reorderPointLabel) }).fill("2.5");
+    await page.getByRole("textbox", { name: labelStartingWith(es.opErp.reorderQtyLabel) }).fill("4");
     const endpoint = /\/api\/operator\/ingredients\/[^/]+$/;
     await page.route(endpoint, (route) => route.request().method() === "PATCH" ? route.abort("failed") : route.continue());
     await page.getByRole("button", { name: es.opErp.save, exact: true }).click();

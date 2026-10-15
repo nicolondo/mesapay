@@ -5,6 +5,8 @@ import { applyStockMovement } from "../src/lib/erp/stock";
 import { disableInventoryTracking, type StockResetSnapshot } from "../src/lib/erp/stockTracking";
 import { PATCH } from "../src/app/api/operator/ingredients/[id]/route";
 
+vi.mock("../src/lib/auditLog", () => ({ recordAuditEvent: vi.fn() }));
+
 const scope = vi.hoisted(() => ({ restaurantId: "", userId: "" }));
 vi.mock("../src/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("../src/lib/erp/access", () => ({ getErpContext: async () => ({ ...scope, country: "CO" }), isDenied: () => false }));

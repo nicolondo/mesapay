@@ -15,7 +15,7 @@ export type IngredientMeta = {
 
 /**
  * Carga TODOS los insumos del comercio con lo que la cascada D3 necesita
- * (stock, proveedor preferido, sub-receta). Una sola pasada por request:
+ * (stock, referencia manual, proveedor preferido, sub-receta). Una pasada por request:
  * el costeo después es puro y en memoria.
  */
 export async function loadCostContext(restaurantId: string): Promise<{
@@ -30,6 +30,7 @@ export async function loadCostContext(restaurantId: string): Promise<{
       measureKind: true,
       active: true,
       trackInventory: true,
+      referencePriceCents: true,
       stockLevel: { select: { qtyBase: true, totalValueCents: true } },
       supplierItems: {
         where: { preferred: true },
@@ -52,6 +53,7 @@ export async function loadCostContext(restaurantId: string): Promise<{
   for (const ing of ingredients) {
     ctx.set(ing.id, {
       stock: ing.stockLevel,
+      referencePriceCents: ing.referencePriceCents,
       preferred: ing.supplierItems[0] ?? null,
       recipe: ing.recipe,
     });

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { lockStock } from "@/lib/orderLock";
+import { recordAuditEvent } from "@/lib/auditLog";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +37,7 @@ const bodySchema = z.discriminatedUnion("action", [
  * o cambiar la dimensión de medida de varios a la vez.
  *
  * La dimensión NO se cambia en insumos con referencias que reinterpretarían
- * cantidades (lista de precios del proveedor) — mismo criterio que el PATCH
+ * cantidades (proveedores, movimientos o saldo) — mismo criterio que el PATCH
  * individual (measure_locked). Esos se OMITEN y se reportan (skipped).
  */
 async function POSTHandler(req: Request) {
@@ -93,20 +95,44 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ updated: changedIds.length, skipped: 0, changedIds });
   }
 
-  // measureKind: bloquear los que tienen lista de precios (misma regla que el
-  // PATCH individual: cambiar la dimensión con esas referencias corrompería
-  // las cantidades). El resto sí se cambia.
-  const changedIds = owned
-    .filter((o) => o._count.supplierItems === 0)
-    .map((o) => o.id);
-  const skipped = owned.length - changedIds.length;
-  if (changedIds.length > 0) {
-    await db.ingredient.updateMany({
-      where: { id: { in: changedIds }, restaurantId: ctx.restaurantId },
-      data: { measureKind: b.measureKind },
+  // Changing units cannot reinterpret supplier presentations, stock or its
+  // historical movements. A request for the existing dimension is a safe no-op.
+  const result = await db.$transaction(async (tx) => {
+    // Price and dimension edits must see the same current units. An individual
+    // PATCH can otherwise save a kg price after a bulk edit changed the item to L.
+    await lockStock(tx, ctx.restaurantId);
+    const latest = await tx.ingredient.findMany({
+      where: { id: { in: b.ids }, restaurantId: ctx.restaurantId },
+      select: {
+        id: true, name: true, measureKind: true, referencePriceCents: true,
+        stockLevel: { select: { qtyBase: true, totalValueCents: true } },
+        _count: { select: { supplierItems: true, stockMovements: true } },
+      },
     });
-  }
-  return NextResponse.json({ updated: changedIds.length, skipped, changedIds });
+    const eligible = latest.filter((item) => item.measureKind === b.measureKind || (
+      item._count.supplierItems === 0 && item._count.stockMovements === 0 &&
+      (!item.stockLevel || (item.stockLevel.qtyBase === 0 && item.stockLevel.totalValueCents === 0))
+    ));
+    const dimensionChanged = eligible.filter((item) => item.measureKind !== b.measureKind);
+    if (dimensionChanged.length > 0) {
+      await tx.ingredient.updateMany({
+        where: { id: { in: dimensionChanged.map((item) => item.id) }, restaurantId: ctx.restaurantId },
+        data: { measureKind: b.measureKind, referencePriceCents: null },
+      });
+    }
+    return { changedIds: eligible.map((item) => item.id), skipped: latest.length - eligible.length, dimensionChanged };
+  });
+  await Promise.all(result.dimensionChanged.filter((item) => item.referencePriceCents != null).map((item) => recordAuditEvent({
+    kind: "ingredient.reference_price.update",
+    restaurantId: ctx.restaurantId,
+    target: { type: "ingredient", id: item.id },
+    summary: item.name,
+    diff: {
+      before: { referencePriceCents: item.referencePriceCents, measureKind: item.measureKind },
+      after: { referencePriceCents: null, measureKind: b.measureKind },
+    },
+  })));
+  return NextResponse.json({ updated: result.changedIds.length, skipped: result.skipped, changedIds: result.changedIds });
 }
 
 export const POST = secureApi(POSTHandler);

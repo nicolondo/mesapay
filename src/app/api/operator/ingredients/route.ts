@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
+import { recordAuditEvent } from "@/lib/auditLog";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ const createSchema = z.object({
   // el mismo string venga del formulario o de una importación futura.
   barcode: z.string().max(BARCODE_MAX_LENGTH).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  referencePriceCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
 });
 
 async function GETHandler() {
@@ -84,8 +86,21 @@ async function POSTHandler(req: Request) {
       sku: b.sku || null,
       barcode,
       notes: b.notes || null,
+      referencePriceCents: b.referencePriceCents ?? null,
     },
   });
+  if (ingredient.referencePriceCents != null) {
+    await recordAuditEvent({
+      kind: "ingredient.reference_price.update",
+      restaurantId: ctx.restaurantId,
+      target: { type: "ingredient", id: ingredient.id },
+      summary: ingredient.name,
+      diff: {
+        before: { referencePriceCents: null, measureKind: ingredient.measureKind },
+        after: { referencePriceCents: ingredient.referencePriceCents, measureKind: ingredient.measureKind },
+      },
+    });
+  }
   return NextResponse.json({ ingredient }, { status: 201 });
 }
 

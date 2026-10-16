@@ -23,6 +23,17 @@ function hrefs(nav: NavEntryDef[]): string[] {
 }
 
 describe("buildOperatorNav — grupos Contabilidad y Reportes", () => {
+  it("expone los informes de representación y no cobrados en Negocio sin exigir contabilidad", () => {
+    const nav = buildOperatorNav(base);
+    const business = group(nav, "navGroupBusiness");
+    expect(business?.children).toEqual(expect.arrayContaining([
+      { href: "/operator/reports/gastos-representacion", labelKey: "navRepresentation" },
+      { href: "/operator/reports/no-cobrados", labelKey: "navUncollected" },
+    ]));
+    expect(resolveActiveHref(nav, { pathname: "/operator/reports/gastos-representacion" })).toBe("/operator/reports/gastos-representacion");
+    expect(resolveActiveHref(nav, { pathname: "/operator/reports/no-cobrados" })).toBe("/operator/reports/no-cobrados");
+  });
+
   it("con `accounting` apagado no aparecen los grupos ni la entrada suelta", () => {
     const nav = buildOperatorNav({ ...base, enabledModules: ["inventory"] });
     expect(group(nav, "navAccounting")).toBeUndefined();

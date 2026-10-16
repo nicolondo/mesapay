@@ -90,6 +90,8 @@ export function buildOperatorNav(input: OperatorNavInput): NavEntryDef[] {
   ];
   const businessGroup: NavLeafDef[] = [
     leaf("/operator/reports", "navClose"),
+    leaf("/operator/reports/gastos-representacion", "navRepresentation"),
+    leaf("/operator/reports/no-cobrados", "navUncollected"),
     leaf("/operator/wallet", "navWallet"),
     leaf("/operator/insights", "navInsights"),
     // Bonos empresariales: sólo con el módulo `vouchers` activo (la página

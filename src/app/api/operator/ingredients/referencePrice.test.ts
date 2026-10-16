@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe("ingredient reference price writes", () => {
   it("returns prices with the tenant-scoped catalog used by purchase selectors", async () => {
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/operator/ingredients"));
     expect(response.status).toBe(200);
     expect((await response.json()).ingredients).toEqual([current]);
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({ where: { restaurantId: current.restaurantId } }));
@@ -38,7 +38,7 @@ describe("ingredient reference price writes", () => {
 
   it("rejects catalog reads and creates before querying or writing when the ERP gate denies access", async () => {
     m.context.mockResolvedValue({ error: "unauthorized", status: 401 });
-    expect((await GET()).status).toBe(401);
+    expect((await GET(new Request("http://localhost/api/operator/ingredients"))).status).toBe(401);
     expect((await POST(request({ name: "Unauthorized", measureKind: "mass", referencePriceCents: 1 }))).status).toBe(401);
     expect(m.list).not.toHaveBeenCalled();
     expect(m.find).not.toHaveBeenCalled();

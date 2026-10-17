@@ -3,7 +3,8 @@
 After this is in place, every `git push origin main` triggers a zero-
 downtime deploy via the existing webhook on `:9000`. The new color is
 built, health-checked, then nginx hot-reloads to it; the old color
-drains in-flight requests for 30s before shutting down. **No 502s.**
+drains in-flight requests for 100s before shutting down. The active color
+is also enabled in systemd so it starts again after a server reboot.
 
 These steps run **once** on the VPS. Everything in this directory
 (`vps/blue-green/`) is already in the repo — you just copy / wire it up.
@@ -18,7 +19,13 @@ These steps run **once** on the VPS. Everything in this directory
   ```
   deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart mesapay@*, /bin/systemctl stop mesapay@*, /bin/systemctl start mesapay@*, /usr/sbin/nginx -t, /usr/sbin/nginx -s reload, /usr/bin/tee /etc/nginx/mesapay-active.conf
   ```
-  Place in `/etc/sudoers.d/mesapay`, then `sudo visudo -c`.
+  Also grant boot-state changes for these **two exact units** (avoid a wildcard):
+  ```
+  deploy ALL=(root) NOPASSWD: /bin/systemctl enable mesapay@blue.service, /bin/systemctl enable mesapay@green.service, /bin/systemctl disable mesapay@blue.service, /bin/systemctl disable mesapay@green.service
+  ```
+  Place in `/etc/sudoers.d/mesapay`, then `sudo visudo -c`. Existing installations
+  can put only the additional rule in `/etc/sudoers.d/mesapay-boot` without
+  replacing their existing deployment permissions.
 
 ## 1. Stop the current single-process service
 
@@ -160,9 +167,31 @@ Wherever the GitHub webhook on `:9000` is wired (probably
 /opt/mesapay/scripts/activate.sh
 ```
 
-The script handles the full flow: build → health check → swap →
-drain. If it exits non-zero, nginx still points at the old color and
-the failure is logged.
+The script handles build → health check → enable candidate for boot → swap →
+drain → stop and disable the old color. If health, boot enablement or the nginx
+swap fails, traffic stays on the old color. A cleanup failure after a successful
+swap can still return non-zero while the new color is already serving; inspect
+nginx, `active-color`, `current`, and both systemd units before taking action.
+
+`activate.sh` is an installed copy: a Git push alone does **not** update
+`/opt/mesapay/scripts/activate.sh`. When updating this script, install the new
+sudoers rule first, validate it with `visudo`, then back up and atomically replace
+the installed script. Check `bash -n` before replacement and hold the same
+`/opt/mesapay/shared/deploy.lock` used by deployments.
+
+After every deployment, confirm that only the active unit is enabled:
+
+```bash
+cat /opt/mesapay/active-color
+cat /etc/nginx/mesapay-active.conf
+systemctl is-enabled mesapay@blue.service mesapay@green.service
+```
+
+Run the isolated deployment regression tests locally or in CI (no server required):
+
+```bash
+python3 vps/blue-green/test_activate.py
+```
 
 ## 9. Smoke-test the zero-downtime path
 
@@ -182,22 +211,31 @@ the timing and check `journalctl -u mesapay@green.service -n 100`.
 If a deploy ships broken code:
 
 ```bash
+set -e
+
 # 1. Find the previous release in /opt/mesapay/releases/
 ls -lt /opt/mesapay/releases/
 
 # 2. Point the inactive color at it
 ln -sfn /opt/mesapay/releases/<old-hash> /opt/mesapay/green
 sudo systemctl restart mesapay@green.service
-curl http://127.0.0.1:3301/api/health
+curl --fail http://127.0.0.1:3301/api/health
+sudo systemctl enable mesapay@green.service
 
-# 3. Swap nginx
+# 3. Swap nginx only after health and enable both succeed
 echo "server 127.0.0.1:3301;" | sudo tee /etc/nginx/mesapay-active.conf
+sudo nginx -t
 sudo nginx -s reload
 echo green > /opt/mesapay/active-color
+# Let existing requests finish before stopping the old instance.
+sleep 100
 sudo systemctl stop mesapay@blue.service
+sudo systemctl disable mesapay@blue.service
 ```
 
-The whole rollback is ~10 seconds and just as zero-downtime as a deploy.
+Also update `/opt/mesapay/current` to the selected release. If nginx validation
+or reload fails, restore the previous upstream and preserve the previous active
+unit's boot configuration. Apply the inverse colors when rolling back to blue.
 
 ## How database migrations interact with this
 
@@ -222,6 +260,7 @@ backfill helper) is already expand-contract compatible.
 - `vps/blue-green/env.green` → `/opt/mesapay/shared/.env.green`
 - `vps/blue-green/nginx-upstream.conf` → `/etc/nginx/mesapay-active.conf`
 - `vps/blue-green/activate.sh` → `/opt/mesapay/scripts/activate.sh`
+- `vps/blue-green/sudoers-boot` → `/etc/sudoers.d/mesapay-boot` (root:root, 0440; validate with `visudo`)
 
 
 ## Adoptar migraciones en una instalación existente

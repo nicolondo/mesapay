@@ -14,10 +14,10 @@
 #   2. Repoint the INACTIVE color's symlink at the new release
 #   3. Restart the inactive systemd service
 #   4. Poll /api/health on the inactive port until 200 (60s timeout)
-#   5. Rewrite /etc/nginx/conf.d/mesapay-active.conf + nginx -s reload
+#   5. Enable the healthy new color for boot, then swap nginx
 #   6. Update the active-color marker
-#   7. Sleep 30s to let the OLD color drain in-flight requests
-#   8. Stop the OLD color's service
+#   7. Sleep 100s to let the OLD color drain in-flight requests
+#   8. Stop and disable the OLD color's service
 #   9. Prune old releases (keep last 5)
 #
 # If the health check fails we bail out without touching nginx; the
@@ -116,6 +116,23 @@ if [[ "$HEALTHY" -ne 1 ]]; then
   fail "$NEXT didn't become healthy in ${HEALTH_TIMEOUT}s — aborting. ${CURRENT:-<none>} continues to serve."
 fi
 
+# Persist the candidate before nginx can point at it. Restarting a unit does
+# not enable it for the next boot; otherwise a reboot can start the old color
+# while nginx still targets the stopped new one.
+NEXT_BOOT_STATE=$(systemctl is-enabled "mesapay@$NEXT.service" 2>/dev/null || true)
+log "Enabling $NEXT for server startup..."
+if ! sudo /bin/systemctl enable "mesapay@$NEXT.service"; then
+  fail "could not enable $NEXT for startup — leaving traffic on ${CURRENT:-<none>}"
+fi
+
+# A rejected nginx swap must preserve the previous boot configuration.
+# Never disable a candidate that was already enabled before this deployment.
+restore_candidate_boot() {
+  if [[ "$NEXT_BOOT_STATE" != "enabled" ]]; then
+    sudo /bin/systemctl disable "mesapay@$NEXT.service"
+  fi
+}
+
 # ── 5. Atomic nginx swap ─────────────────────────────────────────────
 log "Swapping nginx upstream to port $NEXT_PORT..."
 UPSTREAM_BACKUP=$(mktemp)
@@ -124,11 +141,13 @@ echo "server 127.0.0.1:$NEXT_PORT;" | sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" >
 if ! sudo /usr/sbin/nginx -t > /dev/null 2>&1; then
   sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" < "$UPSTREAM_BACKUP" > /dev/null
   rm -f "$UPSTREAM_BACKUP"
+  restore_candidate_boot
   fail "nginx config test failed — leaving traffic on ${CURRENT:-<none>}"
 fi
 if ! sudo /usr/sbin/nginx -s reload; then
   sudo /usr/bin/tee "$NGINX_UPSTREAM_FILE" < "$UPSTREAM_BACKUP" > /dev/null
   rm -f "$UPSTREAM_BACKUP"
+  restore_candidate_boot
   fail "nginx reload failed; restored upstream config"
 fi
 rm -f "$UPSTREAM_BACKUP"
@@ -148,7 +167,8 @@ if [[ -n "$CURRENT" && "$CURRENT" != "$NEXT" ]]; then
   log "Letting $CURRENT drain for ${DRAIN_SECONDS}s before stopping it..."
   sleep "$DRAIN_SECONDS"
   sudo /bin/systemctl stop "mesapay@$CURRENT.service"
-  log "$CURRENT stopped"
+  sudo /bin/systemctl disable "mesapay@$CURRENT.service"
+  log "$CURRENT stopped and disabled for startup"
 fi
 
 # ── 8. Prune old releases ────────────────────────────────────────────

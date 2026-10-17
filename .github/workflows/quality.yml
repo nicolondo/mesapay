@@ -6,6 +6,12 @@ on:
 permissions:
   contents: read
 jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n vps/blue-green/activate.sh
+      - run: python3 vps/blue-green/test_activate.py
   platform:
     runs-on: ubuntu-latest
     services:

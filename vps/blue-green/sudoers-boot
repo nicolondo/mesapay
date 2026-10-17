@@ -1,0 +1,3 @@
+# Install as /etc/sudoers.d/mesapay-boot (root:root, mode 0440).
+# Validate with visudo before installing. Keep existing deployment rules.
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable mesapay@blue.service, /bin/systemctl enable mesapay@green.service, /bin/systemctl disable mesapay@blue.service, /bin/systemctl disable mesapay@green.service

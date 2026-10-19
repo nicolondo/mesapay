@@ -13,12 +13,7 @@ vi.mock("@/lib/db", () => ({
     restaurant: { findUnique: m.restaurant },
     order: { aggregate: m.orderAggregate },
     simpleInvoice: { findMany: m.invoices },
-    purchaseOrderItem: { findMany: async () => [] },
-    purchaseOrder: {
-      aggregate: async () => ({
-        _sum: { incCents: null, retefuenteCents: null, reteIvaCents: null, reteIcaCents: null },
-      }),
-    },
+    purchaseOrder: { findMany: async () => [] },
   },
 }));
 

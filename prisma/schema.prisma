@@ -2267,12 +2267,18 @@ model PurchaseOrderItem {
   expectedCostCents  Int
   // IVA % de la línea (0/5/19 CO, 0/8/16 MX). El bruto se deriva: neto + IVA.
   taxPct             Int  @default(0)
+  /// IVA documental total de la línea, después de descuentos. Null usa taxPct.
+  expectedTaxCents    Int?
+  /// Consumo fijo total de la línea (ya incluido en PurchaseOrder.incCents).
+  expectedIncCents    Int  @default(0)
 
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
   receivedQtyBase   Int @default(0)
   // NETO acumulado recibido (sin IVA). El bruto de la CxP se deriva con taxPct.
   nonInventoryReceivedCostCents Int @default(0)
   nonInventoryReceivedNonDeductibleTaxCents Int @default(0)
+  /// Consumo de recepciones no inventariables, congelado al recibir.
+  nonInventoryReceivedIncCents Int @default(0)
   receivedCostCents Int @default(0)
 
   @@index([purchaseOrderId])

@@ -30,7 +30,7 @@ import {
   logInvalidCreditNote,
   storedNoteSlices,
 } from "../creditNoteAccounting";
-import { lineTaxCents, poTotals } from "../purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
 import { uvtDelAno } from "./normativa";
 import {
@@ -160,8 +160,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
           supplier: { select: supplierSelect },
           items: {
             select: {
-              receivedCostCents: true,
-              taxPct: true,
+              ...PURCHASE_LINE_AMOUNTS_SELECT,
               nonInventoryReceivedNonDeductibleTaxCents: true,
             },
           },
@@ -217,7 +216,11 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         },
         select: {
           supplier: { select: supplierSelect },
-          items: { select: { receivedCostCents: true, taxPct: true } },
+          incCents: true,
+          retefuenteCents: true,
+          reteIvaCents: true,
+          reteIcaCents: true,
+          items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
           payments: { where: { paidAt: { lt: to } }, select: { amountCents: true } },
         },
       }),
@@ -279,7 +282,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
     purchases: orders.map((o) => ({
       supplier: o.supplier,
       netCents: sum(o.items.map((it) => it.receivedCostCents)),
-      ivaCents: sum(o.items.map((it) => lineTaxCents(it.receivedCostCents, it.taxPct))),
+      ivaCents: sum(o.items.map((it) => receivedPurchaseLineAmounts(it).taxCents)),
       indedCents: sum(o.items.map((it) => it.nonInventoryReceivedNonDeductibleTaxCents)),
       retefuenteCents: o.retefuenteCents,
       reteIvaCents: o.reteIvaCents,
@@ -302,9 +305,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
     payables: [
       ...payableOrders.map((o) => ({
         supplier: o.supplier,
-        totalCents: poTotals(
-          o.items.map((it) => ({ costCents: it.receivedCostCents, taxPct: it.taxPct })),
-        ).totalCents,
+        totalCents: purchaseOrderTotals(o, "received").totalCents,
         paidCents: sum(o.payments.map((p) => p.amountCents)),
       })),
       ...payableExpenses

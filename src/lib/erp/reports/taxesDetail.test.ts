@@ -100,6 +100,15 @@ describe("filas de ventas", () => {
 });
 
 describe("filas de compras", () => {
+  it("uses documentary IVA in detail and CSV, including an explicit zero", () => {
+    const document = { ...purchases[0], lines: [
+      { netCents: 8_483_400, taxPct: 5, taxCents: 424_200, nonDeductibleTaxCents: 0 },
+      { netCents: 10_000, taxPct: 19, taxCents: 0, nonDeductibleTaxCents: 0 },
+    ] };
+    expect(purchaseDetailRows([document])).toEqual([
+      expect.objectContaining({ pct: 5, baseCents: 8_483_400, valorCents: 424_200 }),
+    ]);
+  });
   it("una fila por documento y tarifa (las líneas de la misma tarifa se suman)", () => {
     const rows = purchaseDetailRows(purchases);
     expect(rows.map((r) => [r.document, r.pct, r.baseCents, r.valorCents])).toEqual([

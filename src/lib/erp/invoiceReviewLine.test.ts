@@ -1,17 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "./invoiceReviewLine";
+import { reviewLineAmounts, reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "./invoiceReviewLine";
 
 function line(patch: Partial<InvoiceReviewLine> = {}): InvoiceReviewLine {
   return {
     key: 5, ingredientId: "rice", ingredientName: "Arroz", measureKind: "mass",
     suggestedPresentation: { supplierItemId: "rice-bag", presentationLabel: "Bulto", contentQty: 25000, lastPriceCents: null },
     qtyMode: "presentation", presentations: "2", qty: "2", unit: "kg",
-    cost: "98750", taxPct: 19, lowConfidence: false, readUnit: "kg", readQty: 2,
+    cost: "98750", taxPct: 19, amountKind: "line", taxBasis: "net", taxAmount: "", incAmount: "",
+    lowConfidence: false, readUnit: "kg", readQty: 2,
     ...patch,
   };
 }
 
 describe("edited invoice ingredient quantities", () => {
+  it("keeps line totals independent of quantity edits and uses explicit included taxes", () => {
+    const l = line({ cost: "138850", taxPct: 5, taxBasis: "gross", incAmount: "49774" });
+    expect(reviewLineAmounts(l)?.totalCents).toBe(13885000);
+    expect(reviewLineAmounts({ ...l, presentations: "4" })?.totalCents).toBe(13885000);
+    expect(reviewLineAmounts({ ...l, amountKind: "unit", cost: "69425" })?.totalCents).toBe(13885000);
+  });
+  it("requires review of unknown tax bases, missing rates, and ambiguous consumption", () => {
+    expect(reviewLineAmounts(line({ taxBasis: "unknown" }))).toBeNull();
+    expect(reviewLineAmounts(line({ taxPct: null }))).toBeNull();
+    expect(reviewLineAmounts(line({ incNeedsReview: true }))).toBeNull();
+    expect(reviewLineAmounts(line({ incNeedsReview: true, incAmount: "0" }))?.incCents).toBe(0);
+    expect(reviewLineAmounts(line({ cost: "" }))).toBeNull();
+    expect(reviewLineAmounts(line({ taxAmount: "bad" }))).toBeNull();
+    expect(reviewLineAmounts(line({ incAmount: "-1" }))).toBeNull();
+  });
+  it("converts unit pricing to a fixed total when changing a suggested presentation", () => {
+    const updated = selectReviewIngredient(line({ amountKind: "unit", cost: "10000" }), { id: "flour", name: "Harina", measureKind: "mass" });
+    expect(updated).toMatchObject({ amountKind: "line", cost: "20000", qty: "50" });
+    expect(reviewLineAmounts(updated)?.netCents).toBe(2000000);
+  });
   it("releases the old presentation when choosing a different ingredient", () => {
     const original = line();
     const updated = selectReviewIngredient(original, { id: "flour", name: "Harina", measureKind: "mass" });

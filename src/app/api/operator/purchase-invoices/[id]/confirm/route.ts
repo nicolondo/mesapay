@@ -25,9 +25,11 @@ const lineSchema = z.object({
   newIngredientName: z.string().trim().min(1).max(120).nullable().optional(),
   newIngredientMeasureKind: z.enum(["mass", "volume", "count"]).optional(),
   qtyBase: z.number().int().min(1).max(2_000_000_000),
-  // NETO (sin IVA) de la línea; el IVA se deriva con taxPct.
+  // Neto TOTAL sin impuestos; IVA documental y consumo no son unitarios.
   expectedCostCents: z.number().int().min(0).max(2_000_000_000),
   taxPct: z.number().int().min(0).max(100).optional(),
+  expectedTaxCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
+  expectedIncCents: z.number().int().min(0).max(2_000_000_000).optional(),
 });
 
 const cents = z.number().int().min(0).max(2_000_000_000).optional();
@@ -61,6 +63,13 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const b = parsed.data;
+  const allocatedIncCents = b.lines.reduce((sum, line) => sum + (line.expectedIncCents ?? 0), 0);
+  const invoiceIncCents = b.incCents ?? allocatedIncCents;
+  // Every new documentary consumption must reach its stock/expense line.
+  // Header-only legacy amounts remain readable, but are not created here.
+  if (invoiceIncCents !== allocatedIncCents || invoiceIncCents > 2_000_000_000) {
+    return NextResponse.json({ error: "invalid" }, { status: 400 });
+  }
 
   const upload = await db.purchaseInvoiceUpload.findUnique({
     where: { id },
@@ -144,6 +153,8 @@ async function POSTHandler(
           qtyBase: line.qtyBase,
           expectedCostCents: line.expectedCostCents,
           taxPct: line.taxPct,
+          expectedTaxCents: line.expectedTaxCents,
+          expectedIncCents: line.expectedIncCents,
         });
       }
 
@@ -161,7 +172,7 @@ async function POSTHandler(
       // 3b. Impuestos de la factura (además del IVA de las líneas) → OC, para
       // la contabilidad/reportes. Se guardan igual en draft o receive.
       if (
-        b.incCents ||
+        invoiceIncCents ||
         b.retefuenteCents ||
         b.reteIvaCents ||
         b.reteIcaCents
@@ -169,7 +180,7 @@ async function POSTHandler(
         await tx.purchaseOrder.update({
           where: { id: po.id },
           data: {
-            incCents: b.incCents ?? 0,
+            incCents: invoiceIncCents,
             retefuenteCents: b.retefuenteCents ?? 0,
             reteIvaCents: b.reteIvaCents ?? 0,
             reteIcaCents: b.reteIcaCents ?? 0,

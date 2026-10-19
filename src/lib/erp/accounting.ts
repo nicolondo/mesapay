@@ -291,11 +291,16 @@ export function splitPurchaseInventoryCost(args: {
   receivedCents: number;
   nonInventoryReceivedCents: number;
   incCents: number;
+  /** Consumo ya asignado a líneas; no volver a prorratearlo. */
+  allocatedIncCents?: number;
+  /** Parte de ese consumo congelada como no inventariable al recibir. */
+  nonInventoryAllocatedIncCents?: number;
 }) {
-  const nonInventoryIncCents = args.receivedCents > 0
-    ? Number((BigInt(args.incCents) * BigInt(args.nonInventoryReceivedCents)
+  const unallocatedInc = Math.max(0, args.incCents - (args.allocatedIncCents ?? 0));
+  const nonInventoryIncCents = (args.nonInventoryAllocatedIncCents ?? 0) + (args.receivedCents > 0
+    ? Number((BigInt(unallocatedInc) * BigInt(args.nonInventoryReceivedCents)
         + BigInt(args.receivedCents) / BigInt(2)) / BigInt(args.receivedCents))
-    : 0;
+    : 0);
   const expenseCents = args.nonInventoryReceivedCents + nonInventoryIncCents;
   return {
     nonInventoryIncCents,

@@ -9,6 +9,7 @@ import {
   type Formato1001Row,
 } from "@/lib/erp/exogena";
 import type { ModuleSlug } from "@/lib/modules";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +43,9 @@ async function GETHandler(req: Request) {
       },
       select: {
         retefuenteCents: true,
+        incCents: true,
         supplier: { select: { id: true, name: true, taxId: true } },
-        items: { select: { receivedCostCents: true, taxPct: true } },
+        items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
       },
     }),
     db.expense.findMany({
@@ -86,11 +88,9 @@ async function GETHandler(req: Request) {
   };
   for (const o of orders) {
     if (!o.supplier) continue;
-    // Bruto = neto recibido + IVA por línea (taxPct).
-    let gross = 0;
-    for (const it of o.items) {
-      gross += Math.round(it.receivedCostCents * (1 + it.taxPct / 100));
-    }
+    // Bruto documental; las retenciones se presentan aparte en este formato.
+    const amounts = purchaseOrderTotals(o, "received");
+    const gross = amounts.subtotalCents + amounts.taxCents + amounts.incCents;
     if (gross <= 0 && o.retefuenteCents <= 0) continue;
     bump(o.supplier.id, o.supplier.name, o.supplier.taxId, gross, o.retefuenteCents);
   }

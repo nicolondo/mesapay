@@ -10,6 +10,7 @@ import {
 } from "@/lib/erp/purchasing";
 import type { ModuleSlug } from "@/lib/modules";
 import type { PurchaseOrderStatus } from "@prisma/client";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ const lineSchema = z.object({
   expectedCostCents: z.number().int().min(0).max(2_000_000_000),
   // IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0.
   taxPct: z.number().int().min(0).max(100).optional(),
+  expectedTaxCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
+  expectedIncCents: z.number().int().min(0).max(2_000_000_000).optional(),
   // Descuento de la línea: % o valor fijo (el % manda si vienen los dos).
   discountPct: z.number().int().min(0).max(100).nullish(),
   discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
@@ -64,7 +67,7 @@ async function GETHandler(req: Request) {
   const status = STATUSES.includes(statusParam as PurchaseOrderStatus)
     ? (statusParam as PurchaseOrderStatus)
     : undefined;
-  // "Por pagar": recibidas con factura sin pagar.
+  // paidAt es un marcador histórico, no prueba del saldo documental actual.
   const unpaid = searchParams.get("unpaid") === "1";
   const cursor = searchParams.get("cursor") ?? undefined;
 
@@ -72,21 +75,33 @@ async function GETHandler(req: Request) {
     where: {
       restaurantId: ctx.restaurantId,
       ...(status ? { status } : {}),
-      ...(unpaid ? { status: "received", paidAt: null } : {}),
+      ...(unpaid ? {
+        status: { in: ["received", "partially_received"] },
+        OR: [{ paidAt: null }, { incCents: { gt: 0 } }],
+      } : {}),
     },
-    take: 20,
+    // Bounded scan: a full page of paid candidates must not hide an older
+    // unpaid invoice. The cursor advances over examined candidates only.
+    take: unpaid ? 100 : 20,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     orderBy: unpaid
-      ? [{ invoiceDueAt: "asc" }]
+      ? [{ invoiceDueAt: "asc" }, { id: "asc" }]
       : [{ createdAt: "desc" }],
     include: {
       supplier: { select: { id: true, name: true } },
       items: {
-        select: { expectedCostCents: true, receivedCostCents: true, taxPct: true },
+        select: PURCHASE_LINE_AMOUNTS_SELECT,
       },
       _count: { select: { items: true } },
     },
   });
+  if (unpaid) {
+    const payable = orders.filter((order) => purchaseOrderTotals(order, "received").totalCents > order.paidCents).slice(0, 20);
+    const nextCursor = payable.length === 20
+      ? payable[19].id
+      : orders.length === 100 ? orders[99].id : undefined;
+    return NextResponse.json({ orders: payable, nextCursor });
+  }
   const nextCursor = orders.length === 20 ? orders[orders.length - 1].id : undefined;
   return NextResponse.json({ orders, nextCursor });
 }

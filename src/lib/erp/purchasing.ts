@@ -1,6 +1,6 @@
 import type { Prisma, PurchaseOrderStatus } from "@prisma/client";
 import { applyStockMovement } from "@/lib/erp/stock";
-import { inventoryCostCents, lineTaxCents, normalizeTaxPct } from "@/lib/erp/purchaseTax";
+import { normalizeTaxPct, PURCHASE_LINE_AMOUNTS_SELECT, purchaseLineAmounts, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 
 // Lógica central de compras (ERP Fase A2).
@@ -46,6 +46,10 @@ export type CreatePoLine = {
   expectedCostCents: number;
   /** IVA % de la línea (0/5/19 CO, 0/8/16 MX). Default 0. */
   taxPct?: number | null;
+  /** IVA documental total después de descuentos; null conserva taxPct. */
+  expectedTaxCents?: number | null;
+  /** Consumo fijo total de la línea, no por unidad. */
+  expectedIncCents?: number;
   /** Descuento propio de la línea: % o valor fijo (el % manda). */
   discountPct?: number | null;
   discountCents?: number | null;
@@ -87,6 +91,8 @@ export async function createPurchaseOrder(
     discountPct: number | null;
     discountCents: number | null;
     taxPct: number;
+    expectedTaxCents: number | null;
+    expectedIncCents: number;
   }> = [];
 
   for (const line of lines) {
@@ -96,6 +102,11 @@ export async function createPurchaseOrder(
       line.expectedCostCents > 2_000_000_000
     ) {
       throw new PurchasingError("line_invalid");
+    }
+    for (const cents of [line.expectedTaxCents, line.expectedIncCents]) {
+      if (cents != null && (!Number.isInteger(cents) || cents < 0 || cents > 2_000_000_000)) {
+        throw new PurchasingError("line_invalid");
+      }
     }
     const ingredient = await tx.ingredient.findUnique({
       where: { id: line.ingredientId },
@@ -135,6 +146,8 @@ export async function createPurchaseOrder(
         discountPct: line.discountPct ?? null,
         discountCents: line.discountCents ?? null,
         taxPct: normalizeTaxPct(line.taxPct ?? 0),
+        expectedTaxCents: line.expectedTaxCents ?? null,
+        expectedIncCents: line.expectedIncCents ?? 0,
       });
     } else {
       const q = line.qtyBase ?? 0;
@@ -150,6 +163,8 @@ export async function createPurchaseOrder(
         discountPct: line.discountPct ?? null,
         discountCents: line.discountCents ?? null,
         taxPct: normalizeTaxPct(line.taxPct ?? 0),
+        expectedTaxCents: line.expectedTaxCents ?? null,
+        expectedIncCents: line.expectedIncCents ?? 0,
       });
     }
   }
@@ -173,6 +188,17 @@ export async function createPurchaseOrder(
     { pct: args.discountPct, cents: args.discountCents },
   );
 
+  for (let i = 0; i < resolved.length; i += 1) {
+    const line = resolved[i];
+    const net = applied.lines[i].netCents;
+    if ((net === 0 && (line.expectedTaxCents ?? 0) > 0)
+      || purchaseLineAmounts({ ...line, expectedCostCents: net }).totalCents > 2_000_000_000) {
+      throw new PurchasingError("line_invalid");
+    }
+  }
+  const allocatedIncCents = resolved.reduce((sum, line) => sum + line.expectedIncCents, 0);
+  if (allocatedIncCents > 2_000_000_000) throw new PurchasingError("line_invalid");
+
   return tx.purchaseOrder.create({
     data: {
       restaurantId,
@@ -183,6 +209,7 @@ export async function createPurchaseOrder(
       createdById: args.createdById ?? null,
       discountPct: args.discountPct ?? null,
       discountCents: applied.subtotalCents - applied.netCents,
+      incCents: allocatedIncCents,
       items: {
         create: resolved.map((r, i) => {
           const a = applied.lines[i]!;
@@ -192,6 +219,8 @@ export async function createPurchaseOrder(
             presentations: r.presentations,
             qtyOrderedBase: r.qtyOrderedBase,
             taxPct: r.taxPct,
+            expectedTaxCents: r.expectedTaxCents,
+            expectedIncCents: r.expectedIncCents,
             expectedCostCents: a.netCents,
             listCostCents: a.listCents,
             discountPct: r.discountPct,
@@ -298,6 +327,16 @@ export async function receivePurchaseOrder(
   for (const line of lines) {
     const item = itemById.get(line.itemId);
     if (!item) throw new PurchasingError("line_invalid");
+    const previous = receivedPurchaseLineAmounts(item);
+    const accumulated = purchaseLineAmounts(item, item.receivedCostCents + line.costCents, item.receivedQtyBase + line.qtyBase);
+    const receivedTaxCents = accumulated.taxCents - previous.taxCents;
+    const receivedIncCents = accumulated.incCents - previous.incCents;
+    const inventoryCost = line.costCents + receivedIncCents + (ivaDeductible ? 0 : receivedTaxCents);
+    if (inventoryCost > 2_000_000_000
+      || item.receivedQtyBase + line.qtyBase > 2_000_000_000
+      || item.receivedCostCents + line.costCents > 2_000_000_000) {
+      throw new PurchasingError("line_invalid");
+    }
 
     const movement = await applyStockMovement(
       tx,
@@ -309,11 +348,7 @@ export async function receivePurchaseOrder(
         // El inventario se valora al neto (IVA descontable) o al bruto
         // (IVA parte del costo). receivedCostCents y la lista de precios
         // se quedan en NETO — solo el ledger cambia con el ajuste.
-        totalCostCents: inventoryCostCents(
-          line.costCents,
-          item.taxPct,
-          ivaDeductible,
-        ),
+        totalCostCents: inventoryCost,
         purchaseOrderId,
         createdById: args.createdById ?? null,
       },
@@ -336,9 +371,11 @@ export async function receivePurchaseOrder(
           // Match the supplier invoice's cumulative line rounding. Summing
           // rounded per-reception taxes can otherwise exceed invoice VAT.
           increment: movement === null && !ivaDeductible
-            ? lineTaxCents(item.receivedCostCents + line.costCents, item.taxPct)
-              - lineTaxCents(item.receivedCostCents, item.taxPct)
+            ? receivedTaxCents
             : 0,
+        },
+        nonInventoryReceivedIncCents: {
+          increment: movement === null ? receivedIncCents : 0,
         },
       },
     });
@@ -380,15 +417,21 @@ export async function receivePurchaseOrder(
   // Recalcular estado con los acumulados frescos.
   const freshItems = await tx.purchaseOrderItem.findMany({
     where: { purchaseOrderId },
-    select: { qtyOrderedBase: true, receivedQtyBase: true },
+    select: PURCHASE_LINE_AMOUNTS_SELECT,
   });
   const complete = freshItems.every(
     (i) => i.receivedQtyBase >= i.qtyOrderedBase,
   );
   const now = new Date();
+  const balanceReopened = po.paidAt != null
+    && purchaseOrderTotals({ ...po, items: freshItems }, "received").totalCents > po.paidCents;
   const updated = await tx.purchaseOrder.update({
     where: { id: purchaseOrderId },
-    data: complete
+    data: {
+      // A new receipt can exceed the amount already paid for an earlier
+      // partial delivery. Payments stay unchanged; refresh only its cache.
+      ...(balanceReopened ? { paidAt: null } : {}),
+      ...(complete
       ? {
           status: "received",
           receivedAt: po.receivedAt ?? now,
@@ -402,7 +445,8 @@ export async function receivePurchaseOrder(
                 )
               : now),
         }
-      : { status: "partially_received" },
+      : { status: "partially_received" }),
+    },
   });
 
   return { purchaseOrder: updated, complete };

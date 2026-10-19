@@ -57,6 +57,8 @@ export type PurchaseTaxInput = {
     /** Neto recibido de la línea (sin IVA). */
     netCents: number;
     taxPct: number;
+    /** IVA total documental recibido; null conserva cálculo por tarifa. */
+    taxCents?: number | null;
     /** Parte del IVA de la línea que NO es descontable (gasto). */
     nonDeductibleTaxCents: number;
   }[];
@@ -277,7 +279,7 @@ export function aggregateDocumentTaxes({
     let netTotal = 0;
     let ivaTotal = 0;
     for (const l of p.lines) {
-      const tax = purchaseLineTaxCents(l.netCents, l.taxPct);
+      const tax = l.taxCents ?? purchaseLineTaxCents(l.netCents, l.taxPct);
       netTotal += l.netCents;
       ivaTotal += tax;
       ivaNoDescontable += l.nonDeductibleTaxCents;

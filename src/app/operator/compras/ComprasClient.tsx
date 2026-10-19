@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, selectReviewIngredient, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 import { useLocale, useTranslations } from "next-intl";
@@ -22,10 +23,13 @@ import {
 import {
   type InvoiceTaxExtras,
   invoiceGrandTotalCents,
+  expectedReceiptCostCents,
   lineGrossCents,
-  lineTaxCents,
   normalizeTaxPct,
   poTotals,
+  purchaseLineAmounts,
+  purchaseOrderTotals,
+  receivedPurchaseLineAmounts,
   purchaseTaxRates,
   retentionsCents,
   totalsMatch,
@@ -42,7 +46,7 @@ const PO_STATUSES = [
 ] as const;
 type PoStatus = (typeof PO_STATUSES)[number];
 
-type OrderSummary = {
+type OrderSummary = Partial<InvoiceTaxExtras> & {
   id: string;
   number: number;
   status: PoStatus;
@@ -57,6 +61,10 @@ type OrderSummary = {
     expectedCostCents: number;
     receivedCostCents: number;
     taxPct: number;
+    expectedTaxCents: number | null;
+    expectedIncCents: number;
+    qtyOrderedBase: number;
+    receivedQtyBase: number;
   }[];
   _count: { items: number };
 };
@@ -87,7 +95,7 @@ type PriceListItem = {
   ingredient: IngredientRef;
 };
 
-type OrderDetail = {
+type OrderDetail = Partial<InvoiceTaxExtras> & {
   id: string;
   number: number;
   status: PoStatus;
@@ -119,6 +127,8 @@ type OrderDetail = {
     receivedQtyBase: number;
     receivedCostCents: number;
     taxPct: number;
+    expectedTaxCents: number | null;
+    expectedIncCents: number;
     ingredient: { id: string; name: string; measureKind: MeasureKind };
     supplierItem: {
       id: string;
@@ -363,8 +373,10 @@ function TaxBreakdown({
   alwaysBreakdown,
   discountCents,
   listSubtotalCents,
+  incCents = 0,
+  retainedCents = 0,
 }: {
-  lines: { costCents: number; taxPct: number }[];
+  lines: { costCents: number; taxPct: number; taxCents?: number | null }[];
   currency: string;
   totalLabel?: string;
   alwaysBreakdown?: boolean;
@@ -372,12 +384,14 @@ function TaxBreakdown({
   discountCents?: number;
   /** Subtotal ANTES del descuento (precio de lista). */
   listSubtotalCents?: number;
+  incCents?: number;
+  retainedCents?: number;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
   const { subtotalCents, taxCents, totalCents } = poTotals(lines);
   const discount = discountCents ?? 0;
-  const showBreakdown = alwaysBreakdown || taxCents > 0 || discount > 0;
+  const showBreakdown = alwaysBreakdown || taxCents > 0 || discount > 0 || incCents > 0 || retainedCents > 0;
   const money = (c: number) => formatMoney(c, { currency, locale });
   return (
     <div className="bg-op-bg/50">
@@ -407,12 +421,18 @@ function TaxBreakdown({
           </div>
         </>
       )}
+      {incCents > 0 && <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-op-muted">
+        <span>{t("invTaxInc")}</span><span>{money(incCents)}</span>
+      </div>}
+      {retainedCents > 0 && <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-op-muted">
+        <span>{t("invLineRetentions")}</span><span>{`− ${money(retainedCents)}`}</span>
+      </div>}
       <div className="flex items-center justify-between px-3 py-2">
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {totalLabel ?? t("totalLabel")}
         </span>
         <span className="text-sm font-medium tabular-nums">
-          {money(totalCents)}
+          {money(totalCents + incCents - retainedCents)}
         </span>
       </div>
     </div>
@@ -595,12 +615,7 @@ export function ComprasClient({
           <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
             {orders.map((o) => {
               // Bruto (neto + IVA) — lo que se paga con impuestos.
-              const total = poTotals(
-                o.items.map((it) => ({
-                  costCents: it.expectedCostCents,
-                  taxPct: it.taxPct,
-                })),
-              ).totalCents;
+              const total = purchaseOrderTotals(o).totalCents;
               return (
                 <button
                   key={o.id}
@@ -2047,6 +2062,13 @@ type ExtractionLine = {
   unit: string | null;
   unitPriceCents: number | null;
   lineTotalCents: number | null;
+  unitPriceTaxBasis?: InvoiceTaxBasis;
+  lineTotalTaxBasis?: InvoiceTaxBasis;
+  unitPriceLabel?: string | null;
+  lineTotalLabel?: string | null;
+  lineTaxCents?: number | null;
+  lineIncCents?: number | null;
+  lineIncAmbiguous?: boolean;
   taxPct: string | null;
   confidence: number;
 };
@@ -2208,53 +2230,15 @@ function InvoiceUploadButton({
 /** Estado editable de una línea de la revisión. */
 let invLineKeySeq = 0;
 
-/** Costo total de la línea en centavos, o null si es inválido. */
-function reviewLineCostCents(l: InvoiceReviewLine): number | null {
-  if (l.cost.trim() === "") return null;
-  const p = Number(l.cost.replace(",", "."));
-  if (!isFinite(p) || p < 0) return null;
-  return pesosToCents(p);
-}
-
-/** Centavos → dígitos crudos de pesos enteros para MoneyInput ("" si 0/null). */
+/** Raw major units for MoneyInput, preserving cents. */
 function centsToPesosDigits(c: number | null | undefined): string {
-  return c && c > 0 ? String(Math.round(c / 100)) : "";
+  return c && c > 0 ? String(c / 100) : "";
 }
 
 /** Dígitos crudos de pesos (MoneyInput) → centavos. */
 function pesosDigitsToCents(digits: string): number {
   const p = Number(digits);
   return digits && isFinite(p) && p > 0 ? pesosToCents(p) : 0;
-}
-
-/**
- * Neto de una línea desde el valor tipeado. Cuando la factura trae los montos
- * CON IVA incluido (includeTax), se le descuenta el IVA: neto = round(bruto /
- * (1 + tax/100)). Si no, el valor ya es neto y se usa tal cual. El ERP guarda
- * SIEMPRE el neto; el bruto/IVA se derivan del taxPct.
- */
-function lineNetFromTyped(
-  typedCents: number,
-  taxPct: number,
-  includeTax: boolean,
-): number {
-  if (!includeTax || !(taxPct > 0)) return typedCents;
-  return Math.round(typedCents / (1 + taxPct / 100));
-}
-
-/**
- * Costo inicial (pesos) desde la extracción: total de línea o unit×qty. El
- * input de costo (MoneyInput) es de pesos ENTEROS — sin centavos — así que se
- * redondea AL PESO. Devolver decimales ("232499.82") rompía el display:
- * MoneyInput quita el punto y mostraba "23.249.982" (aunque el cálculo usaba
- * el valor correcto). El centavo perdido es inmaterial en COP.
- */
-function initialLineCost(line: ExtractionLine): string {
-  if (line.lineTotalCents != null) return String(Math.round(line.lineTotalCents / 100));
-  if (line.unitPriceCents != null && line.quantity > 0) {
-    return String(Math.round((line.unitPriceCents * line.quantity) / 100));
-  }
-  return "";
 }
 
 /** Construye una línea de revisión desde un MatchLine de la IA. */
@@ -2310,8 +2294,8 @@ function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
     // re-teclearla).
     qty: q > 0 ? String(q) : "",
     unit: matchReadUnit(measureKind, m.line.unit) ?? defaultUnitFor(measureKind),
-    cost: initialLineCost(m.line),
-    taxPct: normalizeTaxPct(m.line.taxPct),
+    ...initialInvoicePrice(m.line),
+    taxPct: parseInvoiceTaxPct(m.line.taxPct),
     lowConfidence: m.lowConfidence,
     readUnit: m.line.unit,
     readQty: m.line.quantity,
@@ -2446,30 +2430,22 @@ function InvoiceReviewSheet({
       .slice(0, 8);
   }, [suppliers, supQ]);
 
-  // ¿Los montos de línea de la factura ya incluyen el IVA? Algunas facturas /
-  // cuentas de cobro traen el bruto por línea (no discriminan neto). Con esto
-  // en ON, se descuenta el IVA en vez de sumarlo encima.
-  const [pricesIncludeTax, setPricesIncludeTax] = useState(false);
-
-  // Líneas netas + IVA para el desglose y la concordancia con la factura.
+  // Preview and confirmation share one interpretation, including exact VAT.
   const breakdownLines = useMemo(
     () =>
-      lines.map((l) => ({
-        costCents: lineNetFromTyped(
-          reviewLineCostCents(l) ?? 0,
-          l.taxPct,
-          pricesIncludeTax,
-        ),
-        taxPct: l.taxPct,
-      })),
-    [lines, pricesIncludeTax],
+      lines.map((l) => {
+        const amounts = reviewLineAmounts(l);
+        return { costCents: amounts?.netCents ?? 0, taxCents: amounts?.taxCents ?? 0, taxPct: l.taxPct ?? 0 };
+      }),
+    [lines],
   );
   const totals = useMemo(() => poTotals(breakdownLines), [breakdownLines]);
 
   // Otros impuestos del documento (ERP A3): INC (impoconsumo) + retenciones,
   // que la IA leyó y el operador verifica. En pesos enteros (MoneyInput).
   const [incPesos, setIncPesos] = useState(() =>
-    centsToPesosDigits(extraction.invoiceIncCents),
+    centsToPesosDigits(Math.max(0, (extraction.invoiceIncCents ?? 0)
+      - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0))),
   );
   const [retefuentePesos, setRetefuentePesos] = useState(() =>
     centsToPesosDigits(extraction.retefuenteCents),
@@ -2482,13 +2458,15 @@ function InvoiceReviewSheet({
   );
   const extras = useMemo<InvoiceTaxExtras>(
     () => ({
-      incCents: pesosDigitsToCents(incPesos),
+      incCents: pesosDigitsToCents(incPesos) + lines.reduce((sum, l) => sum + pesosDigitsToCents(l.incAmount), 0),
       retefuenteCents: pesosDigitsToCents(retefuentePesos),
       reteIvaCents: pesosDigitsToCents(reteIvaPesos),
       reteIcaCents: pesosDigitsToCents(reteIcaPesos),
     }),
-    [incPesos, retefuentePesos, reteIvaPesos, reteIcaPesos],
+    [incPesos, retefuentePesos, reteIvaPesos, reteIcaPesos, lines],
   );
+  const unallocatedConsumption = pesosDigitsToCents(incPesos) > 0;
+  const incompleteAmounts = lines.some(l => reviewLineAmounts(l) == null);
   // Total a pagar = subtotal + IVA + INC − retenciones.
   const grandTotalCents = useMemo(
     () => invoiceGrandTotalCents(totals.subtotalCents, totals.taxCents, extras),
@@ -2538,8 +2516,24 @@ function InvoiceReviewSheet({
   }
 
   function updateLine(key: number, changes: Partial<InvoiceReviewLine>) {
+    if (changes.incAmount !== undefined) {
+      const previous = lines.find(line => line.key === key);
+      const assigned = pesosDigitsToCents(changes.incAmount) - pesosDigitsToCents(previous?.incAmount ?? "");
+      // Moving consumption from the document footer into a line is an
+      // allocation, not an additional tax. Consume the unassigned balance.
+      if (assigned > 0) setIncPesos(value => centsToPesosDigits(Math.max(0, pesosDigitsToCents(value) - assigned)));
+    }
     setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, ...changes } : l)),
+      prev.map((l) => {
+        if (l.key !== key) return l;
+        const base = (changes.qtyMode != null && changes.qtyMode !== l.qtyMode)
+          || (changes.unit != null && changes.unit !== l.unit) ? fixReviewPriceAsTotal(l) : l;
+        const resetTax = changes.taxAmount === undefined && (
+          ["cost", "taxPct", "taxBasis", "incAmount", "amountKind"].some(k =>
+            changes[k as keyof InvoiceReviewLine] !== undefined && changes[k as keyof InvoiceReviewLine] !== l[k as keyof InvoiceReviewLine])
+          || (l.amountKind === "unit" && (changes.qty !== undefined || changes.presentations !== undefined)));
+        return { ...base, ...changes, ...(resetTax ? { taxAmount: "" } : {}) };
+      }),
     );
   }
 
@@ -2562,6 +2556,10 @@ function InvoiceReviewSheet({
         unit: BASE_UNIT_SYMBOL.count,
         cost: "",
         taxPct: 0,
+        amountKind: "line",
+        taxBasis: "net",
+        taxAmount: "",
+        incAmount: "",
         lowConfidence: false,
         readUnit: null,
         readQty: 0,
@@ -2622,6 +2620,10 @@ function InvoiceReviewSheet({
       setErr(t("invReviewErrNoLines"));
       return;
     }
+    if (unallocatedConsumption) {
+      setErr(t("invLineUnallocatedConsumption"));
+      return;
+    }
     // Validación por línea: insumo, cantidad y costo.
     const payloadLines: {
       ingredientId: string | null;
@@ -2630,6 +2632,8 @@ function InvoiceReviewSheet({
       qtyBase: number;
       expectedCostCents: number;
       taxPct: number;
+      expectedTaxCents: number;
+      expectedIncCents: number;
     }[] = [];
     for (const l of lines) {
       if (!l.ingredientId && !l.ingredientName.trim()) {
@@ -2641,29 +2645,30 @@ function InvoiceReviewSheet({
         setErr(t("invReviewErrLineQty"));
         return;
       }
-      const typed = reviewLineCostCents(l);
-      if (typed == null) {
-        setErr(t("invReviewErrLineCost"));
+      const amounts = reviewLineAmounts(l);
+      if (amounts == null || l.taxPct == null) {
+        setErr(t("invLineReviewAmounts"));
         return;
       }
-      // El ERP guarda el NETO; si la factura trae los montos con IVA incluido,
-      // se descuenta acá antes de enviar.
-      const cost = lineNetFromTyped(typed, l.taxPct, pricesIncludeTax);
       payloadLines.push(
         l.ingredientId
           ? {
               ingredientId: l.ingredientId,
               qtyBase,
-              expectedCostCents: cost,
+              expectedCostCents: amounts.netCents,
               taxPct: l.taxPct,
+              expectedTaxCents: amounts.taxCents,
+              expectedIncCents: amounts.incCents,
             }
           : {
               ingredientId: null,
               newIngredientName: l.ingredientName.trim(),
               newIngredientMeasureKind: l.measureKind,
               qtyBase,
-              expectedCostCents: cost,
+              expectedCostCents: amounts.netCents,
               taxPct: l.taxPct,
+              expectedTaxCents: amounts.taxCents,
+              expectedIncCents: amounts.incCents,
             },
       );
     }
@@ -2928,7 +2933,6 @@ function InvoiceReviewSheet({
                 currency={currency}
                 taxRates={taxRates}
                 ingredients={ingredients}
-                pricesIncludeTax={pricesIncludeTax}
                 onChange={(changes) => updateLine(l.key, changes)}
                 onRemove={() => removeLine(l.key)}
               />
@@ -2942,17 +2946,7 @@ function InvoiceReviewSheet({
               {t("invReviewAddLine")}
             </button>
 
-            {/* ¿Los montos de línea ya incluyen IVA? Cuando la factura trae el
-                bruto por línea, se descuenta el IVA en vez de sumarlo. */}
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <input
-                type="checkbox"
-                checked={pricesIncludeTax}
-                onChange={(e) => setPricesIncludeTax(e.target.checked)}
-                className="accent-terracotta w-4 h-4"
-              />
-              <span>{t("invReviewPricesIncludeTax")}</span>
-            </label>
+            {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
 
             {/* Desglose recomputado en vivo (Subtotal + IVA + Total) */}
             <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
@@ -2960,6 +2954,8 @@ function InvoiceReviewSheet({
                 lines={breakdownLines}
                 currency={currency}
                 totalLabel={t("invReviewTotalNote")}
+                incCents={extras.incCents}
+                retainedCents={retentionsCents(extras)}
               />
             </div>
 
@@ -2986,7 +2982,7 @@ function InvoiceReviewSheet({
               </div>
               {(
                 [
-                  ["inc", t("invTaxInc"), incPesos, setIncPesos],
+                  ["inc", t("invLineUnassignedInc"), incPesos, setIncPesos],
                   [
                     "retefuente",
                     t("invTaxRetefuente"),
@@ -3010,6 +3006,7 @@ function InvoiceReviewSheet({
                   <MoneyInput
                     id={`invtax-${key}`}
                     value={value}
+                    fractionDigits={2}
                     onChange={setter}
                     ariaLabel={label}
                     placeholder="0"
@@ -3017,6 +3014,8 @@ function InvoiceReviewSheet({
                   />
                 </div>
               ))}
+              <p className="text-[11px] text-op-muted">{t("invLineIncFooterHint")}</p>
+              {unallocatedConsumption && <p role="alert" className="text-xs text-danger">{t("invLineUnallocatedConsumption")}</p>}
               {retentionsCents(extras) > 0 && (
                 <p className="text-[10px] text-op-muted">
                   {t("invTaxRetentionNote")}
@@ -3136,7 +3135,6 @@ function InvoiceReviewLineCard({
   currency,
   taxRates,
   ingredients,
-  pricesIncludeTax,
   onChange,
   onRemove,
 }: {
@@ -3144,7 +3142,6 @@ function InvoiceReviewLineCard({
   currency: string;
   taxRates: number[];
   ingredients: IngredientRef[] | null;
-  pricesIncludeTax: boolean;
   onChange: (changes: Partial<InvoiceReviewLine>) => void;
   onRemove: () => void;
 }) {
@@ -3161,14 +3158,9 @@ function InvoiceReviewLineCard({
   }, [ingredients, ingQ]);
 
   const qtyBase = reviewLineQtyBase(l);
-  // Costo NETO de la línea en centavos (null si el input es inválido/vacío).
-  // Si la factura trae los montos con IVA incluido, se descuenta acá para que
-  // el "Con IVA" mostrado coincida con lo impreso.
-  const typedCents = reviewLineCostCents(l);
-  const lineNetCents =
-    typedCents == null
-      ? null
-      : lineNetFromTyped(typedCents, l.taxPct, pricesIncludeTax);
+  const amounts = reviewLineAmounts(l);
+  const priceQuantity = reviewPriceQuantity(l);
+  const money = (cents: number) => formatMoney(cents, { currency, locale });
   const readQtyStr = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 3,
   }).format(l.readQty);
@@ -3384,11 +3376,29 @@ function InvoiceReviewLineCard({
         </Field>
       )}
 
+      <div className="grid grid-cols-1 gap-2">
+        <Field label={t("invLineAmountKind")}>
+          <select className={inputCls} value={l.amountKind} aria-label={t("invLineAmountKind")}
+            onChange={e => onChange({ amountKind: e.target.value as InvoiceReviewLine["amountKind"] })}>
+            <option value="line">{t("invLineAmount")}</option>
+            <option value="unit">{t("invUnitAmount")}</option>
+          </select>
+        </Field>
+        <Field label={t("invLineTaxBasis")}>
+          <select className={inputCls} value={l.taxBasis} aria-label={t("invLineTaxBasis")}
+            onChange={e => onChange({ taxBasis: e.target.value as InvoiceTaxBasis })}>
+            <option value="unknown">{t("invLineChooseBasis")}</option>
+            <option value="gross">{t("invLineGrossBasis")}</option>
+            <option value="net">{t("invLineNetBasis")}</option>
+          </select>
+        </Field>
+      </div>
       <div className="flex gap-2">
         <div className="flex-1 min-w-0">
-          <Field label={`${t("fieldExpectedCost")} (${currency})`} required>
+          <Field label={`${t(l.amountKind === "line" ? "invLineAmount" : "invUnitAmount")} (${currency})`} required>
             <MoneyInput
               value={l.cost}
+              fractionDigits={2}
               onChange={(d) => onChange({ cost: d })}
               className={inputCls}
             />
@@ -3396,32 +3406,37 @@ function InvoiceReviewLineCard({
         </div>
         <div className="shrink-0">
           <Field label={t("fieldTaxPct")}>
-            <TaxPctSelect
-              value={l.taxPct}
-              rates={taxRates}
-              onChange={(pct) => onChange({ taxPct: pct })}
-            />
+            <select className={`${inputCls} w-24`} value={l.taxPct ?? ""} aria-label={t("fieldTaxPct")}
+              onChange={e => onChange({ taxPct: e.target.value === "" ? null : normalizeTaxPct(e.target.value) })}>
+              <option value="">{t("invLineChooseRate")}</option>
+              {[...new Set([...taxRates, ...(l.taxPct == null ? [] : [l.taxPct])])].sort((a, b) => a - b).map(pct =>
+                <option key={pct} value={pct}>{t("taxPctOption", { pct })}</option>)}
+            </select>
           </Field>
         </div>
       </div>
 
-      {/* IVA $ y bruto de la línea (sobre el costo neto editado) */}
-      {l.taxPct > 0 && lineNetCents != null && (
-        <div className="flex items-center justify-between text-[11px] text-op-muted tabular-nums">
-          <span>
-            {`${t("taxLabel")} ${formatMoney(
-              lineTaxCents(lineNetCents, l.taxPct),
-              { currency, locale },
-            )}`}
-          </span>
-          <span>
-            {`${t("lineGrossLabel")} ${formatMoney(
-              lineGrossCents(lineNetCents, l.taxPct),
-              { currency, locale },
-            )}`}
-          </span>
-        </div>
-      )}
+      <p className="text-[11px] text-op-muted">{t(l.amountKind === "line" ? "invLineTotalHint" : "invLineUnitHint")}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={t("invLineIncAmount")}>
+          <MoneyInput value={l.incAmount} fractionDigits={2} placeholder="0"
+            onChange={incAmount => onChange({ incAmount })} className={inputCls} />
+        </Field>
+        <Field label={t("invLineVatAmount")}>
+          <MoneyInput value={l.taxAmount} fractionDigits={2} placeholder={t("invLineAutomatic")}
+            onChange={taxAmount => onChange({ taxAmount })} className={inputCls} />
+        </Field>
+      </div>
+      {(l.taxBasis === "unknown" || l.taxPct == null || (l.incNeedsReview && !l.incAmount.trim())) &&
+        <p className="text-[11px] text-terracotta">{t("invLineUnknownHint")}</p>}
+      {amounts && <div className="border-t border-op-border pt-2 space-y-1 text-[11px] tabular-nums" data-testid="invoice-line-amounts">
+        <div className="flex justify-between gap-2 text-op-muted"><span>{t("invLineNetAmount")}</span><span>{money(amounts.netCents)}</span></div>
+        <div className="flex justify-between gap-2 text-op-muted"><span>{t("taxLabel")}</span><span>{money(amounts.taxCents)}</span></div>
+        {amounts.incCents > 0 && <div className="flex justify-between gap-2 text-op-muted"><span>{t("invTaxInc")}</span><span>{money(amounts.incCents)}</span></div>}
+        <div className="flex justify-between gap-2 text-sm font-medium"><span>{t("invLineFinalAmount")}</span><span>{money(amounts.totalCents)}</span></div>
+        {priceQuantity > 0 && <p className="text-op-muted">{t("invLineUnitFinal", { amount: money(Math.round(amounts.totalCents / priceQuantity)), unit: l.qtyMode === "presentation" && l.suggestedPresentation ? l.suggestedPresentation.presentationLabel : l.unit })}</p>}
+      </div>}
+      {l.amountLabel && <p className="text-[10px] text-op-muted">{t("invLineSourceLabel", { label: l.amountLabel })}</p>}
 
       {/* Pista de lo leído + cantidad base resultante */}
       <div className="text-[10px] text-op-muted">
@@ -3571,9 +3586,11 @@ function OrderDetailSheet({
   const detailLines = (order?.items ?? []).map((it) => ({
     costCents: useReceived ? it.receivedCostCents : it.expectedCostCents,
     taxPct: it.taxPct,
+    taxCents: (useReceived ? receivedPurchaseLineAmounts(it) : purchaseLineAmounts(it)).taxCents,
   }));
   // Total bruto (neto + IVA) — para WhatsApp/impresión.
-  const total = poTotals(detailLines).totalCents;
+  const detailTotals = purchaseOrderTotals(order ?? { items: [] }, useReceived ? "received" : "expected");
+  const total = detailTotals.totalCents;
 
   // Enviar (WhatsApp/imprimir) marca `sent` si aún es borrador — optimista
   // y fire-and-forget: el envío ya salió, el server solo lo registra (D6).
@@ -3615,23 +3632,22 @@ function OrderDetailSheet({
         (it) =>
           `<tr><td>${escapeHtml(orderLineText(it, locale))}</td>` +
           `<td class="num">${escapeHtml(
-            formatMoney(it.expectedCostCents, { currency, locale }),
+            formatMoney((useReceived ? receivedPurchaseLineAmounts(it) : purchaseLineAmounts(it)).totalCents, { currency, locale }),
           )}</td></tr>`,
       )
       .join("");
     // Pie: si hay IVA, desglose Subtotal + IVA + Total; si no, solo Total.
-    const printTotals = poTotals(detailLines);
+    const printTotals = detailTotals;
     const totalRow = (label: string, cents: number) =>
       `<tr><td>${escapeHtml(label)}</td>` +
       `<td class="num">${escapeHtml(
         formatMoney(cents, { currency, locale }),
       )}</td></tr>`;
-    const printTotalsRows =
-      printTotals.taxCents > 0
-        ? totalRow(t("subtotalLabel"), printTotals.subtotalCents) +
-          totalRow(t("taxLabel"), printTotals.taxCents) +
-          totalRow(t("orderTotalLabel"), printTotals.totalCents)
-        : totalRow(t("orderTotalLabel"), printTotals.totalCents);
+    const printTotalsRows = totalRow(t("subtotalLabel"), printTotals.subtotalCents)
+      + (printTotals.taxCents > 0 ? totalRow(t("taxLabel"), printTotals.taxCents) : "")
+      + (printTotals.incCents > 0 ? totalRow(t("invTaxInc"), printTotals.incCents) : "")
+      + (printTotals.retentionsCents > 0 ? totalRow(t("invLineRetentions"), -printTotals.retentionsCents) : "")
+      + totalRow(t("orderTotalLabel"), printTotals.totalCents);
     const meta = [
       `${t("fieldSupplier")}: ${order.supplier.name}`,
       order.supplier.phone,
@@ -3841,7 +3857,7 @@ function OrderDetailSheet({
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-medium tabular-nums">
-                          {formatMoney(it.expectedCostCents, {
+                          {formatMoney(purchaseLineAmounts(it).totalCents, {
                             currency,
                             locale,
                           })}
@@ -3854,7 +3870,7 @@ function OrderDetailSheet({
                               it.receivedQtyBase,
                               kind,
                               locale,
-                            )} · ${formatMoney(it.receivedCostCents, {
+                            )} · ${formatMoney(receivedPurchaseLineAmounts(it).totalCents, {
                               currency,
                               locale,
                             })}`}
@@ -3869,6 +3885,8 @@ function OrderDetailSheet({
                 lines={detailLines}
                 currency={currency}
                 totalLabel={t("orderTotalLabel")}
+                incCents={detailTotals.incCents}
+                retainedCents={detailTotals.retentionsCents}
               />
             </div>
 
@@ -3949,12 +3967,7 @@ function OrderDetailSheet({
               (() => {
                 // Total bruto de la CxP = Σ bruto de lo recibido (neto + IVA),
                 // igual que el server. El esperado no cuenta para el saldo.
-                const cxpTotal = poTotals(
-                  order.items.map((it) => ({
-                    costCents: it.receivedCostCents,
-                    taxPct: it.taxPct,
-                  })),
-                ).totalCents;
+                const cxpTotal = purchaseOrderTotals(order, "received").totalCents;
                 const balance = cxpTotal - order.paidCents;
                 return (
                   <div className="mt-4">
@@ -3962,7 +3975,7 @@ function OrderDetailSheet({
                       <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
                         {t("cxpSectionTitle")}
                       </span>
-                      {order.paidAt != null ? (
+                      {balance <= 0 ? (
                         <PayStatusChip status="paid" />
                       ) : order.paidCents > 0 ? (
                         <PayStatusChip status="partial" />
@@ -4226,9 +4239,7 @@ function ReceiveSheet({
   /** Costo esperado proporcional a la cantidad recibida, en pesos (input). */
   function proportionalCost(it: OrderItem, qtyBase: number | null): string {
     if (qtyBase == null) return "";
-    return String(
-      Math.round((it.expectedCostCents * qtyBase) / it.qtyOrderedBase) / 100,
-    );
+    return String(expectedReceiptCostCents(it, qtyBase) / 100);
   }
 
   const [lines, setLines] = useState<ReceiveLine[]>(() =>
@@ -4410,9 +4421,10 @@ function ReceiveSheet({
                           </select>
                         </div>
                       </Field>
-                      <Field label={`${t("fieldRealCost")} (${currency})`} required>
+                      <Field label={`${t("fieldRealCost")} (${currency})`} required hint={t("invLineNetAmount")}>
                         <MoneyInput
                           value={l.cost}
+                          fractionDigits={2}
                           onChange={(d) =>
                             updateLine(l.itemId, {
                               cost: d,
@@ -4458,9 +4470,7 @@ function ReceiveSheet({
 
 /** Total recibido de la OC (bruto: neto + IVA del acumulado por línea). */
 function receivedTotal(o: OrderSummary): number {
-  return poTotals(
-    o.items.map((it) => ({ costCents: it.receivedCostCents, taxPct: it.taxPct })),
-  ).totalCents;
+  return purchaseOrderTotals(o, "received").totalCents;
 }
 
 /** Saldo pendiente de la OC = total bruto recibido − abonado. */
@@ -4594,7 +4604,7 @@ function UnpaidTab({
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-          {t("unpaidEmpty")}
+          {t(nextCursor ? "unpaidMoreCandidates" : "unpaidEmpty")}
         </div>
       ) : (
         <>
@@ -4692,17 +4702,17 @@ function UnpaidTab({
               );
             })}
           </div>
-          {nextCursor && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {loadingMore ? t("loading") : t("loadMore")}
-            </button>
-          )}
         </>
+      )}
+      {!listErr && rows !== null && nextCursor && (
+        <button
+          type="button"
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="mp-btn mp-btn--secondary mp-btn--block"
+        >
+          {loadingMore ? t("loading") : t("loadMore")}
+        </button>
       )}
 
       {payFor && (

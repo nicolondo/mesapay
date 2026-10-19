@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { loadAccountMap } from "@/lib/erp/ledger";
 import { isMoneyAccountCode } from "@/lib/erp/paymentAccounts";
-import { poTotals } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +76,11 @@ async function POSTHandler(
           restaurantId: true,
           status: true,
           paidCents: true,
-          items: { select: { receivedCostCents: true, taxPct: true } },
+          incCents: true,
+          retefuenteCents: true,
+          reteIvaCents: true,
+          reteIcaCents: true,
+          items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
         },
       });
       if (!po || po.restaurantId !== ctx.restaurantId) {
@@ -86,9 +90,7 @@ async function POSTHandler(
       if (po.status !== "received" && po.status !== "partially_received") {
         throw new PayError("wrong_status", 409);
       }
-      const grossTotal = poTotals(
-        po.items.map((i) => ({ costCents: i.receivedCostCents, taxPct: i.taxPct })),
-      ).totalCents;
+      const grossTotal = purchaseOrderTotals(po, "received").totalCents;
       const outstanding = grossTotal - po.paidCents;
       if (b.amountCents > outstanding) {
         throw new PayError("exceeds_balance", 400);

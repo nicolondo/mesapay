@@ -1,4 +1,5 @@
 import { DEFAULT_INPUT_UNIT, DISPLAY_UNITS, toBaseQty, type MeasureKind } from "./units";
+import { invoiceLineAmounts, type InvoiceAmountKind, type InvoiceTaxBasis } from "./invoiceAmounts";
 
 type SuggestedPresentation = {
   supplierItemId: string;
@@ -19,12 +20,49 @@ export type InvoiceReviewLine = {
   presentations: string; // modo presentación
   qty: string; // modo directo
   unit: string; // modo directo
-  cost: string; // costo NETO total de la línea, en pesos
-  taxPct: number; // IVA de la línea (0–100)
+  cost: string; // importe transcrito/editado en pesos; su interpretación es explícita
+  amountKind: InvoiceAmountKind;
+  taxBasis: InvoiceTaxBasis;
+  taxPct: number | null; // null exige elegir una tarifa, no significa exento
+  taxAmount: string; // IVA TOTAL explícito; vacío calcula desde tarifa/base
+  incAmount: string; // consumo TOTAL de la línea, nunca por unidad
+  amountLabel?: string | null;
+  incNeedsReview?: boolean;
   lowConfidence: boolean;
   readUnit: string | null; // unidad leída (pista)
   readQty: number; // cantidad leída (pista)
 };
+
+export function reviewPriceQuantity(line: InvoiceReviewLine): number {
+  return Number((line.qtyMode === "presentation" && line.suggestedPresentation
+    ? line.presentations : line.qty).replace(",", "."));
+}
+
+function typedCents(value: string): number | null {
+  if (!/^\d+(?:[.,]\d{0,2})?$/.test(value.trim())) return null;
+  const cents = Math.round(Number(value.replace(",", ".")) * 100);
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+}
+
+/** The same interpreted amounts feed the preview and the confirmation payload. */
+export function reviewLineAmounts(line: InvoiceReviewLine) {
+  const amountCents = typedCents(line.cost);
+  const taxCents = line.taxAmount.trim() === "" ? undefined : typedCents(line.taxAmount);
+  const incCents = line.incAmount.trim() === "" ? 0 : typedCents(line.incAmount);
+  if (amountCents == null || taxCents === null || incCents == null || line.taxPct == null
+    || (line.incNeedsReview && line.incAmount.trim() === "")) return null;
+  return invoiceLineAmounts({ amountCents, amountKind: line.amountKind,
+    quantity: reviewPriceQuantity(line), taxBasis: line.taxBasis, taxPct: line.taxPct, taxCents, incCents });
+}
+
+/** Switching quantity units/presentations must not multiply a unit price again. */
+export function fixReviewPriceAsTotal(line: InvoiceReviewLine): InvoiceReviewLine {
+  if (line.amountKind === "line") return line;
+  const amount = typedCents(line.cost);
+  const quantity = reviewPriceQuantity(line);
+  return { ...line, amountKind: "line", cost: amount != null && Number.isFinite(quantity) && quantity > 0
+    ? String(Math.round(amount * quantity) / 100) : "" };
+}
 
 /** Cantidad en unidad base de una línea, o null si es inválida. */
 export function reviewLineQtyBase(l: InvoiceReviewLine): number | null {
@@ -58,7 +96,7 @@ export function selectReviewIngredient(
     qty = base == null ? "" : String(base / factor);
   }
   return {
-    ...line,
+    ...fixReviewPriceAsTotal(line),
     ingredientId: ingredient.id,
     ingredientName: ingredient.name,
     measureKind: ingredient.measureKind,

@@ -5,6 +5,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
 import { ComprasClient } from "./ComprasClient";
+import { PURCHASE_LINE_AMOUNTS_SELECT } from "@/lib/erp/purchaseTax";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +43,7 @@ export default async function ComprasPage() {
     include: {
       supplier: { select: { id: true, name: true } },
       items: {
-        select: {
-          expectedCostCents: true,
-          receivedCostCents: true,
-          taxPct: true,
-        },
+        select: PURCHASE_LINE_AMOUNTS_SELECT,
       },
       _count: { select: { items: true } },
     },

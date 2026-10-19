@@ -34,6 +34,7 @@ describe("frozen non-stock reception values", () => {
       receivedQtyBase: 1, receivedCostCents: 10000,
       nonInventoryReceivedCostCents: { increment: 10000 },
       nonInventoryReceivedNonDeductibleTaxCents: { increment: ivaDeductible ? 0 : 1900 },
+      nonInventoryReceivedIncCents: { increment: 0 },
     } });
   });
   it.each([[3, 3, 1, 0], [2, 2, 0, 1]])("uses cumulative invoice VAT for partial net amounts %i + %i", async (firstCost, secondCost, firstTax, secondTax) => {

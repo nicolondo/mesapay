@@ -33,6 +33,7 @@
  */
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
 import { formatInvoiceNumber, frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
 import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
 import {
@@ -149,8 +150,7 @@ export async function loadPurchaseTaxDocs(
       supplier: { select: { name: true, taxId: true } },
       items: {
         select: {
-          receivedCostCents: true,
-          taxPct: true,
+          ...PURCHASE_LINE_AMOUNTS_SELECT,
           nonInventoryReceivedNonDeductibleTaxCents: true,
         },
       },
@@ -165,9 +165,10 @@ export async function loadPurchaseTaxDocs(
     lines: p.items.map((i) => ({
       netCents: i.receivedCostCents,
       taxPct: i.taxPct,
+      taxCents: receivedPurchaseLineAmounts(i).taxCents,
       nonDeductibleTaxCents: i.nonInventoryReceivedNonDeductibleTaxCents,
     })),
-    incCents: p.incCents,
+    incCents: purchaseOrderTotals(p, "received").incCents,
     retefuenteCents: p.retefuenteCents,
     reteIvaCents: p.reteIvaCents,
     reteIcaCents: p.reteIcaCents,

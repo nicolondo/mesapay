@@ -15,7 +15,7 @@ import {
   type TaxSummary,
 } from "@/lib/erp/accounting";
 import { frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
-import { lineTaxCents } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
 import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
@@ -348,7 +348,7 @@ export async function computeTaxSummary(
     status: "paid" as const,
     paidAt: { gte: range.from, lt: range.to },
   };
-  const [tenant, sales, uninvoiced, invoices, poItems, poHeaders] = await Promise.all([
+  const [tenant, sales, uninvoiced, invoices, poHeaders] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { salesTaxKind: true, salesTaxPct: true },
@@ -368,24 +368,15 @@ export async function computeTaxSummary(
       where: { restaurantId, order: paidInMonth },
       select: { snapshot: true },
     }),
-    // IVA de compras: por línea recibida en el mes, taxPct × neto recibido.
-    db.purchaseOrderItem.findMany({
-      where: {
-        purchaseOrder: {
-          restaurantId,
-          receivedAt: { gte: range.from, lt: range.to },
-        },
-      },
-      select: { receivedCostCents: true, taxPct: true },
-    }),
-    // INC + retenciones capturados a nivel factura (cabecera de la OC).
-    db.purchaseOrder.aggregate({
+    // Impuestos documentales y acumulados: misma fuente que pagos y libros.
+    db.purchaseOrder.findMany({
       where: { restaurantId, receivedAt: { gte: range.from, lt: range.to } },
-      _sum: {
+      select: {
         incCents: true,
         retefuenteCents: true,
         reteIvaCents: true,
         reteIcaCents: true,
+        items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
       },
     }),
   ]);
@@ -436,10 +427,8 @@ export async function computeTaxSummary(
   const salesTaxCents = byRate.reduce((s, r) => s + r.taxCents, 0);
   const label = byRate[0] ?? current;
 
-  const ivaCents = poItems.reduce(
-    (s, it) => s + lineTaxCents(it.receivedCostCents, it.taxPct),
-    0,
-  );
+  const purchaseAmounts = poHeaders.map((order) => purchaseOrderTotals(order, "received"));
+  const ivaCents = purchaseAmounts.reduce((sum, order) => sum + order.taxCents, 0);
 
   return {
     sales: {
@@ -452,10 +441,10 @@ export async function computeTaxSummary(
     },
     purchases: {
       ivaCents,
-      incCents: poHeaders._sum.incCents ?? 0,
-      retefuenteCents: poHeaders._sum.retefuenteCents ?? 0,
-      reteIvaCents: poHeaders._sum.reteIvaCents ?? 0,
-      reteIcaCents: poHeaders._sum.reteIcaCents ?? 0,
+      incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0),
+      retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0),
+      reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0),
+      reteIcaCents: poHeaders.reduce((sum, order) => sum + order.reteIcaCents, 0),
     },
   };
 }
@@ -597,12 +586,13 @@ export async function loadPurchasesBook(
       supplierInvoiceNumber: true,
       invoiceDueAt: true,
       paidAt: true,
+      paidCents: true,
       incCents: true,
       retefuenteCents: true,
       reteIvaCents: true,
       reteIcaCents: true,
       supplier: { select: { name: true } },
-      items: { select: { receivedCostCents: true, nonInventoryReceivedCostCents: true, nonInventoryReceivedNonDeductibleTaxCents: true, taxPct: true } },
+      items: { select: { ...PURCHASE_LINE_AMOUNTS_SELECT, nonInventoryReceivedCostCents: true, nonInventoryReceivedNonDeductibleTaxCents: true, nonInventoryReceivedIncCents: true } },
     },
   });
   const rows = orders.map((o) => ({
@@ -613,20 +603,23 @@ export async function loadPurchasesBook(
     supplierInvoiceNumber: o.supplierInvoiceNumber,
     invoiceDueAt: o.invoiceDueAt,
     paidAt: o.paidAt,
+    outstandingCents: Math.max(0, purchaseOrderTotals(o, "received").totalCents - (o.paidCents ?? 0)),
     receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
     nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
     nonInventoryNonDeductibleTaxCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedNonDeductibleTaxCents, 0),
     nonInventoryIncCents: splitPurchaseInventoryCost({
       receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
       nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
-      incCents: o.incCents,
+      incCents: purchaseOrderTotals(o, "received").incCents,
+      allocatedIncCents: o.items.reduce((s, i) => s + receivedPurchaseLineAmounts(i).incCents, 0),
+      nonInventoryAllocatedIncCents: o.items.reduce((s, i) => s + (i.nonInventoryReceivedIncCents ?? 0), 0),
     }).nonInventoryIncCents,
     // Impuestos de la factura (ERP A3): IVA desde las líneas + INC/retenciones.
     ivaCents: o.items.reduce(
-      (s, i) => s + lineTaxCents(i.receivedCostCents, i.taxPct),
+      (s, i) => s + receivedPurchaseLineAmounts(i).taxCents,
       0,
     ),
-    incCents: o.incCents,
+    incCents: purchaseOrderTotals(o, "received").incCents,
     retefuenteCents: o.retefuenteCents,
     reteIvaCents: o.reteIvaCents,
     reteIcaCents: o.reteIcaCents,
@@ -637,9 +630,7 @@ export async function loadPurchasesBook(
     nonInventoryReceivedCents: rows.reduce((s, r) => s + r.nonInventoryReceivedCents, 0),
     nonInventoryNonDeductibleTaxCents: rows.reduce((s, r) => s + r.nonInventoryNonDeductibleTaxCents, 0),
     nonInventoryIncCents: rows.reduce((s, r) => s + r.nonInventoryIncCents, 0),
-    unpaidCents: rows
-      .filter((r) => !r.paidAt)
-      .reduce((s, r) => s + r.receivedCents, 0),
+    unpaidCents: rows.reduce((s, r) => s + r.outstandingCents, 0),
     ivaCents: rows.reduce((s, r) => s + r.ivaCents, 0),
     incCents: rows.reduce((s, r) => s + r.incCents, 0),
     retefuenteCents: rows.reduce((s, r) => s + r.retefuenteCents, 0),

@@ -29,7 +29,7 @@
  */
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
-import { poTotals } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, type PurchaseLineAmountsInput } from "@/lib/erp/purchaseTax";
 import {
   allocateFifo,
   chargeDebtCents,
@@ -67,8 +67,12 @@ const PO_SELECT = {
   receivedAt: true,
   invoiceDueAt: true,
   supplierInvoiceNumber: true,
+  incCents: true,
+  retefuenteCents: true,
+  reteIvaCents: true,
+  reteIcaCents: true,
   supplier: { select: { id: true, name: true, taxId: true, paymentTermsDays: true } },
-  items: { select: { receivedCostCents: true, taxPct: true } },
+  items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
   movements: {
     where: { kind: "purchase_in" as const },
     select: { createdAt: true },
@@ -85,7 +89,11 @@ type PoRow = {
   invoiceDueAt: Date | null;
   supplierInvoiceNumber: string | null;
   supplier: { id: string; name: string; taxId: string | null; paymentTermsDays: number | null };
-  items: { receivedCostCents: number; taxPct: number }[];
+  incCents: number;
+  retefuenteCents: number;
+  reteIvaCents: number;
+  reteIcaCents: number;
+  items: PurchaseLineAmountsInput[];
   movements: { createdAt: Date }[];
   payments: { id: string; amountCents: number; paidAt: Date; method: string | null; note: string | null }[];
 };
@@ -95,9 +103,7 @@ function poToDoc(po: PoRow, to: Date): CarteraDoc | null {
   const dateAt = po.receivedAt ?? po.movements[0]?.createdAt ?? po.createdAt;
   if (dateAt >= to) return null;
   const date = isoDateUtc(dateAt);
-  const totalCents = poTotals(
-    po.items.map((i) => ({ costCents: i.receivedCostCents, taxPct: i.taxPct })),
-  ).totalCents;
+  const totalCents = purchaseOrderTotals(po, "received").totalCents;
   return {
     id: po.id,
     source: "purchase_order",
@@ -167,7 +173,14 @@ export async function loadPayablesDocs(restaurantId: string, hasta: string): Pro
         restaurantId,
         status: { in: ["received", "partially_received"] },
         createdAt: { lt: to },
-        OR: [{ paidAt: null }, { payments: { some: { paidAt: { gte: to } } } }],
+        OR: [
+          { paidAt: null },
+          { payments: { some: { paidAt: { gte: to } } } },
+          // The former payment total omitted header taxes/withholdings.
+          // Re-evaluate only those documentary candidates as well; do not
+          // rewrite historical payments or trust their old paidAt cache.
+          { incCents: { gt: 0 } },
+        ],
       },
       select: {
         ...PO_SELECT,

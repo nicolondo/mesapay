@@ -150,7 +150,7 @@ export function purchaseDetailRows(purchases: readonly PurchaseTaxInput[]): TaxD
   const rows = new Map<string, TaxDocRow>();
   for (const p of purchases) {
     for (const l of p.lines) {
-      const tax = purchaseLineTaxCents(l.netCents, l.taxPct);
+      const tax = l.taxCents ?? purchaseLineTaxCents(l.netCents, l.taxPct);
       if (tax === 0) continue;
       const key = `${p.purchaseId}:${l.taxPct}`;
       const prev = rows.get(key);

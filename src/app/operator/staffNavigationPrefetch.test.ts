@@ -69,6 +69,7 @@ vi.mock("./BillRequestAlert", () => ({ BillRequestAlert: () => null }));
 vi.mock("@/components/LocaleSwitcher", () => ({ LocaleSwitcher: () => null }));
 vi.mock("@/components/CashBox", () => ({ CashBox: () => null }));
 vi.mock("@/lib/cashBox", () => ({ buildCashSnapshot: async () => ({}) }));
+vi.mock("@/lib/reports/dashboardSalesQuery", () => ({ loadDashboardSales: async () => [] }));
 vi.mock("./LiveRefresh", () => ({ LiveRefresh: () => null }));
 vi.mock("@/components/ui/AppDialog", () => ({ AppDialog: ({ children }: { children: ReactNode }) => children }));
 vi.mock("@/app/mesero/PushSetup", () => ({ PushSetup: () => null }));

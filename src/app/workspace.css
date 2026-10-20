@@ -257,6 +257,16 @@
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
+.mp-kpi-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--op-muted);
+}
+.mp-kpi--primary .mp-kpi-hint {
+  color: #c6beb3;
+}
 .mp-kpi--primary {
   background: var(--ink);
   color: var(--ivory);
@@ -308,6 +318,9 @@
   grid-template-columns: 1.1fr 1fr;
   gap: 24px;
 }
+.mp-sales-panel {
+  container: dashboard-sales / inline-size;
+}
 .mp-sales-chart {
   display: flex;
   align-items: flex-end;
@@ -342,6 +355,13 @@
   font-variant-numeric: tabular-nums;
   color: var(--op-muted);
   white-space: nowrap;
+}
+/* Exact daily values remain visible in the table below. On narrow panels,
+   bar labels would collide even when the viewport itself is wide. */
+@container dashboard-sales (max-width: 600px) {
+  .mp-sales-value {
+    display: none;
+  }
 }
 .mp-sales-day {
   display: block;

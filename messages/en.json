@@ -3446,6 +3446,8 @@
     "methodCustomerCredit": "Customer credit"
   },
   "opDashboard": {
+    "salesBeforeTaxAndTip": "Sales excluding taxes and tips",
+    "salesBasis": "Excluding taxes and tips",
     "noRestaurant": "You don't have a restaurant assigned. Contact the admin.",
     "kpiSalesToday": "Sales today",
     "kpiPaidOrders": "Paid orders",

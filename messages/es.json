@@ -3446,6 +3446,8 @@
     "methodCustomerCredit": "Crédito a cliente"
   },
   "opDashboard": {
+    "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",
+    "salesBasis": "Sin impuestos ni propina",
     "noRestaurant": "No tienes restaurante asignado. Contacta al admin.",
     "kpiSalesToday": "Ventas hoy",
     "kpiPaidOrders": "Órdenes pagadas",

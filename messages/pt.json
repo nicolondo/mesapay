@@ -3446,6 +3446,8 @@
     "methodCustomerCredit": "Crédito a cliente"
   },
   "opDashboard": {
+    "salesBeforeTaxAndTip": "Vendas sem impostos nem gorjeta",
+    "salesBasis": "Sem impostos nem gorjeta",
     "noRestaurant": "Você não tem um restaurante atribuído. Fale com o admin.",
     "kpiSalesToday": "Vendas hoje",
     "kpiPaidOrders": "Pedidos pagos",

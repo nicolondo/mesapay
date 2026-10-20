@@ -10,6 +10,9 @@ import { CashBox } from "@/components/CashBox";
 import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
+import { summarizeDashboardSales } from "@/lib/reports/dashboardSales";
+import { loadDashboardSales } from "@/lib/reports/dashboardSalesQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +39,8 @@ export default async function OperatorHome() {
       serviceMode: true,
       shiftPolicy: true,
       businessDayCutoffHour: true,
+      salesTaxKind: true,
+      salesTaxPct: true,
     },
   });
   const counterMode = tenant?.serviceMode === "counter";
@@ -53,11 +58,10 @@ export default async function OperatorHome() {
 
   // Inicio de la ventana de 7 jornadas (incluye hoy): hoy − 6 días.
   const weekStart = new Date(today.getTime() - 6 * 86400000);
+  const tomorrow = new Date(today.getTime() + 86400000);
 
   const [
     openOrdersCount,
-    todayPaidCount,
-    todayPaidAgg,
     weekPaid,
     topItemsRaw,
     openOrders,
@@ -68,21 +72,8 @@ export default async function OperatorHome() {
         status: { in: ["placed", "in_kitchen", "ready", "served", "paying"] },
       },
     }),
-    db.order.count({
-      where: { restaurantId, status: "paid", paidAt: { gte: today } },
-    }),
-    db.order.aggregate({
-      where: { restaurantId, status: "paid", paidAt: { gte: today } },
-      _sum: { totalCents: true },
-      _avg: { totalCents: true },
-    }),
-    db.order.findMany({
-      where: {
-        restaurantId,
-        status: "paid",
-        paidAt: { gte: weekStart },
-      },
-      select: { totalCents: true, paidAt: true },
+    loadDashboardSales(restaurantId, { from: weekStart, to: tomorrow }, {
+      kind: asSalesTaxKind(tenant?.salesTaxKind), pct: tenant?.salesTaxPct ?? 0,
     }),
     db.orderItem.groupBy({
       by: ["nameSnapshot"],
@@ -117,22 +108,10 @@ export default async function OperatorHome() {
     }),
   ]);
 
-  const avgTicketCents = Math.round(todayPaidAgg._avg.totalCents ?? 0);
-  const salesTodayCents = todayPaidAgg._sum.totalCents ?? 0;
-
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    return { date: d, cents: 0 };
-  });
-  for (const p of weekPaid) {
-    if (!p.paidAt) continue;
-    const idx = Math.floor(
-      (new Date(p.paidAt).getTime() - weekStart.getTime()) / 86400000,
-    );
-    if (idx >= 0 && idx < 7) weekDays[idx].cents += p.totalCents;
-  }
-  const maxDay = Math.max(1, ...weekDays.map((d) => d.cents));
+  const sales = summarizeDashboardSales(weekPaid, { from: weekStart, days: 7 });
+  const weekDays = sales.days;
+  const todayPaidCount = sales.todayPaidCount;
+  const maxDay = Math.max(1, ...weekDays.map((d) => d.netCents));
 
   return (
     <div className="mp-page">
@@ -152,7 +131,8 @@ export default async function OperatorHome() {
       <div className="mp-kpis">
         <Kpi
           label={tr("kpiSalesToday")}
-          value={fmtCOP(salesTodayCents)}
+          value={fmtCOP(sales.todayNetCents)}
+          hint={tr("salesBasis")}
           href="/operator/payments"
           primary
         />
@@ -163,7 +143,8 @@ export default async function OperatorHome() {
         />
         <Kpi
           label={tr("kpiAvgTicket")}
-          value={todayPaidCount === 0 ? tr("dash") : fmtCOP(avgTicketCents)}
+          value={todayPaidCount === 0 ? tr("dash") : fmtCOP(sales.avgTicketNetCents)}
+          hint={tr("salesBasis")}
           href="/operator/reports"
         />
         <Kpi
@@ -183,22 +164,25 @@ export default async function OperatorHome() {
         />
       </div>
       <div className="mp-dashboard-columns">
-        <section className="mp-panel" aria-labelledby="sales-title">
+        <section className="mp-panel mp-sales-panel" aria-labelledby="sales-title">
           <div className="mp-panel-heading">
-            <h2 id="sales-title">{tr("last7Days")}</h2>
+            <div>
+              <h2 id="sales-title">{tr("salesBeforeTaxAndTip")}</h2>
+              <p className="text-xs text-op-muted mt-1">{tr("last7Days")}</p>
+            </div>
             <span className="text-sm font-medium tabular">
-              {fmtCOP(weekDays.reduce((sum, d) => sum + d.cents, 0))}
+              {fmtCOP(sales.totalNetCents)}
             </span>
           </div>
           <div className="mp-sales-chart" aria-hidden="true">
             {weekDays.map((d, i) => (
               <div key={i} className="mp-sales-column">
-                <span className="mp-sales-value">{fmtCOP(d.cents)}</span>
+                <span className="mp-sales-value">{fmtCOP(d.netCents)}</span>
                 <div className="mp-sales-track">
                   <div
                     className={"mp-sales-bar" + (i === 6 ? " is-today" : "")}
                     style={{
-                      height: `${d.cents === 0 ? 0 : Math.max(3, Math.round((d.cents / maxDay) * 100))}%`,
+                      height: `${d.netCents === 0 ? 0 : Math.max(3, Math.round((d.netCents / maxDay) * 100))}%`,
                     }}
                   />
                 </div>
@@ -206,10 +190,10 @@ export default async function OperatorHome() {
               </div>
             ))}
           </div>
-          <details className="mp-chart-details">
+          <details className="mp-chart-details" open>
             <summary>{ux("dailyBreakdown")}</summary>
             <table className="w-full text-sm">
-              <caption className="sr-only">{tr("last7Days")}</caption>
+              <caption className="sr-only">{tr("salesBeforeTaxAndTip")}</caption>
               <tbody>
                 {weekDays.map((d, i) => (
                   <tr key={i}>
@@ -220,7 +204,7 @@ export default async function OperatorHome() {
                         month: "short",
                       })}
                     </th>
-                    <td className="text-right tabular">{fmtCOP(d.cents)}</td>
+                    <td className="text-right tabular">{fmtCOP(d.netCents)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -333,12 +317,14 @@ function Kpi({
   href,
   accent,
   primary,
+  hint,
 }: {
   label: string;
   value: string;
   href: string;
   accent?: boolean;
   primary?: boolean;
+  hint?: string;
 }) {
   return (
     <Link
@@ -351,6 +337,7 @@ function Kpi({
         <Icon name="arrow" width="16" />
       </span>
       <span className="mp-kpi-value">{value}</span>
+      {hint && <span className="mp-kpi-hint">{hint}</span>}
     </Link>
   );
 }

@@ -6844,7 +6844,18 @@
     "invLineUnassignedInc": "Consumo não distribuído nas linhas",
     "invLineIncFooterHint": "Este consumo está pendente de distribuição. Ao informá-lo nas linhas, este saldo é reduzido automaticamente; o imposto não é somado novamente.",
     "invLineUnallocatedConsumption": "Distribua o imposto sobre consumo pendente nas linhas antes de confirmar, para contabilizá-lo uma única vez e manter o custo correto de cada insumo.",
-    "invLineRetentions": "Retenções"
+    "invLineRetentions": "Retenções",
+    "invAliasSource": "Na fatura: {name}",
+    "invAliasSaved": "Associação salva para este fornecedor",
+    "invAliasRemember": "Lembrar esta associação nas próximas faturas deste fornecedor",
+    "invAliasRememberHint": "Ela será salva ao confirmar a compra.",
+    "invAliasUnavailable": "O insumo associado a este nome está arquivado ou não está mais disponível. Selecione outro insumo ou crie um novo.",
+    "invAliasLoading": "Buscando associações deste fornecedor…",
+    "invAliasLoadError": "Não foi possível carregar as associações do fornecedor. Tente novamente antes de confirmar.",
+    "invAliasIngredientsError": "Não foi possível carregar o catálogo de insumos.",
+    "invAliasRetry": "Tentar novamente",
+    "invAliasInvalid": "Não foi possível identificar a linha original. Desmarque “Lembrar” ou carregue a fatura novamente.",
+    "invAliasConflict": "Um mesmo nome deste fornecedor está associado a dois insumos diferentes nesta fatura. Escolha o mesmo insumo ou desmarque “Lembrar” em uma das linhas."
   },
   "opDian": {
     "title": "Faturação eletrónica DIAN",

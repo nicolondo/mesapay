@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { InvoiceAliasError, rememberInvoiceAliases } from "@/lib/erp/invoiceAliases";
 import {
   createPurchaseOrder,
   receivePurchaseOrder,
@@ -30,6 +31,8 @@ const lineSchema = z.object({
   taxPct: z.number().int().min(0).max(100).optional(),
   expectedTaxCents: z.number().int().min(0).max(2_000_000_000).nullable().optional(),
   expectedIncCents: z.number().int().min(0).max(2_000_000_000).optional(),
+  sourceLineIndex: z.number().int().min(0).optional(),
+  rememberMatch: z.boolean().optional(),
 });
 
 const cents = z.number().int().min(0).max(2_000_000_000).optional();
@@ -121,6 +124,10 @@ async function POSTHandler(
           throw new PurchasingError("supplier_not_found");
         }
       }
+
+      await rememberInvoiceAliases(tx, {
+        restaurantId: ctx.restaurantId, uploadId: id, supplierId, lines: b.lines,
+      });
 
       // 2. Insumos nuevos + líneas de la OC (cantidad en unidad base).
       const poLines: CreatePoLine[] = [];
@@ -229,6 +236,9 @@ async function POSTHandler(
 
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
+    if (err instanceof InvoiceAliasError) {
+      return NextResponse.json({ error: err.code }, { status: 400 });
+    }
     if (err instanceof PurchasingError) {
       return NextResponse.json({ error: err.code }, { status: err.code === "not_pending" ? 409 : 400 });
     }

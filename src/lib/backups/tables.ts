@@ -195,6 +195,11 @@ export function restaurantFields(): DmmfField[] {
  * (`{ order: { restaurantId } }`). Sirve igual para findMany y deleteMany.
  */
 export function ownerWhere(model: TenantModel, restaurantId: string): Record<string, unknown> {
+  // Both ends of a learned supplier name are business-owned. Never export an
+  // inconsistent cross-tenant reference, even if introduced outside the API.
+  if (model.name === "SupplierInvoiceAlias") {
+    return { supplier: { restaurantId }, ingredient: { restaurantId } };
+  }
   let where: Record<string, unknown> = { restaurantId };
   for (let i = model.ownerPath.length - 1; i >= 0; i--) {
     where = { [model.ownerPath[i]]: where };

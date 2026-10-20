@@ -6844,7 +6844,18 @@
     "invLineUnassignedInc": "Consumption tax not allocated to lines",
     "invLineIncFooterHint": "This consumption tax is awaiting allocation. Entering it on its lines automatically reduces this balance; it is not added twice.",
     "invLineUnallocatedConsumption": "Allocate the remaining consumption tax to its lines before confirming, so it is counted once and each ingredient has the correct cost.",
-    "invLineRetentions": "Withholdings"
+    "invLineRetentions": "Withholdings",
+    "invAliasSource": "On the invoice: {name}",
+    "invAliasSaved": "Saved association for this supplier",
+    "invAliasRemember": "Remember this association for future invoices from this supplier",
+    "invAliasRememberHint": "It will be saved when you confirm the purchase.",
+    "invAliasUnavailable": "The ingredient associated with this name is archived or no longer available. Choose another ingredient or create a new one.",
+    "invAliasLoading": "Looking up this supplier’s associations…",
+    "invAliasLoadError": "Could not load this supplier’s associations. Try again before confirming.",
+    "invAliasIngredientsError": "Could not load the ingredient catalog.",
+    "invAliasRetry": "Try again",
+    "invAliasInvalid": "The original line could not be identified. Uncheck “Remember” or upload the invoice again.",
+    "invAliasConflict": "The same name from this supplier is associated with two different ingredients on this invoice. Choose the same ingredient or uncheck “Remember” on one of the lines."
   },
   "opDian": {
     "title": "DIAN electronic invoicing",

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, selectReviewIngredient, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
@@ -2092,6 +2093,9 @@ type SuggestedPresentation = {
 };
 
 type MatchLine = {
+  sourceLineIndex?: number;
+  matchSource?: "alias" | "name";
+  aliasUnavailable?: boolean;
   line: ExtractionLine;
   lowConfidence: boolean;
   ingredient: IngredientMatch;
@@ -2140,6 +2144,8 @@ const API_UPLOAD_ERROR_KEYS: Record<string, string> = {
 
 // Errores del POST de confirmación → clave i18n (fallback errSaveFailed).
 const API_CONFIRM_ERROR_KEYS: Record<string, string> = {
+  alias_invalid: "invAliasInvalid",
+  alias_conflict: "invAliasConflict",
   invalid: "invReviewErrInvalid",
   supplier_not_found: "invReviewErrSupplierNotFound",
   ingredient_not_found: "invReviewErrIngredientNotFound",
@@ -2265,7 +2271,7 @@ function matchReadUnit(kind: MeasureKind, unit: string | null): string | null {
   return DISPLAY_UNITS[kind].find((d) => d.symbol.toLowerCase() === u)?.symbol ?? null;
 }
 
-function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
+function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
   const ing = m.ingredient;
   const q = m.line.quantity;
   // Insumo nuevo: inferir la medida de la unidad leída; si no se puede,
@@ -2278,6 +2284,11 @@ function matchLineToReviewLine(m: MatchLine): InvoiceReviewLine {
         (Number.isInteger(q) ? "count" : "mass"));
   return {
     key: ++invLineKeySeq,
+    sourceLineIndex: m.sourceLineIndex ?? index,
+    sourceDescription: m.line.description,
+    rememberMatch: false,
+    matchSource: m.matchSource,
+    aliasUnavailable: m.aliasUnavailable,
     ingredientId: ing.kind === "matched" ? ing.ingredient.id : null,
     ingredientName:
       ing.kind === "matched" ? ing.ingredient.name : ing.name,
@@ -2363,6 +2374,9 @@ function InvoiceReviewSheet({
       : (extraction.supplierNit ?? ""),
   );
   const [supQ, setSupQ] = useState("");
+  const [supplierMatchBusy, setSupplierMatchBusy] = useState(false);
+  const [supplierMatchError, setSupplierMatchError] = useState(false);
+  const supplierMatchRequest = useRef(0);
 
   const [invoiceNumber, setInvoiceNumber] = useState(
     extraction.supplierInvoiceNumber ?? "",
@@ -2377,26 +2391,58 @@ function InvoiceReviewSheet({
 
   // Insumos existentes para el picker "usar existente" (carga diferida).
   const [ingredients, setIngredients] = useState<IngredientRef[] | null>(null);
+  const [ingredientsError, setIngredientsError] = useState(false);
+  const [ingredientsAttempt, setIngredientsAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const r = await fetch("/api/operator/ingredients");
-        if (!r.ok) return;
+        if (!r.ok) throw new Error("ingredients_unavailable");
         const j = await r.json();
         if (cancelled) return;
         setIngredients(
           ((j.ingredients ?? []) as IngredientRef[]).filter((i) => i.active),
         );
       } catch {
-        // El picker de insumos existentes queda sin lista; se puede crear
-        // insumo nuevo igual. No es bloqueante.
+        if (!cancelled) setIngredientsError(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ingredientsAttempt]);
+
+  function retryIngredients() {
+    setIngredientsError(false);
+    setIngredientsAttempt(attempt => attempt + 1);
+  }
+
+  async function changeReviewSupplier(next: SupplierRef | null, preserveSelection = false) {
+    const requestId = ++supplierMatchRequest.current;
+    setSupplier(next);
+    setSupQ("");
+    setSupplierMatchError(false);
+    if (!preserveSelection) setLines(previous => previous.map(resetInvoiceSupplier));
+    setSupplierMatchBusy(next != null);
+    if (!next) return;
+    try {
+      const response = await fetch(`/api/operator/purchase-invoices/${uploadId}?supplierId=${encodeURIComponent(next.id)}`);
+      if (!response.ok) throw new Error("supplier_match_unavailable");
+      const data = await response.json() as { match: InvoiceUploadResult["match"] | null };
+      if (!data.match) throw new Error("supplier_match_unavailable");
+      if (requestId !== supplierMatchRequest.current) return;
+      const matches = new Map(data.match.lines.map((line, index) => [line.sourceLineIndex ?? index, line]));
+      setLines(previous => previous.map(line => {
+        const match = line.sourceLineIndex == null ? undefined : matches.get(line.sourceLineIndex);
+        return match ? applyInvoiceSupplierMatch(line, match) : line;
+      }));
+    } catch {
+      if (requestId === supplierMatchRequest.current) setSupplierMatchError(true);
+    } finally {
+      if (requestId === supplierMatchRequest.current) setSupplierMatchBusy(false);
+    }
+  }
 
   // Modo de confirmación (D5): recordado por comercio en localStorage. El
   // sheet solo se monta en el cliente tras subir, así que leer en el lazy
@@ -2609,10 +2655,10 @@ function InvoiceReviewSheet({
   }
 
   async function confirm() {
-    if (busyRef.current) return;
+    if (busyRef.current || supplierMatchBusy || supplierMatchError) return;
     setErr(null);
     // Proveedor: existente o nombre nuevo.
-    if (!supplier && !newSupplierName.trim()) {
+    if (!supplier && (!creatingSupplier || !newSupplierName.trim())) {
       setErr(t("invReviewErrNoSupplier"));
       return;
     }
@@ -2626,6 +2672,8 @@ function InvoiceReviewSheet({
     }
     // Validación por línea: insumo, cantidad y costo.
     const payloadLines: {
+      sourceLineIndex?: number;
+      rememberMatch?: boolean;
       ingredientId: string | null;
       newIngredientName?: string;
       newIngredientMeasureKind?: MeasureKind;
@@ -2636,6 +2684,10 @@ function InvoiceReviewSheet({
       expectedIncCents: number;
     }[] = [];
     for (const l of lines) {
+      if (l.aliasUnavailable) {
+        setErr(t("invAliasUnavailable"));
+        return;
+      }
       if (!l.ingredientId && !l.ingredientName.trim()) {
         setErr(t("invReviewErrNoLineIngredient"));
         return;
@@ -2653,6 +2705,8 @@ function InvoiceReviewSheet({
       payloadLines.push(
         l.ingredientId
           ? {
+              sourceLineIndex: l.sourceLineIndex,
+              rememberMatch: l.rememberMatch === true,
               ingredientId: l.ingredientId,
               qtyBase,
               expectedCostCents: amounts.netCents,
@@ -2852,8 +2906,7 @@ function InvoiceReviewSheet({
                 <button
                   type="button"
                   onClick={() => {
-                    setSupplier(null);
-                    setSupQ("");
+                    void changeReviewSupplier(null);
                   }}
                   className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
                 >
@@ -2879,7 +2932,7 @@ function InvoiceReviewSheet({
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => setSupplier(s)}
+                        onClick={() => { void changeReviewSupplier(s); }}
                         className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
                       >
                         {s.name}
@@ -2899,6 +2952,16 @@ function InvoiceReviewSheet({
                   {t("invReviewCreateSupplier")}
                 </button>
               </>
+            )}
+
+            {supplierMatchBusy && <p role="status" className="text-xs text-op-muted">{t("invAliasLoading")}</p>}
+            {supplierMatchError && (
+              <div role="alert" className="text-xs text-danger">
+                {t("invAliasLoadError")}
+                <button type="button" className="mp-btn mp-btn--secondary mp-btn--sm mt-2" onClick={() => { void changeReviewSupplier(supplier, true); }}>
+                  {t("invAliasRetry")}
+                </button>
+              </div>
             )}
 
             <div className="grid grid-cols-2 gap-2">
@@ -2933,6 +2996,8 @@ function InvoiceReviewSheet({
                 currency={currency}
                 taxRates={taxRates}
                 ingredients={ingredients}
+                ingredientsError={ingredientsError}
+                onRetryIngredients={retryIngredients}
                 onChange={(changes) => updateLine(l.key, changes)}
                 onRemove={() => removeLine(l.key)}
               />
@@ -3116,7 +3181,7 @@ function InvoiceReviewSheet({
             <button
               type="button"
               onClick={confirm}
-              disabled={busy}
+              disabled={busy || supplierMatchBusy || supplierMatchError}
               className="mp-btn mp-btn--primary"
             >
               {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
@@ -3135,6 +3200,8 @@ function InvoiceReviewLineCard({
   currency,
   taxRates,
   ingredients,
+  ingredientsError,
+  onRetryIngredients,
   onChange,
   onRemove,
 }: {
@@ -3142,6 +3209,8 @@ function InvoiceReviewLineCard({
   currency: string;
   taxRates: number[];
   ingredients: IngredientRef[] | null;
+  ingredientsError: boolean;
+  onRetryIngredients: () => void;
   onChange: (changes: Partial<InvoiceReviewLine>) => void;
   onRemove: () => void;
 }) {
@@ -3202,6 +3271,16 @@ function InvoiceReviewLineCard({
         </button>
       </div>
 
+      {l.sourceDescription && (
+        <p className="text-xs text-op-muted break-words">{t("invAliasSource", { name: l.sourceDescription })}</p>
+      )}
+      {l.matchSource === "alias" && (
+        <p className="text-xs text-[#2E7D32]" role="status">{t("invAliasSaved")}</p>
+      )}
+      {l.aliasUnavailable && (
+        <p className="text-xs text-danger" role="alert">{t("invAliasUnavailable")}</p>
+      )}
+
       {/* Selector de insumo existente / nombre + measureKind del nuevo */}
       {picking ? (
         <div>
@@ -3210,10 +3289,19 @@ function InvoiceReviewLineCard({
             value={ingQ}
             onChange={(e) => setIngQ(e.target.value)}
             placeholder={t("ingredientSearchPlaceholder")}
+            aria-label={t("ingredientSearchPlaceholder")}
+            disabled={ingredients === null}
             className={inputCls}
           />
           <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-40 overflow-y-auto">
-            {ingMatches.length === 0 ? (
+            {ingredientsError ? (
+              <div role="alert" className="px-3 py-2 text-xs text-danger">
+                {t("invAliasIngredientsError")}
+                <button type="button" className="mp-btn mp-btn--secondary mp-btn--sm mt-2" onClick={onRetryIngredients}>{t("invAliasRetry")}</button>
+              </div>
+            ) : ingredients === null ? (
+              <p role="status" className="px-3 py-2 text-xs text-op-muted">{t("loading")}</p>
+            ) : ingMatches.length === 0 ? (
               <div className="px-3 py-2 text-xs text-op-muted">
                 {t("noIngredientMatches")}
               </div>
@@ -3223,7 +3311,7 @@ function InvoiceReviewLineCard({
                   key={i.id}
                   type="button"
                   onClick={() => {
-                    onChange(selectReviewIngredient(l, i));
+                    onChange(chooseInvoiceIngredient(l, i));
                     setPicking(false);
                     setIngQ("");
                   }}
@@ -3259,7 +3347,7 @@ function InvoiceReviewLineCard({
           </button>
           <button
             type="button"
-            onClick={() => onChange(selectReviewIngredient(l, { id: null, name: "", measureKind: l.measureKind }))}
+            onClick={() => onChange(chooseInvoiceIngredient(l, { id: null, name: "", measureKind: l.measureKind }))}
             className="text-[11px] font-medium text-op-muted hover:text-ink"
           >
             {t("invReviewCreateNewIngredient")}
@@ -3267,11 +3355,18 @@ function InvoiceReviewLineCard({
         </div>
       ) : (
         <>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="mp-btn mp-btn--secondary mp-btn--block"
+          >
+            {t("invReviewUseExistingIngredient")}
+          </button>
           <Field label={t("invReviewNewIngredientName")} required>
             <input
               type="text"
               value={l.ingredientName}
-              onChange={(e) => onChange({ ingredientName: e.target.value })}
+              onChange={(e) => onChange({ ingredientName: e.target.value, manuallySelected: true, aliasUnavailable: false })}
               maxLength={120}
               className={inputCls}
             />
@@ -3281,7 +3376,7 @@ function InvoiceReviewLineCard({
               value={l.measureKind}
               onChange={(e) => {
                 const kind = e.target.value as MeasureKind;
-                onChange(selectReviewIngredient(l, { id: null, name: l.ingredientName, measureKind: kind }));
+                onChange(chooseInvoiceIngredient(l, { id: null, name: l.ingredientName, measureKind: kind }));
               }}
               className={inputCls}
             >
@@ -3290,16 +3385,15 @@ function InvoiceReviewLineCard({
               <option value="count">{t("invReviewMeasureCount")}</option>
             </select>
           </Field>
-          {ingredients && ingredients.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              className="text-[11px] font-medium text-op-muted hover:text-ink"
-            >
-              {t("invReviewUseExistingIngredient")}
-            </button>
-          )}
         </>
+      )}
+
+      {l.ingredientId && l.sourceLineIndex != null && l.matchSource !== "alias" && (
+        <label className="flex items-start gap-2 rounded-xl border border-op-border bg-op-surface p-3 text-xs leading-relaxed">
+          <input type="checkbox" aria-label={t("invAliasRemember")} className="mt-0.5 h-4 w-4 shrink-0 accent-ink" checked={l.rememberMatch === true}
+            onChange={e => onChange({ rememberMatch: e.target.checked, ...(e.target.checked ? { manuallySelected: true } : {}) })} />
+          <span>{t("invAliasRemember")}<span className="block text-op-muted mt-1">{t("invAliasRememberHint")}</span></span>
+        </label>
       )}
 
       {/* Cantidad: por presentación (si hay sugerencia) o directa */}

@@ -25,6 +25,7 @@ describe("tenant model discovery", () => {
     expect(tenantModel("JournalLine")?.ownerPath).toEqual(["entry"]);
     expect(tenantModel("PurchaseOrderItem")?.ownerPath).toEqual(["purchaseOrder"]);
     expect(tenantModel("SupplierPriceHistory")?.ownerPath).toEqual(["supplierItem", "supplier"]);
+    expect(tenantModel("SupplierInvoiceAlias")?.ownerPath).toEqual(["supplier"]);
     expect(tenantModel("Order")?.ownerPath).toEqual([]);
   });
   it("leaves out the backup table, the event log, sessions, tokens, access and platform records", () => {
@@ -59,6 +60,9 @@ describe("tenant model discovery", () => {
     expect(ownerWhere(tenantModel("OrderItem")!, "r1")).toEqual({ order: { restaurantId: "r1" } });
     expect(ownerWhere(tenantModel("SupplierPriceHistory")!, "r1")).toEqual({
       supplierItem: { supplier: { restaurantId: "r1" } },
+    });
+    expect(ownerWhere(tenantModel("SupplierInvoiceAlias")!, "r1")).toEqual({
+      supplier: { restaurantId: "r1" }, ingredient: { restaurantId: "r1" },
     });
   });
   it("every model has a single id column and a camelCase delegate", () => {

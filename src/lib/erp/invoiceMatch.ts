@@ -16,6 +16,22 @@ export function fold(s: string): string {
     .trim();
 }
 
+/**
+ * Exact supplier aliases intentionally keep punctuation: "1/2 L" and "1.2 L"
+ * or distinct supplier SKUs must never collapse into one learned product.
+ */
+export function normalizeInvoiceAlias(description: string): string {
+  return description
+    .normalize("NFKC")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export const MAX_INVOICE_ALIAS_LENGTH = 500;
+
 const LOW_CONFIDENCE = 0.7;
 
 export type SupplierRef = { id: string; name: string; nit?: string | null };
@@ -40,12 +56,24 @@ export type SupplierMatch =
 
 export type LineMatch = {
   line: PurchaseInvoiceLineType;
+  /** Index in the saved extraction, never the mutable review row position. */
+  sourceLineIndex?: number;
   lowConfidence: boolean;
+  matchSource?: "alias" | "name";
+  /** A remembered target exists but is archived or outside the usable catalog. */
+  aliasUnavailable?: boolean;
   ingredient:
     | { kind: "matched"; ingredient: IngredientRef }
     | { kind: "suggest_create"; name: string };
   /** Presentación sugerida si el insumo emparejado ya la tiene con este proveedor. */
   suggestedPresentation: PriceListRef | null;
+};
+
+export type InvoiceAliasRef = {
+  supplierId: string;
+  normalizedDescription: string;
+  /** Null retains a blocked alias without exposing an unusable ingredient. */
+  ingredientId: string | null;
 };
 
 export type InvoiceMatch = {
@@ -73,21 +101,36 @@ function nameSimilar(a: string, b: string): boolean {
 function matchSupplier(
   extraction: PurchaseInvoiceExtraction,
   suppliers: SupplierRef[],
-): SupplierMatch {
+  selectedSupplierId?: string,
+): { match: SupplierMatch; aliasSupplierId: string | null } {
   const nit = extraction.supplierNit?.replace(/\D/g, "") || null;
+  const unresolved = {
+    match: { kind: "suggest_create" as const, name: extraction.supplierName ?? "", nit },
+    aliasSupplierId: null,
+  };
+  const resolved = (supplier: SupplierRef, trusted: boolean) => ({
+    match: { kind: "matched" as const, supplier },
+    aliasSupplierId: trusted ? supplier.id : null,
+  });
+  if (selectedSupplierId !== undefined) {
+    const selected = suppliers.find((s) => s.id === selectedSupplierId);
+    return selected ? resolved(selected, true) : unresolved;
+  }
   if (nit) {
-    const byNit = suppliers.find((s) => (s.nit ?? "").replace(/\D/g, "") === nit);
-    if (byNit) return { kind: "matched", supplier: byNit };
+    const byNit = suppliers.filter((s) => (s.nit ?? "").replace(/\D/g, "") === nit);
+    if (byNit.length) return resolved(byNit[0], byNit.length === 1);
   }
   if (extraction.supplierName) {
+    const name = normalizeInvoiceAlias(extraction.supplierName);
+    const exact = suppliers.filter((s) => normalizeInvoiceAlias(s.name) === name);
+    if (exact.length) {
+      const supplierNit = (exact[0].nit ?? "").replace(/\D/g, "");
+      return resolved(exact[0], exact.length === 1 && (!nit || !supplierNit || nit === supplierNit));
+    }
     const byName = suppliers.find((s) => nameSimilar(s.name, extraction.supplierName!));
-    if (byName) return { kind: "matched", supplier: byName };
+    if (byName) return resolved(byName, false);
   }
-  return {
-    kind: "suggest_create",
-    name: extraction.supplierName ?? "",
-    nit,
-  };
+  return unresolved;
 }
 
 function matchLine(
@@ -95,8 +138,11 @@ function matchLine(
   ingredients: IngredientRef[],
   priceList: PriceListRef[],
   supplierId: string | null,
+  alias: InvoiceAliasRef | undefined,
 ): LineMatch {
-  const ing = ingredients.find((i) => nameSimilar(i.name, line.description));
+  const ing = alias
+    ? ingredients.find((i) => i.id === alias.ingredientId)
+    : ingredients.find((i) => nameSimilar(i.name, line.description));
   const lowConfidence = line.confidence < LOW_CONFIDENCE;
   if (!ing) {
     return {
@@ -104,6 +150,7 @@ function matchLine(
       lowConfidence,
       ingredient: { kind: "suggest_create", name: line.description },
       suggestedPresentation: null,
+      ...(alias ? { aliasUnavailable: true } : {}),
     };
   }
   // Presentación del proveedor emparejado para este insumo (si existe).
@@ -116,6 +163,7 @@ function matchLine(
   return {
     line,
     lowConfidence,
+    matchSource: alias ? "alias" : "name",
     ingredient: { kind: "matched", ingredient: ing },
     suggestedPresentation: pres,
   };
@@ -134,18 +182,25 @@ export type MatchContext = {
   suppliers: SupplierRef[];
   ingredients: IngredientRef[];
   priceList: PriceListRef[];
+  aliases?: InvoiceAliasRef[];
 };
 
 /** Empareja la factura completa. El total se recomputa desde las líneas. */
 export function matchInvoice(
   extraction: PurchaseInvoiceExtraction,
   ctx: MatchContext,
+  selectedSupplierId?: string,
 ): InvoiceMatch {
-  const supplier = matchSupplier(extraction, ctx.suppliers);
+  const { match: supplier, aliasSupplierId } = matchSupplier(extraction, ctx.suppliers, selectedSupplierId);
   const supplierId = supplier.kind === "matched" ? supplier.supplier.id : null;
-  const lines = extraction.lines.map((l) =>
-    matchLine(l, ctx.ingredients, ctx.priceList, supplierId),
+  const aliases = new Map(
+    (ctx.aliases ?? []).filter((alias) => alias.supplierId === aliasSupplierId)
+      .map((alias) => [alias.normalizedDescription, alias]),
   );
+  const lines = extraction.lines.map((line, sourceLineIndex) => ({
+    ...matchLine(line, ctx.ingredients, ctx.priceList, supplierId, aliases.get(normalizeInvoiceAlias(line.description))),
+    sourceLineIndex,
+  }));
   const computedTotalCents = lines.reduce(
     (a, m) => a + lineTotalCents(m.line),
     0,

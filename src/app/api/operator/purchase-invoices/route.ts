@@ -10,8 +10,8 @@ import { extractPurchaseInvoice } from "@/lib/anthropic";
 import {
   matchInvoice,
   normalizeExtraction,
-  type MatchContext,
 } from "@/lib/erp/invoiceMatch";
+import { loadInvoiceMatchContext } from "@/lib/erp/invoiceMatchContext";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -29,43 +29,6 @@ const MIME_EXT: Record<string, string> = {
 
 function uploadDir() {
   return process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
-}
-
-/** Contexto de matching del comercio (proveedores, insumos, lista de precios). */
-async function loadMatchContext(restaurantId: string): Promise<MatchContext> {
-  const [suppliers, ingredients, priceList] = await Promise.all([
-    db.supplier.findMany({
-      where: { restaurantId, active: true },
-      select: { id: true, name: true, taxId: true },
-    }),
-    db.ingredient.findMany({
-      where: { restaurantId, active: true },
-      select: { id: true, name: true, measureKind: true },
-    }),
-    db.supplierIngredient.findMany({
-      where: { supplier: { restaurantId } },
-      select: {
-        supplierId: true,
-        ingredientId: true,
-        id: true,
-        presentationLabel: true,
-        contentQty: true,
-        lastPriceCents: true,
-      },
-    }),
-  ]);
-  return {
-    suppliers: suppliers.map((s) => ({ id: s.id, name: s.name, nit: s.taxId })),
-    ingredients,
-    priceList: priceList.map((p) => ({
-      supplierId: p.supplierId,
-      ingredientId: p.ingredientId,
-      supplierItemId: p.id,
-      presentationLabel: p.presentationLabel,
-      contentQty: p.contentQty,
-      lastPriceCents: p.lastPriceCents,
-    })),
-  };
 }
 
 /**
@@ -106,7 +69,7 @@ async function POSTHandler(req: Request) {
       : ({ kind: "image", data: buf, mimeType: file.type } as const);
   const raw = await extractPurchaseInvoice(source);
   const extraction = normalizeExtraction(raw);
-  const matchCtx = await loadMatchContext(ctx.restaurantId);
+  const matchCtx = await loadInvoiceMatchContext(ctx.restaurantId, extraction.lines.map((line) => line.description));
   const match = matchInvoice(extraction, matchCtx);
 
   const session = await auth();

@@ -140,11 +140,17 @@ export async function restoreSnapshot(args: {
     throw new BackupError("backup_fiscal_history_protected");
   }
 
-  // This table did not exist in older backups. An empty legacy snapshot is
-  // safe only after the live-history guard above (rechecked under lock below).
-  if (!("CreditNote" in data.tables)) data.tables.CreditNote = [];
-
-  const missing = backupModelNames().filter((name) => !Array.isArray(data.tables[name]));
+  // Additive tables absent from older snapshots start empty. CreditNote is
+  // safe only after the live-history guard (rechecked under lock below).
+  const compatibleData: SnapshotData = {
+    ...data,
+    tables: {
+      ...data.tables,
+      ...(!("CreditNote" in data.tables) ? { CreditNote: [] } : {}),
+      ...(!("SupplierInvoiceAlias" in data.tables) ? { SupplierInvoiceAlias: [] } : {}),
+    },
+  };
+  const missing = backupModelNames().filter((name) => !Array.isArray(compatibleData.tables[name]));
   if (!data.restaurant || typeof data.restaurant !== "object") missing.unshift(RESTAURANT_MODEL);
   if (missing.length) throw new BackupError("backup_missing_tables", { missing });
 
@@ -155,7 +161,7 @@ export async function restoreSnapshot(args: {
   });
 
   const result = await db.$transaction(
-    (tx) => restoreInTransaction(tx, args.restaurantId, data),
+    (tx) => restoreInTransaction(tx, args.restaurantId, compatibleData),
     RESTORE_TX_OPTIONS,
   );
   return { ...result, preRestoreBackupId: pre.id };
@@ -188,10 +194,17 @@ async function restoreInTransaction(
   const restored: Record<string, number> = {};
   const pruned: Record<string, number> = {};
   const dropped = new Map<string, Set<unknown>>();
+  const aliasSuppliers = new Set(data.tables.Supplier.filter((row) => row.restaurantId === restaurantId).map((row) => row.id));
+  const aliasIngredients = new Set(data.tables.Ingredient.filter((row) => row.restaurantId === restaurantId).map((row) => row.id));
   for (const name of order.insert) {
     const model = models.get(name)!;
     const raw = data.tables[name].map((row) => deserializeRow(model.fields, row));
-    const rows = orderSelfReferencing(model, await sanitizeForeignKeys(tx, model, raw, models, dropped));
+    // A learned name cannot point to a parent outside this restaurant's
+    // snapshot, even if that foreign ID happens to exist in the live DB.
+    const scoped = name === "SupplierInvoiceAlias"
+      ? raw.filter((row) => aliasSuppliers.has(row.supplierId) && aliasIngredients.has(row.ingredientId))
+      : raw;
+    const rows = orderSelfReferencing(model, await sanitizeForeignKeys(tx, model, scoped, models, dropped));
     if (raw.length !== rows.length) pruned[name] = raw.length - rows.length;
     await insertRows(tx, model, rows);
     restored[name] = rows.length;

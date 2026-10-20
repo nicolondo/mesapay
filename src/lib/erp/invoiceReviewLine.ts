@@ -10,6 +10,12 @@ type SuggestedPresentation = {
 
 export type InvoiceReviewLine = {
   key: number;
+  sourceLineIndex?: number;
+  sourceDescription?: string;
+  rememberMatch?: boolean;
+  manuallySelected?: boolean;
+  matchSource?: "alias" | "name";
+  aliasUnavailable?: boolean;
   // Insumo: existente (id) o nuevo (id null + nombre + measureKind).
   ingredientId: string | null;
   ingredientName: string;

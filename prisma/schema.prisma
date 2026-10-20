@@ -1973,6 +1973,7 @@ model Ingredient {
   updatedAt        DateTime    @updatedAt
 
   supplierItems       SupplierIngredient[]
+  supplierInvoiceAliases SupplierInvoiceAlias[]
   stockLevel          StockLevel?
   stockMovements      StockMovement[]
   stockCountItems     StockCountItem[]
@@ -2005,6 +2006,7 @@ model Supplier {
   updatedAt        DateTime   @updatedAt
 
   items          SupplierIngredient[]
+  invoiceAliases SupplierInvoiceAlias[]
   purchaseOrders PurchaseOrder[]
   expenses       Expense[]
 
@@ -2040,6 +2042,24 @@ model SupplierIngredient {
   priceHistory SupplierPriceHistory[]
 
   @@unique([supplierId, ingredientId])
+  @@index([ingredientId])
+}
+
+/// Operator-confirmed invoice descriptions, scoped to one supplier.
+/// References must belong to the same restaurant. An archived ingredient
+/// keeps its mapping as unavailable until the operator chooses another.
+model SupplierInvoiceAlias {
+  id                    String     @id @default(cuid())
+  supplierId            String
+  supplier              Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  ingredientId          String
+  ingredient            Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  sourceDescription     String     @db.VarChar(500)
+  normalizedDescription String     @db.VarChar(500)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@unique([supplierId, normalizedDescription])
   @@index([ingredientId])
 }
 

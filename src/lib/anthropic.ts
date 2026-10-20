@@ -619,7 +619,7 @@ const PurchaseInvoiceLine = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-const PurchaseInvoiceSchema = z.object({
+export const PurchaseInvoiceSchema = z.object({
   // Tipo de documento: en una "cuenta de cobro" el proveedor es el acreedor
   // ("debe a:"), no quien la emite arriba. .catch(null) evita que un valor
   // inesperado del modelo tumbe toda la extracción.

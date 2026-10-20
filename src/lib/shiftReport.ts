@@ -21,6 +21,7 @@ export type ShiftReport = {
     userId: string | null;
     userLabel: string | null; // "Juan Mesero" si es shift personal, null si es global
     openedAt: Date;
+    businessDate: Date | null;
     closedAt: Date | null;
     openingCashCents: number;
     declaredCashCents: number | null;
@@ -227,6 +228,7 @@ export async function buildShiftReport(
         ? shift.user.name ?? shift.user.email
         : null,
       openedAt: shift.openedAt,
+      businessDate: shift.businessDate,
       closedAt: shift.closedAt,
       openingCashCents: cashCentsToNumber(shift.openingCashCents),
       declaredCashCents: cashCentsToNumber(shift.declaredCashCents),
@@ -369,6 +371,7 @@ export async function listShiftsWithSummary(
           ? s.user.name ?? s.user.email
           : null,
         openedAt: s.openedAt,
+        businessDate: s.businessDate,
         closedAt: s.closedAt,
         openingCashCents: cashCentsToNumber(s.openingCashCents),
         declaredCashCents: cashCentsToNumber(s.declaredCashCents),

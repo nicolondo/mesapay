@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
           log.push(`insert:${name}:${args.data.length}`);
           return { count: args.data.length };
         }),
-        findMany: vi.fn(async () => []),
+        findMany: vi.fn(async (): Promise<Record<string, unknown>[]> => []),
       };
       delegates.set(name, d);
     }
@@ -52,7 +52,7 @@ const mocks = vi.hoisted(() => {
     creditNote: { count: creditCount },
     $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run(tx)),
   };
-  return { log, raw, query, restaurantFind, restaurantUpdate, backupFind, createBackup, delegates, db, creditCount };
+  return { log, raw, query, restaurantFind, restaurantUpdate, backupFind, createBackup, delegates, delegateFor, db, creditCount };
 });
 vi.mock("@/lib/db", () => ({ db: mocks.db }));
 vi.mock("./service", () => ({ createBackup: mocks.createBackup }));
@@ -159,6 +159,49 @@ describe("restoreSnapshot", () => {
     for (const skipped of ["id", "slug", "plan", "kushkiPrivateKeyEnc", "suspended", "enabledModules"]) {
       expect(patch).not.toHaveProperty(skipped);
     }
+  });
+  it.each([undefined, null])("derives an old shift's missing business date (%s) from the snapshot cutoff", async (businessDate) => {
+    const original = snapshot({
+      Shift: [{
+        id: "shift-1", restaurantId: "r1", openedById: "u1",
+        openedAt: "2026-10-18T06:18:00.000Z", openingCashCents: "1000",
+        ...(businessDate === null ? { businessDate: null } : {}),
+      }],
+    });
+    const data = { ...original, restaurant: { ...original.restaurant, businessDayCutoffHour: 5 } };
+    mocks.delegateFor("user").findMany.mockResolvedValue([{ id: "u1" }]);
+    mocks.restaurantFind.mockResolvedValue({ invoiceNextNumber: 9, businessDayCutoffHour: 0 });
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data });
+
+    await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
+
+    expect(mocks.delegateFor("shift").createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        openedAt: new Date("2026-10-18T06:18:00Z"),
+        businessDate: new Date("2026-10-17T00:00:00Z"),
+      })],
+      skipDuplicates: false,
+    });
+    expect(data.tables.Shift![0].businessDate).toBe(businessDate);
+  });
+  it("preserves a backed-up shift business date even when its snapshot cutoff differs", async () => {
+    const original = snapshot({
+      Shift: [{
+        id: "shift-1", restaurantId: "r1", openedById: "u1",
+        openedAt: "2026-10-18T06:18:00.000Z", openingCashCents: "1000",
+        businessDate: "2026-10-17T00:00:00.000Z",
+      }],
+    });
+    const data = { ...original, restaurant: { ...original.restaurant, businessDayCutoffHour: 0 } };
+    mocks.delegateFor("user").findMany.mockResolvedValue([{ id: "u1" }]);
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data });
+
+    await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
+
+    expect(mocks.delegateFor("shift").createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ businessDate: new Date("2026-10-17T00:00:00Z") })],
+      skipDuplicates: false,
+    });
   });
   it("does not touch the triggers themselves, only the transaction-local setting", async () => {
     mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: snapshot() });

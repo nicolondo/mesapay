@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { bogotaBusinessDateIso } from "@/lib/bogota";
 import { BackupError } from "./errors";
 import { deserializeRow, type SnapshotRow } from "./serialize";
 import { createBackup } from "./service";
@@ -196,9 +197,23 @@ async function restoreInTransaction(
   const dropped = new Map<string, Set<unknown>>();
   const aliasSuppliers = new Set(data.tables.Supplier.filter((row) => row.restaurantId === restaurantId).map((row) => row.id));
   const aliasIngredients = new Set(data.tables.Ingredient.filter((row) => row.restaurantId === restaurantId).map((row) => row.id));
+  const snapshotCutoff = typeof data.restaurant.businessDayCutoffHour === "number"
+    ? data.restaurant.businessDayCutoffHour : 0;
   for (const name of order.insert) {
     const model = models.get(name)!;
-    const raw = data.tables[name].map((row) => deserializeRow(model.fields, row));
+    const raw = data.tables[name].map((row) => {
+      const restored = deserializeRow(model.fields, row);
+      // Restaurant is restored after its tables. Fill old snapshots here so
+      // the INSERT trigger cannot use the live restaurant's different cutoff.
+      // An existing date remains authoritative even if the policy changed.
+      if (name === "Shift" && restored.businessDate == null && restored.openedAt instanceof Date) {
+        return {
+          ...restored,
+          businessDate: new Date(`${bogotaBusinessDateIso(restored.openedAt, snapshotCutoff)}T00:00:00.000Z`),
+        };
+      }
+      return restored;
+    });
     // A learned name cannot point to a parent outside this restaurant's
     // snapshot, even if that foreign ID happens to exist in the live DB.
     const scoped = name === "SupplierInvoiceAlias"

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
-import { addDaysIso, bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime } from "@/lib/bogota";
+import { addDaysIso, bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime, shiftBusinessDateIso } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
 import {
@@ -471,11 +471,12 @@ export default async function ReportsPage({
               {t("viewAll")}
             </Link>
           </div>
+          <p className="text-xs text-op-muted mb-3">{t("shiftBusinessDayHint")}</p>
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left">
-                  <Th>{t("thClosed")}</Th>
+                  <Th>{t("thBusinessDay")}</Th>
                   <Th>{t("thDuration")}</Th>
                   <Th align="right">{t("thFund")}</Th>
                   <Th align="right">{t("thExpected")}</Th>
@@ -487,6 +488,7 @@ export default async function ReportsPage({
               <tbody>
                 {recentClosed.map((s) => {
                   const closed = s.closedAt ? fmtBogotaDateTime(s.closedAt) : null;
+                  const businessDate = shiftBusinessDateIso(s, cutoff);
                   const durMin =
                     s.closedAt
                       ? Math.round(
@@ -499,11 +501,14 @@ export default async function ReportsPage({
                   return (
                     <tr key={s.id} className="border-t border-op-border">
                       <Td className="font-mono tabular">
-                        <div>
-                          {closed
-                            ? `${closed.date} ${closed.time}`
-                            : t("emptyDash")}
-                        </div>
+                        <time dateTime={businessDate} className="font-medium">{businessDate}</time>
+                        {closed && (
+                          <div className="mt-1 text-[11px] text-op-muted normal-case tracking-normal whitespace-nowrap">
+                            <time dateTime={s.closedAt!.toISOString()}>
+                              {t("shiftClosedAt", { date: closed.date, time: closed.time })}
+                            </time>
+                          </div>
+                        )}
                         <div className="text-[10px] text-op-muted normal-case tracking-normal">
                           {s.user
                             ? s.user.name ?? s.user.email

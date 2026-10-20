@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { fmtCOP } from "@/lib/format";
-import { fmtBogotaDateTime } from "@/lib/bogota";
+import { fmtBogotaDateTime, shiftBusinessDateIso } from "@/lib/bogota";
 import {
   buildShiftReport,
   PAYMENT_METHOD_LABEL,
@@ -63,7 +63,7 @@ export default async function ShiftDetailPage({
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { name: true, legalName: true, taxId: true },
+    select: { name: true, legalName: true, taxId: true, businessDayCutoffHour: true },
   });
 
   const openLabel = fmtBogotaDateTime(report.shift.openedAt);
@@ -74,6 +74,7 @@ export default async function ShiftDetailPage({
     ? report.shift.closedAt.getTime() - report.shift.openedAt.getTime()
     : 0;
   const durationLabel = formatDuration(durationMs, t);
+  const businessDate = shiftBusinessDateIso(report.shift, tenant?.businessDayCutoffHour ?? 0);
 
   const merchant =
     tenant?.legalName?.trim() || tenant?.name || t("merchantFallback");
@@ -86,7 +87,10 @@ export default async function ShiftDetailPage({
              del shell. La página queda limpia para impresora. */
           .no-print, header, nav, footer, [role="navigation"] { display: none !important; }
           body { background: #ffffff !important; }
-          .shift-report { background: #ffffff !important; padding: 0 !important; }
+          /* The hidden rail must not leave its fixed grid column behind.
+             Block flow also lets the report paginate beyond the viewport. */
+          .op-app-shell, .op-app-shell > div:has(.shift-report), .op-app-shell main { display: block !important; }
+          .shift-report { background: #ffffff !important; padding: 0 !important; max-width: none !important; }
           .shift-card { border-color: #cfcfcf !important; box-shadow: none !important; break-inside: avoid; }
           .shift-row { border-color: #cfcfcf !important; }
           @page { margin: 14mm; }
@@ -106,11 +110,11 @@ export default async function ShiftDetailPage({
         </div>
 
         {/* Header */}
-        <header className="mb-6">
+        <section className="mb-6" aria-labelledby="shift-report-title">
           <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-op-muted mb-1">
             {t("shiftClose")}
           </div>
-          <h1 className="font-display text-3xl tracking-[-0.015em] mb-1">
+          <h1 id="shift-report-title" className="font-display text-3xl tracking-[-0.015em] mb-1">
             {merchant}
           </h1>
           {tenant?.taxId && (
@@ -118,6 +122,9 @@ export default async function ShiftDetailPage({
               {t("taxId", { taxId: tenant.taxId })}
             </div>
           )}
+          <p className="mt-3 text-lg font-medium">
+            <time dateTime={businessDate}>{t("businessDayDate", { date: businessDate })}</time>
+          </p>
           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <Field label={t("fieldOpened")}>
               {t("dateTime", { date: openLabel.date, time: openLabel.time })}
@@ -132,7 +139,7 @@ export default async function ShiftDetailPage({
               {report.shift.userLabel ?? t("shiftOfGlobal")}
             </Field>
           </div>
-        </header>
+        </section>
 
         {/* Totales */}
         <section className="shift-card rounded-2xl border border-op-border bg-op-surface p-5 mb-4">

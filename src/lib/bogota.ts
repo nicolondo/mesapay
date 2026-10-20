@@ -20,14 +20,31 @@ export function bogotaTodayIso(): string {
  * cutoffHour = 0 → idéntico a bogotaTodayIso (medianoche).
  */
 export function bogotaBusinessTodayIso(cutoffHour = 0): string {
-  const now = new Date();
+  return bogotaBusinessDateIso(new Date(), cutoffHour);
+}
+
+/** Fecha contable de un instante, independiente de la zona del servidor. */
+export function bogotaBusinessDateIso(at: Date, cutoffHour = 0): string {
   // Restamos el corte: si aún no llegó la hora de corte, caemos al día
   // anterior.
-  const b = new Date(now.getTime() + OFFSET_MS - cutoffHour * 60 * 60 * 1000);
+  const b = new Date(at.getTime() + OFFSET_MS - cutoffHour * 60 * 60 * 1000);
   const y = b.getUTCFullYear();
   const m = String(b.getUTCMonth() + 1).padStart(2, "0");
   const d = String(b.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * La jornada persistida es un DATE, representado por Prisma a medianoche UTC.
+ * No se convierte a Bogotá: hacerlo restaría otro día. El fallback mantiene
+ * compatibles modelos históricos sin el campo; nunca usa la hora de cierre.
+ */
+export function shiftBusinessDateIso(
+  shift: { businessDate?: Date | null; openedAt: Date },
+  cutoffHour = 0,
+): string {
+  return shift.businessDate?.toISOString().slice(0, 10)
+    ?? bogotaBusinessDateIso(shift.openedAt, cutoffHour);
 }
 
 /**

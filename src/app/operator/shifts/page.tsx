@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { fmtCOP } from "@/lib/format";
-import { fmtBogotaDateTime } from "@/lib/bogota";
+import { fmtBogotaDateTime, shiftBusinessDateIso } from "@/lib/bogota";
 import { listShiftsWithSummary } from "@/lib/shiftReport";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +40,10 @@ export default async function ShiftsListPage({
       <div className="font-display text-3xl tracking-[-0.015em] mt-2 mb-1">
         {t("title")}
       </div>
-      <p className="text-sm text-op-muted mb-6">
+      <p className="text-sm text-op-muted mb-2">
         {t("subtitle")}
       </p>
+      <p className="text-xs text-op-muted mb-6">{t("businessDayHint")}</p>
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-op-border bg-op-surface p-8 text-center text-sm text-op-muted">
@@ -55,6 +56,7 @@ export default async function ShiftsListPage({
               const closeLabel = s.closedAt
                 ? fmtBogotaDateTime(s.closedAt)
                 : null;
+              const businessDate = shiftBusinessDateIso(s);
               const durMs = s.closedAt
                 ? s.closedAt.getTime() - s.openedAt.getTime()
                 : 0;
@@ -65,20 +67,20 @@ export default async function ShiftsListPage({
                     className="flex items-start gap-4 p-4 hover:bg-op-bg/50 transition-colors"
                   >
                     <div className="font-mono text-[11px] text-op-muted shrink-0 w-28 leading-snug">
-                      {closeLabel ? (
-                        <>
-                          {closeLabel.date}
-                          <br />
-                          {closeLabel.time}
-                        </>
-                      ) : (
-                        t("durationDash")
-                      )}
+                      <div className="text-[9px] uppercase tracking-wider mb-1">{t("businessDay")}</div>
+                      <time dateTime={businessDate} className="font-medium text-op-text">{businessDate}</time>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">
                         {s.userLabel ?? t("shiftOfRestaurant")}
                       </div>
+                      {closeLabel && (
+                        <div className="mt-1 text-[11px] text-op-muted">
+                          <time dateTime={s.closedAt!.toISOString()}>
+                            {t("closedAt", { date: closeLabel.date, time: closeLabel.time })}
+                          </time>
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-op-muted">
                         <span>{formatDuration(durMs, t)}</span>
                         <span>·</span>

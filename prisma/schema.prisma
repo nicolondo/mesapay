@@ -1862,6 +1862,11 @@ model Shift {
   user   User?   @relation("ShiftsOfUser", fields: [userId], references: [id])
 
   openedAt         DateTime @default(now())
+  // Jornada de la apertura en Bogotá, descontando el corte del comercio.
+  // El trigger de INSERT la fija también para versiones anteriores del app;
+  // no cambia al cerrar ni al modificar la política de corte. Es una fecha,
+  // no un instante: al mostrarla se conserva el día UTC de este DATE.
+  businessDate     DateTime? @db.Date
   openedById       String
   openedBy         User     @relation("ShiftsOpened", fields: [openedById], references: [id])
   // Fondo de caja inicial — efectivo con el que arrancó el turno para dar

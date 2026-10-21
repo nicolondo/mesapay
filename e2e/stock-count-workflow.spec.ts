@@ -7,8 +7,12 @@ const databaseUrl = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/
 test.skip(!["127.0.0.1", "localhost"].includes(databaseUrl.hostname) || !/^\/mesapay_.*validation$/.test(databaseUrl.pathname) || !/^http:\/\/localhost:/.test(process.env.PLAYWRIGHT_BASE_URL ?? ""), "Isolated local app and validation database required");
 const db = new PrismaClient();
 async function login(page: Page, email: string, password: string) {
-  await page.goto("/signin"); await page.getByLabel("Correo", { exact: true }).fill(email); await page.getByLabel("Contraseña", { exact: true }).fill(password);
-  await page.locator('button[type="submit"]').click(); await page.waitForURL((url) => !url.pathname.startsWith("/signin"));
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith("/api/auth/session") && response.ok()),
+    page.goto("/signin"),
+  ]);
+  await page.getByLabel("Correo", { exact: true }).fill(email); await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page.locator('button[type="submit"]').click(); await page.waitForURL((url) => url.pathname === "/admin/restaurants");
 }
 async function quantities(page: Page, a: string, b: string, c: string) {
   await page.getByLabel("Conteo de Botellas", { exact: true }).fill(a);

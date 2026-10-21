@@ -1,6 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma, type Ingredient } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
@@ -35,7 +36,10 @@ async function GETHandler() {
   const ingredients = await db.ingredient.findMany({
     where: { restaurantId: ctx.restaurantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { _count: { select: { supplierItems: true } } },
+    include: {
+      _count: { select: { supplierItems: true } },
+      barcodes: { where: { restaurantId: ctx.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
+    },
   });
   return NextResponse.json({ ingredients });
 }
@@ -66,29 +70,45 @@ async function POSTHandler(req: Request) {
   // ambiguo el escaneo en el conteo).
   const barcode = normalizeBarcode(b.barcode);
   if (barcode) {
-    const dupCode = await db.ingredient.findUnique({
+    const dupCode = await db.ingredientBarcode.findUnique({
       where: {
         restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode },
       },
-      select: { id: true },
+      select: { ingredientId: true },
     });
     if (dupCode) {
       return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
     }
   }
-  const ingredient = await db.ingredient.create({
-    data: {
-      restaurantId: ctx.restaurantId,
-      name: b.name,
-      trackInventory: b.trackInventory,
-      category: b.category || null,
-      measureKind: b.measureKind,
-      sku: b.sku || null,
-      barcode,
-      notes: b.notes || null,
-      referencePriceCents: b.referencePriceCents ?? null,
-    },
-  });
+  let ingredient: Ingredient;
+  try {
+    ingredient = await db.ingredient.create({
+      data: {
+        restaurantId: ctx.restaurantId,
+        name: b.name,
+        trackInventory: b.trackInventory,
+        category: b.category || null,
+        measureKind: b.measureKind,
+        sku: b.sku || null,
+        barcode,
+        notes: b.notes || null,
+        referencePriceCents: b.referencePriceCents ?? null,
+      },
+    });
+  } catch (error) {
+    if (barcode && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = error.meta?.target;
+      const barcodeTarget = Array.isArray(target) ? target.includes("barcode") : typeof target === "string" && target.includes("barcode");
+      // Trigger failures may omit the target. Query after the failed write has
+      // rolled back so a concurrent additional code still produces a clear error.
+      const conflictingCode = target == null && await db.ingredientBarcode.findUnique({
+        where: { restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode } },
+        select: { ingredientId: true },
+      });
+      if (barcodeTarget || conflictingCode) return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+    }
+    throw error;
+  }
   if (ingredient.referencePriceCents != null) {
     await recordAuditEvent({
       kind: "ingredient.reference_price.update",

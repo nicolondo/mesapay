@@ -32,3 +32,25 @@ export function normalizeBarcode(raw: string | null | undefined): string | null 
   const cleaned = raw.replace(/\s/g, "").replace(/[^!-~]/g, "");
   return cleaned === "" ? null : cleaned;
 }
+
+export type IngredientBarcodeFields = {
+  barcode: string | null;
+  barcodes?: readonly { barcode: string }[];
+};
+
+export type IngredientBarcodeUpdate = IngredientBarcodeFields & { id: string };
+
+/** Read both the compatible primary field and the canonical registry. */
+export function ingredientBarcodeValues(ingredient: IngredientBarcodeFields): string[] {
+  return [...new Set([ingredient.barcode, ...(ingredient.barcodes ?? []).map((entry) => entry.barcode)]
+    .map(normalizeBarcode).filter((code): code is string => code !== null))];
+}
+
+/** Refresh only barcode metadata; removed/reassigned codes must not keep scanning. */
+export function mergeIngredientBarcodes<T extends IngredientBarcodeFields>(current: T, added: IngredientBarcodeFields): T {
+  return {
+    ...current,
+    barcode: added.barcode,
+    barcodes: ingredientBarcodeValues(added).map((barcode) => ({ barcode })),
+  };
+}

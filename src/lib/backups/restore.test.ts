@@ -133,8 +133,9 @@ describe("restoreSnapshot", () => {
     // hijos→padres, 4. inserción padres→hijos, 5. Restaurant. Nada después.
     expect(log[0]).toMatch(/^raw:SELECT pg_advisory_xact_lock/);
     expect(log[1]).toBe("raw:SET LOCAL app.restoring = '1'");
+    expect(log[2]).toBe("raw:SET LOCAL app.ingredient_barcodes_restore = '1'");
     // El log registra el delegate (`orderItem`), el orden trae el modelo (`OrderItem`).
-    expect(log[2]).toBe("delete:" + delegateName(order.delete[0]));
+    expect(log[3]).toBe("delete:" + delegateName(order.delete[0]));
     const deletes = log.filter((l) => l.startsWith("delete:")).map((l) => l.slice(7));
     expect(deletes).toEqual(order.delete.map(delegateName));
     const inserts = log.filter((l) => l.startsWith("insert:")).map((l) => l.split(":")[1]);
@@ -209,7 +210,105 @@ describe("restoreSnapshot", () => {
     expect(mocks.log.filter((l) => l.startsWith("raw:"))).toEqual([
       expect.stringMatching(/^raw:SELECT pg_advisory_xact_lock/),
       "raw:SET LOCAL app.restoring = '1'",
+      "raw:SET LOCAL app.ingredient_barcodes_restore = '1'",
     ]);
+  });
+});
+
+describe("ingredient barcode restore compatibility", () => {
+  const createdAt = "2026-09-18T04:00:00.000Z";
+  const ingredient = (id: string, barcode: string | null, restaurantId = "r1") => ({
+    id, restaurantId, name: id, measureKind: "count", barcode, createdAt,
+  });
+  const barcode = (id: string, ingredientId: string, code: string, restaurantId = "r1") => ({
+    id, restaurantId, ingredientId, barcode: code, createdAt,
+  });
+  const restore = (data: ReturnType<typeof snapshot>) => {
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data });
+    return restoreSnapshot({ restaurantId: "r1", backupId: "barcodes" });
+  };
+  const inserted = () => mocks.delegateFor("ingredientBarcode").createMany.mock.calls[0]?.[0].data;
+
+  it("derives principal codes from a legacy snapshot without mutating the stored copy", async () => {
+    const data = snapshot({ Ingredient: [ingredient("i1", "00123ab"), ingredient("i2", null)] });
+    delete data.tables.IngredientBarcode;
+
+    const result = await restore(data);
+
+    expect(result.restored.IngredientBarcode).toBe(1);
+    expect(inserted()).toEqual([{
+      id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+      restaurantId: "r1", ingredientId: "i1", barcode: "00123ab", createdAt: new Date(createdAt),
+    }]);
+    expect(data.tables).not.toHaveProperty("IngredientBarcode");
+  });
+
+  it("preserves every modern code and its original identifier, including primary-less products", async () => {
+    const rows = [barcode("primary", "i1", "00123"), barcode("alias", "i1", "Code128ab"), barcode("only-alias", "i2", "9900")];
+    const data = snapshot({ Ingredient: [ingredient("i1", "00123"), ingredient("i2", null)], IngredientBarcode: rows });
+
+    const result = await restore(data);
+
+    expect(result.restored.IngredientBarcode).toBe(3);
+    expect(result.pruned).toEqual({});
+    expect(inserted()).toEqual(rows.map((row) => ({ ...row, createdAt: new Date(createdAt) })));
+    expect(data.tables.IngredientBarcode).toEqual(rows);
+  });
+
+  it("fills a missing primary record without discarding any valid additional codes", async () => {
+    const alias = barcode("alias", "i1", "additional");
+    const data = snapshot({ Ingredient: [ingredient("i1", "00123")], IngredientBarcode: [alias] });
+
+    const result = await restore(data);
+
+    expect(result.restored.IngredientBarcode).toBe(2);
+    expect(inserted()).toEqual([
+      { ...alias, createdAt: new Date(createdAt) },
+      expect.objectContaining({ restaurantId: "r1", ingredientId: "i1", barcode: "00123" }),
+    ]);
+    expect(data.tables.IngredientBarcode).toEqual([alias]);
+  });
+
+  it("drops cross-tenant records and references to ingredients outside the snapshot", async () => {
+    const own = barcode("own", "i1", "00123");
+    const data = snapshot({
+      Ingredient: [ingredient("i1", "00123")],
+      IngredientBarcode: [own, barcode("foreign-tenant", "i1", "x", "r2"), barcode("foreign-parent", "other-live-ingredient", "y")],
+    });
+
+    const result = await restore(data);
+
+    expect(result.restored.IngredientBarcode).toBe(1);
+    expect(result.pruned).toEqual({ IngredientBarcode: 2 });
+    expect(inserted()).toEqual([{ ...own, createdAt: new Date(createdAt) }]);
+  });
+
+  it("rejects a primary/alias ownership conflict before taking a pre-restore copy", async () => {
+    const data = snapshot({ Ingredient: [ingredient("i1", "00123"), ingredient("i2", null)], IngredientBarcode: [barcode("conflict", "i2", "00123")] });
+
+    await expect(restore(data)).rejects.toMatchObject({ code: "backup_version_unsupported" });
+
+    expect(mocks.createBackup).not.toHaveBeenCalled();
+    expect(mocks.db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate code records instead of selecting an arbitrary owner", async () => {
+    const data = snapshot({ Ingredient: [ingredient("i1", null), ingredient("i2", null)], IngredientBarcode: [barcode("a", "i1", "shared"), barcode("b", "i2", "shared")] });
+
+    await expect(restore(data)).rejects.toMatchObject({ code: "backup_version_unsupported" });
+
+    expect(mocks.createBackup).not.toHaveBeenCalled();
+    expect(mocks.db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed modern table instead of treating it as a legacy snapshot", async () => {
+    const data = snapshot({ Ingredient: [ingredient("i1", "00123")] });
+    data.tables.IngredientBarcode = null as unknown as Record<string, unknown>[];
+
+    await expect(restore(data)).rejects.toMatchObject({ code: "backup_missing_tables", details: { missing: ["IngredientBarcode"] } });
+
+    expect(mocks.createBackup).not.toHaveBeenCalled();
+    expect(mocks.db.$transaction).not.toHaveBeenCalled();
   });
 });
 

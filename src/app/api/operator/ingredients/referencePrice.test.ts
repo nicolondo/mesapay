@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ context: vi.fn(), find: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), level: vi.fn(), lock: vi.fn(), movementCount: vi.fn(), audit: vi.fn() }));
+const m = vi.hoisted(() => ({ context: vi.fn(), find: vi.fn(), code: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), level: vi.fn(), lock: vi.fn(), movementCount: vi.fn(), audit: vi.fn() }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/erp/access", () => ({ getErpContext: m.context, isDenied: (ctx: { error?: string }) => !!ctx.error }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
 vi.mock("@/lib/db", () => {
-  const tx = { ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update }, stockLevel: { findUnique: m.level }, stockMovement: { count: m.movementCount } };
+  const tx = { ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update }, ingredientBarcode: { findUnique: m.code }, stockLevel: { findUnique: m.level }, stockMovement: { count: m.movementCount } };
   return { db: { ...tx, $transaction: (fn: (tx: unknown) => unknown) => fn(tx) } };
 });
 import { GET, POST } from "./route";
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.context.mockResolvedValue({ restaurantId: current.restaurantId, userId: "operator" });
   m.find.mockResolvedValue(current);
+  m.code.mockResolvedValue(null);
   m.list.mockResolvedValue([current]);
   m.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...current, ...data }));
   m.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "new", ...data }));
@@ -131,9 +132,10 @@ describe("ingredient reference price writes", () => {
   });
 
   it("rejects barcode collisions without partially saving a price", async () => {
-    m.find.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "barcode-owner" });
+    m.find.mockResolvedValueOnce(null);
+    m.code.mockResolvedValue({ ingredientId: "barcode-owner" });
     expect((await POST(request({ name: "New", measureKind: "mass", barcode: "123456", referencePriceCents: 1 }))).status).toBe(409);
-    m.find.mockResolvedValueOnce(current).mockResolvedValueOnce({ id: "barcode-owner" });
+    m.find.mockResolvedValueOnce(current);
     expect((await patch({ barcode: "123456", referencePriceCents: 1 })).status).toBe(409);
     expect(m.create).not.toHaveBeenCalled();
     expect(m.update).not.toHaveBeenCalled();

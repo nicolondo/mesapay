@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
-import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
+import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { IngredientBarcodes } from "./IngredientBarcodes";
 import { countEntryFromBase, parseCountEntry as parseCounted, formatCountQty } from "@/lib/erp/stockCountInput";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
@@ -30,6 +31,8 @@ type StockRow = {
   category: string | null;
   measureKind: MeasureKind;
   active: boolean;
+  barcode: string | null;
+  barcodes: { barcode: string }[];
   // A4 — punto de reorden (null = sin aviso) y cantidad sugerida de compra.
   reorderPointBase: number | null;
   reorderQtyBase: number | null;
@@ -92,6 +95,7 @@ type CountItemRow = {
     trackInventory: boolean;
     // Código de barras del empaque — lo usa el escaneo del conteo.
     barcode: string | null;
+    barcodes: { barcode: string }[];
   };
 };
 
@@ -208,6 +212,10 @@ export function InventarioClient({
   const [openCount, setOpenCount] = useState<CountDetail | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
 
+  function updateBarcodes(ingredient: IngredientBarcodeUpdate) {
+    setRows((current) => current.map((row) => row.id === ingredient.id ? mergeIngredientBarcodes(row, ingredient) : row));
+  }
+
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) if (r.category) set.add(r.category);
@@ -222,7 +230,7 @@ export function InventarioClient({
       if (stockedOnly && (r.stockLevel?.qtyBase ?? 0) === 0) return false;
       if (cat !== "all" && r.category !== cat) return false;
       if (needle) {
-        const hay = fold(`${r.name} ${r.category ?? ""}`);
+        const hay = fold(`${r.name} ${r.category ?? ""} ${ingredientBarcodeValues(r).join(" ")}`);
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -530,8 +538,9 @@ export function InventarioClient({
                   return (
                     <div
                       key={r.id}
-                      className="flex items-center gap-3 px-4 py-2.5 border-b border-op-border last:border-b-0"
+                      className="px-4 py-2.5 border-b border-op-border last:border-b-0"
                     >
+                      <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span
@@ -592,6 +601,8 @@ export function InventarioClient({
                             .join(" · ")}
                         </div>
                       </div>
+                      </div>
+                      <IngredientBarcodes ingredient={r} canAdd={r.active} onSaved={updateBarcodes} />
                     </div>
                   );
                 })}
@@ -718,6 +729,7 @@ export function InventarioClient({
                                 .filter(Boolean)
                                 .join(" · ")}
                             </div>
+                            <IngredientBarcodes ingredient={r} canAdd={r.active} onSaved={updateBarcodes} />
                           </td>
                           <td
                             className={
@@ -931,6 +943,7 @@ export function InventarioClient({
       {openCount && (
         <CountSheet
           count={openCount}
+          onBarcodeSaved={updateBarcodes}
           onClose={() => setOpenCount(null)}
           onClosed={handleCountClosed}
           onDeleted={() => {
@@ -1557,11 +1570,13 @@ function CountSheet({
   onClose,
   onClosed,
   onDeleted,
+  onBarcodeSaved,
 }: {
   count: CountDetail;
   onClose: () => void;
   onClosed: () => void;
   onDeleted: () => void;
+  onBarcodeSaved: (ingredient: IngredientBarcodeUpdate) => void;
 }) {
   const t = useTranslations("opErp");
   const [count, setCount] = useState(initialCount);
@@ -1579,7 +1594,9 @@ function CountSheet({
     return init;
   });
   const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [requestBusy, setBusy] = useState(false);
+  const [barcodeSaving, setBarcodeSaving] = useState(false);
+  const busy = requestBusy || barcodeSaving;
   const [conflict, setConflict] = useState<"stock" | "count" | null>(null);
   const [differenceFilter, setDifferenceFilter] = useState<"all" | "shortage" | "surplus" | "pending">("all");
   const [err, setErr] = useState<string | null>(null);
@@ -1593,6 +1610,7 @@ function CountSheet({
   // reaccione al submit. Funciona con cualquier lector USB o bluetooth.
   const [scan, setScan] = useState("");
   const [scanErr, setScanErr] = useState<string | null>(null);
+  const [unmatchedCode, setUnmatchedCode] = useState<string | null>(null);
   // Item al que saltó el último escaneo. `seq` sube en cada lectura para
   // que re-escanear el MISMO código vuelva a enfocar (sin él, el estado no
   // cambia y el efecto no corre).
@@ -1668,8 +1686,7 @@ function CountSheet({
   const byBarcode = useMemo(() => {
     const m = new Map<string, string>();
     for (const it of count.items) {
-      const code = normalizeBarcode(it.ingredient.barcode);
-      if (code) m.set(code, it.id);
+      for (const code of ingredientBarcodeValues(it.ingredient)) m.set(code, it.id);
     }
     return m;
   }, [count.items]);
@@ -1686,9 +1703,11 @@ function CountSheet({
       // y necesita enterarse de que ese código no está en el conteo (o de
       // que al insumo le falta cargar el código en su ficha).
       setScanErr(t("errBarcodeNotFound", { code }));
+      setUnmatchedCode(code);
       return;
     }
     setScanErr(null);
+    setUnmatchedCode(null);
     // El buscador puede estar escondiendo justo la fila escaneada.
     setQ("");
     setDifferenceFilter("all");
@@ -1883,6 +1902,7 @@ function CountSheet({
                 ref={scanRef}
                 type="text"
                 value={scan}
+                aria-label={t("scanBarcodeLabel")}
                 // El sheet se abre listo para escanear: el lector teclea
                 // donde esté el foco, así que tiene que estar acá.
                 autoFocus
@@ -2054,6 +2074,21 @@ function CountSheet({
                       </div>
                     </div>
                   )}
+                  <IngredientBarcodes
+                    ingredient={it.ingredient}
+                    canAdd={canEdit && it.ingredient.active && it.ingredient.trackInventory}
+                    disabled={busy}
+                    suggestedCode={unmatchedCode}
+                    onBusyChange={setBarcodeSaving}
+                    onSaved={(ingredient) => {
+                      // Only merge barcode metadata. acceptCount/reload would
+                      // reconstruct entries and erase quantities not yet saved.
+                      setCount((current) => ({ ...current, items: current.items.map((item) => item.ingredient.id === ingredient.id
+                        ? { ...item, ingredient: mergeIngredientBarcodes(item.ingredient, ingredient) } : item) }));
+                      onBarcodeSaved(ingredient);
+                      setUnmatchedCode(null); setScanErr(null);
+                    }}
+                  />
                 </div>
               );
             })}

@@ -23,6 +23,7 @@ const ITEM_INCLUDE = {
       trackInventory: true,
       // El conteo salta al insumo escaneando su código (lector HID).
       barcode: true,
+      barcodes: { select: { barcode: true }, orderBy: { barcode: "asc" } },
     },
   },
 } as const;

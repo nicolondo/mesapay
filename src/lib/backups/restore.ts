@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { bogotaBusinessDateIso } from "@/lib/bogota";
@@ -84,6 +85,47 @@ export const RESTORE_CONFIRM_WORD = "RESTAURAR";
 const MAX_PARAMS_PER_INSERT = 30_000;
 const IN_CHUNK = 1000;
 
+/** Older snapshots only had Ingredient.barcode. Preserve all backed-up
+ * aliases and fill missing primary records before disabling the sync trigger.
+ * Ambiguous ownership is rejected before making any destructive writes. */
+function completeIngredientBarcodes(data: SnapshotData, restaurantId: string): SnapshotRow[] {
+  const stored = data.tables.IngredientBarcode;
+  if ("IngredientBarcode" in data.tables && !Array.isArray(stored)) {
+    throw new BackupError("backup_missing_tables", { missing: ["IngredientBarcode"] });
+  }
+  const ingredients = Array.isArray(data.tables.Ingredient)
+    ? data.tables.Ingredient.filter((row) => row.restaurantId === restaurantId)
+    : [];
+  const ingredientIds = new Set(ingredients.map((row) => row.id));
+  const rows = stored ?? [];
+  const owners = new Map<unknown, unknown>();
+  for (const row of rows) {
+    // Keep these rows until the restore filter can report them as pruned.
+    if (row.restaurantId !== restaurantId || !ingredientIds.has(row.ingredientId)) continue;
+    if (typeof row.barcode !== "string" || !row.barcode || owners.has(row.barcode)) {
+      throw new BackupError("backup_version_unsupported");
+    }
+    owners.set(row.barcode, row.ingredientId);
+  }
+  const primaryRows: SnapshotRow[] = [];
+  for (const ingredient of ingredients) {
+    if (ingredient.barcode == null) continue;
+    if (typeof ingredient.barcode !== "string" || !ingredient.barcode) {
+      throw new BackupError("backup_version_unsupported");
+    }
+    if (owners.has(ingredient.barcode)) {
+      if (owners.get(ingredient.barcode) !== ingredient.id) throw new BackupError("backup_version_unsupported");
+      continue;
+    }
+    owners.set(ingredient.barcode, ingredient.id);
+    primaryRows.push({
+      id: randomUUID(), restaurantId, ingredientId: ingredient.id, barcode: ingredient.barcode,
+      createdAt: typeof ingredient.createdAt === "string" ? ingredient.createdAt : data.takenAt,
+    });
+  }
+  return [...rows, ...primaryRows];
+}
+
 export type RestoreResult = {
   /** Filas insertadas por tabla. */
   restored: Record<string, number>;
@@ -149,6 +191,7 @@ export async function restoreSnapshot(args: {
       ...data.tables,
       ...(!("CreditNote" in data.tables) ? { CreditNote: [] } : {}),
       ...(!("SupplierInvoiceAlias" in data.tables) ? { SupplierInvoiceAlias: [] } : {}),
+      IngredientBarcode: completeIngredientBarcodes(data, args.restaurantId),
     },
   };
   const missing = backupModelNames().filter((name) => !Array.isArray(compatibleData.tables[name]));
@@ -183,6 +226,9 @@ async function restoreInTransaction(
 
   // Bypass de los triggers de negocio sólo dentro de esta transacción.
   await tx.$executeRaw`SET LOCAL app.restoring = '1'`;
+  // The sync trigger only bypasses writes from restores that explicitly
+  // reload the canonical table; older binaries cannot silently lose aliases.
+  await tx.$executeRaw`SET LOCAL app.ingredient_barcodes_restore = '1'`;
 
   const models = new Map(tenantModels().map((m) => [m.name, m]));
   const order = topologicalOrder();
@@ -218,7 +264,9 @@ async function restoreInTransaction(
     // snapshot, even if that foreign ID happens to exist in the live DB.
     const scoped = name === "SupplierInvoiceAlias"
       ? raw.filter((row) => aliasSuppliers.has(row.supplierId) && aliasIngredients.has(row.ingredientId))
-      : raw;
+      : name === "IngredientBarcode"
+        ? raw.filter((row) => row.restaurantId === restaurantId && aliasIngredients.has(row.ingredientId))
+        : raw;
     const rows = orderSelfReferencing(model, await sanitizeForeignKeys(tx, model, scoped, models, dropped));
     if (raw.length !== rows.length) pruned[name] = raw.length - rows.length;
     await insertRows(tx, model, rows);

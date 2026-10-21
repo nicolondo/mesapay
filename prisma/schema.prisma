@@ -443,6 +443,7 @@ model Restaurant {
   shifts                 Shift[]
   cashMovements          CashMovement[]
   ingredients            Ingredient[]
+  ingredientBarcodes     IngredientBarcode[]
   suppliers              Supplier[]
   stockLevels            StockLevel[]
   stockMovements         StockMovement[]
@@ -1956,13 +1957,9 @@ model Ingredient {
   category         String?
   measureKind      MeasureKind
   sku              String?
-  // Código de barras del empaque (EAN/UPC/Code128). Opcional y único por
-  // comercio: si dos insumos compartieran código, el escaneo en el conteo
-  // sería ambiguo y no habría forma de saber a cuál saltar. El índice es
-  // sobre una columna nullable, así que Postgres admite N insumos sin
-  // código (NULL nunca colisiona con NULL) — imprescindible para no romper
-  // el catálogo ya existente. Limitación conocida: UN código por insumo,
-  // así que dos presentaciones del mismo producto necesitan dos insumos.
+  // Principal, compatible con la ficha existente. IngredientBarcode guarda
+  // TODOS los códigos (principal y adicionales), únicos por comercio. Un
+  // trigger sincroniza este campo incluso desde versiones anteriores.
   barcode          String?
   notes            String?
   active           Boolean     @default(true)
@@ -1978,6 +1975,7 @@ model Ingredient {
   updatedAt        DateTime    @updatedAt
 
   supplierItems       SupplierIngredient[]
+  barcodes            IngredientBarcode[]
   supplierInvoiceAliases SupplierInvoiceAlias[]
   stockLevel          StockLevel?
   stockMovements      StockMovement[]
@@ -1991,6 +1989,20 @@ model Ingredient {
   @@unique([restaurantId, name])
   @@unique([restaurantId, barcode])
   @@index([restaurantId, active])
+}
+
+/// Códigos alternativos de un mismo insumo; no cambian la unidad del conteo.
+model IngredientBarcode {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  barcode      String
+  createdAt    DateTime   @default(now())
+
+  @@unique([restaurantId, barcode])
+  @@index([ingredientId])
 }
 
 /// Proveedor del comercio.

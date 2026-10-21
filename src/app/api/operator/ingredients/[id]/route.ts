@@ -2,6 +2,7 @@ import { lockStock } from "@/lib/orderLock";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
@@ -97,13 +98,13 @@ async function PATCHHandler(
   const barcode =
     b.barcode !== undefined ? normalizeBarcode(b.barcode) : undefined;
   if (barcode != null && barcode !== ing.barcode) {
-    const dupCode = await db.ingredient.findUnique({
+    const dupCode = await db.ingredientBarcode.findUnique({
       where: {
         restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode },
       },
-      select: { id: true },
+      select: { ingredientId: true },
     });
-    if (dupCode) {
+    if (dupCode && dupCode.ingredientId !== id) {
       return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
     }
   }
@@ -157,6 +158,19 @@ async function PATCHHandler(
       },
     });
     return { ingredient, previousPrice: latest.referencePriceCents ?? null, previousMeasureKind: latest.measureKind };
+  }).catch(async (error: unknown) => {
+    if (barcode && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = error.meta?.target;
+      const barcodeTarget = Array.isArray(target) ? target.includes("barcode") : typeof target === "string" && target.includes("barcode");
+      // The failed transaction is rolled back before checking an unlabelled
+      // trigger collision against the canonical primary/additional registry.
+      const conflictingCode = target == null && await db.ingredientBarcode.findUnique({
+        where: { restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode } },
+        select: { ingredientId: true },
+      });
+      if (barcodeTarget || (conflictingCode && conflictingCode.ingredientId !== id)) return { error: "barcode_taken" as const };
+    }
+    throw error;
   });
   if ("error" in updated) {
     return NextResponse.json(updated, { status: updated.error === "not_found" ? 404 : 409 });

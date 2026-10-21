@@ -65,6 +65,14 @@ describe("tenant model discovery", () => {
       supplier: { restaurantId: "r1" }, ingredient: { restaurantId: "r1" },
     });
   });
+  it("includes barcode records and scopes both their tenant and ingredient", () => {
+    expect(names).toContain("IngredientBarcode");
+    expect(ownerWhere(tenantModel("IngredientBarcode")!, "r1")).toEqual({
+      restaurantId: "r1", ingredient: { restaurantId: "r1" },
+    });
+    const order = topologicalOrder();
+    expect(order.insert.indexOf("Ingredient")).toBeLessThan(order.insert.indexOf("IngredientBarcode"));
+  });
   it("every model has a single id column and a camelCase delegate", () => {
     for (const m of tenantModels()) {
       expect(m.idField).toBe("id");

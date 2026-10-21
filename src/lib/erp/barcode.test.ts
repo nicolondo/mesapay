@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBarcode } from "./barcode";
+import { ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode } from "./barcode";
 
 // La normalización es el único punto donde se decide qué es "el mismo
 // código": si escanear y guardar no limpian igual, el salto al insumo en el
@@ -31,5 +31,18 @@ describe("normalizeBarcode", () => {
     expect(normalizeBarcode("   ")).toBeNull();
     expect(normalizeBarcode(null)).toBeNull();
     expect(normalizeBarcode(undefined)).toBeNull();
+  });
+});
+
+describe("multiple ingredient barcodes", () => {
+  it("reads primary and aliases once, retaining case and leading zeroes", () => {
+    expect(ingredientBarcodeValues({ barcode: "001", barcodes: [{ barcode: "001" }, { barcode: "abc" }, { barcode: "ABC" }, { barcode: "\t" }] })).toEqual(["001", "abc", "ABC"]);
+    expect(ingredientBarcodeValues({ barcode: null })).toEqual([]);
+  });
+  it("uses authoritative codes when another operator changes the primary, preserving local inventory fields", () => {
+    const current = { id: "a", barcode: "OLD", barcodes: [{ barcode: "OLD" }, { barcode: "alias" }], qty: "12", name: "Water" };
+    const incoming = { id: "a", barcode: "NEW", barcodes: [{ barcode: "NEW" }, { barcode: "alias" }, { barcode: "added" }] };
+    expect(mergeIngredientBarcodes(current, incoming)).toEqual({ ...current, barcode: "NEW", barcodes: incoming.barcodes });
+    expect(current.barcodes).toEqual([{ barcode: "OLD" }, { barcode: "alias" }]);
   });
 });

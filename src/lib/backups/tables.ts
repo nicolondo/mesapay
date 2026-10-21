@@ -195,6 +195,11 @@ export function restaurantFields(): DmmfField[] {
  * (`{ order: { restaurantId } }`). Sirve igual para findMany y deleteMany.
  */
 export function ownerWhere(model: TenantModel, restaurantId: string): Record<string, unknown> {
+  // Barcode ownership is stored on both sides. Export only consistent
+  // tenant links, including when a row was introduced outside the API.
+  if (model.name === "IngredientBarcode") {
+    return { restaurantId, ingredient: { restaurantId } };
+  }
   // Both ends of a learned supplier name are business-owned. Never export an
   // inconsistent cross-tenant reference, even if introduced outside the API.
   if (model.name === "SupplierInvoiceAlias") {

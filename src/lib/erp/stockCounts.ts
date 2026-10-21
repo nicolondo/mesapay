@@ -8,7 +8,12 @@ export const stockCountInclude = {
   createdBy: { select: { name: true } },
   items: {
     include: {
-      ingredient: { select: { id: true, name: true, measureKind: true, category: true, active: true, barcode: true, trackInventory: true } },
+      ingredient: {
+        select: {
+          id: true, name: true, measureKind: true, category: true, active: true, barcode: true, trackInventory: true,
+          barcodes: { select: { barcode: true }, orderBy: { barcode: "asc" } },
+        },
+      },
     },
     orderBy: { ingredient: { name: "asc" as const } },
   },

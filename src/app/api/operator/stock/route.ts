@@ -28,6 +28,8 @@ async function GETHandler() {
       category: true,
       measureKind: true,
       active: true,
+      barcode: true,
+      barcodes: { where: { restaurantId: ctx.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
       // A4 — la UI marca "bajo mínimo" con qtyBase <= reorderPointBase.
       reorderPointBase: true,
       reorderQtyBase: true,

@@ -77,7 +77,10 @@ describe("multiple inventory barcodes on PostgreSQL", () => {
     await success(await add(item.id, "000ab"));
     await success(await add(item.id, " 000Ab\r\n"));
     await success(await add(item.id, "000ab"));
-    expect(await read(item.id)).toEqual({ id: item.id, barcode: "000Ab", barcodes: [{ barcode: "000Ab" }, { barcode: "000ab" }] });
+    const persisted = await read(item.id);
+    expect(persisted).toMatchObject({ id: item.id, barcode: "000Ab" });
+    // PostgreSQL collations order upper/lower case differently across hosts.
+    expect(codes(persisted)).toEqual(["000Ab", "000ab"]);
     expect(await audits(item.id)).toHaveLength(1);
   });
 

@@ -5,7 +5,7 @@ import { db } from "../src/lib/db";
 import { createBackup, restoreSnapshot, type SnapshotData } from "../src/lib/backups";
 
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
-if (!["127.0.0.1", "localhost"].includes(database.hostname) || database.pathname !== "/mesapay_inventory_barcode_validation") {
+if (!["127.0.0.1", "localhost"].includes(database.hostname) || !/^\/mesapay_.*(?:test|validation)$/.test(database.pathname)) {
   throw new Error("Isolated local barcode validation database required");
 }
 

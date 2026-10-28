@@ -1611,6 +1611,7 @@ function CountSheet({
   const [scan, setScan] = useState("");
   const [scanErr, setScanErr] = useState<string | null>(null);
   const [unmatchedCode, setUnmatchedCode] = useState<string | null>(null);
+  const [quantityErrorId, setQuantityErrorId] = useState<string | null>(null);
   // Item al que saltó el último escaneo. `seq` sube en cada lectura para
   // que re-escanear el MISMO código vuelva a enfocar (sin él, el estado no
   // cambia y el efecto no corre).
@@ -1631,6 +1632,7 @@ function CountSheet({
     setEntries(Object.fromEntries(next.items.map((item) => [item.id, countEntryFromBase(item.countedQty, item.ingredient.measureKind)])));
     setConflict(null);
     setDifferenceFilter("all");
+    setQuantityErrorId(null);
   }
 
   function showError(code?: string) {
@@ -1694,6 +1696,7 @@ function CountSheet({
   /** Escaneo (o Enter manual): salta al insumo del código leído. */
   function handleScan(e: React.FormEvent) {
     e.preventDefault();
+    if (!canEdit || busy) return;
     const code = normalizeBarcode(scan);
     setScan("");
     if (!code) return;
@@ -1708,6 +1711,7 @@ function CountSheet({
     }
     setScanErr(null);
     setUnmatchedCode(null);
+    setQuantityErrorId(null);
     // El buscador puede estar escondiendo justo la fila escaneada.
     setQ("");
     setDifferenceFilter("all");
@@ -1721,8 +1725,8 @@ function CountSheet({
     if (!hit) return;
     const el = qtyRefs.current[hit.itemId];
     if (!el) return;
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
-    el.focus();
+    el.scrollIntoView({ block: "center", behavior: "instant" });
+    el.focus({ preventScroll: true });
     el.select();
   }, [hit]);
 
@@ -1821,9 +1825,10 @@ function CountSheet({
         role="dialog"
         aria-modal="true"
         aria-label={t("countTitle")}
-        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="shrink-0 px-5 pt-5 pb-3 border-b border-op-border">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div className="flex items-center gap-2 min-w-0">
             <h2 className="font-display text-2xl">{t("countTitle")}</h2>
@@ -1846,6 +1851,36 @@ function CountSheet({
             {"✕"}
           </button>
         </div>
+        {canEdit && (
+          <form onSubmit={handleScan}>
+            <Field label={t("scanBarcodeLabel")} hint={t("scanHint")}>
+              <input
+                ref={scanRef}
+                type="text"
+                value={scan}
+                aria-label={t("scanBarcodeLabel")}
+                // Los lectores HID escriben en el campo enfocado.
+                autoFocus
+                autoComplete="off"
+                inputMode="text"
+                enterKeyHint="go"
+                disabled={busy}
+                onChange={(e) => {
+                  setScan(e.target.value);
+                  setScanErr(null);
+                }}
+                placeholder={t("scanBarcodePlaceholder")}
+                maxLength={BARCODE_MAX_LENGTH}
+                className={inputCls + " font-mono"}
+              />
+            </Field>
+            {scanErr && (
+              <div role="alert" className="text-xs text-danger break-words mt-1">{scanErr}</div>
+            )}
+          </form>
+        )}
+        </div>
+        <div role="region" aria-label={t("countScrollRegion")} className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-3">
         <div className="text-[11px] text-op-muted mb-1">
           {[
             formatDate(count.createdAt, { locale }),
@@ -1895,34 +1930,6 @@ function CountSheet({
           </div>
         )}
 
-        {canEdit && (
-          <form onSubmit={handleScan} className="mb-3">
-            <Field label={t("scanBarcodeLabel")} hint={t("scanHint")}>
-              <input
-                ref={scanRef}
-                type="text"
-                value={scan}
-                aria-label={t("scanBarcodeLabel")}
-                // El sheet se abre listo para escanear: el lector teclea
-                // donde esté el foco, así que tiene que estar acá.
-                autoFocus
-                autoComplete="off"
-                inputMode="text"
-                onChange={(e) => {
-                  setScan(e.target.value);
-                  setScanErr(null);
-                }}
-                placeholder={t("scanBarcodePlaceholder")}
-                maxLength={BARCODE_MAX_LENGTH}
-                className={inputCls + " font-mono"}
-              />
-            </Field>
-            {scanErr && (
-              <div className="text-xs text-danger mt-1">{scanErr}</div>
-            )}
-          </form>
-        )}
-
         <input
           type="search"
           value={q}
@@ -1944,6 +1951,8 @@ function CountSheet({
               const parsed = !canEdit
                 ? it.countedQty
                 : parseCounted(entry.raw, kind, entry.unit);
+              const quantityInvalid = parsed === "invalid" || (quantityErrorId === it.id && parsed == null);
+              const quantityHintId = `count-quantity-${it.id}-hint`;
               const diff =
                 parsed != null && parsed !== "invalid"
                   ? parsed - baseline(it)
@@ -2016,6 +2025,7 @@ function CountSheet({
                   )}
                   {!it.ingredient.trackInventory && <p className="text-xs text-op-muted mt-1">{t("nonInventoriable")}</p>}
                   {canEdit && (
+                    <>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         ref={(el) => {
@@ -2023,7 +2033,10 @@ function CountSheet({
                         }}
                         type="text"
                         inputMode="decimal"
+                        enterKeyHint="next"
                         aria-label={t("countQuantityLabel", { name: it.ingredient.name })}
+                        aria-describedby={it.ingredient.trackInventory ? quantityHintId : undefined}
+                        aria-invalid={quantityInvalid}
                         disabled={busy || !it.ingredient.trackInventory}
                         value={entry.raw}
                         placeholder={t("notCounted")}
@@ -2031,12 +2044,21 @@ function CountSheet({
                         // cantidad → Enter devuelve el foco al escáner, listo
                         // para el siguiente empaque sin tocar la pantalla.
                         onKeyDown={(e) => {
-                          if (e.key !== "Enter") return;
+                          if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
                           e.preventDefault();
-                          scanRef.current?.focus();
+                          if (parsed == null || parsed === "invalid") {
+                            setQuantityErrorId(it.id);
+                            return;
+                          }
+                          setQuantityErrorId(null);
+                          setScan("");
+                          setScanErr(null);
+                          setUnmatchedCode(null);
+                          scanRef.current?.focus({ preventScroll: true });
                         }}
                         onChange={(e) => {
                           setSavedFlash(false);
+                          setQuantityErrorId(null);
                           setEntries((prev) => ({
                             ...prev,
                             [it.id]: { ...prev[it.id], raw: sanitizeDecimalInput(e.target.value) },
@@ -2049,6 +2071,7 @@ function CountSheet({
                         aria-label={t("countUnitLabel", { name: it.ingredient.name })}
                         onChange={(e) => {
                           setSavedFlash(false);
+                          setQuantityErrorId(null);
                           setEntries((prev) => ({
                             ...prev,
                             [it.id]: { ...prev[it.id], unit: e.target.value },
@@ -2073,6 +2096,12 @@ function CountSheet({
                         {diff != null && diff !== 0 && <div className="text-[10px]">{t(diff < 0 ? "countShortage" : "countSurplus")}</div>}
                       </div>
                     </div>
+                    {it.ingredient.trackInventory && (
+                      <p id={quantityHintId} role={quantityInvalid ? "alert" : undefined} className={"mt-1.5 text-xs " + (quantityInvalid ? "text-danger" : "text-op-muted")}>
+                        {t(quantityInvalid ? "countQuantityEnterError" : "countQuantityEnterHint")}
+                      </p>
+                    )}
+                    </>
                   )}
                   <IngredientBarcodes
                     ingredient={it.ingredient}
@@ -2104,7 +2133,7 @@ function CountSheet({
           <div className="text-xs text-ok mt-3">{t("draftSaved")}</div>
         )}
 
-        <div className="sticky bottom-0 -mx-5 px-5 mt-4 pt-3 pb-1 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
+        <div className="sticky [@media(max-height:600px)]:static bottom-0 -mx-5 px-5 mt-4 pt-3 pb-5 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
           {readOnly ? (
             <button type="button" onClick={onClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
           ) : (
@@ -2120,6 +2149,7 @@ function CountSheet({
               </>}
             </>
           )}
+        </div>
         </div>
       </div>
     </div>

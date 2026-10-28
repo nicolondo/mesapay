@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { lockStock } from "@/lib/orderLock";
 import { applyStockMovement } from "@/lib/erp/stock";
+import { effectiveCountParts, isValidCountParts, isValidCountQuantity } from "@/lib/erp/stockCountParts";
 
 export const stockCountInclude = {
   createdBy: { select: { name: true } },
@@ -26,7 +27,7 @@ export class StockCountError extends Error {
 type Count = Prisma.StockCountGetPayload<{ include: typeof stockCountInclude }>;
 type Snapshot = { movementCount: number; ingredients: { id: string; trackInventory: boolean; measureKind: string; qtyBase: number; totalValueCents: number }[] };
 export type StockCountAction = "save" | "preliminary" | "recount" | "review" | "close" | "delete";
-export type StockCountInput = { revision: number; items?: { itemId: string; countedQty: number | null }[]; reviewToken?: string };
+export type StockCountInput = { revision: number; items?: { itemId: string; countedQty: number | null; countedParts?: number[] }[]; reviewToken?: string };
 
 /** Snapshots are scoped to this count's ingredients, so unrelated stock moves
  * do not interrupt a recount. Movement count also detects net-zero changes. */
@@ -72,22 +73,29 @@ export async function mutateStockCount(restaurantId: string, id: string, action:
     const common = { revision, finalReview: Prisma.DbNull };
     if (action === "save") {
       if (count.preliminaryAt && !count.recountStartedAt) throw new StockCountError("recount_required");
-      const owned = new Set(count.items.map((item) => item.id));
+      const owned = new Map(count.items.map((item) => [item.id, item]));
       const changes = input.items ?? [];
       if (!changes.length || new Set(changes.map((item) => item.itemId)).size !== changes.length || changes.some((item) => !owned.has(item.itemId))) throw new StockCountError("invalid", 400);
-      for (const item of changes) await tx.stockCountItem.update({ where: { id: item.itemId }, data: { countedQty: item.countedQty } });
+      // Validate the whole batch before writing, including non-HTTP callers.
+      // Older clients omit parts: retain a matching breakdown or normalize it
+      // to the changed total, never silently reuse a mismatched breakdown.
+      const updates = changes.map((item) => {
+        if (!isValidCountQuantity(item.countedQty) || (item.countedParts !== undefined && !isValidCountParts(item.countedQty, item.countedParts))) throw new StockCountError("qty_invalid", 400);
+        return { itemId: item.itemId, countedQty: item.countedQty, countedParts: item.countedParts === undefined ? effectiveCountParts(item.countedQty, owned.get(item.itemId)!.countedParts) : [...item.countedParts] };
+      });
+      for (const item of updates) await tx.stockCountItem.update({ where: { id: item.itemId }, data: { countedQty: item.countedQty, countedParts: item.countedParts } });
       await tx.stockCount.update({ where: { id }, data: common });
     } else if (action === "preliminary") {
       if (count.preliminaryAt) throw new StockCountError("count_changed");
       if (!count.items.some((item) => item.ingredient.trackInventory && item.countedQty !== null)) throw new StockCountError("empty_count", 400);
-      for (const item of count.items) await tx.stockCountItem.update({ where: { id: item.id }, data: { preliminaryQty: item.countedQty } });
+      for (const item of count.items) await tx.stockCountItem.update({ where: { id: item.id }, data: { preliminaryQty: item.countedQty, preliminaryParts: effectiveCountParts(item.countedQty, item.countedParts) } });
       await tx.stockCount.update({ where: { id }, data: { ...common, preliminaryAt: new Date() } });
     } else if (action === "recount") {
       if (!count.preliminaryAt) throw new StockCountError("preliminary_required");
       const snapshot = await stockSnapshot(tx, restaurantId, count);
       if (!snapshot.ingredients.some((i) => i.trackInventory)) throw new StockCountError("empty_count", 400);
       const levels = new Map(snapshot.ingredients.map((i) => [i.id, i.qtyBase]));
-      for (const item of count.items) await tx.stockCountItem.update({ where: { id: item.id }, data: { countedQty: null, finalExpectedQty: levels.get(item.ingredientId) ?? 0 } });
+      for (const item of count.items) await tx.stockCountItem.update({ where: { id: item.id }, data: { countedQty: null, countedParts: [], finalExpectedQty: levels.get(item.ingredientId) ?? 0 } });
       await tx.stockCount.update({ where: { id }, data: { ...common, recountStartedAt: new Date(), recountSnapshot: snapshot } });
     } else {
       if (!count.preliminaryAt) throw new StockCountError("preliminary_required");

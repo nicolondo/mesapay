@@ -8,7 +8,9 @@ import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
 import { IngredientBarcodes } from "./IngredientBarcodes";
-import { countEntryFromBase, parseCountEntry as parseCounted, formatCountQty } from "@/lib/erp/stockCountInput";
+import { CountQuantityFields } from "./CountQuantityFields";
+import { countEntriesFromBase, parseCountEntry as parseCounted, parseCountEntries, nextCountEntry, formatCountQty, type CountEntry } from "@/lib/erp/stockCountInput";
+import { effectiveCountParts, MAX_COUNT_PARTS } from "@/lib/erp/stockCountParts";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   DEFAULT_INPUT_UNIT,
@@ -84,7 +86,9 @@ type CountItemRow = {
   id: string;
   expectedQty: number;
   countedQty: number | null;
+  countedParts?: number[];
   preliminaryQty: number | null;
+  preliminaryParts?: number[];
   finalExpectedQty: number | null;
   ingredient: {
     id: string;
@@ -1582,14 +1586,11 @@ function CountSheet({
   const [count, setCount] = useState(initialCount);
   const locale = useLocale() as Locale;
 
-  // Borrador digitado: raw por item ("" = sin contar) + unidad de display.
-  // Al reanudar, convertir desde la base a la unidad visible sin perder precisión.
-  const [entries, setEntries] = useState<
-    Record<string, { raw: string; unit: string }>
-  >(() => {
-    const init: Record<string, { raw: string; unit: string }> = {};
+  // Cada escaneo conserva su propia cantidad y unidad; el total se deriva.
+  const [entries, setEntries] = useState<Record<string, CountEntry[]>>(() => {
+    const init: Record<string, CountEntry[]> = {};
     for (const it of count.items) {
-      init[it.id] = countEntryFromBase(it.countedQty, it.ingredient.measureKind);
+      init[it.id] = countEntriesFromBase(it.countedQty, it.ingredient.measureKind, it.countedParts);
     }
     return init;
   });
@@ -1611,11 +1612,11 @@ function CountSheet({
   const [scan, setScan] = useState("");
   const [scanErr, setScanErr] = useState<string | null>(null);
   const [unmatchedCode, setUnmatchedCode] = useState<string | null>(null);
-  const [quantityErrorId, setQuantityErrorId] = useState<string | null>(null);
+  const [quantityErrorKey, setQuantityErrorKey] = useState<string | null>(null);
   // Item al que saltó el último escaneo. `seq` sube en cada lectura para
   // que re-escanear el MISMO código vuelva a enfocar (sin él, el estado no
   // cambia y el efecto no corre).
-  const [hit, setHit] = useState<{ itemId: string; seq: number } | null>(null);
+  const [hit, setHit] = useState<{ itemId: string; index: number; seq: number } | null>(null);
   const seqRef = useRef(0);
   const scanRef = useRef<HTMLInputElement | null>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -1625,14 +1626,18 @@ function CountSheet({
   const canEdit = phase === "initial" || phase === "recount";
   const finalStage = !!count.recountStartedAt;
   const baseline = (item: CountItemRow) => finalStage ? (item.finalExpectedQty ?? item.expectedQty) : item.expectedQty;
-  const quantity = (item: CountItemRow) => canEdit ? parseCounted(entries[item.id]?.raw ?? "", item.ingredient.measureKind, entries[item.id]?.unit ?? DEFAULT_INPUT_UNIT[item.ingredient.measureKind]) : item.countedQty;
+  const quantity = (item: CountItemRow) => {
+    if (!canEdit) return item.countedQty;
+    const parsed = parseCountEntries(entries[item.id] ?? [], item.ingredient.measureKind);
+    return parsed === "invalid" ? parsed : parsed.countedQty;
+  };
 
   function acceptCount(next: CountDetail) {
     setCount(next);
-    setEntries(Object.fromEntries(next.items.map((item) => [item.id, countEntryFromBase(item.countedQty, item.ingredient.measureKind)])));
+    setEntries(Object.fromEntries(next.items.map((item) => [item.id, countEntriesFromBase(item.countedQty, item.ingredient.measureKind, item.countedParts)])));
     setConflict(null);
     setDifferenceFilter("all");
-    setQuantityErrorId(null);
+    setQuantityErrorKey(null);
   }
 
   function showError(code?: string) {
@@ -1711,11 +1716,25 @@ function CountSheet({
     }
     setScanErr(null);
     setUnmatchedCode(null);
-    setQuantityErrorId(null);
+    addQuantity(itemId);
+  }
+
+  function addQuantity(itemId: string) {
+    if (!canEdit || busy) return;
+    const item = count.items.find((candidate) => candidate.id === itemId);
+    if (!item?.ingredient.trackInventory) return;
+    const next = nextCountEntry(entries[itemId] ?? [], item.ingredient.measureKind);
+    if (!next) {
+      setScanErr(t("countPartsLimit", { count: MAX_COUNT_PARTS }));
+      return;
+    }
+    setEntries((prev) => ({ ...prev, [itemId]: next.entries }));
+    setSavedFlash(false);
+    setQuantityErrorKey(null);
     // El buscador puede estar escondiendo justo la fila escaneada.
     setQ("");
     setDifferenceFilter("all");
-    setHit({ itemId, seq: ++seqRef.current });
+    setHit({ itemId, index: next.index, seq: ++seqRef.current });
   }
 
   // Enfocar la cantidad del insumo escaneado. Corre DESPUÉS del render, así
@@ -1723,7 +1742,7 @@ function CountSheet({
   // filtro de búsqueda para revelarla.
   useEffect(() => {
     if (!hit) return;
-    const el = qtyRefs.current[hit.itemId];
+    const el = qtyRefs.current[`${hit.itemId}:${hit.index}`];
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "instant" });
     el.focus({ preventScroll: true });
@@ -1746,13 +1765,12 @@ function CountSheet({
   }, { counted: 0, diffs: 0, shortages: 0, surpluses: 0, equal: 0, pending: 0 });
 
   /** Payload PATCH completo, o null si hay alguna cantidad inválida. */
-  function buildPayload(): { itemId: string; countedQty: number | null }[] | null {
-    const out: { itemId: string; countedQty: number | null }[] = [];
+  function buildPayload(): { itemId: string; countedQty: number | null; countedParts: number[] }[] | null {
+    const out: { itemId: string; countedQty: number | null; countedParts: number[] }[] = [];
     for (const it of count.items) {
-      const e = entries[it.id];
-      const parsed = parseCounted(e.raw, it.ingredient.measureKind, e.unit);
+      const parsed = parseCountEntries(entries[it.id] ?? [], it.ingredient.measureKind);
       if (parsed === "invalid") return null;
-      out.push({ itemId: it.id, countedQty: parsed });
+      out.push({ itemId: it.id, ...parsed });
     }
     return out;
   }
@@ -1946,13 +1964,10 @@ function CountSheet({
           <div className="border border-op-border rounded-2xl overflow-hidden">
             {visibleItems.map((it) => {
               const kind = it.ingredient.measureKind;
-              const unitOptions = DISPLAY_UNITS[kind];
-              const entry = entries[it.id];
-              const parsed = !canEdit
-                ? it.countedQty
-                : parseCounted(entry.raw, kind, entry.unit);
-              const quantityInvalid = parsed === "invalid" || (quantityErrorId === it.id && parsed == null);
-              const quantityHintId = `count-quantity-${it.id}-hint`;
+              const itemEntries = entries[it.id];
+              const parsed = quantity(it);
+              const initialParts = effectiveCountParts(it.preliminaryQty, it.preliminaryParts);
+              const currentParts = effectiveCountParts(it.countedQty, it.countedParts);
               const diff =
                 parsed != null && parsed !== "invalid"
                   ? parsed - baseline(it)
@@ -2021,88 +2036,58 @@ function CountSheet({
                     <div className="text-xs text-op-muted mt-2">
                       {t("countInitialLabel")}: {it.preliminaryQty == null ? t("notCounted") : formatCountQty(it.preliminaryQty, kind, locale)}
                       {it.preliminaryQty != null && <span> · {t("countInitialDifference")}: {formatCountQty(it.preliminaryQty - it.expectedQty, kind, locale)}</span>}
+                      {initialParts.length > 1 && <p className="mt-1 break-words">{t("countInitialParts", { amounts: initialParts.map(value => formatCountQty(value, kind, locale)).join(" + ") })}</p>}
                     </div>
                   )}
                   {!it.ingredient.trackInventory && <p className="text-xs text-op-muted mt-1">{t("nonInventoriable")}</p>}
                   {canEdit && (
-                    <>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        ref={(el) => {
-                          qtyRefs.current[it.id] = el;
-                        }}
-                        type="text"
-                        inputMode="decimal"
-                        enterKeyHint="next"
-                        aria-label={t("countQuantityLabel", { name: it.ingredient.name })}
-                        aria-describedby={it.ingredient.trackInventory ? quantityHintId : undefined}
-                        aria-invalid={quantityInvalid}
-                        disabled={busy || !it.ingredient.trackInventory}
-                        value={entry.raw}
-                        placeholder={t("notCounted")}
-                        // Ciclo del conteo con lector: escanear → digitar la
-                        // cantidad → Enter devuelve el foco al escáner, listo
-                        // para el siguiente empaque sin tocar la pantalla.
-                        onKeyDown={(e) => {
-                          if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
-                          e.preventDefault();
-                          if (parsed == null || parsed === "invalid") {
-                            setQuantityErrorId(it.id);
-                            return;
-                          }
-                          setQuantityErrorId(null);
-                          setScan("");
-                          setScanErr(null);
-                          setUnmatchedCode(null);
-                          scanRef.current?.focus({ preventScroll: true });
-                        }}
-                        onChange={(e) => {
-                          setSavedFlash(false);
-                          setQuantityErrorId(null);
-                          setEntries((prev) => ({
-                            ...prev,
-                            [it.id]: { ...prev[it.id], raw: sanitizeDecimalInput(e.target.value) },
-                          }));
-                        }}
-                        className={inputCls + " flex-1 min-w-0"}
-                      />
-                      <select
-                        value={entry.unit}
-                        aria-label={t("countUnitLabel", { name: it.ingredient.name })}
-                        onChange={(e) => {
-                          setSavedFlash(false);
-                          setQuantityErrorId(null);
-                          setEntries((prev) => ({
-                            ...prev,
-                            [it.id]: { ...prev[it.id], unit: e.target.value },
-                          }));
-                        }}
-                        disabled={busy || !it.ingredient.trackInventory || unitOptions.length < 2}
-                        className="min-h-[44px] w-20 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
-                      >
-                        {unitOptions.map((u) => (
-                          <option key={u.symbol} value={u.symbol}>
-                            {u.symbol}
-                          </option>
-                        ))}
-                      </select>
-                      <div
-                        className={
-                          "w-20 text-right text-xs font-medium tabular-nums shrink-0 " +
-                          (parsed === "invalid" ? "text-danger" : diffCls)
+                    <CountQuantityFields
+                      itemId={it.id} name={it.ingredient.name} kind={kind} entries={itemEntries}
+                      disabled={busy || !it.ingredient.trackInventory} tracked={it.ingredient.trackInventory}
+                      invalidTotal={parsed === "invalid"} errorKey={quantityErrorKey}
+                      setInputRef={(index, element) => { qtyRefs.current[`${it.id}:${index}`] = element; }}
+                      onChange={(index, change) => {
+                        setSavedFlash(false);
+                        setQuantityErrorKey(null);
+                        setEntries(prev => ({ ...prev, [it.id]: prev[it.id].map((entry, partIndex) => partIndex === index ? { ...entry, ...change } : entry) }));
+                      }}
+                      onEnter={(index) => {
+                        const entry = itemEntries[index];
+                        const value = parseCounted(entry.raw, kind, entry.unit);
+                        if (value == null || value === "invalid" || parsed === "invalid") {
+                          setQuantityErrorKey(`${it.id}:${index}`);
+                          return;
                         }
-                      >
-                        {parsed === "invalid" ? "✕" : diffText}
-                        {diff != null && diff !== 0 && <div className="text-[10px]">{t(diff < 0 ? "countShortage" : "countSurplus")}</div>}
+                        setQuantityErrorKey(null);
+                        setScan(""); setScanErr(null); setUnmatchedCode(null);
+                        scanRef.current?.focus({ preventScroll: true });
+                      }}
+                      onRemove={(index) => {
+                        const remaining = itemEntries.filter((_, partIndex) => partIndex !== index);
+                        setEntries(prev => ({ ...prev, [it.id]: remaining }));
+                        setSavedFlash(false); setQuantityErrorKey(null);
+                        setHit({ itemId: it.id, index: Math.min(index, remaining.length - 1), seq: ++seqRef.current });
+                      }}
+                      onAdd={() => addQuantity(it.id)}
+                    />
+                  )}
+                  {!canEdit && currentParts.length > 1 && (
+                    <p className="mt-2 text-xs text-op-muted break-words">{t("countPartsBreakdown", { amounts: currentParts.map(value => formatCountQty(value, kind, locale)).join(" + ") })}</p>
+                  )}
+                  <div className="mt-2 flex items-start justify-between gap-3 border-t border-op-border pt-2">
+                    <div role="status" aria-label={t("countTotalLabel", { name: it.ingredient.name })} className="min-w-0 text-sm font-medium">
+                      <span className="text-xs text-op-muted">{t("countTotal")}</span>
+                      <div className={"mt-0.5 tabular-nums " + (parsed === "invalid" ? "text-danger" : "")}>
+                        {parsed === "invalid" ? t("countPartsInvalidTotal") : parsed == null ? t("notCounted") : formatCountQty(parsed, kind, locale)}
                       </div>
                     </div>
-                    {it.ingredient.trackInventory && (
-                      <p id={quantityHintId} role={quantityInvalid ? "alert" : undefined} className={"mt-1.5 text-xs " + (quantityInvalid ? "text-danger" : "text-op-muted")}>
-                        {t(quantityInvalid ? "countQuantityEnterError" : "countQuantityEnterHint")}
-                      </p>
+                    {canEdit && diff != null && (
+                      <div className={"text-right text-xs font-medium tabular-nums " + diffCls}>
+                        {diffText}
+                        {diff !== 0 && <div className="text-[10px]">{t(diff < 0 ? "countShortage" : "countSurplus")}</div>}
+                      </div>
                     )}
-                    </>
-                  )}
+                  </div>
                   <IngredientBarcodes
                     ingredient={it.ingredient}
                     canAdd={canEdit && it.ingredient.active && it.ingredient.trackInventory}

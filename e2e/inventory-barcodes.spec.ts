@@ -71,12 +71,15 @@ test("multiple codes persist and scan without losing unsaved counts", async ({ p
     await expect(area(page, "Agua").getByRole("status")).toHaveText("Código guardado");
     for (const barcode of ["000123", "abC-002", "New-003"]) {
       await scanner.fill(barcode); await scanner.press("Enter");
-      await expect(waterQuantity).toBeFocused();
+      await expect(page.getByLabel("Cantidad 2 de Agua", { exact: true })).toBeFocused();
+      await expect(page.getByLabel("Cantidad 2 de Agua", { exact: true })).toHaveValue("");
+      await expect(page.getByLabel("Cantidad 3 de Agua", { exact: true })).toHaveCount(0);
       await expect(waterQuantity).toHaveValue("12");
       await expect(riceQuantity).toHaveValue("7");
     }
     await scanner.fill("Rice-001"); await scanner.press("Enter");
-    await expect(riceQuantity).toBeFocused();
+    await expect(page.getByLabel("Cantidad 2 de Arroz", { exact: true })).toBeFocused();
+    await expect(riceQuantity).toHaveValue("7");
     await expect(area(page, "Agua").getByRole("alert")).toHaveCount(0);
     await expect(area(page, "Arroz").getByRole("alert")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

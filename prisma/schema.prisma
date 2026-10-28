@@ -2197,7 +2197,9 @@ model StockCountItem {
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
   expectedQty  Int // snapshot del teórico al crear la sesión
   countedQty   Int? // null = todavía sin contar
+  countedParts Int[] @default([]) // parciales en unidad base; su suma es countedQty
   preliminaryQty Int? // primer conteo inmutable, sin ajustes
+  preliminaryParts Int[] @default([]) // desglose inmutable del primer conteo
   finalExpectedQty Int? // saldo al iniciar el conteo definitivo
 
   @@unique([countId, ingredientId])

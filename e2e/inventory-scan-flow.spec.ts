@@ -13,7 +13,9 @@ test.skip(
 const db = new PrismaClient();
 const scanLabel = "Escanear código de barras";
 const quantityHint = "Pulsa Enter para escanear el siguiente código.";
-const quantity = (page: Page, ingredient: Ingredient) => page.getByLabel(`Conteo de ${ingredient.name}`, { exact: true });
+const quantity = (page: Page, ingredient: Ingredient, part = 1) => page.getByLabel(
+  part === 1 ? `Conteo de ${ingredient.name}` : `Cantidad ${part} de ${ingredient.name}`, { exact: true },
+);
 
 async function fixture(size: number) {
   const token = randomUUID();
@@ -100,12 +102,18 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     await expect(scanner).toBeFocused();
     await expect(scanner).toHaveValue("");
 
+    const additionalQuantity = quantity(page, seed.ingredients.at(-1)!, 2);
     for (const barcode of ["QA-039", "QA-LAST-ALTERNATE", "QA-039"]) {
-      await hidScan(page, scanner, barcode, lastQuantity);
+      await hidScan(page, scanner, barcode, additionalQuantity);
       await expect(lastQuantity).toHaveValue("12");
-      await lastQuantity.press("Enter");
-      await expect(scanner).toBeFocused();
+      await expect(additionalQuantity).toHaveValue("");
+      await expect(quantity(page, seed.ingredients.at(-1)!, 3)).toHaveCount(0);
+      // Repeating a scan reuses its unfinished quantity, without overwriting the first one.
+      await scanner.focus();
     }
+    await additionalQuantity.fill("0");
+    await additionalQuantity.press("Enter");
+    await expect(scanner).toBeFocused();
     await hidScan(page, scanner, "QA-038", massQuantity);
     await massQuantity.fill("1,25");
     await massQuantity.press("Enter");
@@ -140,10 +148,14 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     await page.getByRole("tab", { name: "Conteos", exact: true }).click();
     await page.getByRole("button").filter({ hasText: "40 insumos" }).click();
     await expect(scanner).toBeFocused();
-    await hidScan(page, scanner, "QA-LAST-ALTERNATE", lastQuantity);
+    const nextQuantity = quantity(page, seed.ingredients.at(-1)!, 3);
+    await hidScan(page, scanner, "QA-LAST-ALTERNATE", nextQuantity);
     await expect(lastQuantity).toHaveValue("12");
-    await lastQuantity.press("Enter");
-    await hidScan(page, scanner, "QA-038", massQuantity);
+    await expect(additionalQuantity).toHaveValue("0");
+    await expect(nextQuantity).toHaveValue("");
+    await nextQuantity.fill("0");
+    await nextQuantity.press("Enter");
+    await hidScan(page, scanner, "QA-038", quantity(page, seed.ingredients.at(-2)!, 2));
     await expect(massQuantity).toHaveValue("1.25");
     await expect(firstQuantity).toHaveValue("0");
     await page.screenshot({ path: testInfo.outputPath("quantity-hint-and-reopened-count.png"), fullPage: true });
@@ -231,19 +243,20 @@ test("short and landscape viewports keep scanned quantities clear of the footer"
     await page.setViewportSize({ width: 390, height: 430 });
     const scanner = await loginAndCreateCount(page, seed);
     const region = page.getByRole("region", { name: "Detalle del conteo", exact: true });
-    for (const viewport of [{ width: 390, height: 430 }, { width: 320, height: 480 }, { width: 844, height: 390 }]) {
+    for (const [viewIndex, viewport] of [{ width: 390, height: 430 }, { width: 320, height: 480 }, { width: 844, height: 390 }].entries()) {
       await page.setViewportSize(viewport);
       for (const index of [10, 19]) {
-        const input = quantity(page, seed.ingredients[index]);
+        const input = quantity(page, seed.ingredients[index], viewIndex + 1);
         await hidScan(page, scanner, seed.ingredients[index].barcode!, input);
         await expect(scanner).toBeInViewport({ ratio: 1 });
-        // IntersectionObserver alone cannot detect a sticky footer covering the input.
+        // IntersectionObserver alone misses overlapping controls. Probe the
+        // input's solid center/edges, not transparent corners of its pill shape.
         await expect.poll(() => input.evaluate((element) => {
           const rect = element.getBoundingClientRect();
           const points = [
             [rect.x + rect.width / 2, rect.y + rect.height / 2],
-            [rect.x + 6, rect.y + 6], [rect.right - 6, rect.y + 6],
-            [rect.x + 6, rect.bottom - 6], [rect.right - 6, rect.bottom - 6],
+            [rect.x + 6, rect.y + rect.height / 2], [rect.right - 6, rect.y + rect.height / 2],
+            [rect.x + rect.width / 2, rect.y + 6], [rect.x + rect.width / 2, rect.bottom - 6],
           ];
           return points.every(([x, y]) => document.elementFromPoint(x, y) === element);
         })).toBe(true);
@@ -262,7 +275,7 @@ test("short and landscape viewports keep scanned quantities clear of the footer"
     }
     expect(await db.stockCountItem.count({ where: { count: { restaurantId: seed.restaurant.id }, countedQty: { not: null } } })).toBe(0);
     await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
-    await expect.poll(async () => (await db.stockCountItem.findFirstOrThrow({ where: { ingredientId: seed.ingredients[19].id } })).countedQty).toBe(19000);
+    await expect.poll(async () => (await db.stockCountItem.findFirstOrThrow({ where: { ingredientId: seed.ingredients[19].id } })).countedQty).toBe(57000);
     expect(await db.stockMovement.count({ where: { restaurantId: seed.restaurant.id } })).toBe(0);
   } finally { await seed.cleanup(); }
 });

@@ -6880,7 +6880,16 @@
     "barcodeAddNotTracked": "Este insumo não controla estoque.",
     "barcodeAddUnavailable": "Seu acesso atual não permite alterar este insumo. Recarregue a página e tente novamente.",
     "barcodeAddConflict": "O insumo mudou durante o salvamento. Tente novamente.",
-    "barcodeAddFailed": "Não foi possível salvar o código. Verifique a conexão e tente novamente."
+    "barcodeAddFailed": "Não foi possível salvar o código. Verifique a conexão e tente novamente.",
+    "invLineTaxIncluded": "Impostos incluídos neste valor",
+    "invLineTaxDetectedGross": "Detectado: impostos incluídos",
+    "invLineTaxDetectedNet": "Detectado: impostos não incluídos",
+    "invLineTaxManual": "Ajustado manualmente",
+    "invLineTaxUncertain": "Confirmação necessária",
+    "invLineTaxConfirmHint": "Não foi possível determinar se este valor inclui impostos. Marque se já estão incluídos ou confirme que devem ser somados.",
+    "invLineTaxIncludedHint": "O IVA e o imposto de consumo são separados deste valor, sem somá-los novamente.",
+    "invLineTaxExcludedHint": "Este valor é a base. O IVA e o imposto de consumo são somados ao total.",
+    "invLineConfirmNet": "Confirmar que não inclui impostos"
   },
   "opDian": {
     "title": "Faturação eletrónica DIAN",

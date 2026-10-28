@@ -29,6 +29,7 @@ export type InvoiceReviewLine = {
   cost: string; // importe transcrito/editado en pesos; su interpretación es explícita
   amountKind: InvoiceAmountKind;
   taxBasis: InvoiceTaxBasis;
+  taxBasisManual?: boolean;
   taxPct: number | null; // null exige elegir una tarifa, no significa exento
   taxAmount: string; // IVA TOTAL explícito; vacío calcula desde tarifa/base
   incAmount: string; // consumo TOTAL de la línea, nunca por unidad
@@ -42,6 +43,13 @@ export type InvoiceReviewLine = {
 export function reviewPriceQuantity(line: InvoiceReviewLine): number {
   return Number((line.qtyMode === "presentation" && line.suggestedPresentation
     ? line.presentations : line.qty).replace(",", "."));
+}
+
+/** An explicit operator choice wins over detection for the rest of this review. */
+export function setReviewTaxIncluded(line: InvoiceReviewLine, included: boolean): InvoiceReviewLine {
+  const taxBasis = included ? "gross" : "net";
+  return { ...line, taxBasis, taxBasisManual: true,
+    taxAmount: line.taxBasis === "unknown" || line.taxBasis === taxBasis ? line.taxAmount : "" };
 }
 
 function typedCents(value: string): number | null {

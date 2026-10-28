@@ -6880,7 +6880,16 @@
     "barcodeAddNotTracked": "Este insumo no lleva inventario.",
     "barcodeAddUnavailable": "No se puede modificar este insumo con tu acceso actual. Recarga la página e inténtalo de nuevo.",
     "barcodeAddConflict": "El insumo cambió mientras guardabas. Inténtalo de nuevo.",
-    "barcodeAddFailed": "No se pudo guardar el código. Revisa la conexión e inténtalo de nuevo."
+    "barcodeAddFailed": "No se pudo guardar el código. Revisa la conexión e inténtalo de nuevo.",
+    "invLineTaxIncluded": "Impuestos incluidos en este importe",
+    "invLineTaxDetectedGross": "Detectado: impuestos incluidos",
+    "invLineTaxDetectedNet": "Detectado: impuestos no incluidos",
+    "invLineTaxManual": "Ajustado manualmente",
+    "invLineTaxUncertain": "Por confirmar",
+    "invLineTaxConfirmHint": "No pudimos determinar si este importe incluye impuestos. Márcalo si ya los incluye o confirma que se deben sumar.",
+    "invLineTaxIncludedHint": "El IVA y el consumo se desglosan de este importe, sin sumarlos otra vez.",
+    "invLineTaxExcludedHint": "Este importe es la base. El IVA y el consumo se suman al total.",
+    "invLineConfirmNet": "Confirmar que no incluye impuestos"
   },
   "opDian": {
     "title": "Facturación electrónica DIAN",

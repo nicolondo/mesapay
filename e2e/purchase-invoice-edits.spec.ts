@@ -259,7 +259,7 @@ for (const mode of ["draft", "receive"] as const) {
     try {
       const card = f.cards.first();
       await expect(card.getByLabel(t.invLineAmountKind, { exact: true })).toHaveValue("line");
-      await expect(card.getByLabel(t.invLineTaxBasis, { exact: true })).toHaveValue("gross");
+      await expect(card.getByRole("checkbox", { name: t.invLineTaxIncluded, exact: true })).toBeChecked();
       await expect(card.getByLabel(`${t.invLineAmount} (COP)`)).toHaveValue("138.850");
       await expect(card.getByLabel(t.invLineIncAmount, { exact: true })).toHaveValue("49.774");
       const preview = card.getByTestId("invoice-line-amounts");
@@ -327,14 +327,14 @@ test("legacy unknown tax basis and ambiguous consumption require explicit review
   const f = await setup(page, unknown);
   try {
     const card = f.cards.first();
-    await expect(card.getByLabel(t.invLineTaxBasis, { exact: true })).toHaveValue("unknown");
+    await expect(card.getByRole("checkbox", { name: t.invLineTaxIncluded, exact: true })).toHaveAttribute("aria-checked", "mixed");
     let confirmations = 0;
     page.on("request", request => { if (request.method() === "POST" && request.url().endsWith(`/purchase-invoices/${f.upload.id}/confirm`)) confirmations++; });
     await page.getByRole("button", { name: t.invReviewConfirm, exact: true }).click();
     await expect(page.getByText(t.invLineReviewAmounts, { exact: true }).first()).toBeVisible();
     expect(confirmations).toBe(0);
     expect(await db.purchaseOrder.count({ where: { restaurantId: f.restaurant.id } })).toBe(0);
-    await card.getByLabel(t.invLineTaxBasis, { exact: true }).selectOption("gross");
+    await card.getByRole("checkbox", { name: t.invLineTaxIncluded, exact: true }).check();
     await card.getByLabel(t.fieldTaxPct, { exact: true }).selectOption("5");
     await page.getByRole("button", { name: t.invReviewConfirm, exact: true }).click();
     expect(confirmations, "Blank ambiguous consumption must not silently become zero").toBe(0);

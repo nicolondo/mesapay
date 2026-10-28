@@ -6880,7 +6880,16 @@
     "barcodeAddNotTracked": "This ingredient does not track inventory.",
     "barcodeAddUnavailable": "Your current access does not allow you to change this ingredient. Reload the page and try again.",
     "barcodeAddConflict": "The ingredient changed while saving. Please try again.",
-    "barcodeAddFailed": "Could not save the code. Check your connection and try again."
+    "barcodeAddFailed": "Could not save the code. Check your connection and try again.",
+    "invLineTaxIncluded": "Taxes included in this amount",
+    "invLineTaxDetectedGross": "Detected: taxes included",
+    "invLineTaxDetectedNet": "Detected: taxes not included",
+    "invLineTaxManual": "Adjusted manually",
+    "invLineTaxUncertain": "Confirmation needed",
+    "invLineTaxConfirmHint": "We could not determine whether this amount includes taxes. Check the box if it does, or confirm that taxes should be added.",
+    "invLineTaxIncludedHint": "VAT and consumption tax are separated from this amount without adding them again.",
+    "invLineTaxExcludedHint": "This amount is the taxable base. VAT and consumption tax are added to the total.",
+    "invLineConfirmNet": "Confirm taxes are not included"
   },
   "opDian": {
     "title": "DIAN electronic invoicing",

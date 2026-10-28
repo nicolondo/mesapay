@@ -9,9 +9,9 @@ import type { InvoiceMatch } from "../src/lib/erp/invoiceMatch";
 const databaseUrl = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 test.skip(
   !["localhost", "127.0.0.1"].includes(databaseUrl.hostname)
-  || databaseUrl.pathname !== "/mesapay_invoice_aliases_validation"
+  || !/^\/mesapay_.*validation$/.test(databaseUrl.pathname)
   || !/^http:\/\/localhost:/.test(process.env.PLAYWRIGHT_BASE_URL ?? ""),
-  "An isolated local app and the invoice-alias validation database are required",
+  "An isolated local app and validation database are required",
 );
 const db = new PrismaClient();
 const t = es.opErp;

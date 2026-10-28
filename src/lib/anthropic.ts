@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { env, requireAnthropicKey } from "./env";
+import { inferPurchaseInvoiceTaxBases } from "./erp/invoiceTaxBasis";
 
 /**
  * Anthropic client + small surface for the features we use today.
@@ -607,6 +608,9 @@ const PurchaseInvoiceLine = z.object({
   // un total final que incluye IVA y consumo. Ausente en extracciones viejas.
   unitPriceTaxBasis: InvoiceTaxBasis.optional(),
   lineTotalTaxBasis: InvoiceTaxBasis.optional(),
+  // Persist contradictions so reloads cannot silently reinterpret a reviewed flag.
+  unitPriceTaxBasisConflict: z.boolean().optional(),
+  lineTotalTaxBasisConflict: z.boolean().optional(),
   unitPriceLabel: z.string().nullable().optional(),
   lineTotalLabel: z.string().nullable().optional(),
   lineTaxCents: z.number().int().nonnegative().nullable().optional(),
@@ -838,9 +842,10 @@ Reglas estrictas:
 - quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
 - unit: cópialo tal como aparece; no lo normalices.
 - Ignora líneas que no sean productos (subtotales, IVA, totales, notas) DENTRO de "lines". Solo insumos comprados en "lines".
+- EVIDENCIA DE IVA INCLUIDO: copia los encabezados exactos que distinguen "con IVA / impuestos incluidos" de "sin IVA / antes de impuestos" en CADA línea. Si las columnas o una nota impresa no lo dejan claro, devuelve la base "unknown"; nunca la adivines por el proveedor, por la tarifa ni por tener el IVA discriminado. Copia también todos los montos y totales impresos; el código conciliará la evidencia y dejará los casos ambiguos para revisión manual. Una misma factura puede mezclar bases.
 - taxPct por línea: únicamente la tarifa de IVA ("0","5","19" CO; "0","8","16" MX). Que el IVA esté discriminado NO significa que el precio o el total sean netos. Determina CADA base por separado: "net" sin IVA ni consumo; "gross" incluye IVA y/o consumo; "unknown" cuando no hay evidencia clara. No conviertas montos entre bases ni calcules impuestos.
-- unitPrice: si existe una columna "P. UNIT ANTES IMPTO", "precio después de descuento antes de impuestos" o equivalente, prefiera ESE unitario neto, no "P. BASE UNIT" anterior a descuentos ni "P. FINAL UNIT". Copia su encabezado en unitPriceLabel. Si solo existe un unitario final, transcríbelo y marca unitPriceTaxBasis="gross".
-- lineTotal: transcribe el TOTAL impreso de la línea y conserva su encabezado en lineTotalLabel. Nunca copies aquí un precio unitario como "P. FINAL UNIT": si no existe un total de línea impreso, lineTotal=null. "TOTAL CON IMPUESTOS" y un "VLR NETO FINAL" que sea el valor final incluyen IVA Y consumo: son "gross" aunque usen la palabra NETO. Es válido tener unitPriceTaxBasis="net" y lineTotalTaxBasis="gross" en la MISMA línea. Ejemplo de columnas: cantidad "2", "P. UNIT ANTES IMPTO" "$42.417", IVA "5 %", CONSUMO TOTAL DE LÍNEA "$49.774", "P. FINAL UNIT" "$69.425", "VLR NETO FINAL" "$138.850,00": transcribe unitPrice="$42.417" con base net, lineTotal="$138.850,00" con base gross, lineInc="$49.774" y lineIncAmountKind="line"; nunca registres ese consumo como IVA ni como porcentaje.
+- unitPrice: si existe una columna "P. UNIT ANTES IMPTO", "precio después de descuento antes de impuestos" o equivalente, prefiera ESE unitario neto, no "P. BASE UNIT" anterior a descuentos ni "P. FINAL UNIT". Copia su encabezado en unitPriceLabel. Si solo existe un unitario final, transcríbelo y conserva su encabezado. "P. FINAL UNIT" o "precio final" por sí solos NO prueban que incluya IVA: puede ser el precio después de descuentos. Usa "gross" solo con una indicación impresa explícita de impuestos incluidos; de lo contrario usa "unknown" y deja la conciliación aritmética al código.
+- lineTotal: transcribe el TOTAL impreso de la línea y conserva su encabezado en lineTotalLabel. Nunca copies aquí un precio unitario como "P. FINAL UNIT": si no existe un total de línea impreso, lineTotal=null. "TOTAL CON IMPUESTOS" indica "gross". "VLR NETO FINAL", "valor neto", "total" o "final" por sí solos NO identifican una base: pueden significar después de descuentos y antes de IVA. Sin una indicación impresa explícita de impuestos incluidos o excluidos, usa "unknown"; el código conciliará cantidades, IVA, consumo y totales. Es válido tener unitPriceTaxBasis="net" y lineTotalTaxBasis="gross" en la MISMA línea. Ejemplo de columnas: cantidad "2", "P. UNIT ANTES IMPTO" "$42.417", IVA "5 %", IVA TOTAL DE LÍNEA "$4.242", CONSUMO TOTAL DE LÍNEA "$49.774", "P. FINAL UNIT" "$69.425", "VLR NETO FINAL" "$138.850,00": transcribe unitPrice="$42.417" con base net, lineTotal="$138.850,00" con base unknown si no dice que incluye impuestos, lineTax="$4.242", lineInc="$49.774" y lineIncAmountKind="line". El código puede confirmar que el total incluye impuestos con esos montos; nunca registres ese consumo como IVA ni como porcentaje.
 - lineTax: solo el MONTO TOTAL de IVA de la línea si está impreso. Si únicamente aparece "5 %" o "19 %", lineTax=null y conserva la tarifa en taxPct. No derives el IVA multiplicando.
 - lineInc: transcribe el valor de la columna "CONSUMO", "INC" o "IMPOCONSUMO" de la línea. lineIncAmountKind="unit" SOLO si el documento indica explícitamente que el consumo es POR UNIDAD; "line" si está identificado como total de esa línea; "unknown" si no queda claro. NO asumas unitario por estar junto a un precio unitario, NO multipliques y NO inventes un total. Si hay duda conserva el monto, usa unknown y baja confidence para que el operador lo revise.
 - invoiceSubtotal/invoiceTax/invoiceTotal: copia los TOTALES impresos (no los sumes tú) como TEXTO tal cual, null si no se ven. invoiceSubtotal puede llamarse "Total Bruto" antes de descuentos: conserva ese valor sin restarle nada. invoiceDiscount copia "Total Descuentos" por separado. Si solo hay subtotal después de descuentos, cópialo tal cual; no reconstruyas un subtotal anterior.
@@ -949,7 +954,7 @@ export async function extractPurchaseInvoice(
   // forma agnóstica al formato (CO/US) y convierte pesos → centavos. Se valida
   // contra el schema de salida (centavos) antes de devolver. Se descartan
   // líneas sin cantidad válida (> 0) — suelen ser filas no-producto.
-  return PurchaseInvoiceSchema.parse({
+  return inferPurchaseInvoiceTaxBases(PurchaseInvoiceSchema.parse({
     documentType: r.documentType,
     supplierNit: r.supplierNit,
     supplierName: r.supplierName,
@@ -986,7 +991,7 @@ export async function extractPurchaseInvoice(
     reteIcaCents: moneyToCents(r.reteIca),
     confidence: r.confidence,
     notes: r.notes ?? "",
-  });
+  }));
 }
 
 // ── Importación masiva de insumos (ERP inventory) ───────────────────────────

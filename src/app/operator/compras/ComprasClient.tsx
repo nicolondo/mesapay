@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
+import { inferPurchaseInvoiceTaxBases } from "@/lib/erp/invoiceTaxBasis";
+import { InvoiceLineTaxToggle } from "./InvoiceLineTaxToggle";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 import { useLocale, useTranslations } from "next-intl";
@@ -2065,6 +2067,8 @@ type ExtractionLine = {
   lineTotalCents: number | null;
   unitPriceTaxBasis?: InvoiceTaxBasis;
   lineTotalTaxBasis?: InvoiceTaxBasis;
+  unitPriceTaxBasisConflict?: boolean;
+  lineTotalTaxBasisConflict?: boolean;
   unitPriceLabel?: string | null;
   lineTotalLabel?: string | null;
   lineTaxCents?: number | null;
@@ -2117,6 +2121,7 @@ type InvoiceUploadResult = {
     // Totales IMPRESOS que leyó la IA (para validar concordancia); null si
     // no se ven en el documento.
     invoiceSubtotalCents: number | null;
+    invoiceDiscountCents?: number | null;
     invoiceTaxCents: number | null;
     invoiceTotalCents: number | null;
     // Otros impuestos discriminados a nivel documento (ERP A3).
@@ -2125,7 +2130,7 @@ type InvoiceUploadResult = {
     reteIvaCents: number | null;
     reteIcaCents: number | null;
     confidence: number;
-    notes: string;
+    notes?: string;
   };
   match: {
     supplier: SupplierMatch;
@@ -2385,9 +2390,14 @@ function InvoiceReviewSheet({
     extraction.issueDate ?? "",
   );
 
-  const [lines, setLines] = useState<InvoiceReviewLine[]>(() =>
-    match.lines.map(matchLineToReviewLine),
-  );
+  const [lines, setLines] = useState<InvoiceReviewLine[]>(() => {
+    // Also interpret older pending uploads, once. Later supplier/ingredient
+    // matches must never overwrite an operator's tax choice.
+    const inferred = inferPurchaseInvoiceTaxBases(extraction);
+    return match.lines.map((line, index) => matchLineToReviewLine({ ...line,
+      line: inferred.lines[line.sourceLineIndex ?? index] ?? line.line,
+    }, index));
+  });
 
   // Insumos existentes para el picker "usar existente" (carga diferida).
   const [ingredients, setIngredients] = useState<IngredientRef[] | null>(null);
@@ -2604,6 +2614,7 @@ function InvoiceReviewSheet({
         taxPct: 0,
         amountKind: "line",
         taxBasis: "net",
+        taxBasisManual: true,
         taxAmount: "",
         incAmount: "",
         lowConfidence: false,
@@ -3108,7 +3119,7 @@ function InvoiceReviewSheet({
               </div>
             )}
 
-            {extraction.notes.trim() !== "" && (
+            {extraction.notes?.trim() && (
               <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
                 <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
                   {t("invReviewNotesLabel")}
@@ -3478,14 +3489,6 @@ function InvoiceReviewLineCard({
             <option value="unit">{t("invUnitAmount")}</option>
           </select>
         </Field>
-        <Field label={t("invLineTaxBasis")}>
-          <select className={inputCls} value={l.taxBasis} aria-label={t("invLineTaxBasis")}
-            onChange={e => onChange({ taxBasis: e.target.value as InvoiceTaxBasis })}>
-            <option value="unknown">{t("invLineChooseBasis")}</option>
-            <option value="gross">{t("invLineGrossBasis")}</option>
-            <option value="net">{t("invLineNetBasis")}</option>
-          </select>
-        </Field>
       </div>
       <div className="flex gap-2">
         <div className="flex-1 min-w-0">
@@ -3511,6 +3514,8 @@ function InvoiceReviewLineCard({
       </div>
 
       <p className="text-[11px] text-op-muted">{t(l.amountKind === "line" ? "invLineTotalHint" : "invLineUnitHint")}</p>
+      <InvoiceLineTaxToggle basis={l.taxBasis} manual={l.taxBasisManual}
+        onChange={included => onChange(setReviewTaxIncluded(l, included))} />
       <div className="grid grid-cols-2 gap-2">
         <Field label={t("invLineIncAmount")}>
           <MoneyInput value={l.incAmount} fractionDigits={2} placeholder="0"

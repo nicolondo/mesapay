@@ -205,3 +205,51 @@ describe("nullable monetary parsing and extraction instructions", () => {
     expect(request.messages[0].content[0].source.data).toBe(source.data.toString("base64"));
   });
 });
+
+
+describe("deterministic purchase invoice tax detection", () => {
+  it("detects a footer-only supplier with IVA included without trusting a missing model classification", async () => {
+    const result = await extract({ lines: [
+      line({ quantity: "1", unitPrice: null, lineTotal: "119,00", taxPct: "19" }),
+      line({ quantity: "4", unitPrice: null, lineTotal: "210,00", taxPct: "5" }),
+    ], invoiceSubtotal: "300,00", invoiceTax: "29,00", invoiceTotal: "329,00" });
+    expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["gross", "gross"]);
+    expect(result.lines.map(l => l.lineTotalCents)).toEqual([11_900, 21_000]);
+    expect(result.invoiceTaxCents).toBe(2_900);
+  });
+
+  it("detects a supplier whose line totals exclude IVA", async () => {
+    const result = await extract({ lines: [
+      line({ quantity: "1", unitPrice: null, lineTotal: "100,00", taxPct: "19" }),
+      line({ quantity: "4", unitPrice: null, lineTotal: "200,00", taxPct: "5" }),
+    ], invoiceSubtotal: "300,00", invoiceTax: "29,00", invoiceTotal: "329,00" });
+    expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["net", "net"]);
+  });
+
+  it("detects each line independently when a document mixes final and base columns", async () => {
+    const result = await extract({ lines: [
+      line({ unitPrice: null, lineTotal: "238,00", lineTax: "38,00", taxPct: "19" }),
+      line({ unitPrice: null, lineTotal: "200,00", lineTotalLabel: "Antes de IVA", taxPct: "5" }),
+    ] });
+    expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["gross", "net"]);
+  });
+
+  it("does not generalize generic final/net column titles across suppliers", async () => {
+    const result = await extract({ lines: [line({ unitPrice: "119,50", lineTotal: "239,00",
+      unitPriceLabel: "P. FINAL UNIT", lineTotalLabel: "VLR NETO FINAL" })] });
+    expect(result.lines[0]).toMatchObject({ unitPriceTaxBasis: "unknown", lineTotalTaxBasis: "unknown" });
+    const prompt = mock.create.mock.calls[0][0].system[0].text as string;
+    expect(prompt).not.toContain('Si solo existe un unitario final, transcríbelo y marca unitPriceTaxBasis="gross"');
+    expect(prompt).not.toContain('son "gross" aunque usen la palabra NETO');
+  });
+
+  it("persists contradictory evidence across schema parsing and repeated normalization", async () => {
+    const result = await extract({ lines: [line({ unitPrice: null, lineTotal: "238,00",
+      lineTotalTaxBasis: "net", lineTotalLabel: "IVA incluido", taxPct: "19" })] });
+    expect(result.lines[0]).toMatchObject({ lineTotalTaxBasis: "unknown", lineTotalTaxBasisConflict: true });
+    const { PurchaseInvoiceSchema } = await import("./anthropic");
+    const { inferPurchaseInvoiceTaxBases } = await import("./erp/invoiceTaxBasis");
+    expect(inferPurchaseInvoiceTaxBases(PurchaseInvoiceSchema.parse(result)).lines[0])
+      .toMatchObject({ lineTotalTaxBasis: "unknown", lineTotalTaxBasisConflict: true });
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reviewLineAmounts, reviewLineQtyBase, selectReviewIngredient, type InvoiceReviewLine } from "./invoiceReviewLine";
+import { reviewLineAmounts, reviewLineQtyBase, selectReviewIngredient, setReviewTaxIncluded, type InvoiceReviewLine } from "./invoiceReviewLine";
 
 function line(patch: Partial<InvoiceReviewLine> = {}): InvoiceReviewLine {
   return {
@@ -13,6 +13,40 @@ function line(patch: Partial<InvoiceReviewLine> = {}): InvoiceReviewLine {
 }
 
 describe("edited invoice ingredient quantities", () => {
+  it("lets the operator toggle included VAT both ways without changing the printed amount or quantity", () => {
+    const original = line({ cost: "11900", taxPct: 19, taxBasis: "net", taxAmount: "2261" });
+    const included = setReviewTaxIncluded(original, true);
+    expect(included).toMatchObject({ cost: "11900", presentations: "2", taxBasis: "gross", taxBasisManual: true, taxAmount: "" });
+    expect(reviewLineAmounts(included)).toEqual({ netCents: 1000000, taxCents: 190000, incCents: 0, totalCents: 1190000 });
+    const excluded = setReviewTaxIncluded(included, false);
+    expect(reviewLineAmounts(excluded)).toEqual({ netCents: 1190000, taxCents: 226100, incCents: 0, totalCents: 1416100 });
+    expect(original).toMatchObject({ taxBasis: "net", taxAmount: "2261" });
+  });
+  it("preserves documentary VAT when confirming the same basis and keeps fixed consumption on a change", () => {
+    const original = line({ cost: "138850", taxBasis: "gross", taxPct: 5, taxAmount: "4242", incAmount: "49774" });
+    expect(setReviewTaxIncluded(original, true)).toMatchObject({ taxAmount: "4242", incAmount: "49774", taxBasisManual: true });
+    const changed = setReviewTaxIncluded(original, false);
+    expect(changed).toMatchObject({ taxAmount: "", incAmount: "49774", cost: "138850" });
+    expect(reviewLineAmounts(changed)).toEqual({ netCents: 13885000, taxCents: 694250, incCents: 4977400, totalCents: 19556650 });
+  });
+  it.each([true, false])("resolves an unknown basis explicitly: included=%s", included => {
+    const resolved = setReviewTaxIncluded(line({ taxBasis: "unknown" }), included);
+    expect(resolved.taxBasis).toBe(included ? "gross" : "net");
+    expect(resolved.taxBasisManual).toBe(true);
+    expect(reviewLineAmounts(resolved)).not.toBeNull();
+    expect(selectReviewIngredient(resolved, { id: "flour", name: "Harina", measureKind: "mass" }))
+      .toMatchObject({ taxBasis: resolved.taxBasis, taxBasisManual: true });
+  });
+  it.each([
+    { included: true, cost: "89076.29" },
+    { included: false, cost: "84834.29" },
+  ])("preserves rounded documentary VAT when resolving unknown: included=$included", ({ included, cost }) => {
+    const original = line({ cost, taxBasis: "unknown", taxPct: 5, taxAmount: "4242" });
+    const resolved = setReviewTaxIncluded(original, included);
+    expect(resolved.taxAmount).toBe("4242");
+    expect(reviewLineAmounts(resolved)).toEqual({ netCents: 8483429, taxCents: 424200, incCents: 0, totalCents: 8907629 });
+    expect(original.taxBasis).toBe("unknown");
+  });
   it("keeps line totals independent of quantity edits and uses explicit included taxes", () => {
     const l = line({ cost: "138850", taxPct: 5, taxBasis: "gross", incAmount: "49774" });
     expect(reviewLineAmounts(l)?.totalCents).toBe(13885000);

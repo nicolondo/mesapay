@@ -7,14 +7,21 @@ import { NextResponse } from "next/server";
  * fallback por si nginx o Next deciden bloquear archivos dotfile.
  *
  * El contenido es el token que Kushki nos dio para nuestro Apple Pay
- * Merchant ID. Si Kushki rota el token o cambiamos de PSP, regenerar
- * este archivo + actualizar el route handler.
+ * Merchant ID (hex de `{"version":1,"pspId":"A5A3…4DE3","createdOn":…}`).
+ * Kushki emite un archivo DISTINTO por ambiente (pruebas/UAT y
+ * producción) y el dominio se registra en Kushki Console → Configuración →
+ * Integraciones → Apple Pay. Si Kushki rota el token o cambiamos de PSP,
+ * actualizar public/.well-known/ y esta constante juntos (el test lo exige).
+ *
+ * 2026-10-28: el dueño recibió de Kushki el archivo con createdOn
+ * 1763752386727; reemplaza al de createdOn 1768318627194 (mayo, ver git).
+ * Mismo pspId.
  *
  * Cache largo en headers — Apple bate este endpoint a baja frecuencia
  * y el contenido no cambia hasta que rotemos credenciales.
  */
 const TOKEN =
-  "7b2276657273696f6e223a312c227073704964223a2241354133373439304333444143333934343432324639314642333932324246323637323445344434393541443838344531364637364342384332303534444533222c22637265617465644f6e223a313736383331383632373139347d";
+  "7b2276657273696f6e223a312c227073704964223a2241354133373439304333444143333934343432324639314642333932324246323637323445344434393541443838344531364637364342384332303534444533222c22637265617465644f6e223a313736333735323338363732377d";
 
 export function GET() {
   return new NextResponse(TOKEN, {

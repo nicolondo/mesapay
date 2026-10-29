@@ -591,36 +591,28 @@ test("onboarding separates a valid NIT DV and reports undelivered documents hone
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => !u.pathname.startsWith("/signin"));
   await page.goto("/operator/settings/pagos");
+  // The cockpit can retain a hidden copy of this screen during navigation.
+  // Keep exact, strict assertions against the copy the operator can see.
+  const matchedHolder = page.getByText(
+    "El documento del titular de la cuenta coincide con el RUT.",
+    { exact: true },
+  ).filter({ visible: true });
+  const mismatchedHolder = page.getByText(
+    "El titular de la cuenta no coincide con el RUT",
+    { exact: true },
+  ).filter({ visible: true });
+  await expect(matchedHolder).toBeVisible();
+  await expect(mismatchedHolder).toHaveCount(0);
   await expect(
-    page.getByText(
-      "El documento del titular de la cuenta coincide con el RUT.",
-      { exact: true },
-    ),
+    page.getByText("Entrega pendiente a Kushki", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText("El titular de la cuenta no coincide con el RUT", {
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByText("Entrega pendiente a Kushki", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(/Documentos entregados: 0 de 2/)).toBeVisible();
+  await expect(page.getByText(/Documentos entregados: 0 de 2/).filter({ visible: true })).toBeVisible();
   await expectNoOverflow(page);
   await db.restaurant.update({
     where: { id: restaurantId },
     data: { taxId: "901944469-2" },
   });
   await page.reload();
-  await expect(
-    page.getByText("El titular de la cuenta no coincide con el RUT", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(
-      "El documento del titular de la cuenta coincide con el RUT.",
-      { exact: true },
-    ),
-  ).toHaveCount(0);
+  await expect(mismatchedHolder).toBeVisible();
+  await expect(matchedHolder).toHaveCount(0);
 });

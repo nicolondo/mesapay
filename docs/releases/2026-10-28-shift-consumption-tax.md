@@ -18,6 +18,7 @@ Las consultas se realizan por lotes y solo proyectan los campos fiscales necesar
 
 - **3.828 pruebas unitarias y 303 integraciones** aprobadas.
 - **18 escenarios de navegador** aprobados sobre la compilación de producción, en Chrome y WebKit móvil: 10 de INC y 8 de fechas de jornada.
+- **14 comprobaciones generales de navegador** aprobadas; se mantienen las 2 omisiones preexistentes. Se corrigió una comprobación de onboarding para evaluar el mensaje visible y excluir la copia oculta que conserva el espacio de trabajo. La comprobación sigue siendo estricta ante mensajes visibles duplicados.
 - Cobertura de los módulos nuevos de cálculo y consulta: **100 % de líneas, funciones e instrucciones; 98,03 % de ramas**.
 - TypeScript y compilación correctos; ESLint sin errores, con los 31 avisos preexistentes.
 - Revisión independiente de cálculo, devoluciones, históricos, aislamiento entre comercios, consultas y traducciones: sin hallazgos pendientes.

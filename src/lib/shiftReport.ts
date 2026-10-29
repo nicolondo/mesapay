@@ -2,17 +2,16 @@
 // consume /operator/shifts/[id] (vista web imprimible) y se podría
 // reusar en futuras exportaciones (CSV, PDF, email al admin).
 //
-// Diseño: una sola query a Payment.findMany filtrada por shiftId,
-// y luego agregamos en JS. El volumen por turno típico (50-300
-// pagos) cabe holgado en memoria y evita 3-4 queries groupBy
-// distintas. Si en algún momento un comercio cruza los 10k pagos
-// por turno (raro — ni Starbucks Bogotá llega a eso), se puede
-// migrar a groupBy.
+// Selecciona los pagos por pin o ventana personal y los agrega en JS.
+// El INC usa una proyección fiscal por lotes de los pedidos seleccionados;
+// incluye sus otros pagos liquidados para conservar el reparto histórico.
 
 import type { PaymentMethod } from "@prisma/client";
 import { db } from "./db";
 import { cashCentsToNumber } from "./shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
+import { loadShiftConsumptionTax, loadShiftPaymentSummaries } from "@/lib/reports/shiftConsumptionTaxQuery";
+import { sumShiftConsumptionTax } from "@/lib/reports/shiftConsumptionTax";
 
 export type ShiftReport = {
   shift: {
@@ -33,6 +32,8 @@ export type ShiftReport = {
     grossCents: number; // suma de amountCents de todos los pagos approved
     tipCents: number; // suma de tipCents (lo que se llevó como propina)
     foodCents: number; // gross - tip
+    consumptionTaxCents: number; // frozen INC included in collected payments
+    taxPendingPayments: number; // selected payments without a reliable invoice allocation
     paymentCount: number;
     ordersClosed: number; // distinct orderId
   };
@@ -107,8 +108,9 @@ export async function buildShiftReport(
   //    shiftId.
   const paymentWhere =
     shift.userId == null
-      ? { shiftId: shift.id, status: "approved" as const }
+      ? { shiftId: shift.id, status: "approved" as const, order: { restaurantId: shift.restaurantId } }
       : {
+          order: { restaurantId: shift.restaurantId },
           collectedByUserId: shift.userId,
           status: "approved" as const,
           settledAt: {
@@ -130,6 +132,7 @@ export async function buildShiftReport(
     },
     orderBy: { settledAt: "asc" },
   });
+  const consumptionTax = await loadShiftConsumptionTax(shift.restaurantId, payments);
 
   // Totales generales.
   let grossCents = 0;
@@ -240,6 +243,7 @@ export async function buildShiftReport(
       grossCents,
       tipCents,
       foodCents: grossCents - tipCents,
+      ...sumShiftConsumptionTax(consumptionTax, payments.map((p) => p.id)),
       paymentCount: payments.length,
       ordersClosed: orderIds.size,
     },
@@ -280,9 +284,8 @@ export async function buildShiftReport(
 
 /**
  * Lista paginada de turnos cerrados para /operator/shifts. Incluye
- * el grossCents+tipCents+paymentCount precomputado por una query
- * Aggregate para no tener que cargar todos los pagos. Suficiente
- * para una tabla resumen — los detalles se ven al click.
+ * Incluye ingresos, propinas e INC a través de consultas por lotes;
+ * las ventanas personales no generan una consulta por cada turno.
  */
 export async function listShiftsWithSummary(
   restaurantId: string,
@@ -309,57 +312,7 @@ export async function listShiftsWithSummary(
   const hasMore = shifts.length > limit;
   const slice = hasMore ? shifts.slice(0, limit) : shifts;
 
-  // Mismo criterio que buildShiftReport (ver allí el racional):
-  //  - Turnos GLOBALES: sus pagos están pinneados por shiftId → una
-  //    sola query groupBy los suma a todos.
-  //  - Turnos PERSONALES de mesero: no hay pin; sumamos lo que cobró
-  //    ese mesero dentro de su ventana (collectedByUserId + settledAt).
-  //    Sin esto los turnos personales salían en $0 en la lista.
-  const aggByShift = new Map<
-    string,
-    { grossCents: number; tipCents: number; paymentCount: number }
-  >();
-
-  const globalIds = slice.filter((s) => s.userId == null).map((s) => s.id);
-  const globalAggs = globalIds.length
-    ? await db.payment.groupBy({
-        by: ["shiftId"],
-        where: { shiftId: { in: globalIds }, status: "approved" },
-        _sum: { amountCents: true, tipCents: true },
-        _count: { _all: true },
-      })
-    : [];
-  for (const a of globalAggs) {
-    if (!a.shiftId) continue;
-    aggByShift.set(a.shiftId, {
-      grossCents: a._sum.amountCents ?? 0,
-      tipCents: a._sum.tipCents ?? 0,
-      paymentCount: a._count._all,
-    });
-  }
-
-  const personalShifts = slice.filter((s) => s.userId != null);
-  await Promise.all(
-    personalShifts.map(async (s) => {
-      const a = await db.payment.aggregate({
-        where: {
-          collectedByUserId: s.userId!,
-          status: "approved",
-          settledAt: {
-            gte: s.openedAt,
-            ...(s.closedAt ? { lte: s.closedAt } : {}),
-          },
-        },
-        _sum: { amountCents: true, tipCents: true },
-        _count: { _all: true },
-      });
-      aggByShift.set(s.id, {
-        grossCents: a._sum.amountCents ?? 0,
-        tipCents: a._sum.tipCents ?? 0,
-        paymentCount: a._count._all,
-      });
-    }),
-  );
+  const aggByShift = await loadShiftPaymentSummaries(restaurantId, slice);
 
   return {
     items: slice.map((s) => {
@@ -380,6 +333,8 @@ export async function listShiftsWithSummary(
         grossCents: a?.grossCents ?? 0,
         tipCents: a?.tipCents ?? 0,
         paymentCount: a?.paymentCount ?? 0,
+        consumptionTaxCents: a?.consumptionTaxCents ?? 0,
+        taxPendingPayments: a?.taxPendingPayments ?? 0,
       };
     }),
     nextCursor: hasMore ? slice[slice.length - 1].id : null,

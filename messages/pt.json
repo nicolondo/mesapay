@@ -3443,7 +3443,13 @@
     "methodKushkiPse": "PSE",
     "methodReservationDeposit": "Sinal de reserva",
     "methodVoucher": "Vale empresarial",
-    "methodCustomerCredit": "Crédito a cliente"
+    "methodCustomerCredit": "Crédito a cliente",
+    "consumptionTax": "Imposto sobre consumo (INC)",
+    "consumptionTaxIncluded": "Incluído no total recebido durante o turno.",
+    "consumptionTaxPending": "{count, plural, one {# pagamento ainda não tem uma discriminação de impostos confirmada.} other {# pagamentos ainda não têm uma discriminação de impostos confirmada.}}",
+    "consumptionTaxPendingShort": "{count, plural, one {# pagamento sem discriminação fiscal} other {# pagamentos sem discriminação fiscal}}",
+    "consumptionTaxShort": "INC",
+    "consumptionTaxAmount": "INC: {amount}"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Vendas sem impostos nem gorjeta",

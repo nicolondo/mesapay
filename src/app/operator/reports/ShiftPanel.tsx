@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import type { CashSnapshot } from "@/lib/cashBox";
+import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
 
 const METHOD_KEY: Record<string, string> = {
   // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
@@ -28,6 +29,8 @@ type Metrics = {
   grossCents: number;
   tipCents: number;
   cashCents: number;
+  consumptionTaxCents: number;
+  taxPendingPayments: number;
   byMethod: { method: string; count: number; sumCents: number }[];
 };
 
@@ -182,6 +185,8 @@ function OpenPanel({
         <Stat label={t("statCashExpected")} value={fmtCOP(state.expectedCashCents)} hint={t("statCashExpectedHint")} />
         <Stat label={t("statClosedBills")} value={String(state.metrics.ordersClosed)} />
       </div>
+
+      <ShiftConsumptionTax {...state.metrics} className="mt-3" />
 
       {state.metrics.byMethod.length > 0 && (
         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
@@ -400,6 +405,8 @@ function CloseShiftSheet({
     <Backdrop onClose={onClose}>
       <SheetTitle title={t("closeShift")} subtitle={t("closeShiftSheetSubtitle")} />
 
+      <ShiftConsumptionTax {...state.metrics} className="mb-4" />
+
       <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
         <div className="border border-op-border rounded-xl p-3">
           <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
@@ -569,7 +576,7 @@ function Backdrop({
       onClick={onClose}
     >
       <div
-        className="bg-bone rounded-2xl w-full max-w-md p-5 shadow-xl"
+        className="bg-bone rounded-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

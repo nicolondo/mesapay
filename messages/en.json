@@ -3443,7 +3443,13 @@
     "methodKushkiPse": "PSE",
     "methodReservationDeposit": "Reservation deposit",
     "methodVoucher": "Corporate voucher",
-    "methodCustomerCredit": "Customer credit"
+    "methodCustomerCredit": "Customer credit",
+    "consumptionTax": "Consumption tax (INC)",
+    "consumptionTaxIncluded": "Included in the total collected during this shift.",
+    "consumptionTaxPending": "{count, plural, one {# payment does not yet have a confirmed tax breakdown.} other {# payments do not yet have a confirmed tax breakdown.}}",
+    "consumptionTaxPendingShort": "{count, plural, one {# payment without a tax breakdown} other {# payments without a tax breakdown}}",
+    "consumptionTaxShort": "INC",
+    "consumptionTaxAmount": "INC: {amount}"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Sales excluding taxes and tips",

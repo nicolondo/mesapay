@@ -21,6 +21,7 @@ const MIGRATED = [
   // Reportes contables: nacieron trilingües, quedan blindados de una.
   "src/app/operator/reportes/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
+  "src/components/ShiftConsumptionTax.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
   "src/app/admin/configuracion/MenuAiCard.tsx",
   "src/app/operator/menu/DescriptionAi.tsx",

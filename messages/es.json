@@ -3443,7 +3443,13 @@
     "methodKushkiPse": "PSE",
     "methodReservationDeposit": "Abono de reserva",
     "methodVoucher": "Bono empresarial",
-    "methodCustomerCredit": "Crédito a cliente"
+    "methodCustomerCredit": "Crédito a cliente",
+    "consumptionTax": "Impuesto al consumo (INC)",
+    "consumptionTaxIncluded": "Incluido en el total cobrado del turno.",
+    "consumptionTaxPending": "{count, plural, one {# cobro aún no tiene un desglose de impuestos confirmado.} other {# cobros aún no tienen un desglose de impuestos confirmado.}}",
+    "consumptionTaxPendingShort": "{count, plural, one {# cobro sin desglose fiscal} other {# cobros sin desglose fiscal}}",
+    "consumptionTaxShort": "INC",
+    "consumptionTaxAmount": "INC: {amount}"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",

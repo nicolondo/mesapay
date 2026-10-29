@@ -14,6 +14,8 @@ import type { Payment, PaymentMethod } from "@prisma/client";
 import { db } from "@/lib/db";
 import { shiftCashToNumbers, type CashShift } from "@/lib/shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
+import { loadShiftConsumptionTax, loadShiftPaymentSummaries } from "@/lib/reports/shiftConsumptionTaxQuery";
+import { sumShiftConsumptionTax, type ConsumptionTaxSummary } from "@/lib/reports/shiftConsumptionTax";
 
 export type ShiftMethodBreakdown = {
   method: PaymentMethod;
@@ -21,7 +23,7 @@ export type ShiftMethodBreakdown = {
   sumCents: number;
 };
 
-export type ShiftMetrics = {
+export type ShiftMetrics = ConsumptionTaxSummary & {
   payments: number;
   ordersClosed: number;
   grossCents: number;
@@ -46,7 +48,7 @@ export async function getCurrentShift(restaurantId: string): Promise<CashShift |
   return shift ? shiftCashToNumbers(shift) : null;
 }
 
-export type RecentShift = CashShift & {
+export type RecentShift = CashShift & ConsumptionTaxSummary & {
   user: { name: string | null; email: string } | null;
 };
 
@@ -64,7 +66,12 @@ export async function getRecentShifts(
     take: limit,
     include: { user: { select: { name: true, email: true } } },
   });
-  return shifts.map(shiftCashToNumbers);
+  const summaries = await loadShiftPaymentSummaries(restaurantId, shifts);
+  return shifts.map((shift) => ({
+    ...shiftCashToNumbers(shift),
+    consumptionTaxCents: summaries.get(shift.id)?.consumptionTaxCents ?? 0,
+    taxPendingPayments: summaries.get(shift.id)?.taxPendingPayments ?? 0,
+  }));
 }
 
 /**
@@ -83,27 +90,33 @@ export async function computeOpenShiftMetrics(
       order: { restaurantId },
     },
     select: {
+      id: true,
       method: true,
       amountCents: true,
       tipCents: true,
       orderId: true,
     },
   });
-  return rollUp(payments);
+  const tax = await loadShiftConsumptionTax(restaurantId, payments);
+  return { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) };
 }
 
 /** Same shape as live but for a closed shift, by following the shiftId pin. */
 export async function computeClosedShiftMetrics(shiftId: string): Promise<ShiftMetrics> {
+  const shift = await db.shift.findUnique({ where: { id: shiftId }, select: { restaurantId: true } });
+  if (!shift) return rollUp([]);
   const payments = await db.payment.findMany({
-    where: { shiftId, status: "approved" },
+    where: { shiftId, status: "approved", order: { restaurantId: shift.restaurantId } },
     select: {
+      id: true,
       method: true,
       amountCents: true,
       tipCents: true,
       orderId: true,
     },
   });
-  return rollUp(payments);
+  const tax = await loadShiftConsumptionTax(shift.restaurantId, payments);
+  return { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) };
 }
 
 function rollUp(
@@ -133,6 +146,8 @@ function rollUp(
     grossCents: gross,
     tipCents: tips,
     cashCents: cash,
+    consumptionTaxCents: 0,
+    taxPendingPayments: 0,
     byMethod: Array.from(byMethod.entries())
       .map(([method, agg]) => ({ method, count: agg.count, sumCents: agg.sumCents }))
       .sort((a, b) => b.sumCents - a.sumCents),

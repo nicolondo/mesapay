@@ -189,6 +189,8 @@ async function POSTHandler(req: Request) {
     breakdown: {
       grossCents: metrics.grossCents,
       tipCents: metrics.tipCents,
+      consumptionTaxCents: metrics.consumptionTaxCents,
+      taxPendingPayments: metrics.taxPendingPayments,
       cashCents: metrics.cashCents,
       payments: metrics.payments,
       ordersClosed: metrics.ordersClosed,

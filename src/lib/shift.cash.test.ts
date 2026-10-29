@@ -11,6 +11,10 @@ vi.mock("@/lib/db", () => ({
     shift: { findUnique: m.shiftFindUnique },
   },
 }));
+vi.mock("@/lib/reports/shiftConsumptionTaxQuery", () => ({
+  loadShiftConsumptionTax: async () => new Map(),
+  loadShiftPaymentSummaries: async () => new Map(),
+}));
 
 import { computeClosedShiftMetrics } from "./shift";
 import { buildShiftReport } from "./shiftReport";

@@ -37,6 +37,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const t = await getTranslations("opReports");
+  const taxT = await getTranslations("opShifts");
   const methodLabel = (method: string) =>
     METHOD_KEY[method] ? t(METHOD_KEY[method]) : method;
   const restaurantId = await getActiveRestaurantId();
@@ -478,6 +479,7 @@ export default async function ReportsPage({
                 <tr className="text-left">
                   <Th>{t("thBusinessDay")}</Th>
                   <Th>{t("thDuration")}</Th>
+                  <Th align="right">{taxT("consumptionTaxShort")}</Th>
                   <Th align="right">{t("thFund")}</Th>
                   <Th align="right">{t("thExpected")}</Th>
                   <Th align="right">{t("thCounted")}</Th>
@@ -517,6 +519,14 @@ export default async function ReportsPage({
                       </Td>
                       <Td>
                         {hours > 0 ? t("durationHm", { hours, mins }) : t("durationM", { mins })}
+                      </Td>
+                      <Td align="right" className="font-mono tabular">
+                        {fmtCOP(s.consumptionTaxCents)}
+                        {s.taxPendingPayments > 0 && (
+                          <p className="mt-1 text-[10px] text-amber-800 max-w-32">
+                            {taxT("consumptionTaxPendingShort", { count: s.taxPendingPayments })}
+                          </p>
+                        )}
                       </Td>
                       <Td align="right" className="font-mono tabular">
                         {fmtCOP(s.openingCashCents)}

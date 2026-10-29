@@ -11,6 +11,7 @@ import {
   PAYMENT_METHOD_LABEL,
 } from "@/lib/shiftReport";
 import { PrintButton } from "./PrintButton";
+import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
 
 export const dynamic = "force-dynamic";
 
@@ -155,6 +156,7 @@ export default async function ShiftDetailPage({
               value={`${report.totals.paymentCount} · ${report.totals.ordersClosed}`}
             />
           </div>
+          <ShiftConsumptionTax {...report.totals} className="mt-4" />
         </section>
 
         {/* Por método */}

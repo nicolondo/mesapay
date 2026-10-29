@@ -104,7 +104,7 @@ export default async function ShiftsListPage({
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 max-w-[45%]">
                       <div className="font-display text-lg tabular">
                         {fmtCOP(s.grossCents)}
                       </div>
@@ -112,6 +112,14 @@ export default async function ShiftsListPage({
                         <div className="font-mono text-[11px] text-op-muted">
                           {t("tipSuffix", { amount: fmtCOP(s.tipCents) })}
                         </div>
+                      )}
+                      <div className="mt-1 font-mono text-[11px] text-op-muted">
+                        {t("consumptionTaxAmount", { amount: fmtCOP(s.consumptionTaxCents) })}
+                      </div>
+                      {s.taxPendingPayments > 0 && (
+                        <p className="mt-1 text-[10px] text-amber-800">
+                          {t("consumptionTaxPendingShort", { count: s.taxPendingPayments })}
+                        </p>
                       )}
                     </div>
                   </Link>

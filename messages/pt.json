@@ -447,7 +447,40 @@
     "creditErr_mesero_no_shift": "Você não tem turno aberto. Abra seu turno para cobrar.",
     "creditErr_charge_admin_only": "Só o administrador pode cobrar neste estabelecimento.",
     "creditErr_generic": "Não conseguimos registrar a cobrança a crédito.",
-    "preparedCancellationAdminOnly": "Esta conta inclui pratos cujo preparo já começou. Somente o administrador pode encerrá-la como cortesia."
+    "preparedCancellationAdminOnly": "Esta conta inclui pratos cujo preparo já começou. Somente o administrador pode encerrá-la como cortesia.",
+    "mixed": {
+      "title": "Combinar meios",
+      "hint": "Dinheiro e outros meios",
+      "summary": "Pagamentos da conta",
+      "instructions": "Informe quanto será pago com cada meio. Confirme um pagamento e depois cobre o saldo com outro meio. A conta fecha quando o consumo estiver pago.",
+      "received": "Pagamentos recebidos",
+      "remaining": "Saldo restante com gorjeta",
+      "tipBudget": "Gorjeta da conta: {target}. Gorjeta ainda a cobrar: {remaining}.",
+      "amount": "Valor deste pagamento",
+      "amountHint": "Inclui a gorjeta desta parte. Escolha abaixo o meio de pagamento.",
+      "useRemaining": "Cobrar saldo restante",
+      "afterPayment": "Após este pagamento, restarão {amount}.",
+      "pending": "Confirme ou descarte o pagamento pendente acima antes de registrar outro.",
+      "foodPart": "Consumo deste pagamento",
+      "accountTip": "Gorjeta para toda a conta",
+      "receivedNotice": "Pagamento registrado. Você pode cobrar o saldo com outro meio.",
+      "checkStatus": "Não foi possível confirmar o resultado. Confira os pagamentos e o saldo antes de cobrar novamente.",
+      "errors": {
+        "invalid_balance": "Não foi possível calcular o saldo. Atualize a página.",
+        "empty_amount": "Informe o valor deste pagamento.",
+        "invalid_amount": "Informe um valor válido.",
+        "amount_too_small": "O pagamento deve ser de pelo menos $1.",
+        "amount_too_large": "O valor ultrapassa o limite por pagamento.",
+        "amount_exceeds_outstanding": "O valor ultrapassa o saldo restante.",
+        "remainder_too_small": "Inclua os centavos restantes neste pagamento ou escolha um valor menor.",
+        "amount_leaves_tip_only": "Ajuste o valor para não deixar apenas gorjeta pendente.",
+        "nothing_outstanding": "Esta conta não tem saldo restante."
+      },
+      "retry": "Verificar o mesmo pagamento",
+      "retryHint": "A resposta do pagamento não chegou. Este botão verifica ou tenta novamente apenas o mesmo pagamento, sem criar outro.",
+      "inFlight": "Há um pagamento eletrônico em andamento. Aguarde o resultado antes de cobrar outra parte.",
+      "viewReceipt": "Ver comprovante e fatura"
+    }
   },
   "done": {
     "methodCard": "Cartão",
@@ -7145,7 +7178,10 @@
       "voucher": "Vale",
       "customer_credit": "Crédito",
       "other": "Outro meio de pagamento"
-    }
+    },
+    "decline": "Este pagamento não foi recebido",
+    "declineConfirm": "Descartar esta solicitação de pagamento? Faça isso somente se não recebeu o dinheiro.",
+    "refresh": "Atualizar saldo"
   },
   "paymentReconciliation": {
     "title": "Conciliar pagamento",

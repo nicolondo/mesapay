@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), find: vi.fn(), update: vi.fn(), recompute: vi.fn(), issue: vi.fn() }));
+const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), find: vi.fn(), update: vi.fn(), recompute: vi.fn(), issue: vi.fn(), needsShift: vi.fn(), lock: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.active }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (fn: unknown) => fn }));
-vi.mock("@/lib/orderLock", () => ({ lockOrder: vi.fn() }));
+vi.mock("@/lib/orderLock", () => ({ lockOrder: m.lock }));
+vi.mock("@/lib/meseroShift", () => ({ meseroNeedsShiftToCharge: m.needsShift }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/mailer", () => ({ welcomeIfFirstTime: vi.fn() }));
 vi.mock("@/lib/prepaidRounds", () => ({ activateOpenRounds: vi.fn(async () => []) }));
@@ -22,6 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.auth.mockResolvedValue({ user: { id: "u", role: "mesero" } });
   m.active.mockResolvedValue("r");
+  m.needsShift.mockResolvedValue(false);
   m.find.mockResolvedValue(payment);
   m.update.mockResolvedValue({ id: "p" });
   m.recompute.mockResolvedValue({ fullyPaid: true });
@@ -52,5 +54,18 @@ describe("external terminal invoice copy after settling", () => {
   it("does not generate an invoice when rejecting the charge", async () => {
     expect(await call("decline").then(r => r.json())).toEqual({ ok: true, status: "declined" });
     expect(m.issue).not.toHaveBeenCalled();
+  });
+  it.each(["approve", "decline"])("requires the waiter's personal shift before %s", async (action) => {
+    m.needsShift.mockResolvedValue(true);
+    const res = await call(action);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "mesero_no_shift" });
+    expect(m.update).not.toHaveBeenCalled();
+  });
+  it("rechecks a decline under the order lock and never overwrites a concurrent approval", async () => {
+    m.find.mockResolvedValueOnce(payment).mockResolvedValueOnce({ ...payment, status: "approved" });
+    await expect(call("decline")).rejects.toThrow("operation_conflict");
+    expect(m.lock).toHaveBeenCalledOnce();
+    expect(m.update).not.toHaveBeenCalled();
   });
 });

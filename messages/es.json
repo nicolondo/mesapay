@@ -447,7 +447,40 @@
     "creditErr_mesero_no_shift": "No tienes turno abierto. Abre tu turno para cobrar.",
     "creditErr_charge_admin_only": "Solo el administrador puede cobrar en este comercio.",
     "creditErr_generic": "No pudimos registrar el cobro a crédito.",
-    "preparedCancellationAdminOnly": "Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía."
+    "preparedCancellationAdminOnly": "Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía.",
+    "mixed": {
+      "title": "Combinar medios",
+      "hint": "Efectivo y otros medios",
+      "summary": "Pagos de la cuenta",
+      "instructions": "Ingresa cuánto se pagará con cada medio. Confirma un pago y luego cobra el saldo con otro medio. La cuenta se cierra al completar el consumo.",
+      "received": "Pagos recibidos",
+      "remaining": "Saldo pendiente con propina",
+      "tipBudget": "Propina de la cuenta: {target}. Falta cobrar de propina: {remaining}.",
+      "amount": "Importe de este pago",
+      "amountHint": "Incluye la propina de esta parte. Elige abajo el medio con el que vas a cobrarla.",
+      "useRemaining": "Cobrar saldo restante",
+      "afterPayment": "Después de este pago quedarán {amount}.",
+      "pending": "Confirma o descarta el pago pendiente de arriba antes de registrar otro.",
+      "foodPart": "Consumo de este pago",
+      "accountTip": "Propina para toda la cuenta",
+      "receivedNotice": "Pago registrado. Puedes cobrar el saldo con otro medio.",
+      "checkStatus": "No pudimos confirmar el resultado. Revisa los pagos y el saldo antes de volver a cobrar.",
+      "errors": {
+        "invalid_balance": "No se pudo calcular el saldo. Actualiza la página.",
+        "empty_amount": "Ingresa el importe de este pago.",
+        "invalid_amount": "Ingresa un importe válido.",
+        "amount_too_small": "El pago debe ser de al menos $1.",
+        "amount_too_large": "El importe supera el máximo permitido por pago.",
+        "amount_exceeds_outstanding": "El importe supera el saldo pendiente.",
+        "remainder_too_small": "Incluye el saldo de centavos en este pago o escoge un importe menor.",
+        "amount_leaves_tip_only": "Ajusta el importe para no dejar solamente propina pendiente.",
+        "nothing_outstanding": "Esta cuenta ya no tiene saldo pendiente."
+      },
+      "retry": "Verificar el mismo pago",
+      "retryHint": "La respuesta del cobro no llegó. Este botón verifica o reintenta únicamente el mismo pago, sin crear otro.",
+      "inFlight": "Hay un pago electrónico en proceso. Espera su resultado antes de cobrar otra parte.",
+      "viewReceipt": "Ver comprobante y factura"
+    }
   },
   "done": {
     "methodCard": "Tarjeta",
@@ -7145,7 +7178,10 @@
       "voucher": "Bono",
       "customer_credit": "Crédito",
       "other": "Otro medio de pago"
-    }
+    },
+    "decline": "No se recibió este pago",
+    "declineConfirm": "¿Descartar esta solicitud de pago? Hazlo únicamente si no recibiste el dinero.",
+    "refresh": "Actualizar saldo"
   },
   "paymentReconciliation": {
     "title": "Conciliar pago",

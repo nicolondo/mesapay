@@ -7,6 +7,8 @@ import { fmtCOP } from "@/lib/format";
 import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRequestPanel";
+import { staffForRestaurant } from "@/lib/staffAccess";
+import { outstandingSubtotalCents } from "@/lib/checkoutTax";
 
 export const dynamic = "force-dynamic";
 
@@ -39,22 +41,32 @@ export default async function MeseroCobradoPage({
       status: true,
       totalCents: true,
       subtotalCents: true,
+      taxCents: true,
       discountCents: true,
       customerEmail: true,
       simpleInvoiceEmail: true,
       // La factura ya emitida (si la hay), para ofrecer imprimirla.
       simpleInvoice: { select: { id: true } },
       restaurant: { select: { slug: true } },
+      payments: { where: { status: "approved" }, select: { amountCents: true, tipCents: true } },
     },
   });
   if (!order) return notFound();
-  if (
-    role === "mesero" &&
-    session.user.restaurantId &&
-    session.user.restaurantId !== order.restaurantId
-  ) {
+  if (!await staffForRestaurant(order.restaurantId, ["mesero", "operator", "platform_admin"])) {
     return notFound();
   }
+
+  const paidCents = order.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+  const paidTipCents = order.payments.reduce((sum, payment) => sum + payment.tipCents, 0);
+  const outstandingCents = outstandingSubtotalCents(
+    Math.max(0, order.subtotalCents + order.taxCents - order.discountCents),
+    paidCents,
+    paidTipCents,
+  );
+  const fullyPaid = order.status === "paid";
+  const continueHref = role === "mesero"
+    ? `/mesero/cobrar/${orderId}`
+    : `/t/${order.restaurant.slug}/pay/${orderId}?op=1`;
 
   const existing = await db.invoiceRequest.findFirst({
     where: { orderId },
@@ -75,17 +87,10 @@ export default async function MeseroCobradoPage({
       <div className="rounded-2xl border border-ok/30 bg-ok/10 p-4 flex items-center justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-ok">
-            {t("opChargeDone")}
+            {t(fullyPaid ? "opChargeDone" : "paymentReceived")}
           </div>
           <div className="font-display text-2xl tabular mt-0.5">
-            {fmtCOP(
-              Math.max(
-                order.totalCents,
-                // Con descuento, subtotalCents es el BRUTO y no sirve de
-                // piso: lo cobrado es el neto.
-                Math.max(0, order.subtotalCents - order.discountCents),
-              ),
-            )}
+            {fmtCOP(paidCents)}
           </div>
         </div>
         <Link
@@ -96,7 +101,19 @@ export default async function MeseroCobradoPage({
         </Link>
       </div>
 
-      <InvoiceRequestPanel
+      {!fullyPaid && outstandingCents > 0 && (
+        <div className="rounded-2xl border border-hairline bg-paper p-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted">{t("owed")}</div>
+            <div className="font-display text-2xl tabular">{fmtCOP(outstandingCents)}</div>
+          </div>
+          <Link href={continueHref} className="shrink-0 h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center">
+            {t("payMore")}
+          </Link>
+        </div>
+      )}
+
+      {fullyPaid && <InvoiceRequestPanel
         tenantSlug={order.restaurant.slug}
         orderId={orderId}
         existing={existing}
@@ -110,7 +127,7 @@ export default async function MeseroCobradoPage({
         // "Imprimir factura" sale por el agente (como las comandas); el
         // navegador, sólo si el local no tiene impresora de facturas.
         staffPrint={staffPrintAccessFor(role)}
-      />
+      />}
     </div>
   );
 }

@@ -447,7 +447,40 @@
     "creditErr_mesero_no_shift": "You have no open shift. Open your shift to charge.",
     "creditErr_charge_admin_only": "Only the administrator can charge at this business.",
     "creditErr_generic": "We couldn't record the credit charge.",
-    "preparedCancellationAdminOnly": "This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary."
+    "preparedCancellationAdminOnly": "This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary.",
+    "mixed": {
+      "title": "Combine methods",
+      "hint": "Cash and other methods",
+      "summary": "Account payments",
+      "instructions": "Enter how much will be paid with each method. Confirm a payment, then collect the balance using another method. The account closes once the consumption is paid.",
+      "received": "Payments received",
+      "remaining": "Remaining balance with tip",
+      "tipBudget": "Account tip: {target}. Tip still to collect: {remaining}.",
+      "amount": "Amount for this payment",
+      "amountHint": "Includes the tip for this part. Choose its payment method below.",
+      "useRemaining": "Collect remaining balance",
+      "afterPayment": "After this payment, {amount} will remain.",
+      "pending": "Confirm or dismiss the pending payment above before recording another.",
+      "foodPart": "Consumption for this payment",
+      "accountTip": "Tip for the whole account",
+      "receivedNotice": "Payment recorded. You can collect the balance using another method.",
+      "checkStatus": "We could not confirm the outcome. Check the payments and balance before collecting again.",
+      "errors": {
+        "invalid_balance": "Could not calculate the balance. Refresh the page.",
+        "empty_amount": "Enter the amount for this payment.",
+        "invalid_amount": "Enter a valid amount.",
+        "amount_too_small": "The payment must be at least $1.",
+        "amount_too_large": "The amount exceeds the per-payment limit.",
+        "amount_exceeds_outstanding": "The amount exceeds the remaining balance.",
+        "remainder_too_small": "Include the remaining cents in this payment or choose a smaller amount.",
+        "amount_leaves_tip_only": "Adjust the amount so only tip is not left outstanding.",
+        "nothing_outstanding": "This account has no remaining balance."
+      },
+      "retry": "Check the same payment",
+      "retryHint": "The payment response did not arrive. This button checks or retries only that same payment without creating another one.",
+      "inFlight": "An electronic payment is in progress. Wait for its outcome before collecting another part.",
+      "viewReceipt": "View receipt and invoice"
+    }
   },
   "done": {
     "methodCard": "Card",
@@ -7145,7 +7178,10 @@
       "voucher": "Voucher",
       "customer_credit": "Credit",
       "other": "Other payment method"
-    }
+    },
+    "decline": "This payment was not received",
+    "declineConfirm": "Dismiss this payment request? Only do this if you did not receive the money.",
+    "refresh": "Refresh balance"
   },
   "paymentReconciliation": {
     "title": "Reconcile payment",

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { formatMoney } from "@/lib/format";
 import { useApiError } from "@/lib/useApiError";
 import { usePaymentMethodLabel } from "@/lib/usePaymentMethodLabel";
 import { isCashMethod, isReplaceablePendingMethod } from "@/lib/payments/methods";
@@ -40,15 +41,25 @@ export function PendingPaymentNotice({
   serviceMode = "table",
   chargeLocked = false,
   onConfirmed,
+  onDeclined,
+  onRefresh,
+  disabled = false,
+  currency = "COP",
 }: {
   pendings: PendingPaymentView[];
   order: { shortCode: string; tableNumber: number };
   serviceMode?: "table" | "counter";
   chargeLocked?: boolean;
   onConfirmed: (result: { paid: boolean }) => void;
+  onDeclined?: () => void;
+  onRefresh?: () => void;
+  disabled?: boolean;
+  currency?: string;
 }) {
   const t = useTranslations("pendingPayment");
   const methodLabel = usePaymentMethodLabel();
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { locale, currency, fractionDigits: cents % 100 ? 2 : 0 });
   const apiError = useApiError();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<{ id: string; message: string } | null>(null);
@@ -58,7 +69,9 @@ export function PendingPaymentNotice({
   const requests = pendings.filter((p) => isReplaceablePendingMethod(p.method));
   const inFlight = pendings.filter((p) => !isReplaceablePendingMethod(p.method));
 
-  async function confirm(p: PendingPaymentView) {
+  async function confirm(p: PendingPaymentView, action: "approve" | "decline" = "approve") {
+    if (disabled || busyId !== null) return;
+    if (action === "decline" && !window.confirm(t("declineConfirm"))) return;
     setErr(null);
     // Efectivo: recibido / devuelta / propina, igual que en Salón.
     if (isCashMethod(p.method)) {
@@ -70,16 +83,19 @@ export function PendingPaymentNotice({
       const res = await fetch(`/api/operator/payments/${p.id}/settle-external-terminal`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
+        body: JSON.stringify({ action }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         setErr({ id: p.id, message: apiError(j, t("confirmError")) });
+        onRefresh?.();
         return;
       }
-      onConfirmed({ paid: j.paid === true });
+      if (action === "decline") onDeclined?.();
+      else onConfirmed({ paid: j.paid === true });
     } catch {
       setErr({ id: p.id, message: t("confirmError") });
+      onRefresh?.();
     } finally {
       setBusyId(null);
     }
@@ -103,17 +119,17 @@ export function PendingPaymentNotice({
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm font-medium">{methodLabel(p.method)}</span>
               <span className="font-display text-2xl tabular leading-none">
-                {fmtCOP(p.amountCents)}
+                {money(p.amountCents)}
               </span>
             </div>
             {p.tipCents > 0 && (
               <div className="text-[11px] text-op-muted text-right">
-                {t("includesTip", { amount: fmtCOP(p.tipCents) })}
+                {t("includesTip", { amount: money(p.tipCents) })}
               </div>
             )}
             {tender != null && (
               <div className="text-[11px] text-op-muted text-right">
-                {t("cashTender", { amount: fmtCOP(tender) })}
+                {t("cashTender", { amount: money(tender) })}
               </div>
             )}
             {chargeLocked ? (
@@ -124,14 +140,20 @@ export function PendingPaymentNotice({
               <button
                 type="button"
                 onClick={() => confirm(p)}
-                disabled={busyId !== null}
+                disabled={disabled || busyId !== null}
                 className="w-full h-11 rounded-full bg-ok text-bone text-sm font-medium disabled:opacity-60"
               >
                 {busyId === p.id ? t("confirming") : t("confirm")}
               </button>
             )}
+            {!chargeLocked && onDeclined && p.method === "external_terminal" && (
+              <button type="button" disabled={disabled || busyId !== null} onClick={() => confirm(p, "decline")}
+                className="w-full min-h-10 rounded-full border border-op-border text-sm disabled:opacity-50">
+                {t("decline")}
+              </button>
+            )}
             {err?.id === p.id && <div className="text-danger text-xs">{err.message}</div>}
-            {!chargeLocked && (
+            {!chargeLocked && !onDeclined && (
               <p className="text-[11px] text-op-muted leading-snug">{t("replaceHint")}</p>
             )}
           </div>
@@ -145,9 +167,11 @@ export function PendingPaymentNotice({
           </div>
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-sm font-medium">{methodLabel(p.method)}</span>
-            <span className="font-display text-xl tabular leading-none">{fmtCOP(p.amountCents)}</span>
+            <span className="font-display text-xl tabular leading-none">{money(p.amountCents)}</span>
           </div>
           <p className="text-[11px] text-op-muted leading-snug">{t("inFlightBody")}</p>
+          {onRefresh && <button type="button" onClick={onRefresh} disabled={disabled || busyId !== null}
+            className="min-h-10 px-3 rounded-full border border-op-border text-sm disabled:opacity-50">{t("refresh")}</button>}
         </div>
       ))}
 

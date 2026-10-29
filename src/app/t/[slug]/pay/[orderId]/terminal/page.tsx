@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { TerminalWait } from "./TerminalWait";
 
 export const dynamic = "force-dynamic";
@@ -16,22 +16,23 @@ export default async function TerminalPendingPage({
   const { slug, orderId } = await params;
   const { pid, op } = await searchParams;
 
-  // Al aprobar el datáfono, a dónde ir: el comensal a su "done"; el staff a
-  // la pantalla de "listo" DENTRO de su scope (mesero → PWA con bottom nav).
-  let doneHref = `/t/${slug}/pay/${orderId}/done?pid=${pid ?? ""}`;
-  if (op === "1") {
-    const session = await auth();
-    doneHref =
-      session?.user?.role === "mesero"
-        ? `/mesero/cobrar/${orderId}/done`
-        : `/t/${slug}/pay/${orderId}/done?op=1`;
-  }
-
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: { restaurant: true, table: true },
   });
   if (!order || order.restaurant.slug !== slug) notFound();
+
+  // The URL flag is not staff authorization. Both success and retry retain
+  // the verified staff's scope; the waiter stays inside the installed PWA.
+  const staff = op === "1"
+    ? await staffForRestaurant(order.restaurantId, [...OPERATOR_ROLES, "mesero"])
+    : null;
+  const checkoutHref = staff?.user.role === "mesero"
+    ? `/mesero/cobrar/${orderId}`
+    : `/t/${slug}/pay/${orderId}${staff ? "?op=1" : ""}`;
+  const doneHref = staff?.user.role === "mesero"
+    ? `/mesero/cobrar/${orderId}/done`
+    : `/t/${slug}/pay/${orderId}/done?pid=${encodeURIComponent(pid ?? "")}${staff ? "&op=1" : ""}`;
 
   const payment = pid
     ? await db.payment.findUnique({ where: { id: pid } })
@@ -66,7 +67,10 @@ export default async function TerminalPendingPage({
       // sumar tipCents de nuevo o se duplica la propina en pantalla.
       amountCents={payment.amountCents}
       initialStatus={payment.status}
+      initialOrderStatus={order.status}
       doneHref={doneHref}
+      continueHref={staff ? checkoutHref : undefined}
+      retryHref={`${checkoutHref}${checkoutHref.includes("?") ? "&" : "?"}declined=1`}
     />
   );
 }

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
-import { auth } from "@/auth";
+import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
@@ -93,15 +93,12 @@ export async function PayFlow({
   // en la URL sola. Incluimos `mesero` porque desde su PWA tiene
   // un botón "Cobrar la cuenta" que apunta acá; sin este rol caía
   // al flow del cliente con "Partes iguales / Lo mío".
-  const session = op === "1" ? await auth() : null;
-  const operatorMode =
-    !!session?.user &&
-    (session.user.role === "operator" ||
-      session.user.role === "platform_admin" ||
-      session.user.role === "group_admin" ||
-      session.user.role === "mesero");
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
+  const session = op === "1"
+    ? await staffForRestaurant(tenant.id, [...OPERATOR_ROLES, "mesero"])
+    : null;
+  const operatorMode = session !== null;
 
   // Heal stale subtotals before showing payment options — otherwise the
   // diner could end up paying for items that were cancelled in the kitchen.
@@ -254,10 +251,11 @@ export async function PayFlow({
       // Lo cobrable va NETO del descuento del comensal identificado: todo
       // el cálculo de la pantalla (partes iguales, lo mío, saldo) cuelga de
       // este número, y el tope del servidor rechazaría un cobro bruto.
-      subtotalCents={Math.max(0, order.subtotalCents - order.discountCents)}
+      subtotalCents={Math.max(0, order.subtotalCents + order.taxCents - order.discountCents)}
       grossSubtotalCents={order.subtotalCents}
       discountCents={order.discountCents}
       discountPct={order.discountPct}
+      approvedPayments={operatorMode ? approved.map(({ id, method, amountCents, tipCents }) => ({ id, method, amountCents, tipCents })) : []}
       paidCents={paidCents}
       paidTipCents={paidTipCents}
       alreadyPaid={order.status === "paid"}

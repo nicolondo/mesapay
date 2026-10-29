@@ -2,15 +2,19 @@
 
 import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
-import { startTransition } from "react";
+import { startTransition, useTransition } from "react";
+import { MixedPaymentPanel, type ApprovedPaymentView } from "@/components/payments/MixedPaymentPanel";
+import { mixedPaymentBudget, allocateMixedPayment } from "@/lib/payments/mixedAmount";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatMoney } from "@/lib/format";
+import { isCashMethod, isReplaceablePendingMethod } from "@/lib/payments/methods";
 import { ApplePayButton } from "./ApplePayButton";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
@@ -128,6 +132,7 @@ export function PayClient({
   creditEnabled = false,
   linkedCustomer = null,
   pendingPayments = [],
+  approvedPayments = [],
   tableNumber = 0,
 }: {
   tenantSlug: string;
@@ -246,12 +251,12 @@ export function PayClient({
   // ("pidió pagar con datáfono/efectivo por $X") va arriba con "Confirmar
   // pago recibido"; un pago en línea en curso, sin acción.
   pendingPayments?: PendingPaymentView[];
+  approvedPayments?: ApprovedPaymentView[];
   // Número de la mesa, para el título del cobro en efectivo del aviso.
   tableNumber?: number;
 }) {
-  // Counter-mode is prepay for a single diner's order — splitting the
-  // cuenta makes no sense and would let someone walk off with the food
-  // half-paid. Force "Todo" and hide the mode picker.
+  // Diner counter orders require prepayment; staff may combine methods.
+  // The server activates preparation only after the whole balance is paid.
   const isCounter = serviceMode === "counter";
   // Derivado del modo Kushki. isMockMode es el toggle de mayor uso
   // (caemos a fake tokens / hardcoded bank list en mock), mientras
@@ -265,7 +270,23 @@ export function PayClient({
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [mode, setMode] = useState<PayMode>("full");
+  const [mode, setMode] = useState<PayMode | "mixed">("full");
+  const [refreshing, refreshTransition] = useTransition();
+  const [mixedInput, setMixedInput] = useState<{ balance: string; value: string } | null>(null);
+  const [useRemainder, setUseRemainder] = useState(paidCents > 0);
+  const [paymentNotice, setPaymentNotice] = useState(false);
+  const [cashUncertain, setCashUncertain] = useState(false);
+  const [focusPayment, setFocusPayment] = useState<"pending" | "summary" | null>(null);
+  const pendingRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (refreshing || !focusPayment) return;
+    const target = focusPayment === "pending" ? pendingRef.current : summaryRef.current;
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "center", behavior: "instant" });
+    startTransition(() => setFocusPayment(null));
+  }, [refreshing, focusPayment, pendingPayments.length]);
   const [splitCount, setSplitCount] = useState<number>(2);
   const hasApplePay = useApplePaySupport();
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
@@ -277,6 +298,42 @@ export function PayClient({
   // aviso del descuento que dejó la última asociación.
   const [customer, setCustomer] = useState<PayCustomer | null>(linkedCustomer);
   const [customerNotice, setCustomerNotice] = useState<string | null>(null);
+
+  // Remember the explicit account-wide tip when returning from a terminal
+  // or reloading between payments. Never store credentials or payment data.
+  useEffect(() => {
+    if (!operatorMode) return;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`mesapay.mixed.${orderId}`) || "null");
+      const pct = parseTipPct(saved?.tipPct == null ? null : String(saved.tipPct));
+      if (saved?.enabled === true && pct !== null) startTransition(() => { setMode("mixed"); setTipPct(pct); });
+    } catch { /* Storage is optional. */ }
+  }, [operatorMode, orderId]);
+
+  function selectMode(next: PayMode | "mixed") {
+    if (busy || refreshing || cashUncertain) return;
+    setMode(next);
+    setErr(null);
+    if (operatorMode) try {
+      sessionStorage.setItem(`mesapay.mixed.${orderId}`, JSON.stringify({ enabled: next === "mixed", tipPct }));
+    } catch { /* Storage is optional. */ }
+  }
+
+  function refreshBalance() {
+    refreshTransition(() => router.refresh());
+  }
+
+  function paymentConfirmed(paid: boolean) {
+    if (paid) {
+      router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
+      return;
+    }
+    setPaymentNotice(true);
+    setFocusPayment("summary");
+    setMixedInput(null);
+    setUseRemainder(true);
+    refreshBalance();
+  }
 
   // Wallet-availability sniffing happens client-side. ApplePaySession is
   // only present on Safari/iOS.
@@ -352,7 +409,10 @@ export function PayClient({
   // vuelve al estado del pedido, la previsualización arranca con su elección.
   function chooseTip(pct: number) {
     setTipPct(pct);
-    if (operatorMode) return;
+    if (operatorMode) {
+      try { sessionStorage.setItem(`mesapay.mixed.${orderId}`, JSON.stringify({ enabled: mode === "mixed", tipPct: pct })); } catch { /* Optional. */ }
+      return;
+    }
     try {
       sessionStorage.setItem(tipStorageKey(orderId), String(pct));
     } catch {
@@ -372,12 +432,24 @@ export function PayClient({
   // Lo que se paga de comida en cada modo (Todo / Partes iguales / Lo mío)
   // vive en checkoutTax.ts: siempre sobre lo PENDIENTE, nunca más que eso.
   // Acá sólo se le pasa lo que falta y lo de la persona elegida en "Lo mío".
-  const amountSubtotal = payModeSubtotalCents(mode, outstandingSubtotalCents, {
-    splitCount,
-    mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
-  });
-  const amountTip = tipCentsFor(amountSubtotal, tipPct);
+  const mixed = operatorMode && mode === "mixed";
+  const mixedBudget = mixedPaymentBudget({ netSubtotalCents: subtotalCents, paidCents, paidTipCents, tipPct });
+  const balanceKey = `${subtotalCents}:${paidCents}:${paidTipCents}:${tipPct}`;
+  const mixedValue = mixedInput?.balance === balanceKey ? mixedInput.value
+    : useRemainder && mixedBudget.ok ? String(mixedBudget.outstandingGrossCents / 100) : "";
+  const mixedAllocation = allocateMixedPayment(mixedBudget, mixedValue === "" ? null : Math.round(Number(mixedValue) * 100));
+  const amountSubtotal = mixed
+    ? mixedAllocation.ok ? mixedAllocation.foodCents : 0
+    : payModeSubtotalCents(mode === "mixed" ? "full" : mode, outstandingSubtotalCents, {
+      splitCount, mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
+    });
+  const amountTip = mixed ? mixedAllocation.ok ? mixedAllocation.tipCents : 0 : tipCentsFor(amountSubtotal, tipPct);
   const amountCents = amountSubtotal + amountTip;
+  const pendingBlocksMixed = pendingPayments.some(payment => !isCashMethod(payment.method));
+  const interactionLocked = busy !== null || refreshing || cashUncertain;
+  const chargeDisabled = interactionLocked || amountCents <= 0 || (mixed && pendingBlocksMixed);
+  const locale = useLocale() as Locale;
+  const exactMoney = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: cents % 100 ? 2 : 0 });
   // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
   // pagando de comida en este modo. La propina no lleva impuesto.
   const taxLine = checkoutTaxLine(amountSubtotal, salesTax);
@@ -472,7 +544,7 @@ export function PayClient({
   }
 
   async function payWithTerminal() {
-    if (amountCents <= 0) return;
+    if (chargeDisabled) return;
     setBusy("kushki_card_terminal");
     setErr(null);
     try {
@@ -495,6 +567,7 @@ export function PayClient({
         // línea en curso no deja cobrar) se traducen; el resto cae al
         // mensaje del servidor o al genérico.
         setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
+        if (operatorMode) refreshBalance();
         return;
       }
 
@@ -519,6 +592,7 @@ export function PayClient({
         if (!pushRes.ok) {
           const pj = await pushRes.json().catch(() => ({}));
           setErr(pj.message ?? pj.error ?? t("errPushTerminal"));
+          refreshBalance();
           return;
         }
         // Land on the operator-side waiting screen instead of /salón
@@ -537,6 +611,9 @@ export function PayClient({
           ? staffServeHref
           : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`,
       );
+    } catch {
+      setErr(t("mixed.checkStatus"));
+      if (operatorMode) refreshBalance();
     } finally {
       setBusy(null);
     }
@@ -549,7 +626,7 @@ export function PayClient({
    * en Salón.
    */
   async function payWithExternalTerminal() {
-    if (amountCents <= 0) return;
+    if (chargeDisabled) return;
     setBusy("external_terminal");
     setErr(null);
     try {
@@ -572,6 +649,7 @@ export function PayClient({
         setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         return;
       }
+      if (mixed) { setMixedInput(null); setUseRemainder(true); setFocusPayment("pending"); refreshBalance(); return; }
       // Mismo destino que el flujo de terminal de Kushki: el cliente
       // ve la pantalla "esperando" hasta que el mesero confirma desde
       // Salón. Bandera external=1 para que la pantalla diga "datáfono
@@ -581,6 +659,9 @@ export function PayClient({
           ? staffServeHref
           : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`,
       );
+    } catch {
+      setErr(t("mixed.checkStatus"));
+      refreshBalance();
     } finally {
       setBusy(null);
     }
@@ -652,55 +733,56 @@ export function PayClient({
     }
   }
 
-  const cashRequestKey = useRef<string | null>(null);
+  const cashAttempt = useRef<{ key: string; body: {
+    orderId: string; method: "cash"; amountCents: number; tipCents: number;
+    cashTenderCents?: number; changeGivenCents?: number; settleNow?: boolean;
+  } } | null>(null);
   async function payWithCash(
     cashTenderCents: number | null,
     changeGivenCents: number | null = null,
+    retry = false,
   ) {
-    if (amountCents <= 0) return;
+    if (busy || refreshing || (!retry && chargeDisabled) || (retry && !cashAttempt.current)) return;
     setBusy("cash");
     setErr(null);
-    cashRequestKey.current ??= crypto.randomUUID();
+    // An uncertain response can only retry the ORIGINAL payload and key.
+    // A concurrent payment must never turn that retry into a second charge.
+    if (!retry) cashAttempt.current = {
+      key: crypto.randomUUID(), body: {
+        orderId, method: "cash", amountCents, tipCents: amountTip,
+        cashTenderCents: cashTenderCents ?? undefined,
+        changeGivenCents: changeGivenCents ?? undefined,
+        settleNow: operatorMode || undefined,
+      },
+    };
+    const attempt = cashAttempt.current!;
     try {
       const res = await fetch(`/api/tenant/${tenantSlug}/pay`, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": cashRequestKey.current },
-        body: JSON.stringify({
-          orderId,
-          // Efectivo real (antes se mandaba "demo_cash", nombre heredado
-          // de cuando los pagos eran simulados).
-          method: "cash",
-          amountCents,
-          tipCents: amountTip,
-          cashTenderCents: cashTenderCents ?? undefined,
-          changeGivenCents: changeGivenCents ?? undefined,
-          // In operator mode the mesero is the one collecting AND
-          // settling — no need to bounce through Salón as a pending
-          // request that the same person will then settle one click
-          // later. Server validates the session role before honouring.
-          settleNow: operatorMode || undefined,
-        }),
+        headers: { "content-type": "application/json", "idempotency-key": attempt.key },
+        body: JSON.stringify(attempt.body),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // Los códigos conocidos se traducen —pending_payment_in_flight nombra
-        // el pago en línea que no deja cobrar—; nunca el código crudo.
-        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
+      if (!res.ok || !j.paymentId) {
+        const uncertain = res.status >= 500 || j.error === "operation_conflict" || j.error === "idempotency_conflict" || res.ok;
+        setCashUncertain(uncertain);
+        if (!uncertain) cashAttempt.current = null;
+        setErr(apiError(j, t("mixed.checkStatus")));
+        if (operatorMode) refreshBalance();
         return;
       }
-      cashRequestKey.current = null;
+      cashAttempt.current = null;
+      setCashUncertain(false);
       if (operatorMode) {
-        // Cobro cerrado (o parcial). Va a la pantalla de "listo" DENTRO del
-        // scope del que cobra (mesero: su PWA con bottom nav), donde se
-        // ofrece la factura DESPUÉS del pago.
+        if (mixed) { paymentConfirmed(j.paid === true); return; }
         router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
         return;
       }
-      if (j.pending && j.paymentId) {
-        router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
-      }
+      if (j.pending) router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
     } catch {
-      setErr(apiError({ error: "payment_pending" }));
+      setCashUncertain(true);
+      setErr(t("mixed.checkStatus"));
+      if (operatorMode) refreshBalance();
     } finally {
       setBusy(null);
     }
@@ -825,6 +907,10 @@ export function PayClient({
           <p className="text-muted mt-2">
             {t("paidBody", { name: tenantName })}
           </p>
+          <Link className="mt-5 inline-flex min-h-11 items-center rounded-full bg-ink text-bone px-5 text-sm"
+            href={operatorMode ? doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1` : `/t/${tenantSlug}/pay/${orderId}/done`}>
+            {t("mixed.viewReceipt")}
+          </Link>
         </div>
       </main>
     );
@@ -880,15 +966,16 @@ export function PayClient({
       {/* Lo que el comensal ya pidió para pagar, antes que cualquier método:
           confirmarlo cierra el cobro; cobrar de otra forma lo reemplaza. */}
       {operatorMode && pendingPayments.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-5 focus:outline-none" ref={pendingRef} tabIndex={-1}>
           <PendingPaymentNotice
+            currency={currency}
             pendings={pendingPayments}
             order={{ shortCode, tableNumber }}
             serviceMode={serviceMode}
-            onConfirmed={({ paid }) => {
-              if (paid) router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
-              else router.refresh();
-            }}
+            onConfirmed={({ paid }) => paymentConfirmed(paid)}
+            onRefresh={refreshBalance}
+            onDeclined={mixed ? () => { setFocusPayment("summary"); refreshBalance(); } : undefined}
+            disabled={interactionLocked}
           />
         </div>
       )}
@@ -982,37 +1069,47 @@ export function PayClient({
         </div>
       )}
 
-      {!isCounter && (
+      {paymentNotice && <p role="status" className="mt-4 rounded-xl bg-ok/10 p-3 text-sm text-ok">{t("mixed.receivedNotice")}</p>}
+      {(!isCounter || operatorMode) && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
             {operatorMode ? t("howToCharge") : t("howToPay")}
           </div>
-          <div className="grid gap-2 grid-cols-3">
+          <div className={operatorMode ? "grid gap-2 grid-cols-2" : "grid gap-2 grid-cols-3"}>
             <ModeButton
               active={mode === "full"}
               label={t("modeFull")}
               hint={t("modeFullHint")}
-              onClick={() => setMode("full")}
+              onClick={() => selectMode("full")}
+              disabled={interactionLocked || (mixed && pendingBlocksMixed)}
             />
-            <ModeButton
+            {!isCounter && <ModeButton
               active={mode === "equal"}
               label={t("modeEqual")}
               hint={t("modeEqualHint")}
-              onClick={() => setMode("equal")}
-            />
-            <ModeButton
+              onClick={() => selectMode("equal")}
+              disabled={interactionLocked || (mixed && pendingBlocksMixed)}
+            />}
+            {!isCounter && <ModeButton
               active={mode === "mine"}
               label={t(operatorMode ? "modeMineOp" : "modeMine")}
               hint={t(operatorMode ? "modeMineHintOp" : "modeMineHint")}
-              onClick={() => hasGuests && setMode("mine")}
-              disabled={!hasGuests}
-            />
+              onClick={() => hasGuests && selectMode("mine")}
+              disabled={!hasGuests || interactionLocked || (mixed && pendingBlocksMixed)}
+            />}
+            {operatorMode && <ModeButton active={mixed} label={t("mixed.title")} hint={t("mixed.hint")}
+              onClick={() => selectMode("mixed")} disabled={interactionLocked} />}
           </div>
           {mode === "mine" && !hasGuests && (
             <div className="mt-2 text-xs text-muted-2">{t("noGuestsHint")}</div>
           )}
         </div>
       )}
+
+      {mixed && <div ref={summaryRef} tabIndex={-1} className="focus:outline-none"><MixedPaymentPanel budget={mixedBudget} allocation={mixedAllocation} value={mixedValue}
+        onChange={value => { setMixedInput({ balance: balanceKey, value }); setErr(null); }}
+        onRemaining={() => { setMixedInput(null); setUseRemainder(true); }}
+        payments={approvedPayments} disabled={interactionLocked} pending={pendingBlocksMixed} inFlight={pendingPayments.some(p => !isReplaceablePendingMethod(p.method))} currency={currency} /></div>}
 
       {mode === "equal" && (
         <div className="mt-4 flex items-center justify-between bg-paper border border-hairline rounded-xl px-4 py-3">
@@ -1091,12 +1188,12 @@ export function PayClient({
           <>
             <Row
               label={t("rowPaidFood")}
-              value={"− " + fmtCOP(paidFoodCents)}
+              value={"− " + (mixed ? exactMoney(paidFoodCents) : fmtCOP(paidFoodCents))}
               muted
             />
             <Row
               label={t("rowOwedFood")}
-              value={fmtCOP(outstandingSubtotalCents)}
+              value={mixed ? exactMoney(outstandingSubtotalCents) : fmtCOP(outstandingSubtotalCents)}
               accent
             />
           </>
@@ -1108,13 +1205,13 @@ export function PayClient({
         {amountSubtotal !== outstandingSubtotalCents && (
           <Row
             label={
-              operatorMode
+              mixed ? t("mixed.foodPart") : operatorMode
                 ? t("rowToChargeN", { n: splitCount })
                 : mode === "equal"
                   ? t("rowYourPartN", { n: splitCount })
                   : t("rowOf", { name: myGuest || t("you") })
             }
-            value={fmtCOP(amountSubtotal)}
+            value={mixed ? exactMoney(amountSubtotal) : fmtCOP(amountSubtotal)}
             accent
           />
         )}
@@ -1134,13 +1231,14 @@ export function PayClient({
         )}
         <div className="mt-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
-            {operatorMode ? t("tipOp") : t("tipDiner")}
+            {mixed ? t("mixed.accountTip") : operatorMode ? t("tipOp") : t("tipDiner")}
           </div>
           <div className="flex gap-2 flex-wrap">
             {TIP_OPTIONS.map((p) => (
               <button
                 key={p}
                 onClick={() => chooseTip(p)}
+                disabled={interactionLocked || (mixed && pendingBlocksMixed)}
                 className={
                   "h-9 px-3 rounded-full text-sm border " +
                   (tipPct === p
@@ -1154,7 +1252,7 @@ export function PayClient({
           </div>
           <div className="mt-2 flex justify-between text-sm text-muted">
             <span>{t("tipLine", { pct: tipPct })}</span>
-            <span className="font-mono tabular">{fmtCOP(amountTip)}</span>
+            <span className="font-mono tabular">{mixed ? exactMoney(amountTip) : fmtCOP(amountTip)}</span>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-hairline">
@@ -1162,18 +1260,23 @@ export function PayClient({
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">
               {operatorMode ? t("totalToChargeNow") : t("totalToPay")}
             </span>
-            <span className="font-display text-3xl">{fmtCOP(amountCents)}</span>
+            <span className="font-display text-3xl">{mixed ? exactMoney(amountCents) : fmtCOP(amountCents)}</span>
           </div>
           <div className="mt-1 text-xs text-muted-2">
             {t("totalBreakdown", {
-              subtotal: fmtCOP(amountSubtotal),
-              tip: fmtCOP(amountTip),
+              subtotal: mixed ? exactMoney(amountSubtotal) : fmtCOP(amountSubtotal),
+              tip: mixed ? exactMoney(amountTip) : fmtCOP(amountTip),
             })}
           </div>
         </div>
       </div>
 
-      {err && <div className="mt-4 text-danger text-sm">{err}</div>}
+      {err && <div className="mt-4 text-danger text-sm" role="alert">{err}</div>}
+      {cashUncertain && <div className="mt-3 rounded-xl border border-hairline p-4 space-y-3">
+        <p className="text-sm text-muted">{t("mixed.retryHint")}</p>
+        <button type="button" onClick={() => payWithCash(null, null, true)} disabled={busy !== null || refreshing}
+          className="min-h-11 px-4 rounded-full bg-ink text-bone text-sm disabled:opacity-50">{t("mixed.retry")}</button>
+      </div>}
 
       {/* Cliente (staff): asociar la cuenta a un cliente registrado aplica su
           descuento y deja listo el cobro a crédito. Opcional. */}
@@ -1181,7 +1284,7 @@ export function PayClient({
         <CustomerCard
           customer={customer}
           notice={customerNotice}
-          disabled={busy !== null}
+          disabled={interactionLocked || (mixed && pendingBlocksMixed)}
           currency={currency}
           onPick={linkCustomer}
         />
@@ -1196,7 +1299,7 @@ export function PayClient({
           tenantSlug={tenantSlug}
           orderId={orderId}
           operatorMode={operatorMode}
-          disabled={busy !== null}
+          disabled={interactionLocked || (mixed && pendingBlocksMixed)}
           onApplied={(fullyPaid) => {
             if (fullyPaid) {
               router.push(
@@ -1248,9 +1351,9 @@ export function PayClient({
                 />
               )}
               {(isMockMode || !kushkiPublicKey) && hasApplePay && (
-                <PayButton
+                <PayButton currency={currency}
                   kind="apple"
-                  disabled={busy !== null || amountCents <= 0}
+                  disabled={chargeDisabled}
                   busy={busy === "kushki_apple_pay"}
                   onClick={payWithApplePayMock}
                   amountCents={amountCents}
@@ -1260,9 +1363,9 @@ export function PayClient({
             </>
           )}
         {kushkiReady && enabledMethods.includes("kushki_card_terminal") && (
-          <PayButton
+          <PayButton currency={currency}
             kind="terminal"
-            disabled={busy !== null || amountCents <= 0}
+            disabled={chargeDisabled}
             busy={busy === "kushki_card_terminal"}
             onClick={payWithTerminal}
             amountCents={amountCents}
@@ -1272,9 +1375,9 @@ export function PayClient({
         {kushkiReady &&
           enabledMethods.includes("kushki_card") &&
           !operatorMode && (
-            <PayButton
+            <PayButton currency={currency}
               kind="card"
-              disabled={busy !== null || amountCents <= 0}
+              disabled={chargeDisabled}
               busy={busy === "kushki_card"}
               onClick={() => setCardSheetOpen(true)}
               amountCents={amountCents}
@@ -1282,9 +1385,9 @@ export function PayClient({
             />
           )}
         {enabledMethods.includes("external_terminal") && (
-          <PayButton
+          <PayButton currency={currency}
             kind="external_terminal"
-            disabled={busy !== null || amountCents <= 0}
+            disabled={chargeDisabled}
             busy={busy === "external_terminal"}
             onClick={payWithExternalTerminal}
             amountCents={amountCents}
@@ -1294,9 +1397,9 @@ export function PayClient({
         {kushkiReady &&
           enabledMethods.includes("kushki_pse") &&
           !operatorMode && (
-            <PayButton
+            <PayButton currency={currency}
               kind="pse"
-              disabled={busy !== null || amountCents <= 0}
+              disabled={chargeDisabled}
               busy={busy === "kushki_pse"}
               onClick={() => setPseSheetOpen(true)}
               amountCents={amountCents}
@@ -1304,9 +1407,9 @@ export function PayClient({
             />
           )}
         {enabledMethods.includes("cash") && (
-          <PayButton
+          <PayButton currency={currency}
             kind="cash"
-            disabled={busy !== null || amountCents <= 0}
+            disabled={chargeDisabled}
             busy={busy === "cash"}
             // Both diner + operator open a sheet first. Diner sheet:
             // "¿con cuánto vas a pagar?" so the mesero brings the
@@ -1318,9 +1421,9 @@ export function PayClient({
             operatorMode={operatorMode}
           />
         )}
-        {operatorMode && creditEnabled && (
+        {operatorMode && !mixed && creditEnabled && (
           <div>
-            <PayButton
+            <PayButton currency={currency}
               kind="credit"
               disabled={busy !== null || outstandingSubtotalCents <= 0}
               busy={busy === "customer_credit"}
@@ -1339,7 +1442,7 @@ export function PayClient({
             {t("preparedCancellationAdminOnly")}
           </p>
         )}
-        {operatorMode && compEnabled && (
+        {operatorMode && !mixed && compEnabled && (
           <button
             type="button"
             disabled={busy !== null}
@@ -1354,9 +1457,9 @@ export function PayClient({
             {/* Same flow as the real "Tarjeta con datáfono" button — useful
                 for previewing the customer's "esperando datáfono" screen
                 without having to activate pagos para el restaurante. */}
-            <PayButton
+            <PayButton currency={currency}
               kind="demo_terminal"
-              disabled={busy !== null || amountCents <= 0}
+              disabled={chargeDisabled}
               busy={busy === "kushki_card_terminal"}
               onClick={payWithTerminal}
               operatorMode={operatorMode}
@@ -2130,6 +2233,7 @@ function OperatorCashSheet({
   onConfirm: (v: { tenderCents: number; changeGivenCents: number }) => void;
 }) {
   const t = useTranslations("pay");
+  const locale = useLocale() as Locale;
   const dueCop = Math.ceil(amountCents / 100);
   // Colombia no usa centavos físicos: si una cuenta dividida cae en
   // fracción ($33.605 ÷ 2 = $16.802,50), la matemática del vuelto
@@ -2137,8 +2241,8 @@ function OperatorCashSheet({
   // 50¢. Forzamos pesos enteros adentro del sheet (techo, como el
   // display) para que el preset siempre dé un vuelto físicamente
   // correcto. El servidor recibe ese mismo cuadre — la fracción <1
-  // peso queda como propina mínima por redondeo (invisible al
-  // usuario, contable en el back).
+  // peso se informa como propina adicional antes de confirmar. El
+  // servidor registra exactamente ese importe.
   const dueCents = dueCop * 100;
 
   // Smart presets para los billetes que se usan en Colombia. Lógica:
@@ -2181,7 +2285,7 @@ function OperatorCashSheet({
   // alza) en vez de amountCents (que puede tener centavos por splits)
   // — así el preset siempre da un vuelto físico y el confirm no se
   // bloquea por diferencias invisibles al usuario.
-  const extraTip = netReceived - dueCents;
+  const extraTip = netReceived - amountCents;
   const validTender = tender >= dueCents;
   const validChange = change >= 0 && change <= tender;
   const valid = validTender && validChange && netReceived >= dueCents;
@@ -2403,7 +2507,7 @@ function OperatorCashSheet({
           ) : extraTip > 0 ? (
             <span>
               {t.rich("tipFromChange", {
-                amount: fmtCOP(extraTip),
+                amount: formatMoney(extraTip, { locale, fractionDigits: extraTip % 100 ? 2 : 0 }),
                 b: (chunks) => (
                   <strong className="font-mono tabular">{chunks}</strong>
                 ),
@@ -2425,7 +2529,7 @@ function OperatorCashSheet({
           {busy
             ? t("registering")
             : t("confirmChargeBtn", {
-                amount: fmtCOP(dueCents + Math.max(0, extraTip)),
+                amount: fmtCOP(netReceived),
               })}
         </button>
       </div>
@@ -2815,6 +2919,7 @@ function CardSheet({
 }
 
 function PayButton({
+  currency,
   kind,
   disabled,
   busy,
@@ -2822,6 +2927,7 @@ function PayButton({
   amountCents,
   operatorMode,
 }: {
+  currency: string;
   kind:
     | "apple"
     | "card"
@@ -2838,6 +2944,7 @@ function PayButton({
   operatorMode: boolean;
 }) {
   const t = useTranslations("pay");
+  const locale = useLocale() as Locale;
   const meta = (operatorMode ? BUTTON_META_OP : BUTTON_META_DINER)[kind];
   return (
     <button
@@ -2851,7 +2958,7 @@ function PayButton({
       <span>
         {busy
           ? t("processing")
-          : `${t(meta.labelKey)} · ${fmtCOP(amountCents)}`}
+          : `${t(meta.labelKey)} · ${formatMoney(amountCents, { currency, locale, fractionDigits: amountCents % 100 ? 2 : 0 })}`}
       </span>
     </button>
   );
@@ -2967,6 +3074,7 @@ function ModeButton({
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={active}
       className={
         "p-3 rounded-xl border text-left transition-[transform,box-shadow,background,border-color] duration-150 disabled:opacity-50 " +
         (active

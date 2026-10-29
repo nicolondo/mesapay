@@ -6,6 +6,7 @@ import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { MeseroNeedsShift } from "./MeseroNeedsShift";
 import { ChargeLockedByAdmin } from "./ChargeLockedByAdmin";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { staffForRestaurant } from "@/lib/staffAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,10 @@ export const dynamic = "force-dynamic";
  */
 export default async function MeseroCobrarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ declined?: string }>;
 }) {
   const { orderId } = await params;
   const session = await auth();
@@ -49,13 +52,9 @@ export default async function MeseroCobrarPage({
   });
   if (!order) return notFound();
 
-  // Tenant scope — un mesero de otro restaurante no debe cobrar acá.
-  // Operator/admin con impersonación ya traen su restaurantId en sesión.
-  if (
-    role === "mesero" &&
-    session.user.restaurantId &&
-    session.user.restaurantId !== order.restaurantId
-  ) {
+  // Every staff role must be acting on this restaurant, including admins
+  // using an impersonated restaurant rather than a session restaurantId.
+  if (!await staffForRestaurant(order.restaurantId, ["mesero", "operator", "platform_admin"])) {
     return notFound();
   }
 
@@ -78,5 +77,6 @@ export default async function MeseroCobrarPage({
     return <MeseroNeedsShift />;
   }
 
-  return <PayFlow slug={order.restaurant.slug} orderId={orderId} op="1" />;
+  const { declined } = await searchParams;
+  return <PayFlow slug={order.restaurant.slug} orderId={orderId} op="1" declined={declined} />;
 }

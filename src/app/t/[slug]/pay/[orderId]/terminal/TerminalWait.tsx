@@ -8,6 +8,19 @@ import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 
 type Status = "pending" | "approved" | "declined" | "refunded";
 
+/** A confirmed payment can be only one part of the still-open account. */
+export function terminalReturnHref(
+  status: Status,
+  orderStatus: string,
+  doneHref: string,
+  continueHref: string | undefined,
+  retryHref: string,
+): string | null {
+  if (status === "approved") return orderStatus === "paid" || !continueHref ? doneHref : continueHref;
+  if (status === "declined" || status === "refunded") return retryHref;
+  return null;
+}
+
 /**
  * Waiting screen the diner sees after tapping "Tarjeta con datáfono". We
  * sit on this page until the terminal returns a result (via SSE) or the
@@ -18,11 +31,13 @@ export function TerminalWait({
   tenantSlug,
   tenantName,
   locationLabel,
-  orderId,
   paymentId,
   amountCents,
   initialStatus,
+  initialOrderStatus,
   doneHref,
+  continueHref,
+  retryHref,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -31,38 +46,26 @@ export function TerminalWait({
   paymentId: string;
   amountCents: number;
   initialStatus: Status;
+  initialOrderStatus: string;
   // A dónde ir al APROBARSE (lo resuelve el server según quién cobra).
   doneHref: string;
+  continueHref?: string;
+  retryHref: string;
 }) {
   const router = useRouter();
   const t = useTranslations("wait");
-  const [status, setStatus] = useState<Status>(initialStatus);
+  const [{ status, orderStatus }, setPayment] = useState({ status: initialStatus, orderStatus: initialOrderStatus });
   const redirected = useRef(false);
 
   useEffect(() => {
-    if (status === "approved" && !redirected.current) {
+    const href = terminalReturnHref(status, orderStatus, doneHref, continueHref, retryHref);
+    if (!href || redirected.current) return;
+    const timer = setTimeout(() => {
       redirected.current = true;
-      const t = setTimeout(() => {
-        router.push(doneHref);
-      }, 1200);
-      return () => clearTimeout(t);
-    }
-    // Si declina, volvemos al checkout con un flag para mostrar
-    // banner de error. Mejor UX que dejar al diner en una pantalla
-    // sin salida — desde el checkout pueden reintentar con otro
-    // método inmediatamente. Damos un beat (1.5s) para que vean el
-    // X antes del redirect.
-    if (
-      (status === "declined" || status === "refunded") &&
-      !redirected.current
-    ) {
-      redirected.current = true;
-      const t = setTimeout(() => {
-        router.push(`/t/${tenantSlug}/pay/${orderId}?declined=1`);
-      }, 1500);
-      return () => clearTimeout(t);
-    }
-  }, [status, router, tenantSlug, orderId, doneHref]);
+      router.push(href);
+    }, status === "approved" ? 1200 : 1500);
+    return () => clearTimeout(timer);
+  }, [status, orderStatus, router, doneHref, continueHref, retryHref]);
 
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -76,8 +79,8 @@ export function TerminalWait({
     try {
       const r = await fetch(`/api/tenant/${tenantSlug}/payment/${paymentId}`);
       if (!r.ok) return;
-      const j = (await r.json()) as { status: Status };
-      if (aliveRef.current) setStatus(j.status);
+      const j = (await r.json()) as { status: Status; orderStatus: string };
+      if (aliveRef.current) setPayment({ status: j.status, orderStatus: j.orderStatus });
     } catch {}
   }
 

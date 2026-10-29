@@ -12,6 +12,7 @@ import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
+import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 
 /**
  * Settle de un cobro vía datáfono propio del comercio
@@ -82,6 +83,9 @@ async function POSTHandler(
   if (await isChargeBlocked(session.user.role, payment.order.restaurantId)) {
     return chargeBlockedResponse();
   }
+  if (await meseroNeedsShiftToCharge(session.user.id, session.user.role, payment.order.restaurantId)) {
+    return NextResponse.json({ error: "mesero_no_shift" }, { status: 409 });
+  }
   if (payment.status !== "pending") {
     return NextResponse.json({ error: "already settled" }, { status: 409 });
   }
@@ -89,15 +93,11 @@ async function POSTHandler(
   // Decline path — flag como rechazado, deja el order disponible
   // para reintentar con otro método.
   if (parsed.data.action === "decline") {
-    await db.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "declined",
-        // Guardamos la razón en el campo libre que tiene Payment
-        // (si existe), o en raw — por ahora dejamos vacío y la UI
-        // muestra "Rechazado" sin más detalle. Iteramos después si
-        // hace falta tracking más fino.
-      },
+    await db.$transaction(async (tx) => {
+      await lockOrder(tx, payment.orderId);
+      const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      if (current.status !== "pending") throw new Error("operation_conflict");
+      await tx.payment.update({ where: { id: payment.id }, data: { status: "declined" } });
     });
     publishOrderEvent(payment.order.restaurantId, {
       type: "order.updated",

@@ -2,13 +2,13 @@ import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
+import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -65,16 +65,21 @@ export default async function PayDone({
   const { pid, op } = await searchParams;
   // op=1 → llegó acá el MESERO tras cobrar: copia en tercera persona +
   // enlace de vuelta a mesas (según el rol de la sesión).
-  const operator = op === "1";
-  const session = operator ? await auth() : null;
+  const tenant = await db.restaurant.findUnique({ where: { slug } });
+  if (!tenant) return notFound();
+  const session = op === "1"
+    ? await staffForRestaurant(tenant.id, [...OPERATOR_ROLES, "mesero"])
+    : null;
+  const operator = session !== null;
   const backHref =
     session?.user?.role === "mesero" ? "/mesero/mesas" : "/operator/tables";
   // "Imprimir factura" por el agente SÓLO con sesión de staff verificada
   // acá (no por el `op=1` de la URL, que cualquiera puede escribir). El
   // comensal abre la vista para imprimir en su equipo, como siempre.
   const staffPrint = operator ? staffPrintAccessFor(session?.user?.role) : null;
-  const tenant = await db.restaurant.findUnique({ where: { slug } });
-  if (!tenant) return notFound();
+  const continueHref = session?.user?.role === "mesero"
+    ? `/mesero/cobrar/${orderId}`
+    : `/t/${slug}/pay/${orderId}${operator ? "?op=1" : ""}`;
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -122,7 +127,7 @@ export default async function PayDone({
   // Banner de mesero (solo op=1): confirma el cobro y da salida a mesas.
   const operatorBanner = operator ? (
     <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl bg-ink text-bone px-4 py-3">
-      <span className="text-sm font-medium">{t("opChargeDone")}</span>
+      <span className="text-sm font-medium">{t(order.status === "paid" ? "opChargeDone" : "paymentReceived")}</span>
       <Link
         href={backHref}
         className="font-mono text-[10px] tracking-wider uppercase underline opacity-90 shrink-0"
@@ -133,7 +138,7 @@ export default async function PayDone({
   ) : null;
 
   // Counter-mode keeps its status tracker: big code + live cook status.
-  if (tenant.serviceMode === "counter") {
+  if (tenant.serviceMode === "counter" && order.status === "paid") {
     const round = order.rounds[0] ?? null;
     const roundStatus = round?.status ?? "placed";
     const isReady = roundStatus === "ready" || roundStatus === "served";
@@ -391,7 +396,7 @@ export default async function PayDone({
             <div className="mt-4 pt-4 border-t border-hairline flex items-center justify-between gap-3">
               <p className="text-xs text-muted">{t("keepPayingHint")}</p>
               <Link
-                href={`/t/${slug}/pay/${order.id}`}
+                href={continueHref}
                 className="shrink-0 h-9 px-4 rounded-full bg-ink text-bone text-xs font-medium inline-flex items-center"
               >
                 {t("payMore")}

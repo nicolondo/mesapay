@@ -1,5 +1,571 @@
 {
   "title": "Accounting and reports",
   "description": "Expenses, chart of accounts, vouchers, month-end close, books, financial statements, taxes, receivables and Pulso.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "como-funciona-la-contabilidad",
+      "title": "Understand how accounting works in MESAPAY",
+      "summary": "What's in the Accounting and Reports menus, how MESAPAY builds one summary entry per month and per source from your operation, and why you need to tap “Generate / refresh entries” before looking at the books.",
+      "keywords": [
+        "accounting",
+        "entries",
+        "summary entry",
+        "double entry",
+        "puc",
+        "chart of accounts",
+        "accounting engine",
+        "generate entries",
+        "reports",
+        "all reports",
+        "accountant",
+        "accounting module",
+        "journal"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY accounting turns what happens in your restaurant (sales, payments, purchases, expenses, payroll) into double-entry entries on the Colombian chart of accounts (PUC). That way you and your accountant get books, financial statements and taxes without keying in every sale.\n\n> If you don't see **Accounting** or **Reports** in the side menu, your business doesn't have the accounting module turned on. Contact support if you need it.\n\n## Who can see it\n\nThe accounting screens are available to users with the Operator role. If your accountant is going to work directly in MESAPAY, create a user for them in [Settings › Users](/operator/settings/usuarios), as explained in [Create your team's users](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n\n## The two menus\n\n**Accounting** holds the month's work: **Expenses & journal** (the Accounting screen and its tabs), **Chart of accounts**, **Vouchers**, **General ledger**, **General journal / auxiliary**, **Budgets**, **Fixed assets**, **Deferrals** and **Period close**.\n\n**Reports** holds what you look up, export and print: **All reports**, **Sales commissions**, **Receivables & payables**, **Period taxes**, **Statement of financial position**, **Income statement**, **Trial balance** and **Third-party information (exógena)**.\n\n[All reports](/operator/reportes) shows each report as a card, grouped into **Accounting**, **Financial**, **Tax**, **Commercial** and **Operational**. Operational includes the **Shift close-out**, the **Operating P&L** and the **Sales and purchase books**.\n\n## The Accounting tabs\n\n- **Expenses**: rent, utilities and other business expenses. See [Record expenses and recurring expenses](/operator/ayuda/contabilidad-y-reportes/registrar-gastos).\n- **P&L** and **Books**: the month's result and the sales and purchase books. See [Read the monthly P&L and export the books](/operator/ayuda/contabilidad-y-reportes/pyg-y-libros-del-mes).\n- **Chart of accounts**: see [Adjust the chart of accounts](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **Journal**: the month's entries, with the buttons to generate them and close the month. See [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **Statements**: a summary of the income statement, the statement of financial position and the trial balance for the month, marked **Balanced** or **Not balanced**.\n- **Taxes**, **Banks**, **Assets** and **Budget**: see [taxes and withholdings](/operator/ayuda/contabilidad-y-reportes/impuestos-y-retenciones), [bank reconciliation](/operator/ayuda/contabilidad-y-reportes/conciliacion-bancaria), [fixed assets and deferrals](/operator/ayuda/contabilidad-y-reportes/activos-fijos-y-diferidos) and [budgets and cost centers](/operator/ayuda/contabilidad-y-reportes/presupuestos-y-centros-de-costos).\n\nAt the top is the month picker (◀ ▶). Every tab shows the selected month, except **Chart of accounts**, **Banks** and **Assets**, which don't depend on the month.\n\n## How the entries are built\n\nMESAPAY doesn't post one entry per sale. For each month it builds **one summary entry per source**, dated the last day of the month:\n\n- **Sales for the month**: what was collected, split by payment method (cash goes to the cash account, your own card reader to banks, online payments to the gateway balance and credit sales to customers), against revenue, the VAT or INC each invoice locked in, and tips payable.\n- **Customer payments**, **Supplier payments** and **Expense payments**.\n- **Purchases for the month**: the purchase orders received, with their deductible VAT and withholdings, against suppliers.\n- **Cost of goods sold** and **Waste**, if you use inventory and recipes.\n- **Expenses for the month**, **Payroll**, **Monthly depreciation**, **Deferral amortization**, **Refunds** and **Credit notes for the month**.\n\nOn top of those come the ones you record yourself: manual vouchers, bank movements, tax payments and the year-end closing.\n\n## The key rule: generate the entries\n\nSummary entries are not created on their own. Whenever you want the books up to date:\n\n1. Go to [Accounting](/operator/contabilidad?tab=diario) and open the **Journal** tab.\n2. Pick the month with ◀ ▶.\n3. Tap **Generate / refresh entries**.\n\nEach time you tap it, MESAPAY rebuilds that month's summary entries with whatever is there at that moment: a purchase received or an expense recorded later comes in the next time. Your manual vouchers are left untouched.\n\nThe general journal, the general ledger, the trial balance and the financial statements read those entries. The **P&L** and the sales and purchase **Books**, on the other hand, are calculated live from the operation and don't need the button.\n\n## Common cases\n\n- **The general ledger or the income statement is empty**: that month's entries haven't been generated yet. Go to the **Journal** tab and tap **Generate / refresh entries**.\n- **I recorded an expense and it doesn't show in the books**: generate the entries again for the expense's month. If that month is already closed, reopen it first.\n- **The P&L and the income statement don't match**: that's expected. The P&L is an operating summary; the income statement comes from the entries, with revenue net of tax and after credit notes, refunds, depreciation and manual vouchers.\n- **A summary entry is missing after generating**: this happens if you deactivated every sub-account under an account MESAPAY posts to (for example, Banks). Activate at least one in the chart of accounts and generate again.",
+      "links": [
+        {
+          "label": "Go to Accounting",
+          "href": "/operator/contabilidad"
+        },
+        {
+          "label": "Go to the month's Journal",
+          "href": "/operator/contabilidad?tab=diario"
+        },
+        {
+          "label": "Go to All reports",
+          "href": "/operator/reportes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "registrar-gastos",
+      "title": "Record expenses and recurring expenses",
+      "summary": "Record rent, utilities, fees and other expenses with their account, supplier and cost center, say whether you already paid them and schedule the ones that repeat every month.",
+      "keywords": [
+        "expenses",
+        "new expense",
+        "recurring expense",
+        "rent",
+        "utilities",
+        "outgoings",
+        "expense account",
+        "expenses payable",
+        "supplier",
+        "cost center",
+        "paid",
+        "due date",
+        "template"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Expenses are what the restaurant pays for that isn't a supply purchase: rent, utilities, internet, professional fees, advertising, maintenance. Once you record them, the P&L deducts them and they go into the month's accounting.\n\n> Supply purchases from suppliers are recorded in **Back office › Purchasing** (if you have that module), not here.\n\n## Record an expense\n\n1. Go to [Accounting › Expenses & journal](/operator/contabilidad). The **Expenses** tab opens on the current month, with the **Month total**.\n2. Tap **New expense**.\n3. Fill in the details (each one is explained below).\n4. If you already paid it, leave **Already paid** checked and choose under **Paid from** the cash or bank account the money came out of. If you still owe it, uncheck it and enter the date under **Due**.\n5. Tap **Save**.\n\nThe expense details:\n\n- **Category** (required): type it freely, for example \"Rent\" or \"Utilities\". The ones you've used before show up as suggestions.\n- **Description**: optional.\n- **Amount** and **Date** (required). The date decides which month the expense falls in.\n- **Supplier**: if you have the purchasing module, pick one or create it right there with **+ New supplier**.\n- **Cost center**: shows up once you've created cost centers. See [Build budgets and use cost centers](/operator/ayuda/contabilidad-y-reportes/presupuestos-y-centros-de-costos).\n- **Expense account**: the PUC account it's charged to. With **Automatic (from the category)**, MESAPAY works it out from the words in the category (in Spanish): rent, fees, internet or phone, utilities, maintenance, commissions, advertising or payroll. Anything it doesn't recognize goes to miscellaneous expenses. If your accountant opened their own accounts, it's better to pick one.\n\n## Recurring expenses\n\nFor expenses that repeat the same every month, like rent or the internet plan:\n\n1. Tap **New expense** and fill in the category, amount and other details.\n2. Turn on **Recurring expense (repeats every month)**.\n3. Under **Day of the month (1-28)**, enter the day it should be created.\n4. Tap **Save**.\n\nThe template stays in the **Recurring expenses** list, marked **Recurring** with the text \"Every month on day…\". On that day, MESAPAY creates the month's expense on its own, with the template's category, description, amount and supplier. That expense is left as pending payment.\n\n> If you create the template after the chosen day, the first expense comes out next month. Record this month's by hand.\n\nTo stop repeating it, open the template and tap **Remove**. Expenses already created in previous months are kept.\n\n## Edit or delete an expense\n\n1. Pick the month with ◀ ▶ and tap the expense in the list.\n2. Change what you need and tap **Save**, or tap **Remove** and confirm.\n\nEditing doesn't change what was already recorded as paid.\n\n## What happens in the accounting\n\nWhen you generate the month's entries, expenses go into the **Expenses for the month** entry: debit to each expense's account and credit to costs and expenses payable. What you marked as paid goes into **Expense payments**: debit to costs and expenses payable and credit to the cash or bank account you chose. Expenses still owed show up in [Receivables & payables › payables](/operator/ayuda/contabilidad-y-reportes/cartera), with their due date.\n\n## Common cases\n\n- **\"Check the fields: some values are invalid.\"**: the category or the date is missing.\n- **\"Invalid amount.\"**: the amount has to be greater than zero.\n- **\"Pick the day of the month (1-28) for the recurring expense.\"**: enter a day between 1 and 28.\n- **\"A supplier with that name already exists.\"**: pick it from the list instead of creating it again.\n- **I don't see the Supplier field**: it depends on the purchasing module. Contact support if you need it.\n- **I left it as owed and have now paid it**: the expenses screen doesn't have a button to record that payment later yet. If you paid it on the same day as the expense, delete it and create it again with **Already paid**; otherwise, contact support.\n- **I recorded an expense in a month that's already closed**: it shows in **Expenses** and in the P&L, but it doesn't reach the books until you reopen that month and generate the entries again. See [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).",
+      "links": [
+        {
+          "label": "Go to Expenses",
+          "href": "/operator/contabilidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pyg-y-libros-del-mes",
+      "title": "Read the monthly P&L and export the books",
+      "summary": "The P&L sums up the month's sales, costs, expenses and profit live from your operation. The Books tab lists sales and purchases, and that's where the CSV files and the Excel for your accountant come from.",
+      "keywords": [
+        "p&l",
+        "profit and loss",
+        "income statement",
+        "profit",
+        "cogs",
+        "gross margin",
+        "prime cost",
+        "sales book",
+        "purchase book",
+        "export csv",
+        "excel for the accountant",
+        "labor cost",
+        "waste"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The **P&L** tells you at a glance whether the month is turning a profit, and **Books** gives you the sales and purchase detail to hand to your accountant. Both tabs are calculated live from what happens in the restaurant: no need to generate entries.\n\n## See the month's P&L\n\n1. Go to [Accounting › P&L](/operator/contabilidad?tab=pnl).\n2. Pick the month with ◀ ▶.\n\nIt reads from top to bottom:\n\n- **Sales revenue**: the dishes on the bills collected in the month, at menu price (with the tax already included in the price, before discounts and without tips). Below it, for reference only, **Tips (informational)** and **Taxes collected (informational)**.\n- **COGS (actual consumption)**: the cost of the supplies that left inventory according to the recipes of what was sold.\n- **Waste**: what was written off from inventory.\n- **Gross profit**, with its percentage of sales.\n- **Labor cost**: if you have the schedules module, the base salaries plus the holiday and Sunday surcharges from the shifts.\n- **Expenses**: by category, including **Non-inventory supply purchases**.\n- **Operating profit**: green when there's a profit and red when there's a loss.\n\nFurther down:\n\n- **Taxes**: **Sales tax** with its **Taxable base**, by rate, and **Taxes on purchases** (VAT, INC and withholdings). To change the sales tax tap **Configure**, which takes you to Settings › Taxes. See [Set up the sales tax](/operator/ayuda/facturacion/impuesto-de-ventas).\n- **Sales by category**: sales, COGS and margin for each menu category.\n- **Prime cost (COGS + waste + labor)**: the share of sales that goes to supplies and staff (with the schedules module).\n- **Purchases received this month (informational)**: what came in from suppliers. It doesn't reduce the result: the cost comes in through COGS when it's consumed.\n\n## See the sales and purchase books\n\n1. Go to [Accounting › Books](/operator/contabilidad?tab=books) and pick the month.\n2. Choose **Sales** or **Purchases**.\n\n**Sales** lists every bill collected in the month: table or pickup, tip, tax, total and invoice number, with totals **By payment method**. If you issue electronic credit notes, they show under **Credit notes for the month**: the ones accepted by the DIAN and dated in the month, which reduce sales, plus the **Total net of credit notes**. See [Issue an electronic credit note](/operator/ayuda/facturacion/notas-credito).\n\n**Purchases** lists the purchase orders received in the month, with supplier, invoice number and due date, marked **Paid**, **To pay** or **Overdue**, and the totals **Received this month** and **Total to pay**.\n\n## Export for your accountant\n\nIn the **Books** tab:\n\n- **Export CSV**: the book you have open (sales or purchases) for the month.\n- **Export expenses (CSV)**: the month's expenses.\n- **Download Excel for the accountant**: a single file with the Sales, Withholdings, Cost of sales and Inventory sheets. In Sales, the month's accepted credit notes appear as negatives and the total is net of them.\n\n> Amounts come as numbers, so your accountant can add them up and filter them.\n\n## Common cases\n\n- **COGS shows zero**: if you see \"No consumption recorded this month yet…\", COGS needs the inventory and recipes modules, and the dishes need recipes. Purchases are never used as cost.\n- **\"This business is invoicing WITHOUT sales tax.\"**: review the tax with your accountant in Settings › Taxes.\n- **The P&L doesn't match the income statement**: the P&L is an operating summary with revenue at menu price; it doesn't deduct credit notes or include depreciation, deferrals or manual vouchers. For accounting figures use the income statement, which comes from the entries. See [View the official books and financial statements](/operator/ayuda/contabilidad-y-reportes/libros-y-estados-financieros).\n- **Labor cost doesn't show up**: it depends on the schedules module and on your team having salaries. If you see \"employees without a salary\", fill them in under Schedules.\n- **An expense doesn't change the profit**: check its date; it counts in that date's month.",
+      "links": [
+        {
+          "label": "Go to the P&L",
+          "href": "/operator/contabilidad?tab=pnl"
+        },
+        {
+          "label": "Go to Books",
+          "href": "/operator/contabilidad?tab=books"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "plan-de-cuentas",
+      "title": "Adjust the chart of accounts",
+      "summary": "MESAPAY ships the PUC for restaurants under IFRS for SMEs. Create accounts and sub-accounts (with AI help if you like), import your accountant's chart, export it and deactivate the accounts you don't use.",
+      "keywords": [
+        "chart of accounts",
+        "puc",
+        "ledger account",
+        "sub-account",
+        "auxiliary account",
+        "ifrs",
+        "import chart of accounts",
+        "suggest with ai",
+        "deactivate account",
+        "parent account",
+        "account list",
+        "move entries"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The chart of accounts is the list of PUC accounts where every entry lands. MESAPAY ships it ready for restaurants, under IFRS for SMEs (Group 2), and you or your accountant can adapt it: create accounts and sub-accounts, import the accountant's chart, export it and deactivate what you don't use.\n\n## Find an account\n\n1. Go to [Accounting › Chart of accounts](/operator/contabilidad?tab=chart).\n2. Type a code or a name in **Search by code or name…**.\n\nAccounts are shown as a tree: class (1 digit), group (2), account (4), sub-account (6) and auxiliaries (8 and 10). Each one shows its type and its nature (**Debit** or **Credit**). Grouping accounts don't take entries; entries land in their child accounts.\n\n## Create an account or a sub-account\n\n1. Tap **New account**, or **Add sub-account** next to the account that will be the parent.\n2. Under **Parent account**, search for it by code or name and select it. The new account inherits its type and nature.\n3. Under **Code**, enter the parent's code plus two digits. For example, under 111005 goes 11100501.\n4. Enter the **Name**, for example \"Bancolombia savings\".\n5. Tap **Create account**.\n\n### With help from AI\n\nIn the same form, under **Suggest with AI**, describe the account you need (for example, \"Bancolombia savings account\" or \"tips payable\") and tap **Suggest with AI**. The AI fills in the parent, the code and the name, and explains why it chose that spot. Review it and fix anything needed: nothing is created until you tap **Create account**.\n\n### If the parent already had entries\n\nWhen you create a sub-account under an account that was already receiving entries, MESAPAY moves them to the new sub-account and the parent becomes a grouping account. You'll see the message \"Account … created. Parent … had entries: … lines were moved to the new sub-account.\" The balance isn't lost: it now lives in the sub-account.\n\nFrom then on, whatever MESAPAY posted to the parent lands in the sub-account. If you open several sub-accounts under an account MESAPAY uses (for example, one per bank), automatic entries go to the one ending in 05 or, if there isn't one, to the lowest code.\n\n## Import your accountant's chart\n\n1. Tap **Import my accountant's chart of accounts**.\n2. Paste the accounts, one per line: code, name, nature and whether it accepts entries. For example, `110505;Caja general;D;true`.\n3. Tap **Import accounts**.\n\nYou can copy the columns straight from a spreadsheet: semicolons, tabs or commas all work, and the first row can hold the column titles. Nature takes D or C; accepts entries takes \"true\", \"sí\", \"S\", \"X\" or \"1\" (blank leaves it as a grouping account).\n\nImporting only adds: it creates the new accounts, updates the name and nature of existing ones and creates any missing grouping accounts. It never deletes. At the end you see how many were created and updated and, if any, the lines that were left out with the reason.\n\n## Export\n\n**Export CSV** downloads the whole chart: code, name, type, nature, whether it takes entries and whether it's active.\n\n## Rename or deactivate\n\n1. Tap **Edit** next to the account.\n2. Change the name and tap **Save**, or tap **Deactivate** (or **Activate**).\n\nNo account is ever deleted. Deactivated ones are marked **Inactive**.\n\n## Common cases\n\n- **\"Can't deactivate: the account has entries.\"**: an account with entries can't be deactivated.\n- **\"Can't deactivate: the accounting engine posts to this account.\"**: it's one of the accounts MESAPAY uses for automatic entries (cash, banks, sales, VAT, suppliers…). If you want more detail, create sub-accounts under it.\n- **\"Can't deactivate: it has active child accounts.\"**: deactivate the children first.\n- **\"Activate the parent account first.\"**: activate the parent and then the child.\n- **\"The code must start with the parent's code and have exactly two more digits.\"**: check the code.\n- **\"An account with that code already exists.\"**: use another code or find the existing one.\n- **\"AI isn't available right now.\"**: create the account by hand or try again later.\n- **\"No valid account was found in what you pasted.\"**: check that each line starts with a numeric code of 1, 2, 4, 6, 8 or 10 digits, with the class between 1 and 6.",
+      "links": [
+        {
+          "label": "Go to Chart of accounts",
+          "href": "/operator/contabilidad?tab=chart"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cerrar-el-mes-contable",
+      "title": "Generate the entries and close the month",
+      "summary": "Generate the month's entries, check that they balance and close the period: the vouchers are numbered and locked. When the year ends, generate the year-end closing entry.",
+      "keywords": [
+        "month end close",
+        "accounting close",
+        "period close",
+        "close month",
+        "reopen month",
+        "lock",
+        "voucher numbering",
+        "year-end closing",
+        "annual close",
+        "profit for the year",
+        "generate entries",
+        "balanced"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Closing the month makes the books final: the vouchers up to that month get consecutive numbers and the period is locked, so nothing changes after your accountant has reviewed it. At the end of the year, you also generate the year-end closing entry.\n\n## Before closing\n\n1. Check that everything for the month is in: purchases received, expenses, payroll, bank reconciliation and manual vouchers.\n2. Go to [Accounting › Journal](/operator/contabilidad?tab=diario), pick the month with ◀ ▶ and tap **Generate / refresh entries**.\n3. Open the **Statements** tab and check that the statement of financial position and the trial balance say **Balanced**.\n4. Create a backup, in case you need to go back. See [Create and restore backups](/operator/ayuda/impresion-y-equipos/copias-de-seguridad).\n\n## Close the month\n\n1. Go to [Accounting › Period close](/operator/contabilidad/cierre).\n2. Under **Closing status** you see the **Last month closed** and the **Next voucher number**.\n3. In the **Months of** (year) table, each month shows as **Closed**, **Open** or **Future**, with how many vouchers it has and how many are already numbered. Switch years with ◀ ▶.\n4. Tap **Close month** on the month's row and confirm.\n\nMonths close in order: the button only appears on the month after the last one closed (or, if you've never closed, on the first month with vouchers), and never on a future month. The **Journal** tab also has **Close month**: closing a month there also closes any earlier months that are still open.\n\n### What happens when you close\n\n- Unnumbered vouchers up to that month, including those from earlier months, get consecutive numbers in date order. In open months, entries show as unnumbered.\n- The month is locked: its entries can no longer be regenerated and no vouchers can be recorded with a date in that month. In **Journal** you'll see \"Period closed through…\".\n- An expense you record with a date in a closed month shows in **Expenses** and in the P&L, but doesn't reach the books while the month stays closed.\n- An accepted electronic credit note dated in a closed month is accounted for in the first open month.\n\n## Reopen the last month\n\nIf something needs fixing:\n\n1. Under **Closing status**, tap **Reopen last month** (with the month's name) and confirm. It's also in the **Journal** tab.\n2. The lock moves back one month. Make the fix and tap **Generate / refresh entries** again.\n3. Close the month again.\n\nNumbers already assigned are kept. If you regenerated, the new entries get new numbers when you close again, continuing the sequence. Only the last closed month can be reopened: to reach an earlier one, reopen them one at a time.\n\n## Year-end closing\n\nWhen the year ends:\n\n1. Close all twelve months. While any is missing, the section tells you how many are still open.\n2. Under **Year-end closing** (the year), tap **Generate closing entry** and confirm.\n\nA single entry dated December 31 is created that closes the income statement accounts (classes 4, 5 and 6) and takes the net to 360505 (profit for the year) or 361005 (loss for the year). The section shows the date it was generated and the **Profit for the year** or **Loss for the year**. If you change something afterwards, tap **Regenerate closing entry**: it replaces the previous one with the current balances.\n\n## Common cases\n\n- **\"There are no vouchers yet: generate the month's journal before closing.\"**: go to **Journal** and tap **Generate / refresh entries**.\n- **Close month doesn't show on the month I want**: an earlier month still needs closing. If you see \"The next month to close is…\", tap **View** (the year) to go to it.\n- **\"That month is already closed. Reload the page.\"**: someone closed it from another screen. Reload the page.\n- **\"There is no closed month to reopen.\"**: there's no lock to lift.\n- **I need to fix a month from a while ago**: reopen month by month until you reach it or, better, record the adjustment in the current month with a manual voucher. See [Create, edit or reverse accounting vouchers](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables).\n- **The balance says Not balanced**: review the month's manual vouchers with your accountant and generate the entries again. If it stays the same, contact support.",
+      "links": [
+        {
+          "label": "Go to Period close",
+          "href": "/operator/contabilidad/cierre"
+        },
+        {
+          "label": "Go to the month's Journal",
+          "href": "/operator/contabilidad?tab=diario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "comprobantes-contables",
+      "title": "Create, edit or reverse accounting vouchers",
+      "summary": "See every entry in the ledger, record a manual double-entry voucher and fix mistakes: edit or delete manual vouchers in an open month, or reverse a voucher once its month is closed.",
+      "keywords": [
+        "voucher",
+        "manual entry",
+        "journal entry",
+        "accounting entry",
+        "adjusting entry",
+        "double entry",
+        "reverse",
+        "reversal",
+        "annul",
+        "annulled",
+        "reclassification",
+        "third party",
+        "unnumbered",
+        "consecutive number",
+        "export csv",
+        "comprobante"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Vouchers are your business's accounting entries: the ones MESAPAY builds from each month's operations and the ones you record by hand for adjustments, reclassifications or movements that don't go through the till. This is where you look them up, create them and fix them.\n\n## Where to find them\n\nGo to [Accounting › Vouchers](/operator/contabilidad/comprobantes). This section appears if your business has the accounting module; if you don't see it, contact support.\n\nThe list shows every voucher from the first of the month to today, with **Number**, **Date**, **Third party**, **Description**, **Source** and **Total**. To look at another period or find a specific voucher:\n\n1. Type in **Search by number or description…** and set **From** and **To**.\n2. Tap **Filter**. **Clear** takes you back to the current month.\n3. Tap a voucher to see its lines, with the **Debits** and **Credits** totals and the **Balanced ✓** mark.\n\nThe **Source** tells you where the entry came from: **Manual** for the ones you record and, for the ones MESAPAY builds, names such as **Sales for the month**, **Expenses for the month**, **Payroll**, **Monthly depreciation** or **Bank movement**.\n\n## When they get a number\n\nWhile the month is open, vouchers show as **Unnumbered**. When you close the month, every voucher of that month (and any earlier one still without a number) gets its consecutive number in date order, for example #000123, and becomes final. See [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## Create a manual voucher\n\n1. Tap **New voucher**.\n2. Enter the **Date** and a **Description**, which is required; for example, \"cash adjustment for a count difference\".\n3. If the movement involves someone, fill in **Third party (name)** and **Tax ID / document**, or tap **Pick** to search your suppliers and customers. The tax ID only accepts digits and hyphens, and it can't be entered without the name.\n4. On each line, search for the account by **Account code or name** and enter the amount under **Debit** or **Credit**, never both. If you use cost centers, choose the **Center**. The line note is optional.\n5. Tap **Add line** for any lines you still need. At least two are required.\n6. Check **Total debits**, **Total credits** and **Difference** at the bottom. When it balances, **Balanced ✓** appears.\n7. Tap **Save**.\n\nYou can only post in open months and to postable accounts, that is, accounts that accept movements (not header accounts).\n\n> Manual vouchers are left untouched when MESAPAY regenerates the month's entries: they stay exactly as they are.\n\n## Fix a voucher\n\nWhat you can do depends on the source and on whether the month is open:\n\n- **Manual, open month**: **Edit** or **Delete**. Deleting removes it from the ledger without a trace; if you'd rather keep a record, use **Reverse**.\n- **Automatic, open month**: it isn't fixed by hand. Correct the source data (the expense, the purchase, the sale) and regenerate the entries from [Accounting › Journal](/operator/contabilidad?tab=diario) with **Generate / refresh entries**.\n- **Any source, closed month**: only **Reverse**.\n\nReversing creates a new voucher with the same accounts and the debits and credits swapped, and marks the original as **Annulled**. Both stay in the ledger and offset each other. If the original's month is closed, the reversal is dated the first day of the first open month. Then record the correct entry with **New voucher**.\n\nIf a reversal isn't needed and its month is still open, delete it: the original goes back to **Posted**.\n\n## Export\n\n**Export CSV** downloads the voucher lines between **From** and **To**, with date, number, source, third party, tax ID, account, cost center, debit and credit, ready for your accountant.\n\n## Common cases\n\n- **\"The entry does not balance: debits must equal credits.\"**: look at the **Difference** and correct the amounts.\n- **\"That month is closed. Reopen it from the Journal or post the entry in an open month.\"**: change the date to an open month or reopen the month, as explained in [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **\"the account does not accept movements (it is a header account).\"**: choose a sub-account or create an auxiliary one, as explained in [Adjust the chart of accounts](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"Only manual vouchers can be edited or deleted; automatic ones are regenerated from the Journal.\"**: correct the source data and regenerate the month.\n- **\"A reversal cannot be reversed; if it is not needed, delete it.\"**: delete the reversal while its month is still open.\n- **A bank movement or a deferral registration is wrong and there's no Edit or Reverse**: those entries aren't rebuilt when the month is generated. Offset them with a manual voucher with the accounts swapped, or reverse them once their month is closed.",
+      "links": [
+        {
+          "label": "Go to Vouchers",
+          "href": "/operator/contabilidad/comprobantes"
+        },
+        {
+          "label": "Create a voucher",
+          "href": "/operator/contabilidad/comprobantes/nuevo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conciliacion-bancaria",
+      "title": "Reconcile your bank statement",
+      "summary": "Paste your bank statement in the Banks tab, post each movement to its account or let the rules do it, and ignore whatever MESAPAY already recorded another way.",
+      "keywords": [
+        "bank reconciliation",
+        "statement",
+        "bank statement",
+        "bank",
+        "banks",
+        "csv",
+        "bank movements",
+        "bank fee",
+        "4x1000",
+        "gmf",
+        "interest",
+        "rules",
+        "post",
+        "ignore",
+        "conciliacion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Bank reconciliation brings into your books the bank movements that don't go through MESAPAY, such as bank fees, the 4x1000 tax or interest, while you review each line of the statement.\n\n## Where to find it\n\nIn **Accounting › Expenses & journal**, **Banks** tab ([go to Banks](/operator/contabilidad?tab=bancos)). It requires the accounting module; if you don't see it, contact support.\n\n## Import the statement\n\n1. Download the statement from your online banking as CSV or Excel and copy the movement rows.\n2. Paste them into **Import statement**: one line per movement, with date, description and amount.\n3. Tap **Import**. The message tells you how many movements were imported and how many rows were skipped.\n\nMESAPAY understands:\n\n- Columns separated by semicolon, comma or tab.\n- Dates like 15/10/2026 or 2026-10-15, in one of the first three columns.\n- Amounts with periods or commas for thousands and decimals. A negative amount (with a minus sign or in parentheses) is money leaving the bank; a positive one, money coming in.\n\nRows without a date or an amount, such as headers, are skipped automatically.\n\n> ⚠ MESAPAY takes the last number on each row as the amount. If your statement has a balance column, remove it before pasting; and if it has debits and credits in separate columns, merge them into one, with outflows as negatives.\n\n> ⚠ Paste each statement only once: if you import the same period twice, the movements are duplicated. If that happens, mark the duplicates with **Ignore**.\n\n## Post movement by movement\n\nThe pending movements appear below, with date, description and amount.\n\n1. For each one, choose the account under **Account…**. The list shows postable income, expense and cost accounts.\n2. Tap **Post**. An entry is recorded against bank account 111005 (Cuenta corriente / ahorros, current / savings account): money coming in is debited to the bank and credited to the chosen account; money going out, the other way round.\n3. If the movement is already in your books some other way, tap **Ignore**.\n\nEach posted movement becomes a voucher with source **Bank movement** in [Vouchers](/operator/contabilidad/comprobantes). They all go to that same bank account, even if you have several accounts at the bank.\n\n> ⚠ Ignore whatever MESAPAY already posts for the month: sales, supplier payments and expense payments recorded in MESAPAY. If you also post them from the statement, they'll be counted twice.\n\n## Automatic rules\n\nFor movements that repeat every month:\n\n1. Under **Rules**, type some text in **If the description contains…** (for example, \"4X1000\" or \"COMISION\"), choose the **Account…** and tap **Add**.\n2. Tap **Apply rules**. Every pending movement whose description contains that text is posted to the rule's account. Upper case and accents don't matter, and if several rules match, the one you created first wins.\n3. To remove a rule, tap **Delete**.\n\nRules only run when you tap **Apply rules**, not when you import.\n\n## Closed months\n\nA movement dated in a closed month can't be posted. When you apply rules, those are skipped and the message tells you how many were in closed months. If it really has to be recorded in that month, reopen it first; see [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## Common cases\n\n- **\"That movement falls in a closed month — reopen the period first.\"**: reopen the month or, with your accountant, record the adjustment in the open month with a manual voucher.\n- **Lots of skipped rows**: check that each line has the date in one of the first three columns and an amount other than zero.\n- **I can't find the account in the list**: only postable income, expense and cost accounts appear. For a loan, a transfer between accounts or a payment to a third party, mark the movement with **Ignore** and record it with a [manual voucher](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables).\n- **I posted a movement to the wrong account**: that entry can't be edited or deleted. Offset it with a manual voucher with the accounts swapped, or reverse it once the month is closed.",
+      "links": [
+        {
+          "label": "Go to Banks",
+          "href": "/operator/contabilidad?tab=bancos"
+        },
+        {
+          "label": "Go to Vouchers",
+          "href": "/operator/contabilidad/comprobantes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "activos-fijos-y-diferidos",
+      "title": "Depreciate fixed assets and amortize deferrals",
+      "summary": "Record your equipment to depreciate it on a straight-line basis, and prepaid expenses or income received in advance to amortize them. MESAPAY posts each month's installment when you generate the entries.",
+      "keywords": [
+        "fixed assets",
+        "asset",
+        "depreciation",
+        "depreciate",
+        "straight line",
+        "useful life",
+        "salvage value",
+        "book value",
+        "dispose",
+        "deferrals",
+        "amortization",
+        "prepaid expense",
+        "income received in advance",
+        "annual insurance",
+        "equipment",
+        "activos fijos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Fixed assets and deferrals let you spread a large amount over several months: the depreciation of an oven or a fridge, or the amortization of an annual insurance policy paid upfront. You record the amount once and MESAPAY works out and posts each month's installment.\n\nBoth screens require the accounting module; if you don't see them, contact support.\n\n## Fixed assets\n\nThey're in [Accounting › Fixed assets](/operator/contabilidad?tab=activos).\n\n### Record an asset\n\n1. Tap **New asset**.\n2. Enter the **Name** and, if you like, a **Code** (the asset tag or an internal code).\n3. Enter the **Purchase date**, the **Purchase value**, the **Salvage value** (what you expect it to be worth at the end of its useful life; it can be zero) and the **Useful life (months)**, which defaults to 60.\n4. Choose the **Asset account**, an account in group 15; for example, 152405 Muebles y enseres (furniture and fixtures).\n5. Check the **Accumulated depreciation account** (159205 by default) and the **Depreciation expense account** (516005 by default). Change them if your accountant uses others.\n6. Tap **Save asset**.\n\n### How it's calculated\n\n- Straight line: (purchase value − salvage value) ÷ useful life = **Monthly quota**. The last installment adjusts the cents so the total adds up exactly.\n- Depreciation starts the **month after** the purchase.\n- Each month, when you tap **Generate / refresh entries** in [Accounting › Journal](/operator/contabilidad?tab=diario), MESAPAY builds a single **Monthly depreciation** entry with the installments of all assets: a debit to each one's expense account and a credit to its accumulated depreciation.\n\nTap an asset to see **Accumulated depreciation**, **Book value**, **First quota**, the **Posted depreciations** (each with **View entry**) and the **Remaining projection**.\n\n### Edit or dispose\n\n- **Edit** changes the data. Closed months aren't recalculated: the new base applies to open and future months.\n- **Dispose** stops depreciation after the current month, which still gets its installment. **Reactivate** sets it back to **Active**.\n\n> ⚠ This screen only posts depreciation. Record the purchase of the asset and its retirement (sale or write-off, with its book value) with a [manual voucher](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables), as your accountant tells you.\n\n## Deferrals\n\nThey're in [Accounting › Deferrals](/operator/contabilidad/diferidos). You can also get there with the **Deferrals →** link on the assets tab.\n\n### Record a deferral\n\n1. Tap **New deferral**.\n2. Enter a **Name** (for example, \"annual insurance for the premises\") and choose the **Type**: **Prepaid expense** or **Income received in advance**.\n3. Enter the **Total amount**, the **Start date** and the number of **Months** to spread it over (1 to 120).\n4. Choose the **Source account (cash / banks 11xx)**: where the money came from or went to.\n5. Choose the bridge account: 17xx for a prepaid expense or 27xx for income received in advance.\n6. Choose the target account: expense or cost (5xxx / 6xxx) or income (4xxx), depending on the type.\n7. If you use cost centers, you can pick one. Add notes if you like and tap **Save deferral**.\n\nWhen you save, two things happen:\n\n- The **Initial entry** for the total is posted at once, on the start date. For an expense, debit to the bridge account and credit to cash or bank; for income, the other way round. Its source is **Deferral registration**.\n- The first installment falls in the **same month** as the start date (unlike assets). Each installment goes into the **Deferral amortization** entry when you generate that month's entries.\n\n### Tracking and write-off\n\nTap a deferral to see the **Monthly installment**, **Amortized to date**, **Balance to amortize** and the **Amortization schedule**, with each month marked **✓ Posted**, **Pending** or **Cancelled by write-off**.\n\n**Write off** stops the amortization from the following month. Nothing is reversed: what's already amortized stays and the pending balance remains in the bridge account.\n\n> ⚠ A deferral can't be edited or deleted. Check the amount, date, months and accounts before saving. If it's wrong, write it off and fix the balance with a manual voucher, with your accountant's help.\n\n## Common cases\n\n- **The month's installment doesn't show in the ledger**: generate the month's entries in **Accounting › Journal**; see [Understand how accounting works in MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n- **\"The asset account must be an active, postable 15 account.\"**: choose a group 15 account that accepts movements; if there isn't one, create it in [the chart of accounts](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"The salvage value must be lower than the purchase value.\"**: correct the salvage value.\n- **\"The start month is already closed.\"**: a deferral can't start in a closed month; use a date in an open month.\n- **\"No postable accounts with that prefix. Create them in the chart of accounts.\"**: create the missing account (for example, an auxiliary under 1705) and come back to the form.",
+      "links": [
+        {
+          "label": "Go to Fixed assets",
+          "href": "/operator/contabilidad?tab=activos"
+        },
+        {
+          "label": "Go to Deferrals",
+          "href": "/operator/contabilidad/diferidos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "presupuestos-y-centros-de-costos",
+      "title": "Build budgets and use cost centers",
+      "summary": "Set how much you expect to spend or sell per account in the chart of accounts each month, overall or per cost center, and compare it with the actuals in the ledger. Create and deactivate centers such as kitchen, bar or dining room.",
+      "keywords": [
+        "budget",
+        "budgets",
+        "budget execution",
+        "budget vs actual",
+        "variance",
+        "spending target",
+        "cost center",
+        "cost centres",
+        "kitchen",
+        "bar",
+        "dining room",
+        "events",
+        "traffic light",
+        "over budget",
+        "presupuesto"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A budget sets how much you expect to move in an account or group of the chart of accounts each month, and shows you how much you've actually moved. Cost centers (kitchen, bar, dining room, events…) let you split spending by area.\n\nIt's in [Accounting › Budgets](/operator/contabilidad?tab=presupuesto) and requires the accounting module; if you don't see it, contact support. Choose the month at the top with the ◀ ▶ arrows.\n\n## Create cost centers\n\n1. Scroll down to **Cost centers**.\n2. Type the name in the center field (for example, Kitchen) and tap **Add**.\n3. To stop using a center, tap **Deactivate**. It isn't deleted: its earlier movements are kept, and **Activate** makes it available again.\n\nActive centers can be chosen when you record an expense, on each line of a [manual voucher](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables) and on a deferral.\n\n## Add a budget\n\n1. Under **Add budget**, search for the **Account** by code or name. You can choose an account that accepts movements or a two-digit group: a budget on 51 covers everything starting with 51.\n2. Under **Cost center**, leave **General** or choose a center.\n3. Enter the **Amount for the month**.\n4. If it's the same amount all year, check **Apply to every month of the year**.\n5. Tap **Save budget**.\n\nIf that account (with that center) already had a budget for the month, the amount is updated. If there's a **Whole year** budget and another one for a single month, the monthly one wins in that month.\n\n## Read the execution\n\nThe month's execution table shows, per account and center:\n\n- **Budget** and **Actual**. Actuals come from the month's ledger, so generate the entries first in [Accounting › Journal](/operator/contabilidad?tab=diario) with **Generate / refresh entries**.\n- **Variance**: budget minus actual. On an expense account, a positive value means savings; a negative one means you went over.\n- **% used**, with a traffic light: **on track** (up to 90%), **near limit** (up to 100%) and **over budget** (over 100%).\n\nActuals follow the nature of the account: for expenses and costs, debits minus credits; for income, credits minus debits. So you can budget sales too.\n\n> A **General** budget adds up every movement in the account. A per-center budget only adds the ledger movements that carry that center: today, manual vouchers and deferral amortization. Expenses recorded with a center go into the month's entry without their center, so they don't show in the per-center execution yet.\n\n## Delete a budget\n\nTap **Delete** on its row and confirm.\n\n> ⚠ If the budget is a **Whole year** one, it's deleted for every month, even if you delete it while viewing a single month.\n\n## Common cases\n\n- **\"No budgets for this month. Add the first one above.\"**: there are no budgets for the selected month yet; add one or check **Apply to every month of the year**.\n- **Actual shows zero**: generate the month's entries; if the budget is per center, see the note above.\n- **\"That account is not in the chart (or is inactive).\"**: activate it or choose another; see [Adjust the chart of accounts](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"That cost center does not exist or is inactive.\"**: activate it under **Cost centers** or choose another.\n- **\"An identical budget was saved at the same time. Reload and try again.\"**: reload the page and save again.",
+      "links": [
+        {
+          "label": "Go to Budgets",
+          "href": "/operator/contabilidad?tab=presupuesto"
+        },
+        {
+          "label": "Go to the Journal",
+          "href": "/operator/contabilidad?tab=diario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "impuestos-y-retenciones",
+      "title": "Review your taxes and record their payment",
+      "summary": "Where to see the month's VAT or consumption tax and withholdings on purchases, how credit notes are subtracted, how to set up withholding concepts and the UVT, and how to record a tax payment.",
+      "keywords": [
+        "vat",
+        "iva",
+        "consumption tax",
+        "inc",
+        "impoconsumo",
+        "withholding",
+        "retefuente",
+        "reteiva",
+        "reteica",
+        "uvt",
+        "tax return",
+        "tax payment",
+        "period taxes",
+        "detailed taxes",
+        "credit notes",
+        "deductible vat",
+        "dian"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY uses what you sell and buy to calculate the period's VAT or consumption tax and the withholdings you applied, so your accountant can prepare the tax returns. These are reference figures: they don't replace the tax return or your accountant's review.\n\n> The **Accounting** and **Reports** menus appear if your business has the accounting module. If you don't see them, contact support.\n\n## Check the month's taxes\n\n1. Go to [Accounting › Taxes](/operator/contabilidad?tab=impuestos) and pick the month with the arrows.\n2. At the top you see the **Sales tax** your business invoices with. If it says **\"This business is invoicing WITHOUT sales tax.\"**, tap **Configure** (see [Set up the sales tax](/operator/ayuda/facturacion/impuesto-de-ventas)).\n3. Under **Taxes for the month** you see:\n\n- With VAT: **VAT charged (sales)** minus **VAT deductible (purchases)** gives **VAT payable**.\n- With consumption tax: **Consumption tax payable (sales)**. VAT on purchases is not deducted from the consumption tax: it becomes part of the cost.\n- **Withholdings applied on purchases**: **Income withholding**, **VAT withholding** and **ICA withholding** from the purchases received in the month.\n\nEach invoice keeps the rate it was issued with: if the rate changed mid-month, each slice is added separately. The year-end closing is in this same tab (see [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable)).\n\n> ⚠ **Taxes for the month** does not subtract refunds or credit notes. The net figure is in **Period taxes**.\n\n## See gross, credit notes and net\n\n1. Go to [Reports › Period taxes](/operator/reportes/impuestos).\n2. Choose **From** and **To** (or use **Previous month** / **Next month**) and tap **Apply**.\n3. At the top, **Taxes generated**, **VAT generated** and **Consumption tax generated** are already sales minus refunds and credit notes.\n4. In **Taxes generated on sales**, if there were refunds or credit notes, the columns **Gross tax**, **Refunds** and **Credit notes** appear; **Tax recorded** is the net amount.\n5. Compare **Generated on sales** with **Recorded on purchases** and check the **Cross-check with the books**, which sets the documents against the ledger.\n\nOnly credit notes accepted by the DIAN are subtracted (a rejected or discarded one doesn't count), in the period of their issue date and at the rate of their lines. A payment gateway refund that already has a credit note is not subtracted twice. Sales count by the date the bill was paid.\n\nWhat comes from the ledger (**Withholdings and other taxes from the ledger** and the cross-check) depends on the month's entries: until you generate them you'll see **\"No movement in tax accounts in the period.\"** See [Understand how accounting works in MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n\nTo see it document by document, tap **Detailed taxes →**: each invoice (credit notes as negatives), each purchase and each withholding by voucher and third party, with **Export CSV** and **Print**.\n\n## Set up withholding concepts and the UVT\n\nIn **Accounting › Taxes**, card **Withholdings (concepts)**, each concept shows its rate, its base (**on subtotal** or **on VAT**), its threshold in UVT and its account. Tap **Active** or **Inactive** to switch it: active concepts are suggested automatically when you record purchases. In **Current UVT value** type the year's value and tap **Save**. Your accountant decides which concepts apply.\n\n## Record a tax payment\n\n1. In **Accounting › Taxes**, pick the month of the period you paid.\n2. In **Tax filings & payments**, choose the **Tax** (VAT (IVA), INC, Withholding or ICA) and enter the **Amount paid** and the **Payment date**.\n3. Tap **Record payment for** followed by the month (for example, **Record payment for 2026-10**). You'll see **\"Payment recorded and booked.\"**\n\nThe journal entry is created (tax account against bank) and the payment appears in the list.\n\n## Common cases\n\n- **\"That tax already has a record for the period.\"**: that tax was already recorded for that month. A recorded payment can't be deleted from this screen: if you made a mistake, contact support.\n- **\"That movement falls in a closed month — reopen the period first.\"**: the payment date falls in a closed month. Reopen it first, as explained in [Generate the entries and close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **There's a difference in the cross-check**: it doesn't prove an error. The ledger also includes payments, adjustments and [manual vouchers](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables); review them with your accountant.\n- **\"No documents with tax in the period.\"**: there were no paid invoiced bills or received purchases with tax on those dates.",
+      "links": [
+        {
+          "label": "Go to Accounting › Taxes",
+          "href": "/operator/contabilidad?tab=impuestos"
+        },
+        {
+          "label": "Go to Period taxes",
+          "href": "/operator/reportes/impuestos"
+        },
+        {
+          "label": "Go to Detailed taxes",
+          "href": "/operator/reportes/impuestos-detallados"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "informacion-exogena",
+      "title": "Prepare the exogenous information for the DIAN",
+      "summary": "Review formats 1001 to 1012 and 2276 for the tax year, fix third parties with issues, enter shareholders and investments, and download the official XML for the DIAN pre-validator.",
+      "keywords": [
+        "exogenous information",
+        "exogena",
+        "medios magneticos",
+        "format 1001",
+        "1005",
+        "1006",
+        "1007",
+        "1008",
+        "1009",
+        "1010",
+        "1011",
+        "1012",
+        "2276",
+        "xml",
+        "pre-validator",
+        "third parties",
+        "nit",
+        "check digit",
+        "dian"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Exogenous information (información exógena, also called medios magnéticos) is the yearly third-party report filed with the DIAN. MESAPAY builds each format from the year's purchases, expenses, invoices, receivables and payables, tax filings and payroll, so your accountant can validate it and upload it.\n\n> It only applies to businesses registered in Colombia, and it's in the **Reports** menu, which appears with the accounting module.\n\n## Open the tax year\n\n1. Go to [Reports › Third-party information (exógena)](/operator/reportes/exogena).\n2. In **Tax year** type the year you're reporting and tap **Apply**. If you don't choose one, it opens the previous year.\n3. At the top you see the **UVT of the year**, the **Minor amount (1001)** and the **Minimum balance (1008/1009)**; below, the **Regulations for tax year**.\n\n## Fix the issues\n\nThe **Issues** panel lists the third parties you need to fix before filing:\n\n- **Blocks**: **No document number**, **The document has letters or symbols** or **No document type**. While it's there, that format's XML can't be downloaded.\n- **Warning**: doesn't stop the download. For example, **The written check digit does not match the NIT (the XML carries the computed one)** or **No concept in the annex: shown but not exported to the XML**.\n\nTap **Fix** to go to the screen that holds the third party's data (**Suppliers**, **Customers**, **Invoices** or **Schedules**), correct it and come back to the report.\n\n## What each format contains\n\nUnder **Computed from documents**:\n\n- **1001**, payments or credits to account and withholdings applied: received purchases and expenses with a supplier, by third party and concept. An expense without a supplier doesn't appear here.\n- **1005**, deductible VAT from received purchases, and under **VAT on returns** the VAT of your credit notes.\n- **1006**, VAT generated and consumption tax by buyer. Sales without an invoice request go to **End consumer**.\n- **1007**, income received (without tax or tip); under **Returns**, the base of your credit notes.\n- **1008**, receivable balances at December 31 from credit voucher statements. Credit sales to customers are not included in this format yet: review them with your accountant in [Receivables and payables](/operator/ayuda/contabilidad-y-reportes/cartera).\n- **1009**, payable balances at December 31 from received purchases and expenses with a supplier.\n- **1011**, the tax payments recorded in **Accounting › Taxes**. Only ICA goes into the XML.\n\nEach credit note accepted by the DIAN uses the same third party as its invoice and subtracts what it returned. Under **Employment income (payroll)** you'll find **2276**, computed from settled payrolls; it shows **XML pending** because employees don't have a document number in MESAPAY.\n\n## Enter shareholders and investments\n\nFormats 1010 and 1012 don't come from documents: they go under **Manual entry**, for the selected year.\n\n1. In **Register partner / shareholder** fill in **Name or company name**, **Document type**, **Number**, **Check digit**, **% ownership**, **Nominal value** and **Share premium**, and tap **Save**.\n2. In **Register account / investment** choose the **Concept** (for example, savings accounts or term deposits), and fill in **Entity**, **Entity document type**, **Tax ID / document** and **Value at 12/31**. Tap **Save**.\n3. To remove a record, tap **Delete** and confirm.\n\n## Download the XML\n\nEach format has its own **Download XML** button. The file comes out with the DIAN's official name, ready for its pre-validator. MESAPAY infers each third party's concepts, person type and location from its data: your accountant validates them in the pre-validator before filing.\n\n### The 1001 TXT in the Taxes tab\n\nIn [Accounting › Taxes](/operator/contabilidad?tab=impuestos), the format 1001 card (for example, **Exógena 2026 (format 1001)**) summarizes payments to third parties for the year of the selected month and has **Download 1001 TXT**. Third parties without a valid NIT are left out of that file. It's a working summary: to upload to the DIAN, use the XML from the exogenous information report.\n\n## Common cases\n\n- **Download XML is disabled and says \"Fix the issues to download\"**: that format has blocking issues. Solve them with **Fix**.\n- **\"The document number must be numeric.\"** or **\"The check digit does not match the NIT.\"**: in the manual entry, type only digits in the document (the check digit has its own field) and make sure it matches the NIT.\n- **\"No movements in the year.\"**: there are no documents for that format in the selected tax year. Check the year.\n- **\"Exogenous information is a DIAN (Colombia) regime…\"**: your business is registered in another country, so this report doesn't apply.",
+      "links": [
+        {
+          "label": "Go to Exogenous information",
+          "href": "/operator/reportes/exogena"
+        },
+        {
+          "label": "Go to Accounting › Taxes",
+          "href": "/operator/contabilidad?tab=impuestos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "libros-y-estados-financieros",
+      "title": "View the official books and financial statements",
+      "summary": "General journal, general ledger, trial balance, income statement and statement of financial position: how to filter them, check that they balance, drill down from a figure, export them to CSV and print them with page numbers.",
+      "keywords": [
+        "general journal",
+        "general ledger",
+        "ledger",
+        "auxiliary",
+        "trial balance",
+        "income statement",
+        "profit and loss",
+        "p&l",
+        "comprehensive income",
+        "statement of financial position",
+        "balance sheet",
+        "chart of accounts",
+        "puc",
+        "page number",
+        "balanced",
+        "double entry",
+        "csv",
+        "print books",
+        "profit for the period",
+        "accountant"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The official books and financial statements show your business's accounting exactly as it was recorded in the vouchers. Use them to review balances, reconcile the period with your accountant and hand over the books as CSV or on paper.\n\n## Before you start\n\n- They live in the **Accounting** and **Reports** menus, which appear if your business has the accounting module. If you don't see them, contact support.\n- They only show what is already in the books: the entries MESAPAY builds from each month's activity and the manual vouchers. If new sales, purchases or expenses came in, first tap **Generate / refresh entries** on the **Journal** tab of **Accounting › Expenses & journal**, as explained in [Understand how accounting works in MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n- The summary entries MESAPAY builds each month are dated the last day of the month. While the month is open, vouchers show as **unnumbered**: they are numbered when you [close the month](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## How the filters work\n\n1. Open them from the menu or from [Reports › All reports](/operator/reportes), under **Accounting** and **Financial**.\n2. Enter the dates in **From** and **To**, or use the arrows to jump to the previous or next month (on the income statement, by year). The statement of financial position only asks for the **Cutoff date**.\n3. Tap **Apply**.\n4. **Export CSV** downloads the report with the same filters. **Print** opens the browser's dialog: each sheet carries the legal name, the tax ID (NIT), the name of the book, the period and its page number (\"Page 1 of 3\"; Google Chrome prints the page number). Collapsed rows are printed too.\n\n> The filters stay in the page address: if you share the link with someone who has access to the dashboard, they see the same report.\n\n## General journal\n\nUnder **Accounting › General journal / auxiliary** you see the period's vouchers in chronological order; it opens on the current month. Under **Journal mode**:\n\n- **Itemized**: each voucher with its number, its source (for example **Sales for the month** or **Credit notes for the month**), the date and its **Debit** and **Credit** lines.\n- **Summarized**: movements grouped by day and account, with the **Day total**.\n\nAt the top you see the **Vouchers**, **Total debits**, **Total credits** and the **Voided** ones, if any. A voided voucher is not deleted: it is marked **Voided** and its reversal appears separately, so they offset each other. The **Check** says **Double entry ✓** when debits and credits are equal.\n\n## General ledger\n\nUnder **Accounting › General ledger** you see every account with movements or a balance, with its **Debit**, **Credit** and **Balance** for the period; it opens from January 1 to today.\n\n1. Tap an account to see its **Opening balance for the period** and each movement with date, voucher, description and running **Balance**. **Expand all** opens them all.\n2. To see a single account, type its code or name in **Account** and tap **Apply**. **Clear** removes the filter.\n\nThe balance follows the account's nature: debits minus credits for debit-nature accounts, credits minus debits for credit-nature accounts.\n\n## Trial balance\n\nUnder **Reports › Trial balance** you see, per account, the **Opening balance** (everything before **From**), the **Debits**, the **Credits** and the **Closing balance**.\n\n1. Under **Chart level**, choose **Class**, **Group**, **Account** or **Sub-account** (the default). Each level is the exact sum of what sits below it.\n2. For a range of accounts, use **Account from** and **Account to**: `1105` to `1110` brings cash and banks, and the total becomes **Totals of the applied filter**.\n3. Tap a class or group to expand it, or use **Expand all**.\n\nBalances are signed, debit minus credit: credit balances (liabilities, equity, revenue) show as negative. The balance check always measures the whole book, even when you filter.\n\n## Income statement\n\nUnder **Reports › Income statement** you see the period's revenue, costs and expenses; it opens from January 1 to today. Under **Fiscal year** you pick a full year, or leave **Custom range** and use the dates.\n\n- At the top: **Revenue**, **Result for the period** and **Comprehensive income**.\n- The charts **From revenue to result** and **Monthly trend**.\n- The cascade with expenses by nature, from **Revenue from ordinary activities** to **Result before taxes**, **Income tax expense**, **Result for the period** and **Other comprehensive income**.\n- The **Monthly summary**; a month cut by the range is marked **partial**.\n\nThe year-end closing entry is left out, so a closed year still shows its result. Credit notes accepted by the DIAN reduce revenue as sales returns (the **Credit notes for the month** entry). Outside Colombia, the statement is built by account type and the top shows **Result / revenue**.\n\n> This statement comes from the accounting books. The **P&L** in Accounting is built directly from operations for day-to-day use: see [Read the monthly P&L and export the books](/operator/ayuda/contabilidad-y-reportes/pyg-y-libros-del-mes).\n\n## Statement of financial position\n\nUnder **Reports › Statement of financial position** you see **Assets**, **Liabilities** and **Equity** accumulated from the start of operations up to the **Cutoff date** (included; it opens with today).\n\n- At the top, **Total assets**, **Total liabilities** and **Total equity**; at the bottom, **Total liabilities + equity**.\n- The **Profit for the period** line in equity is the result of the open year, from January 1 after the last year-end closing. The profit of closed years is already in equity, in accounts 3605 and 3610.\n- The **Check** says **Balanced ✓** when assets equal liabilities plus equity.\n\n## From a figure to its detail\n\nOn both statements, every row with a code is a link: an account that takes postings opens its **General ledger**, and a group or parent account opens the **Trial balance** filtered by that code, for the same period.\n\nFor a quick look at a single month, the **Statements** tab of **Accounting › Expenses & journal** shows the **Trial balance**, the **Income statement** and the **Statement of financial position** with that month's entries.\n\n## Common issues\n\n- **\"No movements in the period.\"**: there are no entries for those dates. Check the period and, if there was activity, generate the month's entries.\n- **The latest sales or expenses are missing**: tap **Generate / refresh entries** again and reload the report.\n- **The vouchers say \"unnumbered\"**: the month is still open; they are numbered when it is closed.\n- **\"Out of balance by…\"** or **\"Double entry broken by…\"**: write down the period and the difference and contact support.\n- **\"There are result accounts outside the usual prefixes…\"**: there are revenue, cost or expense accounts with codes outside the chart (PUC). Review them in [Adjust the chart of accounts](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"Charts are not available because the amounts do not reconcile…\"**: the table is still valid; contact support with the period.\n- **It doesn't match the P&L**: they are different reports. The books also include manual vouchers, depreciation and deferrals.",
+      "links": [
+        {
+          "label": "Go to All reports",
+          "href": "/operator/reportes"
+        },
+        {
+          "label": "Go to the General journal",
+          "href": "/operator/reportes/libro-diario"
+        },
+        {
+          "label": "Go to the General ledger",
+          "href": "/operator/reportes/libro-mayor"
+        },
+        {
+          "label": "Go to the Trial balance",
+          "href": "/operator/reportes/balance-prueba"
+        },
+        {
+          "label": "Go to the Income statement",
+          "href": "/operator/reportes/estado-resultado"
+        },
+        {
+          "label": "Go to the Statement of financial position",
+          "href": "/operator/reportes/estado-situacion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cartera",
+      "title": "Review your receivables and payables",
+      "summary": "Check, as of a cutoff date, how much your customers owe you and how much you owe your suppliers, with the age of each balance, each third party's statement and where to record payments.",
+      "keywords": [
+        "receivables",
+        "payables",
+        "accounts receivable",
+        "accounts payable",
+        "a/r",
+        "a/p",
+        "cartera",
+        "debtors",
+        "suppliers",
+        "aging",
+        "statement",
+        "payments",
+        "credit",
+        "overdue",
+        "cutoff"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Receivables and payables shows, as of a cutoff date, how much your customers owe you (accounts receivable) and how much you owe your suppliers (accounts payable), by third party and with the age of each balance.\n\n> It's in the **Reports** menu, which appears with the accounting module. If you don't see it, contact support.\n\n## What goes into it\n\n- **Receivable (A/R)**: bills charged on credit to billing customers with credit enabled, and corporate voucher statements on credit, if you have the vouchers module. Since MESAPAY collects sales on the spot, other sales don't create receivables.\n- **Payable (A/P)**: received purchase orders (for what was received) and non-recurring expenses that weren't recorded as paid.\n\nWhen the DIAN accepts a credit note on a bill charged on credit, the customer's debt goes down by what the note cancels. The same happens with a refund. See [Issue an electronic credit note](/operator/ayuda/facturacion/notas-credito).\n\n## Check your receivables and payables\n\n1. Go to [Reports › Receivables & payables](/operator/reportes/cartera).\n2. Choose **All**, **Receivable (A/R)** or **Payable (A/P)**.\n3. In **As of** set the date and tap **Apply**. Only documents dated up to that day and payments made up to that day count: this lets you see the month-end position even if payments have come in since.\n4. At the top you see **Total receivable** and **Total payable**, with how many customers, suppliers and documents there are.\n5. In **Accounts receivable (by customer)** and **Accounts payable (by supplier)** you see each **Partner** with its **Tax ID**, **Documents**, **Oldest due date**, **Aging** and **Balance**.\n6. Tap **Export CSV** to take it to a spreadsheet, or **Print**.\n\n### How aging is measured\n\nThe **Aging** column counts from the due date: **Current**, **1–30 days**, **31–60 days** or **Over 60 days**. The due date is the one agreed on the document or, if it has none, the document date plus the terms:\n\n- For a customer: **Terms (days)** in their billing customer record.\n- For a supplier: **Payment terms (days)**.\n- An expense is due on the date you set when you recorded it.\n\n## See a third party's statement\n\n1. Tap the customer's or supplier's name.\n2. You'll see **Statement ·** and their name: documents and payments in order, with **Charge**, **Payment** and running **Balance**, and at the end **Total charges**, **Total payments** and **Closing balance**.\n3. In **Outstanding balance by document age** the balance is split into **0–30 days**, **31–60 days**, **61–90 days** and **Over 90**, counting from the document date. **Total overdue** is what is past its due date.\n4. Each document has a shortcut: **Open in purchases**, **Open in accounting**, **Open voucher statements** or **Open in customers**.\n5. Tap **Print** to send the statement to the third party, or **Back to receivables & payables**.\n\n## Where payments are recorded\n\nThis report only shows balances: payments are recorded where the debt started.\n\n- **Customer with credit**: in [Orders › Customers](/operator/clientes), tap **Record payment** on the customer, fill in **Amount**, **Date**, **Account the money went into** and, if you like, **Note (optional)**, then tap **Record payment** in the form. The payment is applied to the oldest charge. See [Create customers to invoice](/operator/ayuda/facturacion/clientes-de-facturacion).\n- **Supplier**: in [Purchasing](/operator/compras), open the purchase order and use **Register payment** or **Pay balance**, choosing in **Paid from** the account the money came from.\n- **Expense**: if you check **Already paid** when you create it, it doesn't go into payables.\n\n## Common cases\n\n- **\"No accounts receivable\"** with a notice that the business has neither the vouchers module nor customers with credit: that's normal if everything is collected on the spot. To sell on credit, turn on **Allow paying on credit** for the customer.\n- **A supplier shows as \"No supplier\"**: these are expenses recorded without a supplier. Edit the expense and assign the supplier.\n- **The balance at a past date doesn't match today's**: that's expected if payments came in after the cutoff. Refunds and credit notes, however, are deducted at today's value.\n- **\"The payment cannot exceed the debt\"**: enter an amount equal to or less than what the customer owes.",
+      "links": [
+        {
+          "label": "Go to Receivables & payables",
+          "href": "/operator/reportes/cartera"
+        },
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Go to Purchasing",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reporte-de-comisiones",
+      "title": "Settle your waiters' sales commissions",
+      "summary": "See how much each waiter collected in the period and their commission, with the percentage fixed on each bill when it was charged, review the bill-by-bill detail and download the CSVs to pay it.",
+      "keywords": [
+        "commissions",
+        "waiter commission",
+        "sales commissions",
+        "settlement",
+        "percentage",
+        "waiter",
+        "incentive",
+        "my commissions",
+        "csv",
+        "payroll"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The commissions report calculates, for a period, how much each waiter collected and how much commission they earned, so you can pay it or pass it on to payroll.\n\n> It's in the **Reports** menu, which appears with the accounting module. If you don't see it, contact support.\n\n## Before you start\n\nEach waiter's percentage is set in **Settings › Tables by waiter**, under **Commission (%)**. See [Assign tables to each waiter](/operator/ayuda/primeros-pasos/mesas-por-mesero). A waiter with no percentage earns no commission.\n\n## Check the report\n\n1. Go to [Reports › Sales commissions](/operator/reportes/comisiones). It opens on the current month.\n2. Choose **From** and **To** (or use **Previous month** / **Next month**) and tap **Apply**. The cutoff is by each bill's payment date.\n3. At the top you see **Collected in the period**, **Commission to pay** and **People with commission**.\n4. In **Summary by person** you see, for each waiter, **Bills**, **Collected**, **%** and **Commission**. If they had different percentages in the period, the **%** says **various**.\n5. In **Bill-by-bill detail** you see each bill with its **Payment date**, the **Table** (or **Pickup** or **Manual invoice**), the person, the amount collected, the percentage and the commission.\n6. Download **Summary CSV** or **Detail CSV** for your accountant, or tap **Print** to print the settlement.\n\n## How it's calculated\n\n- **The base** is the bill's collected subtotal, minus the diner's discount and without the tip. Since menu prices already include tax, for those dishes the base is the menu price; only the tax added separately to a charge that isn't on the menu is left out.\n- **The commission is fixed when the bill is charged**: the waiter, their percentage, the base and the amount. If you change the percentage, it only affects bills charged afterwards.\n- **Only paid bills count.** An open bill earns no commission, and neither do complimentary or zero-value bills.\n- **The bill's waiter** is the one who charged it. If several waiters charged it, the one who collected the most gets it. If no waiter charged it (the diner paid from the QR or it was charged at the register), it goes to the waiter assigned to that table, as long as there is only one. If there is none, the bill earns no commission.\n\n> ⚠ Refunds made after the payment are not deducted from the commission automatically: subtract them yourself when you pay it.\n\nThis report only calculates: it doesn't create journal entries or payroll payments.\n\n## What the waiter sees\n\nIn their app, in the **Yo** (Me) tab, the waiter sees **My commissions**: **This month** or **Last month**, with their **Commission**, the amount **Collected**, the **Bills**, **Your %** and the **Latest bills**. It appears if they have a percentage set or already have bills with commission that month.\n\n## Common cases\n\n- **\"No bills with commission in the period.\"**: the waiter had no percentage when the bills were charged, or the bills weren't attributed to them. Check their **Commission (%)** in [Tables by waiter](/operator/settings/meseros); bills already charged are not recalculated.\n- **A waiter is missing bills the diner paid from the QR**: those bills go to the waiter assigned to the table. If nobody had the table, or two waiters had it, they earn no commission. Assign each table to a single waiter.\n- **The % says \"various\"**: the percentage changed within the period. Check the **Bill-by-bill detail**.\n- **A refund was made on a bill already settled**: deduct that part of the commission manually when you pay.",
+      "links": [
+        {
+          "label": "Go to Sales commissions",
+          "href": "/operator/reportes/comisiones"
+        },
+        {
+          "label": "Go to Tables by waiter",
+          "href": "/operator/settings/meseros"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pulso",
+      "title": "Ask Pulso about your business",
+      "summary": "Pulso is the AI assistant that answers questions about your sales, dishes, waiters, tables, kitchen and reservations using your business's real data. It comes with the Pro plan and the trial, with a daily question limit.",
+      "keywords": [
+        "pulso",
+        "assistant",
+        "artificial intelligence",
+        "ai",
+        "chat",
+        "questions",
+        "insights",
+        "analytics",
+        "best-selling dishes",
+        "best waiter",
+        "peak hours",
+        "question limit",
+        "pro plan"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Pulso is an AI assistant that answers questions about how your restaurant is doing: what sells, when it gets busiest, how your waiters perform or at what times the kitchen falls behind. You'll find it in the **Business › Pulso** menu.\n\n## Ask a question\n\n1. Go to [Business › Pulso](/operator/insights).\n2. Tap a suggested question, such as **What are my best-selling dishes this month?**, or type your own and tap **Send**.\n3. While it looks up the data you see **Analyzing your data…**. The answer brings the key figures, comparisons and one or two recommendations, in the language your dashboard is set to.\n4. Keep asking in the same conversation (\"and last month?\"). If you leave the screen or reload it, a new conversation starts.\n\n> Say the period in your question: \"this week\", \"in September\", \"Saturdays over the last three months\". If you don't, it usually looks at the last 30 days.\n\n## What data it uses\n\nPulso looks up your business's data at the moment you ask and does not make up figures: if something can't be answered with that data, it tells you. It knows about:\n\n- Sales: revenue, orders, average ticket, guests and their trend versus the previous period.\n- Dishes and categories: best and worst sellers, by quantity or by revenue.\n- Payments: how much comes in through each payment method and how much in tips.\n- Waiters: sales, payments, tables and tips based on who took the payment (what guests pay on their own from the QR is not assigned to anyone), and how many waiters you need per time slot.\n- Floor and kitchen: table turnover, peak hours and when preparation takes longer than each station's target time.\n- Cancellations and comps, what guests search for on the menu, and reservations with their no-shows and deposits.\n\nIt does not look at accounting, expenses, purchases, inventory, payroll or electronic invoices: the [accounting reports](/operator/ayuda/contabilidad-y-reportes/libros-y-estados-financieros) cover those.\n\n## Which plans include it and how many questions you get\n\n- It comes with the Pro plan and during the trial period. The basic plan doesn't include it, unless MESAPAY turns it on for your business.\n- There is a daily question limit for the whole business, adding up every dashboard user's questions: 50 a day by default. A question that couldn't be answered doesn't count.\n\n## Common issues\n\n- **\"The Pulso assistant is not enabled for this business.\"**: your plan doesn't include it. Contact support if you want to turn it on.\n- **\"You've reached today's question limit.\"**: the day's questions are used up. Continue the next day, or contact support if your team needs more.\n- **\"Something went wrong. Please try again.\"**: send the question again; that one wasn't counted.\n- **The figure doesn't match an accounting report**: check that the period is the same. Pulso works with floor operations (orders and payments), not with the accounting books.",
+      "links": [
+        {
+          "label": "Go to Pulso",
+          "href": "/operator/insights"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

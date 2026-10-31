@@ -1,5 +1,300 @@
 {
   "title": "Faturação",
   "description": "Impostos, resolução, faturação eletrônica DIAN, fatura manual, impressão, e-mail e notas de crédito.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "impuesto-de-ventas",
+      "title": "Configure o imposto sobre vendas",
+      "summary": "Escolha se o seu estabelecimento fatura com imposto sobre consumo (INC), IVA ou nenhum, e com qual alíquota. Ele já vem incluído no preço do cardápio e vale para o que for faturado depois que você salva; o já emitido à DIAN não muda.",
+      "keywords": [
+        "imposto",
+        "imposto sobre vendas",
+        "imposto sobre consumo",
+        "impoconsumo",
+        "INC",
+        "IVA",
+        "alíquota",
+        "8%",
+        "19%",
+        "base de cálculo",
+        "não responsável",
+        "imposto zero",
+        "preço com imposto incluído"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O imposto sobre vendas é o que vai dentro de cada conta e de cada fatura. Aqui você escolhe qual corresponde ao seu estabelecimento e com qual alíquota, para que cada fatura divida corretamente o preço entre base e imposto.\n\n## Como funciona\n\nO imposto já vem incluído no preço do cardápio. Um hambúrguer de $30.000 continua custando $30.000: o que muda é que a fatura o divide em base mais imposto. Não aumenta os preços nem muda o que o cliente paga.\n\nHá três opções:\n\n- **Imposto sobre consumo (INC)**: o típico de um restaurante na Colômbia. Alíquota geral: 8 %.\n- **IVA**: franquias e estabelecimentos responsáveis pelo IVA. Alíquota geral: 19 %.\n- **Nenhum**: estabelecimentos não responsáveis. A fatura sai sem imposto discriminado.\n\n> Qual corresponde ao seu caso e com qual alíquota quem confirma é o seu contador. O MESAPAY só registra.\n\n## Configurar\n\n1. Entre em [Configurações › Impostos](/operator/settings/impuestos).\n2. Em **Imposto de vendas**, escolha **Imposto sobre consumo (INC)**, **IVA** ou **Nenhum**. Se a alíquota estiver vazia, ela é preenchida sozinha com 8 para o INC e com 19 para o IVA.\n3. Confira a **Alíquota (%)**. É um número inteiro, sem decimais.\n4. Toque em **Salvar**. Você verá a mensagem \"Salvo. Vale para tudo o que for faturado daqui em diante.\"\n\nUm estabelecimento novo na Colômbia começa com imposto sobre consumo de 8 %. Confira antes de começar a faturar.\n\n## A partir de quando uma mudança vale\n\n- Vale para tudo o que for faturado ou enviado à DIAN a partir do momento em que você salva, **incluindo as contas que já estão abertas**. Uma conta aberta ontem e cobrada hoje é faturada com o imposto de hoje.\n- Também muda como os relatórios calculam o imposto das vendas daí em diante.\n- O que já foi para a DIAN não muda: cada fatura guarda o imposto com que foi emitida.\n\n> ⚠ Se for mudar o imposto, faça isso com as contas fechadas, por exemplo antes de abrir o turno. Assim nenhuma conta do dia fica com duas alíquotas diferentes.\n\n## As cobranças que não saem do cardápio\n\nQuando você adiciona a uma conta uma cobrança ou serviço que não está no cardápio (com **Adicionar cobrança ou serviço**), escolhe o **Imposto** e a **Alíquota** dele. Esse imposto é somado ao preço que você digitar, a menos que escolha **Incluído no preço**, como num prato do cardápio. Explicamos isso em [Crie uma fatura manual sem mesa](/operator/ayuda/facturacion/factura-manual).\n\n## Onde aparece\n\n- No cartão **Impostos** de Configurações: por exemplo, **INC 8%** ou **Sem imposto**.\n- Em [Configurações › Faturação eletrónica DIAN](/operator/settings/facturacion-dian), nos dados do **Emissor**, com o link **Alterar em Configurações → Impostos**.\n\n## Casos frequentes\n\n- **\"Este estabelecimento está emitindo faturas SEM imposto sobre vendas\"**: aparece em Faturação eletrónica DIAN quando o imposto está em **Nenhum**. Se o seu estabelecimento é responsável pelo imposto sobre consumo ou pelo IVA, configure-o aqui antes de continuar faturando. Se não é responsável, está tudo certo assim.\n- **Uma fatura já emitida saiu com o imposto errado**: mudar a configuração não a corrige. Revise isso com o seu contador e, se for preciso, ajuste-a com uma [nota de crédito](/operator/ayuda/facturacion/notas-credito).\n- **\"Não foi possível salvar. Tente novamente.\"**: confira sua conexão e toque de novo em **Salvar**. Só o perfil Operador pode mudar esse dado.",
+      "links": [
+        {
+          "label": "Ir para Impostos",
+          "href": "/operator/settings/impuestos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "resolucion-de-facturacion",
+      "title": "Carregue sua resolução de numeração",
+      "summary": "Copie os dados da resolução da DIAN (número, prefixo, intervalo, vigência e próximo número sequencial) e veja o que fazer quando os números acabam. É necessária com ou sem faturamento eletrônico.",
+      "keywords": [
+        "resolução",
+        "resolução DIAN",
+        "numeração",
+        "consecutivo",
+        "número sequencial",
+        "prefixo",
+        "intervalo",
+        "vigência",
+        "resolução esgotada",
+        "restam números",
+        "nova resolução",
+        "habilitação de numeração",
+        "número da fatura"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A resolução de numeração é a autorização da DIAN para numerar suas faturas: o prefixo e o intervalo de números que você pode usar. O MESAPAY precisa dela para numerar cada fatura, com ou sem faturamento eletrônico.\n\n## Onde carregar\n\nEm [Configurações › Faturação eletrónica DIAN](/operator/settings/facturacion-dian). Se o seu estabelecimento não tem faturamento eletrônico, o cartão se chama **Resolução de faturação** e a tela mostra só esta parte.\n\n## Passos\n\n1. Tenha em mãos a resolução que a DIAN emitiu para você.\n2. Entre na tela e procure a seção **Resolução de numeração**.\n3. Copie os dados exatamente como constam na resolução. A DIAN confere um por um: se algum não bater, rejeita a fatura inteira.\n4. Toque em **Guardar**. Você verá \"Resolução salva.\"\n\n## O que vai em cada campo\n\n- **Número da resolução**: só o número, sem a palavra \"Resolución\" nem a data. Por exemplo, 18760000001.\n- **Prefixo**: o mesmo autorizado na resolução, por exemplo FE.\n- **E-mail para recebimento de documentos eletrônicos**: o mesmo que você tem cadastrado no RUT e no portal da DIAN para receber documentos eletrônicos. Se não bater, a DIAN rejeita a fatura.\n- **Do número** e **Até o número**: o intervalo autorizado.\n- **Vigência desde** e **Vigência até**: as datas da resolução.\n- **Data da resolução**: a data do ato administrativo. Sai impressa na fatura.\n- **Próximo consecutivo a emitir**: o número que a próxima fatura vai levar. Se você já vinha faturando em outro programa com esta mesma resolução, escreva o próximo número livre. Se está começando do zero, toque em **Começar em…** para usar o início da sua resolução.\n\n> ⚠ Não baixe o **Próximo consecutivo** para um número que você já usou, aqui ou em outro programa: a DIAN rejeita uma fatura com número repetido.\n\n## Quando os números acabam\n\nCom faturamento eletrônico, o MESAPAY avisa antes que o intervalo se esgote:\n\n- Quando restam menos de 500 números, a tela **Faturas** mostra o aviso **\"Restam … números na resolução de faturamento\"** e o cartão de Configurações, **Restam … números**. É hora de pedir a nova resolução.\n- Se acabar, o aviso muda para **\"A faixa da resolução de faturamento acabou: as vendas novas ficam sem fatura até você carregar a nova resolução.\"** As contas continuam sendo cobradas normalmente; só as faturas delas ficam esperando.\n\nPara sair dessa situação:\n\n1. Peça à DIAN uma nova resolução.\n2. Carregue-a nesta tela: número, prefixo, intervalo, vigência, data e **Próximo consecutivo a emitir**.\n3. Se você tem faturamento eletrônico, atualize também a **Chave técnica** em **Credenciais DIAN**: cada resolução traz a sua. Veja [Ative o faturamento eletrônico com a DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n4. Toque em **Guardar**. As vendas que ficaram esperando são faturadas sozinhas em alguns minutos, com a nova numeração.\n\n> Sem faturamento eletrônico, o MESAPAY não avisa quando o fim do intervalo se aproxima. Compare de vez em quando o **Próximo consecutivo** com o **Até o número**.\n\n## Se o seu restaurante faz parte de um grupo\n\nSe em Identidade do comércio você escolheu uma razão social compartilhada, a resolução é a dessa razão social e os locais que a compartilham usam a mesma numeração. Veja [Complete a identidade do comércio](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n\n## Casos frequentes\n\n- **\"Faltam dados da resolução: …\"**: preencha os campos que o aviso menciona. Sem eles a DIAN rejeita todos os documentos.\n- **\"O número final do intervalo não pode ser menor que o inicial.\"**: confira **Do número** e **Até o número**.\n- **\"A data final de vigência não pode ser anterior à inicial.\"**: confira as datas de vigência.\n- **Aparece \"Atenção: o dado antigo da Identidade diz … e à DIAN envia-se …\"**: ficou salvo um número de resolução anterior. Compare-o com a sua resolução e toque em **Usar … como número da resolução** se o antigo for o correto, ou em **Descartar o dado antigo** se não for.\n- **\"Falta a localização do estabelecimento\"**: escolha o município em [Configurações › Identidade do comércio](/operator/settings/identidad).",
+      "links": [
+        {
+          "label": "Ir para Faturação eletrónica DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "activar-la-facturacion-electronica",
+      "title": "Ative o faturamento eletrônico com a DIAN",
+      "summary": "Deixe pronto o faturamento eletrônico direto com a DIAN: dados do emissor, certificado digital, credenciais do portal, conjunto de testes de habilitação e a passagem para produção.",
+      "keywords": [
+        "faturamento eletrônico",
+        "fatura eletrônica",
+        "faturação eletrônica",
+        "DIAN",
+        "habilitação",
+        "conjunto de testes",
+        "set de pruebas",
+        "certificado digital",
+        "assinatura",
+        "p12",
+        "Software ID",
+        "PIN",
+        "chave técnica",
+        "Test Set ID",
+        "produção"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Com o faturamento eletrônico, o MESAPAY emite suas faturas diretamente para a DIAN, sem outro programa no meio. Este guia explica como deixá-lo pronto: dados do emissor, certificado digital, credenciais e conjunto de testes.\n\n> O módulo de faturamento eletrônico é ativado pelo MESAPAY para cada estabelecimento. Se em Configurações o cartão se chama **Resolução de faturação** e não **Faturação eletrónica DIAN**, o seu estabelecimento não está com ele ativo: fale com o suporte.\n\n## Antes de começar\n\nVocê precisa de:\n\n- O RUT em dia e a habilitação como emissor de fatura eletrônica no portal da DIAN, com o MESAPAY cadastrado lá como software próprio. O seu contador ajuda você nesse trâmite.\n- O **certificado digital** de assinatura (arquivo .p12 ou .pfx) e a senha dele, emitido por uma entidade certificadora autorizada, como Certicámara, GSE ou Andes SCD.\n- Do portal da DIAN: o **Software ID**, o **Software PIN**, a **Chave técnica** da sua resolução e o **Test Set ID** do conjunto de testes.\n- A sua resolução de numeração.\n\n## Dados do emissor e resolução\n\n1. Em [Configurações › Identidade do comércio](/operator/settings/identidad), preencha a **Razão social**, o **NIT** com dígito verificador, o **Endereço** e a **Cidade** (o município). Veja [Complete a identidade do comércio](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n2. Em [Configurações › Faturação eletrónica DIAN](/operator/settings/facturacion-dian), confira a seção **Emissor**. Se faltar algo, aparece o aviso **\"Faltam dados do emissor para poder faturar: …\"**.\n3. Carregue a **Resolução de numeração** e o **E-mail para recebimento de documentos eletrônicos**, como explicado em [Carregue sua resolução de numeração](/operator/ayuda/facturacion/resolucion-de-facturacion).\n4. Confira o **Imposto sobre vendas** que o Emissor mostra. Para mudá-lo, veja [Configure o imposto sobre vendas](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Certificado digital\n\n1. Em **Passo 1 · Certificado digital**, toque em **Enviar certificado**.\n2. Escolha o **Ficheiro do certificado** (.p12 ou .pfx, no máximo 512 KB) e escreva a **Palavra-passe do certificado**.\n3. Toque em **Guardar**. Quando ele ficar carregado, você verá **Registado**, a data de vencimento e o titular. Com **Ver todos os dados do certificado** você confere se é o da sua empresa.\n\nQuando o vencimento se aproximar, aparece **Expira em breve**. Renove o certificado com a sua entidade e envie o novo com **Substituir certificado**.\n\n## Credenciais DIAN\n\n1. Em **Passo 2 · Credenciais DIAN**, escreva o **Software ID**, o **Software PIN**, a **Chave técnica** e o **Test Set ID**.\n2. Em **Ambiente**, deixe **Habilitação** enquanto faz os testes.\n3. Toque em **Guardar**. Você verá \"Credenciais guardadas.\"\n\nOs dados secretos salvos não voltam a ser mostrados. Para não alterá-los, deixe o campo vazio.\n\n## Conjunto de testes\n\n1. Em **Passo 3 · Habilitação**, toque em **Executar conjunto de testes**. O status passa para **Em testes**.\n2. A DIAN valida os documentos alguns segundos depois. Toque em **Consultar status** para ver o resultado: **Documento aceite.**, **Documento em processamento.** ou **Documento rejeitado.** Se a DIAN devolver regras, elas aparecem em **Regras devolvidas pela DIAN**, com o que é preciso corrigir.\n3. Quando a DIAN aceita um documento, o status passa para **Habilitado**.\n\nConclua o processo de habilitação no portal da DIAN. Quando a DIAN habilitar você, volte a **Credenciais DIAN**, mude o **Ambiente** para **Produção** e toque em **Guardar**. A partir daí, cada conta cobrada é faturada sozinha: explicamos isso em [Como suas faturas são emitidas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n\n> Os documentos do ambiente de Habilitação são testes: não têm validade fiscal.\n\n## Casos frequentes\n\n- **\"Palavra-passe incorreta.\"**: é a senha do certificado, não a do portal da DIAN. Peça-a a quem comprou o certificado.\n- **\"O ficheiro excede o tamanho permitido (512 KB) ou está vazio.\"** ou **\"O ficheiro não contém um certificado válido.\"**: envie o arquivo .p12 ou .pfx original que a entidade certificadora entregou a você.\n- **\"Conclua o certificado, as credenciais e o Test Set ID no ambiente de Habilitação para executar o conjunto de testes.\"**: falta o certificado, alguma credencial ou o **Test Set ID**, ou o **Ambiente** está em **Produção**.\n- **\"Complete a resolução de numeração antes de rodar o conjunto de testes\"**, ou o aviso de que falta o município ou o e-mail de recebimento: complete os dados do emissor e a resolução.\n- **\"A habilitação já foi concluída. O comércio emite em produção.\"**: não é preciso executar mais testes.\n- **\"O servidor ainda não está pronto para guardar credenciais de forma segura.\"**: é um problema do nosso lado. Fale com o suporte.",
+      "links": [
+        {
+          "label": "Ir para Faturação eletrónica DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        },
+        {
+          "label": "Ir para Identidade do comércio",
+          "href": "/operator/settings/identidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "emision-automatica-de-facturas",
+      "title": "Como suas faturas são emitidas e o que fazer se elas travarem",
+      "summary": "Com faturamento eletrônico, cada conta cobrada é faturada sozinha, em nome do cliente ou para consumidor final. O que significa cada status DIAN, os avisos de faturas travadas e como tentar emitir de novo.",
+      "keywords": [
+        "emissão automática",
+        "fatura não sai",
+        "rejeitada",
+        "em processamento",
+        "não emitida",
+        "erro de envio",
+        "tentar de novo",
+        "consumidor final",
+        "fatura em nome do cliente",
+        "CUFE",
+        "fila de emissão",
+        "DIAN fora do ar"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Com faturamento eletrônico, cada conta cobrada no MESAPAY é faturada sozinha e enviada à DIAN em segundos, sem que ninguém precise fazer nada. Aqui você vê como funciona, o que significa cada status e o que fazer quando uma fatura não sai.\n\n## O que é faturado e em nome de quem\n\n- Toda venda cobrada é faturada quando fica paga, seja em dinheiro, na maquininha ou com pagamento on-line.\n- Se durante a cobrança alguém pediu **Nota fiscal eletrônica personalizada** (o cliente pelo próprio celular ou a sua equipe ao cobrar), ela sai em nome desse cliente e é enviada para o e-mail dele.\n- Se não, sai para **Consumidor final**. Se deixaram um e-mail com **Nota fiscal eletrônica genérica**, ela é enviada para esse e-mail; se não, é gerada do mesmo jeito, para ser impressa.\n- Cortesias e contas de $0 não são faturadas nem vão para a DIAN.\n- A data e a hora da fatura seguem o horário da Colômbia, também à noite.\n- O imposto sai do que estiver em [Configure o imposto sobre vendas](/operator/ayuda/facturacion/impuesto-de-ventas) no momento da emissão e fica salvo na fatura.\n\n## O que acontece depois da cobrança\n\n1. O MESAPAY numera a fatura com a sua resolução e a envia à DIAN.\n2. Quando a DIAN a aceita, a fatura é enviada por e-mail ao cliente (se houver e-mail) e é impressa sozinha na impressora de faturas. Explicamos isso em [Imprima, reimprima e envie faturas por e-mail](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n3. Se a DIAN não responde, o MESAPAY tenta de novo sozinho, com esperas cada vez mais longas, durante umas oito horas.\n\n## Os status\n\nEm [Pedidos › Faturas](/operator/facturas), a coluna **Status DIAN** mostra:\n\n- **Aceita**: a fatura é válida perante a DIAN.\n- **Em processamento**: já foi enviada e a DIAN está validando.\n- **Não emitida**: está na fila e sai sozinha. Se algo a trava, embaixo aparece **\"Ainda não sai: …\"** com o motivo.\n- **Erro de envio**: a comunicação com a DIAN falhou e o envio é repetido sozinho. Se aparecer **\"As tentativas automáticas acabaram: tente de novo manualmente.\"**, é preciso tentar de novo com o botão.\n- **Rejeitada**: a DIAN a rejeitou; embaixo aparece o motivo e, se houver vários, **Ver detalhes da rejeição**. Uma fatura rejeitada não é reenviada sozinha.\n\n## Os avisos no topo\n\n- **\"… faturas aguardando emissão: …\"**: algo da configuração trava **todas** as faturas do estabelecimento. Toque em **Ir para Faturamento DIAN**, complete o que o aviso diz e as faturas saem sozinhas em alguns minutos. Em Configurações, o cartão Faturação eletrónica DIAN também mostra isso: **… faturas sem emitir**.\n- **\"… faturas na fila de emissão; são retentadas automaticamente.\"**: não é preciso fazer nada.\n- **\"… faturas rejeitadas nos últimos 30 dias.\"**: toque em **Ver as rejeitadas** para revisá-las.\n- Os avisos de que restam poucos números ou de que o intervalo acabou: veja [Carregue sua resolução de numeração](/operator/ayuda/facturacion/resolucion-de-facturacion).\n\nOs motivos que travam tudo são: falta a configuração DIAN, o certificado digital ou as credenciais; falta a resolução de numeração, o município do estabelecimento ou o e-mail para recebimento de documentos eletrônicos; ou o intervalo da resolução acabou. Todos são corrigidos como explicado em [Ative o faturamento eletrônico com a DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n\n## Tentar emitir de novo uma fatura manualmente\n\n1. Na linha da fatura, toque em **Tentar emitir de novo**. O botão aparece nas rejeitadas, nas com erro de envio e nas travadas pela configuração.\n2. Leia o aviso e aceite.\n3. Você verá o resultado: **\"Aceita pela DIAN ✓\"**, **\"Enviada: a DIAN está processando.\"**, **\"A DIAN rejeitou de novo.\"** ou **\"Não saiu: …\"** com o motivo.\n\n> ⚠ Uma fatura rejeitada não se resolve tentando de novo: a DIAN rejeita outra vez o mesmo documento. Primeiro corrija o que o motivo diz (quase sempre um dado da resolução, do emissor ou do cliente) e depois tente de novo.\n\n## Sem faturamento eletrônico\n\nSe o seu estabelecimento não tem o módulo, nada vai para a DIAN: só é gerada a fatura que alguém pediu, para imprimir ou enviar por e-mail, e as faturas em nome de um cliente ficam como solicitações para você emitir no seu programa de faturamento. Veja [Confira suas faturas e as solicitações de fatura](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Casos frequentes\n\n- **\"… fatura na fila de emissão\" que não diminui**: se passarem horas, veja se alguma ficou em **Erro de envio** com as tentativas esgotadas e tente de novo. Se a DIAN estiver fora do ar, espere ela voltar.\n- **\"o número da fatura está fora da faixa da resolução\"**: confira o **Próximo consecutivo a emitir** e o intervalo em [Configurações › Faturação eletrónica DIAN](/operator/settings/facturacion-dian).\n- **O cliente pediu a fatura no nome dele depois que ela saiu para consumidor final**: não dá mais para faturar essa conta de novo. Veja o aviso de solicitações tardias em [Confira suas faturas e as solicitações de fatura](/operator/ayuda/facturacion/solicitudes-de-factura).",
+      "links": [
+        {
+          "label": "Ir para Faturas",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "solicitudes-de-factura",
+      "title": "Confira suas faturas e as solicitações de fatura",
+      "summary": "A tela Faturas: com faturamento eletrônico, a lista de faturas com o status DIAN, filtros, avisos e ações; sem ele, as solicitações de fatura dos seus clientes para você emitir no seu programa.",
+      "keywords": [
+        "faturas",
+        "lista de faturas",
+        "buscar fatura",
+        "solicitação de fatura",
+        "pedir fatura",
+        "marcar como emitida",
+        "copiar dados",
+        "Siigo",
+        "Alegra",
+        "status DIAN",
+        "fatura tardia",
+        "imprimir na maquininha"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em **Pedidos › Faturas** você confere as faturas do seu estabelecimento. O que você vê depende de ter ou não faturamento eletrônico: com ele, a lista de faturas emitidas à DIAN e o status de cada uma; sem ele, as solicitações de fatura que seus clientes deixam para você emitir no seu programa de faturamento.\n\n## Com faturamento eletrônico: a lista de faturas\n\nA tela se chama **Faturas eletrônicas**. Mostra todas as faturas emitidas, da mais nova para a mais antiga, 50 por página. No topo aparece só o que precisa que alguém faça algo.\n\nCada linha tem:\n\n- **Número**, **Data** e o código do pedido.\n- **Cliente**: o nome e o documento, ou **Consumidor final**.\n- **Total**.\n- **Status DIAN**: **Aceita**, **Em processamento**, **Não emitida**, **Erro de envio** ou **Rejeitada**. O que significa cada um está em [Como suas faturas são emitidas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **E-mail**: se foi enviada e para quem, ou por que não saiu. Por exemplo, **\"Não enviada: ninguém deixou e-mail.\"**\n- **Nota de crédito**: o número e o status da nota que a ajusta, se houver.\n\n### Buscar uma fatura\n\n1. Em **Status DIAN**, escolha **Todas**, **Rejeitadas**, **Em processamento** ou **Aceitas**.\n2. Se quiser, defina um período em **De** e **Até**. São dias operacionais: se a sua jornada começa de madrugada, cada dia começa nesse horário.\n3. Em **Buscar**, escreva o número da fatura, o código do pedido, o NIT, o nome ou o e-mail do cliente.\n4. Toque em **Filtrar**. Para voltar à lista completa, toque em **Limpar filtros**.\n\n### O que você pode fazer com cada fatura\n\n- **Ver fatura**: abre a fatura em outra aba.\n- **Reimprimir fatura** e **Reenviar por e-mail**: veja [Imprima, reimprima e envie faturas por e-mail](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n- **Anular com nota de crédito**: nas aceitas. Leva você a Notas de crédito com a fatura já escolhida. Veja [Emita uma nota de crédito eletrônica](/operator/ayuda/facturacion/notas-credito).\n- **Tentar emitir de novo**: nas rejeitadas, com erro ou travadas.\n\nO botão **Notas de crédito eletrônicas**, no topo, abre a tela de notas de crédito.\n\n### Clientes que pediram fatura tarde\n\nSe um cliente deixa os dados dele para a fatura quando a conta já foi faturada para consumidor final, aparece o aviso **\"… cliente pediu fatura com seus dados depois que ela foi emitida a consumidor final\"**. Essa fatura já saiu aceita e não pode ser faturada de novo. Em cada caso você vê quando ele pediu e qual fatura saiu, e pode:\n\n1. Tocar em **Anular e emitir nota de crédito**, se o cliente precisa da fatura no nome dele e o seu contador aprova.\n2. Tocar em **Marcar como resolvida** quando tiver atendido o caso. Ele deixa de aparecer no aviso; a fatura continua para consumidor final.\n\nAs demais solicitações se fecham sozinhas: quando a DIAN aceita uma fatura, a solicitação com que ela foi emitida fica como atendida.\n\n## Sem faturamento eletrônico: as solicitações\n\nQuando um cliente pede **Nota fiscal eletrônica personalizada** ao pagar, os dados dele chegam aqui para você emitir a fatura no seu programa (Siigo, Alegra ou outro).\n\n1. Entre em [Pedidos › Faturas](/operator/facturas), aba **Pendentes**.\n2. Toque em **Copiar dados** e cole no seu programa de faturamento: nome, documento, e-mail, endereço, cidade e o pedido com o total.\n3. Emita a fatura lá e envie ao cliente.\n4. Volte e toque em **✓ Marcar como emitida**. Ela passa para **Já emitidas**, com quem marcou e quando.\n\nOutras ações:\n\n- **Rejeitar**: se não cabe emiti-la. O cliente não recebe fatura.\n- **Marcar como pendente novamente**: em **Já emitidas**, se você marcou por engano.\n- **Imprimir na maquininha**: imprime o comprovante numa maquininha com serial configurado. Veja [Configure as maquininhas e atribua aos garçons](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## Casos frequentes\n\n- **\"Nenhuma fatura com esses filtros.\"**: toque em **Limpar filtros** ou amplie as datas.\n- **\"Nenhuma maquininha com serial configurado.\"**: cadastre o serial da maquininha em [Configurações › Maquininhas](/operator/settings/datafonos).\n- **Uma solicitação rejeitada por engano**: a confirmação diz que dá para reverter, mas hoje a tela não mostra as rejeitadas para recuperá-las. Pegue os dados do cliente de outra fonte e emita a fatura para ele no seu programa.\n- **Não vejo a aba Pendentes**: com faturamento eletrônico ela não é mais necessária, porque as faturas saem sozinhas em nome do cliente que as pediu.",
+      "links": [
+        {
+          "label": "Ir para Faturas",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "factura-manual",
+      "title": "Crie uma fatura manual sem mesa",
+      "summary": "Abra uma conta que não está em nenhuma mesa para cobrar e faturar no caixa pratos, cobranças ou serviços, como um buffet ou o aluguel do salão, em nome de um cliente ou para consumidor final.",
+      "keywords": [
+        "fatura manual",
+        "fatura sem mesa",
+        "novo pedido",
+        "cobrança",
+        "serviço",
+        "buffet",
+        "aluguel do salão",
+        "cobrar no caixa",
+        "linha livre",
+        "nit",
+        "documento",
+        "consumidor final",
+        "fatura em nome do cliente",
+        "descartar fatura"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Uma fatura manual é uma conta que não pertence a nenhuma mesa. Serve para cobrar e faturar no caixa pratos, cobranças ou serviços que não vieram de um pedido do salão, como um buffet ou o aluguel do salão.\n\n## Abra uma fatura manual\n\nHá dois caminhos:\n\n- Na barra de cima do painel, toque em **Novo pedido** e escolha **Fatura manual**.\n- Ou entre em **Mesas** (**Balcão**, se você trabalha no modo balcão) e toque em **+ Fatura manual**, ao lado dos filtros.\n\nA fatura é criada vazia e a ficha dela se abre. Enquanto estiver aberta, ela aparece em **Mesas**, na seção **Faturamento manual**, com o código, o que falta cobrar e o cliente. Você pode ter várias abertas ao mesmo tempo; em **Pedidos** elas aparecem como **Fatura manual**.\n\n## Adicione pratos, cobranças ou serviços\n\n- **Adicionar pratos**: abre o cardápio em outra aba para escolher pratos, igual a uma mesa. Ao enviá-los, você volta para **Mesas** com a fatura aberta. Esses pratos não passam pela cozinha: é um documento, não um pedido para preparar.\n- **Adicionar cobrança ou serviço**: para algo que não está no cardápio. Preencha a **Descrição**, a **Qtd.** e o **Preço unitário**, confira o **Imposto** e toque em **Adicionar à conta**.\n\nPara tirar um prato ou uma cobrança, toque em **Cancelar** na linha dele.\n\n### O imposto de uma cobrança\n\nNuma fatura manual, o **Imposto** de uma cobrança começa em **Incluído no preço**, com o imposto do seu cardápio (por exemplo, Imposto ao consumo 8%): o valor que você digita já traz o imposto dentro, como um prato do cardápio. Se escolher **Imposto ao consumo** ou **IVA** com uma **Alíquota**, o imposto é somado ao preço; com **Nenhum**, a cobrança fica sem imposto. Antes de adicionar, a ficha mostra a **Base**, o imposto e o **Total da linha**.\n\nSe o seu estabelecimento não tem imposto de vendas configurado, a opção **Incluído no preço** não aparece. Configure-o como explicado em [Configure o imposto sobre vendas](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Identifique o cliente\n\nO quadro **Cliente da fatura** diz em nome de quem ela vai sair. Sem cliente, a fatura sai para consumidor final.\n\n1. Toque em **Identificar cliente**.\n2. Se o cliente já está salvo, procure-o em **Buscar cliente cadastrado** por nome, documento ou e-mail e toque nele para carregar os dados. Se não, digite-os.\n3. Confira **Nome ou razão social**, **Tipo** (CC, CE, NIT ou Passaporte), **Número de identificação** e **E-mail**. O número vai sozinho, sem dígito verificador: o MESAPAY o calcula.\n4. Toque em **Pedir nota**.\n\nO quadro mostra o nome, o documento e o e-mail; para corrigi-los, toque em **Alterar**. Se você escolher um cliente salvo que tem desconto comercial, o desconto é aplicado à conta. Para salvar clientes, veja [Crie clientes para faturar](/operator/ayuda/facturacion/clientes-de-facturacion).\n\n## Cobre a fatura\n\n1. Toque em **Cobrar a conta**. A tela de cobrança abre em outra aba, com o cliente já carregado.\n2. Cobre com a forma de pagamento correspondente.\n\nDepois de paga, a fatura segue o mesmo caminho que a de uma mesa:\n\n- **Com faturamento eletrônico**, ela é emitida à DIAN em nome do cliente identificado, ou para consumidor final. Veja [Como suas faturas são emitidas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Sem faturamento eletrônico**, os dados do cliente ficam como solicitação em **Faturas**, para você emitir no seu programa de faturamento. Veja [Confira suas faturas e as solicitações de fatura](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Descarte uma fatura manual\n\nEnquanto não estiver paga nem em cobrança, toque em **Descartar fatura manual** e confirme. Os pratos e cobranças que ela tiver serão perdidos.\n\n## Casos frequentes\n\n- **Não vejo o botão Fatura manual**: as faturas manuais são abertas pelo painel com um usuário Operador; o garçom não as vê no app dele.\n- **\"O dígito verificador não corresponde a esse NIT. Digite somente o número, sem o dígito.\"**: apague o dígito que vem depois do hífen e deixe só o número.\n- **\"Confira o número de identificação: não tem o formato de um documento válido.\"**: o número não tem o formato do tipo de documento escolhido (por exemplo, letras numa CC). Corrija o número ou o **Tipo**.\n- **\"A conta já está em cobrança. Conclua ou cancele o pagamento antes de adicionar uma cobrança.\"**: há uma cobrança aberta na outra aba. Conclua ou cancele e adicione a cobrança de novo.\n- **A cobrança saiu sem imposto**: foi adicionada com **Nenhum**. Cancele-a e adicione de novo com **Incluído no preço**.",
+      "links": [
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-y-enviar-facturas",
+      "title": "Imprima, reimprima e envie faturas por e-mail",
+      "summary": "Quando a fatura sai sozinha na impressora do caixa, como vê-la e reimprimi-la em Pedidos e como reenviar por e-mail uma fatura eletrônica que a DIAN já aceitou.",
+      "keywords": [
+        "imprimir fatura",
+        "reimprimir",
+        "segunda via",
+        "cópia da fatura",
+        "reenviar fatura",
+        "e-mail",
+        "cupom",
+        "comprovante",
+        "nota genérica",
+        "nota personalizada",
+        "consumidor final",
+        "impressora de faturas",
+        "fatura não chegou",
+        "cufe"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O MESAPAY imprime sozinho a fatura do cliente na impressora do caixa e a envia por e-mail se ele deixou um endereço. Em **Pedidos** você pode vê-la, reimprimi-la e, com faturamento eletrônico, reenviá-la por e-mail.\n\n## Quando a fatura sai sozinha\n\n- **Com faturamento eletrônico**: toda venda gera sua fatura. Ela é impressa no momento em que a DIAN a aceita, alguns segundos depois da cobrança, com o rótulo **Fatura eletrônica de venda**, o CUFE e o código QR (ou o endereço de consulta da DIAN, se a impressora não imprime QR). Se a DIAN a rejeitar ou deixar pendente, não sai papel: confira-a como explicado em [Como suas faturas são emitidas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Sem faturamento eletrônico**: sai ao cobrar, mas só se alguém pediu fatura na cobrança. O papel leva o rótulo **Comprovante**.\n\nCortesias e contas em $0 não são faturadas.\n\n### Nota genérica ou personalizada\n\nNa tela de cobrança, o quadro **O cliente precisa de nota fiscal eletrônica?** oferece duas opções:\n\n- **Nota fiscal eletrônica genérica**: para consumidor final. O e-mail é opcional: se você preencher o do cliente, enviamos a fatura para ele; sem e-mail, ela é gerada do mesmo jeito para ser impressa.\n- **Nota fiscal eletrônica personalizada**: em nome do cliente, com **Nome ou razão social**, tipo e **Número de identificação** (sem dígito verificador) e **E-mail**, que aqui é obrigatório. Não pede endereço, cidade nem departamento.\n\nDepois aparece **Nota solicitada**; para mudar algo, toque em **Corrigir dados**.\n\n### Por qual impressora ela sai\n\nEm [Configurações › Impressoras de rede](/operator/settings/impresoras), seção **Faturas**:\n\n- **Impressora para faturas**: a que imprime as faturas. Se você não escolher uma, elas saem em **Todas as do tipo fatura (padrão)**.\n- **Imprimir a fatura automaticamente ao cobrar**: vem ativado. Desligado, a fatura só sai quando alguém a reimprime em Pedidos.\n\nOs detalhes estão em [Confira suas impressoras pelo painel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n\n## Ver ou reimprimir uma fatura\n\n1. Entre em **Pedidos** e procure a conta. Com faturamento eletrônico, você também pode procurá-la pelo número da fatura em [Pedidos › Faturas](/operator/facturas): cada linha tem os mesmos botões.\n2. Na coluna **Fatura**, toque em **Ver fatura** para abri-la em outra aba, ou em **Reimprimir fatura** para mandá-la de novo à impressora. O mesmo está no detalhe da conta, na seção **Fatura**.\n\nAo reimprimir, um aviso diz o que saiu e por onde:\n\n- **\"Fatura eletrônica enviada para Caixa ✓\"**: saiu a fatura eletrônica aceita.\n- **\"Saiu o comprovante em Caixa: a DIAN ainda não aceitou a fatura eletrônica desta conta.\"**: saiu o comprovante, porque a fatura eletrônica ainda não foi aceita. Quando a DIAN aceitá-la, reimprima.\n- **\"Não há impressora de faturas no agente: imprimindo pelo navegador.\"** ou **\"O agente de impressão não está respondendo: imprimindo pelo navegador.\"**: abre-se a janela de impressão do navegador na mesma tela. Para que saia como as comandas, escolha uma impressora do programa de impressão na seção **Faturas**.\n\nReimprimir funciona mesmo com a impressão automática desligada.\n\n## Reenviar uma fatura por e-mail\n\nCom faturamento eletrônico, a fatura aceita é enviada sozinha para o e-mail que o cliente deixou. Se não chegou ou ele a apagou:\n\n1. Em **Pedidos** (ou no detalhe da conta), toque em **Reenviar por e-mail**. Também está em [Faturas](/operator/facturas).\n2. Espere o aviso **\"Enviada para cliente@email.com ✓\"**.\n\nO botão só aparece nas faturas que a DIAN já aceitou, e o e-mail vai para o endereço informado ao pedir a fatura. Sem faturamento eletrônico, o comprovante é enviado ao cobrar se foi deixado um e-mail, e não há botão para reenviá-lo.\n\n## Casos frequentes\n\n- **\"Ninguém pediu fatura nesta conta: não há e-mail para onde enviá-la.\"**: a fatura saiu para consumidor final sem e-mail. Imprima-a com **Reimprimir fatura**, ou abra-a com **Ver fatura** e envie ao cliente o link dessa página.\n- **\"Enviada para …, mas sem o arquivo XML anexo.\"**: o e-mail saiu, mas sem o arquivo XML da fatura. Tente de novo mais tarde; se o cliente precisa do XML e continua igual, fale com o suporte.\n- **Na coluna Fatura aparece \"—\"**: essa conta não tem fatura. Sem faturamento eletrônico, ninguém a pediu ao cobrar.\n- **\"A impressora escolhida está desligada: as faturas não vão sair até que você a ligue ou escolha outra.\"**: ligue-a ou escolha outra na seção **Faturas**.\n- **A fatura não sai**: siga os passos de [O que fazer quando não sai uma comanda ou uma fatura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).",
+      "links": [
+        {
+          "label": "Ir para Pedidos",
+          "href": "/operator/orders"
+        },
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "notas-credito",
+      "title": "Emita uma nota de crédito eletrônica",
+      "summary": "Anule ou ajuste, total ou parcialmente, uma fatura aceita pela DIAN. Configure a numeração das notas, acompanhe o status delas e descarte ou emita de novo as rejeitadas ou não recebidas.",
+      "keywords": [
+        "nota de crédito",
+        "nota crédito",
+        "anular fatura",
+        "devolução",
+        "desconto",
+        "ajuste",
+        "CUDE",
+        "motivo DIAN",
+        "numeração de notas",
+        "NC",
+        "conflito de numeração",
+        "descartar",
+        "emitir novamente"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A nota de crédito eletrônica ajusta ou anula uma fatura que a DIAN já aceitou: por uma devolução, um desconto, um erro de preço ou porque a fatura não devia ter saído assim. Ela é emitida pelo MESAPAY e enviada à DIAN, igual à fatura.\n\n> Só aparece com faturamento eletrônico ativo e quem a usa são os usuários com perfil Operador.\n\n## Antes da primeira nota: a numeração\n\nAs notas de crédito têm numeração própria, separada da das faturas. O MESAPAY já vem com o prefixo NC.\n\n1. Entre em [Pedidos › Faturas](/operator/facturas) e toque em **Notas de crédito eletrônicas**.\n2. Em **Numeração de notas de crédito**, toque em **Configurar**.\n3. Confira o **Prefixo** (de 1 a 10 letras ou números, diferente do das suas faturas) e o **Próximo número sequencial**.\n4. Toque em **Salvar numeração**.\n\n> ⚠ Se com este mesmo NIT você já emitiu notas de crédito em outro programa, não repita o prefixo e a numeração delas: a DIAN rejeita um número já usado. O número sequencial não pode ser reduzido depois de usado.\n\n## Emitir uma nota de crédito\n\n1. Em **Criar nota de crédito**, escreva o número completo da fatura (por exemplo, FE123) ou o código do pedido e toque em **Buscar faturas**. Só aparecem faturas aceitas, incluindo as de consumidor final. Na lista de Faturas, **Anular com nota de crédito** traz você até aqui com a fatura já escolhida.\n2. Toque em **Selecionar** na fatura. Você verá o **Saldo disponível para ajustar**.\n3. Em **Tipo de ajuste**, escolha **Todo o saldo disponível** ou **Valor parcial por produto**. No parcial, você escreve em cada linha o valor com impostos que quer ajustar. Não muda quantidades nem estoque.\n4. Escolha o **Motivo DIAN**. **2 · Anulação de fatura eletrônica** só é possível com o ajuste total e sem outras notas ativas sobre essa fatura.\n5. Escreva a **Explicação do ajuste (obrigatória)**.\n6. Toque em **Revisar nota de crédito**, confira a base, os impostos e o **Total da nota de crédito**, e toque em **Confirmar e enviar à DIAN**.\n\nA nota ajusta a fatura, mas não devolve o dinheiro: a devolução ao cliente é feita à parte.\n\n## Depois de enviá-la\n\nEm **Notas de crédito do estabelecimento** você vê cada nota com o seu status: **Por enviar**, **Enviada à DIAN**, **Validação pendente**, **Aceita**, **Rejeitada**, **Erro de envio** ou **Não recebida pela DIAN**. Toque em **Atualizar** para recarregar a lista e em **Ver detalhes** para abrir uma nota.\n\n- Se a DIAN a aceitar, a nota é enviada para o e-mail da fatura original. No detalhe estão o **CUDE**, o código QR, **Verificar documento na DIAN**, **Baixar PDF**, **Baixar XML**, **Imprimir cópia** e **Reenviar por e-mail**.\n- Se ficou em processamento ou com erro, toque em **Consultar estado DIAN** ou **Enviar / tentar novamente**. As notas pendentes também são reenviadas sozinhas.\n- O detalhe diz se a nota já foi contabilizada. Uma nota aceita é descontada das vendas, dos impostos e das contas a receber do mês em que foi emitida; ela entra na contabilidade ao gerar os lançamentos desse mês. Veja [Entenda como funciona a contabilidade no MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n\n## Notas rejeitadas ou não recebidas\n\nUma nota rejeitada de forma definitiva ou que a DIAN não recebeu pode ser tirada do caminho:\n\n- **Descartar**: a nota sai da lista e a fatura fica livre para outra nota. O número não é reutilizado e o registro é mantido.\n- **Descartar e emitir novamente**: descarta a nota e cria outra igual (mesma fatura, motivo, explicação e valores), que é enviada à DIAN com um número novo.\n\nAs descartadas não aparecem na lista. Para vê-las, toque em **Ver descartadas (…)**.\n\n### O conflito de numeração\n\nSe o número da nota já foi usado pelo seu NIT em outro sistema, a DIAN a rejeita e a série fica em conflito. Por exemplo, se as suas notas antigas em outro programa também eram NC, as novas notas NC do MESAPAY colidem com elas. Então:\n\n- Se você já tem outra série sem conflito e com notas aceitas (por exemplo, NCM), as notas novas saem sozinhas nessa série. No topo aparece: **\"A série NC tem um conflito de numeração com a DIAN: as novas notas são emitidas na série NCM.\"**\n- Se não, configure em **Numeração de notas de crédito** um prefixo que você nunca tenha usado com esse NIT.\n\nDepois, na nota rejeitada, toque em **Descartar e emitir novamente**.\n\n## Casos frequentes\n\n- **\"Nenhuma fatura aceita corresponde à busca.\"**: escreva o número completo, com prefixo, ou o código do pedido. Uma fatura rejeitada ou não emitida não pode ser ajustada.\n- **\"Esta fatura não tem saldo disponível para uma nova nota de crédito.\"**: outras notas já ajustaram todo o valor dela.\n- **\"A anulação exige ajustar a fatura inteira, sem outras notas ativas.\"**: use **Todo o saldo disponível** ou outro motivo.\n- **\"O estado atual desta nota não permite descartá-la.\"**: a DIAN ainda pode considerá-la válida. Toque antes em **Consultar estado DIAN**.\n- **\"Não há uma série de notas sem conflito.\"**: configure um prefixo novo e tente de novo.",
+      "links": [
+        {
+          "label": "Ir para Notas de crédito",
+          "href": "/operator/facturas/notas-credito"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "clientes-de-facturacion",
+      "title": "Crie clientes para faturar",
+      "summary": "Salve os dados de pessoas e empresas em Clientes para faturamento e carregue-os com um toque ao faturar. Ali mesmo você habilita o crédito, com limite e prazo, e um desconto comercial.",
+      "keywords": [
+        "clientes",
+        "cliente frequente",
+        "empresa",
+        "nit",
+        "documento",
+        "razão social",
+        "dados de faturamento",
+        "crédito",
+        "fiado",
+        "contas a receber",
+        "pagamento",
+        "extrato",
+        "desconto",
+        "clientes cadastrados"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em **Clientes para faturamento** você salva o nome, o documento e o e-mail das pessoas e empresas para quem fatura com frequência, para não digitá-los em cada cobrança. Ali mesmo você permite que um cliente pague a crédito e dá a ele um desconto comercial fixo.\n\nEntre em **Pedidos › Clientes**. Os usuários Operador veem esta seção.\n\n## Crie um cliente\n\n1. Toque em **Criar cliente**.\n2. Preencha o **Nome ou razão social**.\n3. Escolha o **Tipo de documento**: **Documento de cidadania (CC)**, **NIT**, **Documento de estrangeiro** ou **Passaporte**.\n4. Preencha o **Número do documento**. Para um NIT, só o número, sem dígito verificador: o MESAPAY o calcula e o envia à DIAN.\n5. Preencha o **E-mail**, que é para onde vão as faturas, e, se quiser, o **Telefone**.\n6. Se for o caso, configure **Crédito** e **Desconto** (veja abaixo).\n7. Toque em **Salvar cliente**.\n\nEndereço e cidade não são pedidos: a fatura em nome do cliente sai sem esses dados.\n\n## Busque e edite\n\n- Em **Buscar clientes para faturamento**, digite nome, documento ou e-mail. A lista mostra até 50 clientes; para os demais, use a busca.\n- Cada cliente mostra documento, e-mail e telefone, e as marcas **Crédito** ou **Desconto** com o percentual.\n- Para mudar dados, toque em **Editar** e depois em **Salvar alterações**. Um cliente não pode ser excluído: se você não fatura mais para ele, simplesmente não o use.\n\n## Crédito\n\nEm **Crédito**, marque **Permitir pagar a crédito**. Ao cobrar, a conta vira dívida do cliente: não entra no caixa, vai para contas a receber.\n\n- **Limite de crédito**: vazio é sem limite. É comparado com a dívida de hoje mais a conta que está sendo cobrada.\n- **Prazo (dias)**: os dias que ele tem para pagar. Vem em 30. Com faturamento eletrônico, a fatura de uma venda a crédito sai com forma de pagamento a crédito e vence de acordo com esse prazo.\n\nCom o crédito ativo, a linha do cliente mostra a **Dívida** (ou **Sem dívida**), o limite e o **Disponível**, e dois botões:\n\n- **Registrar pagamento**: registra um pagamento da dívida. Preencha o **Valor**, a **Data**, a **Conta onde o dinheiro entrou** e, se quiser, uma **Observação (opcional)**, e toque em **Registrar pagamento**. O pagamento é aplicado primeiro às contas mais antigas.\n- **Extrato**: as contas cobradas a crédito e os pagamentos, com o saldo. Um pagamento registrado por engano é desfeito com **Reverter pagamento**; a dívida volta a subir.\n\nA conta é cobrada a crédito na tela de cobrança, com **Cobrar a crédito**. Se você tem o módulo de contabilidade, as dívidas também aparecem em [Contas a receber e a pagar](/operator/ayuda/contabilidad-y-reportes/cartera).\n\n## Desconto\n\nEm **Desconto**, marque **Aplicar desconto comercial** e preencha o **Percentual**, até 50%. Ele é aplicado à conta quando ela é associada a este cliente: ao cobrar ou ao pedir a nota em nome dele.\n\n## Use o cliente ao faturar\n\n- Ao pedir a **Nota fiscal eletrônica personalizada**, na cobrança ou numa [fatura manual](/operator/ayuda/facturacion/factura-manual), procure em **Buscar cliente cadastrado** e toque no cliente: os dados dele são carregados no formulário.\n- Na tela de cobrança, o quadro **Cliente** associa a conta a um cliente para aplicar o desconto ou cobrar a crédito.\n\n## Clientes para faturamento e clientes cadastrados\n\nMais abaixo, na mesma tela, fica **Clientes cadastrados**: as pessoas que criaram a própria conta pelo cardápio, com o QR da mesa. Elas são buscadas por **Documento ou e-mail exatos**, mostram quanto consumiram, e a ficha delas tem um **Desconto do cliente** à parte, aplicado ao identificá-las na mesa.\n\nUm cliente para faturamento, por outro lado, é um contato que você cria para faturar: ele não entra no cardápio nem tem senha.\n\n## Casos frequentes\n\n- **\"Já existe um cliente com este tipo e número de documento no estabelecimento. Busque-o para editar os dados.\"**: esse cliente já está salvo. Procure-o e toque em **Editar**.\n- **\"O dígito verificador não corresponde a esse NIT. Digite somente o número.\"**: apague o dígito depois do hífen.\n- **\"Digite um percentual entre 0,01 e 50.\"**: o desconto comercial vai até 50%.\n- **\"O pagamento não pode superar a dívida (…).\"**: o pagamento é maior do que a dívida. Confira o **Valor**.\n- **\"Seu usuário não tem permissão para salvar clientes.\"** ou você não vê a seção: só os usuários Operador criam e editam clientes.",
+      "links": [
+        {
+          "label": "Ir para Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

@@ -1,5 +1,303 @@
 {
   "title": "Invoicing",
   "description": "Taxes, numbering resolution, DIAN electronic invoicing, manual invoices, printing, email and credit notes.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "impuesto-de-ventas",
+      "title": "Set up the sales tax",
+      "summary": "Choose whether your business invoices with consumption tax (INC), VAT or none, and at what rate. It's included in the menu price and applies to whatever is invoiced from the moment you save; what was already issued to DIAN doesn't change.",
+      "keywords": [
+        "sales tax",
+        "tax",
+        "consumption tax",
+        "INC",
+        "impoconsumo",
+        "VAT",
+        "IVA",
+        "VAT/IVA",
+        "tax rate",
+        "8%",
+        "19%",
+        "taxable base",
+        "not liable for VAT",
+        "zero tax",
+        "tax included in price"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Sales tax is the tax that goes into every bill and every invoice. Here you choose which one applies to your business and at what rate, so every invoice splits the price correctly between base and tax.\n\n## How it works\n\nThe tax is already included in the menu price. A $30,000 burger still costs $30,000: what changes is that the invoice splits it into base plus tax. It doesn't raise prices or change what the customer pays.\n\nThere are three options:\n\n- **Consumption tax (INC)**: the usual for a restaurant in Colombia. General rate: 8%.\n- **VAT**: franchises and businesses liable for VAT. General rate: 19%.\n- **None**: businesses that aren't liable. The invoice goes out with no itemized tax.\n\n> Which one applies to you, and at what rate, is for your accountant to confirm. MESAPAY only records it.\n\n## Set it up\n\n1. Go to [Settings › Taxes](/operator/settings/impuestos).\n2. Under **Sales tax**, choose **Consumption tax (INC)**, **VAT** or **None**. If the rate is empty, it fills in on its own with 8 for INC and 19 for VAT.\n3. Check the **Rate (%)**. It's a whole number, with no decimals.\n4. Tap **Save**. You'll see the message \"Saved. Applies to everything invoiced from now on.\"\n\nA new business in Colombia starts with consumption tax at 8%. Check it before you start invoicing.\n\n## When a change takes effect\n\n- It applies to everything invoiced or sent to DIAN from the moment you save, **including bills that are already open**. A bill opened yesterday and paid today is invoiced with today's tax.\n- It also changes how reports calculate the tax on sales from then on.\n- What already went to DIAN doesn't change: each invoice keeps the tax it was issued with.\n\n> ⚠ If you're going to change the tax, do it with all bills closed, for example before opening the shift. That way no bill from that day ends up with two different rates.\n\n## Charges that aren't on the menu\n\nWhen you add a charge or service that isn't on the menu to a bill (with **Add charge or service**), you choose its own **Tax** and **Rate**. That tax is added on top of the price you enter, unless you choose **Included in the price**, like a dish on the menu. We explain it in [Create a manual invoice with no table](/operator/ayuda/facturacion/factura-manual).\n\n## Where it shows\n\n- On the **Taxes** card in Settings: for example, **INC 8%**, or **No tax**.\n- In [Settings › DIAN electronic invoicing](/operator/settings/facturacion-dian), in the **Issuer** details, with the link **Change it in Settings → Taxes**.\n\n## Common cases\n\n- **\"This business is issuing invoices WITH NO sales tax\"**: it appears in DIAN electronic invoicing when the tax is set to **None**. If your business is liable for consumption tax or VAT, set it up here before invoicing again. If it isn't liable, this is fine.\n- **An invoice already issued went out with the wrong tax**: changing the setting doesn't fix it. Review it with your accountant and, if needed, adjust it with a [credit note](/operator/ayuda/facturacion/notas-credito).\n- **\"Couldn't save. Please try again.\"**: check your connection and tap **Save** again. Only the Operator role can change this setting.",
+      "links": [
+        {
+          "label": "Go to Taxes",
+          "href": "/operator/settings/impuestos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "resolucion-de-facturacion",
+      "title": "Enter your numbering resolution",
+      "summary": "Copy the details of your DIAN resolution (number, prefix, range, validity and next sequence number) and learn what to do when the numbers run out. You need it with or without electronic invoicing.",
+      "keywords": [
+        "resolution",
+        "DIAN resolution",
+        "numbering resolution",
+        "invoice numbering",
+        "sequence number",
+        "consecutivo",
+        "prefix",
+        "number range",
+        "validity",
+        "resolution ran out",
+        "numbers left",
+        "new resolution",
+        "invoice number"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The numbering resolution is DIAN's authorization to number your invoices: the prefix and the range of numbers you can use. MESAPAY needs it to number every invoice, whether or not you have electronic invoicing.\n\n## Where to enter it\n\nIn [Settings › DIAN electronic invoicing](/operator/settings/facturacion-dian). If your business doesn't have electronic invoicing, the card is called **Invoicing resolution** and the screen shows only this part.\n\n## Steps\n\n1. Have the resolution DIAN issued to you at hand.\n2. Go to the screen and find the **Numbering resolution** section.\n3. Copy the details exactly as they appear on the resolution. DIAN checks them one by one: if any of them doesn't match, it rejects the whole invoice.\n4. Tap **Save**. You'll see \"Resolution saved.\"\n\n## What goes in each field\n\n- **Resolution number**: the number only, without the word \"Resolution\" or the date. For example, 18760000001.\n- **Prefix**: the same one authorized in the resolution, for example FE.\n- **Email for receiving electronic documents**: the same one registered in your RUT and on the DIAN portal to receive electronic documents. If it doesn't match, DIAN rejects the invoice.\n- **From number** and **To number**: the authorized range.\n- **Valid from** and **Valid until**: the resolution's dates.\n- **Resolution date**: the date of the administrative act. It's printed on the invoice.\n- **Next sequence number to issue**: the number the next invoice will carry. If you were already invoicing in another program with this same resolution, enter the next free number. If you're starting from scratch, tap **Start from…** to use the beginning of your resolution.\n\n> ⚠ Don't lower the **Next sequence number** to a number you've already used, here or in another program: DIAN rejects an invoice with a repeated number.\n\n## When the numbers run out\n\nWith electronic invoicing, MESAPAY warns you before the range runs out:\n\n- When fewer than 500 numbers are left, the **Invoices** screen shows the notice **\"… numbers left in the invoicing resolution\"** and the Settings card shows **… numbers left**. That's the time to request the new resolution.\n- If it runs out, the notice changes to **\"The invoicing resolution range is exhausted: new sales remain uninvoiced until you load the new resolution.\"** You keep charging bills as usual; only their invoices are left waiting.\n\nTo get out of it:\n\n1. Request a new resolution from DIAN.\n2. Enter it on this screen: number, prefix, range, validity, date and **Next sequence number to issue**.\n3. If you have electronic invoicing, also update the **Technical key** in **DIAN credentials**: each resolution comes with its own. See [Activate electronic invoicing with DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n4. Tap **Save**. The sales that were left waiting are invoiced on their own within a few minutes, with the new numbering.\n\n> Without electronic invoicing, MESAPAY doesn't warn you when the end of the range is near. Every now and then, check the **Next sequence number** against the **To number**.\n\n## If your restaurant is part of a group\n\nIf you chose a shared legal entity in Business identity, the resolution is that legal entity's, and the venues that share it use the same numbering. See [Complete your business identity](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n\n## Common cases\n\n- **\"Missing resolution data: …\"**: fill in the fields the notice names. Without them DIAN rejects every document.\n- **\"The last number of the range can't be lower than the first one.\"**: check **From number** and **To number**.\n- **\"The end of the validity period can't be earlier than its start.\"**: check the validity dates.\n- **You see \"Careful: the old value from Identity says … while … is what gets sent to DIAN\"**: an earlier resolution number was left saved. Compare it with your resolution and tap **Use … as the resolution number** if the old one is right, or **Discard the old value** if it isn't.\n- **\"The business location is missing\"**: choose the municipality in [Settings › Business identity](/operator/settings/identidad).",
+      "links": [
+        {
+          "label": "Go to DIAN electronic invoicing",
+          "href": "/operator/settings/facturacion-dian"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "activar-la-facturacion-electronica",
+      "title": "Activate electronic invoicing with DIAN",
+      "summary": "Get direct electronic invoicing with DIAN ready: issuer details, digital certificate, portal credentials, the enablement test set and the switch to production.",
+      "keywords": [
+        "electronic invoicing",
+        "e-invoicing",
+        "electronic invoice",
+        "DIAN",
+        "enablement",
+        "habilitación",
+        "test set",
+        "digital certificate",
+        "signature",
+        "p12",
+        "software id",
+        "pin",
+        "technical key",
+        "test set id",
+        "production"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With electronic invoicing, MESAPAY issues your invoices directly to DIAN, with no other software in between. This guide explains how to get it ready: issuer details, digital certificate, credentials and test set.\n\n> MESAPAY turns on the electronic invoicing module for each business. If the card in Settings is called **Invoicing resolution** and not **DIAN electronic invoicing**, your business doesn't have it turned on: write to support.\n\n## Before you start\n\nYou need:\n\n- An up-to-date RUT and your enablement as an electronic invoicer on the DIAN portal, with MESAPAY registered there as your own software. Your accountant can help you with that process.\n- The signing **digital certificate** (.p12 or .pfx file) and its password, issued by an authorized certification authority, such as Certicámara, GSE or Andes SCD.\n- From the DIAN portal: the **Software ID**, the **Software PIN**, your resolution's **Technical key** and the test set's **Test Set ID**.\n- Your numbering resolution.\n\n## Issuer details and resolution\n\n1. In [Settings › Business identity](/operator/settings/identidad), fill in the **Legal name**, the **NIT** with its check digit, the **Address** and the **City** (the municipality). See [Complete your business identity](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n2. In [Settings › DIAN electronic invoicing](/operator/settings/facturacion-dian), check the **Issuer** section. If something is missing, you'll see the notice **\"Issuer data is missing before you can invoice: …\"**.\n3. Enter the **Numbering resolution** and the **Email for receiving electronic documents**, as explained in [Enter your numbering resolution](/operator/ayuda/facturacion/resolucion-de-facturacion).\n4. Check the **Sales tax** shown under Issuer. You change it as explained in [Set up the sales tax](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Digital certificate\n\n1. In **Step 1 · Digital certificate**, tap **Upload certificate**.\n2. Choose the **Certificate file** (.p12 or .pfx, up to 512 KB) and enter the **Certificate password**.\n3. Tap **Save**. Once it's uploaded you'll see **Registered**, its expiry date and the holder. With **View all certificate details** you can check that it's your company's.\n\nWhen the expiry date gets close, **Expiring soon** appears. Renew the certificate with your certification authority and upload it with **Replace certificate**.\n\n## DIAN credentials\n\n1. In **Step 2 · DIAN credentials**, enter the **Software ID**, the **Software PIN**, the **Technical key** and the **Test Set ID**.\n2. Under **Environment**, leave **Testing** while you run the tests.\n3. Tap **Save**. You'll see \"Credentials saved.\"\n\nSaved secret values are never shown again. To keep them unchanged, leave the field empty.\n\n## Test set\n\n1. In **Step 3 · Enablement**, tap **Run test set**. The status changes to **In testing**.\n2. DIAN validates the documents a few seconds later. Tap **Check status** to see the result: **Document accepted.**, **Document in progress.** or **Document rejected.** If DIAN returns rules, they appear under **Rules returned by DIAN**, with what needs fixing.\n3. When DIAN accepts a document, the status changes to **Enabled**.\n\nFinish the enablement process on the DIAN portal. Once DIAN enables you, go back to **DIAN credentials**, change the **Environment** to **Production** and tap **Save**. From then on, every paid bill is invoiced on its own: we explain it in [How your invoices are issued](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n\n> Documents in the Testing environment are tests: they have no tax validity.\n\n## Common cases\n\n- **\"Incorrect password.\"**: it's the certificate's password, not your DIAN portal password. Ask whoever bought it.\n- **\"The file exceeds the allowed size (512 KB) or is empty.\"** or **\"The file does not contain a valid certificate.\"**: upload the original .p12 or .pfx file the certification authority gave you.\n- **\"Complete the certificate, credentials, and Test Set ID in the Testing environment to run the test set.\"**: the certificate, a credential or the **Test Set ID** is missing, or the **Environment** is set to **Production**.\n- **\"Complete the numbering resolution before running the test set\"**, or the notice that the municipality or the receiving email is missing: complete the issuer details and the resolution.\n- **\"Enablement is already complete. This business is issuing in production.\"**: there's no need to run more tests.\n- **\"The server is not ready to store credentials securely yet.\"**: it's a problem on our side. Write to support.",
+      "links": [
+        {
+          "label": "Go to DIAN electronic invoicing",
+          "href": "/operator/settings/facturacion-dian"
+        },
+        {
+          "label": "Go to Business identity",
+          "href": "/operator/settings/identidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "emision-automatica-de-facturas",
+      "title": "How your invoices are issued and what to do if they get stuck",
+      "summary": "With electronic invoicing, every paid bill is invoiced on its own, in the customer's name or to final consumer. What each DIAN status means, the notices about held invoices and how to retry issuing an invoice.",
+      "keywords": [
+        "automatic issuing",
+        "invoice not going out",
+        "rejected",
+        "in progress",
+        "not issued",
+        "sending error",
+        "retry",
+        "final consumer",
+        "invoice in customer's name",
+        "CUFE",
+        "issuing queue",
+        "DIAN down"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With electronic invoicing, every bill paid in MESAPAY is invoiced on its own and sent to DIAN within seconds, without anyone doing anything. Here you'll see how it works, what each status means and what to do when an invoice doesn't go out.\n\n## What gets invoiced and in whose name\n\n- Every sale is invoiced as soon as it's paid, whether in cash, by card reader or with online payment.\n- If someone asked for a **Personalized electronic invoice** during checkout (the guest from their phone or your team when charging), it's issued in that customer's name and sent to their email.\n- If not, it's issued to **Final consumer**. If they left an email with **Generic electronic invoice**, it's sent to that email; if not, it's still generated, so it can be printed.\n- Courtesies and bills at $0 aren't invoiced and don't go to DIAN.\n- The invoice's date and time are in Colombia time, at night too.\n- The tax comes from what you have in [Set up the sales tax](/operator/ayuda/facturacion/impuesto-de-ventas) when it's issued, and it stays saved on the invoice.\n\n## What happens after payment\n\n1. MESAPAY numbers the invoice with your resolution and sends it to DIAN.\n2. When DIAN accepts it, the invoice is emailed to the customer (if there's an email) and prints on its own at the invoice printer. We explain it in [Print, reprint and email invoices](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n3. If DIAN doesn't respond, MESAPAY retries on its own, waiting longer each time, for about eight hours.\n\n## The statuses\n\nIn [Orders › Invoices](/operator/facturas), the **DIAN status** column says:\n\n- **Accepted**: the invoice is valid with DIAN.\n- **In progress**: it's already been sent and DIAN is validating it.\n- **Not issued**: it's in the queue and will go out on its own. If something is holding it, below it says **\"Not going out yet: …\"** with the reason.\n- **Sending error**: communication with DIAN failed and it retries on its own. If it says **\"Automatic retries ran out: retry it by hand.\"**, you need to retry it with the button.\n- **Rejected**: DIAN rejected it; the reason shows below and, if there are several, **View rejection details**. A rejected invoice isn't retried on its own.\n\n## The notices at the top\n\n- **\"… invoices waiting to be issued: …\"**: something in the setup is holding **all** of the business's invoices. Tap **Go to DIAN Invoicing**, complete what the notice says and the invoices go out on their own within a few minutes. In Settings, the DIAN electronic invoicing card shows it too: **… invoices not issued**.\n- **\"… invoices queued for issuing; they retry on their own.\"**: there's nothing to do.\n- **\"… invoices rejected in the last 30 days.\"**: tap **See the rejected ones** to review them.\n- The notices that few numbers are left or that the range ran out: see [Enter your numbering resolution](/operator/ayuda/facturacion/resolucion-de-facturacion).\n\nThe reasons that hold everything are: the DIAN configuration, the digital certificate or the credentials are missing; the numbering resolution, the establishment's municipality or the email for receiving electronic documents is missing; or the resolution's range ran out. All of them are fixed as explained in [Activate electronic invoicing with DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n\n## Retry an invoice by hand\n\n1. On the invoice's row, tap **Retry submission**. It appears on rejected invoices, on those with a sending error and on those held by the setup.\n2. Read the warning and accept.\n3. You'll see the result: **\"Accepted by the DIAN ✓\"**, **\"Sent: the DIAN is processing it.\"**, **\"The DIAN rejected it again.\"** or **\"It didn't go out: …\"** with the reason.\n\n> ⚠ Retrying doesn't fix a rejected invoice: DIAN rejects the same document again. First fix what the reason says (almost always a detail of the resolution, the issuer or the customer) and then retry.\n\n## Without electronic invoicing\n\nIf your business doesn't have the module, nothing goes to DIAN: only the invoice someone asked for is generated, to print it or email it, and invoices in a customer's name stay as requests so you can issue them in your invoicing software. See [Review your invoices and invoice requests](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Common cases\n\n- **\"… invoice queued for issuing\" that doesn't go down**: if hours go by, check whether any invoice was left in **Sending error** with its retries used up, and retry it. If DIAN is down, wait for it to come back.\n- **\"the invoice number falls outside the resolution range\"**: check the **Next sequence number to issue** and the range in [Settings › DIAN electronic invoicing](/operator/settings/facturacion-dian).\n- **The customer asked for the invoice in their name after it went out to final consumer**: that bill can no longer be invoiced again. See the notice about late requests in [Review your invoices and invoice requests](/operator/ayuda/facturacion/solicitudes-de-factura).",
+      "links": [
+        {
+          "label": "Go to Invoices",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "solicitudes-de-factura",
+      "title": "Review your invoices and invoice requests",
+      "summary": "The Invoices screen: with electronic invoicing, the list of invoices with their DIAN status, filters, notices and actions; without it, your customers' invoice requests so you can issue them in your own software.",
+      "keywords": [
+        "invoices",
+        "invoice list",
+        "find invoice",
+        "invoice request",
+        "request an invoice",
+        "mark as generated",
+        "copy details",
+        "siigo",
+        "alegra",
+        "DIAN status",
+        "late invoice request",
+        "print on card reader"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In **Orders › Invoices** you review your business's invoices. What you see depends on whether you have electronic invoicing: with it, the list of invoices issued to DIAN and their status; without it, the invoice requests your customers leave so you can issue them in your invoicing software.\n\n## With electronic invoicing: the invoice list\n\nThe screen is called **Electronic invoices**. It shows every issued invoice, from newest to oldest, 50 per page. Only what needs someone to act shows up at the top.\n\nEach row has:\n\n- **Number**, **Date** and the order code.\n- **Customer**: the name and document, or **Final consumer**.\n- **Total**.\n- **DIAN status**: **Accepted**, **In progress**, **Not issued**, **Sending error** or **Rejected**. What each one means is in [How your invoices are issued](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Email**: whether it was sent and to whom, or why it didn't go out. For example, **\"Not sent: nobody left an email.\"**\n- **Credit note**: the number and status of the note that adjusts it, if there is one.\n\n### Find an invoice\n\n1. In **DIAN status**, choose **All**, **Rejected**, **In progress** or **Accepted**.\n2. If you want, set a range in **From** and **To**. They're operating days: if your workday starts in the early hours of the morning, each day starts at that time.\n3. In **Search**, type the invoice number, the order code, or the customer's NIT, name or email.\n4. Tap **Filter**. To go back to the full list, tap **Clear filters**.\n\n### What you can do with each invoice\n\n- **View invoice**: opens it in another tab.\n- **Reprint invoice** and **Resend by email**: see [Print, reprint and email invoices](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n- **Cancel with a credit note**: on accepted invoices. It takes you to the credit notes screen with the invoice already selected. See [Issue an electronic credit note](/operator/ayuda/facturacion/notas-credito).\n- **Retry submission**: on rejected invoices, those with an error and held ones.\n\nThe **Electronic credit notes** button, at the top, opens the credit notes screen.\n\n### Customers who asked for an invoice late\n\nIf a customer leaves their details for the invoice when the bill was already invoiced to final consumer, the notice **\"… customer asked for an invoice with their details after it was issued to the final consumer\"** appears. That invoice was already accepted and the bill can't be invoiced again. For each case you see when they asked and which invoice went out, and you can:\n\n1. Tap **Cancel and issue a credit note**, if the customer needs the invoice in their name and your accountant approves.\n2. Tap **Mark as resolved** once you've handled it. It stops showing in the notice; the invoice stays issued to final consumer.\n\nThe other requests close on their own: when DIAN accepts an invoice, the request it was issued from is marked as handled.\n\n## Without electronic invoicing: the requests\n\nWhen a customer asks for a **Personalized electronic invoice** at payment, their details arrive here so you can issue the invoice in your software (Siigo, Alegra or another).\n\n1. Go to [Orders › Invoices](/operator/facturas), **Pending** tab.\n2. Tap **Copy details** and paste them into your invoicing software: name, document, email, address, city and the order with its total.\n3. Issue the invoice there and send it to the customer.\n4. Come back and tap **✓ Mark as generated**. It moves to **Generated**, with who marked it and when.\n\nOther actions:\n\n- **Reject**: if it shouldn't be issued. The customer doesn't get an invoice.\n- **Mark as pending again**: in **Generated**, if you marked it by mistake.\n- **Print on terminal**: prints the slip on a card reader that has its serial number configured. See [Set up card readers and assign them to waiters](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## Common cases\n\n- **\"No invoices match these filters.\"**: tap **Clear filters** or widen the dates.\n- **\"No terminals with a configured serial.\"**: enter the card reader's serial number in [Settings › Card readers](/operator/settings/datafonos).\n- **A request rejected by mistake**: the confirmation says it can be undone, but right now the screen doesn't show rejected requests so you can recover them. Get the customer's details from another source and issue their invoice in your software.\n- **I don't see the Pending tab**: with electronic invoicing you no longer need it, because invoices go out on their own in the name of the customer who asked for them.",
+      "links": [
+        {
+          "label": "Go to Invoices",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "factura-manual",
+      "title": "Create a manual invoice with no table",
+      "summary": "Open a bill that isn't on any table to charge and invoice dishes, charges or services from the register, such as catering or a venue rental, in a customer's name or to final consumer.",
+      "keywords": [
+        "manual invoice",
+        "invoice without table",
+        "new order",
+        "charge",
+        "service",
+        "catering",
+        "venue rental",
+        "charge at the register",
+        "custom line",
+        "nit",
+        "id number",
+        "final consumer",
+        "invoice in customer's name",
+        "discard invoice"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A manual invoice is a bill that doesn't belong to any table. Use it to charge and invoice, from the register, dishes, charges or services that didn't come from a dining-room order, such as catering or a venue rental.\n\n## Open a manual invoice\n\nThere are two ways:\n\n- In the top bar of the panel, tap **New order** and choose **Manual invoice**.\n- Or go to **Tables** (**Counter**, if you work in counter mode) and tap **+ Manual invoice**, next to the filters.\n\nThe invoice is created empty and its card opens. While it stays open it shows up in **Tables**, in the **Manual invoicing** section, with its code, what's still due and the customer. You can have several open at once; in **Orders** they show up as **Manual invoice**.\n\n## Add dishes, charges or services\n\n- **Add dishes**: opens the menu in another tab so you can pick dishes, just like at a table. When you send them you go back to **Tables** with the invoice open. These dishes don't go through the kitchen: it's a document, not an order to prepare.\n- **Add charge or service**: for something that isn't on the menu. Enter the **Description**, the **Qty** and the **Unit price**, check the **Tax** and tap **Add to bill**.\n\nTo remove a dish or a charge, tap **Cancel** on its line.\n\n### The tax on a charge\n\nOn a manual invoice, a charge's **Tax** starts at **Included in the price**, with your menu's tax (for example, Consumption tax 8%): the amount you enter already includes the tax, like a menu item. If you choose **Consumption tax** or **VAT** with a **Rate**, the tax is added on top of the price; with **None**, the charge carries no tax. Before you add it, the card shows the **Base**, the tax and the **Line total**.\n\nIf your business has no sales tax set up, the **Included in the price** option doesn't appear. Set it up as explained in [Set up the sales tax](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Identify the customer\n\nThe **Invoice customer** box says whose name the invoice will be issued in. With no customer, the invoice goes to final consumer.\n\n1. Tap **Identify customer**.\n2. If the customer is already saved, look them up in **Find a registered customer** by name, document or email, and tap them to load their details. If not, type them in.\n3. Check **Name or company**, **Type** (CC, CE, NIT or Passport), **ID number** and **Email**. The number goes alone, without the check digit: MESAPAY calculates it.\n4. Tap **Request invoice**.\n\nThe box shows the name, document and email; to correct them, tap **Change**. If you pick a saved customer that has a commercial discount, the discount is applied to the bill. To save customers, see [Create customers to invoice](/operator/ayuda/facturacion/clientes-de-facturacion).\n\n## Charge the invoice\n\n1. Tap **Charge the bill**. The payment screen opens in another tab, with the customer already loaded.\n2. Charge with the right payment method.\n\nOnce it's paid, the invoice follows the same path as a table's:\n\n- **With electronic invoicing**, it's issued to DIAN in the identified customer's name, or to final consumer. See [How your invoices are issued](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Without electronic invoicing**, the customer's details stay as a request in **Invoices**, so you can issue it in your invoicing software. See [Review your invoices and invoice requests](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Discard a manual invoice\n\nAs long as it isn't paid or being paid, tap **Discard manual invoice** and confirm. Any dishes and charges on it are lost.\n\n## Common cases\n\n- **I don't see the Manual invoice button**: manual invoices are opened from the panel with an Operator user; waiters don't see them in their app.\n- **\"The check digit doesn't match that NIT. Enter the number only, without the check digit.\"**: delete the digit after the hyphen and leave just the number.\n- **\"Check the ID number: it doesn't look like a valid document.\"**: the number doesn't have the shape of the chosen document type (for example, letters in a CC). Fix the number or the **Type**.\n- **\"This bill is already being paid. Finish or cancel the payment before adding a charge.\"**: there's a payment open in the other tab. Finish or cancel it and add the charge again.\n- **The charge came out without tax**: it was added with **None**. Cancel it and add it again with **Included in the price**.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-y-enviar-facturas",
+      "title": "Print, reprint and email invoices",
+      "summary": "When the invoice prints on its own at the register, how to view and reprint it from Orders, and how to resend by email an electronic invoice that DIAN has already accepted.",
+      "keywords": [
+        "print invoice",
+        "reprint",
+        "invoice copy",
+        "resend invoice",
+        "email",
+        "receipt",
+        "slip",
+        "generic invoice",
+        "personalized invoice",
+        "final consumer",
+        "invoice printer",
+        "invoice didn't arrive",
+        "cufe"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY prints the customer's invoice on its own at the register printer and emails it if they left an address. From **Orders** you can view it, reprint it and, with electronic invoicing, resend it by email.\n\n## When the invoice prints on its own\n\n- **With electronic invoicing**: every sale gets its invoice. It prints the moment DIAN accepts it, a few seconds after the payment, labeled **Electronic sales invoice**, with the CUFE and the QR code (or DIAN's lookup address, if the printer doesn't print QR codes). If DIAN rejects it or leaves it pending, nothing prints: check it as explained in [How your invoices are issued](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Without electronic invoicing**: it prints at payment, but only if someone asked for an invoice during checkout. The slip is labeled **Receipt**.\n\nCourtesies and bills at $0 aren't invoiced.\n\n### Generic or personalized invoice\n\nOn the payment screen, the **Does the customer need an electronic invoice?** box offers two options:\n\n- **Generic electronic invoice**: to final consumer. The email is optional: if you enter the customer's, we send it to them; without one, it's still generated so it can be printed.\n- **Personalized electronic invoice**: in the customer's name, with **Name or company**, type and **ID number** (without the check digit) and **Email**, which is required here. It doesn't ask for address, city or department.\n\nThen you'll see **Invoice requested**; to change something, tap **Edit details**.\n\n### Which printer it comes out of\n\nIn [Settings › Network printers](/operator/settings/impresoras), **Invoices** section:\n\n- **Printer for invoices**: the one that prints invoices. If you don't choose one, they go to **Every invoice printer (default)**.\n- **Print the invoice automatically when the bill is paid**: on by default. When it's off, the invoice only prints when someone reprints it from Orders.\n\nThe details are in [Check your printers from the panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n\n## View or reprint an invoice\n\n1. Go to **Orders** and find the bill. With electronic invoicing you can also look it up by invoice number in [Orders › Invoices](/operator/facturas): each row has the same buttons.\n2. In the **Invoice** column, tap **View invoice** to open it in another tab, or **Reprint invoice** to send it to the printer again. The same options are in the bill's detail, in the **Invoice** section.\n\nWhen you reprint, a message tells you what came out and where:\n\n- **\"Electronic invoice sent to Register ✓\"**: the accepted electronic invoice printed.\n- **\"The receipt was printed on Register: DIAN hasn't accepted this bill's electronic invoice yet.\"**: the receipt printed, because the electronic invoice isn't accepted yet. Once DIAN accepts it, reprint it.\n- **\"There's no invoice printer on the print agent: printing from the browser instead.\"** or **\"The print agent is not responding: printing from the browser instead.\"**: the browser's print dialog opens on the same screen. To print like kitchen tickets, choose a printer from the printing program in the **Invoices** section.\n\nReprinting works even if automatic printing is off.\n\n## Resend an invoice by email\n\nWith electronic invoicing, the accepted invoice is emailed on its own to the address the customer left. If it didn't arrive or they deleted it:\n\n1. In **Orders** (or in the bill's detail), tap **Resend by email**. It's also in [Invoices](/operator/facturas).\n2. Wait for the message **\"Sent to customer@email.com ✓\"**.\n\nThe button only appears on invoices DIAN has already accepted, and the email goes to the address given when the invoice was requested. Without electronic invoicing, the receipt is emailed at payment if an address was left, and there's no button to resend it.\n\n## Common cases\n\n- **\"No one requested an invoice on this bill: there is no email to send it to.\"**: the invoice went to final consumer with no email. Print it with **Reprint invoice**, or open it with **View invoice** and send the customer that page's link.\n- **\"Sent to …, but without the XML attachment.\"**: the email went out, but without the invoice's XML file. Try again later; if the customer needs the XML and it still fails, contact support.\n- **The Invoice column shows \"—\"**: that bill has no invoice. Without electronic invoicing, nobody asked for one at payment.\n- **\"The chosen printer is off: invoices won't print until you turn it on or pick another one.\"**: turn it on or choose another one in the **Invoices** section.\n- **The invoice doesn't print**: follow the steps in [What to do when a ticket or invoice doesn't print](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).",
+      "links": [
+        {
+          "label": "Go to Orders",
+          "href": "/operator/orders"
+        },
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "notas-credito",
+      "title": "Issue an electronic credit note",
+      "summary": "Cancel or adjust, fully or partially, an invoice accepted by DIAN. Set up the credit note numbering, follow each note's status, and discard or reissue the ones that were rejected or not received.",
+      "keywords": [
+        "credit note",
+        "nota crédito",
+        "cancel invoice",
+        "void invoice",
+        "return",
+        "refund",
+        "discount",
+        "adjustment",
+        "CUDE",
+        "DIAN reason",
+        "credit note numbering",
+        "nc",
+        "numbering conflict",
+        "discard",
+        "reissue"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "An electronic credit note adjusts or cancels an invoice DIAN has already accepted: because of a return, a discount, a pricing error or because the invoice shouldn't have gone out that way. It's issued from MESAPAY and sent to DIAN, just like the invoice.\n\n> It only appears with electronic invoicing turned on, and it's handled by users with the Operator role.\n\n## Before the first note: the numbering\n\nCredit notes have their own numbering, separate from the invoices'. MESAPAY comes with the prefix NC.\n\n1. Go to [Orders › Invoices](/operator/facturas) and tap **Electronic credit notes**.\n2. In **Credit note numbering**, tap **Configure**.\n3. Check the **Prefix** (1 to 10 letters or numbers, different from your invoices') and the **Next sequence number**.\n4. Tap **Save numbering**.\n\n> ⚠ If you've already issued credit notes under this same NIT in another program, don't repeat their prefix and numbering: DIAN rejects a number that's already been used. Once used, the sequence number can't be lowered.\n\n## Issue a credit note\n\n1. In **Create a credit note**, type the full invoice number (for example, FE123) or the order code and tap **Search invoices**. Only accepted invoices show up, including final-consumer ones. From the Invoices list, **Cancel with a credit note** brings you here with the invoice already selected.\n2. Tap **Select** on the invoice. You'll see the **Available amount to adjust**.\n3. In **Adjustment type**, choose **All available balance** or **Partial amount per item**. With the partial one, you enter on each line the amount including tax that you want to adjust. It doesn't change quantities or inventory.\n4. Choose the **DIAN reason**. **2 · Cancellation of electronic invoice** is only allowed with the full adjustment and with no other active notes on that invoice.\n5. Write the **Explanation of the adjustment (required)**.\n6. Tap **Review credit note**, check the base, the taxes and the **Credit note total**, and tap **Confirm and send to DIAN**.\n\nThe note adjusts the invoice, but it doesn't refund the money: the refund to the customer is handled separately.\n\n## After you send it\n\nIn **Merchant credit notes** you see each note with its status: **Ready to send**, **Sent to DIAN**, **Validation pending**, **Accepted**, **Rejected**, **Sending error** or **Not received by the DIAN**. Tap **Refresh** to update the list and **View details** to open a note.\n\n- If DIAN accepts it, the note is sent to the original invoice's email. The detail has the **CUDE**, the QR code, **Verify document with DIAN**, **Download PDF**, **Download XML**, **Print copy** and **Resend email**.\n- If it's still in progress or has an error, tap **Check DIAN status** or **Send / retry**. Pending notes are also retried on their own.\n- The detail says whether the note has already been posted to the books. An accepted note is subtracted from the sales, taxes and receivables of the month it was issued in; it goes into the accounting when that month's entries are generated. See [Understand how accounting works in MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n\n## Rejected or not received notes\n\nA note that was rejected for good, or that DIAN didn't receive, can be cleared out of the way:\n\n- **Discard**: the note leaves the list and the invoice is free for another note. The number isn't reused and the record is kept.\n- **Discard and issue again**: discards the note and creates an identical one (same invoice, reason, explanation and amounts), which is sent to DIAN with a new number.\n\nDiscarded notes don't show in the list. To see them, tap **Show discarded (…)**.\n\n### The numbering conflict\n\nIf your NIT already used the note's number in another system, DIAN rejects it and the series is left in conflict. For example, if your old notes in another program were also NC, MESAPAY's new NC notes clash with them. In that case:\n\n- If you already have another series with no conflict and with accepted notes (for example, NCM), new notes go out on their own in that series. The top of the screen says so: **\"The NC series has a numbering conflict with the DIAN: new notes are issued in the NCM series.\"**\n- If not, set up a prefix you've never used with that NIT in **Credit note numbering**.\n\nThen, on the rejected note, tap **Discard and issue again**.\n\n## Common cases\n\n- **\"No accepted invoices match your search.\"**: type the full number, with its prefix, or the order code. A rejected or not-issued invoice can't be adjusted.\n- **\"This invoice has no available balance for a new credit note.\"**: other notes have already adjusted its full value.\n- **\"Cancellation requires the entire invoice, with no other active notes.\"**: use **All available balance** or another reason.\n- **\"This note cannot be discarded in its current state.\"**: DIAN may still consider it valid. Tap **Check DIAN status** first.\n- **\"There is no credit note series without a conflict.\"**: set up a new prefix and try again.",
+      "links": [
+        {
+          "label": "Go to Credit notes",
+          "href": "/operator/facturas/notas-credito"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "clientes-de-facturacion",
+      "title": "Create customers to invoice",
+      "summary": "Save people's and businesses' details in Billing customers and load them with one tap when invoicing. That's also where you enable credit, with a limit and terms, and a commercial discount.",
+      "keywords": [
+        "customers",
+        "regular customer",
+        "business",
+        "nit",
+        "id number",
+        "legal name",
+        "billing details",
+        "credit",
+        "tab",
+        "accounts receivable",
+        "payment",
+        "statement",
+        "discount",
+        "registered diners"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In **Billing customers** you save the name, document and email of the people and businesses you invoice often, so you don't type them at every checkout. That's also where you let a customer pay on credit and give them a fixed commercial discount.\n\nGo to **Orders › Customers**. Operator users see this section.\n\n## Create a customer\n\n1. Tap **Create customer**.\n2. Enter the **Full name or legal business name**.\n3. Choose the **Document type**: **Citizenship ID (CC)**, **NIT**, **Foreign resident ID** or **Passport**.\n4. Enter the **Document number**. For a NIT, the number only, without the check digit: MESAPAY calculates it and sends it to DIAN.\n5. Enter the **Email address**, which is where invoices arrive, and the **Phone number** if you want.\n6. If it applies, set up **Credit** and **Discount** (see below).\n7. Tap **Save customer**.\n\nAddress and city aren't requested: the invoice in the customer's name is issued without them.\n\n## Search and edit\n\n- In **Search billing customers**, type a name, document or email. The list shows up to 50 customers; use search for the rest.\n- Each customer shows their document, email and phone, and the **Credit** or **Discount** tags with its percentage.\n- To change details, tap **Edit** and then **Save changes**. A customer can't be deleted: if you no longer invoice them, simply don't use them.\n\n## Credit\n\nUnder **Credit**, check **Allow paying on credit**. When charged, the bill becomes the customer's debt: it never enters the cash drawer, it goes to receivables.\n\n- **Credit limit**: empty means no limit. It's checked against today's debt plus the bill being charged.\n- **Terms (days)**: the days they have to pay. It starts at 30. With electronic invoicing, the invoice for a credit sale is issued with credit as the payment method and falls due according to these terms.\n\nWith credit on, the customer's row shows the **Debt** (or **No debt**), the limit and what's **Available**, plus two buttons:\n\n- **Record payment**: logs a payment toward their debt. Enter the **Amount**, the **Date**, the **Account the money went into** and, if you want, a **Note (optional)**, then tap **Record payment**. The payment is applied to the oldest bills first.\n- **Statement**: the bills charged on credit and the payments, with the balance. A payment recorded by mistake is undone with **Reverse payment**; the debt goes back up.\n\nThe bill is charged on credit from the payment screen, with **Charge on credit**. If you have the accounting module, the debts also show up in [Receivables & payables](/operator/ayuda/contabilidad-y-reportes/cartera).\n\n## Discount\n\nUnder **Discount**, check **Apply a commercial discount** and enter the **Percentage**, up to 50%. It's applied to the bill when the bill is linked to this customer: at checkout or when requesting an invoice in their name.\n\n## Use the customer when invoicing\n\n- When you request the **Personalized electronic invoice**, at checkout or on a [manual invoice](/operator/ayuda/facturacion/factura-manual), search in **Find a registered customer** and tap the customer: their details load into the form.\n- On the payment screen, the **Customer** box links the bill to a customer to apply their discount or charge on credit.\n\n## Billing customers and registered diners\n\nFurther down the same screen is **Registered diners**: the people who created their own account from the menu, with the table's QR code. You search them by **Exact ID number or email**, they show what they've spent, and their profile has a separate **Customer discount**, applied when you identify them at the table.\n\nA billing customer, on the other hand, is a contact you create to invoice them: they don't sign in to the menu and have no password.\n\n## Common cases\n\n- **\"A customer with this document type and number already exists at this business. Search for them to edit their details.\"**: that customer is already saved. Find them and tap **Edit**.\n- **\"The check digit doesn't match that NIT. Enter the number only.\"**: delete the digit after the hyphen.\n- **\"Enter a percentage between 0.01 and 50.\"**: the commercial discount goes up to 50%.\n- **\"The payment cannot exceed the debt (…).\"**: the payment is larger than what they owe. Check the **Amount**.\n- **\"Your account cannot save customers.\"** or you don't see the section: only Operator users create and edit customers.",
+      "links": [
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

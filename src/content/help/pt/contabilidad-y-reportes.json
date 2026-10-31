@@ -1,5 +1,568 @@
 {
   "title": "Contabilidade e relatórios",
   "description": "Despesas, plano de contas, lançamentos, fechamento do mês, livros, demonstrações, impostos, contas a receber e Pulso.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "como-funciona-la-contabilidad",
+      "title": "Entenda como funciona a contabilidade no MESAPAY",
+      "summary": "O que há nos menus Contabilidade e Relatórios, como o MESAPAY monta um lançamento resumo por mês e por origem a partir da operação, e por que é preciso tocar em “Gerar / atualizar lançamentos” antes de olhar os livros.",
+      "keywords": [
+        "contabilidade",
+        "lançamentos",
+        "lançamento resumo",
+        "partidas dobradas",
+        "puc",
+        "plano de contas",
+        "motor contábil",
+        "gerar lançamentos",
+        "relatórios",
+        "todos os relatórios",
+        "contador",
+        "módulo de contabilidade",
+        "diário"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A contabilidade do MESAPAY transforma o que acontece no seu restaurante (vendas, recebimentos, compras, despesas, folha) em lançamentos de partidas dobradas no plano de contas colombiano (PUC). Assim você e o seu contador têm livros, demonstrações financeiras e impostos sem digitar venda por venda.\n\n> Se você não vê **Contabilidade** nem **Relatórios** no menu lateral, o seu comércio não tem o módulo de contabilidade ativo. Fale com o suporte se precisar dele.\n\n## Quem pode ver\n\nAs telas de contabilidade ficam disponíveis para usuários com o perfil Operador. Se o seu contador vai trabalhar diretamente no MESAPAY, crie um usuário para ele em [Configurações › Usuários](/operator/settings/usuarios), como explicado em [Crie os usuários da sua equipe](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n\n## Os dois menus\n\n**Contabilidade** reúne o trabalho do mês: **Despesas e diário** (a tela Contabilidade com suas abas), **Plano de contas**, **Lançamentos**, **Livro razão**, **Livro diário / auxiliar**, **Orçamentos**, **Ativos fixos**, **Diferidos** e **Fechamento de período**.\n\n**Relatórios** reúne o que se consulta, exporta e imprime: **Todos os relatórios**, **Comissões de vendas**, **Contas a receber e a pagar**, **Impostos do período**, **Balanço patrimonial**, **Demonstração do resultado**, **Balancete de verificação** e **Informação exógena**.\n\n[Todos os relatórios](/operator/reportes) mostra cada relatório em um cartão, agrupado em **Contábeis**, **Financeiros**, **Tributários**, **Comerciais** e **Operacionais**. Em Operacionais estão o **Fechamento de turno**, o **P&L operacional** e os **Livros de vendas e compras**.\n\n## As abas de Contabilidade\n\n- **Despesas**: aluguel, contas de consumo e demais despesas do negócio. Veja [Registre despesas e despesas recorrentes](/operator/ayuda/contabilidad-y-reportes/registrar-gastos).\n- **P&L** e **Livros**: o resultado do mês e os livros de vendas e compras. Veja [Leia o P&L do mês e exporte os livros](/operator/ayuda/contabilidad-y-reportes/pyg-y-libros-del-mes).\n- **Plano de contas**: veja [Ajuste o plano de contas](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **Diário**: os lançamentos do mês, com os botões para gerá-los e fechar o mês. Veja [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **Demonstrações**: um resumo da demonstração de resultados, do balanço patrimonial e do balancete de verificação do mês, com o aviso **Confere** ou **Não confere**.\n- **Impostos**, **Bancos**, **Ativos** e **Orçamento**: veja [impostos e retenções](/operator/ayuda/contabilidad-y-reportes/impuestos-y-retenciones), [conciliação bancária](/operator/ayuda/contabilidad-y-reportes/conciliacion-bancaria), [ativos fixos e diferidos](/operator/ayuda/contabilidad-y-reportes/activos-fijos-y-diferidos) e [orçamentos e centros de custos](/operator/ayuda/contabilidad-y-reportes/presupuestos-y-centros-de-costos).\n\nNo topo fica o seletor de mês (◀ ▶). Todas as abas mostram o mês escolhido, menos **Plano de contas**, **Bancos** e **Ativos**, que não dependem do mês.\n\n## Como os lançamentos são montados\n\nO MESAPAY não faz um lançamento por venda. Para cada mês ele monta **um lançamento resumo por origem**, com data do último dia do mês:\n\n- **Vendas do mês**: o que foi recebido, separado por forma de pagamento (o dinheiro vai para o caixa, a maquininha própria para bancos, os pagamentos online para o saldo no gateway e as vendas a crédito para clientes), contra as receitas, o IVA ou INC que cada fatura congelou e as gorjetas a pagar.\n- **Pagamentos de clientes**, **Pagamentos a fornecedores** e **Pagamentos de despesas**.\n- **Compras do mês**: as ordens de compra recebidas, com o IVA descontável e as retenções, contra fornecedores.\n- **Custo das vendas** e **Perdas**, se você usa estoque e receitas.\n- **Despesas do mês**, **Folha de pagamento**, **Depreciação do mês**, **Amortização de diferidos**, **Devoluções** e **Notas de crédito do mês**.\n\nA esses se somam os que você registra: lançamentos manuais, movimentos bancários, pagamentos de impostos e o encerramento do exercício.\n\n## A regra principal: gere os lançamentos\n\nOs lançamentos resumo não são criados sozinhos. Sempre que quiser ver os livros em dia:\n\n1. Entre em [Contabilidade](/operator/contabilidad?tab=diario) e abra a aba **Diário**.\n2. Escolha o mês com ◀ ▶.\n3. Toque em **Gerar / atualizar lançamentos**.\n\nCada vez que você toca, o MESAPAY remonta os lançamentos resumo desse mês com o que houver naquele momento: uma compra recebida ou uma despesa registrada depois entra na próxima vez. Os seus lançamentos manuais não são alterados.\n\nO livro diário, o livro razão, o balancete e as demonstrações financeiras leem esses lançamentos. Já o **P&L** e os **Livros** de vendas e compras são calculados ao vivo a partir da operação e não precisam do botão.\n\n## Casos frequentes\n\n- **O livro razão ou a demonstração do resultado aparecem vazios**: os lançamentos desse mês ainda não foram gerados. Vá à aba **Diário** e toque em **Gerar / atualizar lançamentos**.\n- **Registrei uma despesa e ela não aparece nos livros**: gere de novo os lançamentos do mês da despesa. Se esse mês já estiver fechado, reabra-o primeiro.\n- **O P&L e a demonstração do resultado não batem**: é normal. O P&L é um resumo operacional; a demonstração do resultado sai dos lançamentos, com as receitas sem imposto e descontando notas de crédito, devoluções, depreciação e lançamentos manuais.\n- **Falta um lançamento resumo depois de gerar**: acontece se você desativou todas as contas auxiliares de uma conta que o MESAPAY usa (por exemplo, Bancos). Ative pelo menos uma no plano de contas e gere de novo.",
+      "links": [
+        {
+          "label": "Ir para Contabilidade",
+          "href": "/operator/contabilidad"
+        },
+        {
+          "label": "Ir para o Diário do mês",
+          "href": "/operator/contabilidad?tab=diario"
+        },
+        {
+          "label": "Ir para Todos os relatórios",
+          "href": "/operator/reportes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "registrar-gastos",
+      "title": "Registre despesas e despesas recorrentes",
+      "summary": "Registre aluguel, contas de consumo, honorários e demais despesas com sua conta, fornecedor e centro de custos, informe se já foram pagas e programe as que se repetem todo mês.",
+      "keywords": [
+        "despesas",
+        "nova despesa",
+        "despesa recorrente",
+        "aluguel",
+        "contas de consumo",
+        "gastos",
+        "conta da despesa",
+        "despesas a pagar",
+        "fornecedor",
+        "centro de custos",
+        "pago",
+        "vencimento",
+        "modelo"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Despesas são o que o restaurante paga e não é compra de insumos: aluguel, contas de consumo, internet, honorários, publicidade, manutenção. Ao registrá-las, o P&L as desconta e elas entram na contabilidade do mês.\n\n> As compras de insumos de fornecedores são registradas em **Administração › Compras** (se você tiver esse módulo), não aqui.\n\n## Registrar uma despesa\n\n1. Entre em [Contabilidade › Despesas e diário](/operator/contabilidad). Abre a aba **Despesas** do mês atual, com o **Total do mês**.\n2. Toque em **Nova despesa**.\n3. Preencha os dados (cada um é explicado abaixo).\n4. Se já pagou, deixe marcado **Já está pago** e escolha em **Pago a partir de** o caixa ou o banco de onde saiu o dinheiro. Se ficou devendo, desmarque e informe a data em **Vence**.\n5. Toque em **Salvar**.\n\nOs dados da despesa:\n\n- **Categoria** (obrigatória): escreva livremente, por exemplo \"Aluguel\" ou \"Contas de consumo\". As que você já usou aparecem como sugestão.\n- **Descrição**: opcional.\n- **Valor** e **Data** (obrigatórios). A data define em que mês a despesa cai.\n- **Fornecedor**: se você tem o módulo de compras, escolha um ou crie ali mesmo com **+ Novo fornecedor**.\n- **Centro de custos**: aparece quando você já criou centros de custos. Veja [Monte orçamentos e use centros de custo](/operator/ayuda/contabilidad-y-reportes/presupuestos-y-centros-de-costos).\n- **Conta da despesa**: a conta do PUC em que ela é lançada. Com **Automática (pela categoria)**, o MESAPAY a deduz das palavras da categoria (em espanhol): aluguel, honorários, internet ou telefone, contas de consumo, manutenção, comissões, publicidade ou folha. O que ele não reconhece vai para despesas diversas. Se o seu contador abriu contas próprias, convém escolher uma.\n\n## Despesas recorrentes\n\nPara as que se repetem iguais todo mês, como o aluguel ou o plano de internet:\n\n1. Toque em **Nova despesa** e preencha categoria, valor e os demais dados.\n2. Ative **Despesa recorrente (se repete todo mês)**.\n3. Em **Dia do mês (1-28)**, informe o dia em que ela deve ser criada.\n4. Toque em **Salvar**.\n\nO modelo fica na lista **Despesas recorrentes**, com a marca **Recorrente** e o texto \"Todo mês no dia…\". Nesse dia, o MESAPAY cria sozinho a despesa do mês, com a categoria, a descrição, o valor e o fornecedor do modelo. Essa despesa fica pendente de pagamento.\n\n> Se você criar o modelo depois do dia escolhido, a primeira despesa sai no mês seguinte. Registre a deste mês à mão.\n\nPara parar de repeti-la, abra o modelo e toque em **Remover**. As despesas já criadas em meses anteriores são mantidas.\n\n## Editar ou excluir uma despesa\n\n1. Escolha o mês com ◀ ▶ e toque na despesa na lista.\n2. Altere o que precisar e toque em **Salvar**, ou toque em **Remover** e confirme.\n\nEditar não altera o que já foi registrado como pago.\n\n## O que acontece na contabilidade\n\nQuando você gera os lançamentos do mês, as despesas entram no lançamento **Despesas do mês**: débito na conta de cada despesa e crédito em custos e despesas a pagar. O que você marcou como pago entra em **Pagamentos de despesas**: débito em custos e despesas a pagar e crédito no caixa ou banco escolhido. As despesas que ficaram devendo aparecem em [Contas a receber e a pagar › contas a pagar](/operator/ayuda/contabilidad-y-reportes/cartera), com o vencimento.\n\n## Casos frequentes\n\n- **\"Revise os campos: há dados inválidos.\"**: falta a categoria ou a data.\n- **\"Valor inválido.\"**: o valor precisa ser maior que zero.\n- **\"Escolha o dia do mês (1-28) para a despesa recorrente.\"**: informe um dia entre 1 e 28.\n- **\"Já existe um fornecedor com esse nome.\"**: escolha-o na lista em vez de criá-lo de novo.\n- **Não vejo o campo Fornecedor**: depende do módulo de compras. Fale com o suporte se precisar dele.\n- **Deixei como devida e já paguei**: hoje a tela de despesas não tem um botão para registrar esse pagamento depois. Se você pagou no mesmo dia da despesa, exclua-a e crie de novo com **Já está pago**; caso contrário, fale com o suporte.\n- **Registrei uma despesa de um mês já fechado**: ela aparece em **Despesas** e no P&L, mas não entra nos livros até você reabrir esse mês e gerar os lançamentos de novo. Veja [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).",
+      "links": [
+        {
+          "label": "Ir para Despesas",
+          "href": "/operator/contabilidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pyg-y-libros-del-mes",
+      "title": "Leia o P&L do mês e exporte os livros",
+      "summary": "O P&L resume vendas, custos, despesas e lucro do mês ao vivo a partir da operação. A aba Livros lista vendas e compras, e dela saem os CSV e o Excel para o seu contador.",
+      "keywords": [
+        "p&l",
+        "dre",
+        "demonstração de resultado",
+        "lucro",
+        "cmv",
+        "margem bruta",
+        "prime cost",
+        "livro de vendas",
+        "livro de compras",
+        "exportar csv",
+        "excel para o contador",
+        "custo de pessoal",
+        "perdas"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O **P&L** mostra de relance se o mês está dando lucro, e **Livros** traz o detalhe de vendas e compras para entregar ao seu contador. As duas abas são calculadas ao vivo com o que acontece no restaurante: não é preciso gerar lançamentos.\n\n## Ver o P&L do mês\n\n1. Entre em [Contabilidade › P&L](/operator/contabilidad?tab=pnl).\n2. Escolha o mês com ◀ ▶.\n\nEle se lê de cima para baixo:\n\n- **Receita de vendas**: a soma dos pratos das contas recebidas no mês, a preço de cardápio (com o imposto que já vem incluído no preço, antes de descontos e sem gorjeta). Abaixo, só como referência, **Gorjetas (informativo)** e **Impostos recolhidos (informativo)**.\n- **CMV (consumo real)**: o custo dos insumos que saíram do estoque segundo as receitas do que foi vendido.\n- **Perdas**: o que foi baixado do estoque.\n- **Margem bruta**, com a porcentagem sobre as vendas.\n- **Custo de pessoal**: se você tem o módulo de horários, a base salarial mais os adicionais de feriados e domingos dos turnos.\n- **Despesas**: por categoria, incluídas as **Compras de insumos sem controle de estoque**.\n- **Lucro operacional**: em verde quando há lucro e em vermelho quando há prejuízo.\n\nMais abaixo:\n\n- **Impostos**: o **Imposto sobre vendas** com sua **Base tributável**, por alíquota, e os **Impostos das compras** (IVA, INC e retenções). Para mudar o imposto sobre vendas toque em **Configurar**, que leva a Configurações › Impostos. Veja [Configure o imposto sobre vendas](/operator/ayuda/facturacion/impuesto-de-ventas).\n- **Vendas por categoria**: vendas, CMV e margem de cada categoria do cardápio.\n- **Prime cost (CMV + perdas + pessoal)**: a parte das vendas que vai para insumos e pessoal (com o módulo de horários).\n- **Compras recebidas no mês (informativo)**: o que entrou dos fornecedores. Não reduz o resultado: o custo entra pelo CMV quando é consumido.\n\n## Ver os livros de vendas e compras\n\n1. Entre em [Contabilidade › Livros](/operator/contabilidad?tab=books) e escolha o mês.\n2. Escolha **Vendas** ou **Compras**.\n\nEm **Vendas** está cada conta recebida no mês: mesa ou retirada, gorjeta, imposto, total e número da fatura, com os totais **Por método de pagamento**. Se você emite notas de crédito eletrônicas, elas aparecem em **Notas de crédito do mês**: as aceitas pela DIAN com data no mês, que reduzem as vendas, e o **Total líquido de notas de crédito**. Veja [Emita uma nota de crédito eletrônica](/operator/ayuda/facturacion/notas-credito).\n\nEm **Compras** estão as ordens de compra recebidas no mês, com fornecedor, número da fatura e vencimento, marcadas **Paga**, **A pagar** ou **Vencida**, e os totais **Recebido no mês** e **Total a pagar**.\n\n## Exportar para o seu contador\n\nNa aba **Livros**:\n\n- **Exportar CSV**: o livro que estiver aberto (vendas ou compras) do mês.\n- **Exportar despesas (CSV)**: as despesas do mês.\n- **Baixar Excel para o contador**: um único arquivo com as planilhas Vendas, Retenções, Custos de vendas e Estoques. Em Vendas, as notas de crédito aceitas do mês aparecem em negativo e o total fica líquido delas.\n\n> Os valores vêm como números, para que o seu contador possa somá-los e filtrá-los.\n\n## Casos frequentes\n\n- **O CMV aparece zerado**: se você vê \"Ainda não há consumo registrado neste mês…\", o CMV precisa dos módulos de estoque e receitas, e que os pratos tenham receita. As compras nunca são usadas como custo.\n- **\"Este comércio está faturando SEM imposto sobre vendas.\"**: revise o imposto com o seu contador em Configurações › Impostos.\n- **O P&L não bate com a demonstração do resultado**: o P&L é um resumo operacional com as receitas a preço de cardápio; não desconta notas de crédito nem inclui depreciação, diferidos ou lançamentos manuais. Para os números contábeis use a demonstração do resultado, que sai dos lançamentos. Veja [Consulte os livros oficiais e as demonstrações financeiras](/operator/ayuda/contabilidad-y-reportes/libros-y-estados-financieros).\n- **O custo de pessoal não aparece**: depende do módulo de horários e de a sua equipe ter salário. Se você vê \"funcionários sem salário\", complete em Horários.\n- **Uma despesa não muda o lucro**: confira a data; ela conta no mês dessa data.",
+      "links": [
+        {
+          "label": "Ir para o P&L",
+          "href": "/operator/contabilidad?tab=pnl"
+        },
+        {
+          "label": "Ir para Livros",
+          "href": "/operator/contabilidad?tab=books"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "plan-de-cuentas",
+      "title": "Ajuste o plano de contas",
+      "summary": "O MESAPAY traz o PUC para restaurantes sob NIIF Grupo 2. Crie contas e auxiliares (com ajuda da IA, se quiser), importe o plano do seu contador, exporte-o e desative as contas que não usa.",
+      "keywords": [
+        "plano de contas",
+        "puc",
+        "conta contábil",
+        "conta auxiliar",
+        "subconta",
+        "niif",
+        "importar plano de contas",
+        "sugerir com ia",
+        "desativar conta",
+        "conta mãe",
+        "catálogo de contas",
+        "transferir lançamentos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O plano de contas é a lista de contas do PUC onde caem todos os lançamentos. O MESAPAY o traz pronto para restaurantes, sob NIIF Grupo 2 (PYMES), e você ou o seu contador podem adaptá-lo: criar contas e auxiliares, importar o plano do contador, exportá-lo e desativar o que não usam.\n\n## Buscar uma conta\n\n1. Entre em [Contabilidade › Plano de contas](/operator/contabilidad?tab=chart).\n2. Digite um código ou um nome em **Buscar por código ou nome…**.\n\nAs contas aparecem em árvore: classe (1 dígito), grupo (2), conta (4), subconta (6) e auxiliares (8 e 10). Cada uma mostra seu tipo e sua natureza (**Débito** ou **Crédito**). As contas agrupadoras não recebem lançamentos; eles caem nas contas filhas.\n\n## Criar uma conta ou uma auxiliar\n\n1. Toque em **Nova conta**, ou em **Adicionar auxiliar** ao lado da conta que será a mãe.\n2. Em **Conta mãe**, busque por código ou nome e escolha. A conta nova herda o tipo e a natureza dela.\n3. Em **Código**, digite o código da mãe mais dois dígitos. Por exemplo, abaixo de 111005 vai 11100501.\n4. Digite o **Nome**, por exemplo \"Bancolombia poupança\".\n5. Toque em **Criar conta**.\n\n### Com ajuda da IA\n\nNo mesmo formulário, em **Sugerir com IA**, descreva a conta de que precisa (por exemplo, \"conta poupança Bancolombia\" ou \"gorjetas a pagar\") e toque em **Sugerir com IA**. A IA preenche a mãe, o código e o nome, e explica por que escolheu esse lugar. Revise e corrija o que for preciso: nada é criado até você tocar em **Criar conta**.\n\n### Se a mãe já tinha lançamentos\n\nQuando você cria uma auxiliar abaixo de uma conta que já recebia lançamentos, o MESAPAY os transfere para a auxiliar nova e a mãe passa a ser agrupadora. Você verá o aviso \"Conta … criada. A conta mãe … tinha lançamentos: … linhas foram transferidas para a nova conta auxiliar.\" O saldo não se perde: agora fica na auxiliar.\n\nA partir daí, o que o MESAPAY lançava na mãe cai na auxiliar. Se você abrir várias auxiliares abaixo de uma conta que o MESAPAY usa (por exemplo, uma por banco), os lançamentos automáticos vão para a que termina em 05 ou, se não houver, para a de código mais baixo.\n\n## Importar o plano do seu contador\n\n1. Toque em **Importar o plano de contas do meu contador**.\n2. Cole as contas, uma por linha: código, nome, natureza e se aceita lançamentos. Por exemplo, `110505;Caixa geral;D;true`.\n3. Toque em **Importar contas**.\n\nVocê pode copiar as colunas direto de uma planilha: servem ponto e vírgula, tabulação ou vírgula, e a primeira linha pode trazer os títulos. Na natureza vai D ou C; em aceita lançamentos, \"true\", \"sí\", \"S\", \"X\" ou \"1\" (vazio a deixa como agrupadora).\n\nA importação só acrescenta: cria as contas novas, atualiza o nome e a natureza das que já existem e cria as agrupadoras que faltarem. Nunca exclui. No final você vê quantas foram criadas e atualizadas e, se houver, as linhas que ficaram de fora com o motivo.\n\n## Exportar\n\n**Exportar CSV** baixa o plano completo: código, nome, tipo, natureza, se recebe lançamentos e se está ativa.\n\n## Renomear ou desativar\n\n1. Toque em **Editar** ao lado da conta.\n2. Altere o nome e toque em **Salvar**, ou toque em **Desativar** (ou **Ativar**).\n\nNenhuma conta é excluída. As desativadas ficam marcadas como **Inativa**.\n\n## Casos frequentes\n\n- **\"Não é possível desativar: a conta tem lançamentos.\"**: uma conta com lançamentos não pode ser desativada.\n- **\"Não é possível desativar: o motor contábil lança nesta conta.\"**: é uma das contas que o MESAPAY usa nos lançamentos automáticos (caixa, bancos, vendas, IVA, fornecedores…). Se quiser mais detalhe, crie auxiliares abaixo dela.\n- **\"Não é possível desativar: tem contas filhas ativas.\"**: desative primeiro as filhas.\n- **\"Primeiro ative a conta mãe.\"**: ative a mãe e depois a filha.\n- **\"O código deve começar pelo código da conta mãe e ter exatamente mais dois dígitos.\"**: revise o código.\n- **\"Já existe uma conta com esse código.\"**: use outro código ou busque a que já existe.\n- **\"A IA não está disponível neste momento.\"**: crie a conta à mão ou tente mais tarde.\n- **\"Nenhuma conta válida foi encontrada no que você colou.\"**: confira se cada linha começa com um código numérico de 1, 2, 4, 6, 8 ou 10 dígitos, com a classe entre 1 e 6.",
+      "links": [
+        {
+          "label": "Ir para o Plano de contas",
+          "href": "/operator/contabilidad?tab=chart"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cerrar-el-mes-contable",
+      "title": "Gere os lançamentos e feche o mês",
+      "summary": "Gere os lançamentos do mês, confira se batem e feche o período: os lançamentos ficam numerados e bloqueados. No fim do ano, gere o lançamento de encerramento do exercício.",
+      "keywords": [
+        "fechamento do mês",
+        "fechamento contábil",
+        "fechamento de período",
+        "fechar mês",
+        "reabrir mês",
+        "bloqueio",
+        "numeração de lançamentos",
+        "encerramento do exercício",
+        "fechamento anual",
+        "lucro do exercício",
+        "gerar lançamentos",
+        "confere"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Fechar o mês deixa os livros definitivos: os lançamentos até esse mês recebem número consecutivo e o período fica bloqueado, para que nada mude depois que o seu contador o revisou. No fim do ano, gera-se também o lançamento de encerramento do exercício.\n\n## Antes de fechar\n\n1. Confira se está tudo do mês: compras recebidas, despesas, folha, conciliação bancária e lançamentos manuais.\n2. Entre em [Contabilidade › Diário](/operator/contabilidad?tab=diario), escolha o mês com ◀ ▶ e toque em **Gerar / atualizar lançamentos**.\n3. Abra a aba **Demonstrações** e confira se o balanço patrimonial e o balancete de verificação dizem **Confere**.\n4. Crie uma cópia de segurança, caso seja preciso voltar atrás. Veja [Crie e restaure cópias de segurança](/operator/ayuda/impresion-y-equipos/copias-de-seguridad).\n\n## Fechar o mês\n\n1. Entre em [Contabilidade › Fechamento de período](/operator/contabilidad/cierre).\n2. Em **Situação do fechamento** você vê o **Último mês fechado** e o **Próximo número de lançamento**.\n3. Na tabela **Meses de** (o ano), cada mês aparece como **Fechado**, **Aberto** ou **Futuro**, com quantos lançamentos tem e quantos já estão numerados. Mude de ano com ◀ ▶.\n4. Toque em **Fechar mês** na linha do mês e confirme.\n\nOs meses fecham em ordem: o botão aparece só no seguinte ao último fechado (ou, se você nunca fechou, no primeiro mês com lançamentos), e nunca em um mês futuro. Na aba **Diário** também existe **Fechar mês**: fechar ali um mês fecha também os anteriores que continuem abertos.\n\n### O que acontece ao fechar\n\n- Os lançamentos sem número até esse mês, incluindo os de meses anteriores, recebem número consecutivo em ordem de data. Nos meses abertos, os lançamentos aparecem sem número.\n- O mês fica bloqueado: seus lançamentos não podem mais ser regenerados e não se registram lançamentos com data nesse mês. Em **Diário** você verá \"Período fechado até…\".\n- Uma despesa registrada com data de um mês fechado aparece em **Despesas** e no P&L, mas não entra nos livros enquanto o mês continuar fechado.\n- Uma nota de crédito eletrônica aceita com data de um mês fechado é contabilizada no primeiro mês aberto.\n\n## Reabrir o último mês\n\nSe for preciso corrigir algo:\n\n1. Em **Situação do fechamento**, toque em **Reabrir último mês** (com o nome do mês) e confirme. Também está na aba **Diário**.\n2. O bloqueio recua um mês. Corrija e toque de novo em **Gerar / atualizar lançamentos**.\n3. Feche o mês outra vez.\n\nOs números já atribuídos são mantidos. Se você regenerou, os lançamentos novos recebem números novos ao fechar de novo, seguindo a sequência. Só o último mês fechado pode ser reaberto: para chegar a um anterior, reabra um por um.\n\n## Encerramento do exercício\n\nNo fim do ano:\n\n1. Feche os doze meses. Enquanto faltar algum, a seção avisa quantos continuam abertos.\n2. Em **Encerramento do exercício** (o ano), toque em **Gerar lançamento de encerramento** e confirme.\n\nÉ criado um único lançamento em 31 de dezembro que encerra as contas de resultado (classes 4, 5 e 6) e leva o líquido para 360505 (lucro do exercício) ou 361005 (prejuízo do exercício). A seção mostra a data em que foi gerado e o **Lucro do exercício** ou o **Prejuízo do exercício**. Se você mudar algo depois, toque em **Regenerar lançamento de encerramento**: ele substitui o anterior pelos saldos atuais.\n\n## Casos frequentes\n\n- **\"Ainda não há lançamentos: gere o diário do mês antes de fechar.\"**: vá a **Diário** e toque em **Gerar / atualizar lançamentos**.\n- **Fechar mês não aparece no mês que eu quero**: falta fechar um mês anterior. Se você vê \"O próximo mês a fechar é…\", toque em **Ver** (o ano) para ir até ele.\n- **\"Esse mês já está fechado. Recarregue a página.\"**: alguém o fechou de outra tela. Recarregue a página.\n- **\"Não há nenhum mês fechado para reabrir.\"**: não há bloqueio para retirar.\n- **Preciso corrigir um mês de muito tempo atrás**: reabra mês a mês até chegar a ele ou, melhor, registre o ajuste no mês atual com um lançamento manual. Veja [Crie, edite ou estorne comprovantes contábeis](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables).\n- **O balanço diz Não confere**: revise com o seu contador os lançamentos manuais do mês e gere os lançamentos de novo. Se continuar igual, fale com o suporte.",
+      "links": [
+        {
+          "label": "Ir para Fechamento de período",
+          "href": "/operator/contabilidad/cierre"
+        },
+        {
+          "label": "Ir para o Diário do mês",
+          "href": "/operator/contabilidad?tab=diario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "comprobantes-contables",
+      "title": "Crie, edite ou estorne comprovantes contábeis",
+      "summary": "Consulte todos os lançamentos do livro, registre um comprovante manual de partidas dobradas e corrija: edite ou exclua os manuais de um mês aberto, ou estorne um comprovante quando o mês já estiver fechado.",
+      "keywords": [
+        "comprovante",
+        "lançamento manual",
+        "lançamento contábil",
+        "partidas dobradas",
+        "estornar",
+        "estorno",
+        "anular",
+        "anulado",
+        "ajuste contábil",
+        "reclassificação",
+        "terceiro",
+        "sem número",
+        "numeração",
+        "exportar csv",
+        "comprobante"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Os comprovantes são os lançamentos contábeis do seu negócio: os que o MESAPAY monta com a operação de cada mês e os que você registra à mão para ajustes, reclassificações ou movimentos que não passam pelo caixa. Aqui você os consulta, cria e corrige.\n\n## Onde ficam\n\nEntre em [Contabilidade › Lançamentos](/operator/contabilidad/comprobantes) (a tela se chama **Comprovantes contábeis**). Essa seção aparece se o seu negócio tem o módulo de contabilidade; se não a vê, fale com o suporte.\n\nA lista mostra, do primeiro dia do mês até hoje, cada comprovante com **Número**, **Data**, **Terceiro**, **Descrição**, **Origem** e **Total**. Para ver outro período ou um comprovante específico:\n\n1. Escreva em **Buscar por número ou descrição…** e ajuste **De** e **Até**.\n2. Toque em **Filtrar**. **Limpar** volta para o mês atual.\n3. Toque em um comprovante para ver as linhas, com os totais de **Débitos** e **Créditos** e a marca **Fechado ✓**.\n\nA **Origem** diz de onde saiu o lançamento: **Manual** para os que você registra e, para os que o MESAPAY monta, nomes como **Vendas do mês**, **Despesas do mês**, **Folha de pagamento**, **Depreciação do mês** ou **Movimento bancário**.\n\n## Quando recebem número\n\nEnquanto o mês está aberto, os comprovantes aparecem **Sem número**. Ao fechar o mês, todos os desse mês (e os de meses anteriores que continuem sem número) recebem o número sequencial em ordem de data, por exemplo #000123, e ficam definitivos. Veja [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## Criar um comprovante manual\n\n1. Toque em **Novo comprovante**.\n2. Informe a **Data** e uma **Descrição**, que é obrigatória; por exemplo, \"ajuste de caixa por diferença na contagem\".\n3. Se o movimento envolve alguém, preencha **Terceiro (nome)** e **CNPJ/CPF / documento**, ou toque em **Escolher** para buscá-lo entre seus fornecedores e clientes. O documento só aceita números e hífen, e não pode ser informado sem o nome.\n4. Em cada linha, busque a conta por **Código ou nome da conta** e escreva o valor em **Débito** ou em **Crédito**, nunca nos dois. Se você usa centros de custo, escolha o **Centro**. A observação da linha é opcional.\n5. Toque em **Adicionar linha** para as que faltarem. São necessárias pelo menos duas.\n6. Confira embaixo **Total de débitos**, **Total de créditos** e **Diferença**. Quando fecha, aparece **Fechado ✓**.\n7. Toque em **Salvar**.\n\nSó é possível registrar em meses abertos e em contas analíticas, ou seja, as que aceitam movimentos (não as sintéticas).\n\n> Os comprovantes manuais não são alterados quando o MESAPAY gera de novo os lançamentos do mês: continuam exatamente como estão.\n\n## Corrigir um comprovante\n\nO que você pode fazer depende da origem e de o mês estar aberto ou não:\n\n- **Manual, mês aberto**: **Editar** ou **Excluir**. Excluir o apaga do livro sem deixar rastro; se preferir que fique registro, use **Estornar**.\n- **Automático, mês aberto**: não se corrige à mão. Corrija o dado de origem (a despesa, a compra, a venda) e gere de novo os lançamentos em [Contabilidade › Diário](/operator/contabilidad?tab=diario) com **Gerar / atualizar lançamentos**.\n- **Qualquer origem, mês fechado**: só **Estornar**.\n\nEstornar cria um comprovante novo com as mesmas contas e os débitos e créditos trocados, e marca o original como **Anulado**. Os dois ficam no livro e se compensam. Se o mês do original estiver fechado, o estorno recebe a data do primeiro dia do primeiro mês aberto. Depois registre o lançamento correto com **Novo comprovante**.\n\nSe um estorno sobrar e o mês dele continuar aberto, exclua-o: o original volta a ficar **Contabilizado**.\n\n## Exportar\n\n**Exportar CSV** baixa as linhas dos comprovantes entre **De** e **Até**, com data, número, origem, terceiro, documento, conta, centro de custo, débito e crédito, prontas para o seu contador.\n\n## Casos frequentes\n\n- **\"O lançamento não fecha: os débitos devem igualar os créditos.\"**: veja a **Diferença** e corrija os valores.\n- **\"Esse mês está fechado. Reabra-o pelo Diário ou registre o lançamento em um mês aberto.\"**: mude a data para um mês aberto ou reabra o mês, como explicado em [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **\"a conta não aceita movimentos (é sintética).\"**: escolha uma subconta ou crie uma auxiliar, como explicado em [Ajuste o plano de contas](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"Só os comprovantes manuais podem ser editados ou excluídos; os automáticos são regenerados pelo Diário.\"**: corrija o dado de origem e gere o mês de novo.\n- **\"Um estorno não pode ser estornado; se não for necessário, exclua-o.\"**: exclua o estorno enquanto o mês dele continuar aberto.\n- **Um movimento bancário ou o registro de um diferido ficou errado e não aparece Editar nem Estornar**: esses lançamentos não são refeitos ao gerar o mês. Compense-os com um comprovante manual com as contas invertidas, ou estorne-os quando o mês estiver fechado.",
+      "links": [
+        {
+          "label": "Ir para Comprovantes",
+          "href": "/operator/contabilidad/comprobantes"
+        },
+        {
+          "label": "Criar um comprovante",
+          "href": "/operator/contabilidad/comprobantes/nuevo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conciliacion-bancaria",
+      "title": "Concilie o extrato do banco",
+      "summary": "Cole o extrato do seu banco na aba Bancos, contabilize cada movimento na conta certa ou deixe as regras fazerem isso, e ignore o que o MESAPAY já registrou por outra via.",
+      "keywords": [
+        "conciliação bancária",
+        "extrato",
+        "extrato bancário",
+        "banco",
+        "bancos",
+        "csv",
+        "movimentos do banco",
+        "tarifa bancária",
+        "4x1000",
+        "gmf",
+        "juros",
+        "regras",
+        "contabilizar",
+        "ignorar",
+        "conciliacion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A conciliação bancária serve para levar para a contabilidade os movimentos do banco que não passam pelo MESAPAY, como tarifas bancárias, o 4x1000 ou juros, revisando um por um o que vem no extrato.\n\n## Onde fica\n\nEm **Contabilidade › Despesas e diário**, aba **Bancos** ([ir para Bancos](/operator/contabilidad?tab=bancos)). Precisa do módulo de contabilidade; se não a vê, fale com o suporte.\n\n## Importar o extrato\n\n1. Baixe o extrato no internet banking em CSV ou Excel e copie as linhas dos movimentos.\n2. Cole-as em **Importar extrato**: uma linha por movimento, com data, descrição e valor.\n3. Toque em **Importar**. O aviso mostra quantos movimentos foram importados e quantas linhas foram ignoradas.\n\nO MESAPAY entende:\n\n- Colunas separadas por ponto e vírgula, vírgula ou tabulação.\n- Datas como 15/10/2026 ou 2026-10-15, em uma das três primeiras colunas.\n- Valores com ponto ou vírgula para milhares e decimais. Um valor negativo (com sinal de menos ou entre parênteses) é uma saída do banco; um positivo, uma entrada.\n\nAs linhas sem data ou sem valor, como os cabeçalhos, são ignoradas automaticamente.\n\n> ⚠ O MESAPAY usa como valor o último número de cada linha. Se o seu extrato tem uma coluna de saldo, tire-a antes de colar; e se traz débitos e créditos em colunas separadas, junte-os em uma só, com as saídas em negativo.\n\n> ⚠ Cole cada extrato uma única vez: se importar o mesmo período duas vezes, os movimentos ficam repetidos. Se acontecer, marque os repetidos com **Ignorar**.\n\n## Contabilizar movimento por movimento\n\nAbaixo aparecem os movimentos pendentes, com data, descrição e valor.\n\n1. Em cada um, escolha a conta em **Conta…**. A lista traz as contas analíticas de receitas, despesas e custos.\n2. Toque em **Contabilizar**. É registrado um lançamento contra a conta de bancos 111005 (Cuenta corriente / ahorros, conta corrente / poupança): uma entrada vai a débito do banco e a crédito da conta escolhida; uma saída, ao contrário.\n3. Se o movimento já está na contabilidade por outra via, toque em **Ignorar**.\n\nCada movimento contabilizado vira um comprovante com origem **Movimento bancário** em [Comprovantes](/operator/contabilidad/comprobantes). Todos vão para essa mesma conta de bancos, mesmo que você tenha várias contas no banco.\n\n> ⚠ Ignore o que o MESAPAY já lança no mês: as vendas, os pagamentos a fornecedores e os pagamentos de despesas registrados no MESAPAY. Se você também os contabilizar pelo extrato, ficam em dobro.\n\n## Regras automáticas\n\nPara os movimentos que se repetem todo mês:\n\n1. Em **Regras**, escreva um texto em **Se a descrição contém…** (por exemplo, \"4X1000\" ou \"COMISION\"), escolha a **Conta…** e toque em **Adicionar**.\n2. Toque em **Aplicar regras**. Cada movimento pendente cuja descrição contenha esse texto é contabilizado na conta da regra. Maiúsculas e acentos não importam e, se várias regras coincidirem, vale a que você criou primeiro.\n3. Para tirar uma regra, toque em **Excluir**.\n\nAs regras só agem quando você toca em **Aplicar regras**, não ao importar.\n\n## Meses fechados\n\nUm movimento com data em um mês fechado não pode ser contabilizado. Ao aplicar regras, esses são pulados e o aviso diz quantos ficaram em meses fechados. Se realmente for preciso registrá-lo nesse mês, primeiro é preciso reabri-lo; veja [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## Casos frequentes\n\n- **\"Esse movimento cai em um mês fechado — reabra o período primeiro.\"**: reabra o mês ou, com o seu contador, registre o ajuste no mês aberto com um comprovante manual.\n- **Muitas linhas ignoradas**: confira se cada linha tem a data em uma das três primeiras colunas e um valor diferente de zero.\n- **Não encontro a conta na lista**: só aparecem contas analíticas de receitas, despesas e custos. Para um empréstimo, uma transferência entre contas ou um pagamento a um terceiro, marque o movimento com **Ignorar** e registre-o com um [comprovante manual](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables).\n- **Contabilizei um movimento na conta errada**: esse lançamento não pode ser editado nem excluído. Compense-o com um comprovante manual com as contas invertidas, ou estorne-o quando o mês estiver fechado.",
+      "links": [
+        {
+          "label": "Ir para Bancos",
+          "href": "/operator/contabilidad?tab=bancos"
+        },
+        {
+          "label": "Ir para Comprovantes",
+          "href": "/operator/contabilidad/comprobantes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "activos-fijos-y-diferidos",
+      "title": "Deprecie ativos fixos e amortize diferidos",
+      "summary": "Cadastre seus equipamentos para depreciá-los pelo método linear, e as despesas pagas ou receitas recebidas antecipadamente para amortizá-las. O MESAPAY lança a parcela de cada mês ao gerar os lançamentos.",
+      "keywords": [
+        "ativos fixos",
+        "ativo",
+        "depreciação",
+        "depreciar",
+        "linear",
+        "vida útil",
+        "valor residual",
+        "valor contábil",
+        "dar baixa",
+        "diferidos",
+        "amortização",
+        "despesa paga antecipadamente",
+        "receita recebida antecipadamente",
+        "seguro anual",
+        "equipamentos",
+        "activos fijos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Com os ativos fixos e os diferidos você distribui um valor grande por vários meses: a depreciação de um forno ou de uma geladeira, ou a amortização de um seguro anual pago adiantado. Você registra o valor uma vez e o MESAPAY calcula e lança a parcela de cada mês.\n\nAs duas telas precisam do módulo de contabilidade; se não as vê, fale com o suporte.\n\n## Ativos fixos\n\nFicam em [Contabilidade › Ativos fixos](/operator/contabilidad?tab=activos).\n\n### Cadastrar um ativo\n\n1. Toque em **Novo ativo**.\n2. Escreva o **Nome** e, se quiser, um **Código** (a placa ou um código interno).\n3. Informe a **Data de compra**, o **Valor de compra**, o **Valor residual** (quanto você espera que valha ao fim da vida útil; pode ser zero) e a **Vida útil (meses)**, que vem em 60.\n4. Escolha a **Conta do ativo**, uma conta do grupo 15; por exemplo, 152405 Muebles y enseres (móveis e utensílios).\n5. Confira a **Conta de depreciação acumulada** (vem 159205) e a **Conta de despesa de depreciação** (vem 516005). Troque-as se o seu contador usa outras.\n6. Toque em **Salvar ativo**.\n\n### Como é calculado\n\n- Linear: (valor de compra − valor residual) ÷ vida útil = **Cota mensal**. A última cota ajusta os centavos para que a soma feche exata.\n- A depreciação começa no **mês seguinte** ao da compra.\n- Todo mês, ao tocar em **Gerar / atualizar lançamentos** em [Contabilidade › Diário](/operator/contabilidad?tab=diario), o MESAPAY monta um único lançamento **Depreciação do mês** com as cotas de todos os ativos: débito na conta de despesa e crédito na depreciação acumulada de cada um.\n\nToque em um ativo para ver **Depreciação acumulada**, **Valor contábil**, **Primeira cota**, as **Depreciações contabilizadas** (cada uma com **Ver lançamento**) e a **Projeção restante**.\n\n### Editar ou dar baixa\n\n- **Editar** muda os dados. Os meses fechados não são recalculados: a nova base vale para os meses abertos e os futuros.\n- **Dar baixa** para de depreciar depois do mês atual, que ainda recebe sua cota. **Reativar** volta a deixá-lo **Ativo**.\n\n> ⚠ Esta tela só lança a depreciação. A compra do ativo e a saída dele (venda ou baixa, com o valor contábil) registre com um [comprovante manual](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables), como o seu contador indicar.\n\n## Diferidos\n\nFicam em [Contabilidade › Diferidos](/operator/contabilidad/diferidos). Você também chega pelo link **Diferidos →** da aba de ativos.\n\n### Cadastrar um diferido\n\n1. Toque em **Novo diferido**.\n2. Escreva um **Nome** (por exemplo, \"seguro anual do local\") e escolha o **Tipo**: **Despesa paga antecipadamente** ou **Receita recebida antecipadamente**.\n3. Informe o **Valor total**, a **Data de início** e os **Meses** em que ele se distribui (de 1 a 120).\n4. Escolha a **Conta de origem (caixa / bancos 11xx)**: de onde saiu ou para onde entrou o dinheiro.\n5. Escolha a conta ponte: 17xx para uma despesa paga antecipadamente ou 27xx para uma receita recebida antecipadamente.\n6. Escolha a conta de destino: de despesa ou custo (5xxx / 6xxx) ou de receita (4xxx), conforme o tipo.\n7. Se você usa centros de custo, pode escolher um. Acrescente observações se quiser e toque em **Salvar diferido**.\n\nAo salvar, acontecem duas coisas:\n\n- O **Lançamento inicial** pelo total é registrado de uma vez, na data de início. Em uma despesa, débito na conta ponte e crédito no caixa ou banco; em uma receita, ao contrário. A origem dele é **Registro de diferido**.\n- A primeira parcela cai no **mesmo mês** da data de início (diferente dos ativos). Cada parcela entra no lançamento **Amortização de diferidos** quando você gera os lançamentos desse mês.\n\n### Acompanhamento e baixa\n\nToque em um diferido para ver **Parcela mensal**, **Amortizado acumulado**, **Saldo a amortizar** e a **Projeção de amortização**, com cada mês **✓ Contabilizada**, **Pendente** ou **Cancelada pela baixa**.\n\n**Dar baixa** interrompe a amortização a partir do mês seguinte. Nada é revertido: o que já foi amortizado fica e o saldo pendente continua na conta ponte.\n\n> ⚠ Um diferido não pode ser editado nem excluído. Confira valor, data, meses e contas antes de salvar. Se ficou errado, dê baixa e corrija o saldo com um comprovante manual, com a ajuda do seu contador.\n\n## Casos frequentes\n\n- **A parcela do mês não aparece no livro**: gere os lançamentos do mês em **Contabilidade › Diário**; veja [Entenda como funciona a contabilidade no MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n- **\"A conta do ativo precisa ser uma conta 15 analítica e ativa.\"**: escolha uma conta do grupo 15 que aceite movimentos; se não existir, crie-a no [plano de contas](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"O valor residual precisa ser menor que o de compra.\"**: corrija o valor residual.\n- **\"O mês de início já está fechado.\"**: um diferido não pode começar em um mês fechado; use uma data de um mês aberto.\n- **\"Não há contas lançáveis com esse prefixo. Crie-as no plano de contas.\"**: crie a conta que falta (por exemplo, uma auxiliar de 1705) e volte ao formulário.",
+      "links": [
+        {
+          "label": "Ir para Ativos fixos",
+          "href": "/operator/contabilidad?tab=activos"
+        },
+        {
+          "label": "Ir para Diferidos",
+          "href": "/operator/contabilidad/diferidos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "presupuestos-y-centros-de-costos",
+      "title": "Monte orçamentos e use centros de custo",
+      "summary": "Defina quanto você espera gastar ou vender por conta do plano de contas a cada mês, no geral ou por centro de custos, e compare com o realizado no livro. Crie e desative centros como cozinha, bar ou salão.",
+      "keywords": [
+        "orçamento",
+        "orçamentos",
+        "execução orçamentária",
+        "orçado vs realizado",
+        "variação",
+        "meta de gastos",
+        "centro de custos",
+        "centros de custo",
+        "cozinha",
+        "bar",
+        "salão",
+        "eventos",
+        "semáforo",
+        "excedido",
+        "presupuesto"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Um orçamento define quanto você espera movimentar em uma conta ou em um grupo do plano de contas a cada mês, e mostra quanto você realmente movimentou. Os centros de custo (cozinha, bar, salão, eventos…) permitem separar o gasto por área.\n\nFica em [Contabilidade › Orçamentos](/operator/contabilidad?tab=presupuesto) e precisa do módulo de contabilidade; se não o vê, fale com o suporte. No topo, escolha o mês com as setas ◀ ▶.\n\n## Criar os centros de custo\n\n1. Desça até **Centros de custos**.\n2. Escreva o nome no campo do centro (por exemplo, Cozinha) e toque em **Adicionar**.\n3. Para deixar de usar um centro, toque em **Desativar**. Ele não é apagado: os movimentos anteriores são mantidos, e com **Ativar** ele volta a ficar disponível.\n\nOs centros ativos podem ser escolhidos ao registrar uma despesa, em cada linha de um [comprovante manual](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables) e em um diferido.\n\n## Adicionar um orçamento\n\n1. Em **Adicionar orçamento**, busque a **Conta** por código ou nome. Você pode escolher uma conta que aceite movimentos ou um grupo de dois dígitos: um orçamento em 51 cobre tudo o que começa com 51.\n2. Em **Centro de custos**, deixe **Geral** ou escolha um centro.\n3. Escreva o **Valor do mês**.\n4. Se for o mesmo valor o ano todo, marque **Aplicar a todos os meses do ano**.\n5. Toque em **Salvar orçamento**.\n\nSe essa conta (com esse centro) já tinha orçamento no mês, o valor é atualizado. Se houver um orçamento de **Ano inteiro** e outro só para um mês, nesse mês vale o do mês.\n\n## Ler a execução\n\nA tabela de execução do mês mostra, por conta e centro:\n\n- **Orçamento** e **Realizado**. O realizado vem do livro do mês, então primeiro gere os lançamentos em [Contabilidade › Diário](/operator/contabilidad?tab=diario) com **Gerar / atualizar lançamentos**.\n- **Variação**: orçamento menos realizado. Em uma conta de despesa, um valor positivo é economia; um negativo, que você passou do limite.\n- **% execução**, com um semáforo: **dentro da meta** (até 90%), **no limite** (até 100%) e **excedido** (mais de 100%).\n\nO realizado é calculado conforme a natureza da conta: em despesas e custos, débitos menos créditos; em receitas, créditos menos débitos. Assim você também pode orçar vendas.\n\n> O orçamento **Geral** soma todos os movimentos da conta. Um por centro soma só os movimentos do livro que têm esse centro: hoje, os comprovantes manuais e a amortização de diferidos. As despesas registradas com centro entram no lançamento do mês sem o centro, então ainda não aparecem na execução por centro.\n\n## Excluir um orçamento\n\nToque em **Excluir** na linha dele e confirme.\n\n> ⚠ Se o orçamento for de **Ano inteiro**, ele é excluído para todos os meses, mesmo que você o exclua vendo um só mês.\n\n## Casos frequentes\n\n- **\"Sem orçamentos para este mês. Adicione o primeiro acima.\"**: ainda não há orçamentos para o mês escolhido; adicione um ou marque **Aplicar a todos os meses do ano**.\n- **O Realizado aparece em zero**: gere os lançamentos do mês; se o orçamento for por centro, veja a nota acima.\n- **\"Essa conta não está no plano (ou está inativa).\"**: ative-a ou escolha outra; veja [Ajuste o plano de contas](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"Esse centro de custos não existe ou está inativo.\"**: ative-o em **Centros de custos** ou escolha outro.\n- **\"Outro orçamento igual foi salvo ao mesmo tempo. Recarregue e tente de novo.\"**: recarregue a página e salve de novo.",
+      "links": [
+        {
+          "label": "Ir para Orçamentos",
+          "href": "/operator/contabilidad?tab=presupuesto"
+        },
+        {
+          "label": "Ir para o Diário",
+          "href": "/operator/contabilidad?tab=diario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "impuestos-y-retenciones",
+      "title": "Revise seus impostos e registre o pagamento",
+      "summary": "Onde ver o IVA ou o imposto ao consumo do mês e as retenções em compras, como as notas de crédito são descontadas, como configurar os conceitos de retenção e a UVT, e como registrar o pagamento de um imposto.",
+      "keywords": [
+        "iva",
+        "imposto ao consumo",
+        "inc",
+        "impoconsumo",
+        "retencao na fonte",
+        "retefuente",
+        "reteiva",
+        "reteica",
+        "uvt",
+        "declaracao",
+        "pagamento de impostos",
+        "impostos do periodo",
+        "impostos detalhados",
+        "notas de credito",
+        "iva dedutivel",
+        "dian"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O MESAPAY calcula, com o que você vende e compra, o IVA ou o imposto ao consumo do período e as retenções que você aplicou, para que o seu contador prepare as declarações. São valores de referência: não substituem a declaração nem a revisão do contador.\n\n> Os menus **Contabilidade** e **Relatórios** aparecem se o seu estabelecimento tem o módulo de contabilidade. Se não os vê, fale com o suporte.\n\n## Revise os impostos do mês\n\n1. Entre em [Contabilidade › Impostos](/operator/contabilidad?tab=impuestos) e escolha o mês com as setas.\n2. No topo aparece o **Imposto de vendas** com que o estabelecimento fatura. Se disser **\"Este comércio está faturando SEM imposto sobre vendas.\"**, toque em **Configurar** (veja [Configure o imposto sobre vendas](/operator/ayuda/facturacion/impuesto-de-ventas)).\n3. Em **Impostos do mês** você vê:\n\n- Com IVA: **IVA gerado (vendas)** menos **IVA dedutível (compras)** dá o **IVA a pagar**.\n- Com imposto ao consumo: **Imposto ao consumo a pagar (vendas)**. O IVA das compras não é descontado do imposto ao consumo: vira parte do custo.\n- **Retenções aplicadas em compras**: **Retenção na fonte**, **Retenção de IVA** e **Retenção de ICA** das compras recebidas no mês.\n\nCada fatura mantém a alíquota com que foi emitida: se a alíquota mudou no meio do mês, cada faixa é somada separadamente. O fechamento do exercício fica nesta mesma aba (veja [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable)).\n\n> ⚠ **Impostos do mês** não desconta devoluções nem notas de crédito. O valor líquido está em **Impostos do período**.\n\n## Veja o bruto, as notas de crédito e o líquido\n\n1. Entre em [Relatórios › Impostos do período](/operator/reportes/impuestos).\n2. Escolha **De** e **Até** (ou use **Mês anterior** / **Mês seguinte**) e toque em **Aplicar**.\n3. No topo, **Impostos gerados**, **IVA gerado** e **Imposto ao consumo gerado** já são vendas menos devoluções e notas de crédito.\n4. Em **Impostos gerados em vendas**, se houve devoluções ou notas de crédito, aparecem **Imposto bruto**, **Devoluções** e **Notas de crédito**; **Imposto registrado** é o líquido.\n5. Compare **Gerado em vendas** com **Registrado em compras** e revise o **Cruzamento com a contabilidade**, que põe os documentos frente ao livro.\n\nSó são descontadas as notas de crédito aceitas pela DIAN (uma rejeitada ou descartada não conta), no período da sua data de emissão e na alíquota das suas linhas. Um reembolso do gateway de pagamento que já tem nota de crédito não é descontado duas vezes. As vendas contam pela data de pagamento da conta.\n\nO que vem do livro (**Retenções e demais impostos do livro** e o cruzamento) depende dos lançamentos do mês: enquanto não forem gerados, você verá **\"Sem movimento em contas tributárias no período.\"** Veja [Entenda como funciona a contabilidade no MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n\nPara ver documento por documento, toque em **Impostos detalhados →**: cada fatura (as notas de crédito em negativo), cada compra e cada retenção por comprovante e terceiro, com **Exportar CSV** e **Imprimir**.\n\n## Configure os conceitos de retenção e a UVT\n\nEm **Contabilidade › Impostos**, cartão **Retenções (conceitos)**, cada conceito mostra a sua alíquota, a sua base (**sobre o subtotal** ou **sobre o IVA**), o seu limite em UVT e a sua conta. Toque em **Ativo** ou **Inativo** para mudar: os ativos são sugeridos automaticamente ao registrar compras. Em **Valor UVT vigente** escreva o valor do ano e toque em **Salvar**. Quais conceitos se aplicam, quem decide é o seu contador.\n\n## Registre o pagamento de um imposto\n\n1. Em **Contabilidade › Impostos**, escolha o mês do período que você pagou.\n2. Em **Declarações e pagamentos**, escolha o **Imposto** (IVA, INC, Retenção na fonte ou ICA) e informe o **Valor pago** e a **Data de pagamento**.\n3. Toque em **Registrar pagamento de** seguido do mês (por exemplo, **Registrar pagamento de 2026-10**). Você verá **\"Pagamento registrado e contabilizado.\"**\n\nO lançamento é criado (conta do imposto contra bancos) e o pagamento aparece na lista.\n\n## Casos frequentes\n\n- **\"Esse imposto já tem registro para o período.\"**: esse imposto já foi registrado nesse mês. Um pagamento registrado não pode ser apagado nesta tela: se você errou, fale com o suporte.\n- **\"Esse movimento cai em um mês fechado — reabra o período primeiro.\"**: a data de pagamento cai em um mês fechado. Reabra-o antes, como explicado em [Gere os lançamentos e feche o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n- **Há uma diferença no cruzamento**: não prova um erro. O livro também traz pagamentos, ajustes e [comprovantes manuais](/operator/ayuda/contabilidad-y-reportes/comprobantes-contables); revise-os com o seu contador.\n- **\"Sem documentos com imposto no período.\"**: não houve contas faturadas e pagas nem compras recebidas com imposto nessas datas.",
+      "links": [
+        {
+          "label": "Ir para Contabilidade › Impostos",
+          "href": "/operator/contabilidad?tab=impuestos"
+        },
+        {
+          "label": "Ir para Impostos do período",
+          "href": "/operator/reportes/impuestos"
+        },
+        {
+          "label": "Ir para Impostos detalhados",
+          "href": "/operator/reportes/impuestos-detallados"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "informacion-exogena",
+      "title": "Prepare a informação exógena para a DIAN",
+      "summary": "Revise os formatos 1001 a 1012 e 2276 do ano fiscal, corrija os terceiros com pendências, cadastre sócios e investimentos e baixe o XML oficial para o pré-validador da DIAN.",
+      "keywords": [
+        "informacao exogena",
+        "exogena",
+        "meios magneticos",
+        "formato 1001",
+        "1005",
+        "1006",
+        "1007",
+        "1008",
+        "1009",
+        "1010",
+        "1011",
+        "1012",
+        "2276",
+        "xml",
+        "pre-validador",
+        "terceiros",
+        "nit",
+        "dv",
+        "dian"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A informação exógena (também chamada de meios magnéticos) é o relatório anual de terceiros entregue à DIAN. O MESAPAY monta cada formato com as compras, despesas, faturas, contas a receber e a pagar, declarações e folha de pagamento do ano, para que o seu contador o valide e o envie.\n\n> Só se aplica a estabelecimentos registrados na Colômbia, e fica no menu **Relatórios**, que aparece com o módulo de contabilidade.\n\n## Abra o ano fiscal\n\n1. Entre em [Relatórios › Informação exógena](/operator/reportes/exogena).\n2. Em **Ano fiscal** escreva o ano que vai declarar e toque em **Aplicar**. Se não escolher, abre o ano anterior.\n3. No topo você vê a **UVT do ano**, a **Quantia menor (1001)** e o **Saldo mínimo (1008/1009)**; abaixo, a **Normativa do ano fiscal**.\n\n## Corrija as pendências\n\nO painel **Pendências** lista os terceiros que precisam ser corrigidos antes de declarar:\n\n- **Bloqueia**: **Sem número de documento**, **O documento tem letras ou símbolos** ou **Sem tipo de documento**. Enquanto existir, o XML desse formato não pode ser baixado.\n- **Aviso**: não impede o download. Por exemplo, **O DV informado não corresponde ao NIT (o XML leva o calculado)** ou **Sem conceito do anexo: aparece mas não vai para o XML**.\n\nToque em **Corrigir** para ir à tela com o dado do terceiro (**Fornecedores**, **Clientes**, **Faturas** ou **Horários**), corrija e volte ao relatório.\n\n## O que cada formato traz\n\nEm **Calculados dos documentos**:\n\n- **1001**, pagamentos ou abonos em conta e retenções praticadas: compras recebidas e despesas com fornecedor, por terceiro e conceito. Uma despesa sem fornecedor não aparece aqui.\n- **1005**, IVA dedutível das compras recebidas e, em **IVA em devoluções**, o IVA das suas notas de crédito.\n- **1006**, IVA gerado e imposto ao consumo por adquirente. As vendas sem pedido de fatura vão para **Consumidor final**.\n- **1007**, receitas recebidas (sem imposto nem gorjeta); em **Devoluções**, a base das suas notas de crédito.\n- **1008**, saldos a receber em 31 de dezembro dos fechamentos de vales a crédito. As vendas a crédito a clientes ainda não entram neste formato: revise-as com o seu contador em [Contas a receber e a pagar](/operator/ayuda/contabilidad-y-reportes/cartera).\n- **1009**, saldos a pagar em 31 de dezembro de compras recebidas e despesas com fornecedor.\n- **1011**, as declarações registradas em **Contabilidade › Impostos**. Só o ICA vai para o XML.\n\nCada nota de crédito aceita pela DIAN usa o mesmo terceiro da sua fatura e desconta o que devolveu. Em **Rendimentos do trabalho (folha)** fica o **2276**, calculado das folhas liquidadas; aparece como **XML pendente** porque os funcionários não têm documento no MESAPAY.\n\n## Cadastre sócios e investimentos\n\nOs formatos 1010 e 1012 não saem dos documentos: ficam em **Cadastro manual**, para o ano escolhido.\n\n1. Em **Registrar sócio / acionista** preencha **Nome ou razão social**, **Tipo de documento**, **Número**, **DV**, **% de participação**, **Valor nominal** e **Prêmio de emissão**, e toque em **Salvar**.\n2. Em **Registrar conta / investimento** escolha o **Conceito** (por exemplo, contas de poupança ou CDT) e preencha **Entidade**, **Tipo de documento da entidade**, **NIT / documento** e **Valor em 31/12**. Toque em **Salvar**.\n3. Para remover um registro, toque em **Excluir** e confirme.\n\n## Baixe o XML\n\nCada formato tem o seu botão **Baixar XML**. O arquivo sai com o nome oficial da DIAN, pronto para o seu pré-validador. O MESAPAY deduz os conceitos, o tipo de pessoa e a localização de cada terceiro a partir dos seus dados: o seu contador os valida no pré-validador antes de declarar.\n\n### O TXT 1001 da aba Impostos\n\nEm [Contabilidade › Impostos](/operator/contabilidad?tab=impuestos), o cartão do formato 1001 (por exemplo, **Exógena 2026 (formato 1001)**) resume os pagamentos a terceiros do ano do mês escolhido e tem **Baixar TXT 1001**. Os terceiros sem NIT válido ficam fora desse arquivo. É um resumo de trabalho: para enviar à DIAN, use o XML da **Informação exógena**.\n\n## Casos frequentes\n\n- **Baixar XML está desativado e diz \"Corrija as pendências para baixar\"**: esse formato tem pendências que bloqueiam. Resolva-as com **Corrigir**.\n- **\"O número do documento deve ser numérico.\"** ou **\"O DV não corresponde ao NIT.\"**: no cadastro manual, escreva só números no documento (o DV tem o seu próprio campo) e confira se o DV é o do NIT.\n- **\"Sem movimentos no ano.\"**: não há documentos desse formato no ano fiscal escolhido. Revise o ano.\n- **\"A informação exógena é um regime da DIAN (Colômbia)…\"**: o seu estabelecimento está registrado em outro país, e este relatório não se aplica.",
+      "links": [
+        {
+          "label": "Ir para Informação exógena",
+          "href": "/operator/reportes/exogena"
+        },
+        {
+          "label": "Ir para Contabilidade › Impostos",
+          "href": "/operator/contabilidad?tab=impuestos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "libros-y-estados-financieros",
+      "title": "Consulte os livros oficiais e as demonstrações financeiras",
+      "summary": "Livro diário, livro razão, balancete de verificação, demonstração do resultado e balanço patrimonial: como filtrá-los, verificar se fecham, ir ao detalhe de um valor, exportá-los em CSV e imprimi-los com número de folha.",
+      "keywords": [
+        "livro diário",
+        "livro razão",
+        "razão",
+        "auxiliar",
+        "balancete de verificação",
+        "balancete",
+        "demonstração do resultado",
+        "dre",
+        "resultado abrangente",
+        "balanço patrimonial",
+        "demonstração da posição financeira",
+        "plano de contas",
+        "puc",
+        "folha",
+        "fechamento",
+        "partida dobrada",
+        "csv",
+        "imprimir livros",
+        "resultado do exercício",
+        "contador"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Os livros oficiais e as demonstrações financeiras mostram a contabilidade do seu estabelecimento exatamente como ficou registrada nos lançamentos. Servem para revisar saldos, conferir o período com o seu contador e entregar os livros em CSV ou impressos.\n\n## Antes de começar\n\n- Ficam nos menus **Contabilidade** e **Relatórios**, que aparecem se o seu estabelecimento tem o módulo de contabilidade. Se não os vê, fale com o suporte.\n- Mostram só o que já está nos livros: os lançamentos que o MESAPAY monta com a operação de cada mês e os lançamentos manuais. Se entraram vendas, compras ou despesas novas, primeiro toque em **Gerar / atualizar lançamentos** na aba **Diário** de **Contabilidade › Despesas e diário**, como explica [Entenda como funciona a contabilidade no MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n- Os lançamentos-resumo que o MESAPAY monta a cada mês levam a data do último dia do mês. Enquanto o mês está aberto, os lançamentos aparecem **sem numeração**: são numerados quando você [fecha o mês](/operator/ayuda/contabilidad-y-reportes/cerrar-el-mes-contable).\n\n## Como usar os filtros\n\n1. Entre pelo menu ou por [Relatórios › Todos os relatórios](/operator/reportes), grupos **Contábeis** e **Financeiros**.\n2. Digite as datas em **De** e **Até**, ou use as setas para ir ao mês anterior ou seguinte (na demonstração do resultado, ao ano). O balanço patrimonial só pede a **Data de corte**.\n3. Toque em **Aplicar**.\n4. **Exportar CSV** baixa o relatório com os mesmos filtros. **Imprimir** abre a janela do navegador: cada folha sai com a razão social, o NIT, o nome do livro, o período e o número da folha (\"Folha 1 de 3\"; o número é impresso pelo Google Chrome). As linhas recolhidas também saem no papel.\n\n> Os filtros ficam no endereço da página: se você passar o link para alguém com acesso ao painel, essa pessoa vê o mesmo relatório.\n\n## Livro diário\n\nEm **Contabilidade › Livro diário / auxiliar** você vê os lançamentos do período em ordem cronológica; abre no mês atual. Em **Modo do livro**:\n\n- **Detalhado**: cada lançamento com seu número, sua origem (por exemplo **Vendas do mês** ou **Notas de crédito do mês**), a data e suas linhas de **Débito** e **Crédito**.\n- **Resumido**: os movimentos agrupados por dia e conta, com o **Total do dia**.\n\nNo alto você vê os **Lançamentos**, o **Total de débitos**, o **Total de créditos** e os **Anulados**, se houver. Um lançamento anulado não é apagado: fica marcado como **Anulado** e o estorno aparece à parte, então os dois se compensam. A **Verificação** diz **Partida dobrada ✓** quando débitos e créditos são iguais.\n\n## Livro razão\n\nEm **Contabilidade › Livro razão** você vê cada conta com movimentos ou saldo, com seu **Débito**, **Crédito** e **Saldo** do período; abre de 1º de janeiro até hoje.\n\n1. Toque numa conta para ver o **Saldo inicial do período** e cada movimento com data, lançamento, descrição e **Saldo** acumulado. **Expandir tudo** abre todas.\n2. Para ver uma só conta, digite o código ou o nome em **Conta** e toque em **Aplicar**. **Limpar** tira o filtro.\n\nO saldo segue a natureza da conta: débito menos crédito nas devedoras, crédito menos débito nas credoras.\n\n## Balancete de verificação\n\nEm **Relatórios › Balancete de verificação** você vê por conta o **Saldo anterior** (tudo antes do **De**), os **Débitos**, os **Créditos** e o **Novo saldo**.\n\n1. Em **Nível do plano**, escolha **Classe**, **Grupo**, **Conta** ou **Subconta** (a inicial). Cada nível é a soma exata do que tem abaixo.\n2. Para uma faixa de contas, use **Conta de** e **Conta até**: de `1105` a `1110` traz o caixa e os bancos, e o total passa a **Totais do filtro aplicado**.\n3. Toque numa classe ou num grupo para abri-lo, ou use **Expandir tudo**.\n\nOs saldos vão com sinal, débito menos crédito: os credores (passivo, patrimônio, receitas) aparecem negativos. A verificação mede sempre o livro inteiro, mesmo com filtro.\n\n## Demonstração do resultado\n\nEm **Relatórios › Demonstração do resultado** você vê as receitas, os custos e as despesas do período; abre de 1º de janeiro até hoje. Em **Exercício** você escolhe um ano completo, ou deixa **Intervalo personalizado** e usa as datas.\n\n- No alto: **Receitas**, **Resultado do período** e **Resultado abrangente**.\n- Os gráficos **Das receitas ao resultado** e **Evolução mensal**.\n- A cascata com despesas por natureza, de **Receitas de atividades ordinárias** até **Resultado antes dos impostos**, **Despesa com imposto de renda**, **Resultado do período** e **Outros resultados abrangentes**.\n- O **Resumo mensal**; um mês cortado pelo intervalo aparece como **parcial**.\n\nO lançamento de encerramento do exercício não entra, então um ano encerrado continua mostrando seu resultado. As notas de crédito aceitas pela DIAN diminuem as receitas como devoluções de vendas (lançamento **Notas de crédito do mês**). Fora da Colômbia, a demonstração é montada por tipo de conta e no alto aparece **Resultado / receitas**.\n\n> Esta demonstração sai dos livros contábeis. O **P&L** de Contabilidade é montado direto com a operação para o dia a dia: veja [Leia o P&L do mês e exporte os livros](/operator/ayuda/contabilidad-y-reportes/pyg-y-libros-del-mes).\n\n## Balanço patrimonial\n\nEm **Relatórios › Balanço patrimonial** (a tela se chama **Demonstração da posição financeira**) você vê o **Ativo**, o **Passivo** e o **Patrimônio** acumulados desde o início das operações até a **Data de corte** (incluída; abre com hoje).\n\n- No alto, **Total do ativo**, **Total do passivo** e **Total do patrimônio**; embaixo, **Total passivo + patrimônio**.\n- A linha **Resultado do exercício** do patrimônio é o resultado do ano aberto, desde 1º de janeiro seguinte ao último encerramento do exercício. O dos anos encerrados já está no patrimônio, nas contas 3605 e 3610.\n- A **Verificação** diz **Fechado ✓** quando o ativo é igual ao passivo mais o patrimônio.\n\n## De um valor ao seu detalhe\n\nNas duas demonstrações, cada linha com código é um link: uma conta que recebe movimentos abre o seu **Livro razão**, e um grupo ou conta sintética abre o **Balancete de verificação** filtrado por esse código, com o mesmo período.\n\nPara uma olhada rápida em um só mês, a aba **Demonstrações** de **Contabilidade › Despesas e diário** mostra o **Balancete de verificação**, a **Demonstração de resultados** e o **Balanço patrimonial** com os lançamentos desse mês.\n\n## Casos frequentes\n\n- **\"Sem movimentos no período.\"**: não há lançamentos nessas datas. Revise o período e, se houve operação, gere os lançamentos do mês.\n- **Faltam as vendas ou as despesas dos últimos dias**: toque de novo em **Gerar / atualizar lançamentos** e recarregue o relatório.\n- **Os lançamentos dizem \"sem numeração\"**: o mês continua aberto; eles são numerados ao fechá-lo.\n- **\"Diferença de…\"** ou **\"Partida dobrada quebrada em…\"**: anote o período e a diferença e fale com o suporte.\n- **\"Há contas de resultado fora dos prefixos habituais…\"**: há contas de receita, custo ou despesa com códigos fora do plano (PUC). Revise-as em [Ajuste o plano de contas](/operator/ayuda/contabilidad-y-reportes/plan-de-cuentas).\n- **\"Os gráficos não estão disponíveis porque os valores não conciliam…\"**: a tabela continua válida; fale com o suporte informando o período.\n- **Não bate com o P&L**: são relatórios diferentes. Os livros também incluem lançamentos manuais, depreciações e diferidos.",
+      "links": [
+        {
+          "label": "Ir para Todos os relatórios",
+          "href": "/operator/reportes"
+        },
+        {
+          "label": "Ir para o Livro diário",
+          "href": "/operator/reportes/libro-diario"
+        },
+        {
+          "label": "Ir para o Livro razão",
+          "href": "/operator/reportes/libro-mayor"
+        },
+        {
+          "label": "Ir para o Balancete de verificação",
+          "href": "/operator/reportes/balance-prueba"
+        },
+        {
+          "label": "Ir para a Demonstração do resultado",
+          "href": "/operator/reportes/estado-resultado"
+        },
+        {
+          "label": "Ir para o Balanço patrimonial",
+          "href": "/operator/reportes/estado-situacion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cartera",
+      "title": "Revise suas contas a receber e a pagar",
+      "summary": "Consulte, em uma data de corte, quanto os seus clientes devem a você e quanto você deve aos seus fornecedores, com a antiguidade de cada saldo, o extrato de cada terceiro e onde registrar os pagamentos.",
+      "keywords": [
+        "contas a receber",
+        "contas a pagar",
+        "car",
+        "cap",
+        "cartera",
+        "devedores",
+        "fornecedores",
+        "antiguidade de saldos",
+        "aging",
+        "extrato",
+        "pagamentos",
+        "credito",
+        "vencido",
+        "corte"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "As contas a receber e a pagar mostram, em uma data de corte, quanto os seus clientes devem a você (contas a receber) e quanto você deve aos seus fornecedores (contas a pagar), por terceiro e com a antiguidade de cada saldo.\n\n> Ficam no menu **Relatórios**, que aparece com o módulo de contabilidade. Se não o vê, fale com o suporte.\n\n## O que entra\n\n- **A receber (CaR)**: as contas cobradas a crédito de clientes para faturamento com crédito habilitado, e os fechamentos de vales empresariais a crédito, se você tem o módulo de vales. Como o MESAPAY cobra as vendas na hora, as demais vendas não geram contas a receber.\n- **A pagar (CaP)**: as ordens de compra recebidas (pelo que foi recebido) e as despesas não recorrentes que não foram registradas como pagas.\n\nQuando a DIAN aceita uma nota de crédito sobre uma conta cobrada a crédito, a dívida do cliente diminui no que a nota cancela. O mesmo acontece com uma devolução. Veja [Emita uma nota de crédito eletrônica](/operator/ayuda/facturacion/notas-credito).\n\n## Consulte as contas\n\n1. Entre em [Relatórios › Contas a receber e a pagar](/operator/reportes/cartera).\n2. Escolha **Todas**, **A receber (CaR)** ou **A pagar (CaP)**.\n3. Em **Corte até** coloque a data e toque em **Aplicar**. Só contam os documentos com data até esse dia e os pagamentos feitos até esse dia: assim você vê a posição do fim do mês mesmo que já tenham entrado pagamentos.\n4. No topo aparecem **Total a receber** e **Total a pagar**, com quantos clientes, fornecedores e documentos há.\n5. Em **Contas a receber (por cliente)** e **Contas a pagar (por fornecedor)** você vê cada **Terceiro** com seu **CNPJ/NIT**, **Documentos**, **Vencimento mais antigo**, **Antiguidade** e **Saldo**.\n6. Toque em **Exportar CSV** para levar a uma planilha, ou em **Imprimir**.\n\n### Como a antiguidade é medida\n\nA coluna **Antiguidade** conta a partir do vencimento: **Em dia**, **1–30 dias**, **31–60 dias** ou **Mais de 60 dias**. O vencimento é a data combinada no documento ou, se não houver, a data do documento mais o prazo:\n\n- Do cliente: **Prazo (dias)** no cadastro do cliente para faturamento.\n- Do fornecedor: **Condições de pagamento (dias)**.\n- Uma despesa vence na data que você definiu ao registrá-la.\n\n## Veja o extrato de um terceiro\n\n1. Toque no nome do cliente ou do fornecedor.\n2. Você verá **Extrato ·** e o nome: documentos e pagamentos em ordem, com **Débito**, **Pagamento** e **Saldo** corrente, e no final **Total de débitos**, **Total de pagamentos** e **Saldo final**.\n3. Em **Saldo pendente por antiguidade do documento** o saldo é dividido em **0–30 dias**, **31–60 dias**, **61–90 dias** e **Mais de 90**, contando a partir da data do documento. **Total vencido** é o que já passou do vencimento.\n4. Cada documento tem um atalho: **Ver em compras**, **Ver em contabilidade**, **Ver fechamentos de vales** ou **Ver em clientes**.\n5. Toque em **Imprimir** para enviar o extrato ao terceiro, ou em **Voltar às contas a receber e a pagar**.\n\n## Onde os pagamentos são registrados\n\nEste relatório só mostra os saldos: os pagamentos são registrados onde a dívida nasceu.\n\n- **Cliente com crédito**: em [Pedidos › Clientes](/operator/clientes), toque em **Registrar pagamento** no cliente, preencha **Valor**, **Data**, **Conta onde o dinheiro entrou** e, se quiser, **Observação (opcional)**, e toque em **Registrar pagamento** no formulário. O pagamento é aplicado ao débito mais antigo. Veja [Crie clientes para faturar](/operator/ayuda/facturacion/clientes-de-facturacion).\n- **Fornecedor**: em [Compras](/operator/compras), abra a ordem de compra e use **Registrar pagamento** ou **Pagar saldo**, escolhendo em **Pago a partir de** a conta de onde saiu o dinheiro.\n- **Despesa**: se ao criá-la você marca **Já está pago**, ela não entra nas contas a pagar.\n\n## Casos frequentes\n\n- **\"Sem contas a receber\"** com o aviso de que o estabelecimento não tem o módulo de vales nem clientes com crédito: é normal se tudo é cobrado na hora. Para vender a crédito, ative **Permitir pagar a crédito** no cliente.\n- **Um fornecedor aparece como \"Sem fornecedor\"**: são despesas registradas sem fornecedor. Edite a despesa e atribua o fornecedor.\n- **O saldo em uma data passada não bate com o de hoje**: é o esperado se entraram pagamentos depois do corte. As devoluções e notas de crédito, por outro lado, são descontadas pelo valor de hoje.\n- **\"O pagamento não pode superar a dívida\"**: informe um valor igual ou menor ao que o cliente deve.",
+      "links": [
+        {
+          "label": "Ir para Contas a receber e a pagar",
+          "href": "/operator/reportes/cartera"
+        },
+        {
+          "label": "Ir para Clientes",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Ir para Compras",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reporte-de-comisiones",
+      "title": "Liquide as comissões de vendas dos garçons",
+      "summary": "Veja quanto cada garçom cobrou no período e sua comissão, com a porcentagem fixada em cada conta ao cobrá-la, revise o detalhe conta a conta e baixe os CSV para pagá-la.",
+      "keywords": [
+        "comissoes",
+        "comissao garcom",
+        "comissoes de vendas",
+        "liquidacao",
+        "porcentagem",
+        "garcom",
+        "incentivo",
+        "minhas comissoes",
+        "csv",
+        "folha"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O relatório de comissões calcula, para um período, quanto cada garçom cobrou e quanto lhe cabe de comissão, para que você a pague ou a leve para a folha de pagamento.\n\n> Fica no menu **Relatórios**, que aparece com o módulo de contabilidade. Se não o vê, fale com o suporte.\n\n## Antes de começar\n\nA porcentagem de cada garçom é definida em **Configurações › Mesas por garçom**, em **Comissão (%)**. Veja [Atribua mesas a cada garçom](/operator/ayuda/primeros-pasos/mesas-por-mesero). Um garçom sem porcentagem não ganha comissão.\n\n## Consulte o relatório\n\n1. Entre em [Relatórios › Comissões de vendas](/operator/reportes/comisiones). Abre no mês atual.\n2. Escolha **De** e **Até** (ou use **Mês anterior** / **Mês seguinte**) e toque em **Aplicar**. O corte é pela data de pagamento de cada conta.\n3. No topo aparecem **Cobrado no período**, **Comissão a pagar** e **Pessoas com comissão**.\n4. Em **Resumo por pessoa** você vê, por garçom, **Contas**, **Cobrado**, **%** e **Comissão**. Se no período ele teve porcentagens diferentes, o **%** diz **vários**.\n5. Em **Detalhe conta a conta** você vê cada conta com sua **Data de pagamento**, a **Mesa** (ou **Retirada** ou **Fatura manual**), a pessoa, o valor cobrado, a porcentagem e a comissão.\n6. Baixe **CSV resumo** ou **CSV detalhe** para o seu contador, ou toque em **Imprimir** para tirar a liquidação.\n\n## Como é calculada\n\n- **A base** é o subtotal cobrado da conta, menos o desconto do cliente e sem a gorjeta. Como os preços do cardápio já trazem o imposto incluído, nesses pratos a base é o preço do cardápio; só fica de fora o imposto somado à parte a um item que não sai do cardápio.\n- **A comissão fica fixada ao cobrar a conta**: o garçom, a porcentagem, a base e o valor. Se você mudar a porcentagem, só afeta as contas cobradas depois.\n- **Só contam as contas pagas.** Uma conta aberta não gera comissão, nem as cortesias ou contas zeradas.\n- **O garçom da conta** é quem a cobrou. Se vários garçons a cobraram, fica com quem cobrou mais. Se nenhum garçom a cobrou (o cliente pagou pelo QR ou ela foi cobrada no caixa), vai para o garçom que tem essa mesa atribuída, desde que seja um só. Se não houver nenhum, a conta não gera comissão.\n\n> ⚠ As devoluções feitas depois do pagamento não são descontadas da comissão automaticamente: desconte-as você ao pagá-la.\n\nEste relatório só calcula: não cria lançamentos contábeis nem pagamentos de folha.\n\n## O que o garçom vê\n\nNo app, na aba **Yo** (Eu), o garçom vê **Minhas comissões**: **Este mês** ou **Mês anterior**, com sua **Comissão**, o **Cobrado**, as **Contas**, **Seu %** e as **Últimas contas**. Aparece se ele tem uma porcentagem definida ou se já tem contas com comissão nesse mês.\n\n## Casos frequentes\n\n- **\"Sem contas com comissão no período.\"**: o garçom não tinha porcentagem quando as contas foram cobradas, ou as contas não foram atribuídas a ele. Revise a **Comissão (%)** dele em [Mesas por garçom](/operator/settings/meseros); as contas já cobradas não são recalculadas.\n- **Faltam a um garçom contas que o cliente pagou pelo QR**: essas contas vão para o garçom que tem a mesa atribuída. Se ninguém tinha a mesa, ou dois garçons a tinham, não geram comissão. Atribua cada mesa a um único garçom.\n- **O % diz \"vários\"**: a porcentagem mudou dentro do período. Veja o **Detalhe conta a conta**.\n- **Foi feita uma devolução de uma conta já liquidada**: desconte manualmente essa parte da comissão ao pagar.",
+      "links": [
+        {
+          "label": "Ir para Comissões de vendas",
+          "href": "/operator/reportes/comisiones"
+        },
+        {
+          "label": "Ir para Mesas por garçom",
+          "href": "/operator/settings/meseros"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pulso",
+      "title": "Pergunte ao Pulso sobre o seu negócio",
+      "summary": "O Pulso é o assistente com inteligência artificial que responde perguntas sobre suas vendas, pratos, garçons, mesas, cozinha e reservas com os dados reais do estabelecimento. Vem no plano Pro e no teste, com limite de perguntas por dia.",
+      "keywords": [
+        "pulso",
+        "assistente",
+        "inteligência artificial",
+        "ia",
+        "chat",
+        "perguntas",
+        "insights",
+        "análise",
+        "pratos mais vendidos",
+        "melhor garçom",
+        "horário de pico",
+        "limite de perguntas",
+        "plano pro"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O Pulso é um assistente com inteligência artificial que responde perguntas sobre como vai o seu restaurante: o que vende, quando há mais movimento, como rendem os garçons ou em que horários a cozinha atrasa. Ele fica no menu **Negócio › Pulso**.\n\n## Fazer uma pergunta\n\n1. Entre em [Negócio › Pulso](/operator/insights).\n2. Toque numa pergunta sugerida, como **Quais são meus pratos mais vendidos este mês?**, ou digite a sua e toque em **Enviar**.\n3. Enquanto busca os dados, aparece **Analisando seus dados…**. A resposta traz os números principais, comparações e uma ou duas recomendações, no idioma em que o seu painel estiver.\n4. Continue perguntando na mesma conversa (\"e no mês passado?\"). Se você sair da tela ou recarregá-la, começa uma conversa nova.\n\n> Diga o período na pergunta: \"esta semana\", \"em setembro\", \"aos sábados nos últimos três meses\". Se não disser, normalmente ele olha os últimos 30 dias.\n\n## Que dados ele usa\n\nO Pulso consulta os dados do seu estabelecimento no momento da pergunta e não inventa números: se algo não pode ser respondido com esses dados, ele avisa. Ele sabe de:\n\n- Vendas: receita, pedidos, tíquete médio, clientes e a tendência frente ao período anterior.\n- Pratos e categorias: os mais e os menos vendidos, por quantidade ou por receita.\n- Pagamentos: quanto entra por cada meio de pagamento e quanto de gorjeta.\n- Garçons: vendas, cobranças, mesas e gorjetas segundo quem cobrou (o que o cliente paga sozinho pelo QR não é atribuído a ninguém), e quantos garçons você precisa por faixa de horário.\n- Salão e cozinha: giro de mesas, horários de pico e quando o preparo demora mais que o tempo esperado de cada estação.\n- Cancelamentos e cortesias, o que os clientes buscam no cardápio, e as reservas com seus não comparecimentos e depósitos.\n\nEle não consulta a contabilidade, as despesas, as compras, o estoque, a folha de pagamento nem as faturas eletrônicas: para isso existem os [relatórios contábeis](/operator/ayuda/contabilidad-y-reportes/libros-y-estados-financieros).\n\n## Em quais planos está e quantas perguntas há\n\n- Vem no plano Pro e durante o período de teste. O plano básico não o inclui, a menos que o MESAPAY o ative para o seu estabelecimento.\n- Há um limite diário de perguntas para todo o estabelecimento, somando as de todos os usuários do painel: por padrão, 50 por dia. Uma pergunta que não pôde ser respondida não conta.\n\n## Casos frequentes\n\n- **\"O assistente Pulso não está habilitado para este estabelecimento.\"**: o seu plano não o inclui. Fale com o suporte se quiser ativá-lo.\n- **\"Você atingiu o limite de perguntas de hoje.\"**: as perguntas do dia acabaram. Continue no dia seguinte ou fale com o suporte se a sua equipe precisar de mais.\n- **\"Algo deu errado. Tente de novo.\"**: envie a pergunta de novo; essa não foi descontada.\n- **O número não bate com um relatório contábil**: confira se o período é o mesmo. O Pulso trabalha com a operação do salão (pedidos e cobranças), não com os livros contábeis.",
+      "links": [
+        {
+          "label": "Ir para o Pulso",
+          "href": "/operator/insights"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

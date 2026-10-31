@@ -169,7 +169,11 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "resolucion-de-facturacion",
     "activar-la-facturacion-electronica",
   ],
-  "/operator/facturas": ["solicitudes-de-factura", "emision-automatica-de-facturas"],
+  "/operator/facturas": [
+    "solicitudes-de-factura",
+    "emision-automatica-de-facturas",
+    "imprimir-y-enviar-facturas",
+  ],
   "/operator/facturas/notas-credito": ["notas-credito"],
 
   /* ── Contabilidad y reportes ── */
@@ -183,6 +187,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "activos-fijos-y-diferidos",
     "presupuestos-y-centros-de-costos",
     "impuestos-y-retenciones",
+    "libros-y-estados-financieros",
   ],
   "/operator/contabilidad/cierre": ["cerrar-el-mes-contable"],
   "/operator/contabilidad/comprobantes": ["comprobantes-contables"],

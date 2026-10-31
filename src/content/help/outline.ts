@@ -431,55 +431,55 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuesto-de-ventas",
       title: "Configura el impuesto de ventas",
       covers:
-        "\"Ninguno\", \"Impuesto al consumo (INC)\" o \"IVA\" y la tarifa, que va incluido en el precio, desde cuándo aplica un cambio y que lo emitido a la DIAN no cambia.",
+        "\"Ninguno\", \"Impuesto al consumo (INC)\" o \"IVA\" y la \"Tarifa (%)\", que va incluido en el precio; aplica a lo que se facture desde que se guarda (también a las cuentas abiertas), lo emitido a la DIAN no cambia, y el impuesto propio de los cargos que no salen de la carta.",
     },
     {
       slug: "resolucion-de-facturacion",
       title: "Carga tu resolución de numeración",
       covers:
-        "Campos de la resolución (número, prefijo, rango, vigencia, fecha, próximo consecutivo, correo de recepción), aviso de números por agotarse y que existe con o sin facturación electrónica.",
+        "Campos de la resolución (número, prefijo, correo de recepción, rango, vigencia, fecha, \"Próximo consecutivo a emitir\"), el aviso del dato viejo de Identidad, los avisos de \"Quedan … números\" y rango agotado (las ventas quedan esperando y salen solas al cargar la resolución nueva, con su clave técnica) y que existe con o sin facturación electrónica.",
     },
     {
       slug: "activar-la-facturacion-electronica",
       title: "Activa la facturación electrónica con la DIAN",
       covers:
-        "Requisitos de Identidad (NIT, municipio, contacto), \"Certificado digital\", \"Credenciales DIAN\", \"Correr set de pruebas\", \"Consultar estado\" y el paso a Producción.",
+        "Requisitos (módulo, habilitación en el portal DIAN, certificado, credenciales), datos del Emisor de Identidad, \"Certificado digital\", \"Credenciales DIAN\" y \"Ambiente\", \"Correr set de pruebas\", \"Consultar estado\", estados \"Pendiente\" / \"En pruebas\" / \"Habilitado\" y el paso a \"Producción\".",
     },
     {
       slug: "emision-automatica-de-facturas",
       title: "Cómo se emiten tus facturas y qué hacer si se frenan",
       covers:
-        "Emisión al cobrar (consumidor final o nominativa), estados DIAN, reintentos automáticos, banners de bloqueo con su motivo, \"Emitir a la DIAN\" y \"Reintentar emisión\".",
+        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, y \"Reintentar emisión\".",
     },
     {
       slug: "solicitudes-de-factura",
-      title: "Gestiona las solicitudes de factura",
+      title: "Revisa tus facturas y las solicitudes de factura",
       covers:
-        "\"Facturas electrónicas\": \"Pendientes\" / \"Ya generadas\", \"✓ Marcar como generada\", \"Copiar datos\", \"Rechazar\", \"Imprimir en datáfono\" y \"Copiar CUFE\".",
+        "La pantalla Facturas. Con facturación electrónica: lista \"Facturas electrónicas\" (columnas, filtros \"Estado DIAN\" / \"Desde\" / \"Hasta\" / \"Buscar\", acciones por fila, aviso de rechazadas y de clientes que pidieron factura después de emitida a consumidor final). Sin ella: solicitudes \"Pendientes\" / \"Ya generadas\", \"Copiar datos\", \"✓ Marcar como generada\", \"Rechazar\" e \"Imprimir en datáfono\".",
     },
     {
       slug: "factura-manual",
       title: "Crea una factura manual sin mesa",
       covers:
-        "\"Nueva orden\" → \"Factura manual\" o el botón en Mesas, agregar platos o cargos, \"Identificar cliente\" (o consumidor final), cobrar y \"Descartar factura manual\".",
+        "\"Nueva orden\" → \"Factura manual\" o el botón en Mesas, \"Agregar platos\" y \"Agregar cargo o servicio\" con su impuesto, \"Identificar cliente\" (identificación sin dígito de verificación) o consumidor final, \"Cobrar la cuenta\" y \"Descartar factura manual\".",
     },
     {
       slug: "imprimir-y-enviar-facturas",
       title: "Imprime, reimprime y envía facturas por correo",
       covers:
-        "Impresión automática al cobrar, \"Ver factura\", \"Reimprimir factura\", \"Reenviar por correo\" (con facturación electrónica, solo aceptadas) y el error cuando nadie pidió factura.",
+        "Impresión automática por el agente al aceptarla la DIAN (o del comprobante sin facturación electrónica), factura genérica sin correo y personalizada, impresora de facturas, \"Ver factura\" / \"Reimprimir factura\" en Órdenes y en Facturas, \"Reenviar por correo\" (solo aceptadas) y el error cuando nadie pidió factura.",
     },
     {
       slug: "notas-credito",
       title: "Emite una nota crédito electrónica",
       covers:
-        "\"Numeración de notas crédito\", buscar la factura, ajuste total o parcial, \"Motivo DIAN\", \"Confirmar y enviar a DIAN\", estados, PDF / XML, y descartar o \"Descartar y emitir de nuevo\" una nota rechazada o no recibida por la DIAN.",
+        "\"Numeración de notas crédito\" (prefijo NC, consecutivo), buscar la factura o llegar desde \"Anular con nota crédito\", ajuste total o parcial, \"Motivo DIAN\", \"Confirmar y enviar a DIAN\", estados, PDF / XML, contabilización, \"Descartar\" y \"Descartar y emitir de nuevo\" para rechazadas o no recibidas, \"Ver descartadas\" y el conflicto de numeración con otra serie (NC / NCM).",
     },
     {
       slug: "clientes-de-facturacion",
       title: "Crea clientes para facturar",
       covers:
-        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, editar y buscar; diferencia con los comensales registrados.",
+        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\"), \"Descuento\" comercial, editar y buscar; diferencia con los comensales registrados.",
     },
   ],
 
@@ -487,9 +487,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
   "contabilidad-y-reportes": [
     {
       slug: "como-funciona-la-contabilidad",
-      title: "Cómo funciona la contabilidad en MESAPAY",
+      title: "Entiende cómo funciona la contabilidad en MESAPAY",
       covers:
-        "El módulo, los menús Contabilidad y Reportes, las pestañas de \"Contabilidad\", el selector de mes, \"Todos los reportes\" y la regla clave: los asientos del mes se crean con \"Generar / actualizar asientos\".",
+        "El módulo y quién lo ve, los menús Contabilidad y Reportes, \"Todos los reportes\", las pestañas de \"Contabilidad\" con el selector de mes, el asiento resumen mensual por origen y la regla clave: los asientos del mes se crean con \"Generar / actualizar asientos\".",
       legacy:
         "El P&L mensual muestra ventas, CMV, gastos, impuestos y utilidad. Podés descargar el Excel para el contador.",
     },
@@ -497,73 +497,73 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "registrar-gastos",
       title: "Registra gastos y gastos recurrentes",
       covers:
-        "\"Nuevo gasto\": categoría, cuenta, proveedor, centro de costos, \"Ya está pagado\" o vencimiento, \"Gasto recurrente\" (día 1 a 28) y la lista de recurrentes.",
+        "\"Nuevo gasto\": categoría, cuenta automática o elegida, proveedor, centro de costos, \"Ya está pagado\" o vencimiento, \"Gasto recurrente\" (día 1 a 28), la lista de recurrentes y cómo entran a los asientos del mes.",
     },
     {
       slug: "pyg-y-libros-del-mes",
       title: "Lee el PYG del mes y exporta los libros",
       covers:
-        "PYG (ventas, CMV real, mermas, gastos, costo laboral, prime cost, ventas por categoría) y Libros de ventas y compras con \"Exportar CSV\" y \"Descargar Excel para el contador\".",
+        "PYG en vivo (ventas, CMV real, mermas, gastos, costo laboral, prime cost, ventas por categoría, impuestos) y Libros de ventas (con notas crédito del mes) y compras, con \"Exportar CSV\", \"Exportar gastos (CSV)\" y \"Descargar Excel para el contador\"; diferencia con el estado de resultado.",
     },
     {
       slug: "plan-de-cuentas",
       title: "Ajusta el plan de cuentas",
       covers:
-        "PUC, \"Nueva cuenta\" con \"Sugerir con IA\", \"Agregar auxiliar\", \"Importar el plan de cuentas de mi contador\", exportar y desactivar.",
+        "PUC NIIF Grupo 2, \"Nueva cuenta\" con \"Sugerir con IA\", \"Agregar auxiliar\" y el traslado de movimientos, \"Importar el plan de cuentas de mi contador\", \"Exportar CSV\" y desactivar.",
     },
     {
       slug: "cerrar-el-mes-contable",
       title: "Genera los asientos y cierra el mes",
       covers:
-        "\"Generar / actualizar asientos\", estados del mes (\"Cuadra\"), \"Cierre de período\": \"Cerrar mes\", numeración, \"Reabrir último mes\" y el cierre del ejercicio.",
+        "\"Generar / actualizar asientos\", el \"Cuadra\" de la pestaña Estados, \"Cierre de período\": \"Cerrar mes\" en orden, numeración de comprobantes, candado, \"Reabrir último mes\" y el asiento de \"Cierre del ejercicio\".",
     },
     {
       slug: "comprobantes-contables",
-      title: "Crea, edita o reversa comprobantes",
+      title: "Crea, edita o reversa comprobantes contables",
       covers:
-        "\"Nuevo comprobante\" de partida doble, tercero, \"Cuadrado ✓\", cuándo se puede editar, eliminar o \"Reversar\", y los errores frecuentes.",
+        "Lista y filtros, \"Nuevo comprobante\" de partida doble con tercero y centro, \"Cuadrado ✓\", numeración al cerrar el mes, cuándo se puede editar, eliminar o \"Reversar\", \"Exportar CSV\" y los errores frecuentes.",
     },
     {
       slug: "conciliacion-bancaria",
       title: "Concilia el extracto del banco",
       covers:
-        "\"Importar extracto\", reglas \"Si la descripción contiene…\", \"Aplicar reglas\", \"Contabilizar\" o \"Ignorar\" y meses cerrados.",
+        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo), \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
     },
     {
       slug: "activos-fijos-y-diferidos",
-      title: "Activos fijos, depreciación y diferidos",
+      title: "Deprecia activos fijos y amortiza diferidos",
       covers:
-        "\"Nuevo activo\" (vida útil, salvamento, cuentas), depreciación en línea recta, \"Dar de baja\"; \"Nuevo diferido\" (gasto o ingreso por anticipado), proyección y baja.",
+        "\"Nuevo activo\" (vida útil, salvamento, cuentas), depreciación en línea recta desde el mes siguiente, proyección, \"Dar de baja\" y \"Reactivar\" (la compra y el retiro van por comprobante manual); \"Nuevo diferido\" (gasto o ingreso por anticipado), asiento inicial, amortización mensual, proyección y baja.",
     },
     {
       slug: "presupuestos-y-centros-de-costos",
-      title: "Presupuestos y centros de costos",
+      title: "Arma presupuestos y usa centros de costos",
       covers:
-        "\"Agregar presupuesto\" por cuenta o prefijo, general o por centro, \"Aplicar a todos los meses del año\", ejecución del mes y crear o desactivar centros de costos.",
+        "\"Agregar presupuesto\" por cuenta o prefijo, general o por centro, \"Aplicar a todos los meses del año\", ejecución del mes con semáforo, borrar (el de todo el año se borra en todos los meses) y crear o desactivar centros de costos.",
     },
     {
       slug: "impuestos-y-retenciones",
-      title: "IVA, INC, retenciones y pago de impuestos",
+      title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" e \"Impuestos detallados\"; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes sin restar notas crédito, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",
-      title: "Prepara la información exógena",
+      title: "Prepara la información exógena para la DIAN",
       covers:
-        "\"Información exógena\": año gravable, formatos, \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
+        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
     },
     {
       slug: "libros-y-estados-financieros",
-      title: "Libros oficiales y estados financieros",
+      title: "Consulta los libros oficiales y los estados financieros",
       covers:
-        "\"Libro diario\" (detallado o resumido), \"Libro mayor\", \"Balance de prueba\" (niveles PUC), \"Estado de resultado\" y \"Estado de situación financiera\": filtros, CSV, impresión y verificación de cuadre.",
+        "\"Libro diario\" (detallado o resumido), \"Libro mayor\", \"Balance de prueba\" (niveles PUC), \"Estado de resultado\" y \"Estado de situación financiera\": filtros, CSV, impresión, verificación de cuadre, de una cifra a su detalle, y la pestaña Estados de Contabilidad.",
     },
     {
       slug: "cartera",
-      title: "Cartera: cuentas por cobrar y por pagar",
+      title: "Revisa tus cuentas por cobrar y por pagar",
       covers:
-        "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero y dónde se registran los abonos.",
+        "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero, de dónde salen los saldos (ventas a crédito, bonos, compras, gastos, notas crédito) y dónde se registran los abonos.",
     },
     {
       slug: "analizar-las-ventas",
@@ -573,15 +573,15 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "reporte-de-comisiones",
-      title: "Reporte de comisiones de ventas",
+      title: "Liquida las comisiones de ventas de tus meseros",
       covers:
-        "\"Comisiones de ventas\": resumen por persona, detalle cuenta a cuenta, CSV, cómo se calcula la base y que las devoluciones no se descuentan solas.",
+        "\"Comisiones de ventas\": resumen por persona, detalle cuenta a cuenta, CSV, cómo se calcula la base (sellada al cobrar), a quién se asigna, que las devoluciones no se descuentan solas y \"Mis comisiones\" en la app del mesero.",
     },
     {
       slug: "pulso",
       title: "Pregúntale a Pulso sobre tu negocio",
       covers:
-        "El asistente \"Pulso\": preguntas sugeridas, en qué planes está, límite diario de preguntas y qué datos usa.",
+        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está y el límite diario de preguntas.",
     },
   ],
 

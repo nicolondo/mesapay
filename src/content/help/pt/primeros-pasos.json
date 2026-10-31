@@ -1,0 +1,283 @@
+{
+  "title": "Primeiros passos",
+  "description": "Deixe seu restaurante pronto: identidade, usuários, mesas por garçom, permissões, assinatura e idioma.",
+  "articles": [
+    {
+      "slug": "por-donde-empezar",
+      "title": "Por onde começar no MESAPAY",
+      "summary": "O que fica pronto ao cadastrar seu restaurante e a ordem recomendada para deixá-lo funcionando: identidade, impostos, equipe, mesas, cardápio, impressão e pagamentos.",
+      "keywords": [
+        "começar",
+        "primeiros passos",
+        "configurar",
+        "configuração inicial",
+        "cadastro",
+        "cadastrar restaurante",
+        "onboarding",
+        "criar conta",
+        "senha",
+        "esqueci a senha",
+        "e-mail de boas-vindas",
+        "lista de tarefas"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Este guia mostra o que o cadastro do seu restaurante deixa pronto e em que ordem vale a pena configurar o resto para começar a receber pedidos e cobrar.\n\n## O que fica pronto ao se cadastrar\n\nQuando você cadastra o restaurante, o MESAPAY cria:\n\n- Seu usuário de **Operador (dono)**, com o e-mail que você informou.\n- O restaurante, com o nome, o endereço e o modo de serviço: restaurante tradicional (com mesas) ou food truck, carrinho ou para viagem (com balcão).\n- Uma primeira mesa (ou o balcão), para você testar desde o primeiro dia o que o cliente vê.\n\nO cardápio começa vazio: os pratos você adiciona.\n\n## Crie sua senha\n\n1. Abra o e-mail de boas-vindas e toque no link. Ele vence em 24 horas.\n2. Crie sua senha, com no mínimo 8 caracteres.\n3. Informe seu e-mail e sua senha e toque em **Entrar**.\n\n> Se o e-mail não chegar, confira a pasta de spam. Se o link já venceu, ao abri-lo aparece o botão **Reenviar boas-vindas** para receber um novo.\n\n## A ordem recomendada\n\nQuase tudo se configura em [Configurações](/operator/settings). Esta ordem evita voltar atrás:\n\n1. **Identidade do comércio**: logo, razão social e NIT. Aparecem nas faturas e no cardápio. Veja [Complete a identidade do comércio](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n2. **Impostos**: o imposto sobre vendas incluído nos seus preços. Na Colômbia o restaurante começa com o imposto ao consumo de 8 %; confira antes de faturar.\n3. **Usuários**: crie seus garçons, a cozinha, o bar e o caixa. Veja [Crie os usuários da sua equipe](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n4. **Permissões, gorjetas e turnos**: decida quem cobra e como as gorjetas são divididas. Veja [Defina permissões, gorjetas e turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n5. **Mesas**: crie suas mesas e imprima os QR codes em [Mesas](/operator/tables), com **Editar mesas** e **Imprimir QRs**.\n6. **Cardápio**: adicione categorias e pratos em [Cardápio](/operator/menu).\n7. **Estações de preparo**: escolha quais categorias vão para a cozinha, o bar ou a geladeira.\n8. **Impressoras de rede**: instale o programa de impressão se for imprimir comandas. Veja [Escolha como imprimir as comandas](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n9. **Pagamentos**: envie os documentos para receber pagamentos online.\n\n## Faça um teste antes de abrir\n\n1. Imprima o QR de uma mesa e escaneie com o celular.\n2. Faça um pedido como se fosse um cliente.\n3. Veja o pedido chegar em [Cozinha](/operator/kitchen) e marque como pronto.\n4. Cobre em [Mesas](/operator/tables).\n\n## Perguntas frequentes\n\n### Não vejo algumas seções no menu\n\nEstoque, Compras, Receitas, Produção, Contabilidade, Horários, Folha de pagamento e Vales são módulos que o MESAPAY ativa para cada comércio. Se precisar de algum, escreva para o suporte.\n\n### Esqueci minha senha\n\nNa tela de entrada, toque em **Esqueceu sua senha?**, digite seu e-mail e toque em **Enviar link**. Você recebe um link para criar uma nova; ele expira em 1 hora e só pode ser usado uma vez.\n\n### Escolhi o modo de serviço errado\n\nO modo (com mesas ou com balcão) muda como se pede e se cobra. Escreva para o suporte para mudá-lo.",
+      "links": [
+        {
+          "label": "Ir para Configurações",
+          "href": "/operator/settings"
+        },
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Cardápio",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conocer-el-panel",
+      "title": "Conheça o painel do restaurante",
+      "summary": "O que o Resumo mostra, como o menu lateral está organizado e para que servem os botões de cima: buscar um pedido, o fechamento de turno e o novo pedido.",
+      "keywords": [
+        "painel",
+        "início",
+        "resumo",
+        "dashboard",
+        "menu lateral",
+        "navegação",
+        "vendas de hoje",
+        "ticket médio",
+        "buscar pedido",
+        "novo pedido",
+        "atalho",
+        "seções",
+        "módulos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O painel é onde você gerencia o restaurante pelo computador ou pelo tablet: vê as vendas do dia, acompanha os pedidos e chega a todas as telas. Este guia ajuda você a se localizar.\n\n## O Resumo\n\nÉ a primeira tela ao entrar. Mostra:\n\n- **Vendas hoje**: o que foi vendido no dia, sem impostos nem gorjeta.\n- **Pedidos pagos**, **Ticket médio** e **Abertos agora** (as contas que continuam abertas).\n- O cartão **Caixa**, com o dinheiro que deveria estar no caixa do turno.\n- As vendas dos últimos 7 dias, os pratos mais vendidos (**Top pratos hoje**) e as **Mesas ativas**.\n\nCada número leva à tela com o detalhe. \"Hoje\" é o dia contábil: se seu local fecha de madrugada, você pode escolher a que horas o dia começa em [Permissões, gorjetas e turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n\n## O menu lateral\n\nAs telas estão agrupadas assim:\n\n- **Cozinha**, **Bar**, **Salão**, **Mesas** e **Reservas**: o serviço ao vivo. **Bar** aparece se você ativou o bar, e **Reservas** se você recebe reservas. No modo balcão, **Mesas** se chama **Balcão**.\n- **Pedidos**: **Pedidos**, **Clientes**, **Cobranças**, **Faturas** e **Avaliações**.\n- **Cardápio**: **Cardápio** e **Cardápios**.\n- **Administração**, **Contabilidade** e **Relatórios**: estoque, compras, receitas, horários, folha de pagamento e contabilidade, se seu comércio tiver esses módulos.\n- **Negócio**: **Fechamento**, **Despesas de representação**, **Produtos não cobrados**, **Carteira**, **Pulso** e, se você tiver o módulo, **Vales**.\n- **Configurações** e **Ajuda**.\n\nNo celular, o menu abre com o botão de menu na parte de cima.\n\n## Os botões de cima\n\n- **Buscar pedido**: digite o código curto de um pedido (por exemplo, 002A77) para encontrá-lo.\n- **Fechamento de turno**: leva à tela onde você abre e fecha o turno.\n- **Novo pedido**: escolha **Ir para Mesas** para anotar o pedido de uma mesa ou **Fatura manual** para uma conta sem mesa cobrada no caixa.\n- **Ir para uma seção**: digite o nome de uma tela para pular até ela. Também abre com as teclas Ctrl + K (⌘ + K no Mac).\n- O seletor de idioma, para ver o painel em espanhol, inglês ou português.\n\n## Por que não vejo uma tela\n\nAlgumas seções dependem de módulos que o MESAPAY ativa para cada comércio: estoque, compras, receitas, produção, contabilidade, horários e folha de pagamento, e vales corporativos. Se não aparecem no seu menu, seu comércio não os tem ativos. Escreva para o suporte se precisar.",
+      "links": [
+        {
+          "label": "Ir para o Resumo",
+          "href": "/operator"
+        },
+        {
+          "label": "Ir para Configurações",
+          "href": "/operator/settings"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "identidad-del-comercio",
+      "title": "Complete a identidade do comércio",
+      "summary": "Envie o logo, a razão social, o NIT e o endereço do seu restaurante. Eles aparecem nas faturas, no e-mail que as envia e no cardápio que o cliente vê.",
+      "keywords": [
+        "identidade",
+        "logo",
+        "razão social",
+        "NIT",
+        "dígito verificador",
+        "DV",
+        "endereço",
+        "cidade",
+        "município",
+        "DANE",
+        "telefone",
+        "dados legais",
+        "nome do restaurante",
+        "remetente"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Identidade do comércio você envia o logo e os dados legais do seu restaurante. Eles aparecem nas faturas que o cliente recebe, no e-mail com que as enviamos e no cardápio que ele vê ao escanear o QR.\n\n## Passos\n\n1. Entre em [Configurações › Identidade do comércio](/operator/settings/identidad).\n2. Em **Logo do comércio**, toque em **Enviar logo** e escolha a imagem (PNG ou SVG). Se você não enviar nenhum, usamos o logo do MESAPAY.\n3. Em **Dados legais**, preencha os campos. Abaixo explicamos cada um.\n4. Toque em **Salvar**.\n\n> O logo só fica aplicado quando você toca em **Salvar**. Para trocá-lo use **Trocar logo**, e para voltar ao do MESAPAY, **Remover logo**.\n\n## O que vai em cada campo\n\n- **Nome do restaurante**: o nome comercial. É o remetente dos e-mails de fatura: se você escrever \"DELIRIO RESTAURANTE\", o cliente vê \"DELIRIO RESTAURANTE · MESAPAY\" na caixa de entrada.\n- **Razão social**: o nome legal, exatamente como aparece no RUT.\n- **NIT**: com o dígito verificador, separado por hífen. Por exemplo, 901944469-1. A faturação eletrônica exige.\n- **Endereço** e **Telefone**: os do seu local.\n- **Cidade**: na Colômbia, escolha na lista de municípios. O código DANE do município vai dentro da fatura eletrônica para a DIAN identificar seu ponto de faturação.\n\n## Erros frequentes\n\n- **Falta o dígito verificador do NIT**: escreva-o depois do hífen, por exemplo 901944469-1.\n- **O dígito verificador não corresponde a esse NIT**: copie de novo o NIT e o dígito do RUT; um dos dois está errado.\n- **Aparece \"É …?\" embaixo de Cidade**: a cidade estava escrita à mão, sem código DANE, e o MESAPAY sugere um município. Toque em **Sim, é essa** se estiver certo ou em **Não, vou buscar** para escolher na lista.\n\n## Se o seu restaurante faz parte de um grupo\n\nNo alto aparece **Razão social do grupo**. Você pode escolher uma razão social compartilhada (os locais que a compartilham usam a mesma numeração da DIAN) ou deixar **Usar a do restaurante (local)** e preencher os campos deste local.\n\n## A resolução de faturação fica em outra tela\n\nA resolução de numeração (número, prefixo, intervalo, validade e próximo número) é configurada em [Configurações › Faturação eletrónica DIAN](/operator/settings/facturacion-dian). Se seu comércio não tem faturação eletrônica, esse cartão se chama **Resolução de faturação**.",
+      "links": [
+        {
+          "label": "Ir para Identidade do comércio",
+          "href": "/operator/settings/identidad"
+        },
+        {
+          "label": "Ir para Faturação DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "usuarios-y-roles",
+      "title": "Crie os usuários da sua equipe",
+      "summary": "Cada pessoa entra com o próprio usuário, e o perfil decide qual tela ela vê. Crie, edite ou exclua usuários e troque senhas em Configurações.",
+      "keywords": [
+        "usuários",
+        "perfis",
+        "equipe",
+        "funcionários",
+        "staff",
+        "criar usuário",
+        "garçom",
+        "cozinha",
+        "bar",
+        "maquininha",
+        "operador",
+        "dono",
+        "senha",
+        "esqueci a senha",
+        "trocar senha",
+        "e-mail",
+        "permissões",
+        "acesso"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cada pessoa da sua equipe entra no MESAPAY com o próprio usuário. O perfil decide qual tela ela vê: assim o garçom trabalha pelo celular, a cozinha pelo tablet e você pelo painel.\n\n## Os perfis\n\n- **Operador (dono)**: entra no painel completo do restaurante, incluindo as Configurações.\n- **Garçom**: entra no app do garçom pelo celular, com as abas **Mesas**, **Salón** e **Yo** (Mesas, Salão e Eu).\n- **Cozinha**: entra direto no quadro da cozinha.\n- **Bar**: entra direto no quadro do bar.\n- **Maquininha**: entra em **Mesas ao vivo**, a tela para cobrar na maquininha ou confirmar pagamentos em dinheiro.\n\n## Criar um usuário\n\n1. Entre em [Configurações › Usuários](/operator/settings/usuarios).\n2. Toque em **+ Novo usuário**.\n3. Preencha o **Nome**, o **Email** e uma **Senha** de no mínimo 6 caracteres.\n4. Escolha o **Perfil**.\n5. Toque em **Criar**.\n\nEntregue à pessoa o e-mail e a senha. Ao tocar em **Entrar**, ela chega sozinha à tela do seu perfil.\n\n## Trocar dados, perfil ou senha\n\n1. Na lista, toque em **Editar** ao lado da pessoa.\n2. Troque o nome, o e-mail ou o perfil, ou escreva uma **Nova senha**. Se deixar em branco, a atual é mantida.\n3. Toque em **Salvar**.\n\n> Se alguém da sua equipe esqueceu a senha, defina uma nova aqui e entregue a ela. A pessoa também pode recuperá-la sozinha: na tela de entrada, toca em **Esqueceu sua senha?** e recebe no e-mail um link que expira em 1 hora.\n\n## Excluir um usuário\n\nToque em **Excluir** ao lado da pessoa e confirme. Não dá para desfazer.\n\n## Casos frequentes\n\n- **\"Ya existe un usuario con ese email\"** (já existe um usuário com esse e-mail): cada e-mail serve para um único usuário em todo o MESAPAY, mesmo que seja de outro restaurante. Use outro e-mail.\n- **Não consigo trocar meu perfil nem me excluir**: é de propósito, para o restaurante nunca ficar sem dono. Peça a outro operador.\n- **O garçom só deve ver algumas mesas**: defina a seção dele em [Atribua mesas a cada garçom](/operator/ayuda/primeros-pasos/mesas-por-mesero).\n- **Quero a cozinha num tablet**: crie um usuário com perfil Cozinha e siga [Use um tablet como tela da cozinha ou do bar](/operator/ayuda/impresion-y-equipos/tablet-de-cocina-y-bar).",
+      "links": [
+        {
+          "label": "Ir para Usuários",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Ir para Mesas por garçom",
+          "href": "/operator/settings/meseros"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mesas-por-mesero",
+      "title": "Atribua mesas a cada garçom",
+      "summary": "Divida o salão em seções para que cada garçom veja no app só as mesas que atende, e defina a comissão dele sobre o que cobra.",
+      "keywords": [
+        "mesas por garçom",
+        "seção",
+        "zona",
+        "atribuir mesas",
+        "dividir o salão",
+        "intervalo de mesas",
+        "comissão",
+        "porcentagem",
+        "garçom vê todas"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Com Mesas por garçom você divide o salão em seções: cada garçom vê no app só as mesas que atende. Aqui você também define a comissão de cada um.\n\n## Atribuir a seção de um garçom\n\n1. Entre em [Configurações › Mesas por garçom](/operator/settings/meseros).\n2. Encontre o garçom e toque nos números das mesas que ele atende.\n3. Para marcar várias de uma vez, use **Todas**, **Nenhuma** ou **Intervalo**: escreva da primeira à última mesa e toque em **Somar**.\n\nAs mudanças são salvas sozinhas. Se aparecer um erro, toque em **Tentar de novo**.\n\n> O cartão Mesas por garçom aparece em Configurações quando você já tem pelo menos um usuário com perfil Garçom.\n\n## O que o garçom vê\n\n- Nas abas **Mesas** e **Salón** (Salão) do app ele vê só as mesas marcadas, e só recebe os avisos dessas mesas.\n- Se não tiver nenhuma mesa marcada, vê todas (**Atende todas**). Serve para turnos sem divisão por zonas.\n- O garçom também pode pegar ou soltar mesas pelo app, na aba **Yo** (Eu).\n\n## A comissão do garçom\n\nEm **Comissão (%)** escreva a porcentagem que o garçom ganha sobre o que cobra, entre 0 e 100. É calculada sobre o subtotal de cada conta, sem gorjeta nem imposto. Deixe em branco se ele não tem comissão.\n\n> A comissão fica fixada em cada conta no momento da cobrança: se você mudar, só afeta as contas cobradas depois.\n\n## Casos frequentes\n\n- **Não aparece o cartão Mesas por garçom**: crie primeiro um usuário com perfil Garçom em [Usuários](/operator/settings/usuarios).\n- **\"Crie primeiro as mesas do restaurante\"**: você ainda não tem mesas. Crie em [Mesas](/operator/tables) com **Editar mesas**.\n- **\"Intervalo inválido\"**: confira se o primeiro número é menor ou igual ao segundo.\n- **\"Deve estar entre 0 e 100\"**: a comissão é uma porcentagem; escreva um número de 0 a 100.",
+      "links": [
+        {
+          "label": "Ir para Mesas por garçom",
+          "href": "/operator/settings/meseros"
+        },
+        {
+          "label": "Ir para Usuários",
+          "href": "/operator/settings/usuarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "permisos-propinas-y-turnos",
+      "title": "Defina permissões, gorjetas e turnos da equipe",
+      "summary": "Decida quem cobra, quem pode deixar de cobrar ou mover pedidos, como as gorjetas são divididas, como funcionam os turnos e a que horas começa o seu dia.",
+      "keywords": [
+        "permissões",
+        "políticas",
+        "gorjetas",
+        "divisão de gorjetas",
+        "turnos",
+        "turno por garçom",
+        "turno único",
+        "controle de caixa",
+        "só o administrador cobra",
+        "não cobrar",
+        "cortesia",
+        "despesas de representação",
+        "mover mesas",
+        "dia contábil",
+        "horário de corte",
+        "expediente",
+        "saiu sem pagar",
+        "walkout"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Permissões, gorjetas e turnos você define as regras do dia a dia: quem pode cobrar, deixar de cobrar ou mover pedidos, como as gorjetas são divididas, como funcionam os turnos e a que horas começa o seu dia.\n\n## Como mudar uma regra\n\n1. Entre em [Configurações › Permissões, gorjetas e turnos](/operator/settings/staff-policies). A tela se chama **Políticas operacionais**.\n2. Escolha a opção de cada seção.\n3. Toque em **Salvar**, no fim da página.\n\n## Gorjetas\n\n- **Compartilhadas**: as gorjetas são do restaurante e você decide como dividi-las no fechamento. O garçom não vê gorjetas pessoais no app.\n- **Por garçom**: cada gorjeta fica no nome do garçom que cobrou a conta, e cada um vê o acumulado do dia na aba **Yo** (Eu).\n\n## Controle de caixa: quem inicia a cobrança\n\nPor padrão, o garçom pode cobrar as contas das suas mesas. Se você prefere que o dinheiro fique com uma única pessoa, ative **Apenas o administrador pode iniciar a cobrança**. Com isso:\n\n- O garçom deixa de ver o botão de cobrar; no lugar, pode avisar que a mesa pediu a conta.\n- Quando uma mesa pede a conta, aparece um aviso em tela cheia no painel.\n- O turno fica sempre como **Turno único do local**.\n- O cliente continua podendo pagar sozinho pelo celular.\n\n> ⚠ Se houver turnos de garçons abertos, feche-os antes de ativar esta opção: senão a conferência do caixa fica descasada.\n\n## Quem move pratos e pedidos entre mesas\n\n- **Somente administradores**: os garçons pedem a transferência a um administrador.\n- **Administradores e garçons**: os garçons movem pratos e pedidos entre as mesas da sua seção.\n\n## Turnos\n\n- **Turno único do local**: um só turno por restaurante, aberto e fechado pelo operador, com conferência do caixa no fim do dia.\n- **Turno por garçom**: cada garçom abre e fecha o próprio turno pelo app. Convive com o turno do local.\n\nCom **Turno por garçom** aparece mais uma seção, para quando um garçom abre o turno antes do local:\n\n- **Não permitir**: o garçom espera o responsável abrir o turno do local.\n- **Abrir o estabelecimento automaticamente**: quando o garçom abre o turno, o do local abre junto.\n\n> O fundo de troco de um garçom nunca pode ser maior que o do local. Se o local abriu com $0, os garçons também.\n\n## Dia contábil\n\nEm **O expediente começa às** você escolhe o horário de corte do dia. Se seu local fecha de madrugada, escolha um horário depois do fechamento, por exemplo 05:00: assim uma cobrança às 2h conta para a noite anterior e os relatórios não ficam partidos à meia-noite.\n\nAfeta os relatórios por dia (cobranças, fechamento do dia e Resumo). A conferência de cada turno usa o próprio horário de abertura.\n\n## Risco de uma mesa sair sem pagar\n\nA tela Mesas pinta cada mesa conforme o tempo sem pagar desde que todos os pratos foram entregues: **Atento**, **Atenção** e **Risco alto**. Em **Risco alto (vermelho) depois de** você escolhe os minutos, de 1 a 180 (o padrão é 20).\n\n- Aumente se seus clientes ficam muito tempo depois de comer; diminua se a rotação é rápida.\n- Se a mesa pediu para pagar ou chamou o garçom e ninguém atendeu, ela fica vermelha na metade do tempo.\n- Uma mesa com pratos ainda em preparo nunca está em risco.\n\n## Cortesias (despesas de representação)\n\nAtive **Permitir cortesias** para poder fechar uma conta como cortesia, em $0, anotando para quem foi. Os pratos descontam estoque, mas não contam como venda. Em **Nome que o garçom vê** você pode mudar o nome do botão.\n\n## Quem pode deixar de cobrar\n\nMarque quais perfis podem deixar de cobrar um prato já entregue ou fechar uma conta como cortesia: **Administrador**, **Garçom** ou **Terminal (maquininha)**. Os demais veem o botão desativado. Cada anulação fica registrada com o usuário e o motivo.\n\nSe você não marcar nenhum perfil, ninguém da equipe pode fazer isso.\n\n> Independentemente do que você marcar aqui, depois que a cozinha começou a preparar um prato, só o administrador pode cancelá-lo ou deixar de cobrá-lo.",
+      "links": [
+        {
+          "label": "Ir para Permissões, gorjetas e turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "suscripcion",
+      "title": "Sua assinatura e o débito automático",
+      "summary": "Veja seu plano, o estado e o vencimento, ative o débito automático no cartão e confira o histórico de pagamentos do MESAPAY.",
+      "keywords": [
+        "assinatura",
+        "plano",
+        "mensalidade",
+        "pagamento do MESAPAY",
+        "débito automático",
+        "cartão",
+        "alterar cartão",
+        "cancelar débito",
+        "vencido",
+        "suspenso",
+        "conta suspensa",
+        "fatura do MESAPAY",
+        "histórico de pagamentos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Assinatura você vê seu plano do MESAPAY, quando ele vence e o histórico de pagamentos, e ativa o débito automático no cartão para não precisar pagar à mão todo mês.\n\n## Ver seu plano\n\nEntre em [Configurações › Assinatura](/operator/settings/suscripcion). Em **Plano ativo** você vê o nome do plano, o preço por mês e o estado:\n\n- **Ativo**: seu plano está em dia.\n- **Vencido**: passou a data de vencimento sem pagamento registrado.\n- **Suspenso**: o acesso ao painel está pausado.\n- **Débito cancelado**: você cancelou o débito automático. O plano continua ativo até a data de vencimento.\n\nEmbaixo aparece a **Próxima cobrança**, se você tem débito automático, ou a data em que o plano **Vence**.\n\n## Avisos no painel\n\n- Quando sua mensalidade está para vencer, aparece no alto do painel um aviso com **Ver minha assinatura**.\n- Se estiver vencida, o aviso fica vermelho e traz o botão **Pagar agora**, que leva a esta tela para ativar o débito automático.\n\n## Ativar o débito automático\n\n1. Toque em **Ativar débito automático**.\n2. Preencha o **Número do cartão**, o **Nome no cartão**, a **Validade (MM/AA)** e o **CVV**.\n3. Toque em **Confirmar cartão**.\n\nQuando fica ativo, você vê o cartão cadastrado e a data da próxima cobrança.\n\n- Se o seu plano ainda está vigente, a primeira cobrança acontece no dia do vencimento.\n- Se já venceu, a cobrança é feita na hora e o plano fica em dia por mais um mês.\n\n## Alterar o cartão ou cancelar o débito\n\n- **Alterar cartão**: preencha os dados do cartão novo e confirme.\n- **Cancelar débito automático**: para a cobrança mensal automática. Seu plano continua ativo até a data de vencimento.\n\n## Histórico de pagamentos\n\nEm **Histórico de pagamentos** você vê cada pagamento com a data, o período que cobre, o valor e o método: cartão com débito automático, dinheiro ou transferência.\n\n## Casos frequentes\n\n- **\"Cartão recusado\"**: confira os dados ou use outro cartão.\n- **Quero mudar de plano**: escreva para o suporte; a mudança de plano é feita pelo MESAPAY.\n- **Ao entrar vejo \"Conta suspensa\"**: o acesso ao painel está pausado. Escreva para o suporte para reativá-lo.",
+      "links": [
+        {
+          "label": "Ir para Assinatura",
+          "href": "/operator/settings/suscripcion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cambiar-el-idioma",
+      "title": "Mude o idioma da plataforma",
+      "summary": "O MESAPAY funciona em espanhol, inglês e português. Cada pessoa escolhe o idioma no próprio dispositivo; a moeda não muda.",
+      "keywords": [
+        "idioma",
+        "língua",
+        "inglês",
+        "português",
+        "espanhol",
+        "english",
+        "español",
+        "traduzir",
+        "mudar idioma",
+        "language"
+      ],
+      "audience": [
+        "operator",
+        "mesero",
+        "cocina"
+      ],
+      "body": "O MESAPAY funciona em espanhol, inglês e português. Cada pessoa escolhe o idioma no próprio dispositivo, sem mudar nada para os outros.\n\n## Mudar o idioma do painel\n\n1. No alto do painel, toque no seletor de idioma. Ele mostra o idioma atual (por exemplo, **Português**; no celular, **PT**).\n2. Escolha **Español**, **English** ou **Português**.\n\nA tela recarrega no idioma escolhido.\n\n## No app do garçom e nos quadros da cozinha e do bar\n\nEssas telas não têm seletor próprio: usam o idioma escolhido na tela de entrada. Antes de tocar em **Entrar**, escolha o idioma no seletor dessa tela.\n\n> Alguns textos do app do garçom, como os nomes das abas, ainda estão só em espanhol.\n\n## O que muda e o que não muda\n\n- Mudam os textos das telas, os botões e os avisos.\n- **A moeda não muda**: é sempre a do país do seu restaurante.\n- A escolha fica salva naquele navegador. Se alguém entrar por outro celular ou computador, vê o idioma daquele dispositivo (na primeira vez, o do navegador).\n- Os nomes dos seus pratos aparecem no painel como você os escreveu. Seus clientes, sim, veem o cardápio traduzido: a tradução é revisada e ajustada em [Traduções do cardápio](/operator/settings/traducciones).",
+      "links": [
+        {
+          "label": "Ir para Traduções do cardápio",
+          "href": "/operator/settings/traducciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
+}

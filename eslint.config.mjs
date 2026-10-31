@@ -181,6 +181,14 @@ const MIGRATED = [
   "src/app/admin/cuenta/**/*.{ts,tsx}",
   "src/components/account/**/*.{ts,tsx}",
   "src/app/signin/olvide/**/*.{ts,tsx}",
+  // Centro de ayuda (operador y mesero), su buscador y su contenido. Nació
+  // trilingüe: la interfaz va por `help` y los artículos viven en
+  // src/content/help/{es,en,pt}.
+  "src/app/operator/ayuda/**/*.{ts,tsx}",
+  "src/app/mesero/ayuda/**/*.{ts,tsx}",
+  "src/components/help/**/*.{ts,tsx}",
+  "src/lib/help/**/*.{ts,tsx}",
+  "src/content/help/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

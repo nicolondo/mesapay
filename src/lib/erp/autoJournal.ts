@@ -23,28 +23,15 @@ import { monthRange } from "./accounting";
 import { startMonth } from "./activos";
 import { getAccountingConfig, isMonthClosed } from "./cierre";
 import { isMonth, nextMonthOf } from "./cierrePeriodo";
+import { ENGINE_SOURCES } from "./engineCodes";
 import { type GenResult, generateJournalForMonth } from "./posting";
 
 /**
  * Fuentes de los asientos-resumen que arma `buildMonthEntries` (posting.ts).
- * Un test compara esta lista con el código del motor para que no se
- * desincronicen.
+ * Viven en engineCodes.ts para que el motor también las use (borra las que
+ * el mes ya no produce) sin importar este archivo.
  */
-export const ENGINE_SOURCES = [
-  "sale",
-  "customer_credit_payment",
-  "purchase",
-  "purchase_payment",
-  "cogs",
-  "waste",
-  "expense",
-  "expense_payment",
-  "depreciation",
-  "deferred",
-  "payroll",
-  "refund",
-  "credit_note",
-] as const;
+export { ENGINE_SOURCES };
 
 // ── Lock por comercio ───────────────────────────────────────────────────────
 

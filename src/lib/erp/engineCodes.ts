@@ -87,3 +87,25 @@ export const ENGINE_CODES: ReadonlySet<string> = new Set<string>(
 export function isEngineCode(code: string): boolean {
   return ENGINE_CODES.has(code);
 }
+
+/**
+ * Fuentes de los asientos-resumen que arma el motor (`posting.ts`,
+ * `buildMonthEntries`). Las comparten el motor (borra las que este mes ya
+ * no producen asiento) y la corrida automática (`autoJournal.ts`). Un test
+ * compara la lista con el código del motor para que no se desincronicen.
+ */
+export const ENGINE_SOURCES = [
+  "sale",
+  "customer_credit_payment",
+  "purchase",
+  "purchase_payment",
+  "cogs",
+  "waste",
+  "expense",
+  "expense_payment",
+  "depreciation",
+  "deferred",
+  "payroll",
+  "refund",
+  "credit_note",
+] as const;

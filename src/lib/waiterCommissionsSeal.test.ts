@@ -92,6 +92,31 @@ describe("sealOrderCommission", () => {
     expect(res).toMatchObject({ sealed: true, baseCents: 45_000, commissionCents: 1_125 });
   });
 
+  it("la base NO lleva el impuesto incluido en el precio de la carta (INC 8 %), ni el de las líneas libres", async () => {
+    m.orderFindUnique.mockResolvedValue({
+      ...order({ subtotalCents: 118_000, discountCents: 10_800 }),
+      restaurant: { salesTaxKind: "inc", salesTaxPct: 8 },
+      items: [
+        // Platos de carta: $108.000 con el INC adentro → $8.000 de impuesto.
+        { qty: 2, priceCentsSnapshot: 27_000, taxKind: null },
+        { qty: 1, priceCentsSnapshot: 54_000, taxKind: null },
+        // Línea libre: su impuesto va encima (no está en el subtotal).
+        { qty: 1, priceCentsSnapshot: 10_000, taxKind: "iva" },
+      ],
+    });
+    m.userFindMany.mockResolvedValue([ANA]);
+    const res = await sealOrderCommission(client, "o1");
+    // 118.000 − 10.800 de descuento − 8.000 de INC incluido.
+    expect(res).toMatchObject({ sealed: true, baseCents: 99_200, commissionCents: 2_480 });
+    // Sólo los platos vivos: sin cancelar y sin ronda cancelada.
+    const select = m.orderFindUnique.mock.calls[0][0].select;
+    expect(select.items.where).toEqual({
+      cancelledAt: null,
+      OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+    });
+    expect(select.restaurant).toEqual({ select: { salesTaxKind: true, salesTaxPct: true } });
+  });
+
   it("no sella si el mesero no tiene % configurado", async () => {
     m.orderFindUnique.mockResolvedValue(order());
     m.userFindMany.mockResolvedValue([{ id: "w-ana", waiterCommissionBps: null }]);

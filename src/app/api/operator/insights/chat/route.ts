@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getClient, INSIGHTS_MODEL } from "@/lib/anthropic";
 import { resolveInsightsScope } from "@/lib/ai/scope";
-import { resolveAiEnabled, dailyMessageLimit, messagesUsedToday } from "@/lib/ai/aiAccess";
+import { resolveAiEnabled, dailyMessageLimit, localIsoDate, messagesUsedToday } from "@/lib/ai/aiAccess";
 import { anthropicTools, executeTool } from "@/lib/ai/toolRegistry";
 import { runInsightsAgent } from "@/lib/ai/insightsAgent";
 import { timezoneForCountry } from "@/lib/ai/tools/dateRange";
@@ -36,8 +36,11 @@ async function POSTHandler(req: Request) {
   if (!r) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!resolveAiEnabled(r)) return NextResponse.json({ error: "feature_disabled" }, { status: 403 });
 
+  // El día del límite y el «Hoy es» del prompt van en la zona del comercio,
+  // no en la del servidor (UTC): si no, el día cambia a las 7 p. m. en Colombia.
+  const timeZone = timezoneForCountry(r.country);
   const limit = await dailyMessageLimit(r.aiDailyMessageLimit);
-  if ((await messagesUsedToday(scope.restaurantId)) >= limit) {
+  if ((await messagesUsedToday(scope.restaurantId, { timeZone })) >= limit) {
     return NextResponse.json({ error: "daily_limit", limit }, { status: 429 });
   }
 
@@ -66,12 +69,13 @@ async function POSTHandler(req: Request) {
   ];
 
   const locale = await getLocale(); // cookie MESAPAY_LOCALE (next-intl)
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate(new Date(), timeZone);
+  // Español neutro (tú), como el resto del producto: el modelo copia el tono.
   const system =
-    `Sos "Pulso", el analista de negocio del restaurante "${r.name}". Hoy es ${today}. ` +
-    `Respondé SIEMPRE en el idioma: ${locale}. Usá SOLO las herramientas para obtener datos ` +
+    `Eres "Pulso", el analista de negocio del restaurante "${r.name}". Hoy es ${today}. ` +
+    `Responde SIEMPRE en el idioma: ${locale}. Usa SOLO las herramientas para obtener datos ` +
     `(nunca inventes cifras). Sé concreto: números clave, comparaciones y 1-2 recomendaciones ` +
-    `accionables. Si una pregunta no se puede responder con las herramientas, decilo.`;
+    `accionables. Si una pregunta no se puede responder con las herramientas, dilo.`;
 
   let result;
   try {
@@ -80,7 +84,7 @@ async function POSTHandler(req: Request) {
       model: INSIGHTS_MODEL,
       system,
       messages,
-      ctx: { scope, timezone: timezoneForCountry(r.country) },
+      ctx: { scope, timezone: timeZone },
       executeTool,
       tools: anthropicTools(),
     });

@@ -11,26 +11,33 @@ import { useTranslations } from "next-intl";
  * asiento de cierre) siempre se lee del servidor, nunca se replica acá.
  */
 
-type ActionError = "already_closed" | "nothing_closed" | "generic";
+type ActionError = "already_closed" | "nothing_closed" | "closing_locked" | "generic";
 
 function usePeriodAction() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<ActionError | null>(null);
+  const [voucherNumber, setVoucherNumber] = useState<number | null>(null);
 
   async function run(request: () => Promise<Response>) {
     setBusy(true);
     setError(null);
+    setVoucherNumber(null);
     try {
       const r = await request();
       if (!r.ok) {
-        const j = (await r.json().catch(() => null)) as { error?: string } | null;
+        const j = (await r.json().catch(() => null)) as
+          | { error?: string; voucherNumber?: number }
+          | null;
         setError(
-          j?.error === "already_closed" || j?.error === "nothing_closed"
+          j?.error === "already_closed" ||
+            j?.error === "nothing_closed" ||
+            j?.error === "closing_locked"
             ? j.error
             : "generic",
         );
+        if (typeof j?.voucherNumber === "number") setVoucherNumber(j.voucherNumber);
         return;
       }
       startTransition(() => router.refresh());
@@ -41,10 +48,16 @@ function usePeriodAction() {
     }
   }
 
-  return { busy: busy || pending, error, run };
+  return { busy: busy || pending, error, voucherNumber, run };
 }
 
-function ErrorLine({ error }: { error: ActionError | null }) {
+function ErrorLine({
+  error,
+  voucherNumber = null,
+}: {
+  error: ActionError | null;
+  voucherNumber?: number | null;
+}) {
   const t = useTranslations("opCierre");
   if (!error) return null;
   const msg =
@@ -52,7 +65,9 @@ function ErrorLine({ error }: { error: ActionError | null }) {
       ? t("errAlreadyClosed")
       : error === "nothing_closed"
         ? t("errNothingClosed")
-        : t("errGeneric");
+        : error === "closing_locked"
+          ? t("errClosingLocked", { n: voucherNumber ?? 0 })
+          : t("errGeneric");
   return (
     <div role="alert" className="mt-1 text-xs text-danger">
       {msg}
@@ -127,7 +142,7 @@ export function ReopenMonthButton({ monthLabel }: { monthLabel: string }) {
 /** Genera (o regenera) el asiento de cierre del ejercicio. */
 export function YearClosingButton({ year, exists }: { year: number; exists: boolean }) {
   const t = useTranslations("opCierre");
-  const { busy, error, run } = usePeriodAction();
+  const { busy, error, voucherNumber, run } = usePeriodAction();
   return (
     <div>
       <button
@@ -146,7 +161,7 @@ export function YearClosingButton({ year, exists }: { year: number; exists: bool
       >
         {busy ? t("yearClosingBusy") : exists ? t("yearClosingRegen") : t("yearClosingGen")}
       </button>
-      <ErrorLine error={error} />
+      <ErrorLine error={error} voucherNumber={voucherNumber} />
     </div>
   );
 }

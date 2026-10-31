@@ -9,7 +9,12 @@ import {
   type CategoryLine,
   embeddedTaxCents,
   type LaborSummary,
+  netCategorySales,
+  netSalesCents,
+  netSalesTaxByRate,
   type Pnl,
+  refundAdjustment,
+  type SalesDetail,
   type SalesTaxKind,
   type SalesTaxSlice,
   type TaxSummary,
@@ -27,10 +32,11 @@ import {
   creditNoteInstant,
   inFiscalRange,
   issuedAtWindow,
+  loadUnlinkedRefundsCents,
   logInvalidCreditNote,
   storedNoteSlices,
 } from "@/lib/erp/creditNoteAccounting";
-import { creditNoteFiscalDate } from "@/lib/erp/creditNoteLedger";
+import { creditNoteFiscalDate, sumSlices, type CreditNoteTaxSlice } from "@/lib/erp/creditNoteLedger";
 import { isoDateUtc } from "@/lib/erp/reports/period";
 
 export type MonthRange = { from: Date; to: Date };
@@ -42,11 +48,14 @@ export type MonthRange = { from: Date; to: Date };
  * usó cada insumo, en proporción a cuánto consumió (re-explotando recetas).
  * El costo que no se puede atribuir (insumo sin receta viva) va a "(otros)".
  */
+/** Categoría con su precio de carta (todo y sólo platos de carta) antes de repartir. */
+type CategoryGross = { category: string; listCents: number; menuListCents: number; cmvCents: number };
+
 async function computeCategoryBreakdown(
   restaurantId: string,
   range: MonthRange,
   cmvEnabled: boolean,
-): Promise<CategoryLine[]> {
+): Promise<CategoryGross[]> {
   const UNCAT = "(sin categoría)";
   const OTHER = "(otros)";
   const items = await db.orderItem.findMany({
@@ -63,6 +72,7 @@ async function computeCategoryBreakdown(
       qty: true,
       priceCentsSnapshot: true,
       menuItemId: true,
+      taxKind: true,
       cancelledAt: true,
       cancellationKind: true,
       menuItem: { select: { category: { select: { label: true } } } },
@@ -71,11 +81,16 @@ async function computeCategoryBreakdown(
   const catOf = (i: (typeof items)[number]) =>
     i.menuItem?.category?.label?.trim() || UNCAT;
 
-  // Ventas: solo ítems NO cancelados (los comp no se cobran).
+  // Ventas: solo ítems NO cancelados (los comp no se cobran). Aparte, lo
+  // de platos de carta (`taxKind` null): sólo ellos llevan el impuesto
+  // adentro del precio; las líneas libres lo suman encima.
   const sales = new Map<string, number>();
+  const menuSales = new Map<string, number>();
   for (const it of items) {
     if (it.cancelledAt) continue;
-    sales.set(catOf(it), (sales.get(catOf(it)) ?? 0) + it.priceCentsSnapshot * it.qty);
+    const amount = it.priceCentsSnapshot * it.qty;
+    sales.set(catOf(it), (sales.get(catOf(it)) ?? 0) + amount);
+    if (it.taxKind == null) menuSales.set(catOf(it), (menuSales.get(catOf(it)) ?? 0) + amount);
   }
 
   const cmv = new Map<string, number>();
@@ -148,12 +163,25 @@ async function computeCategoryBreakdown(
   }
 
   const cats = new Set([...sales.keys(), ...cmv.keys()]);
-  return [...cats]
-    .map((category) => ({
-      category,
-      salesCents: sales.get(category) ?? 0,
-      cmvCents: cmv.get(category) ?? 0,
-    }))
+  return [...cats].map((category) => ({
+    category,
+    listCents: sales.get(category) ?? 0,
+    menuListCents: menuSales.get(category) ?? 0,
+    cmvCents: cmv.get(category) ?? 0,
+  }));
+}
+
+/**
+ * Ventas por categoría NETAS (sin impuesto, netas de descuento), para que
+ * sumen los ingresos del PYG antes de notas crédito y devoluciones.
+ */
+function netCategoryBreakdown(
+  categories: readonly CategoryGross[],
+  detail: SalesDetail,
+): CategoryLine[] {
+  const net = netCategorySales(categories, detail);
+  return categories
+    .map((c) => ({ category: c.category, salesCents: net.get(c.category) ?? 0, cmvCents: c.cmvCents }))
     .sort((a, b) => b.salesCents - a.salesCents);
 }
 
@@ -161,7 +189,7 @@ export async function computeMonthPnl(
   restaurantId: string,
   range: MonthRange,
 ): Promise<Pnl> {
-  const [tenant, sales, movements, expenses, purchases] = await Promise.all([
+  const [tenant, sales, salesTax, movements, expenses, purchases] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -175,8 +203,12 @@ export async function computeMonthPnl(
     }),
     db.order.aggregate({
       where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
-      _sum: { subtotalCents: true, tipCents: true, taxCents: true },
+      _sum: { subtotalCents: true, discountCents: true, tipCents: true, taxCents: true },
     }),
+    // El impuesto incluido, las notas crédito y las devoluciones salen del
+    // MISMO cálculo que la tarjeta de impuestos (y que el asiento): así el
+    // PYG, «Impuestos» y los libros cuentan la misma cifra.
+    computeSalesTaxSummary(restaurantId, range),
     // sale_consumption/waste = CMV y mermas reales (A4); purchase_in
     // valorado al recibir = compras del mes (cubre recepciones parciales
     // y entradas manuales — línea informativa del P&L).
@@ -286,15 +318,29 @@ export async function computeMonthPnl(
   const cmvEnabled =
     isModuleEnabled(tenant?.enabledModules, "inventory") &&
     isModuleEnabled(tenant?.enabledModules, "recipes");
-  const categoryBreakdown = await computeCategoryBreakdown(
+  const categories = await computeCategoryBreakdown(
     restaurantId,
     range,
     cmvEnabled,
   );
 
+  // Ingresos por ventas: sin impuesto ni propina, netos de descuentos y de
+  // notas crédito y devoluciones (ver `netSalesCents`). Antes era Σ
+  // subtotal: con el impuesto adentro, antes de descuentos y sin restar
+  // notas, así que el margen salía inflado frente al estado de resultado.
+  const salesDetail: SalesDetail = {
+    listCents: sales._sum.subtotalCents ?? 0,
+    discountCents: sales._sum.discountCents ?? 0,
+    includedTaxCents: salesTax.taxCents,
+    creditNotesCents: salesTax.creditNotes.baseCents,
+    refundsCents: salesTax.refunds.baseCents,
+  };
+  const categoryBreakdown = netCategoryBreakdown(categories, salesDetail);
+
   return {
     ...buildPnl({
-      salesCents: sales._sum.subtotalCents ?? 0,
+      salesCents: netSalesCents(salesDetail),
+      salesDetail,
       tipsCents: sales._sum.tipCents ?? 0,
       taxesCents: sales._sum.taxCents ?? 0,
       consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
@@ -332,6 +378,12 @@ export async function computeMonthPnl(
  * (`loadSalesBook`) y del asiento, para que impuesto y bruto caigan en el
  * mismo período aunque la tirilla se haya numerado después.
  *
+ * Bruto y neto: `byRate`, `grossCents`, `taxCents` y `baseCents` son el
+ * BRUTO de lo facturado (lo que asienta «Ventas del mes»). Aparte vienen
+ * lo que restan las notas crédito aceptadas con fecha fiscal en el mes y
+ * los reembolsos sin nota, y `net`, que es bruto − notas − devoluciones:
+ * la misma regla de «Impuestos del período» (`reports/taxesDocuments`).
+ *
  * Criterios documentados:
  *   · Snapshot sin tarifa (anterior a congelarla) ⇒ tramo "none", cero
  *     impuesto: es la verdad de cómo se emitió y así lo declaró el XML.
@@ -344,11 +396,46 @@ export async function computeTaxSummary(
   restaurantId: string,
   range: MonthRange,
 ): Promise<TaxSummary> {
+  const [sales, poHeaders] = await Promise.all([
+    computeSalesTaxSummary(restaurantId, range),
+    // Impuestos documentales y acumulados: misma fuente que pagos y libros.
+    db.purchaseOrder.findMany({
+      where: { restaurantId, receivedAt: { gte: range.from, lt: range.to } },
+      select: {
+        incCents: true,
+        retefuenteCents: true,
+        reteIvaCents: true,
+        reteIcaCents: true,
+        items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
+      },
+    }),
+  ]);
+
+  const purchaseAmounts = poHeaders.map((order) => purchaseOrderTotals(order, "received"));
+  const ivaCents = purchaseAmounts.reduce((sum, order) => sum + order.taxCents, 0);
+
+  return {
+    sales,
+    purchases: {
+      ivaCents,
+      incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0),
+      retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0),
+      reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0),
+      reteIcaCents: poHeaders.reduce((sum, order) => sum + order.reteIcaCents, 0),
+    },
+  };
+}
+
+/** Lado ventas de `computeTaxSummary` (también lo usa el PYG). */
+async function computeSalesTaxSummary(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<TaxSummary["sales"]> {
   const paidInMonth = {
     status: "paid" as const,
     paidAt: { gte: range.from, lt: range.to },
   };
-  const [tenant, sales, uninvoiced, invoices, poHeaders] = await Promise.all([
+  const [tenant, sales, uninvoiced, invoices, creditNotes, refundsCents] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { salesTaxKind: true, salesTaxPct: true },
@@ -368,17 +455,8 @@ export async function computeTaxSummary(
       where: { restaurantId, order: paidInMonth },
       select: { snapshot: true },
     }),
-    // Impuestos documentales y acumulados: misma fuente que pagos y libros.
-    db.purchaseOrder.findMany({
-      where: { restaurantId, receivedAt: { gte: range.from, lt: range.to } },
-      select: {
-        incCents: true,
-        retefuenteCents: true,
-        reteIvaCents: true,
-        reteIcaCents: true,
-        items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
-      },
-    }),
+    loadMonthCreditNotes(restaurantId, range),
+    loadUnlinkedRefundsCents(restaurantId, range.from, range.to),
   ]);
 
   const current = {
@@ -427,24 +505,35 @@ export async function computeTaxSummary(
   const salesTaxCents = byRate.reduce((s, r) => s + r.taxCents, 0);
   const label = byRate[0] ?? current;
 
-  const purchaseAmounts = poHeaders.map((order) => purchaseOrderTotals(order, "received"));
-  const ivaCents = purchaseAmounts.reduce((sum, order) => sum + order.taxCents, 0);
+  // Lo que restan: las notas por la tarifa de sus líneas; las devoluciones
+  // sin nota, estimadas con el tramo del mes (como su asiento).
+  const noteBase = creditNotes.slices.reduce((s, x) => s + x.baseCents, 0);
+  const noteTax = creditNotes.slices.reduce((s, x) => s + x.taxCents, 0);
+  const refunds = refundAdjustment(refundsCents, label);
+  const net = netSalesTaxByRate(byRate, creditNotes.slices, {
+    kind: label.kind,
+    pct: label.pct,
+    taxCents: refunds.taxCents,
+  });
 
   return {
-    sales: {
-      kind: label.kind,
-      pct: label.pct,
-      grossCents,
-      taxCents: salesTaxCents,
-      baseCents: grossCents - salesTaxCents,
-      byRate,
+    kind: label.kind,
+    pct: label.pct,
+    grossCents,
+    taxCents: salesTaxCents,
+    baseCents: grossCents - salesTaxCents,
+    byRate,
+    creditNotes: {
+      count: creditNotes.count,
+      grossCents: noteBase + noteTax,
+      baseCents: noteBase,
+      taxCents: noteTax,
     },
-    purchases: {
-      ivaCents,
-      incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0),
-      retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0),
-      reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0),
-      reteIcaCents: poHeaders.reduce((sum, order) => sum + order.reteIcaCents, 0),
+    refunds,
+    net: {
+      baseCents: grossCents - salesTaxCents - noteBase - refunds.baseCents,
+      taxCents: salesTaxCents - noteTax - refunds.taxCents,
+      byRate: net,
     },
   };
 }
@@ -465,16 +554,18 @@ export type SalesBookCreditNote = {
   totalCents: number;
 };
 
+/** Una nota del mes con sus tramos por tarifa ya validados. */
+type MonthCreditNote = SalesBookCreditNote & { slices: CreditNoteTaxSlice[] };
+
 /**
- * Notas crédito ACEPTADAS por la DIAN con fecha fiscal dentro del mes del
- * libro. El libro de ventas las lista como documentos en negativo; una nota
- * que no cuadra al centavo se excluye (igual que en contabilidad e
- * impuestos) y queda en el log.
+ * Notas crédito ACEPTADAS por la DIAN con fecha fiscal (día colombiano de
+ * emisión) dentro del mes. Una nota que no cuadra al centavo se excluye
+ * (igual que en contabilidad e impuestos) y queda en el log.
  */
-export async function loadSalesBookCreditNotes(
+async function loadMonthCreditNoteRows(
   restaurantId: string,
   range: MonthRange,
-): Promise<SalesBookCreditNote[]> {
+): Promise<MonthCreditNote[]> {
   const desde = isoDateUtc(range.from);
   const hasta = isoDateUtc(new Date(range.to.getTime() - 1));
   const rows = await db.creditNote.findMany({
@@ -494,7 +585,7 @@ export async function loadSalesBookCreditNotes(
     },
     orderBy: { createdAt: "asc" },
   });
-  const out: SalesBookCreditNote[] = [];
+  const out: MonthCreditNote[] = [];
   for (const r of rows) {
     const instant = creditNoteInstant(r);
     if (!inFiscalRange(instant, desde, hasta)) continue;
@@ -513,9 +604,40 @@ export async function loadSalesBookCreditNotes(
       subtotalCents: r.subtotalCents,
       taxCents: r.taxCents,
       totalCents: r.totalCents,
+      slices: slices.slices,
     });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.documentNumber.localeCompare(b.documentNumber));
+}
+
+/**
+ * Notas crédito aceptadas del mes para el libro de ventas: documentos en
+ * negativo (montos positivos; restan).
+ */
+export async function loadSalesBookCreditNotes(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<SalesBookCreditNote[]> {
+  const notes = await loadMonthCreditNoteRows(restaurantId, range);
+  return notes.map((n) => ({
+    id: n.id,
+    documentNumber: n.documentNumber,
+    date: n.date,
+    invoiceNumber: n.invoiceNumber,
+    customerName: n.customerName,
+    subtotalCents: n.subtotalCents,
+    taxCents: n.taxCents,
+    totalCents: n.totalCents,
+  }));
+}
+
+/** Notas crédito aceptadas del mes sumadas por tarifa (para impuestos y PYG). */
+async function loadMonthCreditNotes(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<{ count: number; slices: CreditNoteTaxSlice[] }> {
+  const notes = await loadMonthCreditNoteRows(restaurantId, range);
+  return { count: notes.length, slices: sumSlices(notes.map((n) => n.slices)) };
 }
 
 export async function loadSalesBook(restaurantId: string, range: MonthRange) {

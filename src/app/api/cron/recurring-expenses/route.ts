@@ -2,15 +2,17 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
-import { materializeRecurring, monthRange } from "@/lib/erp/accounting";
+import { materializeRecurring, monthRange, recurringCopyDate } from "@/lib/erp/accounting";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Cron diario de gastos recurrentes (ERP B2): materializa cada plantilla
  * (Expense.recurring + recurringDay) como gasto normal del mes cuando
- * llega su día. Idempotente: la copia lleva templateId y no se re-crea
- * si ya existe una en el mes — correrlo N veces al día no duplica.
+ * llega su día (o el primer día que corra después, dentro del mes). La copia
+ * hereda categoría, descripción, monto, proveedor, cuenta del PUC y centro
+ * de costos. Idempotente: la copia lleva templateId y no se re-crea si ya
+ * existe una en el mes — correrlo N veces al día no duplica.
  *
  * Solo comercios con el módulo accounting activo (una plantilla creada
  * antes de apagar el módulo deja de materializarse).
@@ -35,7 +37,10 @@ async function POSTHandler(req: Request) {
       description: true,
       amountCents: true,
       supplierId: true,
+      accountCode: true,
+      costCenterId: true,
       recurringDay: true,
+      createdAt: true,
       restaurant: { select: { enabledModules: true } },
       copies: {
         where: { date: { gte: range.from, lt: range.to } },
@@ -53,7 +58,7 @@ async function POSTHandler(req: Request) {
   );
   const dueIds = new Set(
     materializeRecurring(
-      eligible.map((t) => ({ id: t.id, recurringDay: t.recurringDay! })),
+      eligible.map((t) => ({ id: t.id, recurringDay: t.recurringDay!, createdAt: t.createdAt })),
       copiedIds,
       today,
     ),
@@ -68,9 +73,14 @@ async function POSTHandler(req: Request) {
         category: t.category,
         description: t.description,
         amountCents: t.amountCents,
-        // Fecha contable = hoy (el día de la plantilla, por definición).
-        date: today,
+        // Fecha contable = el día de la plantilla en este mes (aunque el
+        // cron lo cree días después).
+        date: recurringCopyDate(today, t.recurringDay!),
         supplierId: t.supplierId,
+        // Sin esto la copia caía en la cuenta que adivina la categoría y
+        // sin centro de costos, aunque la plantilla los tuviera fijados.
+        accountCode: t.accountCode,
+        costCenterId: t.costCenterId,
         templateId: t.id,
       },
     });

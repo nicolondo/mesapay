@@ -527,7 +527,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conciliacion-bancaria",
       title: "Concilia el extracto del banco",
       covers:
-        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo), \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
+        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo; con títulos se leen valor, débito/crédito y saldo; repegar no duplica), \"Cuenta del banco\", \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
     },
     {
       slug: "activos-fijos-y-diferidos",
@@ -545,13 +545,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuestos-y-retenciones",
       title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes sin restar notas crédito, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",
       title: "Prepara la información exógena para la DIAN",
       covers:
-        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
+        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura; 1008 con las ventas a crédito a clientes y los bonos), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
     },
     {
       slug: "libros-y-estados-financieros",

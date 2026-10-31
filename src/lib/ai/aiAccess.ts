@@ -25,13 +25,51 @@ export async function dailyMessageLimit(
   return cfg?.aiDailyMessageLimit ?? 50;
 }
 
+/** Partes de fecha y hora de `at` en `timeZone`. */
+function zonedParts(at: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { y: get("year"), m: get("month"), d: get("day"), hh: get("hour"), mi: get("minute"), ss: get("second") };
+}
+
+/** "YYYY-MM-DD" de `at` en la zona del comercio (no la del servidor). */
+export function localIsoDate(at: Date, timeZone: string): string {
+  const { y, m, d } = zonedParts(at, timeZone);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
 /**
- * ¿Cuántos mensajes de usuario ya gastó hoy este comercio? (zona UTC del server;
- * suficiente para un límite operativo). Cuenta AiMessage role="user" del día.
+ * Instante de la medianoche de HOY en la zona del comercio. Antes se usaba
+ * la medianoche del servidor (UTC): el límite diario de Pulso se reiniciaba
+ * a las 7 p. m. de Colombia.
  */
-export async function messagesUsedToday(restaurantId: string): Promise<number> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+export function startOfLocalDay(now: Date, timeZone: string): Date {
+  const p = zonedParts(now, timeZone);
+  // Desfase de la zona en este instante (sin segundos sueltos de redondeo).
+  const asUtc = Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mi, p.ss);
+  const offsetMs = Math.round((asUtc - now.getTime()) / 60_000) * 60_000;
+  return new Date(Date.UTC(p.y, p.m - 1, p.d) - offsetMs);
+}
+
+/**
+ * ¿Cuántos mensajes de usuario ya gastó hoy este comercio? «Hoy» es el día
+ * de la zona del comercio (Bogotá por defecto), de medianoche a medianoche.
+ * Cuenta AiMessage role="user" del día.
+ */
+export async function messagesUsedToday(
+  restaurantId: string,
+  opts: { timeZone?: string; now?: Date } = {},
+): Promise<number> {
+  const start = startOfLocalDay(opts.now ?? new Date(), opts.timeZone ?? "America/Bogota");
   return db.aiMessage.count({
     where: {
       role: "user",

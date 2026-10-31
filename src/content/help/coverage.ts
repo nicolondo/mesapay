@@ -77,7 +77,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },
-  "/mesero/mesas": ["mesas-y-ficha-en-la-app"],
+  "/mesero/mesas": ["mesas-y-ficha-en-la-app", "por-que-no-puedo-cobrar-o-mover"],
   "/mesero/salon": ["salon-en-la-app", "entrar-e-instalar-la-app"],
   "/mesero/pedir/[tableId]": ["pedir-desde-la-app"],
   "/mesero/cobrar/[orderId]": [

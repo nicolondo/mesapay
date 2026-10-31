@@ -1,5 +1,391 @@
 {
   "title": "Salón y pedidos",
   "description": "Mesas, pedidos, cocina, bar, Salón, estaciones, etiquetas y reservas.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "tomar-un-pedido-desde-mesas",
+      "title": "Toma y marcha un pedido desde Mesas",
+      "summary": "Cuando el comensal no pide desde su celular, tú tomas el pedido desde Mesas con la carta en Modo mesero y lo marchas a la cocina y al bar.",
+      "keywords": [
+        "tomar pedido",
+        "pedido",
+        "comanda",
+        "marchar",
+        "marchar orden",
+        "marchar adicion",
+        "enviar a cocina",
+        "modo mesero",
+        "agregar platos",
+        "nota para la cocina",
+        "fuertes juntos",
+        "mostrador",
+        "nueva orden",
+        "adicion",
+        "ronda"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Los comensales pueden pedir solos con el QR de la mesa, pero cuando prefieren pedirle a alguien, tú o tu equipo toman el pedido desde **Mesas** con la misma carta, en **Modo mesero**, y lo mandan a preparar.\n\n## Tomar el pedido de una mesa libre\n\n1. Entra a [Mesas](/operator/tables). También llegas desde la barra de arriba con **Nueva orden › Ir a Mesas**.\n2. Toca una mesa libre (dice **libre**). La carta se abre en una pestaña nueva, con una franja negra arriba que dice **Modo mesero · Tomando pedido en Mesa 5**.\n3. Busca el plato con **Buscar en el menú** o por categorías y tócalo.\n4. Elige sus opciones. Las que dicen **Obligatorio** hay que llenarlas antes de agregar el plato.\n5. Si hace falta, toca **+ Nota para la cocina** y escribe alergias o preferencias.\n6. Toca **Añadir · $precio**. Repite con cada plato.\n7. Toca **Ver y enviar pedido** para revisar **Tu pedido**: puedes cambiar cantidades con **+** y **−**, o quitar una línea con **Eliminar**.\n8. En el primer pedido de la mesa elige **¿Cómo quieres que salga?**: **Lo que vaya saliendo** (cada plato llega apenas está listo) o **Fuertes juntos** (entradas y bebidas salen apenas estén listas; los fuertes salen todos juntos).\n9. Toca **Marchar orden**.\n\nAl enviar, la pantalla pasa a **Salón**, que es donde después aparecen los platos listos para entregar.\n\n## Agregar platos a una mesa que ya pidió\n\n1. En **Mesas**, toca la mesa ocupada para abrir su ficha.\n2. Toca **+ Agregar platos**. Se abre la carta y **Tu pedido** dice **Se añadirá al pedido** con el código de la cuenta.\n3. Agrega los platos y toca **Marchar adición**. Cada envío llega a la cocina como una ronda nueva (R2, R3…) dentro de la misma cuenta.\n\nLa pregunta de cómo quieres que salga solo aparece en el primer envío: las rondas siguientes conservan lo que se eligió al principio.\n\n## Qué pasa en la cocina y el bar\n\n- Cada plato llega al tablero de su estación (cocina o bar) en **Por preparar**, con el nombre de quien lo montó. Ver [Trabaja con el tablero de Cocina y Bar](/operator/ayuda/salon-y-pedidos/tablero-de-cocina-y-bar).\n- Si la estación tiene activado **Marchar automáticamente al llegar el pedido**, el plato pasa solo a preparación y la comanda se imprime de una vez.\n- Lo que va a **Refri / mostrador** (o al bar cuando no hay bartender) no se prepara: entra como listo y aparece directo en **Salón** para que alguien lo lleve.\n\n## Si trabajas en modo mostrador\n\nEn mostrador, la pantalla se llama **Mostrador** y tiene una sola ficha. El pedido se arma igual, pero el botón final es **Ir a pagar**: el pedido queda guardado y pasa a la cocina solo cuando se cobra. Para cobrarlo, vuelve a **Mostrador**, toca la ficha y luego **Cobrar la cuenta**.\n\n## Casos frecuentes\n\n- **No veo Fuertes juntos al pedir**: solo aparece en el primer envío de la mesa. Para que la cocina retenga los fuertes, su categoría tiene que estar marcada como **Categoría de platos fuertes** en el menú.\n- **Un plato no aparece en la carta**: está agotado o archivado. Revísalo en **Menú**.\n- **\"No pudimos enviar el pedido. Revisa tu conexión.\"**: el pedido no salió. Revisa el internet y toca otra vez **Marchar orden**; lo que agregaste sigue en **Tu pedido**.\n- **La carta se abrió como si fuera un comensal (pide tu nombre)**: tu sesión se cerró. Vuelve a entrar al panel y abre la mesa otra vez desde **Mesas**.\n- **Quiero corregir algo que ya se marchó**: hazlo desde la ficha de la mesa. Ver [Cancela, no cobres o mueve un plato](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-pantalla-mesas",
+      "title": "Lee la pantalla Mesas y la ficha de cada mesa",
+      "summary": "Mesas muestra de un vistazo qué mesa está libre, cuál come, cuál tiene platos listos y cuál está en riesgo de irse sin pagar. Al tocar una mesa ves su pedido completo.",
+      "keywords": [
+        "mesas",
+        "estado de las mesas",
+        "colores",
+        "rojo",
+        "riesgo",
+        "irse sin pagar",
+        "walkout",
+        "por cobrar",
+        "recien pagadas",
+        "libres",
+        "ficha de la mesa",
+        "estado del pedido",
+        "apurar",
+        "identificar comensal",
+        "descuento",
+        "cargo",
+        "servicio",
+        "campana"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "**Mesas** es el tablero del salón: cada cuadro es una mesa, y su color te dice qué necesita. Al tocar una mesa con cuenta abierta se abre su ficha, **Estado del pedido**, con todo lo que pidió y lo que puedes hacer con ella.\n\n## Qué dice cada cuadro\n\n- **M-5** es el número de la mesa; debajo va su nombre, si tiene.\n- Una mesa libre dice **libre**. Al tocarla empiezas un pedido nuevo.\n- Una mesa ocupada muestra lo que falta por cobrar y, abajo, cuántos ítems tiene y, cuando ya hay que estar atento, los minutos que lleva esperando: **12m · 3i**.\n- La campana 🔔 indica que la mesa llamó al mesero y nadie ha atendido.\n- Una mesa recién pagada se ve verde, con ✓ y hace cuánto se pagó. Queda así 15 minutos y ya se puede usar para otro grupo.\n\nLas mesas ocupadas van primero, empezando por las más urgentes (rojas y terracota); después van las demás, por número. La pantalla se actualiza sola.\n\n## Los colores\n\n- **Blanco**: libre.\n- **Verde**: recién pagada.\n- **Gris suave**: están comiendo, todo entregado y sin urgencia.\n- **Ámbar claro**: la cocina está preparando.\n- **Ámbar fuerte**: hay platos listos esperando a que alguien los lleve.\n- **Ámbar sin nada en cocina**: ya comieron todo y llevan un rato sin pagar.\n- **Terracota**: la mesa pidió pagar (efectivo o datáfono) o llamó al mesero. Si nadie atiende, el punto de la esquina empieza a titilar.\n- **Rojo con punto que titila**: riesgo alto de que se vayan sin pagar.\n\nEl rojo depende de **Riesgo alto (rojo) después de**, en [Políticas operativas](/operator/settings/staff-policies) (20 minutos por defecto). Con ese valor, una mesa que ya recibió todo y no ha pagado se pone roja a los 20 minutos, y un pedido de cobro o un llamado sin atender, a los 10. Mientras haya platos en cocina, el reloj de \"comió y no paga\" no corre.\n\n## Los filtros\n\nArriba están **Todas**, **Por cobrar** (las que tienen cuenta abierta), **Recién pagadas** y **Libres**, cada uno con su conteo.\n\n## La ficha de la mesa\n\nToca una mesa ocupada. En la ficha **Estado del pedido** ves, de arriba abajo:\n\n1. Si el comensal ya pidió pagar en efectivo o con datáfono, el aviso **El comensal pidió pagar con** y el botón **Confirmar pago recibido**.\n2. **Pendiente** (lo que falta) o **Cuenta total**, con el descuento si hay uno.\n3. **Comensal**: escribe su **Cédula o correo** y toca **Identificar** para asociar su cuenta del restaurante. Si tiene descuento, se aplica solo; **Quitar descuento** lo retira de esta cuenta.\n4. Los botones: **+ Agregar platos**, **Agregar cargo o servicio**, **Cobrar la cuenta**, **Imprimir precuenta**, **Mover a otra mesa** y **Cancelar la cuenta**. Cada uno aparece solo cuando se puede usar.\n5. Las rondas (**Ronda 1**, **Ronda 2**…) con **Montó:** y el nombre y rol de quien la envió. Si no aparece, la pidió el comensal desde su celular.\n6. Cada plato con su precio y su estado: **Por preparar**, **Preparando**, **Listo** o **Servido**, y cuánto lleva (**hace 8 min**, **listo hace 3 min**).\n\nLa ficha se actualiza sola cada 15 segundos.\n\n## Apurar un plato\n\nSi un plato se está demorando, toca **🔥 Apurar** junto a él. En el tablero de la cocina el plato sube al principio con la marca de apurado, y en la ficha queda **🔥 Apurado**. Solo se puede apurar lo que todavía no está listo.\n\n## Cobrar algo que no está en la carta\n\nToca **Agregar cargo o servicio** para sumar, por ejemplo, un catering o el alquiler del salón: escribe el **Concepto**, la **Cant.**, el **Precio unitario** y el **Impuesto**, y toca **Agregar a la cuenta**. Estos cargos no pasan por cocina y aparecen en la ficha bajo **Cargos y servicios**.\n\n## Casos frecuentes\n\n- **\"La cuenta ya está en cobro. Termina o cancela el cobro antes de agregar un cargo.\"**: alguien está cobrando la mesa. Espera a que termine o anula ese cobro.\n- **No aparece Cobrar la cuenta, sino Pedir la cuenta**: el comercio tiene activado que solo el administrador cobra. Ver [Define permisos, propinas y turnos del equipo](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n- **\"No encontramos una cuenta con esos datos en este restaurante.\"**: el comensal no tiene cuenta en tu restaurante. Puede crearla desde la carta.\n- **Trabajo en modo mostrador**: la pantalla se llama **Mostrador** y muestra una sola ficha con el pedido más reciente.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Políticas operativas",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "crear-mesas-e-imprimir-qr",
+      "title": "Crea mesas e imprime sus códigos QR",
+      "summary": "Agrega las mesas una por una o por rango, cámbiales el número o el nombre e imprime la hoja con el QR de cada una para que los comensales pidan desde su celular.",
+      "keywords": [
+        "crear mesas",
+        "añadir mesa",
+        "agregar mesas",
+        "varias mesas",
+        "rango",
+        "editar mesas",
+        "renombrar mesa",
+        "borrar mesa",
+        "eliminar mesa",
+        "qr",
+        "codigo qr",
+        "imprimir qr",
+        "links",
+        "enlace de la mesa",
+        "qr de recogida"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cada mesa tiene un código QR propio: el comensal lo escanea y abre la carta de esa mesa para pedir y pagar. Las mesas se crean y se editan desde **Mesas**, y la hoja de QRs se imprime desde ahí mismo.\n\n## Crear una mesa\n\n1. Entra a [Mesas](/operator/tables) y toca **+ Añadir mesa**.\n2. Deja seleccionado **Una**.\n3. Revisa el **Número** (MESAPAY sugiere el siguiente) y, si quieres, escribe una **Etiqueta (opcional)**, por ejemplo Terraza o Ventana.\n4. Toca **Crear**.\n\n## Crear varias de una vez\n\n1. Toca **+ Añadir mesa** y elige **Varias**.\n2. Escribe **Desde** y **Hasta**, por ejemplo de 1 a 20.\n3. Toca **Crear mesas**. Las que ya existían se saltan, y al final ves **Listo: 18 creadas, 2 ya existían.**\n\nSe pueden crear hasta 200 mesas por vez, con números del 1 al 999.\n\n## Cambiar el número o el nombre, o eliminar una mesa\n\n1. En **Mesas**, toca **Editar mesas**. Cada cuadro dice **Tocar para editar**.\n2. Toca la mesa y cambia el **Número de la mesa** o el **Nombre de la mesa**. Toca **Guardar**.\n3. Para borrarla, toca **Eliminar** y confirma.\n4. Cuando termines, toca **Listo**.\n\nCambiar el número o el nombre no cambia el QR: el que ya está impreso en la mesa sigue sirviendo.\n\n## Imprimir los QRs\n\n1. En **Mesas**, toca **Imprimir QRs**. Se abre **QRs para imprimir** en una pestaña nueva.\n2. Son tarjetas de 30×30 mm en hoja A4: caben hasta 45 por hoja, con un borde compartido para cortarlas con un solo corte por línea.\n3. Toca **Imprimir**.\n\nEn la misma página, **Links para compartir** muestra el enlace de cada mesa con un botón **Copiar**, por si quieres mandarlo por chat. Es el mismo enlace que lleva el QR.\n\n## El QR de recogida\n\nSi tu restaurante recibe pedidos para recoger, en **Mesas** aparece la tarjeta **Pedido anticipado · QR de recogida**. Con **Imprimir** sacas ese QR, y en **Enlace QR** está su enlace.\n\n## En modo mostrador\n\nEn mostrador no se crean mesas: hay un solo QR, el del mostrador. El botón se llama **Imprimir QR**.\n\n## Casos frecuentes\n\n- **\"Ya existe una mesa con ese número.\"**: elige otro número o renombra primero la mesa que lo tiene.\n- **\"El número debe ser un entero positivo.\"**: escribe un número entero desde 1.\n- **\"El rango no es válido.\"** o **\"Máximo 200 mesas a la vez.\"**: revisa que **Desde** sea menor o igual que **Hasta** y que no pasen de 200.\n- **\"La mesa tiene un pedido abierto. Ciérralo antes de borrarla.\"**: cobra o cancela la cuenta abierta y vuelve a intentar.\n- **\"La mesa tiene historial de pedidos, así que no se puede borrar\"**: una mesa que ya vendió no se borra, para no perder los reportes. Cámbiale el nombre o el número si ya no la usas igual.\n- **No veo + Añadir mesa ni Editar mesas**: solo el dueño o administrador las gestiona; el mesero no.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a QRs para imprimir",
+          "href": "/operator/tables/print"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "tablero-de-cocina-y-bar",
+      "title": "Trabaja con el tablero de Cocina y Bar",
+      "summary": "El tablero muestra cada pedido en Por preparar, En cocina y Listo. Con un toque empiezas un plato, lo marcas listo o lo sirves, y con sonido te enteras de los pedidos nuevos.",
+      "keywords": [
+        "cocina",
+        "bar",
+        "tablero",
+        "kds",
+        "pantalla de cocina",
+        "comandas",
+        "por preparar",
+        "en cocina",
+        "listo",
+        "servir",
+        "empezar",
+        "apurado",
+        "fuertes juntos",
+        "sub estacion",
+        "cuenta regresiva",
+        "sonido",
+        "pitido",
+        "servir todo",
+        "cancelar plato",
+        "no esta disponible"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "El tablero es la pantalla de trabajo de la cocina y del bar: cada pedido aparece como una tarjeta y avanza por columnas a medida que se prepara. Puedes usarlo desde el panel (**Cocina** y **Bar** en el menú) o en una tablet con un usuario de cocina o de bar.\n\n## Las columnas\n\n- En **Cocina**: **Por preparar**, **En cocina** y **Listo**.\n- En **Bar**: **Por preparar**, **En preparación** y **Listo**.\n\nCada tarjeta es una ronda de un pedido. Arriba dice el código, la mesa y la ronda (**4F2A9C · Mesa 5 · R2**), cuánto lleva esperando y, si aplica, las marcas **Fuertes juntos** o **Recoger** (pedido para llevar). Debajo va **Montó:** con quien la envió.\n\nEn cada plato ves la cantidad, el nombre, las opciones elegidas, el nombre del comensal y la nota para la cocina entre comillas. Si una ronda tiene platos en varias columnas, la tarjeta dice cuántos se ven ahí, por ejemplo **2 de 5**.\n\n## Preparar un pedido\n\n1. Toca **Empezar** en el plato que vas a preparar. Pasa a **En cocina** (o **En preparación**).\n2. Cuando esté, toca **Listo**. Pasa a **Listo** y el mesero lo ve en **Salón**.\n3. Si lo entregas tú mismo, toca **Servir** en la columna **Listo**. Si te equivocaste, toca **Servido** para deshacerlo.\n\nCon varios platos en una tarjeta, usa **Empezar 3**, **Marcar 3 listos** o **Servir 3** para moverlos todos. **Volver a cocina** regresa a preparación lo que estaba listo.\n\nLa tarjeta desaparece cuando todos sus platos están servidos.\n\n## Platos apurados y fuertes juntos\n\n- Cuando el mesero toca **🔥 Apurar** en la mesa, el plato muestra **🔥 Apurar** y sube al principio de su columna.\n- Con **Fuertes juntos**, los platos fuertes no se pueden servir hasta que todos los fuertes de esa ronda estén listos. Entradas y bebidas salen apenas están listas.\n\n## En el bar\n\n- Al empezar una bebida corre una cuenta regresiva con el tiempo de preparación del producto (**Prep (min)** en el menú). Al llegar a cero pasa sola a **Listo**; si termina antes, toca **Listo**.\n- Si definiste sub-estaciones (por ejemplo Cocteles y Cafetería), arriba aparecen pestañas: **Todo el bar** y una por cada una, para que cada puesto vea solo lo suyo.\n\n## El sonido de pedidos nuevos\n\nEl tablero hace un pitido cuando entra un pedido. **Sonido activado** / **Sonido silenciado** lo prende o lo apaga, y **Probar sonido** comprueba el volumen. Si aparece **Tocá la pantalla para activar el sonido de pedidos nuevos**, toca la pantalla una vez: el navegador no deja sonar nada hasta que alguien la toca. En la cocina viene encendido; en el bar, apagado.\n\n## Servir todo\n\nAl final del servicio, el administrador ve **Servir todo**, que marca como servido todo lo pendiente del tablero. Confirma con **Sí, servir todo**. Solo toca lo que se ve en ese momento; lo que entre después no.\n\n## Cancelar un plato desde la cocina\n\n1. Toca **Cancelar** debajo del plato.\n2. Si se acabó el ingrediente, toca **No está disponible**: cancela el plato y además lo quita de la carta hasta que lo vuelvas a marcar disponible en **Menú**.\n3. Si es otro motivo, escríbelo (mínimo 3 letras). Puedes marcar **También quitar este plato de la carta hasta que vuelva a estar disponible**. Toca **Confirmar cancelación**.\n\nSi con eso queda cancelada toda la ronda, el mesero recibe el aviso en **Salón** para ir a contarle al cliente.\n\n## Casos frecuentes\n\n- **\"La preparación ya empezó. Solo el administrador puede cancelar este plato.\"**: una vez que tocaste **Empezar**, solo el dueño o administrador puede cancelarlo.\n- **No sale la comanda impresa**: la comanda se imprime al tocar **Empezar** (o al marchar solo). Revisa [Elige cómo imprimir las comandas](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n- **No veo Bar en el menú**: activa **¿Tenés bartender?** en [Estaciones de preparación](/operator/settings/estaciones).\n- **Quiero el tablero en una tablet**: sigue [Usa una tablet como pantalla de cocina o bar](/operator/ayuda/impresion-y-equipos/tablet-de-cocina-y-bar).",
+      "links": [
+        {
+          "label": "Ir a Cocina",
+          "href": "/operator/kitchen"
+        },
+        {
+          "label": "Ir a Bar",
+          "href": "/operator/bar"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "estaciones-de-preparacion",
+      "title": "Decide a qué estación va cada plato",
+      "summary": "En Estaciones de preparación eliges si cada categoría va a la cocina, al bar o a la refri, si tienes bartender y sus puestos, y si los pedidos se marchan solos al llegar.",
+      "keywords": [
+        "estaciones",
+        "estacion de preparacion",
+        "cocina",
+        "bar",
+        "barista",
+        "refri",
+        "mostrador",
+        "bartender",
+        "sub estaciones",
+        "categorias",
+        "a donde va el plato",
+        "marchar automaticamente",
+        "impresion de tickets",
+        "comandas",
+        "bebidas"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cuando llega un pedido, cada plato va a una estación: la cocina, el bar o la refri. Aquí decides a dónde va cada categoría de tu carta, para que cada equipo vea en su tablero solo lo que le toca preparar.\n\nTodo se configura en [Configuración › Estaciones de preparación](/operator/settings/estaciones) y se guarda apenas lo cambias (verás **✓ Guardado**).\n\n## ¿Tienes bartender?\n\nActiva **¿Tenés bartender?** si hay alguien dedicado al bar. Así las bebidas que se preparan tienen su propio tablero, **Bar**.\n\nSi lo dejas apagado, todo lo que va al bar se trata como refri: entra ya listo y el mesero lo recoge.\n\n## Las sub-estaciones del bar\n\nSi el bar tiene varios puestos, en **Sub-estaciones del bar** escríbelos separados por comas (por ejemplo `Cocteles, Cafetería, Cervezas`) y toca **Guardar**. Cada puesto tiene su pestaña en el tablero del bar y puede tener su propia impresora.\n\n## A dónde va cada categoría\n\nEn **Por categoría** aparece cada categoría de tu carta con su tipo (Entrada, Plato fuerte, Bebida…). Elige su estación:\n\n- **Cocina**: la prepara la cocina.\n- **Bar / barista**: la prepara el bar. Si tienes sub-estaciones, elige también el puesto, o **— Sin sub-estación —**.\n- **Refri / mostrador**: no se prepara. Entra ya lista y aparece directo en **Salón** con la etiqueta de dónde sacarla. Ideal para botellas de agua y cervezas.\n\nSi MESAPAY detecta categorías de bebidas que siguen yendo a la cocina, te lo sugiere con un botón **Pasar 2 al bar**.\n\n## Cambiar toda una carta de una vez\n\nEn **Cambiar toda una carta de estación** elige la carta (si tienes varias) y la estación, y toca **Aplicar**. Todas sus categorías pasan a esa estación.\n\n## Un plato distinto al resto de su categoría\n\nSi un plato no debe ir a la estación de su categoría (por ejemplo, un jugo natural que se hace en la cocina), cámbialo en el editor del plato, en **Menú**: en **Estación** elige otra, o **Usar la de la categoría** para volver a la de siempre.\n\n## Marchar solo e imprimir\n\nEn **Impresión de tickets** hay un interruptor para **Cocina** y otro para **Bar**: imprimen la comanda cuando el plato pasa a preparación. Debajo de cada uno está **Marchar automáticamente al llegar el pedido**: los pedidos pasan solos a preparación, sin tocar el tablero, y si la impresión está activa la comanda sale en ese instante. También eliges el **Ancho del papel** (80 mm o 58 mm).\n\nPara elegir entre imprimir desde una pestaña abierta o con impresoras de red, ver [Elige cómo imprimir las comandas](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n\n## Casos frecuentes\n\n- **Cambié una categoría y un pedido siguió yendo a la otra estación**: el cambio vale para los pedidos nuevos; lo que ya estaba en un tablero se queda donde está. Las pestañas de sub-estación del bar, en cambio, se reacomodan al instante.\n- **\"El marchado automático está encendido con la impresión de cocina apagada\"**: los pedidos pasan solos a preparación, pero no sale ninguna comanda. Activa la impresión o apaga el marchado automático.\n- **\"La impresión de cocina está encendida, pero no hay ninguna impresora de cocina activa\"**: registra o enciende una impresora en **Impresoras de red**. Ver [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- **\"No hay categorías. Crealas desde el menú.\"**: primero arma la carta en **Menú**.",
+      "links": [
+        {
+          "label": "Ir a Estaciones de preparación",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Ir a Cocina",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "salon-entregar-platos-y-llamadas",
+      "title": "Usa Salón para entregar platos y atender llamadas",
+      "summary": "Salón reúne lo que el equipo de piso tiene que hacer ya: avisar cancelaciones, atender llamadas, cobros que pidieron las mesas y platos listos para entregar.",
+      "keywords": [
+        "salon",
+        "entregar platos",
+        "platos listos",
+        "entregar",
+        "llamadas",
+        "llamar al mesero",
+        "voy en camino",
+        "cancelaciones",
+        "avise al cliente",
+        "datafono",
+        "efectivo",
+        "registrar cobro",
+        "aun en preparacion",
+        "fuertes juntos",
+        "piso",
+        "runner"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "**Salón** es la pantalla del equipo de piso: muestra, en orden de urgencia, todo lo que hay que resolver en las mesas, desde una cancelación que hay que avisar hasta los platos que ya salieron de la cocina.\n\nArriba ves un resumen, por ejemplo **2 llamadas · 1 datáfono · 3 platos listos · 2 mesas**. Si no hay nada, dice **Todo entregado**.\n\n## Cancelaciones de cocina\n\nSi se cancela todo lo de una ronda, aparece en **Cancelaciones de cocina · avisar al cliente**, con el **Motivo:**.\n\n1. Ve a la mesa y avísale al cliente.\n2. Toca **Avisé al cliente**. El aviso desaparece.\n\n## Llamadas pendientes\n\nCuando un comensal toca el botón para llamar al mesero, la mesa aparece en **Llamadas pendientes** con **Solicitan un mesero** y el tiempo que lleva.\n\n1. Toca **Voy en camino**. La llamada sale de la lista y de la mesa en **Mesas**.\n2. Ve a la mesa.\n\n## Mesas que pidieron pagar\n\n- **Pidió datáfono**: la mesa quiere pagar con tarjeta. Con el datáfono de MESAPAY, lleva el aparato a la mesa y toca el botón con el monto, por ejemplo **Cobrar $45.000**. Con **Datáfono propio del comercio**, pasa la tarjeta por tu datáfono y reporta el resultado con **Aprobado** o **Rechazado**.\n- **Cobros en efectivo**: la mesa va a pagar en efectivo. Si el comensal dijo con cuánto paga, verás **Pagará con $50.000 · Lleva $8.000 de devuelta**. Al recibir el dinero, toca **Registrar cobro** y confirma lo que te pagaron.\n\nSi el comercio tiene activado que solo el administrador cobra, el mesero ve estos avisos con **Sólo el administrador puede cobrar**, para que acompañe la mesa mientras caja cobra.\n\n## Entregar los platos listos\n\nLos platos que la cocina o el bar marcaron como listos aparecen agrupados por mesa (en mostrador, por pedido).\n\n1. Revisa los platos de la tarjeta. Vienen todos marcados; desmarca los que no vas a llevar ahora. **Marcar todo** / **Desmarcar todo** cambia todos de una vez.\n2. Toca **Entregar 3**. La tarjeta muestra **Entregado a Mesa 5**.\n\nCada plato indica de dónde sacarlo cuando no es de la cocina: **Barra** o **Refri**, y el nombre del comensal si lo dejó. Si a ese pedido todavía le falta algo, debajo dice **Aún en preparación (2)**, para que no des la mesa por completa.\n\nCon **Fuertes juntos**, mientras falte algún fuerte verás **Esperando cocina · 1 fuerte en curso**; los fuertes se entregan juntos cuando estén todos.\n\nLos platos de una cuenta ya pagada también aparecen aquí: hay que entregarlos igual.\n\n## Casos frecuentes\n\n- **No me aparece un plato que la cocina ya terminó**: revisa que en el tablero esté en **Listo**. Si eres mesero y tienes sección, solo ves tus mesas.\n- **\"No hay un datáfono activo registrado...\"**: no hay un datáfono de MESAPAY activo. Ver [Configura los datáfonos y asígnalos a tus meseros](/operator/ayuda/impresion-y-equipos/datafonos).\n- **Se cancela un solo plato de una ronda y no aparece el aviso**: el aviso de **Cancelaciones de cocina** sale cuando queda cancelada toda la ronda. Si se cancela un plato y la ronda sigue, se ve en la ficha de la mesa en **Mesas**.\n- **El celular vibra**: con **Salón** abierto, los celulares que lo permiten vibran cuando hay platos listos, llamadas, cancelaciones o cobros pedidos.",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "corregir-un-pedido",
+      "title": "Cancela, no cobres o mueve un plato",
+      "summary": "Desde la ficha de la mesa cancelas un plato que no salió, dejas de cobrar uno entregado, cancelas la cuenta completa o mueves un plato o la cuenta a otra mesa.",
+      "keywords": [
+        "cancelar plato",
+        "anular plato",
+        "no cobrar",
+        "cortesia",
+        "devolucion",
+        "plato equivocado",
+        "cancelar la cuenta",
+        "anular cuenta",
+        "mover plato",
+        "mover a otra mesa",
+        "cambiar de mesa",
+        "traslado",
+        "motivo",
+        "productos no cobrados",
+        "error al tomar pedido"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A veces un plato se pidió por error, el cliente cambió de opinión, la comida llegó fría o la mesa se cambió de lugar. Todo eso se corrige desde la ficha de la mesa en **Mesas**, y cada cambio queda registrado con quién lo hizo y por qué.\n\n## Cancelar o no cobrar: cuál usar\n\n- **Cancelar**: para un plato que el cliente todavía no recibió. Sale del pedido, del tablero de la cocina y de la cuenta.\n- **No cobrar**: para un plato que ya se entregó (no le gustó, salió frío, cortesía, se fue sin pagar). Sale de la cuenta, pero queda registrado como entregado y aparece en el reporte **Productos no cobrados** con el motivo.\n\nLa ficha muestra el botón que corresponde según el estado del plato.\n\n## Cancelar un plato\n\n1. En [Mesas](/operator/tables), toca la mesa y busca el plato.\n2. Toca **Cancelar**.\n3. Elige un motivo (**Cliente cambió de opinión**, **Demora excesiva**, **Error al tomar pedido**, **Ingrediente faltante**) o escribe otro, de al menos 3 letras.\n4. Toca **Cancelar plato**. No se puede deshacer: si era un error, hay que volver a pedirlo.\n\n## No cobrar un plato entregado\n\n1. Toca **No cobrar** junto al plato servido.\n2. Elige el motivo (**No le gustó al cliente**, **Plato frío / mal preparado**, **Plato equivocado**, **Cortesía**, **Cliente se fue sin pagar**) o escribe otro.\n3. Toca **No cobrar plato**.\n\n> ⚠ Desde que la cocina empieza a preparar un plato, solo el administrador puede cancelarlo o dejar de cobrarlo, sin importar la configuración. Un plato entregado ya pasó por preparación, así que **No cobrar** siempre lo hace el administrador.\n\nAdemás, **No cobrar** solo lo pueden usar los roles marcados en **¿Quién puede no cobrar una cuenta o un plato?**, en [Políticas operativas](/operator/settings/staff-policies). Por defecto es solo el administrador. Quien no puede ve el botón apagado con **Sólo puede hacerlo:** y los roles.\n\n## Cancelar la cuenta completa\n\nSi la mesa se va antes de que la cocina empiece, toca **Cancelar la cuenta** y confirma. Solo aparece mientras ningún plato se haya empezado a preparar. Si la cocina ya empezó algo, cancela o deja de cobrar plato por plato.\n\n## Mover un plato a otra mesa\n\nSirve cuando se cargó en la mesa equivocada o el comensal se cambió de mesa.\n\n1. Toca **Mover** junto al plato.\n2. Elige la mesa destino. Las ocupadas dicen **Ocupada** y las otras, **Libre**.\n3. Si la mesa está ocupada, el plato se suma a su cuenta; si está libre, se abre una cuenta nueva. Un plato ya preparado o entregado conserva su estado y no vuelve a la cocina.\n\n## Mover toda la cuenta\n\nToca **Mover a otra mesa** y elige la mesa. Solo aparecen mesas libres: si la mesa destino tiene cuenta abierta, ciérrala antes, o mueve los platos uno por uno.\n\nQuién puede mover lo defines en **¿Quién puede mover platos y pedidos entre mesas?**: **Solo administradores** o **Administradores y meseros**.\n\n## Casos frecuentes\n\n- **\"Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.\"**: pídeselo al dueño o administrador.\n- **\"Tu rol no tiene permiso para anular el cobro de un plato.\"**: tu rol no está en la lista de **No cobrar**.\n- **\"Esta cuenta ya se está cobrando...\"** o **\"Esa mesa ya está pagando su cuenta...\"**: termina o anula el cobro en curso antes de mover.\n- **\"Esa mesa no está en tu sección.\"**: el mesero solo mueve entre las mesas que atiende.\n- **No puedo cancelar una bebida de la refri que todavía no llevé**: lo que va a **Refri / mostrador** entra ya listo, así que cuenta como empezado y solo lo cancela el administrador.\n- **\"Solo el administrador puede mover platos o pedidos entre mesas.\"**: el comercio reservó los traslados al administrador.\n- **\"La mesa de destino ya tiene una cuenta abierta...\"**: para mover la cuenta entera la mesa destino tiene que estar libre.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Políticas operativas",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "buscar-y-revisar-ordenes",
+      "title": "Busca una orden y revisa su detalle",
+      "summary": "En Órdenes encuentras cualquier cuenta por su código, la filtras por estado y periodo, y en su detalle ves las rondas, lo que pidió cada persona, los pagos y la factura.",
+      "keywords": [
+        "ordenes",
+        "buscar orden",
+        "codigo",
+        "codigo corto",
+        "historial",
+        "pedidos del dia",
+        "detalle de la orden",
+        "rondas",
+        "por persona",
+        "pagos",
+        "factura",
+        "reimprimir factura",
+        "abiertas",
+        "pagadas",
+        "canceladas",
+        "periodo"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cada cuenta tiene un código de 6 caracteres (por ejemplo **4F2A9C**) que aparece en la ficha de la mesa, en las comandas y en las tirillas. Con ese código la encuentras en **Órdenes**, donde también revisas el historial del día o de cualquier periodo.\n\n## Buscar una orden por su código\n\n1. Escribe el código en **Buscar orden**, en la barra de arriba del panel, y presiona Enter. Basta con una parte del código.\n2. Se abre **Órdenes** con el resultado.\n\nTambién puedes buscar desde la misma página de [Órdenes](/operator/orders), en **Buscar por código**, y tocar **Buscar**.\n\n> La búsqueda respeta el periodo elegido, que empieza en **Hoy**. Si la orden es de otro día, cambia **Periodo** a **7 días**, **30 días** o **Todo**.\n\n## Filtrar la lista\n\n- **Estado**: **Todas**, **Abiertas**, **Pagadas** o **Canceladas**.\n- **Periodo**: **Hoy**, **7 días**, **30 días** o **Todo**.\n\nArriba ves el total: cuántas órdenes, cuántas pagadas y cuánto suman. La lista muestra la fecha, el código, la mesa (o el canal), el estado, los ítems, el subtotal, lo pagado y la factura. Se muestran las 100 más recientes del filtro.\n\n\"Hoy\" es la jornada del restaurante: si en [Políticas operativas](/operator/settings/staff-policies) la jornada empieza a las 5:00, lo que se vende a las 2 a. m. cuenta para la noche anterior.\n\n## El detalle de una orden\n\nToca **Ver** en la orden. Arriba están la mesa, la fecha y el código, y cuatro cifras: **Subtotal**, **Propina**, **Pagado** y **Restante**.\n\n- **Acciones**: si la cuenta sigue abierta, **Cobrar la cuenta** y, mientras la cocina no haya empezado nada, **Cancelar**.\n- **Factura**: si ya se facturó, el número con **Ver factura**, **Reimprimir factura** y, con facturación electrónica, **Reenviar por correo**.\n- **Rondas**: cada envío (**Ronda 1 · 8:15 p. m.**) con su estado y sus platos, con el estado de cada uno (**Por preparar**, **Preparando**, **Listo para servir**, **Servido**), las opciones, las notas y **de** quién lo pidió.\n- **Por persona**: si en la mesa pidieron varias personas con su nombre, lo de cada una y cuánto suma.\n- **Pagos**: cada pago con su medio, su estado (**Aprobado**, **Pendiente**, **Fallido**, **Reembolsado**) y, si se dividió la cuenta, **1 de 3**.\n\nQuién montó cada ronda se ve en la ficha de la mesa (en **Mesas**) y en el tablero de la cocina, con **Montó:**.\n\n## Los estados de una orden\n\n**Abierto**, **Enviado** (en la cocina), **En cocina**, **Listo**, **Servido**, **Cobrando**, **Pagado** y **Cancelada**.\n\n## Casos frecuentes\n\n- **\"No hay órdenes con estos filtros.\"**: amplía el **Periodo** o pon **Estado** en **Todas**.\n- **Tengo el código largo de la factura o de un correo**: sirve igual; la búsqueda encuentra la orden con cualquier parte del código.\n- **Quiero corregir una orden abierta**: hazlo desde su mesa. Ver [Cancela, no cobres o mueve un plato](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).",
+      "links": [
+        {
+          "label": "Ir a Órdenes",
+          "href": "/operator/orders"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reservas",
+      "title": "Recibe y gestiona reservas",
+      "summary": "Activa las reservas con un link para tus clientes, define turnos, duración y depósito, prepara las mesas y el mapa del salón, y atiende cada reserva desde el tablero Reservas.",
+      "keywords": [
+        "reservas",
+        "reservar mesa",
+        "link de reservas",
+        "google maps",
+        "turnos",
+        "horarios",
+        "duracion",
+        "deposito",
+        "abono",
+        "no show",
+        "llegaron",
+        "confirmar reserva",
+        "mapa del salon",
+        "plano",
+        "capacidad",
+        "consumo minimo",
+        "reservable"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con las reservas, tus clientes apartan mesa desde un link: eligen día, hora, número de personas y mesa, y si lo pides, pagan un depósito. Tú las ves llegar en el tablero **Reservas** y las atiendes cuando llegan.\n\n## 1. Activa las reservas\n\n1. Entra a [Configuración › Reservas](/operator/settings/reservas) y activa **Recibir reservas**.\n2. En **Link de reservas** toca **Copiar** y compártelo por WhatsApp, redes o tu sitio web.\n3. Para recibir reservas desde Google Maps, copia el **Link para Google** y pégalo en tu Perfil de Empresa de Google. Las reservas que lleguen por ahí quedan marcadas como **Google Maps**.\n\n## 2. Define cómo funcionan\n\n- **Confirmar solas**: si lo apagas, cada reserva llega como **Pendiente** y la confirmas a mano.\n- **Duración de cada reserva**: de 1 a 3 horas.\n- **Anticipación mínima**: cuántas horas antes se puede reservar.\n- **Hasta cuántos días**: con cuánta anticipación máxima.\n- **Nota / política (opcional)**: por ejemplo, la tolerancia de llegada.\n- **Turnos por día**: para cada día toca **+ Agregar turno** y pon la hora de inicio y de fin. Cada turno se divide solo en reservas de la duración elegida. Un día sin turnos queda **Cerrado**.\n\nToca **Guardar cambios**.\n\n## 3. Prepara las mesas\n\nCon las reservas activas aparecen dos tarjetas más en **Configuración**:\n\n- [Mesas: capacidad y consumo](/operator/settings/mesas): para cada mesa, la **Capacidad** (cuántas personas caben), el **Consumo mín.** que ve el cliente, el **Depósito** que se cobra al reservar y si es **Reservable**. Cada valor se guarda al salir del campo.\n- [Mapa del salón](/operator/settings/salon): dibuja el salón como es. Arrastra las mesas a su lugar (o usa **Auto-acomodar mesas**), agrega **🚪 + Entrada**, **+ Zona** (jardín, terraza…) e **+ Ícono**, y toca **Guardar mapa**. El cliente ve este mapa al elegir su mesa.\n\n## 4. El depósito\n\nEn **Depósito para reservar** eliges con qué medios en línea se cobra: **Tarjeta**, **PSE** o **Apple Pay** (necesitas pagos en línea activos). El monto se define por mesa. El depósito se abona a la cuenta cuando llegan; si no se presentan, no se devuelve.\n\n## 5. Atiende las reservas\n\nEn [Reservas](/operator/reservas) (en el menú) ves las próximas y las de hoy. Filtra con **Activas**, **Hoy** o **Todas**. Arriba, **Últimos 30 días:** cuenta cuántas llegaron por cada canal.\n\nCada reserva muestra el estado, las personas, la mesa y el depósito. Según su estado:\n\n1. **Confirmar**, si llegó como **Pendiente**.\n2. Cuando llegan, **Llegaron**: queda en **Sentados**.\n3. Si tiene depósito pagado, cuando la mesa ya tenga pedidos toca **Aplicar abono $50.000 a la cuenta**: el depósito se descuenta de lo que falta por cobrar.\n4. Al irse, **Marcar completada**.\n\nSi no llegan, toca **No-show**; si cancelan, **Cancelar**. En ambos casos un depósito pagado queda **Depósito retenido**.\n\n## Casos frecuentes\n\n- **No veo Reservas en el menú**: activa **Recibir reservas** en la configuración.\n- **\"No pudimos acreditar el abono.\"**: la mesa todavía no tiene una cuenta abierta con pedidos. Toma el pedido y vuelve a tocar **Aplicar abono**.\n- **\"Para cobrar depósitos necesitás un medio de pago online activo\"**: activa tarjeta, PSE o Apple Pay en **Pagos**.\n- **Una mesa no aparece para reservar**: revisa que esté **Reservable** y que su **Capacidad** alcance para el grupo.",
+      "links": [
+        {
+          "label": "Ir a Reservas",
+          "href": "/operator/reservas"
+        },
+        {
+          "label": "Ir a la configuración de Reservas",
+          "href": "/operator/settings/reservas"
+        },
+        {
+          "label": "Ir a Mesas: capacidad y consumo",
+          "href": "/operator/settings/mesas"
+        },
+        {
+          "label": "Ir a Mapa del salón",
+          "href": "/operator/settings/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "etiquetas-de-platos",
+      "title": "Crea las etiquetas de tus platos",
+      "summary": "Las etiquetas son marcas como De la casa, Vegetariano o Picante que salen al lado del nombre del plato en la carta. Aquí defines cuáles hay, con su emoji y su orden.",
+      "keywords": [
+        "etiquetas",
+        "tags",
+        "chips",
+        "de la casa",
+        "favorito",
+        "vegetariano",
+        "picante",
+        "nuevo",
+        "vegano",
+        "sin gluten",
+        "emoji",
+        "marcar platos",
+        "destacar platos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Las etiquetas ayudan al comensal a elegir: salen como una marca pequeña al lado del nombre del plato en la carta, por ejemplo ⭐ De la casa o 🌱 Vegetariano. Aquí defines la lista de etiquetas de tu restaurante; después le pones a cada plato las que le correspondan.\n\n## Las que vienen de fábrica\n\nSi nunca las has editado, tu restaurante tiene cinco: **De la casa** ⭐, **Favorito** 🔥, **Vegetariano** 🌱, **Picante** 🌶️ y **Nuevo** ✨. Puedes cambiarlas, borrarlas o agregar otras.\n\n## Crear o editar las etiquetas\n\n1. Entra a [Configuración › Etiquetas de platos](/operator/settings/etiquetas).\n2. Toca **+ Nueva etiqueta**.\n3. Llena las tres columnas:\n- **Emoji**: el ícono que acompaña a la etiqueta (opcional).\n- **Nombre visible**: lo que lee el comensal, por ejemplo Sin gluten.\n- **ID (slug)**: un identificador interno. Se llena solo a partir del nombre; solo admite minúsculas, números y guiones.\n4. Usa **Subir** y **Bajar** para ordenarlas, y **Eliminar** para quitar una.\n5. Toca **Guardar**. Verás **Guardado** con la hora.\n\nPuedes tener hasta 20 etiquetas.\n\n## Ponerle etiquetas a un plato\n\nEn [Menú](/operator/menu), abre el plato y, en **Etiquetas**, marca las que lleva. Desde ahí, **Editar lista →** te trae de vuelta a esta pantalla.\n\n## Dónde se ven\n\nEn la carta que abre el comensal con el QR, y en la misma carta cuando tu equipo toma un pedido en **Modo mesero**. No salen en el tablero de la cocina ni en las comandas.\n\n## Cuidado al cambiar el ID\n\nEl nombre visible y el emoji se pueden cambiar cuando quieras. El **ID (slug)** es lo que une la etiqueta con los platos: si lo cambias, los platos que tenían la etiqueta dejan de mostrarla. En el editor del plato aparece como **Etiqueta ya no existe en tu configuración**. Si vuelves a poner el ID anterior, reaparece en esos platos.\n\nLo mismo pasa si eliminas una etiqueta: los platos no pierden nada, pero la etiqueta deja de verse.\n\n## Casos frecuentes\n\n- **\"... no es un slug válido. Solo letras minúsculas, números y guiones.\"**: quita espacios, tildes y mayúsculas del ID, por ejemplo `sin-gluten`.\n- **\"El slug ... está repetido.\"**: dos etiquetas tienen el mismo ID; cambia uno.\n- **No puedo agregar más**: llegaste al máximo de 20.\n- **Quiero que no salga ninguna**: elimínalas todas y toca **Guardar**.",
+      "links": [
+        {
+          "label": "Ir a Etiquetas de platos",
+          "href": "/operator/settings/etiquetas"
+        },
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

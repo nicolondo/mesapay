@@ -5,7 +5,7 @@ import { isModuleEnabled } from "@/lib/modules";
 import { DianConfigError, loadDianConfig, resolveEmisor } from "./config";
 import { buildDianCreditNoteXml, type CreditNoteReasonCode } from "./creditNote";
 import type { CreditNoteSnapshot } from "./creditNotes/types";
-import { creditNoteDeliveryDecision, creditNoteLeaseWhere, CREDIT_NOTE_LEASE_MS, CREDIT_NOTE_POLL_MS, isCreditNoteIdentityError } from "./creditNoteDeliveryState";
+import { creditNoteDeliveryDecision, creditNoteLeaseWhere, CREDIT_NOTE_LEASE_MS, CREDIT_NOTE_NOT_RECEIVED, CREDIT_NOTE_POLL_MS, isCreditNoteIdentityError, isNotReceivedByDian, stopsCreditNoteSweep } from "./creditNoteDeliveryState";
 import { creditNoteHash, diagnoseCreditNoteResponse, isDuplicateCreditNoteResponse, storedCreditNoteIdentityFailure } from "./creditNoteResponse";
 import { dianIssueDateTime, dianSigningTime } from "./dianDateTime";
 import { signXmlDian } from "./xades";
@@ -68,12 +68,26 @@ export async function emitDianCreditNote(opts: {
     const saved = await release({ state: 'error', lastError: reason, errors: identityFailure!.errors, nextAttemptAt: reason === 'dian_numbering_conflict' ? null : new Date(now.getTime() + BLOCKED_RETRY_MS) });
     return saved.count === 1 ? { outcome: 'blocked', reason, documentId: doc.id, errors: identityFailure!.errors } : { outcome: 'already_emitted' };
   };
+  // «No recibida por la DIAN» se basa en varias consultas: un fallo de canal
+  // o de configuración posterior no aporta información y no la borra.
+  const wasNotReceived = doc.state === "error" && doc.lastError === CREDIT_NOTE_NOT_RECEIVED;
+  const preserveNotReceived = async (reason?: string): Promise<EmitCreditNoteResult> => {
+    const saved = await release({ state: "error", lastError: CREDIT_NOTE_NOT_RECEIVED, errors: [CREDIT_NOTE_NOT_RECEIVED], nextAttemptAt: null });
+    if (saved.count !== 1) return { outcome: "already_emitted" };
+    return reason
+      ? { outcome: "blocked", reason, documentId: doc.id, errors: [CREDIT_NOTE_NOT_RECEIVED] }
+      : { outcome: "error", documentId: doc.id, errors: [CREDIT_NOTE_NOT_RECEIVED] };
+  };
   const blocked = async (reason: string): Promise<EmitCreditNoteResult> => {
     if (identityFailure) return preserveIdentityFailure();
+    if (wasNotReceived) return preserveNotReceived(reason);
     const saved = await release({ state: doc.xmlZip ? "error" : "to_send", lastError: reason, errors: [reason], nextAttemptAt: new Date(now.getTime() + BLOCKED_RETRY_MS) });
     return saved.count === 1 ? { outcome: "blocked", reason, documentId: doc.id } : { outcome: "already_emitted" };
   };
   let attempts = doc.attempts;
+  // Respuestas «no encontrado» (66/90) seguidas de la consulta de estado.
+  // Cualquier otra respuesta de la DIAN la vuelve a cero; un fallo de canal no la toca.
+  let notFoundStreak = doc.statusNotFoundCount ?? 0;
   try {
     // A retry cannot fix a number belonging to another document. Preserve the
     // original response; only an explicit CUDE status query may reconcile it.
@@ -100,11 +114,27 @@ export async function emitDianCreditNote(opts: {
     if (doc.xmlZip) {
       if (!cude || !doc.issuedAt) return blocked("incomplete_document");
       zip = Buffer.from(doc.xmlZip);
+      // SendBillSync (producción) no devuelve ZipKey: la clave de GetStatus es
+      // el CUDE. GetStatusZip sólo sirve con el ZipKey de un envío asíncrono
+      // (set de pruebas); un trackId vacío nunca se consulta.
       result = await getStatus(cude, args);
-      if (notFound(result) && doc.trackId) result = await getStatusZip(doc.trackId, args);
+      const zipKey = doc.trackId?.trim();
+      if (notFound(result) && zipKey) result = await getStatusZip(zipKey, args);
       if (identityFailure && !(creditNoteHash(result.cufe) === creditNoteHash(cude) && (result.state === 'accepted' || (result.state === 'rejected' && result.statusCode?.trim() === '99' && !isDuplicateCreditNoteResponse(result))))) return preserveIdentityFailure();
       if (notFound(result)) {
-        result = opts.mode === "status" ? { ...result, state: "pending", errors: [] } : null;
+        notFoundStreak++;
+        // Consulta sin reenvío: pendiente hasta el umbral; después, «No
+        // recibida por la DIAN» (el barrido deja de consultarla). Con un
+        // reenvío pendiente (emit) se retransmiten los mismos bytes.
+        result = opts.mode === "status"
+          ? isNotReceivedByDian({ notFoundCount: notFoundStreak, issuedAt: doc.issuedAt }, now)
+            ? { ...result, state: "error", errors: [CREDIT_NOTE_NOT_RECEIVED] }
+            : { ...result, state: "pending", errors: [] }
+          : null;
+      } else if (result.state !== "error") {
+        notFoundStreak = 0;
+      } else if (wasNotReceived) {
+        return preserveNotReceived();
       }
     } else {
       const instant = dianIssueDateTime(now);
@@ -147,6 +177,7 @@ export async function emitDianCreditNote(opts: {
       result = config.environment === "habilitacion"
         ? await sendTestSetAsync(zip, config.testSetId!, { ...args, fileName: zipFileName })
         : await sendBillSync(zip, { ...args, fileName: zipFileName });
+      if (result.state !== "error") notFoundStreak = 0;
     }
     result = await diagnoseCreditNoteResponse(result, { ...identity, cude });
     if (isCreditNoteIdentityError(result.errors[0])) {
@@ -165,7 +196,8 @@ export async function emitDianCreditNote(opts: {
       lastError: result.state === "error" ? result.errors[0] ?? "transport_error" : null,
       responseXml: result.raw ?? undefined,
       trackId: isCreditNoteIdentityError(result.errors[0]) ? doc.trackId : result.zipKey ?? doc.trackId,
-      nextAttemptAt: result.state === "accepted" || result.state === "rejected" || result.errors[0] === 'dian_numbering_conflict' ? null : new Date(now.getTime() + delay),
+      nextAttemptAt: result.state === "accepted" || result.state === "rejected" || stopsCreditNoteSweep(result.errors[0]) ? null : new Date(now.getTime() + delay),
+      statusNotFoundCount: notFoundStreak,
     });
     if (updated.count !== 1) return { outcome: "already_emitted" };
     if (result.state === "accepted") {
@@ -186,6 +218,7 @@ export async function emitDianCreditNote(opts: {
     if (identityFailure) return preserveIdentityFailure();
     if (error instanceof DianConfigError) return blocked(error.code);
     if (error instanceof CreditNoteError) return blocked(error.code);
+    if (wasNotReceived) return preserveNotReceived();
     const saved = await release({ state: "error", lastError: "transport_error", errors: ["transport_error"], nextAttemptAt: new Date(now.getTime() + emissionBackoffMs(attempts)) });
     return saved.count === 1 ? { outcome: "error", documentId: doc.id, errors: ["transport_error"] } : { outcome: "already_emitted" };
   }

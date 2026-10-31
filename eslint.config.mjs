@@ -92,6 +92,7 @@ const MIGRATED = [
   "src/app/operator/kitchen/page.tsx",
   "src/app/operator/kitchen/KitchenBoard.tsx",
   "src/app/operator/kitchen/NewOrderChime.tsx",
+  "src/app/operator/kitchen/ServeAllControl.tsx",
   "src/app/operator/bar/page.tsx",
   "src/app/operator/serve/page.tsx",
   "src/app/operator/serve/ServeBoard.tsx",

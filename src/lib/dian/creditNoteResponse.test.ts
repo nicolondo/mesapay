@@ -53,3 +53,41 @@ describe('credit-note response identity', () => {
     expect(await storedCreditNoteIdentityFailure({ lastError: null, errors: null, responseXml: null }, identity)).toBeNull();
   });
 });
+
+describe('rechazo definitivo de la DIAN frente a error transitorio', () => {
+  it('IsValid=false con StatusCode 99 es definitivo; 66, aceptación, Fault, 5xx o ilegible no', async () => {
+    const { isDefinitiveDianRejection } = await import('./creditNoteResponse');
+    const { notFoundStatusResponse, soapFaultResponse, gatewayErrorResponse, ncm1Accepted } = await import('./__fixtures__/creditNoteFailures');
+    expect(isDefinitiveDianRejection(historicalCreditNoteResponse().raw)).toBe(true);
+    expect(isDefinitiveDianRejection('<r><IsValid>false</IsValid><StatusCode>99</StatusCode><ErrorMessage><string>Regla: CAV01, Rechazo: detalle</string></ErrorMessage></r>')).toBe(true);
+    for (const raw of [notFoundStatusResponse, ncm1Accepted.responseXml, soapFaultResponse, gatewayErrorResponse, '', null, undefined, '<r><StatusCode>99</StatusCode><ErrorMessage><string>x</string></ErrorMessage></r>', '<!DOCTYPE r><r><IsValid>false</IsValid><StatusCode>99</StatusCode></r>'])
+      expect(isDefinitiveDianRejection(raw)).toBe(false);
+  });
+  it('clasifica NC3 (regla 90), NC1 no recibida y un CUDE ajeno con 99 como fallas definitivas', async () => {
+    const { creditNoteFailure } = await import('./creditNoteResponse');
+    const { nc1NotReceived, nc1Pending, nc3Conflict, ncm1Accepted } = await import('./__fixtures__/creditNoteFailures');
+    expect(creditNoteFailure(nc3Conflict)).toBe('numbering_conflict');
+    expect(creditNoteFailure(nc1NotReceived)).toBe('not_received');
+    expect(creditNoteFailure(nc1Pending)).toBeNull();
+    expect(creditNoteFailure(ncm1Accepted)).toBeNull();
+    expect(creditNoteFailure({ state: 'rejected' })).toBe('dian_rejected');
+    const foreign99 = historicalCreditNoteResponse({ transformApplication: xml => xml.replace('<b:ResponseCode>02</b:ResponseCode>', '<b:ResponseCode>04</b:ResponseCode>') }).raw;
+    expect(creditNoteFailure({ state: 'error', lastError: 'response_identifier_mismatch', responseXml: foreign99 })).toBe('dian_rejected');
+  });
+  it('un error de canal o un CUDE ajeno sin 99 sigue siendo transitorio', async () => {
+    const { creditNoteFailure } = await import('./creditNoteResponse');
+    const { soapFaultResponse, gatewayErrorResponse } = await import('./__fixtures__/creditNoteFailures');
+    const foreignAccepted = `<r><IsValid>true</IsValid><StatusCode>00</StatusCode><XmlDocumentKey>${'c'.repeat(96)}</XmlDocumentKey></r>`;
+    for (const document of [
+      { state: 'error', lastError: 'transport_error', responseXml: historicalCreditNoteResponse().raw },
+      { state: 'error', lastError: 'la DIAN no respondió' },
+      { state: 'error', lastError: 'a:InvalidSecurity: rechazado', responseXml: soapFaultResponse },
+      { state: 'error', lastError: 'respuesta no reconocida de la DIAN', responseXml: gatewayErrorResponse },
+      { state: 'error', lastError: 'response_identifier_mismatch', responseXml: foreignAccepted },
+      { state: 'error', lastError: 'response_identifier_mismatch', responseXml: null },
+      { state: 'pending', lastError: null },
+      { state: 'sent', lastError: null },
+    ]) expect(creditNoteFailure(document)).toBeNull();
+    expect(creditNoteFailure(null)).toBeNull();
+  });
+});

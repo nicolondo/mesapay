@@ -99,3 +99,114 @@ describe('historical credit-note numbering collision', () => {
    expect(finalWrite().responseXml).toBeUndefined(); expect(m.status).not.toHaveBeenCalled();
  });
 });
+
+describe('«No recibida por la DIAN» (66 persistente)', () => {
+ const day = 24 * 60 * 60_000;
+ const cude = 'b'.repeat(96);
+ const notFound66 = () => ({ state: 'rejected' as const, statusCode: '66', statusMessage: 'TrackId no existe en los registros de la DIAN.', errors: [], raw: '<status-66/>' });
+ // NC1: firmada hace 18 días, 8 envíos, sin ZipKey (SendBillSync no lo da).
+ const nc1 = (over: Record<string, unknown> = {}) => { const n = note('pending', true); return { ...n, dianDocument: { ...n.dianDocument, attempts: 8, issuedAt: new Date(now.getTime() - 18 * day), lastError: null, errors: [], statusNotFoundCount: 0, ...over } }; };
+ const finalWrite = () => m.update.mock.calls.at(-1)?.[0].data;
+ beforeEach(() => { m.status.mockResolvedValue(notFound66()); });
+ it('consulta por CUDE: un trackId vacío o en blanco nunca se usa', async () => {
+   for (const trackId of [null, '', '   ']) {
+     m.status.mockClear(); m.statusZip.mockClear(); m.find.mockResolvedValue(nc1({ trackId }));
+     await emit({ mode: 'status' });
+     expect(m.status).toHaveBeenCalledWith(cude, expect.anything());
+     expect(m.statusZip).not.toHaveBeenCalled();
+   }
+ });
+ it('las dos primeras respuestas 66 dejan la nota pendiente y suman la racha', async () => {
+   m.find.mockResolvedValue(nc1({ statusNotFoundCount: 1 }));
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'pending' });
+   expect(finalWrite()).toMatchObject({ state: 'pending', lastError: null, statusNotFoundCount: 2 });
+   expect(finalWrite().nextAttemptAt).toBeInstanceOf(Date);
+   expect(m.send).not.toHaveBeenCalled();
+ });
+ it('la tercera 66 seguida, pasadas 24 h, la marca no recibida y saca la nota del barrido', async () => {
+   m.find.mockResolvedValue(nc1({ statusNotFoundCount: 2 }));
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'error', errors: ['dian_not_received'] });
+   expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_not_received', errors: ['dian_not_received'], nextAttemptAt: null, statusNotFoundCount: 3, responseXml: '<status-66/>' });
+   expect(m.send).not.toHaveBeenCalled(); expect(m.email).not.toHaveBeenCalled(); expect(m.stamp).not.toHaveBeenCalled();
+ });
+ it('antes de 24 h desde la emisión no la marca, aunque la racha supere el umbral', async () => {
+   m.find.mockResolvedValue(nc1({ statusNotFoundCount: 5, issuedAt: new Date(now.getTime() - day + 60_000) }));
+   expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'pending' });
+   expect(finalWrite()).toMatchObject({ state: 'pending', statusNotFoundCount: 6 });
+ });
+ it('mientras quedan reenvíos (emit) retransmite los mismos bytes en vez de marcarla', async () => {
+   m.find.mockResolvedValue(nc1({ attempts: 2, statusNotFoundCount: 4 })); m.send.mockResolvedValue({ state: 'error', errors: ['la DIAN no respondió'] });
+   await emit();
+   expect(m.send.mock.calls[0][0]).toEqual(Buffer.from('frozen-signed-zip'));
+   expect(finalWrite()).toMatchObject({ state: 'error', statusNotFoundCount: 5 });
+ });
+ it('cualquier otra respuesta de la DIAN reinicia la racha', async () => {
+   m.find.mockResolvedValue(nc1({ attempts: 2, statusNotFoundCount: 2 })); m.send.mockResolvedValue({ state: 'rejected', statusCode: '99', errors: ['Regla: 90, documento procesado anteriormente'] });
+   await emit();
+   expect(finalWrite()).toMatchObject({ state: 'pending', statusNotFoundCount: 0 });
+   m.find.mockResolvedValue(nc1({ statusNotFoundCount: 2 })); m.status.mockResolvedValue({ state: 'pending', statusMessage: 'Batch en proceso de validación.', errors: [] });
+   await emit({ mode: 'status' });
+   expect(finalWrite()).toMatchObject({ state: 'pending', statusNotFoundCount: 0 });
+ });
+ it('un fallo de canal en la consulta no suma ni reinicia la racha', async () => {
+   m.find.mockResolvedValue(nc1({ statusNotFoundCount: 2 })); m.status.mockResolvedValue({ state: 'error', errors: ['The operation was aborted due to timeout'] });
+   await emit({ mode: 'status' });
+   expect(finalWrite()).toMatchObject({ state: 'error', statusNotFoundCount: 2 });
+   expect(finalWrite().lastError).not.toBe('dian_not_received');
+ });
+ describe('una vez no recibida', () => {
+   const notReceived = (over: Record<string, unknown> = {}) => nc1({ state: 'error', lastError: 'dian_not_received', errors: ['dian_not_received'], statusNotFoundCount: 3, ...over });
+   it('si la DIAN dice que SÍ la tiene (mismo CUDE), gana la DIAN', async () => {
+     m.find.mockResolvedValue(notReceived()); m.status.mockResolvedValue({ state: 'accepted', cufe: cude, errors: [], raw: '<accepted/>' });
+     expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'accepted' });
+     expect(finalWrite()).toMatchObject({ state: 'accepted', lastError: null, statusNotFoundCount: 0, nextAttemptAt: null });
+     expect(m.send).not.toHaveBeenCalled(); expect(m.stamp).toHaveBeenCalledWith('r1', 'note1');
+   });
+   it('si la DIAN la rechaza de forma definitiva, queda rechazada', async () => {
+     m.find.mockResolvedValue(notReceived()); m.status.mockResolvedValue({ state: 'rejected', statusCode: '99', cufe: cude, errors: ['Regla: CAV01, detalle'] });
+     expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'rejected' });
+     expect(finalWrite()).toMatchObject({ state: 'rejected', statusNotFoundCount: 0 });
+   });
+   it('otra 66 la mantiene no recibida', async () => {
+     m.find.mockResolvedValue(notReceived());
+     await emit({ mode: 'status' });
+     expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_not_received', statusNotFoundCount: 4, nextAttemptAt: null });
+   });
+   it('un fallo de canal o de configuración no borra la evidencia', async () => {
+     m.find.mockResolvedValue(notReceived()); m.status.mockResolvedValue({ state: 'error', errors: ['la DIAN no respondió'] });
+     expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'error', errors: ['dian_not_received'] });
+     expect(finalWrite()).toMatchObject({ state: 'error', lastError: 'dian_not_received', nextAttemptAt: null });
+     m.status.mockRejectedValue(new Error('SECRET'));
+     await emit({ mode: 'status' });
+     expect(finalWrite()).toMatchObject({ lastError: 'dian_not_received' }); expect(JSON.stringify(finalWrite())).not.toContain('SECRET');
+     m.config.mockResolvedValue({ environment: 'produccion', cert: { notBefore: new Date(0), notAfter: new Date(1) } });
+     expect(await emit({ mode: 'status' })).toMatchObject({ outcome: 'blocked', reason: 'certificate_expired' });
+     expect(finalWrite()).toMatchObject({ lastError: 'dian_not_received', nextAttemptAt: null });
+   });
+   it('el reenvío manual (emit) retransmite los mismos bytes', async () => {
+     m.find.mockResolvedValue(notReceived()); m.send.mockResolvedValue({ state: 'accepted', cufe: cude, errors: [] });
+     expect(await emit()).toMatchObject({ outcome: 'accepted' });
+     expect(m.send.mock.calls[0][0]).toEqual(Buffer.from('frozen-signed-zip')); expect(m.sign).not.toHaveBeenCalled();
+   });
+ });
+});
+
+describe('rechazo definitivo frente a error de canal', () => {
+ it('un 5xx, un Fault o un timeout del envío quedan como error transitorio, no descartable', async () => {
+   const { canAbandon } = await import('./creditNotes/domain');
+   for (const sent of [{ state: 'error' as const, errors: ['la DIAN no respondió'] }, { state: 'error' as const, statusCode: 'a:InvalidSecurity', errors: ['a:InvalidSecurity: rechazado'] }, { state: 'error' as const, errors: ['respuesta no reconocida de la DIAN'], raw: '<html>503</html>' }]) {
+     m.update.mockClear(); m.find.mockResolvedValue(note('error', true)); m.send.mockResolvedValue(sent);
+     expect((await emit()).outcome).toBe('error');
+     const data = m.update.mock.calls.at(-1)?.[0].data;
+     expect(data.nextAttemptAt).toBeInstanceOf(Date);
+     expect(canAbandon({ state: data.state, xmlZip: Buffer.from('x'), attempts: 2, leaseExpiresAt: null, lastError: data.lastError, responseXml: data.responseXml ?? null }, null)).toBe(false);
+   }
+ });
+ it('IsValid=false + 99 propio queda rechazada y descartable', async () => {
+   const { canAbandon } = await import('./creditNotes/domain');
+   m.send.mockResolvedValue({ state: 'rejected', statusCode: '99', errors: ['Regla: CAV01, Rechazo: detalle inválido'] });
+   expect((await emit()).outcome).toBe('rejected');
+   const data = m.update.mock.calls.at(-1)?.[0].data;
+   expect(canAbandon({ state: data.state, xmlZip: Buffer.from('x'), attempts: 1, leaseExpiresAt: null, lastError: data.lastError }, null)).toBe(true);
+ });
+});

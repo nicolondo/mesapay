@@ -251,15 +251,33 @@ export default async function OperatorLayout({
         </div>
       )}
       {membership === "vencido" && (
-        <div className="print:hidden shrink-0 bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm">
-          {t.rich("membershipOverdue", { b: (chunks) => <strong>{chunks}</strong> })}
+        <div className="print:hidden shrink-0 bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span className="min-w-0">
+            {t.rich("membershipOverdue", { b: (chunks) => <strong>{chunks}</strong> })}
+          </span>
+          {/* Lleva a Configuración → Suscripción: ahí se activa el débito
+              con tarjeta y, sin período vigente, se cobra en el momento. */}
+          <Link
+            href="/operator/settings/suscripcion"
+            className="shrink-0 font-semibold underline underline-offset-2"
+          >
+            {t("membershipPayNow")}
+          </Link>
         </div>
       )}
       {membership === "por_vencer" && (
-        <div className="print:hidden shrink-0 bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm">
-          {dueDateStr
-            ? t("membershipDueSoonDate", { date: dueDateStr })
-            : t("membershipDueSoon")}
+        <div className="print:hidden shrink-0 bg-[#C98A2E]/15 border-b border-[#C98A2E]/40 text-[#7F5A1F] px-4 md:px-6 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span className="min-w-0">
+            {dueDateStr
+              ? t("membershipDueSoonDate", { date: dueDateStr })
+              : t("membershipDueSoon")}
+          </span>
+          <Link
+            href="/operator/settings/suscripcion"
+            className="shrink-0 font-semibold underline underline-offset-2"
+          >
+            {t("membershipViewPlan")}
+          </Link>
         </div>
       )}
     </>

@@ -1431,10 +1431,12 @@ a.mp-viz-heat-cell:focus-visible {
   line-height: 1.5;
   color: var(--op-muted);
 }
-.mp-sales-panel {
+/* Paneles del Análisis de ventas: clase propia para no heredar ni pisar la
+   tarjeta de ventas del Resumen (.mp-sales-panel), que vive en una grilla. */
+.mp-sa-panel {
   margin-top: 24px;
 }
-.mp-sales-panel .mp-panel-heading h2 {
+.mp-sa-panel .mp-panel-heading h2 {
   font-size: 16px;
 }
 .mp-sales-panel-body {
@@ -1453,7 +1455,7 @@ a.mp-viz-heat-cell:focus-visible {
   margin-top: 24px;
   align-items: start;
 }
-.mp-sales-columns > .mp-sales-panel {
+.mp-sales-columns > .mp-sa-panel {
   margin-top: 0;
 }
 .mp-sales-columns--single {

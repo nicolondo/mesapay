@@ -52,7 +52,7 @@ export function HeatmapPanel({
   const peakHour = heat.byHour.reduce<(typeof heat.byHour)[number] | null>((b, h) => (h.netCents > (b?.netCents ?? -1) ? h : b), null);
 
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-heat-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-heat-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-heat-title">{t("heat.title")}</h2>

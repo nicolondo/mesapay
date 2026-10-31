@@ -121,7 +121,7 @@ export function MixPanel({
   });
 
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-mix-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-mix-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-mix-title">{t("mix.title")}</h2>

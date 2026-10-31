@@ -92,7 +92,7 @@ export function TrendPanel({
   const best = points.reduce<TrendPoint | null>((b, p) => (p.netCents > (b?.netCents ?? -1) ? p : b), null);
 
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-trend-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-trend-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-trend-title">{t("trend.title")}</h2>

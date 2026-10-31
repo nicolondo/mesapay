@@ -29,7 +29,7 @@ export function TeamPanel({
   const max = Math.max(0, ...waiters.map((w) => w.netCents));
   const prev = new Map((compareWaiters ?? []).map((w) => [w.waiterId ?? NO_WAITER, w]));
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-team-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-team-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-team-title">{t("team.title")}</h2>

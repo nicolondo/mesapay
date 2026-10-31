@@ -34,6 +34,16 @@ describe("buildOperatorNav — grupos Contabilidad y Reportes", () => {
     expect(resolveActiveHref(nav, { pathname: "/operator/reports/no-cobrados" })).toBe("/operator/reports/no-cobrados");
   });
 
+  it("el análisis de ventas está en Negocio para todo comercio, sin módulos, y no pisa al Cierre", () => {
+    const nav = buildOperatorNav(base);
+    expect(group(nav, "navGroupBusiness")?.children[1]).toEqual({
+      href: "/operator/reports/ventas",
+      labelKey: "navSalesAnalysis",
+    });
+    expect(resolveActiveHref(nav, { pathname: "/operator/reports/ventas" })).toBe("/operator/reports/ventas");
+    expect(resolveActiveHref(nav, { pathname: "/operator/reports" })).toBe("/operator/reports");
+  });
+
   it("con `accounting` apagado no aparecen los grupos ni la entrada suelta", () => {
     const nav = buildOperatorNav({ ...base, enabledModules: ["inventory"] });
     expect(group(nav, "navAccounting")).toBeUndefined();

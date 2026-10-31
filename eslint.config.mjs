@@ -20,6 +20,9 @@ import i18next from "eslint-plugin-i18next";
 const MIGRATED = [
   // Reportes contables: nacieron trilingües, quedan blindados de una.
   "src/app/operator/reportes/**/*.{ts,tsx}",
+  // Análisis de ventas y los gráficos reutilizables: nacieron trilingües.
+  "src/app/operator/reports/ventas/**/*.{ts,tsx}",
+  "src/components/charts/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",

@@ -42,6 +42,9 @@ import {
   type OrderRefundEvent,
 } from "@/lib/erp/creditNoteLedger";
 
+// Comparaciones: viven aparte para poder usarse en componentes de cliente.
+export { deltaTone, KPI_POLARITY, share, variation, type Polarity } from "./compare";
+
 // ── Implementación de referencia por cuenta ────────────────────────────────
 
 export type SaleLineInput = {
@@ -273,6 +276,8 @@ export type Kpis = {
 
 export type KpiKey = keyof Kpis;
 
+
+
 export function deriveKpis(
   t: SalesTotals,
   returns: ReturnsSummary | null,
@@ -298,49 +303,6 @@ export function deriveKpis(
     unitsPerOrder: ratio(t.units, t.orders),
     medianTableMinutes: reliableDuration(duration),
   };
-}
-
-/**
- * Variación relativa contra la comparación. null cuando no se puede decir
- * nada honesto: sin comparación, sin dato o con base cero.
- */
-export function variation(current: number | null | undefined, previous: number | null | undefined): number | null {
-  if (current === null || current === undefined || previous === null || previous === undefined) return null;
-  if (previous === 0) return null;
-  return (current - previous) / Math.abs(previous);
-}
-
-/** Si subir es bueno, malo o ninguna de las dos (para el color del delta). */
-export type Polarity = "up" | "down" | "neutral";
-
-export const KPI_POLARITY: Record<KpiKey, Polarity> = {
-  netCents: "up",
-  grossCents: "up",
-  taxCents: "neutral",
-  tipCents: "up",
-  discountCents: "down",
-  compsCents: "down",
-  discountsAndCompsCents: "down",
-  returnsCents: "down",
-  netAfterReturnsCents: "up",
-  orders: "up",
-  diners: "up",
-  avgTicketCents: "up",
-  avgPerDinerCents: "up",
-  unitsPerOrder: "up",
-  medianTableMinutes: "neutral",
-};
-
-/** "good" | "bad" | "neutral" según el signo de la variación y la polaridad. */
-export function deltaTone(delta: number | null, polarity: Polarity): "good" | "bad" | "neutral" {
-  if (delta === null || delta === 0 || polarity === "neutral") return "neutral";
-  const up = delta > 0;
-  return up === (polarity === "up") ? "good" : "bad";
-}
-
-/** Participación sobre el total (0–1); null con total cero. */
-export function share(part: number, total: number): number | null {
-  return total > 0 ? part / total : null;
 }
 
 // ── Notas crédito y reembolsos ─────────────────────────────────────────────

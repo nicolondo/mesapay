@@ -31,7 +31,9 @@ type Entry = {
   amountCents: number;
   status: EntryStatus;
   salesRep: { id: string; email: string; name: string | null };
-  restaurant: { id: string; name: string; slug: string };
+  /** null si el comercio se eliminó: queda `deletedRestaurantName`. */
+  restaurant: { id: string; name: string; slug: string } | null;
+  deletedRestaurantName: string | null;
   membershipPayment: {
     periodStart: string;
     periodEnd: string;
@@ -595,7 +597,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
                         {e.salesRep.email}
                       </div>
                     </Td>
-                    <Td>{e.restaurant.name}</Td>
+                    <Td>{e.restaurant?.name ?? e.deletedRestaurantName ?? "—"}</Td>
                     <Td className="font-mono text-[11px] text-op-muted whitespace-nowrap">
                       {e.membershipPayment
                         ? `${fmtDate(e.membershipPayment.periodStart)} → ${fmtDate(e.membershipPayment.periodEnd)}`

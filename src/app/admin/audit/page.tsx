@@ -58,6 +58,8 @@ export default async function AdminAuditPage({
     "order_item.comp",
     "restaurant.create",
     "restaurant.group.update",
+    "restaurant.delete",
+    "restaurant.archive.download",
     "group.legal_entity.create",
     "group.legal_entity.update",
     "group.legal_entity.delete",

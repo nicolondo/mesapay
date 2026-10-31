@@ -33,6 +33,7 @@ import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { AdminAiConfig } from "./AdminAiConfig";
 import { AdminSalesRep } from "./AdminSalesRep";
 import { DangerZonePanel } from "./DangerZonePanel";
+import { DeleteRestaurantPanel } from "./DeleteRestaurantPanel";
 import { CashBox } from "@/components/CashBox";
 import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
@@ -485,6 +486,9 @@ export default async function RestaurantDetail({
       </div>
 
       <DangerZonePanel restaurantId={id} slug={rest.slug} />
+
+      {/* Zona de peligro final: eliminar el comercio entero (con archivo final). */}
+      <DeleteRestaurantPanel restaurantId={id} slug={rest.slug} name={rest.name} />
     </div>
   );
 }

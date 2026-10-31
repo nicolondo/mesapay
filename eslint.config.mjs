@@ -160,6 +160,8 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/BillingPanel.tsx",
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/DeleteRestaurantPanel.tsx",
+  "src/app/admin/restaurants/eliminados/**/*.{ts,tsx}",
   "src/components/CashBox.tsx",
   // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació
   // trilingüe cuando se extrajo de done/InvoiceRequestPanel.

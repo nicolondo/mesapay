@@ -43,7 +43,14 @@ export async function getActiveContext(): Promise<ActiveContext | null> {
 
   if (session.user.role === "platform_admin") {
     const jar = await cookies();
-    const impersonated = jar.get(IMPERSONATE_COOKIE)?.value ?? null;
+    const cookie = jar.get(IMPERSONATE_COOKIE)?.value ?? null;
+    // Si el comercio se eliminó mientras este admin estaba "dentro" (desde
+    // otra sesión), la cookie apunta a nada: se ignora y vuelve a la vista
+    // de plataforma en vez de romper cada pantalla del operador.
+    const impersonated =
+      cookie && (await db.restaurant.findUnique({ where: { id: cookie }, select: { id: true } }))
+        ? cookie
+        : null;
     return {
       session,
       restaurantId: impersonated,

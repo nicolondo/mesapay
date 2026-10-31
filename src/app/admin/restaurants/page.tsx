@@ -22,6 +22,7 @@ export default async function RestaurantsAdmin({
   const sp = await searchParams;
   const now = await requestTime();
   const t = await getTranslations("opAdmin");
+  const tDeleted = await getTranslations("adminDelete");
   const tl = await getTranslations("location");
   const locale = await getLocale();
 
@@ -122,12 +123,20 @@ export default async function RestaurantsAdmin({
             {t("accountsInPlatform", { count: restaurants.length })}
           </div>
         </div>
-        <Link
-          href="/admin/restaurants/new"
-          className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
-        >
-          {t("newRestaurant")}
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <Link
+            href="/admin/restaurants/eliminados"
+            className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
+          >
+            {tDeleted("listLink")}
+          </Link>
+          <Link
+            href="/admin/restaurants/new"
+            className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
+          >
+            {t("newRestaurant")}
+          </Link>
+        </div>
       </div>
 
       {sp.ok && (

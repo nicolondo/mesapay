@@ -199,7 +199,7 @@ export default async function ComercialPage() {
                     <Td className="font-mono text-[11px] text-op-muted whitespace-nowrap">
                       {fmtBogotaDateTime(e.createdAt).date}
                     </Td>
-                    <Td>{e.restaurant.name}</Td>
+                    <Td>{e.restaurant?.name ?? e.deletedRestaurantName ?? "—"}</Td>
                     <Td className="font-mono text-[11px] text-op-muted whitespace-nowrap">
                       {e.membershipPayment
                         ? `${fmtBogotaDateTime(e.membershipPayment.periodStart).date} → ${fmtBogotaDateTime(e.membershipPayment.periodEnd).date}`

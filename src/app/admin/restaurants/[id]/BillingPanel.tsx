@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { MEMBERSHIP_MAX_CENTS } from "@/lib/billing/limits";
 
 type Plan = "trial" | "basic" | "pro";
 
@@ -51,6 +52,10 @@ export function PlanEditor({
     const cents = Math.round(Number(priceCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
       setErr(t("priceInvalid"));
+      return;
+    }
+    if (cents > MEMBERSHIP_MAX_CENTS) {
+      setErr(t("priceTooHigh", { max: fmtCOP(MEMBERSHIP_MAX_CENTS) }));
       return;
     }
     setBusy(true);
@@ -152,6 +157,10 @@ export function RecordPaymentForm({
     const cents = Math.round(Number(amountCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
       setErr(t("amountInvalid"));
+      return;
+    }
+    if (cents > MEMBERSHIP_MAX_CENTS) {
+      setErr(t("amountTooHigh", { max: fmtCOP(MEMBERSHIP_MAX_CENTS) }));
       return;
     }
     setBusy(true);

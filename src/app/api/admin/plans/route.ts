@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { getPlanCatalog, getPlanByTier, updatePlan } from "@/lib/planCatalog";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { MEMBERSHIP_MAX_CENTS } from "@/lib/billing/limits";
 
 /**
  * Catálogo de planes (trial/basic/pro). GET devuelve todos los
@@ -25,7 +26,7 @@ const patchSchema = z.object({
     .nullable()
     .optional()
     .transform((v) => (v === "" ? null : v)),
-  defaultPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+  defaultPriceCents: z.number().int().min(0).max(MEMBERSHIP_MAX_CENTS).optional(),
   // Lista de bullets cortos. Filtramos vacíos y cap a 12 para no
   // dejar que se infle el catálogo con basura.
   features: z

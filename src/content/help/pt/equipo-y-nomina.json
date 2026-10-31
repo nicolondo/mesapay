@@ -1,5 +1,185 @@
 {
   "title": "Equipe e folha",
   "description": "Funcionários, horários, presença, quiosque, folha de pagamento e comissões dos garçons.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "crear-el-equipo",
+      "title": "Cadastre sua equipe e os salários",
+      "summary": "Crie cada funcionário com o cargo e o salário base mensal, defina o modelo de horário e o registro facial para o quiosque, e desative-o quando deixar de trabalhar.",
+      "keywords": [
+        "funcionarios",
+        "equipe",
+        "pessoal",
+        "colaboradores",
+        "salario",
+        "salario base mensal",
+        "valor da hora",
+        "hora normal",
+        "cargo",
+        "modelo de horario",
+        "registro facial",
+        "desativar funcionario",
+        "excluir funcionario"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Horários, na aba Equipe, você cadastra as pessoas que trabalham no seu restaurante com o cargo e o salário. Com esses dados o MESAPAY planeja os turnos, controla a presença, calcula os adicionais e faz a folha de pagamento.\n\n> Horários e Folha de pagamento aparecem no menu lateral, em **Administração**, quando o seu estabelecimento tem o módulo de horários e folha ativo. Se não aparecerem, escreva para o suporte.\n\n## Crie um funcionário\n\n1. Entre em [Horários](/operator/horarios) e abra a aba **Equipe**.\n2. Toque em **Novo funcionário**.\n3. Escreva o **Nome** e o **Cargo** (por exemplo, garçom, cozinheiro ou lavador de louça). Os cargos que você já usou aparecem como sugestão.\n4. Em **Salário base mensal**, escreva quanto a pessoa ganha por mês. Abaixo aparece o **Valor da hora normal** que sai desse salário.\n5. Se a pessoa entra no MESAPAY com um usuário próprio, escolha-o em **Usuário do app (opcional)**. Se não, deixe **Sem usuário**.\n6. Toque em **Salvar**.\n\nNa lista da **Equipe** você vê cada pessoa com o salário mensal e o valor da hora.\n\n## O salário e o valor da hora\n\nO salário base mensal é a base da folha: é pago inteiro todo mês, independentemente de quantas horas a pessoa tenha no planejador.\n\nO valor da hora normal é o salário dividido por um divisor, que por padrão é 240 (30 dias de 8 horas). Por exemplo, com um salário de $2.400.000 a hora normal vale $10.000. Esse valor é usado apenas para calcular os adicionais dos turnos em feriados e domingos.\n\nO divisor se muda na engrenagem, em **Ajustes de horários**. Veja [Planeje os turnos e controle a presença](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\nSe você deixar o salário vazio, o funcionário fica marcado como **Sem salário**: pode ter turnos, mas não se calculam adicionais e ele não entra na folha.\n\n## Modelo de horário e registro facial\n\nEssas duas seções aparecem quando você edita um funcionário já criado: toque nele na lista da **Equipe**.\n\n- **Modelo de horário**: os turnos habituais da pessoa, de segunda a domingo, com até duas faixas por dia (para turnos divididos). Toque em **Adicionar faixa** no dia e escreva a hora de entrada e a de saída. É usado em **Aplicar modelo** na semana e para criar o turno automático quando alguém marca no quiosque sem turno planejado. **Limpar modelo** apaga tudo. As mudanças ficam ao tocar em **Salvar**.\n- **Registro facial**: as fotos com as quais o quiosque reconhece a pessoa. Toque em **Registrar rosto**, tire de 1 a 3 fotos de frente e com boa luz em **Tirar foto**, marque a caixa de autorização e toque em **Salvar**. Sem a autorização nada é salvo. Para apagá-lo, toque em **Excluir registro facial**.\n\nUm funcionário sem registro facial também pode marcar no quiosque escolhendo o nome. Veja [Instale e use o quiosque de presença](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\n## Quando alguém deixa de trabalhar\n\nDesative em vez de excluir:\n\n1. Toque na pessoa na lista da **Equipe**.\n2. Desmarque **Ativo** e toque em **Salvar**.\n3. Confirme o aviso.\n\nEla deixa de aparecer no planejador e no quiosque e não entra nas próximas folhas, mas os turnos e a presença são mantidos. Na lista fica com a marca **Inativo**, e você pode reativá-la quando quiser.\n\n> ⚠ **Excluir** apaga o funcionário para sempre, junto com todo o histórico de turnos e presença. Use apenas se você o criou por engano.\n\n## Casos frequentes\n\n- **Já existe um funcionário com esse nome.**: dois funcionários não podem ter o mesmo nome; acrescente o sobrenome ou uma inicial. A mesma mensagem aparece se o usuário escolhido já está vinculado a outro funcionário: escolha outro ou deixe **Sem usuário**.\n- **Revise os dados do funcionário.**: falta o nome ou o cargo.\n- **Valor inválido.**: o salário tem que ser um número maior que zero, ou ficar vazio.\n- **Revise as faixas do modelo: cada uma deve durar entre 15 minutos e 16 horas.**: preencha as duas horas de cada faixa. Se a hora de saída for menor que a de entrada, o turno termina no dia seguinte.\n- **Sem acesso à câmera. Habilite no navegador para registrar o rosto.**: permita o uso da câmera no navegador e tente de novo.\n- **Não vimos um rosto na foto — tente de novo com mais luz.**: olhe de frente para a câmera, procure mais luz e tire a foto de novo.\n- **Você precisa aceitar o consentimento para salvar o registro facial.**: marque a caixa de autorização antes de salvar.\n- **O reconhecimento facial não está disponível neste dispositivo.**: registre o rosto em outro aparelho ou navegador com câmera.",
+      "links": [
+        {
+          "label": "Ir para Horários",
+          "href": "/operator/horarios"
+        },
+        {
+          "label": "Ir para Folha de pagamento",
+          "href": "/operator/nomina"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "turnos-y-asistencia",
+      "title": "Planeje os turnos e controle a presença",
+      "summary": "Monte a semana da sua equipe, copie a anterior ou aplique o modelo, registre entradas e saídas em Hoje e confira os adicionais de feriados e domingos, as marcações duvidosas e o relatório de presença.",
+      "keywords": [
+        "turnos",
+        "horarios",
+        "planejador",
+        "escala semanal",
+        "presenca",
+        "entrada",
+        "saida",
+        "marcacao",
+        "ponto",
+        "relogio de ponto",
+        "adicional de feriado",
+        "adicional de domingo",
+        "faltas",
+        "horas trabalhadas",
+        "relatorio de presenca",
+        "csv",
+        "turno extra"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Horários você planeja os turnos de cada semana, registra a que horas cada pessoa entra e sai e vê os adicionais de feriados e domingos. A tela tem três abas: **Semana**, **Hoje** e **Equipe**.\n\nAntes de planejar, cadastre a sua equipe. Veja [Cadastre sua equipe e os salários](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Planeje a semana\n\n1. Entre em [Horários](/operator/horarios). Abre a aba **Semana**, de segunda a domingo. Mude de semana com as setas dos lados das datas.\n2. Toque em **Novo turno**.\n3. Escolha o **Funcionário** e a **Data**, e escreva **De** e **Até**. Se a hora de saída for menor que a de entrada, o turno termina no dia seguinte e aparece **Termina no dia seguinte.** Você pode adicionar **Observações**.\n4. Toque em **Salvar**.\n\nPara não montar a semana do zero:\n\n- **Copiar semana anterior** copia os turnos da semana passada para a que você está vendo.\n- **Aplicar modelo** preenche a semana com o modelo de horário de cada funcionário ativo.\n\nNos dois casos, os turnos que cruzam com um já planejado são pulados, e ao terminar você vê quantos foram criados e quantos foram pulados.\n\nAcima dos dias aparecem as **Horas da semana** e, se houver, os **Adicionais** e as **Faltas**. Os feriados levam a marca **Feriado**.\n\nPara mudar um turno, toque nele: ajuste o horário ou as observações e toque em **Salvar**, ou toque em **Remover**. O funcionário e a data não podem ser mudados; se errou, remova o turno e crie de novo.\n\n## Registre a presença do dia\n\nA aba **Hoje** mostra os turnos de hoje.\n\n1. Quando a pessoa chega, toque em **Entrou**. Fica registrada a hora exata.\n2. Quando ela vai embora, toque em **Saiu**.\n3. Se alguém veio sem turno planejado, toque em **Turno extra** e crie o turno com a data de hoje.\n\nAs marcações feitas no quiosque aparecem aqui com a foto da entrada e da saída; toque em uma foto para vê-la grande. Para abrir o quiosque neste aparelho, toque em **Abrir quiosque**. Veja [Instale e use o quiosque de presença](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\nSe ninguém marcou na hora, abra o turno e corrija a **Entrada real** e a **Saída real** em **Presença real**. **Limpar registro** apaga as duas.\n\nAs marcas de cada turno significam:\n\n- **✓ Compareceu**: tem entrada e saída.\n- **Falta**: com a presença estrita ativa, o turno já passou e ninguém marcou a entrada.\n- **Fechamento automático**: a pessoa marcou a entrada, mas não a saída. Passado o dia, o MESAPAY fecha o turno na hora de saída planejada.\n- **Sem salário**: o funcionário não tem salário, então não se calculam adicionais.\n\n## Adicionais e ajustes\n\nToque na engrenagem, **Ajustes de horários**:\n\n- **Adicional de feriado (%)** e **Adicional de domingo (%)**: o que se soma sobre a hora normal quando o turno começa em feriado ou domingo. Vêm em 75. Se um domingo é feriado, aplica-se só o adicional de feriado.\n- **Divisor de horas**: o valor da hora é o salário dividido por este número. 240 é a jornada tradicional (30 dias de 8 horas).\n- **Presença estrita**: um turno que já passou sem entrada marcada conta como **Falta** e não soma horas nem adicional.\n\nToque em **Salvar**.\n\nO adicional usa as horas reais do turno quando ele tem entrada e saída, e as planejadas quando não tem. Os feriados são os do país do seu estabelecimento. Os adicionais do mês entram na folha como provento. Veja [Faça a folha de pagamento do mês](/operator/ayuda/equipo-y-nomina/liquidar-la-nomina).\n\n> Hoje o MESAPAY calcula só os adicionais de feriado e de domingo. O adicional noturno e as horas extras não são calculados: se você os paga, acerte-os à parte com o seu contador. Uma falta também não desconta salário na folha.\n\n## Revise as marcações duvidosas\n\nQuando o quiosque não reconhece alguém e a pessoa escolhe o nome à mão, a foto fica guardada para você revisar. O botão **Revisões** fica destacado com o número de pendentes.\n\n1. Toque em **Revisões**.\n2. Olhe a foto da entrada ou da saída e confira se é dessa pessoa.\n3. Se corresponder, toque em **Confirmar (revisado)**. Se não, edite ou remova esse turno na aba **Semana**.\n\n## Baixe o relatório de presença\n\n1. Toque em **Baixar relatório**.\n2. Escolha as datas **De** e **Até**.\n3. Toque em **Baixar CSV**.\n\nO arquivo abre no Excel, com uma linha por turno: data, funcionário, cargo, horário planejado, entrada e saída reais, horas e situação (**Presente**, **Sem saída**, **Falta** ou **Fechado automaticamente**).\n\n## Casos frequentes\n\n- **Cruza com outro turno desse funcionário nesse dia.**: ele já tem um turno nesse horário. Mude o horário ou edite o turno que já existe. Dois turnos no mesmo dia são possíveis, desde que não se cruzem.\n- **O turno deve durar entre 15 minutos e 16 horas.**: revise **De** e **Até**.\n- **A saída real deve ser depois da entrada.**: corrija a **Saída real**.\n- **Esse funcionário está inativo.** ou o funcionário não aparece na lista: reative-o na aba **Equipe**.\n- **Intervalo de datas inválido.** no relatório: a data **De** tem que ser anterior ou igual a **Até**.\n- **Não foi possível salvar. Tente novamente.**: confira a conexão com a internet e toque no botão de novo.",
+      "links": [
+        {
+          "label": "Ir para Horários",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "kiosko-de-asistencia",
+      "title": "Instale e use o quiosque de presença",
+      "summary": "Deixe um tablet no local para que a sua equipe marque a entrada e a saída com o rosto. Se não reconhecer, a pessoa escolhe o nome e a foto fica guardada para você revisar.",
+      "keywords": [
+        "quiosque",
+        "presenca",
+        "MP Asistencia",
+        "relogio de ponto",
+        "bater ponto",
+        "marcar entrada",
+        "marcar saida",
+        "reconhecimento facial",
+        "biometria",
+        "tablet",
+        "camera",
+        "marcacao"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O quiosque de presença transforma um tablet do local em um relógio de ponto: cada pessoa toca em Entrada ou Saída e a câmera a reconhece pelo rosto. Cada marcação guarda uma foto como evidência e vai para Horários.\n\n> O quiosque faz parte de Horários, então o seu estabelecimento precisa desse módulo ativo e da equipe cadastrada. Veja [Cadastre sua equipe e os salários](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Prepare o tablet\n\n1. No tablet, abra o MESAPAY no navegador e entre com um usuário com o papel **Operador**.\n2. Vá em [Horários](/operator/horarios), abra a aba **Hoje** e toque em **Abrir quiosque**.\n3. Instale na tela inicial pelo menu do navegador, com a opção de adicionar à tela inicial ou instalar o app. Fica como **MP Asistencia** e abre direto no quiosque.\n4. Permita o uso da câmera quando o navegador pedir.\n5. Coloque o tablet na altura do rosto, com boa luz, e deixe-o ligado no carregador.\n\n> ⚠ O tablet fica com uma sessão de operador: pelo menu do painel é possível sair do quiosque para outras telas. Deixe-o em um lugar à vista.\n\n## Registre o rosto de cada pessoa\n\nPara o quiosque reconhecer alguém, registre o rosto uma vez: em [Horários](/operator/horarios), na aba **Equipe**, toque na pessoa, depois em **Registrar rosto**, tire de 1 a 3 fotos e marque a caixa de autorização. Você pode fazer isso no próprio tablet.\n\nQuem não tem registro facial também pode marcar: o quiosque pede que escolha o nome.\n\n## Como a sua equipe marca\n\n1. A pessoa toca em **Entrada** ao chegar ou em **Saída** ao ir embora.\n2. Ela posiciona o rosto dentro do círculo. A foto é tirada sozinha em 3 segundos, ou ao tocar em **Capturar**.\n3. Se reconhecer, aparece **Olá** com o nome. A marcação se confirma sozinha em 3 segundos, ou ao tocar em **Confirmar entrada** (ou **Confirmar saída**).\n4. Aparece a mensagem **Entrada registrada** (ou **Saída registrada**) com a hora, e o quiosque volta sozinho à tela inicial.\n\nSe o nome que aparece não é o dela, a pessoa toca em **Não sou eu** e escolhe o nome na lista.\n\nA comparação do rosto é feita no próprio tablet. O que fica guardado em cada turno é a foto da marcação.\n\n## Quando não reconhece\n\nSe o quiosque não reconhece a pessoa, não vê um rosto ou não tem acesso à câmera, mostra **Quem é você?**:\n\n1. A pessoa escreve o nome em **Buscar pelo nome…**.\n2. Toca no nome. A marcação fica registrada do mesmo jeito.\n\nSe a câmera chegou a tirar a foto, essa marcação aparece em **Revisões**, em Horários, para você confirmar que a foto é dessa pessoa. Veja [Planeje os turnos e controle a presença](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\n## Se não havia turno planejado\n\nSe alguém marca a entrada sem turno para hoje, o MESAPAY cria o turno sozinho: com o modelo de horário daquele dia ou, se não houver, de 8 horas a partir da hora da marcação. Aparece **Criamos seu turno de hoje automaticamente.** Você pode ajustar o horário depois na aba **Semana**.\n\nSe a pessoa esquecer de marcar a saída, passado o dia o turno se fecha sozinho na hora de saída planejada e fica com a marca **Fechamento automático**.\n\n## Mensagens frequentes\n\n- **Você já marcou sua entrada hoje.**: todos os turnos de hoje já têm entrada. Se a pessoa está indo embora, deve tocar em **Saída**.\n- **Você não tem uma entrada aberta — marque a entrada primeiro.**: tocou em **Saída** sem ter marcado a entrada. Peça que marque **Entrada**, ou corrija a presença na aba **Hoje** de Horários.\n- **Não reconhecemos você — escolha seu nome.**: o rosto não coincidiu com nenhum registro ou a pessoa não tem registro facial. Peça que escolha o nome; se acontecer com frequência, registre o rosto de novo com mais luz.\n- **Não vimos seu rosto na foto — escolha seu nome.**: a pessoa não ficou dentro do círculo. Peça que escolha o nome ou que tente de novo de frente.\n- **Sem acesso à câmera — marque escolhendo seu nome.**: permita a câmera no navegador do tablet.\n- **O reconhecimento facial não está disponível — escolha seu nome.**: confira a conexão com a internet do tablet ou teste outro navegador.\n- **Não há funcionários ativos para marcar.**: cadastre a sua equipe em Horários ou confira se as pessoas estão ativas.\n- **Esse funcionário está inativo.**: reative-o na aba **Equipe** de Horários.",
+      "links": [
+        {
+          "label": "Ir para o quiosque",
+          "href": "/operator/horarios/kiosko"
+        },
+        {
+          "label": "Ir para Horários",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "liquidar-la-nomina",
+      "title": "Faça a folha de pagamento do mês",
+      "summary": "Gere a liquidação mensal da sua equipe: salário, adicionais de feriados e domingos, auxílio-transporte, deduções, encargos do empregador e provisões, com parâmetros legais que você pode ajustar.",
+      "keywords": [
+        "folha de pagamento",
+        "liquidacao",
+        "salarios",
+        "pagamento de funcionarios",
+        "beneficios",
+        "cesantias",
+        "premio",
+        "ferias",
+        "saude",
+        "pensao",
+        "ARL",
+        "caixa de compensacao",
+        "auxilio-transporte",
+        "encargos",
+        "PILA",
+        "nomina"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Na Folha de pagamento você calcula o que corresponde a cada funcionário no mês: o que ele ganha, o que é descontado e quanto ele custa para você como empregador. Usa o salário de cada pessoa e os adicionais que vêm de Horários.\n\n> Os valores são de referência. A liquidação oficial e o pagamento dos encargos (PILA) devem ser validados pelo seu contador.\n\n## Antes de liquidar\n\n- Cada funcionário precisa estar ativo e ter **Salário base mensal**. Quem não tem salário não entra. Veja [Cadastre sua equipe e os salários](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n- Deixe em dia os turnos do mês, porque deles saem os adicionais de feriados e domingos.\n\n## Liquide o mês\n\n1. Entre em [Folha de pagamento](/operator/nomina). Fica no menu lateral, em **Administração**.\n2. Escolha o mês com as setas.\n3. Toque em **Liquidar / atualizar folha**.\n\nNo alto aparecem **Líquido a pagar**, **Custo total da empresa**, **Total bruto** e **Encargos + provisões**. Abaixo aparece cada funcionário com o líquido: toque nele para ver o detalhe por conceito.\n\nSe depois você mudar um salário, um turno ou um parâmetro, toque de novo em **Liquidar / atualizar folha**: a folha do mês é refeita com os dados daquele momento.\n\n## O que inclui\n\n- **Proventos**: o salário, os **Adicionais de feriados e domingos** do mês e o **Auxílio-transporte**, se o salário não passar do teto (2 salários mínimos por padrão).\n- **Deduções**: saúde e pensão do funcionário. São calculadas sobre o salário mais os adicionais.\n- **Encargos do empregador**: saúde, pensão, risco ocupacional (ARL), caixa de compensação, ICBF e SENA.\n- **Provisões**: cesantias, juros de cesantias, prêmio e férias.\n\n**Líquido a pagar** é o total bruto menos as deduções. **Custo total da empresa** soma o total bruto mais os encargos e as provisões.\n\n> A folha usa o salário mensal inteiro: não desconta faltas nem calcula proporcional para quem entrou ou saiu no meio do mês. Também não inclui adicional noturno, horas extras nem as comissões dos garçons. Resolva esses casos com o seu contador.\n\n## Ajuste os parâmetros\n\n1. Toque em **Parâmetros**.\n2. Revise os valores. Vêm com os valores legais da Colômbia 2026: salário mínimo, auxílio-transporte e o seu teto, e as taxas de saúde, pensão, ARL, caixa de compensação, ICBF, SENA, cesantias, juros de cesantias, prêmio e férias. Os montantes ficam em pesos e as taxas em porcentagem.\n3. Mude o que for preciso, por exemplo a taxa de ARL conforme o nível de risco que o seu contador indicar.\n4. Toque em **Salvar** e toque de novo em **Liquidar / atualizar folha**.\n\nSe você deixar um valor vazio, esse conceito deixa de ser calculado. Em estabelecimentos do México, a folha traz só o salário e os adicionais.\n\n## Na contabilidade\n\nSe você usa a Contabilidade, o lançamento da folha do mês sai desta liquidação quando você gera os lançamentos do mês com **Gerar / atualizar lançamentos**. Se o mês não tem folha, a contabilidade registra só o salário e os adicionais. Se você liquidar de novo, gere de novo os lançamentos desse mês.\n\n## Casos frequentes\n\n- **Sem liquidação para este mês…**: você ainda não a gerou. Toque em **Liquidar / atualizar folha**. Se continuar vazia, nenhum funcionário ativo tem salário.\n- **Falta um funcionário**: confira na aba **Equipe** de Horários se ele está ativo e tem salário, e liquide de novo.\n- **Os adicionais não batem**: revise os turnos do mês e as porcentagens em **Ajustes de horários**. Veja [Planeje os turnos e controle a presença](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n- **Não foi possível carregar a folha.**: confira a conexão com a internet e tente de novo.\n- **Quero pagar as comissões**: elas são consultadas à parte. Veja [Configure as comissões dos garçons](/operator/ayuda/equipo-y-nomina/comisiones-de-meseros).",
+      "links": [
+        {
+          "label": "Ir para Folha de pagamento",
+          "href": "/operator/nomina"
+        },
+        {
+          "label": "Ir para Horários",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "comisiones-de-meseros",
+      "title": "Configure as comissões dos garçons",
+      "summary": "Defina a porcentagem de comissão de cada garçom. Ela fica fixada em cada conta ao cobrá-la, sobre o subtotal sem gorjeta, e o garçom a consulta em Minhas comissões no app.",
+      "keywords": [
+        "comissoes",
+        "comissao",
+        "garcom",
+        "porcentagem de comissao",
+        "comissao de vendas",
+        "incentivos",
+        "minhas comissoes",
+        "relatorio de comissoes",
+        "pagar comissoes",
+        "mesero"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "A comissão é uma porcentagem do que se cobra em cada conta que o garçom atende. Você a configura para cada garçom e o MESAPAY a calcula sozinho ao cobrar.\n\n## Configure a porcentagem\n\n1. Entre em [Configurações › Mesas por garçom](/operator/settings/meseros).\n2. No cartão de cada garçom, escreva a porcentagem em **Comissão (%)**, entre 0 e 100. Você pode usar decimais, por exemplo 2,5.\n3. Salva sozinho e aparece **Salvo.** Se deixar o campo vazio (**Sem comissão**), esse garçom não recebe comissão.\n\n## Como é calculada\n\n- **A base**: o subtotal da conta, ou seja, o que foi cobrado pelos pratos, menos o desconto do cliente. Não inclui a gorjeta nem o imposto somado à parte.\n- **O momento**: quando a conta fica paga. O garçom, a porcentagem e a comissão ficam fixados nessa conta. Se você mudar a porcentagem, só mudam as contas cobradas depois.\n- **O período**: conta pela data de pagamento, não pela data do pedido.\n- Cortesias e contas zeradas não geram comissão.\n\n## A quem a conta é atribuída\n\n1. Ao garçom que a cobrou. Se vários garçons cobraram (por exemplo, uma conta dividida), ao que cobrou mais.\n2. Se nenhum garçom cobrou (o cliente pagou pelo QR ou foi cobrada no caixa), ao garçom que tem essa mesa atribuída, desde que seja um só.\n3. Se não houver a quem atribuir, a conta não gera comissão. Acontece, por exemplo, com dois garçons atribuídos à mesma mesa, ou com pedidos para retirada e faturas manuais cobradas no caixa.\n\nPor isso convém que cada garçom tenha as suas mesas atribuídas. Veja [Atribua mesas a cada garçom](/operator/ayuda/primeros-pasos/mesas-por-mesero).\n\n## O que o garçom vê\n\nNo app, na aba **Yo** (Eu), o garçom tem **Minhas comissões**: a **Comissão**, o **Cobrado**, as **Contas**, **Seu %** e as **Últimas contas**, de **Este mês** ou do **Mês anterior**.\n\nA seção aparece quando o garçom tem uma porcentagem configurada ou contas com comissão no mês.\n\n## O relatório para pagar as comissões\n\nEm **Relatórios** › **Comissões de vendas** você vê, por data de pagamento, o que cada pessoa cobrou e a sua comissão, o detalhe conta a conta e dois arquivos para o seu contador: **CSV resumo** e **CSV detalhe**. O grupo Relatórios do menu aparece se o seu estabelecimento tem o módulo de contabilidade.\n\n> As comissões não entram sozinhas na folha de pagamento nem na contabilidade: o relatório calcula o que você precisa pagar. Se depois você devolver dinheiro de uma conta, ajuste a comissão dela à mão.\n\n## Casos frequentes\n\n- **Deve estar entre 0 e 100.**: escreva uma porcentagem válida.\n- **Não conseguimos salvar.**: toque em **Tentar de novo**.\n- **Uma conta não contou para ninguém**: nenhum garçom a cobrou e a mesa não tinha um único garçom atribuído. Revise as seções em Mesas por garçom.\n- **O garçom não vê Minhas comissões**: ainda não tem porcentagem nem contas com comissão este mês.\n- **Mudei a porcentagem e as contas anteriores continuam iguais**: é de propósito; a porcentagem fica fixada em cada conta ao cobrá-la.\n- **O garçom também está em Horários**: a comissão se configura no usuário de garçom, não na ficha de funcionário, e não é somada à folha.",
+      "links": [
+        {
+          "label": "Ir para Mesas por garçom",
+          "href": "/operator/settings/meseros"
+        },
+        {
+          "label": "Ir para Comissões de vendas",
+          "href": "/operator/reportes/comisiones"
+        },
+        {
+          "label": "Ir para Yo (Eu)",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

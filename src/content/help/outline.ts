@@ -375,17 +375,17 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "traducir-la-carta",
       title: "Traduce tu carta a inglés y portugués",
       covers:
-        "\"Traducir carta con IA\", edición manual por celda, \"Volver a traducir todo con IA\" (conserva lo editado), traducción automática al vuelo y qué pasa al cambiar el texto en español.",
+        "\"Traducir carta con IA\", edición manual por celda (se guarda al salir de la celda), \"Volver a traducir todo con IA\" (conserva lo editado), que la carta del comensal solo muestra lo ya traducido (lo nuevo o cambiado queda en español hasta volver a traducir) y que los modificadores no se traducen.",
     },
     {
       slug: "insumos-y-proveedores",
       title: "Crea tus insumos y proveedores",
       covers:
-        "Insumos (dimensión, código de barras, \"Llevar inventario\", precio de referencia, punto de reorden, archivar, \"Importar con IA\") y proveedores (datos, condiciones de pago, \"Lista de precios\", preferido, IVA descontable).",
+        "Insumos (dimensión, \"Llevar inventario\", precio de referencia, punto de reorden, código de barras principal —los demás se agregan en Inventario—, archivar, acciones masivas, \"Importar con IA\" solo con Inventario) y proveedores (datos, condiciones de pago, \"Lista de precios\", un solo preferido por insumo, \"IVA de compras descontable\").",
     },
     {
       slug: "recetas-y-food-cost",
-      title: "Arma recetas y controla el food cost",
+      title: "Arma las recetas y controla el food cost",
       covers:
         "Pestaña \"Platos\": líneas, merma, \"Food cost\" y su semáforo, \"Insumos por modificador\", \"Insumos al alza\", e \"Ingeniería\" (\"Estrellas\", \"Caballitos de batalla\", \"Incógnitas\", \"Perros\").",
       legacy:
@@ -393,7 +393,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "sub-recetas-y-produccion",
-      title: "Sub-recetas y producción por lotes",
+      title: "Crea sub-recetas y registra la producción por lotes",
       covers:
         "\"Nueva sub-receta\" (insumo elaborado y rendimiento), \"Producir\" / \"Registrar producción\", consumo estimado, costo parcial y que no se anula un lote.",
     },
@@ -401,25 +401,25 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "inventario-del-dia-a-dia",
       title: "Registra entradas, ajustes y mermas de inventario",
       covers:
-        "\"Existencias\": \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Bajo mínimo\", \"Categorías sin inventario\"; \"Movimientos\" y el consumo por venta (requiere inventario y recetas).",
+        "\"Existencias\" (filtros \"Bajo mínimo\", \"Con existencias\", \"Mostrar archivados\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
     },
     {
       slug: "conteo-de-inventario",
-      title: "Haz un conteo físico con código de barras",
+      title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\", escanear y asociar códigos, \"Guardar borrador\", \"Ver preliminar\", conteo definitivo, \"Confirmar y ajustar inventario\", \"Borrar conteo\" y qué hacer si el stock cambió durante el conteo.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), asociar códigos (\"Agregar código de barras\" / \"Agregar otro código\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",
-      title: "Órdenes de compra, recepción y cuentas por pagar",
+      title: "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       covers:
-        "\"Nueva orden\", \"Sugerir por reorden\", estados, \"Enviar por WhatsApp\", \"Recibir mercancía\" (parcial), \"Por pagar\", \"Registrar pago\" y \"Pagar saldo\".",
+        "\"Nueva orden\" (de la lista de precios o sin presentación, IVA, descuentos por línea y sobre el total), \"Sugerir por reorden\" (requiere Inventario y proveedor preferido), estados, \"Enviar por WhatsApp\" / \"Imprimir\" / \"Marcar enviada\", \"Anular orden\", \"Recibir mercancía\" (parcial), \"Por pagar\", \"Registrar pago\" (\"Se pagó desde\"), \"Pagar saldo\" y \"Editar factura\".",
     },
     {
       slug: "cargar-facturas-de-compra",
       title: "Registra una compra subiendo la factura",
       covers:
-        "\"Cargar factura\" (PDF o imagen hasta 15 MB), \"Revisar factura\", crear proveedor o insumo al vuelo, \"Recordar esta relación…\", retenciones, cuenta de cobro, \"Solo crear borrador\" o \"Crear y recibir\".",
+        "\"Cargar factura\" (PDF o imagen hasta 15 MB), \"Revisar factura\", crear proveedor o insumo al vuelo, \"Recordar esta relación…\", retenciones, cuenta de cobro, \"Solo crear borrador\" o \"Crear y recibir\", impuestos por línea (\"Impuestos incluidos en este importe\", impuesto al consumo) y \"Sugerir retenciones\".",
       legacy:
         "En Compras subís una foto o PDF y la IA extrae proveedor, insumos, cantidades e impuestos para que los revises antes de guardar.",
     },
@@ -615,7 +615,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "comisiones-de-meseros",
       title: "Configura las comisiones de los meseros",
       covers:
-        "\"Comisión (%)\" en \"Mesas por mesero\", que se fija al cobrar cada cuenta, la base sin propina ni impuesto, a quién se le asigna la cuenta y \"Mis comisiones\" en la app del mesero.",
+        "\"Comisión (%)\" en \"Mesas por mesero\", que se fija al cobrar cada cuenta, la base sin propina ni impuesto, a quién se le asigna la cuenta y \"Mis comisiones\" en la app del mesero; el reporte \"Comisiones de ventas\" (requiere contabilidad) y que no entra en la nómina.",
     },
   ],
 
@@ -625,19 +625,19 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "activar-pagos-en-linea",
       title: "Activa los pagos en línea",
       covers:
-        "\"Activar pagos\": los siete documentos, lectura con IA de la certificación bancaria y del RUT, titular igual al RUT, \"Enviar solicitud\" y los estados (\"En revisión\", \"¡Listo para cobrar!\", rechazada) con \"Editar documentos\" y \"Reenviar solicitud\".",
+        "\"Activar pagos\": los siete documentos (máx. 10 MB, PDF/JPG/PNG/WebP, composición accionaria de menos de 90 días), lectura con IA del RUT y de la certificación bancaria, representante legal a mano, titular igual al RUT, \"Enviar solicitud\", el formulario de alta que MESAPAY entrega solo a Kushki, y los estados (\"En revisión\", \"Entrega pendiente a Kushki\", \"¡Listo para cobrar!\", \"Solicitud rechazada\"), con \"Editar documentos\" y \"Reenviar solicitud\" durante la revisión.",
     },
     {
       slug: "medios-de-pago-en-linea",
       title: "Tarjeta, PSE y Apple Pay para tus clientes",
       covers:
-        "Qué medios ve el comensal y quién los habilita (MESAPAY), Apple Pay solo en dispositivos compatibles, y los medios del depósito de reservas.",
+        "Qué medios ve el comensal y quién los habilita (MESAPAY), Apple Pay solo en Safari de iPhone o Mac y si MESAPAY lo activa, y los medios del depósito de reservas.",
     },
     {
       slug: "wallet-y-transferencias",
       title: "Tu saldo en Wallet y las transferencias al banco",
       covers:
-        "\"Saldo disponible\" y \"Pendiente\", \"Pasar al banco\", \"Transferir a otra cuenta\", \"Dispersión automática\", y las listas de transferencias y movimientos.",
+        "\"Saldo disponible\" y \"Pendiente\", \"Pasar al banco\", \"Transferir a otra cuenta\", la lista \"Transferencias\" con sus estados, y que \"Dispersión automática\" hoy solo guarda la preferencia.",
     },
     {
       slug: "bonos-empresariales",

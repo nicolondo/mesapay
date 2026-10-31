@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { ChimeBoard } from "@/lib/kitchen/newOrderChime";
 import { useNewOrderChime } from "@/lib/kitchen/useNewOrderChime";
@@ -9,15 +10,20 @@ import { useNewOrderChime } from "@/lib/kitchen/useNewOrderChime";
  * nuevo (activar/silenciar + "Probar sonido") y, si entró un pedido y el
  * navegador todavía no dejó sonar (nadie tocó la pantalla desde que cargó),
  * un aviso fijo arriba para desbloquear el audio.
+ *
+ * `actions` son acciones discretas del tablero que viven en la misma fila, a
+ * la izquierda (p. ej. «Servir todo»), para no sumar otra franja arriba.
  */
 export function NewOrderChime({
   board,
   itemIds,
   scope,
+  actions,
 }: {
   board: ChimeBoard;
   itemIds: readonly string[];
   scope?: string;
+  actions?: ReactNode;
 }) {
   const tr = useTranslations("kitchen");
   const chime = useNewOrderChime({ board, itemIds, scope });
@@ -25,6 +31,11 @@ export function NewOrderChime({
   return (
     <>
       <div className="px-6 pt-4 flex flex-wrap items-center justify-end gap-2">
+        {actions && (
+          <div className="mr-auto flex flex-wrap items-center gap-2">
+            {actions}
+          </div>
+        )}
         {chime.supported ? (
           <>
             <button

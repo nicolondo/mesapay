@@ -1,6 +1,7 @@
 import { DOMParser, type Element } from '@xmldom/xmldom';
 import { extractApplicationResponse, parseDianResponse, type DianResult } from './soap';
-import { isCreditNoteIdentityError } from './creditNoteDeliveryState';
+import { CREDIT_NOTE_NOT_RECEIVED, CREDIT_NOTE_NUMBERING_CONFLICT, isCreditNoteIdentityError } from './creditNoteDeliveryState';
+import type { CreditNoteFailure } from './creditNotes/types';
 
 type CreditNoteIdentity = { documentNumber: string; issuerNit: string; environment: string; cude: string | null };
 const CBC = 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2';
@@ -63,4 +64,41 @@ export async function storedCreditNoteIdentityFailure(document: {
   const errors = Array.isArray(document.errors) ? document.errors.filter((error): error is string => typeof error === 'string') : [];
   const code = [document.lastError, ...errors].find(isCreditNoteIdentityError);
   return code ? { state: 'error', errors: [...new Set([code, ...errors])], raw: document.responseXml ?? undefined } : null;
+}
+
+/**
+ * ¿La respuesta DIAN guardada es un rechazo definitivo? IsValid=false con
+ * StatusCode 99: la DIAN validó el envío y no tiene ese documento como
+ * válido. Un Fault SOAP, un 5xx, un timeout o una respuesta ilegible no lo
+ * son: no dicen nada sobre el documento.
+ */
+export function isDefinitiveDianRejection(responseXml: string | null | undefined): boolean {
+  if (!responseXml || responseXml.length > MAX_RESPONSE_LENGTH || /<!DOCTYPE|<!ENTITY/i.test(responseXml)) return false;
+  if (!/<(?:[\w-]+:)?IsValid>\s*false\s*<\//i.test(responseXml)) return false;
+  try {
+    const parsed = parseDianResponse(responseXml);
+    return parsed.state === 'rejected' && parsed.statusCode?.trim() === '99';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Por qué una nota firmada quedó sin salida, o null si su estado todavía
+ * puede cambiar solo (envío incierto, error de canal, pendiente). Es la
+ * única fuente de verdad para descartar, para el texto del detalle y para
+ * el barrido; lee lo que ya está guardado, sin contactar a la DIAN.
+ */
+export function creditNoteFailure(document: {
+  state: string; lastError?: string | null; responseXml?: string | null;
+} | null | undefined): CreditNoteFailure | null {
+  if (!document) return null;
+  if (document.state === 'rejected') return 'dian_rejected';
+  if (document.state !== 'error') return null;
+  // Ya verificado contra el acuse: mismo número, emisor y ambiente, IsValid=false, 99, regla 90.
+  if (document.lastError === CREDIT_NOTE_NUMBERING_CONFLICT) return 'numbering_conflict';
+  if (document.lastError === CREDIT_NOTE_NOT_RECEIVED) return 'not_received';
+  // CUDE ajeno en la respuesta: sólo es definitivo si esa respuesta es IsValid=false + 99.
+  if (isCreditNoteIdentityError(document.lastError) && isDefinitiveDianRejection(document.responseXml)) return 'dian_rejected';
+  return null;
 }

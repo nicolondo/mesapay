@@ -10,7 +10,13 @@ import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
 import { isRefreshMessage } from "@/lib/liveRefresh";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { NewOrderChime } from "./NewOrderChime";
+import { ServeAllControl, type ServeAllOutcome } from "./ServeAllControl";
 import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
+import {
+  buildServeAllRequest,
+  canServeAll,
+  collectServeAllTargets,
+} from "@/lib/kds/serveAll";
 
 type KitchenStatus = "placed" | "in_kitchen" | "ready";
 type CategoryKind = "starter" | "main" | "side" | "drink" | "dessert" | "other";
@@ -96,6 +102,7 @@ export function KitchenBoard({
   mode: boardMode = "kitchen",
   serverNow,
   soundScope,
+  barSubStation = null,
   viewerRole = null,
 }: {
   tenantSlug: string;
@@ -109,6 +116,9 @@ export function KitchenBoard({
   // Vista actual del tablero (sub-estación del bar). Al cambiarla aparecen
   // rondas que ya existían: el pitido de pedido nuevo no debe sonar por eso.
   soundScope?: string;
+  // Sub-estación activa del bar (null = todo el bar). «Servir todo» la manda
+  // al servidor para que valide contra la misma vista que muestra la página.
+  barSubStation?: string | null;
   viewerRole?: string | null;
 }) {
   const tr = useTranslations("kitchen");
@@ -213,6 +223,47 @@ export function KitchenBoard({
     startTx(() => router.refresh());
   }
 
+  // «Servir todo» (sólo administración): servido optimista de toda la lista
+  // congelada al abrir la confirmación; si el servidor falla, se revierte.
+  // No toca los ids que recibe el pitido (salen de `rounds`, no de este
+  // estado), así que servir o revertir nunca suena como pedido nuevo.
+  async function serveAll(itemIds: string[]): Promise<ServeAllOutcome> {
+    if (itemIds.length === 0) return { ok: true, served: 0 };
+    setPendingServed((prev) => {
+      const next = new Set(prev);
+      for (const id of itemIds) next.add(id);
+      return next;
+    });
+    const revert = () =>
+      setPendingServed((prev) => {
+        const next = new Set(prev);
+        for (const id of itemIds) next.delete(id);
+        return next;
+      });
+    try {
+      const res = await fetch("/api/operator/order-items/serve-all", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          buildServeAllRequest(boardMode, barSubStation, itemIds),
+        ),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        served?: number;
+      };
+      if (!res.ok) {
+        revert();
+        return { ok: false, error: j.error ?? null };
+      }
+      startTx(() => router.refresh());
+      return { ok: true, served: j.served ?? 0 };
+    } catch {
+      revert();
+      return { ok: false, error: null };
+    }
+  }
+
   function effectiveItemStatus(i: Item): KitchenStatus {
     return pendingKitchen.get(i.id) ?? i.kitchenStatus;
   }
@@ -242,6 +293,8 @@ export function KitchenBoard({
       for (const i of r.items) {
         if (effectiveItemStatus(i) !== "in_kitchen") continue;
         if (!i.preparationStartedAt) continue;
+        // Ya se está sirviendo («Servir todo»): no hace falta marcarlo listo.
+        if (pendingServed.has(i.id)) continue;
         if (autoAdvancedRef.current.has(i.id)) continue;
         const startedMs = new Date(i.preparationStartedAt).getTime();
         if (nowMs - startedMs >= i.prepMinutesSnapshot * 60_000) {
@@ -521,6 +574,18 @@ export function KitchenBoard({
         board={boardMode}
         itemIds={rounds.flatMap((r) => r.items.map((i) => i.id))}
         scope={soundScope}
+        actions={
+          // Sólo la administración lo ve: a cocina, bar y mesero ni se monta.
+          canServeAll(viewerRole) ? (
+            <ServeAllControl
+              station={boardMode}
+              serviceMode={serviceMode}
+              subStation={boardMode === "bar" ? barSubStation : null}
+              targets={collectServeAllTargets(rounds, pendingServed)}
+              onServeAll={serveAll}
+            />
+          ) : undefined
+        }
       />
       {board}
     </>

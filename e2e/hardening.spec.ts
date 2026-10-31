@@ -396,7 +396,7 @@ test("diner supplies a name on QR arrival and sees how to send the cart", async 
     .getByRole("button", { name: "Añadir al pedido", exact: true })
     .first()
     .click();
-  await expect(page.getByRole("status")).toContainText("Agregado al carrito");
+  await expect(page.getByRole("status")).toContainText("¡Agregado!");
   await page.getByRole("button", { name: /Ver y enviar pedido/ }).click();
   await expect(dialog).toHaveCount(0);
   await page

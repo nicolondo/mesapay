@@ -75,7 +75,10 @@ export function SalesAnalysisView({
         </header>
 
         <Breadcrumbs t={t} filters={filters} options={analysis.options} locale={locale} counterMode={counterMode} />
+        {/* La clave remonta la barra al navegar (drill, migas, atrás): sus
+            campos locales —rango personalizado abierto, fechas— siguen a la URL. */}
         <FilterBar
+          key={exportQs.toString()}
           filters={filters}
           range={analysis.range}
           granularity={analysis.granularity}

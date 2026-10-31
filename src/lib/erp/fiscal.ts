@@ -9,6 +9,7 @@ import type { NetSalesTaxSlice, TaxSummary } from "./accounting";
 import { computeTaxSummary, type MonthRange } from "./accountingData";
 import { getAccountingConfig, isMonthClosed } from "./cierre";
 import { ensureChartOfAccounts, loadAccountMap } from "./ledger";
+import { centsToNumber } from "./ledgerCents";
 
 export type TaxDeclaration = {
   salesKind: string;
@@ -116,12 +117,12 @@ export async function loadClosing(
   }
   const util = entry.lines.find((l) => l.accountCode === "360505");
   const perd = entry.lines.find((l) => l.accountCode === "361005");
-  // Number(): los montos del libro pueden pasar a BIGINT (el cliente los
-  // devolvería como bigint); acá siempre se trabaja en number.
+  // Los montos del libro son BIGINT (el cliente los devuelve como bigint);
+  // acá siempre se trabaja en number (ver ledgerCents).
   const resultCents = util
-    ? Number(util.creditCents)
+    ? centsToNumber(util.creditCents)
     : perd
-      ? -Number(perd.debitCents)
+      ? -centsToNumber(perd.debitCents)
       : 0;
   return {
     year,
@@ -232,8 +233,8 @@ export async function generateYearClosing(
   const { lines, netCents: net } = closingLinesFrom(
     rows.map((r) => ({
       accountCode: r.accountCode,
-      debitCents: Number(r._sum.debitCents ?? 0),
-      creditCents: Number(r._sum.creditCents ?? 0),
+      debitCents: centsToNumber(r._sum.debitCents ?? 0),
+      creditCents: centsToNumber(r._sum.creditCents ?? 0),
     })),
   );
 
@@ -256,8 +257,8 @@ export async function generateYearClosing(
     const annulled = existing.status === "annulled";
     const stored = existing.lines.map((l) => ({
       accountCode: l.accountCode,
-      debitCents: Number(l.debitCents),
-      creditCents: Number(l.creditCents),
+      debitCents: centsToNumber(l.debitCents),
+      creditCents: centsToNumber(l.creditCents),
     }));
     const unchanged = lines.length === 0 ? annulled : !annulled && sameClosingLines(stored, lines);
     if (unchanged) return { ok: true, closing: await loadClosing(restaurantId, year) };

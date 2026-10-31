@@ -3583,7 +3583,7 @@ model TaxFiling {
   restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   form          String // iva | inc | retefuente | ica
   period        String // "YYYY-MM"
-  declaredCents Int
+  declaredCents BigInt
   paidAt        DateTime
   entryId       String? // asiento del pago (source taxpay)
   notes         String?
@@ -3637,7 +3637,7 @@ model Budget {
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
   /// Valor del mes en centavos. El nombre se conserva por compatibilidad: es
   /// el presupuesto DEL mes (o de cada mes del año cuando month es null).
-  monthlyCents Int
+  monthlyCents BigInt
   updatedAt    DateTime    @updatedAt
 
   @@index([restaurantId, year])
@@ -3653,7 +3653,7 @@ model BankStatementLine {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   date         DateTime
   description  String
-  amountCents  Int
+  amountCents  BigInt
   status       String     @default("pending") // pending | journalized | ignored
   entryId      String? // JournalEntry creado desde esta línea
   importBatch  String
@@ -3689,8 +3689,8 @@ model FixedAsset {
   /// Código interno (placa, inventario), opcional, hasta 20 caracteres.
   code                    String?
   purchaseDate            DateTime
-  purchaseCents           Int
-  salvageCents            Int        @default(0)
+  purchaseCents           BigInt
+  salvageCents            BigInt     @default(0)
   usefulLifeMonths        Int
   /// Cuenta del activo (15xx). Sin asiento de alta: el activo ya quedó
   /// contabilizado por la compra.
@@ -3720,7 +3720,7 @@ model DeferredItem {
   restaurant          Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   name                String
   kind                String // "expense" | "income"
-  totalCents          Int
+  totalCents          BigInt
   /// La primera cuota cae en el MISMO mes de inicio (inclusive).
   startDate           DateTime
   months              Int
@@ -3808,8 +3808,8 @@ model JournalLine {
   accountId   String
   account     LedgerAccount @relation(fields: [accountId], references: [id])
   accountCode String
-  debitCents  Int           @default(0)
-  creditCents Int           @default(0)
+  debitCents  BigInt        @default(0)
+  creditCents BigInt        @default(0)
   memo        String?
   /// Centro de costos de la línea (opcional; hoy sólo lo asignan los
   /// comprobantes manuales). Si el centro se borra, la línea queda sin él.

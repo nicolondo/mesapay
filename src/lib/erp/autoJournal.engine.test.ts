@@ -208,3 +208,37 @@ describe("regenerateOpenMonths contra el motor real", () => {
     expect(aug.voucherNumber).toBe(1);
   });
 });
+
+describe("montos de un comercio grande (BIGINT)", () => {
+  /** Rango de la columna según el schema de Prisma (INT4 vs BIGINT). */
+  async function fitsColumn(model: string, field: string, value: number): Promise<boolean> {
+    const { Prisma } = await import("@prisma/client");
+    const type = Prisma.dmmf.datamodel.models.find((x) => x.name === model)?.fields.find((f) => f.name === field)?.type;
+    if (type === "BigInt") return Number.isSafeInteger(value);
+    if (type === "Int") return Number.isInteger(value) && value >= -2_147_483_648 && value <= 2_147_483_647;
+    return false;
+  }
+
+  it("las ventas de Son y Melona ($92 M y $241 M al mes) quedan en la línea con el monto exacto", async () => {
+    m.cashByMonth = { "2026-08": 100_000, "2026-09": 9_208_811_100, "2026-10": 24_179_580_000 };
+    const run = await regenerateOpenMonths("r1", NOW);
+    expect(run.status === "done" && run.months.map((x) => [x.month, x.status])).toEqual([
+      ["2026-09", "ok"],
+      ["2026-10", "ok"],
+    ]);
+    for (const [month, cents] of [["2026-09", 9_208_811_100], ["2026-10", 24_179_580_000]] as const) {
+      const entry = m.entries.find((e) => e.restaurantId === "r1" && e.source === "sale" && e.sourceRef === month)!;
+      expect(entry.lines).toEqual(
+        expect.arrayContaining([expect.objectContaining({ accountCode: "110505", debitCents: cents })]),
+      );
+      const debit = entry.lines.reduce((s, l) => s + l.debitCents, 0);
+      const credit = entry.lines.reduce((s, l) => s + l.creditCents, 0);
+      expect(debit).toBe(cents);
+      expect(credit).toBe(cents);
+      for (const l of entry.lines) {
+        expect(await fitsColumn("JournalLine", "debitCents", l.debitCents)).toBe(true);
+        expect(await fitsColumn("JournalLine", "creditCents", l.creditCents)).toBe(true);
+      }
+    }
+  });
+});

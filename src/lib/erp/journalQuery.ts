@@ -9,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getAccountingConfig, isMonthClosed } from "./cierre";
 import { canMutateManual, canReverse, monthOf } from "./journalManual";
+import { centsToNumber, lineCentsToNumbers } from "./ledgerCents";
 
 export const ENTRIES_PAGE_SIZE = 50;
 export const ENTRIES_PAGE_MAX = 200;
@@ -172,7 +173,7 @@ export async function listEntries(
       status: e.status,
       annulledAt: e.annulledAt ? e.annulledAt.toISOString() : null,
       reversalOfId: e.reversalOfId,
-      totalCents: e.lines.reduce((s, l) => s + l.debitCents, 0),
+      totalCents: e.lines.reduce((s, l) => s + centsToNumber(l.debitCents), 0),
       lineCount: e.lines.length,
     })),
     nextCursor:
@@ -232,7 +233,7 @@ export async function loadEntryDetail(
   restaurantId: string,
   entryId: string,
 ): Promise<EntryDetail | null> {
-  const entry = await db.journalEntry.findFirst({
+  const stored = await db.journalEntry.findFirst({
     where: { id: entryId, restaurantId },
     include: {
       lines: {
@@ -241,7 +242,8 @@ export async function loadEntryDetail(
       },
     },
   });
-  if (!entry) return null;
+  if (!stored) return null;
+  const entry = { ...stored, lines: stored.lines.map(lineCentsToNumbers) };
   const [cfg, accounts, reversalOf, reversedBy] = await Promise.all([
     getAccountingConfig(restaurantId),
     db.ledgerAccount.findMany({

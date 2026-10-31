@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { formatVoucherNumber, MANUAL_SOURCE } from "@/lib/erp/journalManual";
 import { buildEntriesWhere, parseYmd } from "@/lib/erp/journalQuery";
+import { centsToNumber } from "@/lib/erp/ledgerCents";
 import { buildReportCsv, type CsvCell } from "@/lib/erp/reportCsv";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -82,8 +83,8 @@ async function GETHandler(req: Request) {
         l.accountCode,
         nameByCode.get(l.accountCode) ?? "",
         l.costCenter?.name ?? "",
-        l.debitCents,
-        l.creditCents,
+        centsToNumber(l.debitCents),
+        centsToNumber(l.creditCents),
       ]);
     }
   }

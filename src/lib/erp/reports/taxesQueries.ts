@@ -52,6 +52,7 @@ import type {
   PurchaseTaxInput,
   SaleTaxInput,
 } from "./taxesDocuments";
+import { centsToNumber, type StoredCents } from "../ledgerCents";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
 
@@ -285,8 +286,9 @@ type RawTaxLine = {
   id: string;
   entryId: string;
   accountCode: string;
-  debitCents: number;
-  creditCents: number;
+  // BIGINT: SQL crudo los devuelve como bigint.
+  debitCents: StoredCents;
+  creditCents: StoredCents;
   date: Date;
   voucherNumber: number | null;
   source: string;
@@ -328,8 +330,8 @@ export async function loadTaxLedgerLines(
     id: r.id,
     entryId: r.entryId,
     accountCode: r.accountCode,
-    debitCents: Number(r.debitCents),
-    creditCents: Number(r.creditCents),
+    debitCents: centsToNumber(r.debitCents),
+    creditCents: centsToNumber(r.creditCents),
     dateIso: r.date.toISOString(),
     voucherNumber: r.voucherNumber,
     source: r.source,

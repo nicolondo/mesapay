@@ -35,6 +35,7 @@ import {
   storedNoteSlices,
 } from "../creditNoteAccounting";
 import { creditNoteFiscalDate } from "../creditNoteLedger";
+import { centsToNumber } from "../ledgerCents";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
 import { uvtDelAno } from "./normativa";
@@ -426,7 +427,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
           paidCents: sum(e.payments.map((p) => p.amountCents)),
         })),
     ],
-    filings,
+    filings: filings.map((f) => ({ ...f, declaredCents: centsToNumber(f.declaredCents) })),
     payroll,
     // BigInt (Postgres) → Number: los centavos de un comercio caben en 2^53.
     shareholders: shareholders.map((s) => ({

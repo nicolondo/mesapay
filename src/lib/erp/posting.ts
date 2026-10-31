@@ -21,6 +21,7 @@ import { depreciationLinesForMonth } from "./activos";
 import { deferredAmortizationLinesForMonth } from "./deferred";
 import { resolvePostableCode } from "./chart";
 import { ENGINE, ENGINE_SOURCES } from "./engineCodes";
+import { lineCentsToNumbers } from "./ledgerCents";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNoteAccounting";
 import { sumSlices } from "./creditNoteLedger";
@@ -692,7 +693,7 @@ export async function loadJournalForMonth(
     memo: e.memo,
     voucherNumber: e.voucherNumber,
     lines: e.lines
-      .slice()
+      .map(lineCentsToNumbers)
       .sort((a, b) => b.debitCents - a.debitCents)
       .map((l) => ({
         accountCode: l.accountCode,

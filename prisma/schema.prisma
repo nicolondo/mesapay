@@ -676,8 +676,13 @@ model AuditEvent {
 
 model MembershipPayment {
   id              String           @id @default(cuid())
-  restaurantId    String
-  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// null cuando el comercio se eliminó: el pago de la mensualidad es un
+  /// ingreso de la PLATAFORMA y sobrevive al comercio (ver
+  /// src/lib/restaurantDeletion). El nombre queda en `deletedRestaurantName`.
+  restaurantId    String?
+  restaurant      Restaurant?      @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  /// Nombre del comercio, copiado al eliminarlo (restaurantId pasa a null).
+  deletedRestaurantName String?
   amountCents     Int
   method          MembershipMethod
   note            String?
@@ -728,8 +733,12 @@ model CommissionEntry {
   id                  String            @id @default(cuid())
   salesRepUserId      String
   salesRep            User              @relation(fields: [salesRepUserId], references: [id], onDelete: Cascade)
-  restaurantId        String
-  restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// null cuando el comercio se eliminó: la comisión es una obligación de la
+  /// PLATAFORMA con el comercial y sobrevive al comercio (pagada o no).
+  restaurantId        String?
+  restaurant          Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  /// Nombre del comercio, copiado al eliminarlo (restaurantId pasa a null).
+  deletedRestaurantName String?
   membershipPaymentId String            @unique
   membershipPayment   MembershipPayment @relation(fields: [membershipPaymentId], references: [id], onDelete: Cascade)
   baseAmountCents     Int
@@ -4478,4 +4487,46 @@ model CreditNoteFileSeries {
   lastNumber Int @default(0)
 
   @@id([issuerNit, environment, year])
+}
+
+/// Archivo final de un comercio ELIMINADO (ver src/lib/restaurantDeletion).
+///
+/// Tabla de PLATAFORMA y SIN relación con Restaurant, a propósito: es lo
+/// único que queda del comercio y no puede irse en cascada con él. Es además
+/// el registro de auditoría del borrado —quién, cuándo, qué comercio, qué NIT
+/// y cuántas filas— y se escribe en la MISMA transacción que el borrado: o
+/// existen los dos, o ninguno.
+///
+/// `archive` es un ZIP: manifest.json, datos/comercio.json (formato de las
+/// copias de seguridad + tablas de plataforma, sin secretos), fiscal/… (XML
+/// firmados, respuestas de la DIAN y AttachedDocument de facturas y notas
+/// crédito) y archivos/… (facturas de compra y documentos del alta). Los
+/// documentos fiscales se conservan al menos 5 años: no hay purga automática.
+model DeletedRestaurantArchive {
+  id             String   @id @default(cuid())
+  /// id que tenía el comercio. Ya no existe: texto, sin FK. NO se llama
+  /// `restaurantId` a propósito: con ese nombre las copias de seguridad y el
+  /// propio borrado la tratarían como tabla DEL comercio (tables.ts) y la
+  /// borrarían junto con él.
+  deletedRestaurantId String @unique
+  name           String
+  slug           String
+  legalName      String?
+  /// NIT del comercio al momento de borrarlo.
+  taxId          String?
+  country        String?
+  deletedAt      DateTime @default(now())
+  /// Quién lo borró. Sin FK: ese usuario puede borrarse después.
+  deletedById    String?
+  deletedByEmail String
+  /// { summary: { orders, payments, … }, tables: { Order: 1234, … } }
+  counts         Json
+  /// Versión del formato del ZIP (manifest.json → formatVersion).
+  formatVersion  Int      @default(1)
+  archive        Bytes
+  archiveBytes   Int
+  archiveSha256  String
+
+  @@index([deletedAt])
+  @@index([slug])
 }

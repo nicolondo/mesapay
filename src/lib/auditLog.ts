@@ -64,6 +64,9 @@ export type AuditKind =
   | "restaurant.country.update"
   | "restaurant.modules.update"
   | "restaurant.data.reset"
+  // Eliminar un comercio entero (plataforma: restaurantId null) y bajar su archivo final
+  | "restaurant.delete"
+  | "restaurant.archive.download"
   | "cash.movement"
   | "cash.shift_base.update"
   | "group.legal_entity.create"
@@ -124,6 +127,8 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.country.update": "Cambió país del comercio",
   "restaurant.modules.update": "Cambió módulos ERP del comercio",
   "restaurant.data.reset": "Borró datos del comercio",
+  "restaurant.delete": "Eliminó el comercio",
+  "restaurant.archive.download": "Descargó el archivo de un comercio eliminado",
   "cash.movement": "Movimiento de caja",
   "cash.shift_base.update": "Editó base de turno",
   "group.legal_entity.create": "Creó razón social",

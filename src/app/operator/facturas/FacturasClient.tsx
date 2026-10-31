@@ -2,73 +2,19 @@
 
 import { displayOrderCode } from "@/lib/orderCode";
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
-import { fmtCOP, formatDate } from "@/lib/format";
-import type { Locale } from "@/i18n/config";
+import { useTranslations } from "next-intl";
+import { fmtCOP } from "@/lib/format";
 
-// Estado DIAN por factura. `simpleInvoiceId` null ⇒ el cliente aún no
-// generó la tirilla electrónica de la orden (no hay nada que emitir).
-// `state` null ⇒ hay tirilla pero nunca se emitió a la DIAN.
-type DianInfo = {
-  simpleInvoiceId: string | null;
-  /** DianDocument.id — lo que necesita el reenvío del correo. */
-  documentId: string | null;
-  state: string | null;
-  cufe: string | null;
-  errors: string[];
-  /** Último envío de la factura electrónica al adquiriente. null ⇒ nunca. */
-  emailedAt: string | null;
-  /** A qué correo saldría (misma precedencia que el envío). null ⇒ nadie. */
-  emailTo: string | null;
-  /**
-   * Por qué no salió la última vez (guard de configuración, rango, regla
-   * de la DIAN o error de canal). null ⇒ nunca falló.
-   */
-  lastError: string | null;
-};
-
-/**
- * Resumen de la emisión automática del comercio (ver
- * `lib/dian/pendingEmission.ts`). null ⇒ módulo apagado.
- */
-type EmissionInfo = {
-  waiting: number;
-  blockedBy: string | null;
-  blockedCount: number;
-  numbersLeft: number | null;
-};
-
-/** Desde cuántos números restantes se avisa (= NUMBERS_LEFT_WARNING). */
-const NUMBERS_LEFT_WARNING = 500;
-
-/** Motivos de bloqueo con texto propio; cualquier otro se muestra crudo. */
-const BLOCK_REASONS = new Set([
-  "no_config",
-  "no_certificate",
-  "missing_credentials",
-  "master_key_missing",
-  "decrypt_failed",
-  "no_emisor",
-  "resolution_incomplete",
-  "location_incomplete",
-  "contact_email_incomplete",
-  "numbering_exhausted",
-  "number_out_of_range",
-  "no_lines",
-]);
+// Flujo MANUAL de solicitudes de factura: el comercio SIN facturación
+// electrónica emite desde su propio sistema (Siigo, Alegra…) y marca acá lo
+// que ya generó. Con el módulo `einvoicing` esta pantalla no se usa: la
+// reemplaza la lista de facturas electrónicas (ElectronicInvoicesClient).
+// El HTML de esta cara está fijado por page.test.ts.
 
 /** "Ciudad, Departamento" con lo que haya (solicitudes viejas); "" si no hay. */
 function cityDept(req: Pick<Req, "city" | "department">): string {
   return [req.city, req.department].filter(Boolean).join(", ");
-}
-
-function blockReasonText(
-  code: string,
-  t: (key: string, values?: Record<string, string | number>) => string,
-): string {
-  return BLOCK_REASONS.has(code) ? t(`blockReason_${code}`) : code;
 }
 
 type Req = {
@@ -88,7 +34,6 @@ type Req = {
     totalCents: number;
     paidAt: string | null;
   };
-  dian: DianInfo | null;
   /** Tirilla generada de la orden — habilita "Imprimir en datáfono". */
   simpleInvoiceId: string | null;
 };
@@ -102,19 +47,14 @@ type Tab = "pending" | "generated";
 
 export function FacturasClient({
   tab,
-  einvoicingOn,
-  emission,
   pending,
   generated,
 }: {
   tab: Tab;
-  einvoicingOn: boolean;
-  emission: EmissionInfo | null;
   pending: Req[];
   generated: GeneratedReq[];
 }) {
   const t = useTranslations("opFacturas");
-  const tCredit = useTranslations("opCreditNotes");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -142,10 +82,6 @@ export function FacturasClient({
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
-      {einvoicingOn && <Link href="/operator/facturas/notas-credito" className="mp-btn mp-btn--secondary mb-5">{tCredit("title")}</Link>}
-
-      {einvoicingOn && emission && <EmissionBanner emission={emission} />}
-
       <div className="flex gap-2 border-b border-op-border mb-4">
         <TabButton
           active={tab === "pending"}
@@ -172,7 +108,6 @@ export function FacturasClient({
                 req={r}
                 busy={busyId === r.id}
                 onMark={mark}
-                einvoicingOn={einvoicingOn}
               />
             ))}
           </ul>
@@ -187,66 +122,9 @@ export function FacturasClient({
               req={r}
               busy={busyId === r.id}
               onReopen={() => mark(r.id, "pending")}
-              einvoicingOn={einvoicingOn}
             />
           ))}
         </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * Aviso de la emisión automática. Rojo cuando algo del COMERCIO frena las
- * facturas (configuración incompleta, rango agotado): con emisión
- * automática eso deja TODA la facturación parada sin que nadie apriete
- * nada. Amarillo cuando la resolución se está quedando sin números.
- */
-function EmissionBanner({ emission }: { emission: EmissionInfo }) {
-  const t = useTranslations("opFacturas");
-  const exhausted = emission.numbersLeft === 0;
-  const lowNumbers =
-    emission.numbersLeft != null && emission.numbersLeft < NUMBERS_LEFT_WARNING;
-  const blocked = emission.blockedCount > 0 && emission.blockedBy;
-  const queued = emission.waiting - emission.blockedCount;
-  if (!blocked && !lowNumbers && queued <= 0) return null;
-  return (
-    <div className="space-y-2 mb-6">
-      {blocked && (
-        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
-          <div className="font-medium">
-            {t("emissionBlocked", {
-              count: emission.blockedCount,
-              reason: blockReasonText(emission.blockedBy!, t),
-            })}
-          </div>
-          <p className="mt-1 text-[12px] opacity-90">{t("emissionBlockedHint")}</p>
-          <Link
-            href="/operator/settings/facturacion-dian"
-            className="inline-block mt-2 text-[12px] font-medium underline"
-          >
-            {t("emissionBlockedCta")}
-          </Link>
-        </div>
-      )}
-      {lowNumbers && (
-        <div
-          className={
-            "rounded-2xl border p-4 text-sm " +
-            (exhausted
-              ? "border-danger/30 bg-danger/10 text-danger"
-              : "border-[#C98A2E]/40 bg-[#C98A2E]/15 text-[#7F5A1F]")
-          }
-        >
-          {exhausted
-            ? t("numbersExhausted")
-            : t("numbersLeftWarning", { count: emission.numbersLeft! })}
-        </div>
-      )}
-      {queued > 0 && (
-        <p className="text-[12px] text-op-muted px-1">
-          {t("emissionWaiting", { count: queued })}
-        </p>
       )}
     </div>
   );
@@ -294,12 +172,10 @@ function RequestCard({
   req,
   busy,
   onMark,
-  einvoicingOn,
 }: {
   req: Req;
   busy: boolean;
   onMark: (id: string, status: "generated" | "rejected") => void;
-  einvoicingOn: boolean;
 }) {
   const t = useTranslations("opFacturas");
   function copyAll() {
@@ -374,7 +250,6 @@ function RequestCard({
       </div>
 
       {req.simpleInvoiceId && <PrintOnTerminalButton invoiceId={req.simpleInvoiceId} />}
-      {einvoicingOn && req.dian && <DianBlock dian={req.dian} />}
     </li>
   );
 }
@@ -383,12 +258,10 @@ function GeneratedCard({
   req,
   busy,
   onReopen,
-  einvoicingOn,
 }: {
   req: GeneratedReq;
   busy: boolean;
   onReopen: () => void;
-  einvoicingOn: boolean;
 }) {
   const t = useTranslations("opFacturas");
   return (
@@ -432,306 +305,7 @@ function GeneratedCard({
       </button>
 
       {req.simpleInvoiceId && <PrintOnTerminalButton invoiceId={req.simpleInvoiceId} />}
-      {einvoicingOn && req.dian && <DianBlock dian={req.dian} />}
     </li>
-  );
-}
-
-/**
- * Bloque de facturación electrónica DIAN por factura. Solo se renderea
- * con el módulo `einvoicing` activo. Reacciona sobre la SimpleInvoice de
- * la orden (dian.simpleInvoiceId):
- *   - sin tirilla generada ⇒ nota "el cliente aún no generó la factura".
- *   - sin documento o en error/rejected ⇒ botón Emitir / Reintentar.
- *   - accepted ⇒ badge verde + CUFE copiable + envío/reenvío por correo.
- * El estado se refresca localmente tras el POST (router.refresh reevalúa
- * el server component, pero mantenemos el resultado optimista para el
- * feedback inmediato del CUFE/errores).
- */
-function DianBlock({ dian }: { dian: DianInfo }) {
-  const t = useTranslations("opFacturas");
-  const locale = useLocale() as Locale;
-  const router = useRouter();
-  const [, startTx] = useTransition();
-  const [emitting, setEmitting] = useState(false);
-  const [state, setState] = useState<string | null>(dian.state);
-  const [cufe, setCufe] = useState<string | null>(dian.cufe);
-  const [errors, setErrors] = useState<string[]>(dian.errors);
-  const [copied, setCopied] = useState(false);
-  // Correo de la factura electrónica al adquiriente. `emailedAt` empieza
-  // en lo que trajo el servidor y lo pisa el resultado del reenvío: es lo
-  // que decide si el botón dice "Enviar" o "Reenviar".
-  const [emailing, setEmailing] = useState(false);
-  const [emailedAt, setEmailedAt] = useState<string | null>(dian.emailedAt);
-  const [emailMsg, setEmailMsg] = useState<{
-    ok: boolean;
-    text: string;
-  } | null>(null);
-
-  // `to_send` es la cola de la emisión automática (el barrido la retoma
-  // solo); `sent`/`pending` es un envío en curso o en manos de la DIAN.
-  // La cola se puede empujar a mano con "Reintentar"; lo en vuelo no.
-  const waiting = state === "to_send";
-  const inFlight = state === "sent" || state === "pending";
-  const accepted = state === "accepted";
-  const failed = state === "error" || state === "rejected";
-  const canEmit = !accepted && !inFlight && !emitting;
-
-  async function emit() {
-    if (!dian.simpleInvoiceId) return;
-    setEmitting(true);
-    setErrors([]);
-    try {
-      const res = await fetch(
-        `/api/operator/dian/emit/${dian.simpleInvoiceId}`,
-        { method: "POST" },
-      );
-      const data = (await res.json().catch(() => null)) as {
-        document?: {
-          state: string;
-          cufe: string | null;
-          errors?: string[];
-        };
-        error?: string;
-      } | null;
-      if (res.ok && data?.document) {
-        setState(data.document.state);
-        setCufe(data.document.cufe);
-        setErrors(data.document.errors ?? []);
-      } else {
-        setState("error");
-        setErrors([data?.error ?? "dianErrorGeneric"]);
-      }
-      startTx(() => router.refresh());
-    } catch {
-      setState("error");
-      setErrors(["dianErrorGeneric"]);
-    } finally {
-      setEmitting(false);
-    }
-  }
-
-  /** Motivo del backend → texto. Códigos de `DianEmailFailure`. */
-  function emailFailureText(code: string | undefined): string {
-    switch (code) {
-      case "no_recipient":
-        return t("dianEmailNoRecipient");
-      case "not_accepted":
-        return t("dianEmailNotAccepted");
-      case "incomplete_document":
-        return t("dianEmailIncomplete");
-      case "no_config":
-        return t("dianEmailNoConfig");
-      default:
-        return t("dianEmailError");
-    }
-  }
-
-  /**
-   * Manda (o vuelve a mandar) la factura electrónica al adquiriente. El
-   * endpoint va con `force`, así que sirve tanto para la factura que nunca
-   * salió como para la que hay que reenviar.
-   */
-  async function resendEmail() {
-    if (!dian.documentId) return;
-    setEmailing(true);
-    setEmailMsg(null);
-    try {
-      const res = await fetch(
-        `/api/operator/dian/documents/${dian.documentId}/resend-email`,
-        { method: "POST" },
-      );
-      const data = (await res.json().catch(() => null)) as {
-        sentTo?: string;
-        emailedAt?: string;
-        attachment?: boolean;
-        error?: string;
-      } | null;
-      if (res.ok && data?.sentTo) {
-        setEmailedAt(data.emailedAt ?? new Date().toISOString());
-        setEmailMsg({
-          ok: true,
-          text:
-            data.attachment === false
-              ? t("dianEmailSentNoAttachment", { email: data.sentTo })
-              : t("dianEmailSent", { email: data.sentTo }),
-        });
-        startTx(() => router.refresh());
-      } else {
-        setEmailMsg({ ok: false, text: emailFailureText(data?.error) });
-      }
-    } catch {
-      setEmailMsg({ ok: false, text: t("dianEmailError") });
-    } finally {
-      setEmailing(false);
-    }
-  }
-
-  function copyCufe() {
-    if (!cufe) return;
-    navigator.clipboard
-      .writeText(cufe)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-      })
-      .catch(() => {});
-  }
-
-  return (
-    <div className="mt-4 pt-3 border-t border-dashed border-op-border">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-            {t("dianSectionLabel")}
-          </span>
-          <DianBadge state={state} />
-        </div>
-
-        {dian.simpleInvoiceId && !accepted && (
-          <button
-            type="button"
-            onClick={emit}
-            disabled={!canEmit}
-            className="mp-btn mp-btn--sm mp-btn--primary"
-          >
-            {emitting || inFlight
-              ? t("dianEmitting")
-              : failed || (waiting && dian.lastError)
-                ? t("dianRetry")
-                : t("dianEmit")}
-          </button>
-        )}
-
-        {/* Aceptada por la DIAN ⇒ se le puede mandar al adquiriente. Dos
-            situaciones distintas para el que mira la pantalla: nunca salió
-            (enviar) o ya salió y hay que repetirlo (reenviar). */}
-        {accepted && dian.documentId && (
-          <button
-            type="button"
-            onClick={resendEmail}
-            disabled={emailing}
-            className="mp-btn mp-btn--sm mp-btn--secondary"
-          >
-            {emailing
-              ? t("dianEmailSending")
-              : emailedAt
-                ? t("dianResendEmail")
-                : t("dianSendEmail")}
-          </button>
-        )}
-      </div>
-
-      {accepted && dian.documentId && (
-        <p
-          className={
-            "mt-2 text-[11px] " +
-            (emailMsg && !emailMsg.ok
-              ? "text-danger"
-              : emailMsg
-                ? "text-ok"
-                : "text-op-muted")
-          }
-        >
-          {emailMsg
-            ? emailMsg.text
-            : emailedAt
-              ? t("dianEmailedAt", {
-                  date: formatDate(emailedAt, { locale }),
-                })
-              : dian.emailTo
-                ? t("dianEmailNeverSent", { email: dian.emailTo })
-                : t("dianEmailNoRecipient")}
-        </p>
-      )}
-
-      {!dian.simpleInvoiceId && (
-        <p className="mt-2 text-[11px] text-op-muted">{t("dianNoInvoiceYet")}</p>
-      )}
-
-      {waiting && dian.lastError && (
-        <p className="mt-2 text-[11px] text-[#7F5A1F]">
-          {t("dianWaitingReason", { reason: blockReasonText(dian.lastError, t) })}
-        </p>
-      )}
-
-      {accepted && cufe && (
-        <div className="mt-2 flex items-start gap-2">
-          <div className="min-w-0">
-            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
-              {t("dianCufeLabel")}
-            </div>
-            <div className="font-mono text-[11px] break-all text-op-text">
-              {cufe}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={copyCufe}
-            className="shrink-0 h-7 px-3 rounded-full border border-op-border text-[11px] font-medium hover:bg-op-bg"
-          >
-            {copied ? t("dianCufeCopied") : t("dianCopyCufe")}
-          </button>
-        </div>
-      )}
-
-      {failed && errors.length > 0 && (
-        <details className="mt-2">
-          <summary className="text-[11px] text-danger cursor-pointer">
-            {t("dianErrorsTitle")}
-          </summary>
-          <ul className="mt-1 space-y-0.5">
-            {errors.map((e, i) => (
-              <li key={i} className="font-mono text-[11px] text-danger break-all">
-                {e}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-}
-
-function DianBadge({ state }: { state: string | null }) {
-  const t = useTranslations("opFacturas");
-  let label: string;
-  let cls: string;
-  switch (state) {
-    case "accepted":
-      label = t("dianStatusAccepted");
-      cls = "bg-ok/15 text-ok";
-      break;
-    case "rejected":
-      label = t("dianStatusRejected");
-      cls = "bg-danger/15 text-danger";
-      break;
-    case "error":
-      label = t("dianStatusError");
-      cls = "bg-danger/15 text-danger";
-      break;
-    case "to_send":
-      label = t("dianStatusWaiting");
-      cls = "bg-[#C98A2E]/20 text-[#7F5A1F]";
-      break;
-    case "sent":
-    case "pending":
-      label = t("dianStatusInProcess");
-      cls = "bg-[#C98A2E]/20 text-[#7F5A1F]";
-      break;
-    default:
-      label = t("dianStatusNone");
-      cls = "bg-op-bg text-op-muted";
-  }
-  return (
-    <span
-      className={
-        "px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium " +
-        cls
-      }
-    >
-      {label}
-    </span>
   );
 }
 

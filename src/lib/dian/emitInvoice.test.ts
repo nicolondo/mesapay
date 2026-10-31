@@ -21,6 +21,7 @@ const m = vi.hoisted(() => ({
   sendTestSetAsync: vi.fn(),
   sendDianInvoiceEmail: vi.fn(),
   printAcceptedDianInvoice: vi.fn(),
+  closeInvoiceRequestsOnAcceptance: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -55,8 +56,14 @@ vi.mock("@/lib/dian/sendInvoiceEmail", () => ({
 vi.mock("@/lib/print/invoiceQueue", () => ({
   printAcceptedDianInvoice: m.printAcceptedDianInvoice,
 }));
+// El cierre automático de solicitudes al aceptarse: acá se prueba QUE se
+// llama y con qué corte; el updateMany vive en invoiceRequestClosure.test.ts.
+vi.mock("@/lib/dian/invoiceRequestClosure", () => ({
+  closeInvoiceRequestsOnAcceptance: m.closeInvoiceRequestsOnAcceptance,
+}));
 
 import { emitDianInvoice, markDocumentBlocked } from "./emitInvoice";
+import { CONSUMIDOR_FINAL_ID, invoiceXmlBuyerId } from "./invoiceRequestCoverage";
 import { computeCufe } from "./crypto";
 import { BLOCKED_RETRY_MS, emissionBackoffMs } from "./retry";
 import type { EmisorData } from "./config";
@@ -191,6 +198,48 @@ beforeEach(() => {
   m.sendBillSync.mockResolvedValue({ state: "accepted", errors: [], cufe: "CUFE-DIAN" });
   m.sendDianInvoiceEmail.mockResolvedValue({ ok: true });
   m.printAcceptedDianInvoice.mockResolvedValue(undefined);
+  m.closeInvoiceRequestsOnAcceptance.mockResolvedValue(0);
+});
+
+describe("cierre automático de solicitudes de factura al aceptarse", () => {
+  const ANA_AT = new Date("2026-09-15T19:40:00.000Z");
+
+  it("aceptada con la solicitud del comensal: cierra hasta ESA solicitud (ella y las anteriores)", async () => {
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceRequests: [{ ...ANA, createdAt: ANA_AT }] }));
+    expect((await emit()).outcome).toBe("accepted");
+    expect(m.closeInvoiceRequestsOnAcceptance).toHaveBeenCalledTimes(1);
+    expect(m.closeInvoiceRequestsOnAcceptance).toHaveBeenCalledWith({
+      orderId: "order-1",
+      cutoff: ANA_AT,
+      now: NOW,
+    });
+  });
+
+  it("aceptada a consumidor final: no cierra nada — una solicitud que aparezca ya llegó tarde", async () => {
+    expect((await emit()).outcome).toBe("accepted");
+    expect(m.closeInvoiceRequestsOnAcceptance).toHaveBeenCalledWith({
+      orderId: "order-1",
+      cutoff: null,
+      now: NOW,
+    });
+  });
+
+  it.each(["rejected", "pending", "error"] as const)("%s: no cierra solicitudes", async (state) => {
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceRequests: [{ ...ANA, createdAt: ANA_AT }] }));
+    m.sendBillSync.mockResolvedValue({ state, errors: state === "pending" ? [] : ["X"], cufe: null, zipKey: "z" });
+    await emit();
+    expect(m.closeInvoiceRequestsOnAcceptance).not.toHaveBeenCalled();
+  });
+
+  it("el adquiriente del XML real es lo que lee la pantalla para el caso 'llegó después'", async () => {
+    await emit();
+    expect(invoiceXmlBuyerId(m.signXmlDian.mock.calls[0][0] as string)).toBe(CONSUMIDOR_FINAL_ID);
+    vi.clearAllMocks();
+    m.signXmlDian.mockImplementation((xml: string) => xml);
+    m.invoiceFindUnique.mockResolvedValue(invoice({ invoiceRequests: [ANA] }));
+    await emit();
+    expect(invoiceXmlBuyerId(m.signXmlDian.mock.calls[0][0] as string)).toBe("1020304050");
+  });
 });
 
 describe("adquiriente", () => {

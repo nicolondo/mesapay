@@ -416,6 +416,21 @@ export function centsToAmount(cents: number): number {
   return Math.round(cents) / 100;
 }
 
+// ── Gastos por pagar ────────────────────────────────────────────────────────
+
+/**
+ * Saldo por pagar de un gasto: monto − abonado. Las plantillas recurrentes
+ * no son un gasto real y no tienen saldo.
+ */
+export function expenseOutstandingCents(e: {
+  amountCents: number;
+  paidCents?: number | null;
+  recurring: boolean;
+}): number {
+  if (e.recurring) return 0;
+  return Math.max(0, e.amountCents - (e.paidCents ?? 0));
+}
+
 // ── Gastos recurrentes ──────────────────────────────────────────────────────
 
 export type RecurringTemplate = {

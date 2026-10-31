@@ -12,6 +12,7 @@ import {
   DEFAULT_CONTABILIDAD_TAB,
   parseContabilidadTab,
 } from "@/lib/erp/contabilidadTabs";
+import { expenseOutstandingCents } from "@/lib/erp/accounting";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { PresupuestoTab } from "./PresupuestoTab";
@@ -277,6 +278,9 @@ const API_ERROR_KEYS: Record<string, string> = {
   recurring_day_forbidden: "errRecurringDayForbidden",
   supplier_not_found: "errSupplierNotFound",
   not_found: "errExpenseNotFound",
+  exceeds_balance: "errExpensePayExceeds",
+  account_not_found: "errExpensePayAccount",
+  wrong_status: "errExpenseInvalid",
 };
 
 // PaymentMethod (prisma) → clave i18n del label (convención m* de
@@ -595,6 +599,13 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                           <div className="text-sm font-medium tabular-nums">
                             {formatMoney(e.amountCents, { currency, locale })}
                           </div>
+                          {expenseOutstandingCents(e) > 0 && (
+                            <div className="text-[11px] font-medium text-[#7F5A1F] mt-0.5 tabular-nums">
+                              {t("expenseOutstandingBadge", {
+                                amount: formatMoney(expenseOutstandingCents(e), { currency, locale }),
+                              })}
+                            </div>
+                          )}
                           <div className="text-[11px] text-op-muted mt-0.5">
                             {formatDate(e.date, {
                               locale,
@@ -627,6 +638,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
       {open !== null && (
         <ExpenseSheet
           expense={open === "new" ? null : open}
+          currency={currency}
           suppliers={suppliers}
           suppliersEnabled={suppliersEnabled}
           categories={data?.categories ?? []}
@@ -1773,6 +1785,7 @@ function TemplatesSection({
 
 function ExpenseSheet({
   expense,
+  currency,
   suppliers,
   suppliersEnabled,
   categories,
@@ -1782,6 +1795,7 @@ function ExpenseSheet({
 }: {
   /** null = crear. */
   expense: ExpenseDto | null;
+  currency: string;
   suppliers: SupplierRef[];
   /** Módulo purchasing activo: ofrecer el campo/alta aunque no haya proveedores. */
   suppliersEnabled?: boolean;
@@ -2157,6 +2171,18 @@ function ExpenseSheet({
             </div>
           )}
 
+          {/* Gasto que quedó debiéndose: el pago se registra acá (la ruta de
+              abonos existía, pero ninguna pantalla la usaba y el gasto
+              quedaba en cuentas por pagar para siempre). */}
+          {expense && !expense.recurring && (
+            <ExpensePaymentPanel
+              expense={expense}
+              currency={currency}
+              accounts={accounts}
+              onPaid={onChanged}
+            />
+          )}
+
           <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
             <input
               type="checkbox"
@@ -2218,6 +2244,121 @@ function ExpenseSheet({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────── Registrar el pago de un gasto por pagar ────────────── */
+
+/**
+ * Pago (total o abono) de un gasto que quedó debiéndose: POST
+ * /api/operator/expenses/[id]/payments con el monto, la fecha y la cuenta
+ * de donde salió la plata. Entra al asiento «Pagos de gastos» del mes de
+ * la fecha de pago. Sin saldo, muestra que está pagado.
+ */
+function ExpensePaymentPanel({
+  expense,
+  currency,
+  accounts,
+  onPaid,
+}: {
+  expense: ExpenseDto;
+  currency: string;
+  accounts: ChartAccountRef[];
+  onPaid: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const outstanding = expenseOutstandingCents(expense);
+  const cashAccounts = accounts.filter((a) => a.code.startsWith("11"));
+  const [amountRaw, setAmountRaw] = useState(String(outstanding / 100));
+  const [date, setDate] = useState(todayDateInput());
+  const [account, setAccount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const accountCode = account || cashAccounts[0]?.code || "";
+
+  if (outstanding <= 0) {
+    return expense.paidAt ? (
+      <div className="rounded-2xl border border-op-border bg-op-bg/50 px-3 py-2.5 text-sm text-op-muted">
+        {t("expensePaidFull", { date: formatDate(expense.paidAt, { locale, timeStyle: undefined }) })}
+      </div>
+    ) : null;
+  }
+
+  async function pay() {
+    setErr(null);
+    const pesos = Number(amountRaw.replace(",", "."));
+    const amountCents = isFinite(pesos) ? pesosToCents(pesos) : 0;
+    if (amountCents < 1) {
+      setErr(t("errAmountInvalid"));
+      return;
+    }
+    if (amountCents > outstanding) {
+      setErr(t("errExpensePayExceeds"));
+      return;
+    }
+    if (!date || !accountCode) {
+      setErr(t("errExpenseInvalid"));
+      return;
+    }
+    setBusy(true);
+    const r = await fetch(`/api/operator/expenses/${expense.id}/payments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amountCents, paidAt: dateInputToIso(date), accountCode }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
+      setErr(key ? t(key) : t("errSaveFailed"));
+      return;
+    }
+    onPaid();
+  }
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{t("expensePayTitle")}</span>
+        <span className="text-[11px] text-op-muted tabular-nums">
+          {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale }) })}
+        </span>
+      </div>
+      <Field label={t("expensePayAmount")} required>
+        <MoneyInput value={amountRaw} onChange={setAmountRaw} className={inputCls} />
+      </Field>
+      <Field label={t("expensePayDate")} required>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
+        <select
+          value={accountCode}
+          onChange={(e) => setAccount(e.target.value)}
+          className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+        >
+          {cashAccounts.map((a) => (
+            <option key={a.code} value={a.code}>
+              {`${a.code} · ${a.name}`}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <button
+        type="button"
+        onClick={pay}
+        disabled={busy || !accountCode}
+        className="mp-btn mp-btn--secondary mp-btn--block"
+      >
+        {busy ? t("expensePayBusy") : t("expensePayButton")}
+      </button>
     </div>
   );
 }

@@ -376,7 +376,7 @@ export default async function OperatorLayout({
           </header>
       {/* Único scroller del panel. El header (arriba, fuera de este main)
           queda siempre visible. overflow-y-auto + flex-1 = patrón app-shell. */}
-      <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>
+      <main className="relative flex flex-1 flex-col overflow-y-auto">{children}</main>
     </div>
   );
 }

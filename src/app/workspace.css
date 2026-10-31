@@ -27,6 +27,13 @@
 }
 .mp-workspace-main {
   scrollbar-gutter: stable;
+  /* Contenedor de posición para todo lo absoluto de adentro. Sin esto, un
+     elemento `position: absolute` sin ancestro posicionado (p. ej. los
+     `.sr-only` de las tablas del Análisis de ventas) se ubica respecto del
+     documento en su posición «estática», muy abajo dentro del contenido que
+     scrollea acá, y estira la página: quedaba un scroll vacío debajo del
+     panel. Con `relative` queda contenido y recortado por este scroll. */
+  position: relative;
 }
 .mp-workspace-main > .mp-page {
   flex-shrink: 0;
@@ -1372,6 +1379,8 @@ a.mp-viz-heat-cell:focus-visible {
   border-right: 0;
   background: var(--op-surface);
   padding: 18px;
+  /* El monto se dimensiona con el ancho de la TARJETA (cqi), no de la ventana. */
+  container-type: inline-size;
 }
 .mp-sales-kpis .mp-kpi--primary {
   background: var(--ink);
@@ -1383,11 +1392,15 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-kpi-value {
   display: block;
   margin-top: 12px;
-  font-size: clamp(19px, 1.7vw, 26px);
+  /* Siempre en una línea: «$ 209.393.685» no se parte. El tamaño baja con el
+     ancho de la tarjeta (12cqi ≈ 13 caracteres de cifra en el ancho útil) y
+     nunca pasa de 26 px ni baja de 12 px. */
+  font-size: clamp(12px, 12cqi, 26px);
   font-weight: 600;
   letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 .mp-sales-kpi-delta {
   display: block;

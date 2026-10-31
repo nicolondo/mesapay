@@ -44,8 +44,16 @@ async function POSTHandler(req: Request) {
   if (!/^\d{4}$/.test(year)) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const closing = await generateYearClosing(ctx.restaurantId, year);
-  return NextResponse.json({ year, closing });
+  const result = await generateYearClosing(ctx.restaurantId, year);
+  if (!result.ok) {
+    // El cierre ya es un comprobante numerado y diciembre está cerrado: no
+    // se cambia ni se borra. La pantalla explica cómo corregirlo.
+    return NextResponse.json(
+      { error: result.error, voucherNumber: result.voucherNumber },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json({ year, closing: result.closing });
 }
 
 export const GET = secureApi(GETHandler);

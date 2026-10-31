@@ -545,7 +545,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuestos-y-retenciones",
       title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes sin restar notas crédito, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",

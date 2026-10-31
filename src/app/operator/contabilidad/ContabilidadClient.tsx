@@ -67,8 +67,18 @@ type ExpensesPayload = {
 // Espejo de GET /api/operator/accounting/pnl (B2 · D3). Los % vienen con
 // 1 decimal; null = sin ventas en el mes (no inventar 0%).
 type PnlDto = {
+  /** Ingresos: sin impuesto ni propina, netos de descuentos, notas crédito y devoluciones. */
   salesCents: number;
+  /** De dónde salen los ingresos (ver `SalesDetail` en erp/accounting). */
+  salesDetail: {
+    listCents: number;
+    discountCents: number;
+    includedTaxCents: number;
+    creditNotesCents: number;
+    refundsCents: number;
+  } | null;
   tipsCents: number;
+  /** Impuesto que las líneas libres suman encima (informativo, no es ingreso). */
   taxesCents: number;
   consumptionCents: number;
   wasteCents: number;
@@ -120,10 +130,25 @@ type SalesTaxSliceDto = {
   taxCents: number;
   baseCents: number;
 };
+type SalesAdjustmentDto = { grossCents: number; baseCents: number; taxCents: number };
+type NetSalesTaxSliceDto = {
+  kind: SalesTaxKind;
+  pct: number;
+  grossTaxCents: number;
+  creditNoteTaxCents: number;
+  refundTaxCents: number;
+  taxCents: number;
+};
 type TaxSummaryDto = {
   sales: SalesTaxSliceDto & {
     /** Tramos por tarifa: lo que cada factura congeló. Vacío = sin impuesto causado. */
     byRate: SalesTaxSliceDto[];
+    /** Notas crédito aceptadas con fecha fiscal en el mes (restan). */
+    creditNotes: SalesAdjustmentDto & { count: number };
+    /** Reembolsos del mes sin nota crédito (restan). */
+    refunds: SalesAdjustmentDto;
+    /** Bruto − notas − devoluciones. */
+    net: { baseCents: number; taxCents: number; byRate: NetSalesTaxSliceDto[] };
   };
   purchases: {
     ivaCents: number;
@@ -688,7 +713,8 @@ function PnlTab({
   return (
     <div className="space-y-4">
       <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-        {/* Ingresos por ventas + líneas informativas (no son ingreso) */}
+        {/* Ingresos por ventas (netos) + de dónde salen + líneas
+            informativas (no son ingreso) */}
         <div className="px-4 py-3 border-b border-op-border">
           <div className="flex items-center justify-between gap-3">
             <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
@@ -698,15 +724,21 @@ function PnlTab({
               {money(pnl.salesCents)}
             </span>
           </div>
+          <div className="text-[11px] text-op-muted">{t("pnlSalesNetNote")}</div>
           <div className="mt-1.5 space-y-0.5">
+            {pnl.salesDetail && (
+              <PnlSalesDetail detail={pnl.salesDetail} money={money} />
+            )}
             <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
               <span>{t("pnlTips")}</span>
               <span className="tabular-nums">{money(pnl.tipsCents)}</span>
             </div>
-            <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
-              <span>{t("pnlTaxes")}</span>
-              <span className="tabular-nums">{money(pnl.taxesCents)}</span>
-            </div>
+            {pnl.taxesCents > 0 && (
+              <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
+                <span>{t("pnlTaxes")}</span>
+                <span className="tabular-nums">{money(pnl.taxesCents)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -743,8 +775,9 @@ function PnlTab({
         <PnlTaxes tax={tax} currency={currency} />
       )}
 
-      {/* Ventas (y CMV, cuando hay inventory+recipes) por categoría del
-          menú: cuadra con las líneas de Ingresos y CMV del P&L. */}
+      {/* Ventas netas (y CMV, cuando hay inventory+recipes) por categoría
+          del menú: suman los ingresos ANTES de notas crédito y devoluciones
+          (que no tienen categoría) y el CMV del P&L. */}
       {pnl.categoryBreakdown.length > 0 && (
         <PnlCategoryBreakdown
           rows={pnl.categoryBreakdown}
@@ -789,8 +822,8 @@ function PnlTab({
 
 /**
  * Sección de impuestos (ERP A3): impuesto de ventas (INC/IVA) causado
- * embebido en los subtotales + impuestos pagados en compras (IVA, INC,
- * retenciones).
+ * embebido en los subtotales, NETO de notas crédito y devoluciones del mes,
+ * + impuestos pagados en compras (IVA, INC, retenciones).
  *
  * SÓLO LECTURA. El editor del impuesto de ventas vivió acá, dentro de una
  * tarjeta del estado de resultados, y el dueño lo buscó tres veces sin
@@ -806,6 +839,21 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
   const money = (c: number) => formatMoney(c, { currency, locale });
   const kindLabel = (k: SalesTaxKind) =>
     k === "inc" ? t("taxKindInc") : k === "iva" ? t("taxKindIva") : "";
+
+  const hasAdjustments =
+    tax.sales.creditNotes.grossCents !== 0 || tax.sales.refunds.grossCents !== 0;
+  const netRates: NetSalesTaxSliceDto[] = tax.sales.net.byRate.length
+    ? tax.sales.net.byRate
+    : [
+        {
+          kind: tax.sales.kind,
+          pct: tax.sales.pct,
+          grossTaxCents: 0,
+          creditNoteTaxCents: 0,
+          refundTaxCents: 0,
+          taxCents: 0,
+        },
+      ];
 
   const p = tax.purchases;
   // IVA siempre visible (es lo más común); los demás solo si tienen valor.
@@ -845,20 +893,45 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
           <div className="text-sm text-danger">{t("taxSalesNone")}</div>
         ) : (
           <div className="space-y-0.5">
+            {/* Base e impuesto NETOS de las notas crédito aceptadas del mes
+                y de las devoluciones sin nota (misma regla que Impuestos
+                del período); el bruto queda a la vista cuando algo restó. */}
             <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
               <span>{t("taxSalesBase")}</span>
-              <span className="tabular-nums">{money(tax.sales.baseCents)}</span>
+              <span className="tabular-nums">{money(tax.sales.net.baseCents)}</span>
             </div>
+            {hasAdjustments && (
+              <div className="text-[11px] text-op-muted">{t("taxSalesNetHint")}</div>
+            )}
             {/* Una fila por tarifa: lo que cada factura congeló al emitirse.
                 Un mes en el que se cambió la tarifa muestra las dos; sin
                 impuesto causado, la tarifa configurada en $0. */}
-            {(tax.sales.byRate?.length ? tax.sales.byRate : [tax.sales]).map((r) => (
-              <div
-                key={`${r.kind}-${r.pct}`}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span>{`${kindLabel(r.kind)} ${r.pct}%`}</span>
-                <span className="tabular-nums">{money(r.taxCents)}</span>
+            {netRates.map((r) => (
+              <div key={`${r.kind}-${r.pct}`}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>{`${kindLabel(r.kind)} ${r.pct}%`}</span>
+                  <span className="tabular-nums">{money(r.taxCents)}</span>
+                </div>
+                {(r.creditNoteTaxCents !== 0 || r.refundTaxCents !== 0) && (
+                  <div className="pl-3 space-y-0.5 text-[11px] text-op-muted">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{t("taxSalesGross")}</span>
+                      <span className="tabular-nums">{money(r.grossTaxCents)}</span>
+                    </div>
+                    {r.creditNoteTaxCents !== 0 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{t("taxSalesCreditNotes")}</span>
+                        <span className="tabular-nums">{"− " + money(r.creditNoteTaxCents)}</span>
+                      </div>
+                    )}
+                    {r.refundTaxCents !== 0 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{t("taxSalesRefunds")}</span>
+                        <span className="tabular-nums">{"− " + money(r.refundTaxCents)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -885,6 +958,43 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Cómo se llega a los ingresos por ventas: precio de carta − descuentos −
+ * impuesto incluido − notas crédito − devoluciones. Las restas que valen
+ * cero no se muestran (salvo el impuesto, que siempre está en juego).
+ */
+function PnlSalesDetail({
+  detail,
+  money,
+}: {
+  detail: NonNullable<PnlDto["salesDetail"]>;
+  money: (cents: number) => string;
+}) {
+  const t = useTranslations("opErp");
+  const rows: Array<{ key: string; label: string; cents: number; minus: boolean }> = [
+    { key: "list", label: t("pnlSalesList"), cents: detail.listCents, minus: false },
+    { key: "discount", label: t("pnlSalesDiscounts"), cents: detail.discountCents, minus: true },
+    { key: "tax", label: t("pnlSalesIncludedTax"), cents: detail.includedTaxCents, minus: true },
+    { key: "notes", label: t("pnlSalesCreditNotes"), cents: detail.creditNotesCents, minus: true },
+    { key: "refunds", label: t("pnlSalesRefunds"), cents: detail.refundsCents, minus: true },
+  ].filter((r) => !r.minus || r.key === "tax" || r.cents !== 0);
+  return (
+    <>
+      {rows.map((r) => (
+        <div
+          key={r.key}
+          className="flex items-center justify-between gap-3 text-[11px] text-op-muted"
+        >
+          <span>{r.label}</span>
+          <span className="tabular-nums">
+            {(r.minus ? "− " : "") + money(r.cents)}
+          </span>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -1090,6 +1200,9 @@ function PnlCategoryBreakdown({
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {t("pnlSalesByCategory")}
         </span>
+        <div className="mt-0.5 text-[11px] text-op-muted">
+          {t("pnlSalesByCategoryNote")}
+        </div>
       </div>
 
       {/* Encabezado de columnas (solo con CMV; sin él la fila es simple

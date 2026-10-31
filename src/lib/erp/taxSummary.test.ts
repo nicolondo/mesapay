@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   restaurant: vi.fn(),
   orderAggregate: vi.fn(),
   invoices: vi.fn(),
+  creditNotes: vi.fn(),
+  refunds: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -14,6 +16,12 @@ vi.mock("@/lib/db", () => ({
     order: { aggregate: m.orderAggregate },
     simpleInvoice: { findMany: m.invoices },
     purchaseOrder: { findMany: async () => [] },
+    // Notas del mes (y la búsqueda de notas sin fijar, que acá no hay).
+    creditNote: {
+      findMany: (args: { where: { accountingStampedAt?: unknown } }) =>
+        "accountingStampedAt" in args.where ? Promise.resolve([]) : m.creditNotes(args),
+    },
+    kushkiTransaction: { findMany: m.refunds },
   },
 }));
 
@@ -65,8 +73,30 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.restaurant.mockResolvedValue({ salesTaxKind: "inc", salesTaxPct: 8 });
   m.invoices.mockResolvedValue([]);
+  m.creditNotes.mockResolvedValue([]);
+  m.refunds.mockResolvedValue([]);
   sales(0, 0);
 });
+
+/** Nota crédito aceptada de $10.800 (INC 8 %) emitida el 15-sep en Bogotá. */
+function note(id: string, over: { issuedAt?: string; base?: number; tax?: number } = {}) {
+  const base = over.base ?? 1_000_000;
+  const tax = over.tax ?? 80_000;
+  const at = new Date(over.issuedAt ?? "2026-09-15T15:00:00Z");
+  return {
+    id,
+    documentNumber: `NC${id}`,
+    subtotalCents: base,
+    taxCents: tax,
+    totalCents: base + tax,
+    createdAt: at,
+    dianDocument: { issuedAt: at },
+    snapshot: {
+      original: { invoiceNumber: "FE1" },
+      lines: [{ lineTotalCents: base, taxCents: tax, grossCents: base + tax, taxPct: "8.00", taxSchemeId: "04" }],
+    },
+  };
+}
 
 describe("computeTaxSummary — ventas", () => {
   it("un mes que mezcla tarifas lleva un tramo por cada una, más lo viejo en cero", async () => {
@@ -126,7 +156,17 @@ describe("computeTaxSummary — ventas", () => {
 
   it("sin ventas ni facturas: cero, etiquetado con la configuración actual", async () => {
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
-    expect(s).toEqual({ kind: "inc", pct: 8, grossCents: 0, taxCents: 0, baseCents: 0, byRate: [] });
+    expect(s).toEqual({
+      kind: "inc",
+      pct: 8,
+      grossCents: 0,
+      taxCents: 0,
+      baseCents: 0,
+      byRate: [],
+      creditNotes: { count: 0, grossCents: 0, baseCents: 0, taxCents: 0 },
+      refunds: { grossCents: 0, baseCents: 0, taxCents: 0 },
+      net: { baseCents: 0, taxCents: 0, byRate: [] },
+    });
   });
 
   it("corta el mes por la fecha de pago de la orden, como el libro de ventas", async () => {
@@ -139,5 +179,49 @@ describe("computeTaxSummary — ventas", () => {
     expect(m.orderAggregate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { restaurantId: "rest-1", ...paid, simpleInvoice: null } }),
     );
+  });
+});
+
+describe("computeTaxSummary — notas crédito y devoluciones", () => {
+  it("el bruto no cambia (lo asienta «Ventas del mes»); el neto resta las notas aceptadas del mes en su tarifa", async () => {
+    m.invoices.mockResolvedValue([INC_8]);
+    sales(3_000_000, 0);
+    m.creditNotes.mockResolvedValue([
+      note("1"),
+      // 1-sep a las 2 a. m. UTC son las 9 p. m. del 31-ago en Bogotá: agosto, fuera.
+      note("4", { issuedAt: "2026-09-01T02:00:00Z" }),
+      // 2-sep: dentro.
+      note("2", { issuedAt: "2026-09-02T15:00:00Z", base: 100_000, tax: 8_000 }),
+      // Agosto en Bogotá: no resta acá.
+      note("3", { issuedAt: "2026-08-31T15:00:00Z" }),
+    ]);
+    const { sales: s } = await computeTaxSummary("rest-1", RANGE);
+    expect(s.taxCents).toBe(222_222);
+    expect(s.byRate[0]!.taxCents).toBe(222_222);
+    expect(s.creditNotes).toEqual({ count: 2, grossCents: 1_188_000, baseCents: 1_100_000, taxCents: 88_000 });
+    expect(s.net.byRate).toEqual([
+      { kind: "inc", pct: 8, grossTaxCents: 222_222, creditNoteTaxCents: 88_000, refundTaxCents: 0, taxCents: 134_222 },
+    ]);
+    expect(s.net.taxCents).toBe(134_222);
+    expect(s.net.baseCents).toBe(2_777_778 - 1_100_000);
+  });
+
+  it("los reembolsos sin nota restan con el impuesto embebido del tramo del mes", async () => {
+    m.invoices.mockResolvedValue([INC_8]);
+    sales(3_000_000, 0);
+    m.refunds.mockResolvedValue([{ id: "k1", amountCents: 108_000, payment: null }]);
+    const { sales: s } = await computeTaxSummary("rest-1", RANGE);
+    expect(s.refunds).toEqual({ grossCents: 108_000, baseCents: 100_000, taxCents: 8_000 });
+    expect(s.net.byRate[0]).toMatchObject({ refundTaxCents: 8_000, taxCents: 214_222 });
+    expect(s.net.baseCents).toBe(2_777_778 - 100_000);
+  });
+
+  it("una nota en una tarifa sin ventas del mes aparece como tramo negativo (saldo a favor)", async () => {
+    m.creditNotes.mockResolvedValue([note("1")]);
+    const { sales: s } = await computeTaxSummary("rest-1", RANGE);
+    expect(s.byRate).toEqual([]);
+    expect(s.net.byRate).toEqual([
+      { kind: "inc", pct: 8, grossTaxCents: 0, creditNoteTaxCents: 80_000, refundTaxCents: 0, taxCents: -80_000 },
+    ]);
   });
 });

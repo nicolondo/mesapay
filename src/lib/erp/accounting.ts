@@ -55,6 +55,76 @@ export type SalesTaxSlice = {
   baseCents: number;
 };
 
+/** Lo que una nota crédito o una devolución le resta a las ventas (positivo). */
+export type SalesAdjustment = {
+  /** Base + impuesto. */
+  grossCents: number;
+  baseCents: number;
+  taxCents: number;
+};
+
+/** Impuesto de un tramo: bruto, lo que restaron notas y devoluciones, y el neto. */
+export type NetSalesTaxSlice = {
+  kind: SalesTaxKind;
+  pct: number;
+  grossTaxCents: number;
+  creditNoteTaxCents: number;
+  refundTaxCents: number;
+  /** Neto = bruto − notas − devoluciones (puede ser negativo si devolviste más de lo que vendiste). */
+  taxCents: number;
+};
+
+/** Orden estable de los tramos: IVA, INC; tarifa mayor primero. */
+const NET_KIND_ORDER: Record<SalesTaxKind, number> = { iva: 0, inc: 1, none: 2 };
+
+/**
+ * Impuesto NETO por tarifa: el bruto que cada factura congeló menos lo que
+ * declararon las notas crédito en esa tarifa y menos el impuesto estimado
+ * de las devoluciones sin nota (que van al tramo del mes). Los tramos «sin
+ * impuesto» no aparecen.
+ */
+export function netSalesTaxByRate(
+  gross: readonly Pick<SalesTaxSlice, "kind" | "pct" | "taxCents">[],
+  creditNotes: readonly Pick<SalesTaxSlice, "kind" | "pct" | "taxCents">[],
+  refund: { kind: SalesTaxKind; pct: number; taxCents: number } | null,
+): NetSalesTaxSlice[] {
+  const byKey = new Map<string, NetSalesTaxSlice>();
+  const slot = (kind: SalesTaxKind, pct: number) => {
+    const key = `${kind}:${pct}`;
+    const s = byKey.get(key) ?? {
+      kind,
+      pct,
+      grossTaxCents: 0,
+      creditNoteTaxCents: 0,
+      refundTaxCents: 0,
+      taxCents: 0,
+    };
+    byKey.set(key, s);
+    return s;
+  };
+  for (const g of gross) if (g.kind !== "none" && g.taxCents !== 0) slot(g.kind, g.pct).grossTaxCents += g.taxCents;
+  for (const n of creditNotes) if (n.kind !== "none" && n.taxCents !== 0) slot(n.kind, n.pct).creditNoteTaxCents += n.taxCents;
+  if (refund && refund.kind !== "none" && refund.taxCents !== 0) slot(refund.kind, refund.pct).refundTaxCents += refund.taxCents;
+  for (const s of byKey.values()) s.taxCents = s.grossTaxCents - s.creditNoteTaxCents - s.refundTaxCents;
+  return [...byKey.values()].sort(
+    (a, b) => NET_KIND_ORDER[a.kind] - NET_KIND_ORDER[b.kind] || b.pct - a.pct,
+  );
+}
+
+/**
+ * Devolución sin nota crédito: el impuesto se estima embebido con el tramo
+ * del mes (la misma regla del asiento «Devoluciones del mes» y de
+ * «Impuestos del período»).
+ */
+export function refundAdjustment(
+  refundsCents: number,
+  monthTax: { kind: SalesTaxKind; pct: number },
+): SalesAdjustment {
+  const grossCents = Math.max(0, refundsCents);
+  const taxCents = monthTax.kind === "none" ? 0 : embeddedTaxCents(grossCents, monthTax.pct);
+  return { grossCents, baseCents: grossCents - taxCents, taxCents };
+}
+
 /** Resumen de impuestos del mes: causados en ventas + pagados en compras. */
 export type TaxSummary = {
   sales: {
@@ -74,6 +144,24 @@ export type TaxSummary = {
     baseCents: number;
     /** Tramos con impuesto (kind ≠ none y taxCents > 0), de mayor a menor. */
     byRate: SalesTaxSlice[];
+    /**
+     * Notas crédito ACEPTADAS por la DIAN con fecha fiscal en el mes (lo
+     * que restan). Mismo corte que el libro de ventas y que «Impuestos del
+     * período». Montos positivos.
+     */
+    creditNotes: SalesAdjustment & { count: number };
+    /**
+     * Reembolsos de la pasarela del mes SIN nota crédito ligada: impuesto
+     * estimado con el tramo del mes (`kind`/`pct`), igual que el asiento
+     * «Devoluciones del mes». Montos positivos.
+     */
+    refunds: SalesAdjustment;
+    /** Bruto − notas crédito − devoluciones: lo que se declara. */
+    net: {
+      baseCents: number;
+      taxCents: number;
+      byRate: NetSalesTaxSlice[];
+    };
   };
   purchases: {
     /** IVA pagado en compras (Σ por línea desde taxPct). */
@@ -86,12 +174,84 @@ export type TaxSummary = {
   };
 };
 
+/**
+ * De dónde salen los ingresos por ventas del PYG. Todo positivo; los
+ * ingresos son `netSalesCents(detail)`.
+ */
+export type SalesDetail = {
+  /** Σ subtotal de las cuentas cobradas: precio de carta (los platos llevan el impuesto adentro). */
+  listCents: number;
+  /** Σ descuento del comensal. */
+  discountCents: number;
+  /** Impuesto incluido en el precio de los platos (INC/IVA): el bruto del resumen de impuestos. */
+  includedTaxCents: number;
+  /** Base (sin impuesto) de las notas crédito aceptadas con fecha fiscal en el mes. */
+  creditNotesCents: number;
+  /** Base (sin impuesto) de los reembolsos del mes sin nota crédito. */
+  refundsCents: number;
+};
+
+/**
+ * Ingresos por ventas: lo cobrado sin propina ni impuesto, neto de
+ * descuentos, menos notas crédito y devoluciones. Es lo que el motor lleva
+ * a 4135 menos lo que debita a 4175 (devoluciones en ventas).
+ */
+export function netSalesCents(d: SalesDetail): number {
+  return d.listCents - d.discountCents - d.includedTaxCents - d.creditNotesCents - d.refundsCents;
+}
+
+/**
+ * Reparte las ventas netas del mes (ANTES de notas y devoluciones, que no
+ * tienen categoría) entre las categorías de la carta: el descuento en
+ * proporción al precio de carta de cada una y el impuesto incluido en
+ * proporción a sus platos de carta (las líneas libres llevan el impuesto
+ * aparte). Resto mayor: la suma cuadra al centavo con
+ * `listCents − discountCents − includedTaxCents`.
+ */
+export function netCategorySales(
+  categories: readonly { category: string; listCents: number; menuListCents: number }[],
+  totals: { discountCents: number; includedTaxCents: number },
+): Map<string, number> {
+  const list = categories.reduce((s, c) => s + c.listCents, 0);
+  const menu = categories.reduce((s, c) => s + c.menuListCents, 0);
+  const exact = categories.map((c, i) => {
+    const discount = list > 0 ? (totals.discountCents * c.listCents) / list : 0;
+    // Sin platos de carta (sólo líneas libres) el impuesto, si lo hubiera,
+    // se reparte por precio de carta para que la suma siga cuadrando.
+    const tax =
+      menu > 0
+        ? (totals.includedTaxCents * c.menuListCents) / menu
+        : list > 0
+          ? (totals.includedTaxCents * c.listCents) / list
+          : 0;
+    const value = c.listCents - discount - tax;
+    return { i, floor: Math.floor(value), rest: value - Math.floor(value) };
+  });
+  const target = list > 0 ? list - totals.discountCents - totals.includedTaxCents : 0;
+  let left = target - exact.reduce((s, e) => s + e.floor, 0);
+  for (const e of [...exact].sort((a, b) => b.rest - a.rest || a.i - b.i)) {
+    if (left <= 0) break;
+    e.floor += 1;
+    left -= 1;
+  }
+  return new Map(exact.map((e) => [categories[e.i]!.category, e.floor]));
+}
+
 export type PnlInputs = {
-  /** Σ subtotalCents de órdenes pagadas del mes. */
+  /**
+   * Ingresos por ventas del mes: `netSalesCents(salesDetail)` — sin
+   * impuesto ni propina, neto de descuentos, notas crédito y devoluciones.
+   */
   salesCents: number;
+  /** Cómo se llega a `salesCents` (null en los consumidores viejos). */
+  salesDetail?: SalesDetail | null;
   /** Σ tipCents (informativo — no es ingreso del negocio). */
   tipsCents: number;
-  /** Σ taxCents (informativo — el IVA formal llega con B1). */
+  /**
+   * Σ Order.taxCents: impuesto que las líneas libres SUMAN encima de su
+   * precio (informativo — no está en el subtotal, así que tampoco en los
+   * ingresos).
+   */
   taxesCents: number;
   /** Σ |valueCents| de sale_consumption del mes (ledger A4). */
   consumptionCents: number;
@@ -154,6 +314,7 @@ export function buildPnl(i: PnlInputs): Pnl {
   const operatingProfitCents = grossProfitCents - laborCents - expensesCents;
   return {
     ...i,
+    salesDetail: i.salesDetail ?? null,
     labor: i.labor ?? null,
     expensesByCategory: [...i.expensesByCategory].sort(
       (a, b) => b.amountCents - a.amountCents,

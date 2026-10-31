@@ -1,0 +1,283 @@
+{
+  "title": "Getting started",
+  "description": "Get your restaurant ready: identity, users, tables by waiter, permissions, subscription and language.",
+  "articles": [
+    {
+      "slug": "por-donde-empezar",
+      "title": "Getting started with MESAPAY",
+      "summary": "What's ready as soon as you register your restaurant, and the recommended order to get it running: identity, taxes, team, tables, menu, printing and payments.",
+      "keywords": [
+        "get started",
+        "getting started",
+        "first steps",
+        "setup",
+        "initial setup",
+        "sign up",
+        "register restaurant",
+        "onboarding",
+        "create account",
+        "password",
+        "forgot password",
+        "welcome email",
+        "checklist"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "This guide shows you what registering your restaurant sets up for you, and the best order to configure everything else so you can start taking orders and payments.\n\n## What's ready when you register\n\nWhen you register the restaurant, MESAPAY creates:\n\n- Your **Operator (owner)** user, with the email you entered.\n- The restaurant, with its name, address and service mode: a traditional restaurant (with tables) or a food truck, cart or takeaway spot (with a counter).\n- A first table (or the counter), so you can try the guest experience from day one.\n\nThe menu starts empty: you add the dishes.\n\n## Create your password\n\n1. Open the welcome email and tap the link. It expires in 24 hours.\n2. Create your password, at least 8 characters long.\n3. Enter your email and password and tap **Sign in**.\n\n> If the email doesn't arrive, check your spam folder. If the link has expired, opening it shows a **Resend welcome email** button so you get a new one.\n\n## The recommended order\n\nAlmost everything is configured from [Settings](/operator/settings). This order saves you from going back:\n\n1. **Business identity**: logo, legal name and tax ID (NIT). They appear on invoices and on the menu. See [Complete your business identity](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n2. **Taxes**: the sales tax included in your prices. In Colombia, restaurants start with the 8% consumption tax; check it before you invoice.\n3. **Users**: create your waiters, kitchen, bar and cashier. See [Create your team's users](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n4. **Permissions, tips and shifts**: decide who charges and how tips are shared. See [Set your team's permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n5. **Tables**: create your tables and print their QR codes from [Tables](/operator/tables), with **Edit tables** and **Print QRs**.\n6. **Menu**: add categories and dishes from [Menu](/operator/menu).\n7. **Prep stations**: choose which categories go to the kitchen, the bar or the cold station.\n8. **Network printers**: install the printing program if you'll print kitchen tickets. See [Choose how to print kitchen tickets](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n9. **Payments**: upload your documents to accept online payments.\n\n## Run a test before opening\n\n1. Print a table's QR code and scan it with your phone.\n2. Place an order as if you were a guest.\n3. Watch it arrive in [Kitchen](/operator/kitchen) and mark it as ready.\n4. Charge it from [Tables](/operator/tables).\n\n## Frequently asked questions\n\n### I don't see some sections in the menu\n\nInventory, Purchasing, Recipes, Production, Accounting, Schedules, Payroll and Vouchers are modules MESAPAY turns on for each business. If you need one, write to support.\n\n### I forgot my password\n\nOn the sign-in screen, tap **Forgot your password?**, enter your email and tap **Send link**. You'll get a link to create a new one; it expires in 1 hour and works only once.\n\n### I picked the wrong service mode\n\nThe mode (tables or counter) changes how guests order and pay. Write to support to change it.",
+      "links": [
+        {
+          "label": "Go to Settings",
+          "href": "/operator/settings"
+        },
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conocer-el-panel",
+      "title": "Get to know the restaurant panel",
+      "summary": "What the Summary shows, how the side menu is organized, and what the top buttons do: search an order, close the shift and start a new order.",
+      "keywords": [
+        "panel",
+        "home",
+        "summary",
+        "dashboard",
+        "side menu",
+        "navigation",
+        "sales today",
+        "average ticket",
+        "search order",
+        "new order",
+        "shortcut",
+        "sections",
+        "modules"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The panel is where you run the restaurant from a computer or a tablet: you see the day's sales, follow orders and reach every screen. This guide helps you find your way around.\n\n## The Summary\n\nIt's the first screen you see. It shows:\n\n- **Sales today**: what you've sold today, excluding taxes and tips.\n- **Paid orders**, **Average ticket** and **Open now** (bills that are still open).\n- The **Cash box** card, with the cash that should be in the drawer for the shift.\n- Sales for the last 7 days, the best-selling dishes (**Top dishes today**) and the **Active tables**.\n\nEach number takes you to the screen with the details. \"Today\" is the business day: if you close after midnight, you can choose when the day starts in [Permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n\n## The side menu\n\nScreens are grouped like this:\n\n- **Kitchen**, **Bar**, **Floor**, **Tables** and **Reservations**: the live service. **Bar** appears if you turned on the bar, and **Reservations** if you take reservations. In counter mode, **Tables** is called **Counter**.\n- **Orders**: **Orders**, **Customers**, **Payments**, **Invoices** and **Reviews**.\n- **Menu**: **Menu** and **Menus**.\n- **Back office**, **Accounting** and **Reports**: inventory, purchasing, recipes, schedules, payroll and accounting, if your business has those modules.\n- **Business**: **Close-out**, **Representation expenses**, **Uncharged products**, **Wallet**, **Pulso** and, if you have the module, **Vouchers**.\n- **Settings** and **Help**.\n\nOn a phone, open the menu with the menu button at the top.\n\n## The top buttons\n\n- **Search order**: type an order's short code (for example, 002A77) to find it.\n- **Close shift**: takes you to the screen where you open and close the shift.\n- **New order**: choose **Go to Tables** to take a table's order, or **Manual invoice** for a bill without a table that's charged at the register.\n- **Go to a section**: type the name of a screen to jump to it. You can also open it with Ctrl + K (⌘ + K on a Mac).\n- The language selector, to see the panel in Spanish, English or Portuguese.\n\n## Why I can't see a screen\n\nSome sections depend on modules MESAPAY turns on for each business: inventory, purchasing, recipes, production, accounting, schedules and payroll, and corporate vouchers. If they're not in your menu, your business doesn't have them. Write to support if you need them.",
+      "links": [
+        {
+          "label": "Go to Summary",
+          "href": "/operator"
+        },
+        {
+          "label": "Go to Settings",
+          "href": "/operator/settings"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "identidad-del-comercio",
+      "title": "Complete your business identity",
+      "summary": "Upload your restaurant's logo, legal name, tax ID and address. They appear on invoices, in the email that sends them and on the menu your guests see.",
+      "keywords": [
+        "identity",
+        "business identity",
+        "logo",
+        "legal name",
+        "tax ID",
+        "NIT",
+        "check digit",
+        "address",
+        "city",
+        "municipality",
+        "DANE",
+        "phone",
+        "legal information",
+        "restaurant name",
+        "sender"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Business identity you upload your restaurant's logo and legal information. They appear on the invoices your customers receive, in the email we send them with, and on the menu guests see when they scan the QR code.\n\n## Steps\n\n1. Go to [Settings › Business identity](/operator/settings/identidad).\n2. Under **Business logo**, tap **Upload logo** and choose the image (PNG or SVG). If you don't upload one, the MESAPAY logo is used.\n3. Under **Legal information**, fill in the fields. Each one is explained below.\n4. Tap **Save**.\n\n> The logo is only applied when you tap **Save**. Use **Change logo** to replace it and **Remove logo** to go back to the MESAPAY one.\n\n## What goes in each field\n\n- **Restaurant name**: your trading name. It's the sender of invoice emails: if you enter \"DELIRIO RESTAURANTE\", customers see \"DELIRIO RESTAURANTE · MESAPAY\" in their inbox.\n- **Legal name**: the registered name, exactly as it appears on the RUT.\n- **NIT**: with the check digit, separated by a hyphen. For example, 901944469-1. Electronic invoicing requires it.\n- **Address** and **Phone**: your venue's.\n- **City**: in Colombia, pick it from the list of municipalities. The municipality's DANE code travels inside the electronic invoice so DIAN can identify your invoicing point.\n\n## Common errors\n\n- **The tax ID is missing its check digit**: add it after the hyphen, for example 901944469-1.\n- **The check digit doesn't match that tax ID**: copy the NIT and its digit again from the RUT; one of them is wrong.\n- **\"Is it …?\" shows under City**: the city was typed by hand, without a DANE code, and MESAPAY suggests a municipality. Tap **Yes, that's the one** if it's right, or **No, I'll search** to pick it from the list.\n\n## If your restaurant belongs to a group\n\n**Group legal entity** appears at the top. You can choose a shared legal entity (venues that share it use the same DIAN numbering) or keep **Use the restaurant's own (local)** and fill in this venue's fields.\n\n## The invoicing resolution is on another screen\n\nThe numbering resolution (number, prefix, range, validity and next number) is set in [Settings › DIAN electronic invoicing](/operator/settings/facturacion-dian). If your business doesn't have electronic invoicing, that card is called **Invoicing resolution**.",
+      "links": [
+        {
+          "label": "Go to Business identity",
+          "href": "/operator/settings/identidad"
+        },
+        {
+          "label": "Go to DIAN invoicing",
+          "href": "/operator/settings/facturacion-dian"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "usuarios-y-roles",
+      "title": "Create your team's users",
+      "summary": "Everyone signs in with their own user, and their role decides which screen they see. Create, edit or delete users and change passwords from Settings.",
+      "keywords": [
+        "users",
+        "roles",
+        "team",
+        "staff",
+        "create user",
+        "waiter",
+        "kitchen",
+        "bar",
+        "card reader",
+        "operator",
+        "owner",
+        "password",
+        "forgot password",
+        "change password",
+        "email",
+        "permissions",
+        "access"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Everyone on your team signs in to MESAPAY with their own user. The role decides which screen they see: waiters work from their phone, the kitchen from its tablet and you from the panel.\n\n## The roles\n\n- **Operator (owner)**: opens the full restaurant panel, including Settings.\n- **Waiter**: opens the waiter app on their phone, with the **Mesas**, **Salón** and **Yo** tabs (Tables, Floor and Me).\n- **Kitchen**: goes straight to the kitchen board.\n- **Bar**: goes straight to the bar board.\n- **Card reader**: opens **Live tables**, the screen to charge with a card reader or confirm cash payments.\n\n## Create a user\n\n1. Go to [Settings › Users](/operator/settings/usuarios).\n2. Tap **+ New user**.\n3. Enter the **Name**, the **Email** and a **Password** of at least 6 characters.\n4. Choose the **Role**.\n5. Tap **Create**.\n\nGive the person their email and password. When they tap **Sign in**, they land on their role's screen.\n\n## Change details, role or password\n\n1. In the list, tap **Edit** next to the person.\n2. Change their name, email or role, or type a **New password**. Leave it blank to keep the current one.\n3. Tap **Save**.\n\n> If someone on your team forgot their password, set a new one here and give it to them. They can also recover it themselves: on the sign-in screen they tap **Forgot your password?** and get a link by email that expires in 1 hour.\n\n## Delete a user\n\nTap **Delete** next to the person and confirm. It can't be undone.\n\n## Common cases\n\n- **\"Ya existe un usuario con ese email\"** (a user with that email already exists): each email can only be used by one user across MESAPAY, even at another restaurant. Use a different email.\n- **I can't change my role or delete myself**: that's on purpose, so the restaurant is never left without an owner. Ask another operator to do it.\n- **A waiter should only see some tables**: assign their section in [Assign tables to each waiter](/operator/ayuda/primeros-pasos/mesas-por-mesero).\n- **I want the kitchen on a tablet**: create a user with the Kitchen role and follow [Use a tablet as a kitchen or bar screen](/operator/ayuda/impresion-y-equipos/tablet-de-cocina-y-bar).",
+      "links": [
+        {
+          "label": "Go to Users",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Go to Tables by waiter",
+          "href": "/operator/settings/meseros"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mesas-por-mesero",
+      "title": "Assign tables to each waiter",
+      "summary": "Split the floor into sections so each waiter only sees the tables they serve in their app, and set their commission on what they charge.",
+      "keywords": [
+        "tables by waiter",
+        "section",
+        "zone",
+        "assign tables",
+        "split the floor",
+        "table range",
+        "commission",
+        "percentage",
+        "waiter sees all tables"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With Tables by waiter you split the floor into sections: each waiter only sees the tables they serve in their app. This is also where you set each waiter's commission.\n\n## Assign a waiter's section\n\n1. Go to [Settings › Tables by waiter](/operator/settings/meseros).\n2. Find the waiter and tap the numbers of the tables they serve.\n3. To select several at once, use **All**, **None** or **Range**: type the first and last table and tap **Add**.\n\nChanges save on their own. If an error appears, tap **Retry**.\n\n> The Tables by waiter card shows up in Settings once you have at least one user with the Waiter role.\n\n## What the waiter sees\n\n- In the **Mesas** and **Salón** tabs of their app (Tables and Floor), they only see the selected tables, and only get alerts for those tables.\n- If no table is selected, they see all of them (**Serves all**). This is useful for shifts without zones.\n- Waiters can also take or release tables from their app, in the **Yo** (Me) tab.\n\n## The waiter's commission\n\nIn **Commission (%)** enter the percentage the waiter earns on what they charge, between 0 and 100. It's calculated on each bill's subtotal, without tips or taxes. Leave it blank if they don't earn a commission.\n\n> The commission is locked into each bill when it's charged: if you change it, only bills charged afterwards are affected.\n\n## Common cases\n\n- **The Tables by waiter card doesn't appear**: first create a user with the Waiter role in [Users](/operator/settings/usuarios).\n- **\"First create the restaurant's tables\"**: you don't have tables yet. Create them in [Tables](/operator/tables) with **Edit tables**.\n- **\"Invalid range\"**: check that the first number is lower than or equal to the second.\n- **\"Must be between 0 and 100\"**: the commission is a percentage; enter a number from 0 to 100.",
+      "links": [
+        {
+          "label": "Go to Tables by waiter",
+          "href": "/operator/settings/meseros"
+        },
+        {
+          "label": "Go to Users",
+          "href": "/operator/settings/usuarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "permisos-propinas-y-turnos",
+      "title": "Set your team's permissions, tips and shifts",
+      "summary": "Decide who charges, who can comp or move orders, how tips are shared, how shifts work and when your business day starts.",
+      "keywords": [
+        "permissions",
+        "policies",
+        "tips",
+        "tip sharing",
+        "shifts",
+        "shift by waiter",
+        "single shift",
+        "cash control",
+        "only the administrator charges",
+        "comp",
+        "uncharge",
+        "courtesy",
+        "complimentary",
+        "move tables",
+        "business day",
+        "cut-off time",
+        "walkout",
+        "left without paying"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Permissions, tips and shifts you set the day-to-day rules: who can charge, comp or move orders, how tips are shared, how shifts work and when your business day starts.\n\n## How to change a rule\n\n1. Go to [Settings › Permissions, tips and shifts](/operator/settings/staff-policies). The screen is called **Operating policies**.\n2. Pick the option in each section.\n3. Tap **Save**, at the bottom of the page.\n\n## Tips\n\n- **Shared**: tips belong to the restaurant and you decide how to split them at close-out. Waiters don't see personal tips in their app.\n- **By waiter**: each tip goes to the waiter who charged the bill, and each one sees their running total for the day in **Yo** (Me).\n\n## Cash control: who starts a charge\n\nBy default, waiters can charge their tables' bills. If you'd rather have a single person handle the money, turn on **Only the administrator can start a charge**. With it on:\n\n- Waiters no longer see the button to charge; instead they can flag that the table asked for the bill.\n- When a table asks for the bill, a full-screen alert shows up in the panel.\n- The shift is always **Single venue shift**.\n- Guests can still pay on their own from their phone.\n\n> ⚠ If any waiter shifts are open, close them before turning this on: otherwise the cash count won't balance.\n\n## Who moves dishes and orders between tables\n\n- **Administrators only**: waiters ask an administrator to move them.\n- **Administrators and waiters**: waiters can move dishes and orders between the tables in their section.\n\n## Shifts\n\n- **Single venue shift**: one shift for the whole restaurant, opened and closed by the operator, with a cash count at the end of the day.\n- **Shift by waiter**: each waiter opens and closes their own shift from their app. It runs alongside the venue's shift.\n\nWith **Shift by waiter**, one more section appears, for when a waiter opens their shift before the venue:\n\n- **Don't allow it**: the waiter waits until the manager opens the venue's shift.\n- **Auto-open the venue**: when the waiter opens their shift, the venue's shift opens too.\n\n> A waiter's float can never be larger than the venue's. If the venue opened with $0, waiters do too.\n\n## Business day\n\nIn **The business day starts at** you choose the day's cut-off time. If you close after midnight, pick a time after closing, for example 05:00: that way a payment at 2 a.m. counts for the previous night and your reports aren't split at midnight.\n\nIt affects daily reports (payments, the day's close-out and the Summary). Each shift's cash count uses its own opening time.\n\n## Risk of a table leaving without paying\n\nThe Tables screen colors each table by how long it has gone unpaid since all its dishes were delivered: **Watchful**, **Attention** and **High risk**. In **High risk (red) after** you choose the minutes, from 1 to 180 (the default is 20).\n\n- Raise it if your guests linger after the meal; lower it if tables turn fast.\n- If the table asked for the bill or called a waiter and nobody came, it turns red in half the time.\n- A table with dishes still being prepared is never at risk.\n\n## Courtesy (complimentary bills)\n\nTurn on **Allow complimentary bills** to close a bill as a courtesy, at $0, noting who it was given to. The dishes still use up inventory but don't count as sales. In **Name the waiter sees** you can rename the button.\n\n## Who can comp a dish\n\nChoose which roles can stop charging a dish that was already delivered, or close a bill as complimentary: **Administrator**, **Waiter** or **Terminal (card reader)**. Everyone else sees the button disabled. Every comp is logged with the user and the reason.\n\nIf you don't select any role, nobody on the team can do it.\n\n> Whatever you choose here, once the kitchen has started preparing a dish, only the administrator can cancel it or stop charging it.",
+      "links": [
+        {
+          "label": "Go to Permissions, tips and shifts",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "suscripcion",
+      "title": "Your subscription and automatic debit",
+      "summary": "See your plan, its status and renewal date, turn on automatic debit with a card and check your MESAPAY payment history.",
+      "keywords": [
+        "subscription",
+        "plan",
+        "monthly fee",
+        "MESAPAY payment",
+        "automatic debit",
+        "card",
+        "change card",
+        "cancel debit",
+        "overdue",
+        "suspended",
+        "account suspended",
+        "MESAPAY invoice",
+        "payment history"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Subscription you see your MESAPAY plan, when it renews and your payment history, and you can turn on automatic debit with a card so you don't have to pay by hand every month.\n\n## See your plan\n\nGo to [Settings › Subscription](/operator/settings/suscripcion). Under **Active plan** you see the plan's name, its monthly price and its status:\n\n- **Active**: your plan is up to date.\n- **Overdue**: the renewal date passed without a recorded payment.\n- **Suspended**: access to the panel is paused.\n- **Debit canceled**: you canceled the automatic debit. The plan stays active until its renewal date.\n\nBelow it you see the **Next charge**, if you have automatic debit, or the date the plan **Renews**.\n\n## Notices in the panel\n\n- When your subscription is about to renew, a notice with **View my subscription** appears at the top of the panel.\n- If it's overdue, the notice is red and has a **Pay now** button that brings you to this screen to turn on automatic debit.\n\n## Turn on automatic debit\n\n1. Tap **Activate automatic debit**.\n2. Enter the **Card number**, the **Name on card**, the **Expiry (MM/YY)** and the **CVV**.\n3. Tap **Confirm card**.\n\nOnce it's active, you see the registered card and the date of the next charge.\n\n- If your plan is still current, the first charge happens on its renewal date.\n- If it's already overdue, the card is charged right away and the plan is paid up for another month.\n\n## Change the card or cancel the debit\n\n- **Change card**: enter the new card's details and confirm.\n- **Cancel automatic debit**: stops the monthly charge. Your plan stays active until its renewal date.\n\n## Payment history\n\nUnder **Payment history** you see each payment with its date, the period it covers, the amount and the method: card with automatic debit, cash or bank transfer.\n\n## Common cases\n\n- **\"Card declined\"**: check the details or use a different card.\n- **I want to change my plan**: write to support; plan changes are made by MESAPAY.\n- **I see \"Account suspended\" when I sign in**: access to the panel is paused. Write to support to reactivate it.",
+      "links": [
+        {
+          "label": "Go to Subscription",
+          "href": "/operator/settings/suscripcion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cambiar-el-idioma",
+      "title": "Change the platform language",
+      "summary": "MESAPAY works in Spanish, English and Portuguese. Each person picks the language on their own device; the currency doesn't change.",
+      "keywords": [
+        "language",
+        "english",
+        "spanish",
+        "portuguese",
+        "español",
+        "português",
+        "translate",
+        "change language",
+        "idioma"
+      ],
+      "audience": [
+        "operator",
+        "mesero",
+        "cocina"
+      ],
+      "body": "MESAPAY works in Spanish, English and Portuguese. Each person chooses the language on their own device, without changing anything for anyone else.\n\n## Change the panel's language\n\n1. At the top of the panel, tap the language selector. It shows the current language (for example, **English**; on a phone, **EN**).\n2. Choose **Español**, **English** or **Português**.\n\nThe screen reloads in the language you chose.\n\n## In the waiter app and on the kitchen and bar boards\n\nThese screens don't have their own selector: they use the language chosen on the sign-in screen. Before tapping **Sign in**, pick the language in that screen's selector.\n\n> Some texts in the waiter app, such as its tab names, are still only in Spanish.\n\n## What changes and what doesn't\n\n- Screen texts, buttons and messages change.\n- **The currency doesn't change**: it's always your restaurant's country currency.\n- The choice is saved in that browser. If someone signs in from another phone or computer, they see that device's language (the first time, the browser's language).\n- Your dish names show in the panel exactly as you wrote them. Your guests do see the menu translated: you can review and adjust the translation in [Menu translations](/operator/settings/traducciones).",
+      "links": [
+        {
+          "label": "Go to Menu translations",
+          "href": "/operator/settings/traducciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
+}

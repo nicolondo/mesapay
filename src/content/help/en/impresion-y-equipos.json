@@ -1,0 +1,259 @@
+{
+  "title": "Printing and devices",
+  "description": "Printing program, printers, kitchen tickets, card readers, kitchen tablets and backups.",
+  "articles": [
+    {
+      "slug": "como-imprimir-las-comandas",
+      "title": "Choose how to print kitchen tickets",
+      "summary": "The two ways to print a ticket in the kitchen or bar when an order comes in (the printing program or a browser tab) and how to turn them on for each station.",
+      "keywords": [
+        "print",
+        "printing",
+        "kitchen ticket",
+        "ticket",
+        "order ticket",
+        "thermal printer",
+        "kitchen",
+        "bar",
+        "fire automatically",
+        "paper width",
+        "80 mm",
+        "58 mm",
+        "browser tab",
+        "silent printing",
+        "kiosk printing",
+        "not printing"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY can print a ticket in the kitchen or the bar every time an order comes in. There are two ways to do it; this guide helps you choose and get it working.\n\n## The two ways\n\n- **Printing program (recommended)**: a Windows program that runs on a computer at the venue and sends tickets to thermal printers on the network. It prints even when nobody has a screen open, queues whatever it couldn't print, and the panel shows whether each printer is responding. See [Install the printing program on the computer](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n- **Browser tab**: you open a MESAPAY page on the computer the printer is connected to and leave it open. It's fine to get started, but if the tab closes or the computer goes to sleep, nothing prints.\n\n> ⚠ Use only one method per station. If the program already prints the kitchen and you also leave the kitchen tab open, every ticket prints twice.\n\n## Turn on printing for each station\n\n1. Go to [Settings › Prep stations](/operator/settings/estaciones).\n2. Under **Ticket printing**, turn on **Kitchen** and, if you have a bar, **Bar**.\n3. Choose the **Paper width**: 80 mm (the most common) or 58 mm.\n4. If you want the ticket to print as soon as the order arrives, without anyone touching the board, turn on **Fire automatically when the order arrives** for that station.\n\nWithout automatic firing, the kitchen ticket prints when someone moves the order from **To prepare** to **In kitchen** on the board; the bar ticket, when it moves to **Preparing**.\n\n## Print from a browser tab\n\n1. On the computer with the thermal printer, set it as the system's default printer.\n2. Sign in to MESAPAY with an Operator user and, in **Prep stations**, tap **🖨️ Open kitchen printer** (or **🖨️ Open bar printer**).\n3. Tap **Print test** to check that paper comes out.\n4. Leave that tab open. It should say **Listening for orders…**.\n\nAt the bar, if you have sub-stations, choose which one that tab prints under **This printer:**.\n\n> The first ticket opens the browser's print dialog. To print the next ones automatically, turn on your browser's option to print without a dialog, or start Chrome with the `--kiosk-printing` option. On a Mac, the option is under System › Printers › print without prompting.\n\n## Messages you may see\n\n- **Printing is on, but there's no active printer**: you use the printing program, but no printer serves that station. Tickets are still fired and don't print. Turn on or add the printer in the program.\n- **Automatic firing is on while printing is off**: orders move to preparation on their own, but no ticket prints. Turn on printing for that station or turn off automatic firing.\n- **Disconnected, trying to reconnect** (in the tab): the computer lost internet and the tab reconnects on its own. Orders that came in while it was disconnected don't print: check them on the board.\n- **Printing for this station is off** (in the tab): turn it on in Prep stations.",
+      "links": [
+        {
+          "label": "Go to Prep stations",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "instalar-el-agente-de-impresion",
+      "title": "Install the printing program on the computer",
+      "summary": "Download the printing agent for Windows, install it as a service, link it to your restaurant and add each network printer. You only do it once.",
+      "keywords": [
+        "printing agent",
+        "print agent",
+        "printing program",
+        "install",
+        "download",
+        "Windows",
+        "service",
+        "token",
+        "mpa_",
+        "link",
+        "network printer",
+        "IP",
+        "port 9100",
+        "127.0.0.1:9110",
+        "FEED",
+        "SmartScreen",
+        "Command Prompt",
+        "uninstall"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY's printing program is installed on a Windows computer at the venue and sends tickets to the thermal printers over the network. You install it once and it keeps running on its own, even if nobody signs in to the computer.\n\n## Before you start\n\n- A 64-bit Windows computer that stays on during service.\n- The computer and the printers connected to the same network.\n- Each printer's IP address. The end of this guide explains how to find it.\n\n> The program's own settings page is in Spanish. Below, each Spanish label comes with its translation.\n\n## 1. Download the program\n\nTap **Download the agent for Windows**, at the top of this article or on the [Help](/operator/ayuda) home page. It's a single file.\n\n> The first time you open it, Windows may warn that it doesn't recognize the app, because the program isn't signed yet. It's not an error or a virus: click **More info** and then **Run anyway**.\n\n## 2. Copy it to a fixed folder\n\nCreate this folder and put the file you downloaded there:\n\n```\nC:\\Program Files\\MESAPAY\\mesapay-print-agent.exe\n```\n\n> ⚠ Don't leave it on the Desktop or in Downloads: the service keeps pointing to that path and, if someone moves the file, it stops starting.\n\n## 3. Install it as a service\n\n1. Open **Command Prompt** as administrator: right-click → **Run as administrator**.\n2. Type these lines one at a time, pressing Enter after each:\n\n```\ncd \"C:\\Program Files\\MESAPAY\"\nmesapay-print-agent.exe install\nmesapay-print-agent.exe start\n```\n\n3. Check that it started with:\n\n```\nsc.exe query MesapayPrintAgent\n```\n\nIt should say `STATE : 4 RUNNING`. It's set to start automatically: it comes up with the computer, without anyone signing in, and Windows restarts it if it stops.\n\n## 4. Link it to your restaurant\n\n1. In MESAPAY, go to [Settings › Network printers](/operator/settings/impresoras).\n2. Under **Register a computer**, type a name (for example, \"Kitchen PC\") and tap **Generate token**.\n3. Tap **Copy**. The token starts with `mpa_` and is shown only once. When you have it, tap **I copied it**.\n4. In a browser on THAT computer, open `http://127.0.0.1:9110`. It's the program's settings page and it only opens from that computer.\n5. Paste the token into **Token de vinculación** (link token) and click **Probar la conexión** (test the connection).\n6. When it says **Conectado** (connected), click **Guardar configuración** (save settings).\n\n> If it says the token was rejected, it almost always got cut off or has a leading space: copy it again. If you lost it, register the computer again and revoke the old one.\n\n## 5. Add each printer\n\nOn the same program page, click **+ Agregar impresora** (add printer) for each printer and fill in:\n\n- **Nombre** (name): to recognize it (\"Kitchen\", \"Bar\", \"Cashier\").\n- **IP o nombre en la red** (IP or network name): the printer's address on the venue's network.\n- **Puerto** (port): 9100, unless the printer says otherwise.\n- **Estación** (station): **Cocina** (kitchen), **Barra** (bar) or **Mostrador / caja** (counter / cashier).\n- **Sub-estación de barra (opcional)** (bar sub-station, optional): only for the bar, if you have sub-stations. Left blank, it gets everything from the bar.\n- **Ancho del papel** (paper width): 80 mm (standard) or 58 mm (narrow roll).\n\nClick **Imprimir prueba** (print test) on each one. It works without internet and without a token, and confirms that the IP you typed belongs to the printer in front of you: if paper comes out with the name you gave it, you're set.\n\nWhen you're done, click **Guardar configuración** (save settings). It applies instantly, with nothing to restart. Within a few seconds the computer shows as **Responding** under Network printers, with its printers.\n\n## How to find a printer's IP\n\nAlmost all printers print it themselves: turn it off, hold down the FEED button and turn it on without letting go. A slip comes out with the network settings; the address is next to IP Address.\n\n> ⚠ Ask whoever manages your network to give the printer a fixed IP (a MAC reservation on the router). Otherwise, the day the router restarts the printer may change address and tickets stop printing without anyone touching anything.\n\n## Uninstall the program\n\nIn Command Prompt, as administrator:\n\n```\ncd \"C:\\Program Files\\MESAPAY\"\nmesapay-print-agent.exe stop\nmesapay-print-agent.exe uninstall\n```\n\nThe settings are kept: if you install it again, you don't need to paste the token again.",
+      "links": [
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        },
+        {
+          "label": "Go to Prep stations",
+          "href": "/operator/settings/estaciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "impresoras-de-red",
+      "title": "Check your printers from the panel",
+      "summary": "In Network printers you see whether each computer at the venue responds, test a printer remotely, reprint what didn't come out and choose where the customer's invoice prints.",
+      "keywords": [
+        "network printers",
+        "printer status",
+        "responding",
+        "not responding",
+        "never connected",
+        "revoke",
+        "delete device",
+        "print test",
+        "reprint",
+        "recent jobs",
+        "failed",
+        "invoice printer",
+        "automatic invoice",
+        "QR code"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Network printers you see, from anywhere, the venue's computers that have the printing program and the printers each one reports. From here you can test a printer without standing next to it, reprint something that didn't come out and choose where the customer's invoice prints.\n\nGo to [Settings › Network printers](/operator/settings/impresoras). If you haven't installed the program yet, follow [Install the printing program on the computer](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n\n## Computers that print\n\nEach computer shows its status:\n\n- **Responding**: it's connected and receiving jobs.\n- **Not responding**: it hasn't checked in for a while. Make sure it's on and has internet.\n- **Never connected**: you generated the token, but the program isn't using it yet. Paste it into the program and start the service.\n\nYou also see when it last checked in, the program version and the address it connects from.\n\nTo stop using a computer, tap **Revoke** and confirm with **Yes, revoke**: it stops printing and its printers are turned off. It can't be undone; to use it again you have to register it again, with a new token. A revoked computer is removed from the list with **Delete device**; the print history is kept.\n\n## Printers it reports\n\nEach printer's address, port, station and width are set in the computer's program, not here. From the panel you can:\n\n- **Print test**: sends a test slip. If the computer is on, it prints within a few seconds.\n- **Turn off** or **Turn on**: a printer that's off stops receiving jobs, without uninstalling anything.\n- **Prints QR codes**: turn it on only if that printer prints the test invoice's QR code correctly.\n\n## Recent jobs\n\nShows the latest things sent to print and what happened to each: **Queued**, **Delivered**, **Printed** or **Failed**, with the number of attempts. Tap **Reprint** to send the same document again.\n\n## Invoices\n\nIn the **Invoices** section you choose where the customer's invoice prints:\n\n1. In **Printer for invoices**, choose the printer, for example the cashier's. If you leave **Every invoice printer (default)**, it prints on all printers of that type.\n2. Turn on **Print the invoice automatically when the bill is paid** if you want it to print on its own. When it's off, it only prints when someone reprints it from the order.\n3. Tap **Print a test invoice** to see the real format.\n\nWith electronic invoicing, the invoice prints when DIAN accepts it, a few seconds after the payment. If DIAN rejects it or leaves it pending, nothing prints.\n\n> If the printer prints the test invoice's QR code correctly, check **Prints QR codes** on that printer. Otherwise, the electronic invoice shows DIAN's lookup address as text.\n\n## Common cases\n\n- **A notice says invoices print from the browser**: no program printer is chosen for invoices, and the browser can cut them. Choose a program printer in **Printer for invoices**.\n- **Kitchen (or bar) printing is off under Stations**: that printer won't receive tickets. Tap **Go to Stations** and turn on printing for that station.\n- **The printer chosen for invoices is off**: invoices won't print until you turn it on or pick another one.",
+      "links": [
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cuando-no-imprime",
+      "title": "What to do when a ticket or invoice doesn't print",
+      "summary": "Find out whether the problem is the internet, the program's token, the printer or the station settings, and how to fix each case.",
+      "keywords": [
+        "not printing",
+        "ticket not printing",
+        "invoice not printing",
+        "printer not working",
+        "no connection to MESAPAY",
+        "token rejected",
+        "out of paper",
+        "IP changed",
+        "service stopped",
+        "STOPPED",
+        "failed",
+        "reprint",
+        "support",
+        "agent.log"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "When a ticket or an invoice doesn't print, it's almost always one of four things: the venue's internet, the program's token, the printer or the station settings. This guide helps you find which one.\n\n## First, check the panel\n\n1. Go to [Settings › Network printers](/operator/settings/impresoras).\n2. Look at the computer's status. If it says **Not responding**, the problem is on that computer or its internet: continue with the next section.\n3. Look at **Recent jobs**. If the job says **Failed**, the program tried and the printer didn't answer. Tap **Print test** on that printer to confirm it and, once it's fixed, **Reprint**.\n\n## On the venue's computer\n\nOpen `http://127.0.0.1:9110` on that computer and look at the **Estado** (status) block at the top: it tells you whether the problem is the internet, the token or the printer.\n\n- **Sin conexión con MESAPAY** (no connection to MESAPAY): the computer can't reach the server. Try opening mesapay.co in the browser; if it doesn't load, it's the venue's internet. If it loads but the last error says the token is invalid or was revoked, register the computer again under Network printers and paste the new token.\n- **Connected, but no paper comes out**: check that the printer is on and has paper (without paper it accepts the connection and prints nothing), that it's on the same network as the computer (the classic case: it ended up on the guest WiFi) and that its IP hasn't changed. **Imprimir prueba** (print test) on that printer confirms it.\n- **Everything at zero**: MESAPAY isn't generating tickets for the venue. The problem isn't on the computer: check in [Prep stations](/operator/settings/estaciones) that printing is on and that the categories have a station assigned.\n- **En cola en el servidor** (queued on the server) keeps growing: tickets are waiting and not being delivered. Check that the program is linked and showing no errors.\n\n## If the printer's IP changed\n\nPrint the printer's network settings (turn it off, hold down FEED and turn it on) and compare the address with the one written on the program's page. If it changed, fix it, click **Guardar configuración** (save settings) and ask whoever manages your network to give the printer a fixed IP.\n\n## The service doesn't start\n\nOpen Command Prompt and type:\n\n```\nsc.exe query MesapayPrintAgent\n```\n\nIf it says `STOPPED`, the most common cause is that someone moved or renamed the program after installing it. Uninstall it and install it again from the right folder, as in [Install the printing program on the computer](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n\n## The program's page doesn't open\n\nIf `http://127.0.0.1:9110` doesn't respond but the service is running, another program on the computer is using that address. The printing program keeps printing anyway. Write to support if you need to get into its settings.\n\n## The invoice doesn't print\n\n- With electronic invoicing, the invoice prints when DIAN accepts it. If it was rejected or is pending, nothing prints: check it in [Invoices](/operator/facturas).\n- In [Network printers](/operator/settings/impresoras), **Invoices** section, check that the chosen printer is on and that **Print the invoice automatically when the bill is paid** is turned on.\n\n## If you need to contact support\n\nSend us the program's log file. It's in this folder, which is hidden: paste the path straight into the File Explorer address bar.\n\n```\nC:\\ProgramData\\MESAPAY\\agent\\logs\\agent.log\n```",
+      "links": [
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        },
+        {
+          "label": "Go to Prep stations",
+          "href": "/operator/settings/estaciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "datafonos",
+      "title": "Set up card readers and assign them to waiters",
+      "summary": "Register your Kushki card readers, assign each one to the waiter who carries it so the charge goes straight to them, and get to know the Card reader user's screen.",
+      "keywords": [
+        "card reader",
+        "card terminal",
+        "datáfono",
+        "Kushki",
+        "Smart POS",
+        "terminal",
+        "business code",
+        "serial",
+        "assign card reader",
+        "assigned waiter",
+        "live tables",
+        "card reader user",
+        "own card terminal",
+        "charge by card"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "If your restaurant charges with Kushki card readers, in Card readers you register them and assign each one to the waiter who carries it. That way, when that waiter charges by card reader from their app, the amount goes straight to their device.\n\nThe **Card readers** card appears in Settings only when your business has Kushki card-reader payments turned on. MESAPAY turns that payment method on.\n\n## Set up the card readers\n\n1. Go to [Settings › Card readers](/operator/settings/datafonos).\n2. In **Business code**, enter the code the card-reader provider gave you when it was activated, and tap **Save**.\n3. Under **Add terminal**, type a name (for example, \"Register 1\") and the device's serial number, and tap **Add**.\n4. On each card reader, choose the **Assigned waiter**.\n\nYou can fix the serial later in **Terminal serial**; it saves when you leave the field.\n\n## Assigned or unassigned\n\n- **With an assigned waiter**: when that waiter charges by card reader, the amount goes straight to their device, without going through Floor.\n- **Unassigned (anyone can use it)**: the charge waits on [Floor](/operator/serve), under **Requested card terminal**. Whoever brings the card reader to the table taps the **Charge** button with the amount, and the charge goes to the first active card reader on the list.\n\nTap **Active** or **Inactive** to take a card reader out of use without deleting it.\n\n## The Card reader user\n\nIf one person is in charge of charging with the card reader (at the register, for example), create a user with the **Card reader** role for them in [Users](/operator/settings/usuarios). When they sign in they see **Live tables**: every table with its status and the ones that asked for a card reader (**📱 Requested terminal**) or cash (**💵 Requested cash**). From there they charge with the card reader or confirm the cash received.\n\n## Your own card terminal\n\nIf you charge with another provider's card terminal, there's nothing to set up here: you run the card on your terminal and then mark the result, **Approved** or **Declined**, on Floor. MESAPAY also turns that payment method on.\n\n## Common cases\n\n- **I don't see the Card readers card**: your business doesn't have Kushki card-reader payments turned on. Write to support.\n- **\"No active card terminal registered\"**: no card reader is marked **Active**. Add one or turn one on.\n- **\"No card readers linked to the business yet\"**: add the first one with **Add terminal**.",
+      "links": [
+        {
+          "label": "Go to Card readers",
+          "href": "/operator/settings/datafonos"
+        },
+        {
+          "label": "Go to Users",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "tablet-de-cocina-y-bar",
+      "title": "Use a tablet as a kitchen or bar screen",
+      "summary": "Put a tablet in the kitchen or the bar to see orders on screen: create its user, install it as an app, use it in landscape and turn on the new-order sound.",
+      "keywords": [
+        "tablet",
+        "kitchen screen",
+        "KDS",
+        "kitchen kiosk",
+        "kitchen board",
+        "bar",
+        "MP COCINA",
+        "MP BAR",
+        "install app",
+        "home screen",
+        "landscape",
+        "sound",
+        "beep",
+        "new orders",
+        "sound muted"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "You can put a tablet in the kitchen or the bar to see orders on screen, instead of printed tickets or alongside them. The kitchen signs in with its own user and goes straight to its board.\n\n## Set up the tablet\n\n1. Create a user with the **Kitchen** (or **Bar**) role in [Settings › Users](/operator/settings/usuarios). See [Create your team's users](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n2. On the tablet, open MESAPAY in the browser and sign in with that email and password. It goes straight to the kitchen (or bar) board.\n3. Install it on the home screen from the browser menu, with the option to add to the home screen or install the app. It shows up as **MP COCINA** (or **MP BAR**) and always opens on the board.\n\n## Use it in landscape\n\nThe board is designed for a tablet lying sideways. On Android, the installed app stays in landscape on its own. On an iPad, turn it sideways and turn on rotation lock.\n\n## Turn on the new-order sound\n\nThe board beeps when a new order comes in. Browsers don't allow any sound until someone touches the screen: if you see **Tap the screen to turn on the new-order sound**, tap it once. Use **Test sound** to check the volume.\n\n- In the kitchen, the sound starts on; at the bar, it starts off.\n- The **Sound on** / **Sound muted** button turns it on or off, and the choice is saved on that tablet.\n- If you see **This browser can't play the new-order sound**, use a different browser on the tablet.\n\n## Keep it from turning off\n\nSet the tablet so the screen doesn't lock during service, and keep it plugged into the charger.\n\n## To sign out\n\nTap **Salir** (sign out), at the top right of the board.",
+      "links": [
+        {
+          "label": "Go to Users",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "copias-de-seguridad",
+      "title": "Create and restore backups",
+      "summary": "MESAPAY keeps a daily backup of your restaurant's data and lets you create your own. If something goes wrong, you restore the data to a backup's date.",
+      "keywords": [
+        "backup",
+        "backups",
+        "copy",
+        "restore",
+        "undo",
+        "recover data",
+        "automatic backup",
+        "manual backup",
+        "RESTAURAR",
+        "before restore",
+        "deleted by mistake"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A backup saves all of your restaurant's data at a given moment, so you can go back if something goes wrong; for example, after loading a menu incorrectly or importing the wrong supplies.\n\n## What it saves and what it doesn't\n\nIt saves tables, menu, bills, payments, shifts, inventory, purchasing, accounting, payroll and invoices.\n\nIt doesn't save uploaded files (logo, photos and certificates) or the panel users and their passwords.\n\n## Automatic and manual backups\n\n- An automatic backup runs every day at 4:00 a.m.\n- You can create manual backups whenever you want, up to 5 active at a time.\n- Every backup is kept for 7 days.\n\n## Create a backup\n\n1. Go to [Settings › Backups](/operator/settings/backups).\n2. Optionally, type a **Note**, for example \"before loading the new menu\".\n3. Tap **Create backup now**.\n\n> It's a good idea to make one before loading a new menu, importing supplies or closing an accounting month.\n\n## Restore a backup\n\n1. Under **Available backups**, find the backup from the date you want to go back to and tap **Restore**.\n2. Read the warning: ALL current data is replaced with that date's data, and anything that happened afterwards is lost.\n3. Type `RESTAURAR` to confirm and tap **Restore this backup**.\n\n> Before restoring, MESAPAY automatically saves a backup of the current state, labeled **Before restore**, in case you need to go back.\n\n## Delete a backup\n\nTap **Delete** and confirm with **Delete backup**. You won't be able to restore from it anymore.\n\n## Common cases\n\n- **\"There are already 5 active manual backups\"**: delete a manual backup to create another one.\n- **\"This backup does not cover every current table of the venue\"**: the backup predates a platform change and can't be partially restored. Create a new backup.\n- **\"This backup cannot be restored because the business has fiscal credit notes\"**: once you've issued electronic credit notes, their history and numbering must be kept, so restoring is blocked.\n\n> ⚠ These backups are for undoing a mistake made in the business. They don't replace the server backups MESAPAY makes.",
+      "links": [
+        {
+          "label": "Go to Backups",
+          "href": "/operator/settings/backups"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
+}

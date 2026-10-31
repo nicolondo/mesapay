@@ -128,7 +128,7 @@ export default async function PrintersSettingsPage() {
       {/* Las instrucciones de instalación viven en Ayuda, no acá: esta
           pantalla es de diagnóstico. Sólo el enlace. */}
       <Link
-        href="/operator/ayuda#impresoras"
+        href="/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion"
         className="inline-block text-sm underline text-op-muted hover:text-ink mb-6"
       >
         {t("helpLink")}

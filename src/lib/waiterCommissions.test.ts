@@ -6,6 +6,7 @@ import {
   buildCommissionReport,
   commissionCsvDetail,
   commissionCsvSummary,
+  includedMenuTaxCents,
   isValidCommissionBps,
   pctToBps,
   sealCommission,
@@ -65,6 +66,29 @@ describe("sealCommission — lo que queda sellado en la cuenta", () => {
       baseCents: 10_000,
       commissionCents: 0,
     });
+  });
+});
+
+describe("base sin impuesto incluido", () => {
+  it("includedMenuTaxCents reparte línea por línea como la factura y omite las líneas libres", () => {
+    expect(
+      includedMenuTaxCents(
+        [
+          { qty: 2, priceCentsSnapshot: 27_000, taxKind: null },
+          { qty: 1, priceCentsSnapshot: 54_000, taxKind: null },
+          { qty: 1, priceCentsSnapshot: 10_000, taxKind: "iva" },
+          { qty: 0, priceCentsSnapshot: 99_000, taxKind: null },
+        ],
+        { kind: "inc", pct: 8 },
+      ),
+    ).toBe(4_000 + 4_000);
+    expect(includedMenuTaxCents([{ qty: 1, priceCentsSnapshot: 10_800, taxKind: null }], { kind: "none", pct: 8 })).toBe(0);
+  });
+
+  it("sealCommission resta el impuesto incluido de la base", () => {
+    expect(
+      sealCommission({ waiterBps: 500, subtotalCents: 108_000, discountCents: 0, includedTaxCents: 8_000 }),
+    ).toEqual({ bps: 500, baseCents: 100_000, commissionCents: 5_000 });
   });
 });
 

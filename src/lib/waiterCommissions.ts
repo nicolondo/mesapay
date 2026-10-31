@@ -10,8 +10,11 @@
  *
  *  · BASE = LO COBRADO, por FECHA DE PAGO. Una cuenta abierta no comisiona;
  *    el corte del período es `Order.paidAt`. La base es el subtotal de la
- *    cuenta (sin propina ni impuesto sobre líneas libres) NETO del descuento
- *    del comensal: es lo que el restaurante cobró por la comida.
+ *    cuenta NETO del descuento del comensal y SIN impuesto: ni el que las
+ *    líneas libres suman encima (no está en el subtotal) ni el INC/IVA que
+ *    va incluido en el precio de los platos de carta (`includedMenuTaxCents`,
+ *    el mismo reparto por línea de la factura). Tampoco la propina. Es lo
+ *    que el restaurante vendió, la misma base de la venta neta.
  *  · El % se SELLA en la cuenta al cobrarla (`Order.commissionBps`). Si el
  *    operador cambia el % del mesero a mitad de mes, las cuentas ya cobradas
  *    conservan el viejo; el resumen sólo muestra un % cuando TODAS las
@@ -25,6 +28,7 @@
  */
 
 import type { CsvValue } from "@/lib/erp/reports/csv";
+import { splitTaxIncludedCents } from "@/lib/dian/ubl";
 
 /** Tope: 10 000 bps = 100 %. */
 export const MAX_COMMISSION_BPS = 10_000;
@@ -49,9 +53,28 @@ export function bpsToPctText(bps: number): string {
   return (bps / 100).toFixed(2).replace(".", ",");
 }
 
+/**
+ * Impuesto INCLUIDO en el precio de los platos de carta vivos de la cuenta
+ * (`taxKind` null; las líneas libres llevan el suyo encima), con la tarifa
+ * del comercio: línea por línea, con el mismo redondeo que la factura
+ * (`dian/emit.embeddedMenuTax` ⇒ `splitTaxIncludedCents`).
+ */
+export function includedMenuTaxCents(
+  lines: readonly { qty: number; priceCentsSnapshot: number; taxKind: string | null }[],
+  tax: { kind: string; pct: number },
+): number {
+  if (tax.kind === "none" || !(tax.pct > 0)) return 0;
+  let total = 0;
+  for (const l of lines) {
+    if (l.taxKind != null || l.qty <= 0) continue;
+    total += splitTaxIncludedCents(l.priceCentsSnapshot * l.qty, tax.pct * 100).taxCents;
+  }
+  return total;
+}
+
 export type SealedCommission = {
   bps: number;
-  /** Subtotal cobrado neto de descuento: la base sobre la que se liquida. */
+  /** Subtotal cobrado neto de descuento y sin impuesto: la base sobre la que se liquida. */
   baseCents: number;
   /** `round(base × bps / 10 000)`, al centavo. */
   commissionCents: number;
@@ -66,15 +89,20 @@ export function sealCommission({
   waiterBps,
   subtotalCents,
   discountCents = 0,
+  includedTaxCents = 0,
 }: {
   waiterBps: number | null | undefined;
   subtotalCents: number;
   discountCents?: number | null;
+  /** Impuesto incluido en los platos de carta (`includedMenuTaxCents`). */
+  includedTaxCents?: number | null;
 }): SealedCommission | null {
   if (!isValidCommissionBps(waiterBps)) return null;
-  const subtotal = Number.isFinite(subtotalCents) ? subtotalCents : 0;
-  const discount = Number.isFinite(discountCents ?? 0) ? (discountCents ?? 0) : 0;
-  const baseCents = Math.max(0, Math.round(subtotal - discount));
+  const finite = (n: number | null | undefined) => (Number.isFinite(n ?? 0) ? (n ?? 0) : 0);
+  const subtotal = finite(subtotalCents);
+  const discount = finite(discountCents);
+  const tax = Math.max(0, finite(includedTaxCents));
+  const baseCents = Math.max(0, Math.round(subtotal - discount - tax));
   return {
     bps: waiterBps,
     baseCents,

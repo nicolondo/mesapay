@@ -1,5 +1,238 @@
 {
   "title": "Online payments",
   "description": "Activating payments, card, PSE and Apple Pay, Wallet, transfers, corporate vouchers and payment links.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "activar-pagos-en-linea",
+      "title": "Activate online payments",
+      "summary": "Upload your company's seven documents, check the details MESAPAY reads from your RUT and bank certification, and submit the request so Kushki enables your online payments.",
+      "keywords": [
+        "activate payments",
+        "online payments",
+        "kushki",
+        "payment gateway",
+        "onboarding",
+        "documents",
+        "rut",
+        "chamber of commerce",
+        "camara de comercio",
+        "bank certification",
+        "bank account",
+        "legal representative",
+        "shareholding",
+        "source of funds",
+        "financial statements",
+        "request rejected",
+        "under review",
+        "edit documents",
+        "resubmit",
+        "onboarding form",
+        "excel"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "To collect online (card, PSE or Apple Pay), your business needs an account with Kushki, the company that processes MESAPAY's payments. In **Activate payments** you upload your company's documents and submit the request; once Kushki approves it, the screen shows **Ready to collect!**.\n\n## Before you start\n\nHave these documents ready, as a PDF or a photo (JPG, PNG or WebP), up to 10 MB each:\n\n- **Legal representative ID**\n- **RUT**\n- **Cámara de Comercio certificate**\n- **Shareholding structure certificate**, issued less than 90 days ago.\n- **Bank certification** for the account where you'll receive the money. It must be in the name of the same NIT or ID number as the RUT.\n- **Source-of-funds certification (accountant)**\n- **Financial statements**\n\nAlso check that your address and city are complete in [Business identity](/operator/ayuda/primeros-pasos/identidad-del-comercio): they go on the onboarding form.\n\n## Steps\n\n1. Go to [Settings › Payments](/operator/settings/pagos).\n2. Under **1 · Documents**, drag each file onto its tile or tap **Drag the file or click to upload it**. The tile then shows **✓ Uploaded**. When you upload the RUT, MESAPAY reads it on its own (**Reading RUT with AI…**) and fills in the legal information.\n3. Under **2 · Bank certification**, upload the certification. MESAPAY reads it and fills in **3 · Bank details**: bank, account type, number, holder and the holder's document.\n4. Check **4 · Business legal information**: legal name, NIT, contact email and phone.\n5. Type the **Legal representative’s name** and **Legal representative’s ID number** exactly as they appear on the ID card. These are the only fields you type by hand.\n6. Make sure you see **The bank account holder’s document number matches the RUT.**\n7. Tap **Submit request**. The button turns on once all seven documents are uploaded and every field is complete.\n\n> The bank and legal details come from the documents and can't be edited. If something is wrong, upload a sharper file or tap **Read again with AI** (certification) or **Read the RUT again with AI**.\n\nWhen you submit, MESAPAY delivers your documents to Kushki together with the onboarding form they require (a spreadsheet with the business and legal representative details), already filled in with what you checked. You don't have to fill in any Excel file.\n\n## Request statuses\n\n- **Under review**: Kushki is validating your documents. The request is locked.\n- **Delivery to Kushki pending**: your request is saved, but the documents haven't all arrived yet (**Documents delivered: … of …**). Don't upload them again: write to support so they can complete the delivery.\n- **Ready to collect!**: your account is active. From then on, **Wallet and payouts** shows up in Settings and your customers can pay online with the methods MESAPAY has enabled for your business.\n- **Request rejected**: the reason appears below. Replace whatever is needed and tap **Submit request** again.\n\nIn Settings, the **Payments** card shows the same status in short: **Not started**, **Documents uploaded**, **Under review**, **Active**, **Rejected** or **Suspended**. If you see **Suspended**, write to support.\n\n## Change a document after submitting\n\n1. While the request is under review, tap **Edit documents**.\n2. On the document's tile, tap **Replace / add** and pick the new file. It replaces the previous one, at Kushki too.\n3. Tap **Resubmit request**. If you change your mind, tap **Cancel editing**.\n\nOnce the account is active, documents can't be changed from here: write to support.\n\n## Common errors\n\n- **The account holder does not match the RUT**: the account must be in the name of the same NIT or ID number as the RUT so the money can be transferred to you. Upload the certification of an account in the company's name, or the correct RUT.\n- **Missing:** followed by a list: upload those documents; without them the button stays off.\n- **This document is more than 90 days old. Upload an updated one.**: shows on the shareholding certificate. It doesn't stop you from submitting, but Kushki may reject the request because of it.\n- **Unsupported format. Use PDF, JPG, PNG or WebP.**: convert the file to one of those formats.\n- The file won't upload because of its size: the limit is 10 MB. Compress it or take a photo of it.\n- **OCR failed.** or **RUT OCR failed.**: MESAPAY couldn't read the document. Tap the read-again button or upload a clearer version.",
+      "links": [
+        {
+          "label": "Go to Payments",
+          "href": "/operator/settings/pagos"
+        },
+        {
+          "label": "Go to Business identity",
+          "href": "/operator/settings/identidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "medios-de-pago-en-linea",
+      "title": "Card, PSE and Apple Pay for your customers",
+      "summary": "Which online payment methods diners see when paying from the table, what your business needs to offer them, when Apple Pay shows up and which methods charge a reservation deposit.",
+      "keywords": [
+        "payment methods",
+        "card",
+        "credit card",
+        "debit card",
+        "pse",
+        "bank transfer",
+        "apple pay",
+        "iphone",
+        "safari",
+        "online payment",
+        "pay from phone",
+        "gateway",
+        "virtual terminal",
+        "reservation deposit",
+        "payment declined"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With online payments active, diners pay the bill from their phone, without waiting for the card reader or cash. Here's what they see, who enables each method and what each one needs.\n\n## What your business needs\n\n- **Your payments request approved.** Settings › Payments must say **Ready to collect!**. Until then, diners don't see any online method. See [Activate online payments](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n- **Each method enabled by MESAPAY.** The MESAPAY team turns on the payment methods for each restaurant; they aren't switched on or off from your dashboard. If one is missing, write to support.\n\n## What diners see\n\nWhen they tap to pay on the table's screen, the buttons your business has enabled appear:\n\n1. **Credit or debit card**: they type the card details on the same screen. The details travel encrypted to Kushki; MESAPAY never sees or stores them. Some cards may also ask for a verification from the bank.\n2. **PSE (bank transfer)**: they choose their bank and we take them to the bank's page to authorize the transfer. When they finish, they come back to the payment screen with the result.\n3. **Apple Pay**: they pay with Face ID or Touch ID. It only shows in Safari, on an iPhone or Mac with Apple Pay set up. In other browsers the button doesn't appear.\n\nNext to them come the in-person methods you have: **Card with card reader**, **Card (merchant's card reader)** and **Cash (call the server)**. Card readers are explained in [Set up card readers](/operator/ayuda/impresion-y-equipos/datafonos).\n\n> ⚠ Apple Pay depends on MESAPAY enabling it for your business and isn't set up from your dashboard. If a customer with an iPhone doesn't see it, write to support.\n\n## Where the money goes\n\nApproved online payments are added to your Wallet balance, from where you move it to your bank account. See [Your Wallet balance and bank transfers](/operator/ayuda/pagos-en-linea/wallet-y-transferencias).\n\n## Reservation deposits\n\nIf you charge a deposit to reserve, it can only be paid online (**Card**, **PSE** or **Apple Pay**), because the customer isn't at the restaurant when booking.\n\n1. Go to [Settings › Reservations](/operator/settings/reservas).\n2. Under **Deposit to reserve**, turn on the methods that charge it.\n\nIf you turn none on, you'll see **With no method checked you won't be able to charge deposits: tables with a deposit will be reserved without charging it.** If your business has no online methods, that section tells you and links to Payments.\n\n## Common cases\n\n### The diner doesn't see card or PSE\n\nCheck that Settings › Payments says **Ready to collect!**. If it does, write to support so we can check which methods you have enabled.\n\n### Apple Pay doesn't show up\n\nThe customer is using Chrome, an Android phone or an iPhone without Apple Pay set up, or MESAPAY hasn't enabled it for your business yet. They can pay by card or PSE.\n\n### The payment wasn't approved\n\nThe diner sees **Your payment wasn't approved** and can try another card or method. The bill stays open until it's paid.",
+      "links": [
+        {
+          "label": "Go to Payments",
+          "href": "/operator/settings/pagos"
+        },
+        {
+          "label": "Go to Reservations",
+          "href": "/operator/settings/reservas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "wallet-y-transferencias",
+      "title": "Your Wallet balance and bank transfers",
+      "summary": "See how much money from your online payments is available, send it to your bank account or transfer it to another account, and track the status of each transfer.",
+      "keywords": [
+        "wallet",
+        "balance",
+        "available balance",
+        "pending",
+        "send to bank",
+        "withdraw",
+        "withdrawal",
+        "payout",
+        "payouts",
+        "dispersion",
+        "transfer",
+        "pay a supplier",
+        "bank account",
+        "money",
+        "ach",
+        "automatic dispersion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Wallet you see the money your customers paid you online and you move it: to your own bank account or to another account, such as a supplier's.\n\nWallet works once your online payments are active (**Ready to collect!**). Before that, opening it takes you back to Settings. See [Activate online payments](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## Your balance\n\nOpen it from the **Business › Wallet** menu or from Settings › **Wallet and payouts**. At the top you see:\n\n- **Available balance**: what you can transfer now.\n- **Pending**: payments received that aren't available yet. It only shows when something is pending.\n\n## Send your balance to your account\n\n1. Tap **Send to bank**. Next to the button you see the bank and the last four digits of the account you registered when activating payments.\n2. **Amount** starts with the full balance. Change it if you want to send less; it can't go over the **Maximum**.\n3. Tap **Send** with the amount (for example, **Send $ 350.000**).\n\nDispersion normally credits within 1 business day.\n\n## Transfer to another account\n\nUse it to pay a supplier or an employee from your balance.\n\n1. Tap **Transfer to another account**.\n2. Fill in **Destination bank**, **Account type**, **Account number**, **Document**, **Document number** and **Account holder name**.\n3. Type the **Amount** and tap **Send**.\n4. You'll see **Transfer initiated.** The bank settles it in its business-day cycles and the result shows up under **Transfers**.\n\n> ⚠ Double-check the details before sending: a transfer to the wrong account can't be reversed from MESAPAY.\n\n## The transfers list\n\nEach transfer shows the bank, the last four digits of the account, **To your account** or the holder's name, the date, the amount and its status:\n\n- **In progress**: the bank hasn't credited it yet.\n- **Settled**: the money has arrived.\n- **Declined**: the bank didn't accept it. The reason appears below.\n- **Not sent**: it couldn't be started.\n\n## Automatic dispersion\n\nThe **Send balance to bank automatically** checkbox saves a **Frequency** (**Daily**, **Weekly** or **When a threshold is reached**) with its **Time (24h)** or its **Threshold in pesos**.\n\n> ⚠ For now this option only saves your preference: the balance isn't transferred on its own. To move the money, use **Send to bank**.\n\n## Common cases\n\n- **Send to bank** can't be tapped: if it says **“Send to bank” needs your registered bank account.** below, your account is registered when you submit the request in Settings › Payments. If the available balance is zero, there's nothing to send either.\n- **We couldn't load the balance**: open the screen again in a few minutes. If it keeps happening, write to support with the code shown in parentheses.\n- **We couldn't disperse.** or a message from the bank: the money didn't move and the transfer shows as **Not sent**. Check the details and try again.\n- The **Movements** list is empty: rely on the **Available balance** and on **Transfers**, which are checked every time you open the screen.",
+      "links": [
+        {
+          "label": "Go to Wallet",
+          "href": "/operator/wallet"
+        },
+        {
+          "label": "Go to Payments",
+          "href": "/operator/settings/pagos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "bonos-empresariales",
+      "title": "Corporate vouchers: set up and issue",
+      "summary": "Sell a company a batch of fixed-value vouchers, prepaid or on credit, so its guests pay the bill with a code. It's a module MESAPAY turns on for each business.",
+      "keywords": [
+        "vouchers",
+        "corporate vouchers",
+        "voucher",
+        "coupon",
+        "coupons",
+        "gift card",
+        "company",
+        "corporate agreement",
+        "prepaid",
+        "on credit",
+        "issue vouchers",
+        "voucher batch",
+        "voucher code",
+        "redeem",
+        "cancel voucher",
+        "expiry",
+        "bonos"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With corporate vouchers you sell a company a batch of fixed-value vouchers, and its employees or guests use them to pay the bill at your restaurant with a code.\n\n> Vouchers are a module the platform administrator (MESAPAY) turns on for each business. If you don't see **Vouchers** in the **Business** menu, your business doesn't have it: write to support.\n\n> ⚠ Talk to your accountant first. Today MESAPAY doesn't issue an electronic invoice when you sell a voucher batch, nor does it adjust the sale invoice when vouchers are redeemed. Agree with them whether the voucher is treated as an advance or invoiced on issue; until then, every batch is marked as pending that decision.\n\n## 1. Choose how they're billed\n\n1. Go to [Settings › Corporate vouchers](/operator/settings/bonos).\n2. Under **Billing mode**, choose **Prepaid** or **On credit** (each one is explained below).\n3. If you like, fill in **Default value per voucher** and **Default validity (days)**. Left empty, validity is **No expiry**.\n4. Tap **Save**.\n\nThe two modes:\n\n- **Prepaid**: the company pays the batch up front, by card or PSE, from the link it gets in the email. The vouchers can't be used until the payment is confirmed.\n- **On credit**: vouchers are issued without charge. When you close the statement of what was used, the company gets the summary with the link to pay the redeemed amount.\n\nThe mode is copied to each batch when it's issued: changing it later doesn't affect batches already issued.\n\n> **Prepaid** mode needs your online payments to be active. If they aren't, the company opens the link and has no way to pay. See [Activate online payments](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## 2. Issue a batch\n\n1. Go to [Vouchers](/operator/bonos).\n2. Under **Issue vouchers**, search for the company. If it isn't listed, tap **Create it in Customers**, create it with its email and come back.\n3. Fill in **Quantity** (1 to 500), **Value per voucher**, **Validity (days)** (empty means **No expiry**) and, if you like, a **Note**.\n4. Check the **Batch total** and tap **Issue** (for example, **Issue 10 vouchers**).\n\nThe company gets an email with all the codes (also as a file, to hand them out) and, for prepaid batches, the button to pay. If you see **The email failed**, open the batch and tap **Resend email**.\n\n## Batches and their statuses\n\n**Issued batches** lists each batch with its company, active vouchers out of the total, the value of each one, the **Available balance** and the status:\n\n- **Awaiting payment**: a prepaid batch the company hasn't paid yet.\n- **Paid**: a prepaid batch already paid; its vouchers can be used.\n- **Issued**: an on-credit batch; its vouchers can be used right away.\n- **Cancelled**.\n\nTap **View batch** for the details: what's been **Redeemed**, the balance, the validity, who issued it and, for an unpaid prepaid batch, the **Payment link** with **Copy** to send it another way. Under **Vouchers in this batch** each code shows its status: **Active**, **With balance**, **Used up**, **Expired**, **Awaiting payment** or **Cancelled**.\n\n## Cancel a voucher or a batch\n\n- **Cancel**, on a voucher's row: only for active vouchers that haven't been used. The voucher stops being valid.\n- **Cancel batch**: voids every voucher and the payment link. It's only possible if no voucher has been used and, for prepaid batches, if the company hasn't paid yet.\n\nIf some vouchers were already used, you'll see **The batch cannot be cancelled: some vouchers were already used. Cancel the unused ones one by one.** If the prepaid batch is already paid, cancel individual vouchers and settle the refund directly with the company.\n\n## How vouchers are used\n\n- **The diner**, when paying from the table's QR code, types the code under **Have a voucher?**, taps **Check** and then **Apply … from the voucher**.\n- **The waiter or the cashier**, when collecting the bill, types the code under **Corporate voucher**.\n- If the bill is larger than the voucher, the difference is paid another way. If it's smaller, what's left stays on the voucher for another visit.\n- The voucher pays for the food; the tip, if any, goes with the payment of the rest.\n\nMessages you may see when applying one:\n\n- **This voucher is not active yet: the company has not paid for the batch.**: the batch is prepaid and the payment is missing.\n- **This voucher has expired.** or **This voucher has no balance left.**: it can't be used; the bill is paid another way.\n- **We could not find a voucher with that code.**: check that it's typed correctly.\n\nTo charge the company for what its on-credit vouchers used, see [Close the voucher statement](/operator/ayuda/pagos-en-linea/corte-de-bonos).",
+      "links": [
+        {
+          "label": "Go to Vouchers",
+          "href": "/operator/bonos"
+        },
+        {
+          "label": "Go to voucher settings",
+          "href": "/operator/settings/bonos"
+        },
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "corte-de-bonos",
+      "title": "Close the voucher statement and collect what was used",
+      "summary": "See which vouchers each company used, on which bills and for how much, export the detail and close the statement to send the summary with the payment link for what was redeemed on credit.",
+      "keywords": [
+        "voucher statement",
+        "voucher report",
+        "used vouchers",
+        "redemptions",
+        "account statement",
+        "bill the company",
+        "on credit",
+        "export csv",
+        "resend email",
+        "voucher",
+        "coupon",
+        "cut-off"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A statement gathers the vouchers a company used in a period and emails it the summary. If those vouchers were on credit, the email includes the link to pay what was redeemed.\n\nThis screen is part of the corporate vouchers module, which MESAPAY turns on for each business. See [Corporate vouchers: set up and issue](/operator/ayuda/pagos-en-linea/bonos-empresariales).\n\n## Review used vouchers\n\n1. Go to [Vouchers](/operator/bonos) and tap **Report & statement**.\n2. Choose the **Company** (or **All companies**) and the **From** and **To** dates. If you don't change anything, you see the current month.\n3. Tap **Filter**.\n\nThe totals for the range appear at the top: **Uses**, **Redeemed**, **On credit** and **Not in a statement** (what hasn't gone into any statement yet).\n\nUnder **Redemptions** you see each use: the date, the company, the code, the **Bill** (tap it to open the order), what was **Redeemed**, the **Voucher balance** after the use, the **Mode**, the **Channel** (**Diner** if the customer applied it, **Staff** if your team did) and whether it's already **In statement** or **Not in a statement**.\n\nTo take the detail to a spreadsheet, tap **Export CSV**. It uses the filter you applied.\n\n## Close the statement\n\n1. Filter by a single company and by the range you want to bill.\n2. Check the notice with the uses not in a statement and their total.\n3. Tap **Close statement** and confirm.\n4. You'll see **Statement closed: … The email was sent.**\n\nWhen you close it:\n\n- Every use of that company in the range that isn't in a statement goes in. A use goes into only one statement: closing the same range twice doesn't bill twice.\n- What was redeemed from **On credit** batches is charged with a payment link included in the email.\n- What was redeemed from **Prepaid** batches was already paid: the email just reports it.\n\n## The statements list\n\n**Statements** shows each closed statement: the closing date, the company, the **Period**, the **Uses**, the total, what's **On credit** and the status:\n\n- **Awaiting payment**: the company hasn't paid the on-credit amount yet.\n- **Paid**: it already paid through the link, or the statement had nothing on credit.\n\nIf the company can't find the email, tap **Resend email**: it gets the summary again and, if still pending, the payment link.\n\n## Common cases\n\n- **Close statement** can't be tapped: you have to filter by one company (**Pick a company to close its statement.**) and have uses not in a statement in the range.\n- **There are no uses without a statement in that range.**: those uses already went into an earlier statement. Look for it under **Statements**.\n- **The email failed**: check the company's email in [Customers](/operator/clientes) and tap **Resend email** on the statement's row.\n- **Too many resends. Wait a few minutes.**: wait a moment before resending again.",
+      "links": [
+        {
+          "label": "Go to Report & statement",
+          "href": "/operator/bonos/reporte"
+        },
+        {
+          "label": "Go to Vouchers",
+          "href": "/operator/bonos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "links-de-pago",
+      "title": "Voucher payment links",
+      "summary": "MESAPAY creates the link a company uses to pay for a prepaid voucher batch or for the statement of its on-credit vouchers. Here's what it looks like, how the company pays and what happens when it's no longer valid.",
+      "keywords": [
+        "payment link",
+        "pay link",
+        "charge by link",
+        "online payment",
+        "bill a company",
+        "vouchers",
+        "voucher",
+        "card",
+        "pse",
+        "apple pay",
+        "payment pending",
+        "payment received",
+        "expired link",
+        "link not available"
+      ],
+      "audience": [
+        "operator",
+        "comensal"
+      ],
+      "body": "A payment link is a page where a company pays online what it owes you for vouchers. You don't build it by hand: MESAPAY creates it and emails it to the company.\n\nToday payment links are part of corporate vouchers, a module MESAPAY turns on for each business. See [Corporate vouchers: set up and issue](/operator/ayuda/pagos-en-linea/bonos-empresariales).\n\n## When a link is created\n\n- **When you issue a Prepaid batch.** The link charges the batch total and goes in the issuing email. You also see it in the batch details, under **Payment link**: tap **Copy** to send it another way, such as WhatsApp.\n- **When you close a statement with On credit vouchers.** The link charges only what was redeemed on credit and goes in the statement email. To send it again, tap **Resend email** in the statements list. See [Close the voucher statement](/operator/ayuda/pagos-en-linea/corte-de-bonos).\n\nAn on-credit batch has no link when it's issued: it's billed in the statement.\n\n## What the company sees when paying\n\n1. It opens the link and sees your restaurant's name, **Payment pending**, what's being charged (for example, “10 vouchers of $ 50.000 for Comercial Andina”) and the **Total to pay**.\n2. It chooses one of the methods below and completes the payment.\n3. Once the payment is approved it sees **Payment received**. For a prepaid batch, also **The vouchers in this batch are now active and can be redeemed.**\n\nThe methods it may see:\n\n- **Credit or debit card**: it types the number, the name, the expiry date, the CVV and an email for the receipt.\n- **PSE (bank transfer)**: it chooses its bank and types the payer's document type and number; then it authorizes on the bank's page.\n- **Apple Pay**: only in Safari, on an iPhone or Mac, and if MESAPAY has it enabled for your business.\n\nWhen the company pays, the batch (or the statement) changes to **Paid** in your dashboard. The page can be viewed in Spanish, English or Portuguese.\n\n## Requirement: online payments active\n\nThe link charges with your business's online methods. If your online payments aren't active, the company sees **This business has no online payment method enabled.** and can't pay. See [Activate online payments](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## When the link no longer works\n\n- **This link is no longer available**: the charge was cancelled, for example because you cancelled the batch. If you still need to bill, issue a new batch.\n- If the company opens a link that's already paid, it sees **Payment received** again: it isn't charged twice.\n- **Transfer declined**: the bank didn't approve the PSE payment. The company can tap **Try again** or pay by card.\n- If PSE is still being confirmed, the page says **We are confirming the transfer with your bank.** and refreshes on its own.\n- If the vouchers module is turned off, its links stop opening.",
+      "links": [
+        {
+          "label": "Go to Vouchers",
+          "href": "/operator/bonos"
+        },
+        {
+          "label": "Go to Report & statement",
+          "href": "/operator/bonos/reporte"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

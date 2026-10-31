@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { RESTAURANT_MODEL, tenantModels } from "@/lib/backups/tables";
 import { delegate } from "@/lib/backups/snapshot";
+import { REPLACEABLE_PENDING_METHODS } from "@/lib/payments/methods";
 import { PLATFORM_MODEL_POLICY, PLATFORM_ROLES, UPLOAD_COLUMNS, tenantDeletionWhere } from "./policy";
 
 type Client = Prisma.TransactionClient;
@@ -14,14 +15,26 @@ function counter(client: Client, delegateName: string): CountDelegate {
  * Lo que impide borrar: plata o documentos fiscales EN CURSO. Borrar con
  * algo de esto vivo deja un cobro o una factura a mitad de camino sin nadie
  * que la termine (el webhook o el barrido llegarían a un comercio que ya no
- * existe). Hay que resolverlo antes; el diálogo lo explica por código.
+ * existe). Hay que resolverlo antes; el diálogo lo explica por código y,
+ * cuando existe una transición segura, la ofrece (ver resolution.ts).
+ *
+ * Los cobros y los links pendientes se separan en dos códigos según haya o
+ * no plata en vuelo en un proveedor: la suma es la misma de siempre (no se
+ * relaja nada), pero sólo lo que NO está en vuelo se puede anular desde el
+ * diálogo.
  */
 export type BlockerCode =
+  /** Solicitudes del comensal sin dinero en vuelo (efectivo, datáfono propio): se pueden declinar. */
   | "payments_pending"
+  /** Pendientes con el proveedor (PSE, tarjeta en línea, Smart POS…): no se tocan. */
+  | "payments_in_flight"
   | "refunds_in_flight"
   | "financial_operations_open"
   | "payouts_in_flight"
+  /** Links vigentes sin ningún intento de pago: se pueden anular. */
   | "payment_links_pending"
+  /** Links vigentes con un PSE iniciado (`providerRef`): el banco todavía puede aprobarlo. */
+  | "payment_links_in_flight"
   | "dian_pending"
   | "dian_error"
   | "subscription_active"
@@ -55,6 +68,37 @@ const REAL_DIAN_DOCUMENT = {
 
 /** Estados de la emisión que el barrido o un reintento todavía van a tocar. */
 export const DIAN_IN_FLIGHT_STATES = ["to_send", "sent", "pending"] as const;
+
+/**
+ * Cobros pendientes que son sólo una SOLICITUD del comensal (ver
+ * `REPLACEABLE_PENDING_METHODS`): lo mismo que el staff declina al cobrar por
+ * otra vía. Lo comparten el bloqueo y la acción que los anula, para que
+ * cuenten exactamente lo mismo.
+ */
+export function pendingPaymentRequestsWhere(restaurantId: string) {
+  return {
+    order: { restaurantId },
+    status: "pending",
+    method: { in: [...REPLACEABLE_PENDING_METHODS] },
+  } satisfies Prisma.PaymentWhereInput;
+}
+
+/** Links de pago que bloquean el borrado: pendientes y sin vencer. */
+function openPaymentLinksWhere(restaurantId: string, now: Date) {
+  return {
+    restaurantId,
+    status: "pending",
+    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+  } satisfies Prisma.PaymentLinkWhereInput;
+}
+
+/**
+ * Links vigentes sin ningún intento de pago en curso: nadie inició un PSE
+ * (`providerRef` vacío), así que anularlos no deja plata a mitad de camino.
+ */
+export function cancellablePaymentLinksWhere(restaurantId: string, now: Date) {
+  return { ...openPaymentLinksWhere(restaurantId, now), providerRef: null } satisfies Prisma.PaymentLinkWhereInput;
+}
 
 async function countOpenFinancialOperations(client: Client, restaurantId: string): Promise<number> {
   // FinancialOperation no tiene FK: se llega al comercio por Payment → Order.
@@ -97,17 +141,24 @@ export async function findBlockers(client: Client, restaurantId: string, now: Da
   const add = (code: BlockerCode, count: number) => {
     if (count > 0) blockers.push({ code, count });
   };
-  add("payments_pending", await client.payment.count({ where: { order: { restaurantId }, status: "pending" } }));
+  add("payments_pending", await client.payment.count({ where: pendingPaymentRequestsWhere(restaurantId) }));
+  add(
+    "payments_in_flight",
+    await client.payment.count({
+      where: { order: { restaurantId }, status: "pending", method: { notIn: [...REPLACEABLE_PENDING_METHODS] } },
+    }),
+  );
   add(
     "refunds_in_flight",
     await client.payment.count({ where: { order: { restaurantId }, refundReservedCents: { gt: 0 } } }),
   );
   add("financial_operations_open", await countOpenFinancialOperations(client, restaurantId));
   add("payouts_in_flight", await client.payout.count({ where: { restaurantId, status: "initialized" } }));
+  add("payment_links_pending", await client.paymentLink.count({ where: cancellablePaymentLinksWhere(restaurantId, now) }));
   add(
-    "payment_links_pending",
+    "payment_links_in_flight",
     await client.paymentLink.count({
-      where: { restaurantId, status: "pending", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+      where: { ...openPaymentLinksWhere(restaurantId, now), providerRef: { not: null } },
     }),
   );
   add(

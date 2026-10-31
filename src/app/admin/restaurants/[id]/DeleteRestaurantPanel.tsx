@@ -7,6 +7,13 @@ import { formatMoney, localeTag } from "@/lib/format";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { Locale } from "@/i18n/config";
 import type { BlockerCode, DeletionCounts, WarningCode } from "@/lib/restaurantDeletion";
+import {
+  OPERATOR_DESTINATION_PATH,
+  deleteGate,
+  resolutionFor,
+  type BlockerAction,
+  type OperatorDestination,
+} from "@/lib/restaurantDeletion/resolution";
 
 /**
  * Zona de peligro: ELIMINAR el comercio con toda su información (sólo
@@ -14,6 +21,13 @@ import type { BlockerCode, DeletionCounts, WarningCode } from "@/lib/restaurantD
  * servidor el resumen —conteos, bloqueos y avisos—, exige tipear el slug
  * exacto y avisa que no se puede deshacer. El servidor vuelve a validar el
  * slug y los bloqueos: el botón deshabilitado es comodidad, no seguridad.
+ *
+ * Cada bloqueo dice qué hacer. Si hay una transición segura (anular las
+ * solicitudes de cobro, anular links, cancelar el débito) se ofrece acá, con
+ * una confirmación corta; si no (plata en vuelo, documentos DIAN), se explica
+ * y se ofrece entrar como el comercio en la pantalla donde se resuelve. El
+ * campo del slug se puede usar siempre: lo que se deshabilita es el botón, con
+ * el motivo debajo del campo.
  */
 type Preview = {
   restaurant: { id: string; name: string; slug: string };
@@ -33,6 +47,16 @@ const COUNT_KEYS: (keyof DeletionCounts)[] = [
   "journalEntries",
   "files",
 ];
+
+type ResolveResponse = {
+  ok?: boolean;
+  error?: string;
+  reason?: string;
+  detail?: string;
+  preview?: Preview | null;
+};
+
+const SUBSCRIPTION_ERRORS = new Set(["billing_not_configured", "provider_rejected", "provider_unavailable"]);
 
 const KNOWN_ERRORS = new Set([
   "confirm_mismatch",
@@ -90,8 +114,16 @@ function DeleteDialog({
   const [slugInput, setSlugInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Acciones sobre los bloqueos: cuál pide confirmación, cuál está corriendo
+  // y el error de la última corrida de cada una.
+  const [confirming, setConfirming] = useState<BlockerAction | null>(null);
+  const [running, setRunning] = useState<BlockerAction | null>(null);
+  const [actionErrors, setActionErrors] = useState<Partial<Record<BlockerAction, string>>>({});
+  const [opening, setOpening] = useState<OperatorDestination | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const working = busy || running !== null || opening !== null;
   const backdrop = useBackdropClose(() => {
-    if (!busy) onClose();
+    if (!working) onClose();
   });
 
   const previewUrl = `/api/admin/restaurants/${restaurantId}/delete`;
@@ -99,6 +131,11 @@ function DeleteDialog({
 
   function retry() {
     setLoadState("loading");
+    setAttempt((n) => n + 1);
+  }
+
+  /** Vuelve a pedir el resumen sin vaciar el diálogo (lo de ahora queda a la vista). */
+  function refresh() {
     setAttempt((n) => n + 1);
   }
 
@@ -126,8 +163,58 @@ function DeleteDialog({
 
   const numberFmt = new Intl.NumberFormat(localeTag(locale));
 
-  const blocked = (preview?.blockers.length ?? 0) > 0;
-  const canConfirm = !!preview && !blocked && !busy && slugInput === slug;
+  const gate = deleteGate({ blockerCount: preview?.blockers.length ?? 0, slugInput, slug });
+  const blocked = gate.reason === "blocked";
+  const canConfirm = !!preview && gate.canDelete && !working;
+  const reasonId = "delete-restaurant-reason";
+
+  function actionErrorText(body: ResolveResponse): string {
+    if (body.error === "subscription_cancel_failed" && body.reason && SUBSCRIPTION_ERRORS.has(body.reason)) {
+      return t(`subscriptionError_${body.reason}`, { detail: body.detail ?? "" });
+    }
+    return t("actionError_generic");
+  }
+
+  async function runAction(action: BlockerAction) {
+    setConfirming(null);
+    setRunning(action);
+    setActionErrors((prev) => ({ ...prev, [action]: undefined }));
+    try {
+      const res = await fetch(`/api/admin/restaurants/${restaurantId}/delete/resolve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const body = (await res.json().catch(() => ({}))) as ResolveResponse;
+      // El servidor devuelve el resumen recalculado (también si falló).
+      if (body.preview) setPreview(body.preview);
+      else refresh();
+      if (!res.ok) setActionErrors((prev) => ({ ...prev, [action]: actionErrorText(body) }));
+    } catch {
+      setActionErrors((prev) => ({ ...prev, [action]: t("actionError_generic") }));
+      refresh();
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  /** Entra como el comercio (igual que "Entrar como operador") y abre la pantalla donde se resuelve. */
+  async function openAsRestaurant(destination: OperatorDestination) {
+    setOpening(destination);
+    setOpenError(null);
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      window.location.assign(OPERATOR_DESTINATION_PATH[destination]);
+    } catch {
+      setOpenError(t("openFailed"));
+      setOpening(null);
+    }
+  }
 
   async function confirm() {
     if (!canConfirm) return;
@@ -184,7 +271,7 @@ function DeleteDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={busy}
+            disabled={working}
             className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
             aria-label={t("close")}
           >
@@ -221,13 +308,72 @@ function DeleteDialog({
             {blocked && (
               <div className="rounded-xl border border-danger/50 bg-danger/10 p-3">
                 <div className="text-sm font-medium text-danger">{t("blockersTitle")}</div>
-                <ul className="mt-1 list-disc pl-5 space-y-1 text-sm">
-                  {preview.blockers.map((b) => (
-                    <li key={b.code}>
-                      {t(`blocker_${b.code}`, { count: b.count, detail: (b.detail ?? []).join(", ") })}
-                    </li>
-                  ))}
+                <ul className="mt-2 space-y-3 text-sm">
+                  {preview.blockers.map((b) => {
+                    const resolution = resolutionFor(b.code);
+                    const action = resolution.kind === "action" ? resolution.action : null;
+                    const actionError = action ? actionErrors[action] : undefined;
+                    return (
+                      <li key={b.code} className="space-y-2">
+                        <p>{t(`blocker_${b.code}`, { count: b.count, detail: (b.detail ?? []).join(", ") })}</p>
+                        {action && confirming === action && (
+                          <div className="rounded-lg border border-danger/40 bg-op-surface p-2 space-y-2">
+                            <p className="text-xs">{t(`confirm_${action}`, { count: b.count })}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => runAction(action)}
+                                disabled={working}
+                                className="mp-btn mp-btn--danger-solid mp-btn--sm"
+                              >
+                                {t(`confirmYes_${action}`)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirming(null)}
+                                className="mp-btn mp-btn--secondary mp-btn--sm"
+                              >
+                                {t("actionBack")}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {action && confirming !== action && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirming(action)}
+                            disabled={working}
+                            aria-busy={running === action}
+                            className="mp-btn mp-btn--danger mp-btn--sm"
+                          >
+                            {running === action ? t(`running_${action}`) : t(`action_${action}`, { count: b.count })}
+                          </button>
+                        )}
+                        {resolution.kind === "operator" && (
+                          <button
+                            type="button"
+                            onClick={() => openAsRestaurant(resolution.destination)}
+                            disabled={working}
+                            aria-busy={opening === resolution.destination}
+                            className="mp-btn mp-btn--secondary mp-btn--sm"
+                          >
+                            {opening === resolution.destination ? t("opening") : t(`goto_${resolution.destination}`)}
+                          </button>
+                        )}
+                        {actionError && (
+                          <p className="text-xs text-danger" role="alert">
+                            {actionError}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
+                {openError && (
+                  <p className="mt-2 text-xs text-danger" role="alert">
+                    {openError}
+                  </p>
+                )}
               </div>
             )}
 
@@ -267,23 +413,31 @@ function DeleteDialog({
                 }}
                 placeholder={slug}
                 aria-label={t("slugLabel")}
+                aria-describedby={gate.reason ? reasonId : undefined}
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
-                disabled={busy || blocked}
+                // Siempre editable (también con bloqueos): lo que se deshabilita es el botón.
+                disabled={gate.slugFieldDisabled}
                 className="w-full px-3 h-10 rounded-lg border border-op-border bg-op-bg text-sm font-mono"
               />
+              {gate.reason && (
+                <p id={reasonId} className={`text-xs ${blocked ? "text-danger" : "text-op-muted"}`}>
+                  {t(`reason_${gate.reason}`)}
+                </p>
+              )}
               {error && <div className="text-xs text-danger" role="alert">{error}</div>}
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              <button type="button" onClick={onClose} disabled={busy} className="mp-btn mp-btn--secondary mp-btn--sm">
+              <button type="button" onClick={onClose} disabled={working} className="mp-btn mp-btn--secondary mp-btn--sm">
                 {t("cancel")}
               </button>
               <button
                 type="button"
                 onClick={confirm}
                 disabled={!canConfirm}
+                aria-describedby={gate.reason ? reasonId : undefined}
                 className="mp-btn mp-btn--danger-solid mp-btn--sm"
               >
                 {busy ? t("busy") : t("confirmCta")}

@@ -67,6 +67,9 @@ export type AuditKind =
   // Eliminar un comercio entero (plataforma: restaurantId null) y bajar su archivo final
   | "restaurant.delete"
   | "restaurant.archive.download"
+  // Resolver bloqueos de "Eliminar comercio" desde el diálogo del admin
+  | "restaurant.delete_blocker.payments_declined"
+  | "restaurant.delete_blocker.payment_links_cancelled"
   | "cash.movement"
   | "cash.shift_base.update"
   | "group.legal_entity.create"
@@ -129,6 +132,8 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.data.reset": "Borró datos del comercio",
   "restaurant.delete": "Eliminó el comercio",
   "restaurant.archive.download": "Descargó el archivo de un comercio eliminado",
+  "restaurant.delete_blocker.payments_declined": "Anuló cobros pendientes para eliminar un comercio",
+  "restaurant.delete_blocker.payment_links_cancelled": "Anuló links de pago para eliminar un comercio",
   "cash.movement": "Movimiento de caja",
   "cash.shift_base.update": "Editó base de turno",
   "group.legal_entity.create": "Creó razón social",

@@ -7,6 +7,8 @@
  *   archive.ts — el ZIP final (formato de las copias + documentos DIAN + archivos).
  *   files.ts   — archivos subidos: qué se conserva y qué se borra del disco.
  *   service.ts — la transacción completa y la lista de comercios eliminados.
+ *   resolution.ts — qué se puede hacer con cada bloqueo desde el diálogo (puro, sirve en cliente).
+ *   resolve.ts — las acciones que resuelven bloqueos (anular solicitudes, links, débito).
  */
 export { RestaurantDeletionError, isRestaurantDeletionError, type RestaurantDeletionErrorCode } from "./errors";
 export type { BlockerCode, DeletionBlocker, DeletionCounts, DeletionWarning, WarningCode } from "./checks";
